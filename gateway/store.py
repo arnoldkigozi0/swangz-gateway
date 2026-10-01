@@ -87,6 +87,11 @@ def store_response(db, final_obj, raw):
     return None, None
 
 
+def load_response_bytes(db, row):
+    """The stored response exactly as received — audio and other binary results."""
+    return get_blob(db, row["resp_blob"]) if row.get("resp_blob") else None
+
+
 def load_response(db, row):
     if not row.get("resp_blob"):
         return None

@@ -147,7 +147,8 @@
     return el("div", { class: "bar" + (limit && value >= limit ? " over" : "") }, fill);
   }
 
-  const KIND_LABEL = { command: "ran", edit: "edit", read: "read", web: "web", agent: "agent", other: "tool" };
+  const KIND_LABEL = { command: "ran", edit: "edit", read: "read", web: "web", agent: "agent", other: "tool",
+    voice: "voice", image: "image", video: "video", media: "media" };
 
   function actionsList(actions, limit) {
     if (!actions || !actions.length) return null;
@@ -194,6 +195,14 @@
   const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
   const usd = (v) => "$" + (Number.isInteger(v * 100) ? v.toFixed(2) : String(v));
 
+  const units = (r) => (r.units ? `${Number(r.units).toLocaleString()} ${r.unit || ""}`.trim() : "");
+  const isVideo = (u) => /\.(mp4|webm|mov)(\?|$)/i.test(u);
+  function thumbs(urls) {
+    return el("div", { class: "thumbs" }, urls.slice(0, 4).map((u) => isVideo(u)
+      ? el("span", { class: "pill info" }, "video")
+      : el("img", { src: u, alt: "", loading: "lazy", referrerpolicy: "no-referrer" })));
+  }
+
   const totalTokens = (r) => (r.in_tok || 0) + (r.out_tok || 0) + (r.cache_write_tok || 0) + (r.cache_read_tok || 0);
 
   function feedItem(r, opts) {
@@ -211,11 +220,12 @@
             outcomePill(r)),
           r.prompt ? el("div", { class: "prompt" }, r.prompt) : null,
           actionsList(r.actions, 4),
-          !r.actions.length && r.reply ? el("div", { class: "reply" }, r.reply) : null,
+          (!r.actions.length || r.kind === "media") && r.reply ? el("div", { class: "reply" }, r.reply) : null,
+          r.result_urls && r.result_urls.length ? thumbs(r.result_urls) : null,
           failed && r.reason ? el("div", { class: "err" }, r.reason) : null),
         el("div", { class: "side-meta" },
-          refused(r) ? el("span", { class: "faint" }, "—") : el("span", null, fmt.money(r.cost)),
-          refused(r) ? null : el("span", { class: "faint" }, fmt.tokens(totalTokens(r)) + " tok"),
+          refused(r) || (r.kind === "media" && r.cost === null) ? el("span", { class: "faint" }, "—") : el("span", null, fmt.money(r.cost)),
+          refused(r) ? null : el("span", { class: "faint" }, r.kind === "media" ? units(r) : fmt.tokens(totalTokens(r)) + " tok"),
           el("span", { class: "row" }, flagPills(r.flags)))));
   }
 
@@ -497,6 +507,7 @@
       daily_budget: el("input", { type: "number", min: "0", step: "0.01", value: p.daily_budget ?? "", placeholder: "no limit" }),
       monthly_budget: el("input", { type: "number", min: "0", step: "0.01", value: p.monthly_budget ?? "", placeholder: "no limit" }),
       allowed_models: el("input", { type: "text", value: p.allowed_models || "", placeholder: "all models" }),
+      allowed_services: el("input", { type: "text", value: p.allowed_services || "", placeholder: "every service" }),
       notes: el("textarea", null, p.notes || ""),
     };
     const node = el("div", { class: "stack" },
@@ -510,6 +521,8 @@
         el("label", { class: "field" }, "Monthly budget (USD)", f.monthly_budget)),
       el("label", { class: "field" }, "Allowed models", f.allowed_models,
         el("span", { class: "hint" }, "Comma-separated, * works as a wildcard: claude-sonnet-*, gpt-6-*. Empty = any model. Through a gateway, Claude Code runs its background tasks on the main model, so allowing that model is enough.")),
+      el("label", { class: "field" }, "Allowed services", f.allowed_services,
+        el("span", { class: "hint" }, "Comma-separated: " + S.me.providers.map((x) => x.name).join(", ") + ". Empty = every service the company has switched on.")),
       el("label", { class: "field" }, "Notes", f.notes));
     const values = () => Object.fromEntries(Object.entries(f).map(([k, input]) => [k, input.value]));
     return { node, values, focus: () => f.name.focus() };
@@ -555,7 +568,8 @@
       el("div", { class: "kpi" }, el("div", { class: "label" }, "Spent this month"), el("div", { class: "value" }, fmt.money(p.month.cost)),
         el("div", { class: "note" }, p.monthly_budget !== null ? `of ${fmt.money(p.monthly_budget)} monthly budget` : "no monthly limit"), p.monthly_budget !== null ? bar(p.month.cost, p.monthly_budget) : null),
       el("div", { class: "kpi" }, el("div", { class: "label" }, "Active keys"), el("div", { class: "value" }, String(p.keys.filter((k) => !k.revoked).length)), el("div", { class: "note" }, `${p.keys.length} issued in total`)),
-      el("div", { class: "kpi" }, el("div", { class: "label" }, "Models allowed"), el("div", { class: "value", style: null }, p.allowed_models ? "limited" : "any"), el("div", { class: "note" }, p.allowed_models || "no restriction")));
+      el("div", { class: "kpi" }, el("div", { class: "label" }, "Allowed"), el("div", { class: "value", style: null }, p.allowed_models || p.allowed_services ? "limited" : "everything"),
+        el("div", { class: "note" }, [p.allowed_services && "services: " + p.allowed_services, p.allowed_models && "models: " + p.allowed_models].filter(Boolean).join(" · ") || "every service and model")));
 
     // keys
     const keyRows = p.keys.length ? el("ul", { class: "keys" }, p.keys.map((k) => el("li", { class: k.revoked ? "revoked" : null },
@@ -713,7 +727,7 @@
       metaCell("Model", el("span", { class: "mono" }, r.model || "—")),
       metaCell("When", fmt.stamp(r.ts)),
       metaCell("Took", `${fmt.ms(r.duration_ms)}` + (r.ttft_ms ? ` (first byte ${fmt.ms(r.ttft_ms)})` : "")),
-      metaCell("Tokens", tokens),
+      metaCell(r.kind === "media" ? "Size" : "Tokens", r.kind === "media" ? (units(r) || "—") : tokens),
       metaCell("Cost", fmt.money(r.cost)),
       metaCell("Outcome", el("span", null, r.outcome === "ok" ? el("span", { class: "pill ok" }, "ok") : outcomePill(r), " ", r.reason || "", r.status ? el("span", { class: "faint" }, ` HTTP ${r.status}`) : null)),
       metaCell("Session", r.session ? el("a", { class: "mono", href: "#/sessions/" + encodeURIComponent(r.session) }, r.session.slice(0, 18) + (r.session.length > 18 ? "…" : "")) : "—"),
@@ -721,13 +735,21 @@
       metaCell("Endpoint", el("span", { class: "mono" }, `${r.provider} ${r.method} ${r.path}`)));
 
     const summary = panel("In short", flagPills(r.flags), el("div", { class: "body stack" },
-      r.prompt ? el("div", null, el("div", { class: "tag" }, "They typed"), el("div", { class: "bubble" }, r.prompt)) : el("div", { class: "hint" }, "Nothing typed in this request — the tool was sending results back to the model on its own."),
+      r.prompt ? el("div", null, el("div", { class: "tag" }, r.kind === "media" ? "They asked for" : "They typed"), el("div", { class: "bubble" }, r.prompt)) : el("div", { class: "hint" }, "Nothing typed in this request — the tool was sending results back to the model on its own."),
       r.actions.length ? el("div", null, el("div", { class: "tag" }, "The model did"), actionsList(r.actions)) : null,
       r.reply ? el("div", null, el("div", { class: "tag" }, "The model said"), longText(r.reply)) : null));
 
     const download = el("a", { class: "btn", href: `/admin/api/requests/${r.id}?download=1` }, "Download JSON");
+    const isAudio = (r.resp_ctype || "").startsWith("audio/");
+    const mediaPanel = isAudio || (r.result_urls && r.result_urls.length) ? panel("What was made", null, el("div", { class: "body stack" },
+      isAudio ? el("audio", { controls: true, preload: "none", src: `/admin/api/requests/${r.id}/media` }) : null,
+      (r.result_urls || []).map((u) => el("div", { class: "stack" },
+        isVideo(u) ? el("video", { controls: true, preload: "metadata", src: u, class: "result" }) : el("img", { src: u, alt: "", class: "result", referrerpolicy: "no-referrer" }),
+        el("a", { class: "mono faint", href: u, target: "_blank", rel: "noopener noreferrer" }, u))),
+      el("div", { class: "hint" }, isAudio ? "Played back from the gateway's own copy. Playing it is written to the audit log." : "Result links come from the service; they can expire."))) : null;
     app.replaceChildren(frame(`Record #${r.id}`, el("span", null, el("a", { href: "#/activity" }, "Activity"), r.person_id ? [" · ", el("a", { href: "#/people/" + r.person_id }, r.person)] : null), [
       meta, el("div", { class: "spacer" }), summary, el("div", { class: "spacer" }),
+      mediaPanel, mediaPanel ? el("div", { class: "spacer" }) : null,
       !r.stored ? panel("Full record", null, empty("The request body was not stored (storage was switched off, or retention has removed it). The summary above is all that is left.")) : null,
       r.request !== null && r.request !== undefined ? panel("What was sent", "the whole request, as the tool sent it", renderRequest(r.kind, r.request)) : null,
       el("div", { class: "spacer" }),
@@ -835,12 +857,12 @@
     const q = el("input", { type: "search", placeholder: "Search prompts, commands, replies…", value: state.q });
     const person = el("select", null, el("option", { value: "" }, "Everyone"), peopleData.items.map((p) => el("option", { value: String(p.id) }, p.name)));
     person.value = state.person;
-    const tool = el("select", null, ["", "Claude Code", "Codex", "Cursor", "OpenAI SDK", "Anthropic SDK", "curl", "unknown"].map((c) => el("option", { value: c }, c || "Any tool")));
+    const tool = el("select", null, ["", "Claude Code", "Codex", "Swangz AI Studio", "Cursor", "OpenAI SDK", "Anthropic SDK", "curl", "unknown"].map((c) => el("option", { value: c }, c || "Any tool")));
     tool.value = state.client;
     const outcome = el("select", null, [["", "Any outcome"], ["ok", "Went through"], ["blocked", "Blocked"], ["denied", "Wrong key"], ["cut", "Cut off"], ["aborted", "Closed by the tool"], ["error", "Errors"]].map(([v, t]) => el("option", { value: v }, t)));
     outcome.value = state.outcome;
-    const show = el("select", null, [["", "All requests"], ["prompts", "Only typed prompts"], ["secret", "Credentials flagged"], ["all", "Include token counts & other calls"]].map(([v, t]) => el("option", { value: v }, t)));
-    show.value = state.only === "prompts" ? "prompts" : state.flag === "secret" ? "secret" : state.all ? "all" : "";
+    const show = el("select", null, [["", "All requests"], ["media", "Voice, image & video"], ["prompts", "Only typed prompts"], ["secret", "Credentials flagged"], ["all", "Include token counts & other calls"]].map(([v, t]) => el("option", { value: v }, t)));
+    show.value = params.get("kind") === "media" ? "media" : state.only === "prompts" ? "prompts" : state.flag === "secret" ? "secret" : state.all ? "all" : "";
     const list = el("ul", { class: "feed" });
     const more = el("button", { class: "btn", onclick: () => load(false) }, "Load older");
     const exportLink = el("a", { class: "btn", href: "/admin/api/export.csv" }, "Export CSV");
@@ -853,6 +875,7 @@
       if (tool.value) p.set("client", tool.value);
       if (outcome.value) p.set("outcome", outcome.value);
       if (show.value === "prompts") p.set("only", "prompts");
+      if (show.value === "media") p.set("kind", "media");
       if (show.value === "secret") p.set("flag", "secret");
       if (show.value === "all") p.set("all", "1");
       return p;
@@ -906,10 +929,11 @@
         : el("button", { class: "btn danger", onclick: () => setPaused(true) }, "Stop all AI")) : null));
 
     const providerRows = st.providers.map((p) => el("tr", null,
-      el("td", null, el("strong", null, p.name), el("div", { class: "hint" }, p.dialect + " dialect")),
+      el("td", null, el("strong", null, p.label || p.name), el("div", { class: "hint" }, p.chat ? "chat & coding models" : "voice, image & video")),
       el("td", { class: "mono" }, `${st.base_url}/${p.name}` + (p.dialect === "openai" ? "/v1" : "")),
       el("td", { class: "mono muted" }, p.upstream),
-      el("td", null, p.configured ? el("span", { class: "pill ok" }, "key set") : el("span", { class: "pill bad", title: "Set the provider's API key in the server environment and restart." }, "no key"))));
+      el("td", null, p.configured ? el("span", { class: "pill ok" }, "key set")
+        : el("span", null, el("span", { class: "pill bad" }, "off"), el("div", { class: "hint" }, `set ${p.key_env} on the server`)))));
     const connections = panel("Addresses and providers", "staff tools point at these", el("div", { class: "table-wrap" }, el("table", null,
       el("thead", null, el("tr", null, el("th", null, "Provider"), el("th", null, "Address for staff tools"), el("th", null, "Forwards to"), el("th", null, "API key"))),
       el("tbody", null, providerRows))),

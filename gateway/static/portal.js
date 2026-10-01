@@ -258,7 +258,152 @@
       el("span", null, "Swangz Avenue · Swangz AI"),
       el("button", { onclick: policy }, "Usage policy")));
 
-    app.replaceChildren(topbar, el("main", null, hero, tools, devices, models, tips), foot);
+    const studio = S.studio && (S.studio.voice || S.studio.image || S.studio.video) && me.active ? studioSection() : null;
+    app.replaceChildren(topbar, el("main", null, hero, studio, tools, devices, models, tips), foot);
+    resumeJobs();
+  }
+
+  // ------------------------------------------------------------------ Studio: voice, image, video
+
+  const TYPE_LABEL = { voice: "Voice-over", image: "Image", video: "Video", sound: "Sound", music: "Music", transcription: "Transcript" };
+  const JOBS = new Map();
+
+  function studioSection() {
+    const st = S.studio;
+    const tabs = [["voice", "Voice", st.voice], ["image", "Image", st.image], ["video", "Video", st.video]].filter((t) => t[2]);
+    const panel = el("div", { class: "studio-panel" });
+    const tabBar = el("div", { class: "tabs", role: "tablist" }, tabs.map(([id, label]) =>
+      el("button", { class: "tab", role: "tab", type: "button", "data-tab": id, onclick: () => show(id) }, label)));
+    const creations = el("div", { class: "creations" });
+
+    function show(id) {
+      tabBar.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === id ? "true" : "false"));
+      panel.replaceChildren(id === "voice" ? voiceForm() : visualForm(id));
+    }
+
+    function voiceForm() {
+      const voice = el("select", { class: "input" }, st.voices.map((v) => el("option", { value: v.id }, v.name + (v.about ? ` — ${v.about}` : ""))));
+      const model = el("select", { class: "input" }, st.voice_models.map((m) => el("option", { value: m.id }, m.name)));
+      const text = el("textarea", { class: "input area", rows: "5", maxlength: "5000", placeholder: "Type the script — for example: Swangz Avenue presents the December Showcase, live at Serena Kampala." });
+      const count = el("span", { class: "muted small" }, "0 / 5,000");
+      text.addEventListener("input", () => { count.textContent = `${text.value.length.toLocaleString()} / 5,000`; });
+      const err = el("div", { class: "form-error" });
+      const go = el("button", { class: "btn btn--solid", type: "submit" }, "Make the voice-over");
+      return el("form", { class: "studio-form", onsubmit: async (e) => {
+        e.preventDefault();
+        err.textContent = "";
+        go.disabled = true;
+        go.textContent = "Making it…";
+        try {
+          const made = await api("POST", "/studio/voice", { text: text.value, voice_id: voice.value, model_id: model.value });
+          addCreation(made, true);
+          text.value = "";
+          count.textContent = "0 / 5,000";
+        } catch (x) { err.textContent = x.message; }
+        go.disabled = false;
+        go.textContent = "Make the voice-over";
+      } },
+      st.voices.length ? null : el("div", { class: "notice" }, "No voices are available yet — ask your admin."),
+      el("div", { class: "form-row" }, el("label", { class: "field" }, el("span", null, "Voice"), voice), el("label", { class: "field" }, el("span", null, "Quality"), model)),
+      el("label", { class: "field" }, el("span", null, "Script"), text), el("div", { class: "spread" }, count, go), err);
+    }
+
+    function visualForm(kind) {
+      const prompt = el("textarea", { class: "input area", rows: "4", placeholder: kind === "image"
+        ? "Describe the picture — for example: a moody poster of a live band on stage at night, Kampala skyline behind, warm amber lights."
+        : "Describe the motion — for example: slow push-in on the singer, haze drifting, lights flicker." });
+      const aspect = el("select", { class: "input" }, ["16:9", "9:16", "1:1", "4:5"].map((a) => el("option", { value: a }, a)));
+      const image = el("input", { class: "input", type: "url", placeholder: "https://… link to the starting picture" });
+      const err = el("div", { class: "form-error" });
+      const label = kind === "image" ? "Make the image" : "Make the video";
+      const go = el("button", { class: "btn btn--solid", type: "submit" }, label);
+      return el("form", { class: "studio-form", onsubmit: async (e) => {
+        e.preventDefault();
+        err.textContent = "";
+        go.disabled = true;
+        go.textContent = "Starting…";
+        try {
+          const made = await api("POST", "/studio/generate", { kind, prompt: prompt.value, aspect_ratio: aspect.value, image_url: image.value });
+          addCreation(made, true);
+          prompt.value = "";
+        } catch (x) { err.textContent = x.message; }
+        go.disabled = false;
+        go.textContent = label;
+      } },
+      kind === "video" ? el("label", { class: "field" }, el("span", null, "Starting picture"), image,
+        el("span", { class: "muted small" }, "Make an image first and copy its link, or use any picture that's online.")) : null,
+      el("label", { class: "field" }, el("span", null, kind === "image" ? "What should it show?" : "What should happen?"), prompt),
+      el("div", { class: "spread" }, kind === "image" ? el("label", { class: "field inline" }, el("span", null, "Shape"), aspect) : el("span"), go), err);
+    }
+
+    function addCreation(c, fresh) {
+      const card = creationCard(c);
+      if (fresh) card.classList.add("fresh");
+      creations.prepend(card);
+      empty.hidden = true;
+      if (c.job && !c.urls.length && c.outcome === "ok") JOBS.set(c.job, card);
+      if (fresh) resumeJobs();
+    }
+
+    const empty = el("p", { class: "muted" }, "What you make shows up here, so you can play it again or download it.");
+    st.recent.slice().reverse().forEach((c) => addCreation(c, false));
+    empty.hidden = st.recent.length > 0;
+    setTimeout(() => show(tabs[0][0]), 0);
+
+    return el("section", { class: "section" }, el("div", { class: "shell" },
+      el("div", { class: "section-head" }, el("div", null, el("div", { class: "eyebrow" }, "Create"), el("h2", null, "Make it here"),
+        el("p", null, "Voice-overs, images and video in the browser — nothing to install, nothing to pay."))),
+      el("div", { class: "studio" }, tabBar, panel),
+      el("h3", { class: "sub-head" }, "Recent creations"), empty, creations));
+  }
+
+  function creationCard(c) {
+    const body = el("div", { class: "creation-media" });
+    fillCreation(body, c);
+    return el("article", { class: "creation", "data-id": String(c.id) },
+      body,
+      el("div", { class: "creation-meta" },
+        el("div", { class: "spread" }, el("span", { class: "eyebrow" }, TYPE_LABEL[c.type] || "Creation"), el("span", { class: "muted small" }, ago(c.ts))),
+        c.prompt ? el("p", { class: "creation-prompt" }, c.prompt) : null));
+  }
+
+  function fillCreation(body, c) {
+    if (c.outcome && c.outcome !== "ok") {
+      body.replaceChildren(el("div", { class: "creation-state bad" }, c.reason || "This one didn't work."));
+    } else if (c.audio) {
+      body.replaceChildren(el("audio", { controls: true, preload: "none", src: c.audio }),
+        el("a", { class: "btn btn--small", href: c.audio, download: "swangz-voice-" + c.id + ".mp3" }, "Download"));
+    } else if (c.urls && c.urls.length) {
+      const u = c.urls[0];
+      const media = c.type === "video" || /\.(mp4|webm|mov)(\?|$)/i.test(u)
+        ? el("video", { controls: true, preload: "metadata", src: u, playsinline: true })
+        : el("img", { src: u, alt: c.prompt || "Generated image", loading: "lazy" });
+      body.replaceChildren(media, el("a", { class: "btn btn--small", href: u, target: "_blank", rel: "noopener noreferrer" }, "Open full size"));
+    } else {
+      body.replaceChildren(el("div", { class: "creation-state" }, el("span", { class: "spinner", "aria-hidden": "true" }), "Working on it — usually under a minute."));
+    }
+  }
+
+  let polling = false;
+  async function resumeJobs() {
+    if (polling) return;
+    polling = true;
+    while (JOBS.size) {
+      await new Promise((r) => setTimeout(r, 3000));
+      for (const [job, card] of [...JOBS]) {
+        if (!card.isConnected) { JOBS.delete(job); continue; }
+        try {
+          const c = await api("GET", "/studio/jobs/" + encodeURIComponent(job));
+          if (c.urls.length || ["failed", "nsfw"].includes(c.state)) {
+            if (c.state === "nsfw") c.outcome = "error", c.reason = "The service turned this one down for its content.";
+            if (c.state === "failed") c.outcome = "error", c.reason = "The service couldn't make this one. Try again.";
+            fillCreation(card.querySelector(".creation-media"), c);
+            JOBS.delete(job);
+          }
+        } catch (e) { JOBS.delete(job); }
+      }
+    }
+    polling = false;
   }
 
   function meter(value, limit) {
@@ -365,6 +510,7 @@
   async function load() {
     try {
       S.me = await api("GET", "/me");
+      try { S.studio = await api("GET", "/studio"); } catch (e) { S.studio = null; }
       render();
     } catch (e) {
       if (e.status === 401) showSignIn();

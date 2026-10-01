@@ -40,13 +40,17 @@ def secret_matches(secret, stored_hash):
 
 
 def client_token(headers):
-    """The key a client presented: x-api-key (Anthropic style) or Authorization: Bearer."""
-    token = (headers.get("x-api-key") or "").strip()
-    if token:
-        return token
+    """The gateway key, however the person's SDK sends it: x-api-key (Anthropic), xi-api-key
+    (ElevenLabs), hf-api-key or "Authorization: Key …" (Higgsfield, fal) or "Authorization: Bearer"."""
+    for name in ("x-api-key", "xi-api-key", "hf-api-key"):
+        token = (headers.get(name) or "").strip()
+        if token:
+            return token
     auth = (headers.get("authorization") or "").strip()
     if auth[:7].lower() == "bearer ":
         return auth[7:].strip()
+    if auth[:4].lower() == "key ":
+        return auth[4:].strip().split(":", 1)[0]  # Higgsfield SDKs insist on KEY_ID:KEY_SECRET
     return ""
 
 

@@ -112,7 +112,7 @@ def _cookie(header, name):
 
 def _session_cookie(ctx, token, max_age):
     flags = f"{SESSION_COOKIE}={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age={max_age}"
-    if ctx.gw.settings.secure_cookies:
+    if ctx.gw.secure_request(ctx.h):
         flags += "; Secure"
     return flags
 
@@ -149,7 +149,7 @@ def logout(ctx):
 
 @route("GET", r"/me")
 def me(ctx):
-    return {"username": ctx.admin["username"], "role": ctx.admin["role"], "base_url": ctx.gw.settings.base_url(),
+    return {"username": ctx.admin["username"], "role": ctx.admin["role"], "base_url": ctx.gw.public_url(ctx.h),
             "providers": _providers(ctx), "tz_offset_minutes": ctx.gw.settings.tz_offset_minutes}
 
 
@@ -175,8 +175,8 @@ def _check_password_strength(pw):
 
 
 def _providers(ctx):
-    return [{"name": p.name, "dialect": p.dialect, "configured": bool(p.api_key()), "upstream": p.base_url}
-            for p in ctx.gw.settings.providers.values()]
+    return [{"name": p.name, "label": p.label, "dialect": p.dialect, "chat": p.is_chat, "configured": bool(p.api_key()),
+             "upstream": p.base_url, "key_env": p.key_env} for p in ctx.gw.settings.providers.values()]
 
 
 def _totals(db, since):
@@ -186,8 +186,8 @@ def _totals(db, since):
         " COUNT(DISTINCT person_id) AS people,"
         " SUM(outcome = 'blocked') AS blocked, SUM(outcome = 'denied') AS denied, SUM(outcome = 'cut') AS cut,"
         " SUM(outcome = 'error') AS errors, SUM(flags LIKE '%secret:%') AS secrets,"
-        " SUM(cost IS NULL AND kind != 'other' AND outcome = 'ok') AS unpriced"
-        " FROM requests WHERE ts >= ? AND (kind != 'other' OR outcome != 'ok')", (since,))
+        " SUM(cost IS NULL AND kind NOT IN ('other', 'media-status') AND outcome = 'ok') AS unpriced"
+        " FROM requests WHERE ts >= ? AND (kind NOT IN ('other', 'media-status') OR outcome != 'ok')", (since,))
     return {k: (v or 0) for k, v in row.items()}
 
 
@@ -199,15 +199,15 @@ def overview(ctx):
     people_today = db.q(
         "SELECT p.id, p.name, p.department, COUNT(r.id) AS requests, COALESCE(SUM(r.cost), 0) AS cost,"
         " MAX(r.ts) AS last FROM requests r JOIN people p ON p.id = r.person_id"
-        " WHERE r.ts >= ? AND r.kind != 'other' GROUP BY p.id ORDER BY cost DESC, requests DESC", (day,))
+        " WHERE r.ts >= ? AND r.kind NOT IN ('other', 'media-status') GROUP BY p.id ORDER BY cost DESC, requests DESC", (day,))
     models = db.q(
         "SELECT model, provider, COUNT(*) AS requests, COALESCE(SUM(cost), 0) AS cost,"
         " SUM(cost IS NULL) AS unpriced, SUM(in_tok + out_tok + cache_write_tok + cache_read_tok) AS tokens"
-        " FROM requests WHERE ts >= ? AND kind != 'other' AND model IS NOT NULL"
+        " FROM requests WHERE ts >= ? AND kind NOT IN ('other', 'media-status') AND model IS NOT NULL"
         " GROUP BY model, provider ORDER BY cost DESC, requests DESC LIMIT 20", (month,))
     clients = db.q(
         "SELECT client, COUNT(*) AS requests, COALESCE(SUM(cost), 0) AS cost FROM requests"
-        " WHERE ts >= ? AND kind != 'other' GROUP BY client ORDER BY requests DESC", (month,))
+        " WHERE ts >= ? AND kind NOT IN ('other', 'media-status') GROUP BY client ORDER BY requests DESC", (month,))
     return {
         "now": now, "day_start": day, "month_start": month,
         "paused": db.get_setting("paused", "0") == "1",
@@ -223,12 +223,15 @@ def overview(ctx):
 LIST_COLUMNS = ("r.id, r.ts, r.person_id, p.name AS person, r.key_id, r.provider, r.kind, r.client, r.session,"
                 " r.model, r.stream, r.status, r.outcome, r.reason, r.duration_ms, r.ttft_ms, r.in_tok, r.out_tok,"
                 " r.cache_write_tok, r.cache_read_tok, r.reasoning_tok, r.cost, r.prompt, r.actions, r.reply,"
-                " r.flags, r.client_ip, r.request_class, r.agent, r.turn_id")
+                " r.flags, r.client_ip, r.request_class, r.agent, r.turn_id, r.media_type, r.units, r.unit, r.result_urls,"
+                " r.resp_ctype")
 
 
 def _shape(row, clip=600):
     row = dict(row)
     row["actions"] = json.loads(row["actions"]) if row.get("actions") else []
+    if "result_urls" in row:
+        row["result_urls"] = json.loads(row["result_urls"]) if row.get("result_urls") else []
     for k in ("prompt", "reply"):
         if clip and row.get(k) and len(row[k]) > clip:
             row[k] = row[k][: clip - 1] + "…"
@@ -254,6 +257,9 @@ def list_requests(ctx):
     if ctx.arg("since", cast=float):
         where.append("r.ts >= ?")
         args.append(ctx.arg("since", cast=float))
+    if ctx.arg("kind") in ("media", "messages", "chat", "responses"):
+        where.append("r.kind = ?")
+        args.append(ctx.arg("kind"))
     if ctx.arg("flag") == "secret":
         where.append("r.flags LIKE '%secret:%'")
     if ctx.arg("only") == "prompts":
@@ -264,7 +270,7 @@ def list_requests(ctx):
         like = "%" + q.replace("%", "").replace("_", "") + "%"
         args += [like, like, like]
     if not ctx.arg("all"):
-        where.append("(r.kind != 'other' OR r.outcome != 'ok')")
+        where.append("(r.kind NOT IN ('other', 'media-status') OR r.outcome != 'ok')")
     limit = max(1, min(ctx.arg("limit", 50, int), 500))
     sql = (f"SELECT {LIST_COLUMNS} FROM requests r LEFT JOIN people p ON p.id = r.person_id"
            + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY r.id DESC LIMIT ?")
@@ -295,10 +301,22 @@ def get_request(ctx, rid):
     return out
 
 
+@route("GET", r"/requests/(?P<rid>\d+)/media")
+def get_media(ctx, rid):
+    """Play back what a voice/sound service returned (stored as received)."""
+    row = ctx.db.one("SELECT r.id, r.resp_blob, r.resp_ctype, p.name AS person FROM requests r"
+                     " LEFT JOIN people p ON p.id = r.person_id WHERE r.id = ?", (int(rid),))
+    data = store.load_response_bytes(ctx.db, row) if row else None
+    if not data:
+        raise ApiError(404, "nothing stored for this request")
+    ctx.audit("played back a generation", f"request #{rid}", f"person: {row['person'] or '-'}")
+    return data, (row["resp_ctype"] or "application/octet-stream"), {"Cache-Control": "no-store"}
+
+
 @route("GET", r"/sessions/(?P<sid>[^/]+)")
 def get_session(ctx, sid):
     rows = ctx.db.q(f"SELECT {LIST_COLUMNS} FROM requests r LEFT JOIN people p ON p.id = r.person_id"
-                    " WHERE r.session = ? AND (r.kind != 'other' OR r.outcome != 'ok') ORDER BY r.id ASC LIMIT 2000", (sid,))
+                    " WHERE r.session = ? AND (r.kind NOT IN ('other', 'media-status') OR r.outcome != 'ok') ORDER BY r.id ASC LIMIT 2000", (sid,))
     if not rows:
         raise ApiError(404, "no such session")
     items = [_shape(r, clip=0) for r in rows]
@@ -316,7 +334,8 @@ def cut_live(ctx, tid):
 
 # ---------------------------------------------------------------- people and keys
 
-PERSON_FIELDS = ("name", "email", "department", "title", "daily_budget", "monthly_budget", "allowed_models", "notes")
+PERSON_FIELDS = ("name", "email", "department", "title", "daily_budget", "monthly_budget", "allowed_models",
+                 "allowed_services", "notes")
 
 
 def _person_values(body, partial):
@@ -363,7 +382,7 @@ def _sign_in_state(p):
 def _spend_map(db, since):
     return {r["person_id"]: r for r in db.q(
         "SELECT person_id, COUNT(*) AS requests, COALESCE(SUM(cost), 0) AS cost, MAX(ts) AS last FROM requests"
-        " WHERE ts >= ? AND kind != 'other' GROUP BY person_id", (since,))}
+        " WHERE ts >= ? AND kind NOT IN ('other', 'media-status') GROUP BY person_id", (since,))}
 
 
 @route("GET", r"/people")
@@ -417,7 +436,7 @@ def get_person(ctx, pid):
         "SELECT session, MIN(ts) AS started, MAX(ts) AS last, COUNT(*) AS requests, COALESCE(SUM(cost), 0) AS cost,"
         " MAX(client) AS client, (SELECT prompt FROM requests r2 WHERE r2.session = r.session AND r2.prompt IS NOT NULL"
         " ORDER BY r2.id LIMIT 1) AS first_prompt FROM requests r WHERE person_id = ? AND session IS NOT NULL"
-        " AND kind != 'other' GROUP BY session ORDER BY last DESC LIMIT 40", (pid,))
+        " AND kind NOT IN ('other', 'media-status') GROUP BY session ORDER BY last DESC LIMIT 40", (pid,))
     person["live"] = [t for t in ctx.gw.live.snapshot() if t["person_id"] == pid]
     return person
 
@@ -462,7 +481,7 @@ def issue_key(ctx, pid):
     ctx.db.x("INSERT INTO keys(id, person_id, label, secret_hash, hint, created, created_by) VALUES(?,?,?,?,?,?,?)",
              (key_id, pid, label, secret_hash, hint, time.time(), ctx.admin["username"]))
     ctx.audit("issued a key", person["name"], f"{label} ({hint})")
-    return {"id": key_id, "key": full, "hint": hint, "label": label, "tools": guides.guides(ctx.gw, full)}
+    return {"id": key_id, "key": full, "hint": hint, "label": label, "tools": guides.guides(ctx.gw, full, ctx.gw.public_url(ctx.h))}
 
 
 @route("POST", r"/people/(?P<pid>\d+)/invite", role="owner")
@@ -475,7 +494,7 @@ def invite_person(ctx, pid):
     from . import staff  # staff builds on this module's ApiError and Ctx
 
     token = staff.new_invite(ctx.db, int(pid))
-    link = f"{ctx.gw.settings.base_url()}/#/welcome/{token}"
+    link = f"{ctx.gw.public_url(ctx.h)}/#/welcome/{token}"
     ctx.audit("created a sign-in link", person["name"], "valid 7 days")
     return {"link": link, "expires_days": 7, "email": person["email"]}
 
@@ -512,7 +531,7 @@ def get_settings(ctx):
             "block_secrets": db.get_setting("block_secrets", "0") == "1",
             "store_bodies": db.get_setting("store_bodies", "1") == "1",
             "staff_self_keys": db.get_setting("staff_self_keys", "1") == "1",
-            "providers": _providers(ctx), "base_url": ctx.gw.settings.base_url(),
+            "providers": _providers(ctx), "base_url": ctx.gw.public_url(ctx.h),
             "tz_offset_minutes": ctx.gw.settings.tz_offset_minutes,
             "db_bytes": (db.scalar("SELECT page_count * page_size FROM pragma_page_count(), pragma_page_size()") or 0),
             "records": db.scalar("SELECT COUNT(*) FROM requests") or 0}
@@ -543,7 +562,7 @@ def put_settings(ctx):
 def list_prices(ctx):
     used = {r["model"]: r for r in ctx.db.q(
         "SELECT model, COUNT(*) AS requests, SUM(cost IS NULL) AS unpriced FROM requests"
-        " WHERE model IS NOT NULL AND kind != 'other' GROUP BY model")}
+        " WHERE model IS NOT NULL AND kind NOT IN ('other', 'media-status') GROUP BY model")}
     rows = ctx.db.q("SELECT * FROM prices ORDER BY provider, model")
     listed = {r["model"] for r in rows}
     missing = [m for m, r in used.items() if r["unpriced"] and m not in listed]

@@ -1,7 +1,9 @@
 """HTTP: providers under /<name>/..., the console at /, its API under /admin/api/."""
 
+import hmac
 import json
 import os
+import re
 import ssl
 import sys
 import threading
@@ -18,7 +20,8 @@ STATIC_TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; ch
                 ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png",
                 ".ico": "image/x-icon"}
 CONSOLE_HEADERS = {
-    "Content-Security-Policy": "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; font-src 'self'; "
+    "Content-Security-Policy": "default-src 'self'; img-src 'self' data: https:; media-src 'self' https: blob:; style-src 'self'; "
+                               "script-src 'self'; font-src 'self'; "
                                "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
@@ -38,6 +41,13 @@ class Gateway:
         self._prices_lock = threading.Lock()
         self.trust_proxy = os.environ.get("GATEWAY_TRUST_PROXY", "") in ("1", "true", "yes")
         self.extra_endpoints = os.environ.get("GATEWAY_EXTRA_ENDPOINTS", "")
+        # tunnels that terminate https without saying so (localhost.run): treat every request as https
+        self.force_https = os.environ.get("GATEWAY_FORCE_HTTPS", "") in ("1", "true", "yes")
+        # The staff app's Studio calls providers through the gateway itself, over loopback, with this
+        # per-process secret instead of a key — so Studio work is checked and recorded like any other.
+        self.internal_secret = security.new_session_token()
+        self.port = settings.port
+        self.voice_cache = (0, [])
         self._bootstrap()
 
     # ------------------------------------------------------------ lookups
@@ -58,7 +68,7 @@ class Gateway:
         if not key_id:
             return None, None
         row = self.db.one(
-            "SELECT k.*, p.name AS person_name, p.status AS person_status, p.allowed_models,"
+            "SELECT k.*, p.name AS person_name, p.status AS person_status, p.allowed_models, p.allowed_services,"
             " p.daily_budget, p.monthly_budget FROM keys k JOIN people p ON p.id = k.person_id WHERE k.id = ?",
             (key_id,),
         )
@@ -66,7 +76,22 @@ class Gateway:
             return None, key_id
         return row, key_id
 
-    def gate(self, key, model, kind):
+    def identify_internal(self, h):
+        """A Studio request from the staff app (loopback + this process's secret) -> (person as a key row, None)."""
+        secret = h.headers.get("x-sgw-internal")
+        if not secret or not hmac.compare_digest(secret, self.internal_secret):
+            return None
+        if (h.client_address[0] if h.client_address else "") not in ("127.0.0.1", "::1"):
+            return None
+        try:
+            pid = int(h.headers.get("x-sgw-person") or 0)
+        except ValueError:
+            return None
+        row = self.db.one("SELECT NULL AS id, NULL AS revoked, p.id AS person_id, p.name AS person_name, p.status AS person_status,"
+                          " p.allowed_models, p.allowed_services, p.daily_budget, p.monthly_budget FROM people p WHERE p.id = ?", (pid,))
+        return (row, None) if row else None
+
+    def gate(self, key, model, kind, provider=None):
         """None when the request may go ahead, else (status, error type, message, short reason)."""
         if self.db.get_setting("paused", "0") == "1":
             return 403, "permission_error", "AI access is paused for everyone by an administrator.", "paused"
@@ -74,7 +99,11 @@ class Gateway:
             return 403, "permission_error", "this key was revoked by an administrator.", "key revoked"
         if key["person_status"] != "active":
             return 403, "permission_error", "your AI access is suspended. Talk to an administrator.", "suspended"
-        if not proxy.model_allowed(key["allowed_models"], model):
+        services = [s.strip().lower() for s in (key.get("allowed_services") or "").split(",") if s.strip()]
+        if provider is not None and services and provider.name.lower() not in services:
+            return 403, "permission_error", f"{provider.label} isn't switched on for you. Talk to an administrator.", "service not allowed"
+        # model rules are about chat and coding models; voice/image/video services have their own rule above
+        if (provider is None or provider.is_chat) and not proxy.model_allowed(key["allowed_models"], model):
             return 403, "permission_error", f"you are not cleared to use the model '{model}'.", "model not allowed"
         if kind != "other" and (key["daily_budget"] is not None or key["monthly_budget"] is not None):
             day, month = proxy.period_starts(time.time(), self.settings.tz_offset_minutes)
@@ -87,6 +116,28 @@ class Gateway:
     def spend(self, person_id, since):
         return self.db.scalar("SELECT COALESCE(SUM(cost), 0) FROM requests WHERE person_id = ? AND ts >= ?",
                               (person_id, since)) or 0.0
+
+    def public_url(self, h=None):
+        """The address people reach the gateway at. A fixed GATEWAY_PUBLIC_URL wins; otherwise it is
+        read from the request (behind a proxy or tunnel: X-Forwarded-Host/-Proto when trusted), so
+        setup instructions always match the link the person actually used."""
+        if self.settings.public_url or h is None:
+            return self.settings.base_url()
+        host = h.headers.get("x-forwarded-host") if self.trust_proxy else None
+        host = (host or h.headers.get("host") or "").split(",")[0].strip()
+        if not re.fullmatch(r"[A-Za-z0-9.\-]+(:\d{1,5})?|\[[0-9a-fA-F:]+\](:\d{1,5})?", host):
+            return self.settings.base_url()
+        proto = (h.headers.get("x-forwarded-proto") or "").split(",")[0].strip() if self.trust_proxy else ""
+        scheme = proto if proto in ("http", "https") else ("https" if self.settings.tls_cert else "http")
+        if self.force_https:
+            scheme = "https"
+        return f"{scheme}://{host}"
+
+    def secure_request(self, h):
+        """Was this request made over https (directly, or through a trusted proxy)?"""
+        if self.settings.secure_cookies or self.settings.tls_cert or self.force_https:
+            return True
+        return self.trust_proxy and (h.headers.get("x-forwarded-proto") or "").startswith("https")
 
     def client_ip(self, h):
         if self.trust_proxy:
@@ -261,6 +312,7 @@ def make_server(settings):
     gw = Gateway(settings)
     handler = type("BoundHandler", (Handler,), {"gw": gw})
     server = Server((settings.host, settings.port), handler)
+    gw.port = server.server_address[1]
     if settings.tls_cert:
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ctx.load_cert_chain(settings.tls_cert, settings.tls_key or None)

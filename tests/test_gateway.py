@@ -411,7 +411,7 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class StaffAppTests(unittest.TestCase):
+class StaffBase(unittest.TestCase):
     def setUp(self):
         self.rig = Rig()
         self.cookie = None
@@ -435,6 +435,8 @@ class StaffAppTests(unittest.TestCase):
         self.assertEqual(status, 200)
         return out["link"].rsplit("/", 1)[1]
 
+
+class StaffAppTests(StaffBase):
     def test_invite_link_sets_a_password_once(self):
         rig = self.rig
         status, out = rig.api("POST", f"/people/{rig.person_id}/invite")
@@ -489,3 +491,138 @@ class StaffAppTests(unittest.TestCase):
         actions = [a["action"] for a in rig.api("GET", "/audit")[1]["items"]]
         self.assertIn("set their Swangz AI password", actions)
         self.assertIn("created a sign-in link", actions)
+
+
+class MediaTests(unittest.TestCase):
+    """ElevenLabs and Higgsfield through the gateway: same keys, same rules, same record."""
+
+    def setUp(self):
+        self.rig = Rig()
+
+    def tearDown(self):
+        self.rig.close()
+
+    def test_elevenlabs_voice_is_recorded_and_playable(self):
+        rig = self.rig
+        status, headers, audio = rig.request("POST", "/elevenlabs/v1/text-to-speech/JBFqnCBsd6RMkjVDRZzb?output_format=mp3_44100_128",
+                                             {"text": "Karibu ku Swangz Avenue showcase.", "model_id": "eleven_multilingual_v2"},
+                                             {"xi-api-key": rig.key, "user-agent": "elevenlabs-python/2.3.0"})
+        self.assertEqual((status, headers["content-type"]), (200, "audio/mpeg"))
+        sent = rig.fake.seen[-1]["headers"]
+        self.assertEqual(sent["xi-api-key"], "eleven-provider-secret")  # the company key went upstream
+        self.assertNotIn(rig.key, json.dumps(rig.fake.seen[-1]))
+        r = rig.last_record()
+        self.assertEqual((r["kind"], r["media_type"], r["model"], r["units"], r["unit"]),
+                         ("media", "voice", "eleven_multilingual_v2", 33, "characters"))
+        self.assertEqual(r["prompt"], "Karibu ku Swangz Avenue showcase.")
+        self.assertEqual(json.loads(r["actions"])[0]["text"], "voice-over · voice JBFqnCBsd6RMkjVDRZzb · 33 characters")
+        status, payload = rig.api("GET", f"/requests/{r['id']}/media")
+        self.assertEqual(payload, audio)  # the admin can play back exactly what was generated
+        self.assertEqual(rig.gw.db.one("SELECT action FROM audit ORDER BY id DESC LIMIT 1")["action"], "played back a generation")
+
+    def test_higgsfield_job_result_lands_on_the_request(self):
+        rig = self.rig
+        status, _, payload = rig.request("POST", "/higgsfield/flux-pro/kontext/max/text-to-image",
+                                         {"prompt": "Bebe Cool on a boda boda at golden hour, Kampala", "aspect_ratio": "16:9"},
+                                         {"authorization": f"Key {rig.key}:anything", "user-agent": "higgsfield-server-js/2.0"})
+        job = json.loads(payload)["request_id"]
+        self.assertEqual(rig.fake.seen[-1]["headers"]["authorization"], "Key hf-id:hf-provider-secret")
+        submit = rig.last_record()
+        self.assertEqual((submit["media_type"], submit["turn_id"], submit["prompt"]),
+                         ("image", job, "Bebe Cool on a boda boda at golden hour, Kampala"))
+        for _ in range(2):
+            rig.request("GET", f"/higgsfield/requests/{job}/status", None, {"authorization": f"Key {rig.key}:x"})
+        submit = rig.gw.db.one("SELECT * FROM requests WHERE id = ?", (submit["id"],))
+        self.assertEqual(json.loads(submit["result_urls"]), ["https://cdn.example.test/result.jpg"])
+        self.assertEqual(submit["reply"], "completed · 1 result")
+        listed = rig.api("GET", "/requests")[1]["items"]
+        self.assertEqual([x["kind"] for x in listed], ["media"])  # status polling stays out of the feed
+
+    def test_account_wide_endpoints_and_service_rules(self):
+        rig = self.rig
+        status, _, _ = rig.request("GET", "/elevenlabs/v1/history", None, {"xi-api-key": rig.key})
+        self.assertEqual(status, 403)  # the company account's history would show everyone's work to everyone
+        rig.api("PATCH", f"/people/{rig.person_id}", {"allowed_models": "claude-haiku-*"})
+        status, _, _ = rig.request("POST", "/elevenlabs/v1/text-to-speech/JBFqnCBsd6RMkjVDRZzb",
+                                   {"text": "hi", "model_id": "eleven_flash_v2_5"}, {"xi-api-key": rig.key})
+        self.assertEqual(status, 200)  # model rules are for chat models; services have their own rule
+        rig.api("PATCH", f"/people/{rig.person_id}", {"allowed_services": "anthropic, openai"})
+        status, _, payload = rig.request("POST", "/elevenlabs/v1/text-to-speech/JBFqnCBsd6RMkjVDRZzb", {"text": "hi"},
+                                         {"xi-api-key": rig.key})
+        self.assertEqual(status, 403)
+        self.assertIn("ElevenLabs isn't switched on for you", payload.decode())
+        self.assertEqual(rig.anthropic({"model": "claude-haiku-4-5", "messages": [{"role": "user", "content": "hi"}]})[0], 200)
+
+    def test_internal_header_needs_the_secret(self):
+        rig = self.rig
+        status, _, _ = rig.request("POST", "/elevenlabs/v1/text-to-speech/JBFqnCBsd6RMkjVDRZzb", {"text": "hi"},
+                                   {"x-sgw-internal": "guess", "x-sgw-person": str(rig.person_id)})
+        self.assertEqual(status, 401)
+
+
+class StudioTests(StaffBase):
+    """The staff app's Studio: voice, image and video, checked and recorded like any other request."""
+
+    def setUp(self):
+        super().setUp()
+        token = self.invite()
+        self.staff("POST", "/welcome", {"token": token, "password": "a-long-password"})
+
+    def test_voice(self):
+        rig = self.rig
+        status, studio = self.staff("GET", "/studio")
+        self.assertEqual((status, studio["voice"], studio["image"]), (200, True, True))
+        self.assertEqual(studio["voices"][0]["name"], "George")
+        status, made = self.staff("POST", "/studio/voice", {"text": "Welcome to the showcase.", "voice_id": "JBFqnCBsd6RMkjVDRZzb"})
+        self.assertEqual(status, 200)
+        self.assertTrue(made["audio"].startswith("/api/studio/media/"))
+        st, _, audio = rig.request("GET", made["audio"], headers={"cookie": self.cookie})
+        self.assertEqual(st, 200)
+        self.assertTrue(audio.startswith(b"ID3"))
+        r = rig.gw.db.one("SELECT * FROM requests WHERE id = ?", (made["id"],))
+        self.assertEqual((r["client"], r["person_id"], r["key_id"], r["prompt"]),
+                         ("Swangz AI Studio", rig.person_id, None, "Welcome to the showcase."))
+        self.assertEqual(self.staff("GET", "/studio")[1]["recent"][0]["id"], made["id"])
+        self.assertEqual(self.staff("POST", "/studio/voice", {"text": "please fail", "voice_id": "JBFqnCBsd6RMkjVDRZzb"})[1]["error"],
+                         "This request exceeds your quota.")
+
+    def test_image_job(self):
+        status, made = self.staff("POST", "/studio/generate", {"kind": "image", "prompt": "A poster for the showcase", "aspect_ratio": "9:16"})
+        self.assertEqual(status, 200)
+        self.assertTrue(made["job"])
+        first = self.staff("GET", f"/studio/jobs/{made['job']}")[1]
+        self.assertEqual((first["state"], first["urls"]), ("in_progress", []))
+        done = self.staff("GET", f"/studio/jobs/{made['job']}")[1]
+        self.assertEqual(done["urls"], ["https://cdn.example.test/result.jpg"])
+        self.assertEqual(self.staff("POST", "/studio/generate", {"kind": "video", "prompt": "slow push in", "image_url": "ftp://x"})[0], 400)
+
+    def test_the_rules_still_apply(self):
+        rig = self.rig
+        rig.api("PATCH", f"/people/{rig.person_id}", {"allowed_services": "anthropic"})
+        self.assertEqual(self.staff("GET", "/studio")[1]["voice"], False)
+        self.assertEqual(self.staff("POST", "/studio/voice", {"text": "hi", "voice_id": "JBFqnCBsd6RMkjVDRZzb"})[0], 403)
+        rig.api("PATCH", f"/people/{rig.person_id}", {"allowed_services": ""})
+        rig.api("POST", "/pause", {"paused": True})
+        status, out = self.staff("POST", "/studio/voice", {"text": "hi", "voice_id": "JBFqnCBsd6RMkjVDRZzb"})
+        self.assertEqual(status, 403)
+        self.assertIn("paused for everyone", out["error"])
+        self.assertEqual(rig.last_record()["outcome"], "blocked")  # refused, and on the record
+
+
+class AddressTests(unittest.TestCase):
+    def test_setup_follows_the_link_people_used(self):
+        rig = Rig()
+        try:
+            rig.settings.public_url = ""
+            rig.gw.trust_proxy = True
+            rig.login()
+            headers = {"cookie": rig.cookies["owner"], "x-gateway-admin": "1",
+                       "x-forwarded-host": "abc123.lhr.life", "x-forwarded-proto": "https"}
+            status, _, payload = rig.request("POST", f"/admin/api/people/{rig.person_id}/keys", {"label": "x"}, headers)
+            codex = next(t for t in json.loads(payload)["tools"] if t["id"] == "codex")
+            self.assertIn('base_url = "https://abc123.lhr.life/openai/v1"', codex["steps"][0]["code"])
+            headers["x-forwarded-host"] = "evil.example/<script>"
+            status, _, payload = rig.request("GET", "/admin/api/me", None, headers)
+            self.assertNotIn("evil", json.loads(payload)["base_url"])  # a malformed host header is ignored
+        finally:
+            rig.close()

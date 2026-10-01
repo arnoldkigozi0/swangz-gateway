@@ -45,6 +45,8 @@ class Handler(BaseHTTPRequestHandler):
         body = json.loads(raw) if raw else {}
         self.server.fake.seen.append({"path": self.path, "headers": {k.lower(): v for k, v in self.headers.items()}, "body": body})
         path = self.path.split("?")[0]
+        if self._media(path, body):
+            return
         if path.endswith("/v1/messages/count_tokens"):
             return self._json(200, {"input_tokens": 42})
         kind = "messages" if path.endswith("/v1/messages") else "chat" if path.endswith("/chat/completions") else "responses" if path.endswith("/responses") else None
@@ -57,12 +59,58 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(400, {"error": {"message": "fake failure", "type": "invalid_request_error"}})
         command = text[4:].strip() if text.startswith("run ") and not tool_turn else None
         reply = "done" if tool_turn else ("hello from the fake model" if not command else None)
+        if self.server.fake.demo and reply:
+            reply = ("Done — the command finished." if tool_turn else
+                     f"[Demo model] Here is a first draft for: “{text[:90]}”. In the real setup this answer comes from Claude or GPT.")
         slow = text.startswith("slow")
         model = body.get("model") or "fake-model"
         stream = bool(body.get("stream"))
         getattr(self, f"_{kind}")(model, stream, reply, command, slow, body)
 
     do_GET = do_POST
+
+    # ------------------------------------------------------------ ElevenLabs and Higgsfield stand-ins
+
+    VOICES = [{"voice_id": "JBFqnCBsd6RMkjVDRZzb", "name": "George", "labels": {"accent": "british", "age": "middle aged"}},
+              {"voice_id": "EXAVITQu4vr4xnSDxMaL", "name": "Sarah", "labels": {"accent": "american", "use case": "news"}}]
+
+    def _media(self, path, body):
+        fake = self.server.fake
+        if self.command == "GET" and path == "/v1/voices":
+            self._json(200, {"voices": self.VOICES})
+            return True
+        if self.command == "POST" and path.startswith("/v1/text-to-speech/"):
+            if "fail" in str(body.get("text", "")):
+                self._json(400, {"detail": {"status": "quota_exceeded", "message": "This request exceeds your quota."}})
+                return True
+            audio = b"ID3\x04\x00\x00\x00\x00\x00\x00" + b"\xff\xfb\x90\x00" * 900  # a valid-looking mp3 frame run
+            self.send_response(200)
+            self.send_header("content-type", "audio/mpeg")
+            self.send_header("content-length", str(len(audio)))
+            self.end_headers()
+            self.wfile.write(audio)
+            return True
+        if self.command == "POST" and (path.startswith("/flux-pro/") or path.startswith("/v1/image2video") or path.startswith("/higgsfield-ai/")):
+            job = f"job{len(fake.jobs) + 1:04d}-0000-4000-8000-000000000000"
+            fake.jobs[job] = {"polls": 0, "video": "image2video" in path}
+            self._json(200, {"status": "queued", "request_id": job,
+                             "status_url": f"https://api.higgsfield.ai/requests/{job}/status"})
+            return True
+        if self.command == "GET" and path.startswith("/requests/") and path.endswith("/status"):
+            job = path.split("/")[2]
+            info = fake.jobs.get(job)
+            if not info:
+                self._json(404, {"detail": "not found"})
+                return True
+            info["polls"] += 1
+            if info["polls"] < 2:
+                self._json(200, {"status": "in_progress", "request_id": job})
+            elif info["video"]:
+                self._json(200, {"status": "completed", "request_id": job, "video": {"url": fake.video_url}})
+            else:
+                self._json(200, {"status": "completed", "request_id": job, "images": [{"url": fake.image_url}]})
+            return True
+        return False
 
     # ------------------------------------------------------------ transport
 
@@ -174,6 +222,10 @@ class Handler(BaseHTTPRequestHandler):
 class FakeUpstream:
     def __init__(self):
         self.seen = []
+        self.demo = False
+        self.jobs = {}
+        self.image_url = "https://cdn.example.test/result.jpg"
+        self.video_url = "https://cdn.example.test/result.mp4"
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.server.daemon_threads = True
         self.server.fake = self
@@ -191,7 +243,12 @@ if __name__ == "__main__":  # run standalone for manual tests: python3 tests/fak
 
     fake = FakeUpstream.__new__(FakeUpstream)
     fake.seen = []
-    fake.server = ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1]) if len(sys.argv) > 1 else 18902), Handler)
+    fake.demo = "--demo" in sys.argv
+    fake.jobs = {}
+    # real, freely licensed sample media so the demo's results actually show
+    fake.image_url = "https://picsum.photos/seed/swangz-kampala/1280/720"
+    fake.video_url = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+    fake.server = ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 18902), Handler)
     fake.server.fake = fake
     print("fake upstream on", fake.server.server_address)
     fake.server.serve_forever()

@@ -8,8 +8,8 @@ import json
 PLACEHOLDER = "YOUR_SWANGZ_AI_KEY"
 
 
-def guides(gw, key=None):
-    base = gw.settings.base_url()
+def guides(gw, key=None, base=None):
+    base = base or gw.settings.base_url()
     key = key or PLACEHOLDER
     providers = gw.settings.providers
     out = []
@@ -69,8 +69,37 @@ def guides(gw, key=None):
                  "code": f'from openai import OpenAI\n\nclient = OpenAI(base_url="{url}", api_key="{key}")'},
             ],
         })
+    eleven = next((p for p in providers.values() if p.dialect == "elevenlabs"), None)
+    if eleven:
+        url = f"{base}/{eleven.name}"
+        out.append({
+            "id": "elevenlabs", "name": "ElevenLabs", "kind": "Voice and sound",
+            "blurb": "Voice-overs, sound effects and transcripts from your own scripts and apps.",
+            "steps": [
+                {"title": "Point the ElevenLabs SDK at Swangz AI", "how": "Python:",
+                 "code": f'from elevenlabs.client import ElevenLabs\n\nclient = ElevenLabs(api_key="{key}", base_url="{url}")'},
+                {"title": "Or call it directly", "how": "This saves hello.mp3 in the current folder:",
+                 "code": (f'curl -X POST "{url}/v1/text-to-speech/JBFqnCBsd6RMkjVDRZzb" \\\n  -H "xi-api-key: {key}" '
+                          '\\\n  -H "content-type: application/json" \\\n  -d \'{"text": "Hello from Swangz"}\' -o hello.mp3')},
+            ],
+        })
+    higgs = next((p for p in providers.values() if p.dialect == "higgsfield"), None)
+    if higgs:
+        url = f"{base}/{higgs.name}"
+        out.append({
+            "id": "higgsfield", "name": "Higgsfield", "kind": "Image and video",
+            "blurb": "Images and video from your own scripts and apps.",
+            "steps": [
+                {"title": "Point the Higgsfield SDK at Swangz AI", "how": "Node.js — the part after the colon can be anything:",
+                 "code": (f"import {{ createHiggsfieldClient }} from '@higgsfield/client/v2';\n\n"
+                          f"const higgsfield = createHiggsfieldClient({{ credentials: '{key}:swangz', baseURL: '{url}' }});")},
+                {"title": "Or call it directly", "how": "Starts an image; poll the status link it returns:",
+                 "code": (f'curl -X POST "{url}/flux-pro/kontext/max/text-to-image" \\\n  -H "Authorization: Key {key}" '
+                          '\\\n  -H "content-type: application/json" \\\n  -d \'{"prompt": "Kampala at golden hour", "aspect_ratio": "16:9"}\'')},
+            ],
+        })
     for p in providers.values():
-        if p is anthropic or p is openai:
+        if p is anthropic or p is openai or p is eleven or p is higgs:
             continue
         url = f"{base}/{p.name}" + ("/v1" if p.dialect == "openai" else "")
         out.append({"id": p.name, "name": p.name.capitalize(), "kind": "Extra provider",

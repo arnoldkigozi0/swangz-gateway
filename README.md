@@ -17,6 +17,42 @@ sub-agents) is unchanged — it is simply on the record.
   says nothing about monitoring. `/admin` is the **control room** for owners and viewers, with an
   audit log of what the watchers themselves did.
 
+## Voice, image and video services
+
+ElevenLabs and Higgsfield are built in; any other AI service with an API key (Runway, Replicate,
+fal, …) can be added in the providers file. They work exactly like the chat models: the company key
+stays on the server, staff use their own gateway key, and every generation is recorded — who, the
+text or prompt, the voice/model and settings, characters or images, and the result (generated audio
+is kept so an admin can play it back; image and video results are kept as their links).
+
+Staff use them two ways:
+
+- **Studio**, inside the Swangz AI app: voice-overs, images and video in the browser, nothing to set up.
+- **Their own scripts and apps**, through the official SDKs pointed at the gateway (the app's "Connect
+  a tool" shows the exact lines). The gateway accepts the key however each SDK sends it.
+
+| Service | Key on the server | Built in |
+|---|---|---|
+| ElevenLabs | `ELEVENLABS_API_KEY` | text-to-speech, speech-to-speech, sound effects, transcription, dialogue, music, voice list |
+| Higgsfield | `HIGGSFIELD_CREDENTIALS` (`KEY_ID:KEY_SECRET`) | every generation endpoint and its status |
+
+Account-wide endpoints (ElevenLabs history, for example) are refused: on a shared company account
+they would show everyone's work to everyone. Each person can be limited to certain services
+("allowed services" on their page) — for example Claude and ElevenLabs, but not video.
+
+Another service, e.g. Runway, in `providers.json`:
+
+```json
+[{"name": "runway", "label": "Runway", "base_url": "https://api.dev.runwayml.com", "key_env": "RUNWAY_API_KEY", "dialect": "media"}]
+```
+
+`dialect: "media"` forwards the service's whole API with the company key (`auth` can be `bearer`,
+`key`, `x-api-key` or `header:<Name>`), and records each request the same way.
+
+**The websites themselves** (higgsfield.ai, elevenlabs.io in a browser) are not put behind the
+gateway: they don't survive being proxied, they block automation, and one shared company login
+usually breaks their terms. The API route above gives the same tools with the record intact.
+
 ## What it records
 
 For every request:
@@ -113,7 +149,8 @@ Environment variables (or a `.env` file next to where you run it):
 | `GATEWAY_HOST`, `GATEWAY_PORT` | `127.0.0.1`, `8787` | where to listen (`PORT` is honoured too) |
 | `GATEWAY_DATA` | `data` | folder for `gateway.db` — must be on a persistent disk |
 | `GATEWAY_TZ_OFFSET` | `+03:00` | when budget days and months start |
-| `GATEWAY_TRUST_PROXY` | off | set to `1` behind a reverse proxy so client IPs come from `X-Forwarded-For` |
+| `GATEWAY_TRUST_PROXY` | off | set to `1` behind a reverse proxy or tunnel: client IPs and the public address come from `X-Forwarded-*` |
+| `GATEWAY_FORCE_HTTPS` | off | set to `1` behind a tunnel that serves https but doesn't say so (localhost.run) |
 | `GATEWAY_PROVIDERS` | — | path to a JSON list of extra providers (see below) |
 | `GATEWAY_EXTRA_ENDPOINTS` | — | endpoints to allow beyond the model calls, e.g. `POST /v1/images/generations` |
 | `GATEWAY_TLS_CERT`, `GATEWAY_TLS_KEY` | — | serve https directly instead of behind a proxy |
@@ -134,6 +171,17 @@ Staff then use `https://ai.example.com/openrouter/v1`.
 **Prices.** Claude models come pre-priced from Anthropic's list prices. Other models are recorded
 with full token counts and shown as **unpriced** until an owner enters a price under Settings —
 the gateway never guesses a price.
+
+## On this laptop, online (demo)
+
+```bash
+DEMO_MODEL=1 bash deploy/laptop-demo.sh
+```
+
+Starts the gateway and a free https tunnel (localhost.run, over plain `ssh`) and prints the staff
+and admin links. With `DEMO_MODEL=1` a stand-in model answers instead of real providers, so nothing
+is spent. The free link changes when the tunnel reconnects and goes down when the laptop sleeps —
+fine for showing it, not for daily use.
 
 ## Running it for real
 

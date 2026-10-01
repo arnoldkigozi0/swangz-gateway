@@ -151,6 +151,15 @@ SCHEMA = [
         ip TEXT
     );
     """,
+    # v4: voice, image and video services (ElevenLabs, Higgsfield, …) and per-person service rules
+    """
+    ALTER TABLE requests ADD COLUMN media_type TEXT;
+    ALTER TABLE requests ADD COLUMN units REAL;
+    ALTER TABLE requests ADD COLUMN unit TEXT;
+    ALTER TABLE requests ADD COLUMN result_urls TEXT;
+    ALTER TABLE requests ADD COLUMN resp_ctype TEXT;
+    ALTER TABLE people ADD COLUMN allowed_services TEXT NOT NULL DEFAULT '';
+    """,
 ]
 
 

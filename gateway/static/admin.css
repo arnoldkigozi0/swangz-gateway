@@ -264,3 +264,8 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
   -webkit-box-shadow: 0 0 0 1000px var(--ink-1) inset; transition: background-color 9999s;
 }
 h1, h2, h3 { text-wrap: balance; }
+
+.thumbs { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.thumbs img { width: 72px; height: 48px; object-fit: cover; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--ink-2); }
+img.result, video.result { width: 100%; max-width: 720px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--ink-2); }
+audio { width: 100%; max-width: 520px; }

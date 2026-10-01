@@ -33,9 +33,18 @@ MAX_ACTION = 400
 # ---------------------------------------------------------------- what kind of call is this
 
 
-def endpoint_kind(dialect, path):
-    """'messages' | 'chat' | 'responses' | 'other'. Only the first three are model calls we read."""
+def endpoint_kind(dialect, path, method="POST"):
+    """'messages' | 'chat' | 'responses' for chat models; 'media' for a voice/image/video job;
+    'media-status' for polling a job; 'other' for everything else."""
     p = path.split("?", 1)[0].rstrip("/")
+    if dialect in ("elevenlabs", "higgsfield", "media"):
+        if method == "POST" and not re.search(r"/requests/[^/]+/cancel$", p):
+            return "media"
+        if dialect == "higgsfield" and re.search(r"/requests/[^/]+/status$", p):
+            return "media-status"
+        if dialect == "media" and method == "GET":
+            return "media-status"
+        return "other"
     if dialect == "anthropic":
         return "messages" if p.endswith("/v1/messages") else "other"
     if p.endswith("/chat/completions"):
@@ -81,6 +90,10 @@ def client_name(headers):
         return "Aider"
     if low.startswith("anthropic/"):
         return "Anthropic SDK"
+    if "elevenlabs" in low:
+        return "ElevenLabs SDK"
+    if "higgsfield" in low:
+        return "Higgsfield SDK"
     if low.startswith("openai/") or "openai-python" in low or "openai-node" in low:
         return "OpenAI SDK"
     if low.startswith("curl/"):
@@ -689,3 +702,142 @@ class StreamReader:
                 r["error"] = self.error
             return r
         return {}
+
+
+# ---------------------------------------------------------------- voice, image and video services
+
+_PROMPT_KEYS = ("text", "prompt", "promptText", "prompt_text", "description", "lyrics")
+
+
+def _find_prompt(body):
+    if not isinstance(body, dict):
+        return None
+    for key in _PROMPT_KEYS:
+        if isinstance(body.get(key), str) and body[key].strip():
+            return body[key].strip()
+    for nest in ("input", "params", "inputs"):
+        inner = body.get(nest)
+        if isinstance(inner, dict):
+            found = _find_prompt(inner)
+            if found:
+                return found
+    if isinstance(body.get("inputs"), list):  # ElevenLabs text-to-dialogue
+        lines = [i.get("text") for i in body["inputs"] if isinstance(i, dict) and isinstance(i.get("text"), str)]
+        if lines:
+            return "\n".join(lines)
+    return None
+
+
+def media_type(dialect, path):
+    p = path.split("?", 1)[0].lower()
+    if dialect == "elevenlabs":
+        if "speech-to-text" in p:
+            return "transcription"
+        if "sound-generation" in p:
+            return "sound"
+        if "music" in p:
+            return "music"
+        return "voice"
+    if "video" in p or "image2video" in p or "/dop" in p or "kling" in p or "veo" in p or "seedance" in p:
+        return "video"
+    if "image" in p or "soul" in p or "flux" in p:
+        return "image"
+    if "speech" in p or "audio" in p or "voice" in p:
+        return "voice"
+    if "music" in p:
+        return "music"
+    return "generation"
+
+
+def summarize_media_request(dialect, path, body, content_type=""):
+    """-> {model, prompt, media_type, units, unit, action} for a voice/image/video request."""
+    p = path.split("?", 1)[0]
+    mtype = media_type(dialect, p)
+    model = None
+    detail = ""
+    if isinstance(body, dict):
+        model = body.get("model_id") or body.get("model")
+        if not isinstance(model, str):
+            model = None
+    if dialect == "higgsfield" or (dialect == "media" and not model):
+        endpoint = p.strip("/")
+        model = f"{endpoint}" + (f" · {body['model']}" if isinstance(body, dict) and isinstance(body.get("model"), str) else "")
+    voice = re.search(r"/(?:text-to-speech|speech-to-speech)/([^/]+)", p)
+    if voice:
+        detail = f" · voice {voice.group(1)}"
+    prompt = _find_prompt(body)
+    if prompt is None and "multipart/" in (content_type or ""):
+        prompt = None
+        detail += " · uploaded a file"
+    units, unit = 1, "request"
+    if dialect == "elevenlabs" and mtype == "voice" and prompt:
+        units, unit = len(prompt), "characters"
+    elif mtype in ("image", "video"):
+        count = 1
+        if isinstance(body, dict):
+            for k in ("num_images", "batch_size", "num_outputs"):
+                if isinstance(body.get(k), int):
+                    count = body[k]
+        units, unit = count, mtype + ("s" if count != 1 else "")
+    noun = {"voice": "voice-over", "sound": "sound effect", "music": "music", "transcription": "transcription",
+            "image": "image", "video": "video"}.get(mtype, "generation")
+    if isinstance(body, dict) and isinstance(body.get("aspect_ratio"), str):
+        detail += f" · {body['aspect_ratio']}"
+    text = noun + detail + (f" · {units} {unit}" if unit == "characters" else "")
+    return {"model": model[:120] if model else None, "prompt": _clip(prompt) if prompt else None, "media_type": mtype,
+            "units": units, "unit": unit,
+            "action": {"tool": dialect, "kind": mtype if mtype in ("voice", "image", "video") else "media", "text": text}}
+
+
+def _urls(d):
+    found = []
+
+    def add(u):
+        if isinstance(u, str) and u.startswith(("http://", "https://")) and u not in found:
+            found.append(u)
+
+    if not isinstance(d, dict):
+        return found
+    for img in d.get("images") or []:
+        add(img.get("url") if isinstance(img, dict) else img)
+    for key in ("video", "audio", "image", "result"):
+        v = d.get(key)
+        add(v.get("url") if isinstance(v, dict) else v)
+    for key in ("url", "audio_url", "video_url", "image_url", "output_url"):
+        add(d.get(key))
+    out = d.get("output")
+    if isinstance(out, str):
+        add(out)
+    elif isinstance(out, list):
+        for o in out:
+            add(o.get("url") if isinstance(o, dict) else o)
+    for job in d.get("jobs") or []:
+        if isinstance(job, dict):
+            raw = ((job.get("results") or {}).get("raw") or {})
+            add(raw.get("url"))
+    return found[:20]
+
+
+def summarize_media_response(content_type, final, size):
+    """-> {status, job_id, urls, reply} from a voice/image/video response (JSON, or audio bytes)."""
+    ctype = (content_type or "").lower()
+    if final is None:
+        kind = ctype.split(";")[0] or "binary"
+        return {"status": None, "job_id": None, "urls": [], "reply": f"{kind} · {size / 1024:.0f} KB" if size else None}
+    if not isinstance(final, dict):
+        return {"status": None, "job_id": None, "urls": [], "reply": None}
+    status = final.get("status") if isinstance(final.get("status"), str) else None
+    job = final.get("request_id") or final.get("id")
+    urls = _urls(final)
+    reply = None
+    if isinstance(final.get("text"), str):  # a transcription
+        reply = _clip(final["text"])
+    elif urls:
+        reply = (f"{status} · " if status else "") + f"{len(urls)} result{'s' if len(urls) != 1 else ''}"
+    elif status:
+        reply = status
+    err = final.get("detail") or final.get("error")
+    if isinstance(err, dict):
+        err = err.get("message") or err.get("status")
+    return {"status": status, "job_id": job if isinstance(job, str) else None, "urls": urls, "reply": reply,
+            "error": err if isinstance(err, str) else None}

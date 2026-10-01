@@ -30,7 +30,11 @@ class Rig:
             "anthropic": Provider("anthropic", self.fake.url, "FAKE_ANTHROPIC_KEY", "anthropic"),
             "openai": Provider("openai", self.fake.url, "FAKE_OPENAI_KEY", "openai"),
             "nokey": Provider("nokey", self.fake.url, "FAKE_MISSING_KEY", "openai"),
+            "elevenlabs": Provider("elevenlabs", self.fake.url, "FAKE_ELEVEN_KEY", "elevenlabs", label="ElevenLabs"),
+            "higgsfield": Provider("higgsfield", self.fake.url, "FAKE_HF_KEY", "higgsfield", label="Higgsfield"),
         }
+        os.environ["FAKE_ELEVEN_KEY"] = "eleven-provider-secret"
+        os.environ["FAKE_HF_KEY"] = "hf-id:hf-provider-secret"
         self.settings = Settings(host="127.0.0.1", port=0, data_dir=self.tmp, pbkdf2_iterations=1000,
                                  providers=providers, public_url="https://ai.example.test")
         self.server, self.gw = make_server(self.settings)

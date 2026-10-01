@@ -4,13 +4,15 @@ For staff, Swangz AI is simply how they reach AI tools at work. This API only ev
 signed-in person's own profile, budget and keys.
 """
 
+import http.client
 import json
 import re
 import secrets
+import ssl
 import time
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
 
-from . import guides, proxy, security
+from . import guides, parse, proxy, security, store
 from .admin import ApiError, Ctx
 
 COOKIE = "sgw_staff"
@@ -53,6 +55,8 @@ def dispatch(h, gw, path, query):
         except ApiError as err:
             return h.send_json(err.status, {"error": err.message})
         if isinstance(result, tuple):
+            if isinstance(result[0], bytes):
+                return h.send_bytes(200, result[0], result[1], result[2])
             return h.send_json(result[0], result[1], result[2] if len(result) > 2 else None)
         return h.send_json(200, result)
     return h.send_json(404, {"error": "no such endpoint"})
@@ -77,7 +81,7 @@ def _cookie(header, name):
 
 def _session_cookie(ctx, token, max_age):
     value = f"{COOKIE}={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age={max_age}"
-    if ctx.gw.settings.secure_cookies:
+    if ctx.gw.secure_request(ctx.h):
         value += "; Secure"
     return value
 
@@ -190,8 +194,8 @@ def me(ctx):
         "models": models,
         "keys": keys,
         "can_add_keys": _self_keys_allowed(ctx) and p["status"] == "active",
-        "tools": guides.guides(ctx.gw),
-        "base_url": ctx.gw.settings.base_url(),
+        "tools": guides.guides(ctx.gw, None, ctx.gw.public_url(ctx.h)),
+        "base_url": ctx.gw.public_url(ctx.h),
     }
 
 
@@ -209,7 +213,7 @@ def add_key(ctx):
     ctx.db.x("INSERT INTO keys(id, person_id, label, secret_hash, hint, created, created_by) VALUES(?,?,?,?,?,?,?)",
              (key_id, p["id"], label, secret_hash, hint, time.time(), "self"))
     ctx.gw.audit(p["name"], "connected a device (issued own key)", p["name"], f"{label} ({hint})", ctx.ip)
-    return {"id": key_id, "key": full, "hint": hint, "label": label, "tools": guides.guides(ctx.gw, full)}
+    return {"id": key_id, "key": full, "hint": hint, "label": label, "tools": guides.guides(ctx.gw, full, ctx.gw.public_url(ctx.h))}
 
 
 @route("POST", r"/keys/(?P<kid>[0-9a-f]{12})/revoke")
@@ -223,3 +227,196 @@ def revoke_key(ctx, kid):
         ctx.gw.audit(ctx.person["name"], "disconnected a device (revoked own key)", ctx.person["name"],
                      f"{row['label']} ({row['hint']})", ctx.ip)
     return {"ok": True}
+
+
+# ---------------------------------------------------------------- Studio: voice, image and video
+
+VOICE_MODELS = [("eleven_multilingual_v2", "Multilingual — best quality"), ("eleven_flash_v2_5", "Flash — fastest")]
+IMAGE_ENDPOINT = "flux-pro/kontext/max/text-to-image"
+VIDEO_ENDPOINT = "v1/image2video/dop"
+
+
+def _service(ctx, dialect):
+    """The first configured provider of this kind that the person is allowed to use, or None."""
+    allowed = [x.strip().lower() for x in (ctx.person.get("allowed_services") or "").split(",") if x.strip()]
+    for p in ctx.gw.settings.providers.values():
+        if p.dialect == dialect and p.api_key() and (not allowed or p.name.lower() in allowed):
+            return p
+    return None
+
+
+def _through_gateway(ctx, provider, method, path, body=None, ref=None):
+    """Call a provider the way any tool would — through this gateway — so the request is checked
+    (paused, suspended, allowed services, budgets) and recorded like everything else."""
+    gw = ctx.gw
+    if gw.settings.tls_cert:
+        conn = http.client.HTTPSConnection("127.0.0.1", gw.port, timeout=300, context=ssl._create_unverified_context())
+    else:
+        conn = http.client.HTTPConnection("127.0.0.1", gw.port, timeout=300)
+    day = time.strftime("%Y%m%d", time.gmtime(time.time() + gw.settings.tz_offset_minutes * 60))
+    headers = {"x-sgw-internal": gw.internal_secret, "x-sgw-person": str(ctx.person["id"]), "user-agent": "Swangz AI Studio",
+               "x-session-id": f"studio-{ctx.person['id']}-{day}"}
+    if ref:
+        headers["x-sgw-ref"] = ref
+    data = None
+    if body is not None:
+        data = json.dumps(body).encode()
+        headers["content-type"] = "application/json"
+    try:
+        conn.request(method, f"/{provider.name}{path}", body=data, headers=headers)
+        resp = conn.getresponse()
+        return resp.status, resp.getheader("content-type") or "", resp.read()
+    except OSError:
+        raise ApiError(502, "Couldn't reach the service. Try again in a moment.")
+    finally:
+        conn.close()
+
+
+def _error_from(payload, fallback):
+    try:
+        d = json.loads(payload)
+    except ValueError:
+        return fallback
+    if not isinstance(d, dict):
+        return fallback
+    err = d.get("error")
+    if isinstance(err, dict) and err.get("message"):
+        msg = str(err["message"]).replace("Swangz AI gateway: ", "")
+        return msg[:1].upper() + msg[1:]
+    detail = d.get("detail")
+    if isinstance(detail, dict):
+        detail = detail.get("message") or detail.get("status")
+    return str(detail) if detail else fallback
+
+
+def _voices(ctx, provider):
+    cached_at, voices = ctx.gw.voice_cache
+    if voices and time.time() - cached_at < 600:
+        return voices
+    status, _, payload = _through_gateway(ctx, provider, "GET", "/v1/voices")
+    if status != 200:
+        return voices
+    try:
+        data = json.loads(payload)
+    except ValueError:
+        return voices
+    voices = [{"id": v.get("voice_id"), "name": v.get("name"),
+               "about": ", ".join(str(x) for x in (v.get("labels") or {}).values() if x)[:80]}
+              for v in data.get("voices") or [] if isinstance(v, dict) and v.get("voice_id")]
+    ctx.gw.voice_cache = (time.time(), voices)
+    return voices
+
+
+def _await_record(ctx, sql, args, tries=60):
+    """The gateway writes a request's record just after it finishes replying; give it a moment."""
+    for _ in range(tries):
+        row = ctx.db.one(sql, args)
+        if row:
+            return row
+        time.sleep(0.05)
+    return None
+
+
+def _creation(row):
+    if not row:
+        return {}
+    return {"id": row["id"], "ts": row["ts"], "type": row["media_type"], "prompt": row["prompt"], "status": row["reply"],
+            "outcome": row["outcome"], "reason": row["reason"],
+            "job": row["turn_id"] if row["provider"] != "elevenlabs" else None,
+            "urls": json.loads(row["result_urls"]) if row["result_urls"] else [],
+            "audio": f"/api/studio/media/{row['id']}" if row["resp_blob"] and (row["resp_ctype"] or "").startswith("audio/") else None}
+
+
+@route("GET", r"/studio")
+def studio(ctx):
+    voice, visual = _service(ctx, "elevenlabs"), _service(ctx, "higgsfield")
+    recent = ctx.db.q("SELECT * FROM requests WHERE person_id = ? AND kind = 'media' AND client = 'Swangz AI Studio'"
+                      " ORDER BY id DESC LIMIT 12", (ctx.person["id"],))
+    return {"voice": bool(voice), "image": bool(visual), "video": bool(visual),
+            "voices": _voices(ctx, voice) if voice else [],
+            "voice_models": [{"id": m, "name": n} for m, n in VOICE_MODELS],
+            "recent": [_creation(r) for r in recent]}
+
+
+@route("POST", r"/studio/voice")
+def studio_voice(ctx):
+    provider = _service(ctx, "elevenlabs")
+    if not provider:
+        raise ApiError(403, "Voice isn't switched on for you.")
+    text = str(ctx.body.get("text") or "").strip()
+    voice = str(ctx.body.get("voice_id") or "").strip()
+    model = str(ctx.body.get("model_id") or VOICE_MODELS[0][0])
+    if not text:
+        raise ApiError(400, "Type what you want spoken.")
+    if len(text) > 5000:
+        raise ApiError(400, "Keep it under 5,000 characters per clip.")
+    if not re.fullmatch(r"[A-Za-z0-9]{6,64}", voice):
+        raise ApiError(400, "Pick a voice.")
+    ref = secrets.token_hex(8)
+    status, ctype, payload = _through_gateway(ctx, provider, "POST", f"/v1/text-to-speech/{quote(voice)}?output_format=mp3_44100_128",
+                                              {"text": text, "model_id": model}, ref)
+    if status != 200 or not ctype.startswith("audio/"):
+        raise ApiError(status if status >= 400 else 502, _error_from(payload, "The voice service didn't return audio."))
+    return _creation(_await_record(ctx, "SELECT * FROM requests WHERE turn_id = ? AND person_id = ? AND resp_blob IS NOT NULL",
+                                   (ref, ctx.person["id"])))
+
+
+@route("POST", r"/studio/generate")
+def studio_generate(ctx):
+    provider = _service(ctx, "higgsfield")
+    if not provider:
+        raise ApiError(403, "Image and video aren't switched on for you.")
+    kind = ctx.body.get("kind")
+    prompt = str(ctx.body.get("prompt") or "").strip()
+    if not prompt:
+        raise ApiError(400, "Describe what you want to make.")
+    if kind == "image":
+        aspect = ctx.body.get("aspect_ratio") if ctx.body.get("aspect_ratio") in ("1:1", "16:9", "9:16", "4:5", "3:4") else "16:9"
+        path, body = "/" + IMAGE_ENDPOINT, {"prompt": prompt, "aspect_ratio": aspect, "safety_tolerance": 2}
+    elif kind == "video":
+        image = str(ctx.body.get("image_url") or "").strip()
+        if not image.startswith("https://"):
+            raise ApiError(400, "A video starts from a picture: paste an https link to the image.")
+        path, body = "/" + VIDEO_ENDPOINT, {"model": "dop-turbo", "prompt": prompt,
+                                            "input_images": [{"type": "image_url", "image_url": image}]}
+    else:
+        raise ApiError(400, "Choose image or video.")
+    ref = secrets.token_hex(8)
+    status, _, payload = _through_gateway(ctx, provider, "POST", path, body, ref)
+    if status >= 400:
+        raise ApiError(status, _error_from(payload, "The service didn't accept that."))
+    try:
+        job = json.loads(payload).get("request_id")
+    except (ValueError, AttributeError):
+        job = None
+    row = _await_record(ctx, "SELECT * FROM requests WHERE person_id = ? AND kind = 'media' AND turn_id IN (?, ?) ORDER BY id DESC",
+                        (ctx.person["id"], job or ref, ref))
+    return _creation(row)
+
+
+@route("GET", r"/studio/jobs/(?P<job>[A-Za-z0-9_\-]{6,80})")
+def studio_job(ctx, job):
+    provider = _service(ctx, "higgsfield")
+    row = ctx.db.one("SELECT * FROM requests WHERE turn_id = ? AND person_id = ? AND kind = 'media'", (job, ctx.person["id"]))
+    if not provider or not row:
+        raise ApiError(404, "No such job.")
+    status, _, payload = _through_gateway(ctx, provider, "GET", f"/requests/{quote(job)}/status")
+    if status >= 400:
+        raise ApiError(status, _error_from(payload, "Couldn't check on that job."))
+    try:
+        data = json.loads(payload)
+    except ValueError:
+        data = {}
+    result = parse.summarize_media_response("application/json", data if isinstance(data, dict) else None, len(payload))
+    out = _creation(row)
+    out.update(state=result["status"], urls=result["urls"] or out["urls"], status=result["reply"] or out["status"])
+    return out
+
+
+@route("GET", r"/studio/media/(?P<rid>\d+)")
+def studio_media(ctx, rid):
+    row = ctx.db.one("SELECT * FROM requests WHERE id = ? AND person_id = ?", (int(rid), ctx.person["id"]))
+    data = store.load_response_bytes(ctx.db, row) if row else None
+    if not data:
+        raise ApiError(404, "Not found.")
+    return data, row["resp_ctype"] or "audio/mpeg", {"Cache-Control": "private, max-age=3600"}

@@ -7,6 +7,7 @@ Claude Code, Codex and the official SDKs behave exactly as they do against the p
 
 import calendar
 import fnmatch
+import re
 import http.client
 import json
 import ssl
@@ -19,7 +20,8 @@ STRIP_REQUEST = {
     "connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "proxy-connection", "te",
     "trailer", "trailers", "transfer-encoding", "upgrade", "host", "content-length", "authorization",
     "x-api-key", "x-goog-api-key", "accept-encoding", "cookie", "forwarded", "x-forwarded-for",
-    "x-forwarded-proto", "x-forwarded-host", "x-real-ip",
+    "x-forwarded-proto", "x-forwarded-host", "x-real-ip", "xi-api-key", "hf-api-key", "hf-secret",
+    "x-sgw-internal", "x-sgw-person",
 }
 STRIP_RESPONSE = {
     "connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "trailers",
@@ -35,6 +37,16 @@ ALLOWED_ENDPOINTS = {
     "anthropic": ["POST /v1/messages", "POST /v1/messages/count_tokens", "GET /v1/models", "GET /v1/models/*"],
     "openai": ["POST /v1/responses", "POST /v1/responses/compact", "POST /v1/chat/completions", "POST /v1/completions",
                "POST /v1/embeddings", "GET /v1/models", "GET /v1/models/*"],
+    # creating speech, sound and transcripts, and listing voices — not the account's history,
+    # which would show everyone's generations to everyone
+    "elevenlabs": ["POST /v1/text-to-speech/*", "POST /v1/speech-to-speech/*", "POST /v1/sound-generation",
+                   "POST /v1/speech-to-text", "POST /v1/text-to-dialogue", "POST /v1/text-to-dialogue/*",
+                   "POST /v1/music", "POST /v1/music/*", "GET /v1/voices", "GET /v2/voices", "GET /v1/voices/*",
+                   "GET /v1/models"],
+    # starting generations and following their status
+    "higgsfield": ["POST /*", "GET /requests/*", "GET /v1/job-sets/*", "GET /v1/motions", "GET /v1/text2image/soul-styles"],
+    # any other service added by an admin: its whole API, on the admin's say-so
+    "media": ["ANY /*"],
 }
 
 
@@ -43,7 +55,7 @@ def endpoint_allowed(dialect, method, path, extra=""):
     rules = ALLOWED_ENDPOINTS.get(dialect, []) + [r.strip() for r in extra.split(",") if r.strip()]
     for rule in rules:
         rule_method, _, rule_path = rule.partition(" ")
-        if rule_method.upper() == method and fnmatch.fnmatchcase(p, rule_path.strip()):
+        if rule_method.upper() in (method, "ANY") and fnmatch.fnmatchcase(p, rule_path.strip()):
             return True
     return False
 
@@ -124,7 +136,8 @@ class Call:
     def __init__(self, gw, h, provider, rest, query):
         self.gw, self.h, self.provider = gw, h, provider
         self.started = time.time()
-        self.kind = parse.endpoint_kind(provider.dialect, rest)
+        self.kind = parse.endpoint_kind(provider.dialect, rest, h.command)
+        self.media = None
         self.rest = rest
         self.query = query
         self.raw = b""
@@ -143,6 +156,7 @@ class Call:
             "req_list_field": None, "req_head": None, "req_items": None, "req_bytes": 0,
             "resp_blob": None, "resp_format": None, "resp_bytes": 0,
             "request_class": None, "agent": None, "turn_id": None,
+            "media_type": None, "units": None, "unit": None, "result_urls": None, "resp_ctype": None,
         }
 
     # ------------------------------------------------------------ steps
@@ -160,19 +174,22 @@ class Call:
         self.rec["req_bytes"] = len(self.raw)
         self._read_body()
 
-        row, key_id = self.gw.identify(security.client_token(h.headers))
+        row, key_id = self.gw.identify_internal(h) or self.gw.identify(security.client_token(h.headers))
         self.rec["key_id"] = key_id
         if row is None:
             return self.refuse(401, "authentication_error", "this key is not a valid Swangz gateway key.", "denied", "bad key", store=False)
         self.key = row
         self.rec["person_id"] = row["person_id"]
-        self.gw.db.x("UPDATE keys SET last_used = ? WHERE id = ?", (self.started, row["id"]))
+        if row["id"]:
+            self.gw.db.x("UPDATE keys SET last_used = ? WHERE id = ?", (self.started, row["id"]))
+        elif h.headers.get("x-sgw-ref"):  # a Studio request: let the staff app find its own record
+            self.rec["turn_id"] = h.headers["x-sgw-ref"][:80]
 
         if not endpoint_allowed(self.provider.dialect, self.h.command, self.rest, self.gw.extra_endpoints):
             return self.refuse(403, "permission_error",
                                f"{self.h.command} {self.rest.split('?')[0]} is not available through the gateway.",
                                "blocked", "endpoint not allowed")
-        gate = self.gw.gate(row, self.rec["model"], self.kind)
+        gate = self.gw.gate(row, self.rec["model"], self.kind, self.provider)
         if gate:
             status, etype, message, why = gate
             return self.refuse(status, etype, message, "blocked", why)
@@ -193,7 +210,13 @@ class Call:
                 self.body = json.loads(self.raw)
             except ValueError:
                 self.body = None
-        if isinstance(self.body, dict):
+        if self.kind == "media":
+            self.media = parse.summarize_media_request(self.provider.dialect, self.rest, self.body, ctype)
+            self.rec.update(model=self.media["model"], prompt=self.media["prompt"], media_type=self.media["media_type"],
+                            units=self.media["units"], unit=self.media["unit"],
+                            actions=json.dumps([self.media["action"]]))
+            self.flags = parse.find_secrets(self.media["prompt"]) if self.media["prompt"] else []
+        elif isinstance(self.body, dict):
             self.summary = parse.summarize_request(self.kind, self.body)
             self.rec["model"] = self.summary["model"]
             self.rec["stream"] = int(self.summary["stream"])
@@ -341,14 +364,36 @@ class Call:
                 final = json.loads(b"".join(kept))
             except ValueError:
                 final = None
-        summary = parse.summarize_response(self.kind, self.provider.dialect, final) if isinstance(final, dict) else None
+        summary = None
+        if self.kind in ("media", "media-status"):
+            self._media_result(ctype, final, size, status)
+        elif isinstance(final, dict):
+            summary = parse.summarize_response(self.kind, self.provider.dialect, final)
         if outcome == "ok" and status >= 400:
             outcome = "error"
-            why = (summary or {}).get("error") or f"HTTP {status}"
+            why = (summary or {}).get("error") or self.rec.pop("reason_detail", None) or f"HTTP {status}"
         elif outcome == "ok" and summary and summary.get("error"):
             outcome, why = "error", summary["error"]
-        self.rec.update(status=status, outcome=outcome, reason=why, resp_bytes=size)
+        self.rec.pop("reason_detail", None)
+        self.rec.update(status=status, outcome=outcome, reason=why, resp_bytes=size, resp_ctype=ctype[:80] or None)
         self.write(summary, b"".join(kept) if final is None else None, final=final)
+
+    def _media_result(self, ctype, final, size, status):
+        """What a voice/image/video service sent back; a finished job is copied onto the request that started it."""
+        result = parse.summarize_media_response(ctype, final if isinstance(final, dict) else None, size)
+        if status >= 400:
+            self.rec["reason_detail"] = result.get("error") or f"HTTP {status}"
+        self.rec["reply"] = result["reply"]
+        if result["urls"]:
+            self.rec["result_urls"] = json.dumps(result["urls"])
+        if self.kind == "media":
+            self.rec["turn_id"] = result["job_id"] or self.rec["turn_id"]
+            return
+        job = result["job_id"] or next(iter(re.findall(r"/requests/([^/]+)/", self.rest)), None)
+        self.rec["turn_id"] = job
+        if job and (result["urls"] or result["status"] in ("completed", "failed", "nsfw")):
+            self.gw.db.x("UPDATE requests SET reply = ?, result_urls = COALESCE(?, result_urls) WHERE provider = ? AND kind = 'media'"
+                         " AND turn_id = ?", (result["reply"], self.rec["result_urls"], self.provider.name, job))
 
     # ------------------------------------------------------------ the record
 
