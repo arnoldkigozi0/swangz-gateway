@@ -178,10 +178,12 @@ the gateway never guesses a price.
 DEMO_MODEL=1 bash deploy/laptop-demo.sh
 ```
 
-Starts the gateway and a free https tunnel (localhost.run, over plain `ssh`) and prints the staff
-and admin links. With `DEMO_MODEL=1` a stand-in model answers instead of real providers, so nothing
-is spent. The free link changes when the tunnel reconnects and goes down when the laptop sleeps —
-fine for showing it, not for daily use.
+Starts the gateway and a free https tunnel and prints the staff and admin links. With
+`cloudflared` installed (one file from Cloudflare's GitHub releases, in `~/.local/bin`) it uses a
+Cloudflare quick tunnel, whose link stays the same while it runs; otherwise it falls back to
+localhost.run over plain `ssh`, whose free links change every so often. With `DEMO_MODEL=1` a
+stand-in model answers instead of real providers, so nothing is spent. Either way the link goes down
+when the laptop sleeps or loses internet — fine for showing it, not for daily use.
 
 ## Running it for real
 
