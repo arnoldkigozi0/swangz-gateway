@@ -728,7 +728,7 @@
       metaCell("When", fmt.stamp(r.ts)),
       metaCell("Took", `${fmt.ms(r.duration_ms)}` + (r.ttft_ms ? ` (first byte ${fmt.ms(r.ttft_ms)})` : "")),
       metaCell(r.kind === "media" ? "Size" : "Tokens", r.kind === "media" ? (units(r) || "—") : tokens),
-      metaCell("Cost", fmt.money(r.cost)),
+      metaCell("Cost", r.kind === "media" && r.cost === null ? "—" : fmt.money(r.cost)),
       metaCell("Outcome", el("span", null, r.outcome === "ok" ? el("span", { class: "pill ok" }, "ok") : outcomePill(r), " ", r.reason || "", r.status ? el("span", { class: "faint" }, ` HTTP ${r.status}`) : null)),
       metaCell("Session", r.session ? el("a", { class: "mono", href: "#/sessions/" + encodeURIComponent(r.session) }, r.session.slice(0, 18) + (r.session.length > 18 ? "…" : "")) : "—"),
       metaCell("From", el("span", { class: "mono" }, r.client_ip || "—")),
@@ -736,8 +736,8 @@
 
     const summary = panel("In short", flagPills(r.flags), el("div", { class: "body stack" },
       r.prompt ? el("div", null, el("div", { class: "tag" }, r.kind === "media" ? "They asked for" : "They typed"), el("div", { class: "bubble" }, r.prompt)) : el("div", { class: "hint" }, "Nothing typed in this request — the tool was sending results back to the model on its own."),
-      r.actions.length ? el("div", null, el("div", { class: "tag" }, "The model did"), actionsList(r.actions)) : null,
-      r.reply ? el("div", null, el("div", { class: "tag" }, "The model said"), longText(r.reply)) : null));
+      r.actions.length ? el("div", null, el("div", { class: "tag" }, r.kind === "media" ? "Request" : "The model did"), actionsList(r.actions)) : null,
+      r.reply ? el("div", null, el("div", { class: "tag" }, r.kind === "media" ? "Result" : "The model said"), longText(r.reply)) : null));
 
     const download = el("a", { class: "btn", href: `/admin/api/requests/${r.id}?download=1` }, "Download JSON");
     const isAudio = (r.resp_ctype || "").startsWith("audio/");
@@ -929,7 +929,8 @@
         : el("button", { class: "btn danger", onclick: () => setPaused(true) }, "Stop all AI")) : null));
 
     const providerRows = st.providers.map((p) => el("tr", null,
-      el("td", null, el("strong", null, p.label || p.name), el("div", { class: "hint" }, p.chat ? "chat & coding models" : "voice, image & video")),
+      el("td", null, el("strong", null, p.label || p.name), el("div", { class: "hint" }, { anthropic: "chat & coding models", openai: "chat & coding models", elevenlabs: "voice & sound",
+        higgsfield: "image & video" }[p.dialect] || "AI service")),
       el("td", { class: "mono" }, `${st.base_url}/${p.name}` + (p.dialect === "openai" ? "/v1" : "")),
       el("td", { class: "mono muted" }, p.upstream),
       el("td", null, p.configured ? el("span", { class: "pill ok" }, "key set")

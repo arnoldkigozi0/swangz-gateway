@@ -129,7 +129,7 @@ class Gateway:
             return self.settings.base_url()
         proto = (h.headers.get("x-forwarded-proto") or "").split(",")[0].strip() if self.trust_proxy else ""
         scheme = proto if proto in ("http", "https") else ("https" if self.settings.tls_cert else "http")
-        if self.force_https:
+        if self.force_https and not re.match(r"(localhost|127\.|\[::1\])", host):
             scheme = "https"
         return f"{scheme}://{host}"
 

@@ -562,7 +562,7 @@ def put_settings(ctx):
 def list_prices(ctx):
     used = {r["model"]: r for r in ctx.db.q(
         "SELECT model, COUNT(*) AS requests, SUM(cost IS NULL) AS unpriced FROM requests"
-        " WHERE model IS NOT NULL AND kind NOT IN ('other', 'media-status') GROUP BY model")}
+        " WHERE model IS NOT NULL AND kind IN ('messages', 'chat', 'responses') GROUP BY model")}
     rows = ctx.db.q("SELECT * FROM prices ORDER BY provider, model")
     listed = {r["model"] for r in rows}
     missing = [m for m, r in used.items() if r["unpriced"] and m not in listed]
