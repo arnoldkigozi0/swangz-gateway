@@ -1,0 +1,3 @@
+Archivo — Copyright 2017 The Archivo Project Authors (https://github.com/Omnibus-Type/Archivo)
+Licensed under the SIL Open Font License, Version 1.1: https://openfontlicense.org
+Self-hosted here (latin subset, variable width 62–125 and weight 400–800) so the console loads nothing from third parties.

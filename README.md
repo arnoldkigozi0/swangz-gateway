@@ -1,0 +1,209 @@
+# Swangz AI Gateway
+
+One controlled way into AI for everyone at Swangz. Staff get a personal key and point their tools at
+the gateway instead of at Anthropic or OpenAI. The gateway holds the real provider keys, passes each
+request through, and keeps a record of **who** used AI, **with which tool**, **what they asked**,
+**what the AI did** (every command it ran, every file it edited), and **what it cost**. An admin can
+pull any of it back later, or cut someone off — including in the middle of a reply.
+
+Coding agents keep working exactly as before. Claude Code and Codex talk to the gateway in their
+providers' own formats, byte for byte, so their full automation (running commands, editing files,
+sub-agents) is unchanged — it is simply on the record.
+
+- Python 3.10+ standard library only. Nothing to install.
+- One SQLite file holds everything.
+- **Two apps on one address.** `/` is **Swangz AI**, the staff app: sign in, connect a tool in about a
+  minute, manage your own devices, see your allowance. It is simply how staff reach AI at work and
+  says nothing about monitoring. `/admin` is the **control room** for owners and viewers, with an
+  audit log of what the watchers themselves did.
+
+## What it records
+
+For every request:
+
+| | |
+|---|---|
+| Who | the person and which of their keys (one key per device or tool) |
+| Tool | Claude Code, Codex, an SDK, curl… — and, for Claude Code and Codex, which sub-agent inside it |
+| Session | requests grouped into the conversation they belong to, and the typed prompt each one serves |
+| Asked | what the person actually typed, with the context their tool injects stripped off |
+| Did | each action in plain words: `$ npm test`, `edited src/login.ts`, `fetched https://…`, `started a sub-agent` |
+| Said | the model's reply |
+| Cost | input, output, cache and reasoning tokens, and dollars |
+| Flags | credentials (API keys, cloud keys, private keys) seen in what was sent; attachments |
+| Full record | the whole request and response, rebuilt on demand, downloadable as JSON |
+
+Agents resend the whole conversation on every turn. The gateway stores each message once (by its
+hash), so a long agent session costs about one copy of the conversation, not one per turn.
+
+## What an admin can do
+
+- **Watch live** — who is waiting on a model right now, what they asked, and how long it has run.
+- **Stop one request**, **revoke a key**, **suspend a person**, or **stop all AI** with one switch.
+  Each of these cuts requests that are already streaming; the tool gets a clear
+  "revoked by an administrator" error in its own format, marked as not worth retrying.
+- **Set limits** per person: a daily and monthly dollar budget, and which models they may use.
+- **Search** everything by text, person, tool or outcome; **export** CSV.
+- **Refuse requests that contain credentials** (off by default — when off, they are flagged).
+- **Two roles**: owners change things, viewers only look. Opening a full record, every change, and
+  every sign-in is written to the audit log.
+
+## Quick start (on any machine)
+
+```bash
+git clone https://github.com/arnoldkigozi0/swangz-gateway.git
+cd swangz-gateway
+cp .env.example .env            # put the provider keys in it
+python3 -m gateway add-admin arnold
+python3 -m gateway serve        # http://localhost:8787
+```
+
+Open the control room at `/admin`, add a person under **People** with their work email, and press
+**Create sign-in link**. Send them the link (copy it, or share it on WhatsApp). They choose a password,
+land in the Swangz AI app, and connect their tools themselves — each device gets its own key, shown
+once, with the exact lines to paste. An owner can also issue keys directly from a person's page.
+
+## Connecting tools
+
+Staff normally do this from the Swangz AI app ("Connect a tool"), which fills in the real address and
+key. For reference:
+
+**Claude Code** — in `~/.claude/settings.json`:
+
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://ai.example.com/anthropic",
+    "ANTHROPIC_AUTH_TOKEN": "sgw_…",
+    "CLAUDE_CODE_GATEWAY_HINT_HEADERS": "1"
+  }
+}
+```
+
+`CLAUDE_CODE_GATEWAY_HINT_HEADERS=1` makes Claude Code label each request (main turn, sub-agent,
+compaction, background task) and group requests by the prompt they serve, so the record is richer.
+
+**Codex** — in `~/.codex/config.toml`, and the key in the shell profile:
+
+```toml
+model_provider = "swangz"
+
+[model_providers.swangz]
+name = "Swangz AI Gateway"
+base_url = "https://ai.example.com/openai/v1"
+env_key = "SWANGZ_AI_KEY"
+wire_api = "responses"
+```
+
+**Anything else** that takes a base URL and an API key (the Anthropic and OpenAI SDKs, most AI
+tools): base URL `https://ai.example.com/anthropic` or `https://ai.example.com/openai/v1`, API key
+`sgw_…`.
+
+Staff must use the gateway key. A tool signed in with a personal subscription (a Claude Pro/Max
+login, Codex with a ChatGPT login) goes straight to the provider and the gateway never sees it.
+
+## Configuration
+
+Environment variables (or a `.env` file next to where you run it):
+
+| Variable | Default | |
+|---|---|---|
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | — | the company's provider keys; only the server ever sees them |
+| `GATEWAY_PUBLIC_URL` | — | the address staff use, e.g. `https://ai.swangz.com`; https here turns on secure cookies |
+| `GATEWAY_HOST`, `GATEWAY_PORT` | `127.0.0.1`, `8787` | where to listen (`PORT` is honoured too) |
+| `GATEWAY_DATA` | `data` | folder for `gateway.db` — must be on a persistent disk |
+| `GATEWAY_TZ_OFFSET` | `+03:00` | when budget days and months start |
+| `GATEWAY_TRUST_PROXY` | off | set to `1` behind a reverse proxy so client IPs come from `X-Forwarded-For` |
+| `GATEWAY_PROVIDERS` | — | path to a JSON list of extra providers (see below) |
+| `GATEWAY_EXTRA_ENDPOINTS` | — | endpoints to allow beyond the model calls, e.g. `POST /v1/images/generations` |
+| `GATEWAY_TLS_CERT`, `GATEWAY_TLS_KEY` | — | serve https directly instead of behind a proxy |
+| `GATEWAY_BOOTSTRAP_ADMIN`, `GATEWAY_BOOTSTRAP_PASSWORD` | — | create the first owner on hosts with no shell |
+
+Settings that change while running — retention, storing full bodies, refusing credentials, model
+prices, console users — live in the console under **Settings**.
+
+**More providers.** Any service that speaks the Anthropic or OpenAI format can sit behind the
+gateway. `providers.json`:
+
+```json
+[{"name": "openrouter", "base_url": "https://openrouter.ai/api", "key_env": "OPENROUTER_API_KEY", "dialect": "openai"}]
+```
+
+Staff then use `https://ai.example.com/openrouter/v1`.
+
+**Prices.** Claude models come pre-priced from Anthropic's list prices. Other models are recorded
+with full token counts and shown as **unpriced** until an owner enters a price under Settings —
+the gateway never guesses a price.
+
+## Running it for real
+
+The gateway must be always on, reachable by staff over **https**, with its data folder on a disk
+that survives restarts. Free tiers that sleep or wipe the disk are not suitable. A small Linux VPS
+(1 GB RAM is plenty) or an always-on office machine behind a tunnel both work.
+
+`deploy/` has a systemd unit and a Caddy config (Caddy gets the https certificate automatically):
+
+```bash
+sudo cp -r . /opt/swangz-gateway && sudo cp deploy/swangz-gateway.service /etc/systemd/system/
+sudo systemctl enable --now swangz-gateway
+```
+
+Back up `data/gateway.db` regularly — it is the record.
+
+## Security model
+
+- Staff keys are `sgw_<id>_<secret>`; only a SHA-256 of the secret is stored, so a copy of the
+  database cannot be used to make requests. Keys are shown once.
+- Provider keys never leave the server, are never stored in the database, and are stripped from
+  everything forwarded.
+- Only model endpoints are forwarded. Everyone's traffic shares the company provider key, so
+  endpoints that could read other people's data through it (files, batches, stored responses, the
+  admin API) are refused unless an owner explicitly allows them.
+- The console uses an HttpOnly, SameSite=Strict session cookie, a required header on every change,
+  a strict Content-Security-Policy, and never renders anything a person typed as HTML. Sign-in is
+  rate limited. CSV exports are protected against spreadsheet formula injection.
+- Passwords use PBKDF2-SHA256 (310,000 rounds). Staff sign-in links work once, expire after seven
+  days, and are stored only as a hash. Staff and admin sessions use separate cookies; a staff session
+  opens nothing in the control room, and the staff API only ever returns the person's own profile,
+  allowance and devices.
+- The staff app and control room can live on separate subdomains if you prefer (point both at the
+  same gateway); it keeps browsers from offering admin passwords on the staff sign-in page.
+
+## What it can't see
+
+Being honest about the edges:
+
+- **Only traffic that goes through it.** Web apps used directly in a browser (ChatGPT, claude.ai,
+  Higgsfield, Runway…) and tools signed in with personal subscriptions bypass any gateway. Making
+  the gateway the only way to get company-paid AI is a policy decision, not a technical one.
+- **Commands the agent runs are recorded as the model asked for them.** The output of each
+  command comes back in the next request and is in the full record, but the gateway does not run
+  on the person's machine and cannot see anything the agent did not report to the model.
+- **Budgets are checked before each request**, so one long request can take someone slightly past
+  their limit.
+- Claude Code's auto mode can ask the API to run its safety checks server-side; the gateway passes
+  that through untouched, but it has only been tested against a stand-in provider, not the real API.
+
+The staff app frames itself as a work tool, not as monitoring. Its "Usage policy" note still says,
+in one plain line, that use is recorded for security, cost and support — Uganda's Data Protection
+and Privacy Act expects people to be told, and that note covers it without making a feature of it.
+
+## Command line
+
+```
+python3 -m gateway serve | add-admin USER [--viewer] | add-person NAME [--department D]
+                   issue-key PERSON_ID [--label L] | revoke-key KEY_ID | people | pause | resume | purge
+```
+
+A revoke or pause from the command line applies from the next request; only the console can also
+cut requests that are already streaming.
+
+## Tests
+
+```bash
+python3 -m unittest discover -s tests -t .
+```
+
+The suite runs the gateway against a stand-in provider that speaks both formats, streamed and not:
+key handling, every refusal, budgets, cutting live streams, record rebuilding, retention, the
+console API and its permissions.

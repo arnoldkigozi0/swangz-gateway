@@ -1,0 +1,11 @@
+# Caddy fetches and renews the https certificate on its own.
+ai.example.com {
+	reverse_proxy 127.0.0.1:8787 {
+		# stream model replies as they arrive; never buffer
+		flush_interval -1
+		transport http {
+			read_timeout 15m
+			write_timeout 15m
+		}
+	}
+}
