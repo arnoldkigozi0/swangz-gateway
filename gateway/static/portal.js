@@ -45,13 +45,18 @@
     constructor(status, message) { super(message); this.status = status; }
   }
 
+  // When the app is served by the gateway, GATEWAY is "" (same origin). When it's hosted elsewhere
+  // (e.g. Netlify), a config.js sets window.SWANGZ_GATEWAY to the gateway's address.
+  const GATEWAY = (typeof window !== "undefined" && window.SWANGZ_GATEWAY || "").replace(/\/+$/, "");
+  const gurl = (path) => GATEWAY + path;
+
   async function api(method, path, body) {
-    const opts = { method, credentials: "same-origin", headers: { "x-swangz-app": "1" } };
+    const opts = { method, credentials: "include", headers: { "x-swangz-app": "1" } };
     if (body !== undefined) {
       opts.headers["content-type"] = "application/json";
       opts.body = JSON.stringify(body);
     }
-    const res = await fetch("/api" + path, opts);
+    const res = await fetch(GATEWAY + "/api" + path, opts);
     let data = null;
     try { data = await res.json(); } catch (e) { /* empty */ }
     if (!res.ok) throw new ApiError(res.status, (data && data.error) || "Something went wrong. Try again.");
@@ -434,8 +439,8 @@
     if (c.outcome && c.outcome !== "ok") {
       body.replaceChildren(el("div", { class: "creation-state bad" }, c.reason || "This one didn't work."));
     } else if (c.audio) {
-      body.replaceChildren(el("audio", { controls: true, preload: "none", src: c.audio }),
-        el("a", { class: "btn btn--small", href: c.audio, download: "swangz-voice-" + c.id + ".mp3" }, "Download"));
+      body.replaceChildren(el("audio", { controls: true, preload: "none", src: gurl(c.audio), crossorigin: GATEWAY ? "use-credentials" : null }),
+        el("a", { class: "btn btn--small", href: gurl(c.audio), download: "swangz-voice-" + c.id + ".mp3" }, "Download"));
     } else if (c.urls && c.urls.length) {
       const u = c.urls[0];
       const media = c.type === "video" || /\.(mp4|webm|mov)(\?|$)/i.test(u)

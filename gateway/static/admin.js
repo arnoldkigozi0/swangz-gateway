@@ -31,13 +31,16 @@
     constructor(status, message) { super(message); this.status = status; }
   }
 
+  const GATEWAY = (typeof window !== "undefined" && window.SWANGZ_GATEWAY || "").replace(/\/+$/, "");
+  const gadmin = (path) => GATEWAY + "/admin/api" + path;
+
   async function api(method, path, body) {
-    const opts = { method, credentials: "same-origin", headers: { "x-gateway-admin": "1" } };
+    const opts = { method, credentials: "include", headers: { "x-gateway-admin": "1" } };
     if (body !== undefined) {
       opts.headers["content-type"] = "application/json";
       opts.body = JSON.stringify(body);
     }
-    const res = await fetch("/admin/api" + path, opts);
+    const res = await fetch(GATEWAY + "/admin/api" + path, opts);
     let data = null;
     try { data = await res.json(); } catch (e) { /* not JSON */ }
     if (res.status === 401 && path !== "/login") {
@@ -650,7 +653,7 @@
           signIn,
           controls,
           p.notes && !owner ? panel("Notes", null, el("div", { class: "body" }, longText(p.notes))) : null)),
-    ], [el("a", { class: "btn", href: `/admin/api/export.csv?person=${p.id}` }, "Export CSV"), issue, toggle]));
+    ], [el("a", { class: "btn", href: gadmin(`/export.csv?person=${p.id}`) }, "Export CSV"), issue, toggle]));
   }
 
   function personToolsPanel(p, owner) {
@@ -780,10 +783,10 @@
       r.actions.length ? el("div", null, el("div", { class: "tag" }, r.kind === "media" ? "Request" : "The model did"), actionsList(r.actions)) : null,
       r.reply ? el("div", null, el("div", { class: "tag" }, r.kind === "media" ? "Result" : "The model said"), longText(r.reply)) : null));
 
-    const download = el("a", { class: "btn", href: `/admin/api/requests/${r.id}?download=1` }, "Download JSON");
+    const download = el("a", { class: "btn", href: gadmin(`/requests/${r.id}?download=1`) }, "Download JSON");
     const isAudio = (r.resp_ctype || "").startsWith("audio/");
     const mediaPanel = isAudio || (r.result_urls && r.result_urls.length) ? panel("What was made", null, el("div", { class: "body stack" },
-      isAudio ? el("audio", { controls: true, preload: "none", src: `/admin/api/requests/${r.id}/media` }) : null,
+      isAudio ? el("audio", { controls: true, preload: "none", src: gadmin(`/requests/${r.id}/media`), crossorigin: GATEWAY ? "use-credentials" : null }) : null,
       (r.result_urls || []).map((u) => el("div", { class: "stack" },
         isVideo(u) ? el("video", { controls: true, preload: "metadata", src: u, class: "result" }) : el("img", { src: u, alt: "", class: "result", referrerpolicy: "no-referrer" }),
         el("a", { class: "mono faint", href: u, target: "_blank", rel: "noopener noreferrer" }, u))),
@@ -906,7 +909,7 @@
     show.value = params.get("kind") === "media" ? "media" : state.only === "prompts" ? "prompts" : state.flag === "secret" ? "secret" : state.all ? "all" : "";
     const list = el("ul", { class: "feed" });
     const more = el("button", { class: "btn", onclick: () => load(false) }, "Load older");
-    const exportLink = el("a", { class: "btn", href: "/admin/api/export.csv" }, "Export CSV");
+    const exportLink = el("a", { class: "btn", href: gadmin("/export.csv") }, "Export CSV");
     let minId = null;
 
     function query() {
@@ -932,7 +935,7 @@
       data.items.forEach((r) => list.append(feedItem(r)));
       if (data.items.length) minId = Math.min(...data.items.map((r) => r.id));
       more.hidden = !data.more;
-      exportLink.href = "/admin/api/export.csv" + (person.value ? "?person=" + person.value : "");
+      exportLink.href = gadmin("/export.csv" + (person.value ? "?person=" + person.value : ""));
     }
 
     let timer = null;

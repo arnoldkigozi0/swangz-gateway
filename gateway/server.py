@@ -46,6 +46,8 @@ class Gateway:
         self.extra_endpoints = os.environ.get("GATEWAY_EXTRA_ENDPOINTS", "")
         # tunnels that terminate https without saying so (localhost.run): treat every request as https
         self.force_https = os.environ.get("GATEWAY_FORCE_HTTPS", "") in ("1", "true", "yes")
+        # web origins allowed to call the API cross-site, e.g. a staff app hosted on Netlify
+        self.cors_origins = {o.strip().rstrip("/").lower() for o in os.environ.get("GATEWAY_CORS_ORIGINS", "").split(",") if o.strip()}
         # The staff app's Studio calls providers through the gateway itself, over loopback, with this
         # per-process secret instead of a key — so Studio work is checked and recorded like any other.
         self.internal_secret = security.new_session_token()
@@ -162,6 +164,23 @@ class Gateway:
             return True
         return self.trust_proxy and (h.headers.get("x-forwarded-proto") or "").startswith("https")
 
+    def allowed_origin(self, h):
+        """The request's Origin if it is on the cross-site allowlist, else None."""
+        origin = (h.headers.get("origin") or "").strip().rstrip("/")
+        return origin if origin and origin.lower() in self.cors_origins else None
+
+    def cors_headers(self, h):
+        """Headers that let an allowlisted web origin make credentialed API calls. Empty if none."""
+        origin = self.allowed_origin(h)
+        if not origin:
+            return {}
+        return {"Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true", "Vary": "Origin"}
+
+    def cross_site(self, h):
+        """True when the caller is an allowlisted web origin (e.g. the staff app on Netlify) — then
+        session cookies need SameSite=None so the browser will send them to the gateway."""
+        return bool(self.allowed_origin(h))
+
     def client_ip(self, h):
         if self.trust_proxy:
             forwarded = h.headers.get("x-forwarded-for")
@@ -220,10 +239,18 @@ class Handler(BaseHTTPRequestHandler):
     def route(self):
         self._body = None
         self._responded = False
+        self._cors = self.gw.cors_headers(self)
         path, _, query = self.path.partition("?")
         try:
             if ".." in path or "\\" in path:
                 return self.send_json(400, {"error": "bad path"})
+            if self.command == "OPTIONS" and self._cors and (path.startswith("/api/") or path.startswith("/admin/api/")):
+                # CORS preflight for the staff/admin app hosted on another origin
+                req_headers = self.headers.get("access-control-request-headers") or "content-type, authorization, x-swangz-app, x-gateway-admin"
+                self.send_bytes(204, b"", "text/plain", {
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+                    "Access-Control-Allow-Headers": req_headers, "Access-Control-Max-Age": "600"})
+                return
             if path.startswith("/admin/api/"):
                 return admin.dispatch(self, self.gw, path, query)
             if path.startswith("/api/"):
@@ -290,7 +317,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
-        for k, v in (headers or {}).items():
+        merged = {**getattr(self, "_cors", {}), **(headers or {})}
+        for k, v in merged.items():
             if isinstance(v, (list, tuple)):
                 for item in v:
                     self.send_header(k, item)

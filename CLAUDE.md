@@ -83,7 +83,7 @@ DEMO_MODEL=1 bash deploy/laptop-demo.sh  # starts the gateway + a free https tun
 
 **Configuration** (environment): provider keys `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
 `ELEVENLABS_API_KEY`, `HIGGSFIELD_CREDENTIALS`; address `GATEWAY_PUBLIC_URL`; `GATEWAY_HOST/PORT/DATA`;
-`GATEWAY_TRUST_PROXY` / `GATEWAY_FORCE_HTTPS` behind a proxy or tunnel; `GATEWAY_TZ_OFFSET`. Runtime
+`GATEWAY_TRUST_PROXY` / `GATEWAY_FORCE_HTTPS` behind a proxy or tunnel; `GATEWAY_CORS_ORIGINS` to let a Netlify-hosted front-end call the API (see `deploy/NETLIFY.md`); `GATEWAY_TZ_OFFSET`. Runtime
 settings (retention, rate limit, kill switch, …) live in the control room under Settings.
 
 ## Picking the project up on a new machine

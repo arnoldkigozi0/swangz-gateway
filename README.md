@@ -155,6 +155,7 @@ Environment variables (or a `.env` file next to where you run it):
 | `GATEWAY_TZ_OFFSET` | `+03:00` | when budget days and months start |
 | `GATEWAY_TRUST_PROXY` | off | set to `1` behind a reverse proxy or tunnel: client IPs and the public address come from `X-Forwarded-*` |
 | `GATEWAY_FORCE_HTTPS` | off | set to `1` behind a tunnel that serves https but doesn't say so (localhost.run) |
+| `GATEWAY_CORS_ORIGINS` | — | web origins allowed to call the API cross-site, e.g. a staff app on Netlify (comma-separated); see [`deploy/NETLIFY.md`](deploy/NETLIFY.md) |
 | `GATEWAY_PROVIDERS` | — | path to a JSON list of extra providers (see below) |
 | `GATEWAY_EXTRA_ENDPOINTS` | — | endpoints to allow beyond the model calls, e.g. `POST /v1/images/generations` |
 | `GATEWAY_TLS_CERT`, `GATEWAY_TLS_KEY` | — | serve https directly instead of behind a proxy |

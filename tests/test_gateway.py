@@ -842,3 +842,42 @@ class HardeningTests(unittest.TestCase):
     def test_rate_limit_validation(self):
         self.assertEqual(self.rig.api("PUT", "/settings", {"rate_per_min": -1})[0], 400)
         self.assertEqual(self.rig.api("PUT", "/settings", {"rate_per_min": "lots"})[0], 400)
+
+
+class CorsTests(unittest.TestCase):
+    """A staff/admin app hosted on another origin (e.g. Netlify) can call the API with credentials."""
+
+    def setUp(self):
+        self.rig = Rig()
+        self.rig.gw.cors_origins = {"https://staff.swangz.test"}
+
+    def tearDown(self):
+        self.rig.close()
+
+    def test_preflight(self):
+        status, h, _ = self.rig.request("OPTIONS", "/admin/api/login", None,
+                                        {"origin": "https://staff.swangz.test", "access-control-request-method": "POST"})
+        self.assertEqual(status, 204)
+        self.assertEqual(h["access-control-allow-origin"], "https://staff.swangz.test")
+        self.assertEqual(h["access-control-allow-credentials"], "true")
+        self.assertIn("POST", h["access-control-allow-methods"])
+
+    def test_cross_site_login_sets_none_cookie_and_cors(self):
+        status, h, _ = self.rig.request("POST", "/admin/api/login", {"username": "owner", "password": "owner-password"},
+                                        {"x-gateway-admin": "1", "origin": "https://staff.swangz.test"})
+        self.assertEqual(status, 200)
+        self.assertEqual(h["access-control-allow-origin"], "https://staff.swangz.test")
+        self.assertIn("SameSite=None", h["set-cookie"])
+        self.assertIn("Secure", h["set-cookie"])
+
+    def test_same_origin_cookie_stays_strict(self):
+        status, h, _ = self.rig.request("POST", "/admin/api/login", {"username": "owner", "password": "owner-password"},
+                                        {"x-gateway-admin": "1"})
+        self.assertIn("SameSite=Strict", h["set-cookie"])
+        self.assertNotIn("access-control-allow-origin", h)
+
+    def test_unlisted_origin_gets_no_cors(self):
+        status, h, _ = self.rig.request("POST", "/admin/api/login", {"username": "owner", "password": "owner-password"},
+                                        {"x-gateway-admin": "1", "origin": "https://evil.example"})
+        self.assertNotIn("access-control-allow-origin", h)
+        self.assertIn("SameSite=Strict", h["set-cookie"])  # unlisted origin = treated as same-site

@@ -65,6 +65,8 @@ actions, including opening a record and playing back a generation.
    demo only.
 3. Set subscriptions and assignments in the control room; invite staff (email → sign-in link); roll
    out the browser extension (Load unpacked, or packed via Chrome Enterprise policy).
+4. Optionally host the staff app + admin console on Netlify (static), pointed at the gateway API —
+   see `deploy/NETLIFY.md`. Set `GATEWAY_CORS_ORIGINS` to the Netlify URL.
 4. **Back up `data/gateway.db`** — it is the record.
 
 ## Gotchas worth knowing

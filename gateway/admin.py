@@ -111,8 +111,11 @@ def _cookie(header, name):
 
 
 def _session_cookie(ctx, token, max_age):
-    flags = f"{SESSION_COOKIE}={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age={max_age}"
-    if ctx.gw.secure_request(ctx.h):
+    # An admin console hosted on another origin needs SameSite=None (which requires Secure); served
+    # from the gateway itself it keeps the stricter Strict.
+    cross = ctx.gw.cross_site(ctx.h)
+    flags = f"{SESSION_COOKIE}={token}; Path=/; HttpOnly; SameSite={'None' if cross else 'Strict'}; Max-Age={max_age}"
+    if cross or ctx.gw.secure_request(ctx.h):
         flags += "; Secure"
     return flags
 

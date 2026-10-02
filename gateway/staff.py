@@ -86,8 +86,12 @@ def _cookie(header, name):
 
 
 def _session_cookie(ctx, token, max_age):
-    value = f"{COOKIE}={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age={max_age}"
-    if ctx.gw.secure_request(ctx.h):
+    # A staff app hosted on another origin (e.g. Netlify) needs SameSite=None so the browser sends
+    # this cookie to the gateway; that requires Secure. Same-origin keeps the stricter Lax.
+    cross = ctx.gw.cross_site(ctx.h)
+    same_site = "None" if cross else "Lax"
+    value = f"{COOKIE}={token}; Path=/; HttpOnly; SameSite={same_site}; Max-Age={max_age}"
+    if cross or ctx.gw.secure_request(ctx.h):
         value += "; Secure"
     return value
 
