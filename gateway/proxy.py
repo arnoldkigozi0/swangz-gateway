@@ -233,7 +233,7 @@ class Call:
     def refuse(self, status, etype, message, outcome, why, store=True):
         payload = json.dumps(error_body(self.provider.dialect, etype, message)).encode()
         # A policy refusal won't change on a retry; an unreachable provider might.
-        retry = "true" if status >= 500 else "false"
+        retry = "true" if status >= 500 or status == 429 else "false"
         self.h.send_bytes(status, payload, "application/json", {"x-should-retry": retry})
         self.rec.update(status=status, outcome=outcome, reason=why)
         self.write(None, b"" if not store else None, keep_request=store)

@@ -804,3 +804,41 @@ class AccessGateTests(StaffBase):
         rig.api("POST", f"/people/{rig.person_id}/suspend")
         # suspending invalidates the extension's token too, so the gate refuses it outright
         self.assertEqual(self.gate("POST", "/gate/open", {"host": "canva.com"}, token)[0], 401)
+
+
+class HardeningTests(unittest.TestCase):
+    def setUp(self):
+        self.rig = Rig()
+
+    def tearDown(self):
+        self.rig.close()
+
+    def test_health(self):
+        status, h, payload = self.rig.request("GET", "/healthz")
+        self.assertEqual(status, 200)
+        self.assertTrue(json.loads(payload)["ok"])
+        status, health = self.rig.api("GET", "/health", who="viewer")
+        self.assertEqual(status, 200)
+        self.assertTrue(health["ok"])
+        self.assertEqual(health["schema"], 5)
+        self.assertGreaterEqual(health["uptime_seconds"], 0)
+        self.assertTrue(any(p["name"] == "anthropic" for p in health["providers"]))
+
+    def test_rate_limit_per_person(self):
+        rig = self.rig
+        self.assertEqual(rig.api("PUT", "/settings", {"rate_per_min": 3})[0], 200)
+        body = {"model": "claude-haiku-4-5", "messages": [{"role": "user", "content": "hi"}]}
+        codes = [rig.anthropic(body)[0] for _ in range(5)]
+        self.assertEqual(codes, [200, 200, 200, 429, 429])
+        status, h, payload = rig.anthropic(body)
+        self.assertEqual((status, h["x-should-retry"]), (429, "true"))
+        self.assertIn("too many requests", payload.decode())
+        self.assertEqual(rig.last_record()["reason"], "rate limited")
+        # lifting the limit restores service
+        rig.api("PUT", "/settings", {"rate_per_min": 0})
+        rig.gw.ratelimit.hits.clear()
+        self.assertEqual(rig.anthropic(body)[0], 200)
+
+    def test_rate_limit_validation(self):
+        self.assertEqual(self.rig.api("PUT", "/settings", {"rate_per_min": -1})[0], 400)
+        self.assertEqual(self.rig.api("PUT", "/settings", {"rate_per_min": "lots"})[0], 400)

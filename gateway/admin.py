@@ -523,6 +523,39 @@ def revoke_key(ctx, kid):
     return {"ok": True, "cut": cut}
 
 
+@route("GET", r"/health")
+def health(ctx):
+    db = ctx.db
+    gw = ctx.gw
+    try:
+        db_ok = db.scalar("SELECT 1") == 1
+    except Exception:
+        db_ok = False
+    return {
+        "ok": db_ok,
+        "version": _version(),
+        "schema": int(db.scalar("SELECT v FROM meta WHERE k = 'schema'") or 0),
+        "uptime_seconds": int(time.time() - gw.started_at),
+        "started_at": gw.started_at,
+        "db_bytes": db.scalar("SELECT page_count * page_size FROM pragma_page_count(), pragma_page_size()") or 0,
+        "requests_logged": db.scalar("SELECT COUNT(*) FROM requests") or 0,
+        "people": db.scalar("SELECT COUNT(*) FROM people") or 0,
+        "paused": db.get_setting("paused", "0") == "1",
+        "live": len(gw.live.snapshot()),
+        "providers": [{"name": p.name, "label": p.label, "configured": bool(p.api_key())}
+                      for p in gw.settings.providers.values()],
+        "rate_per_min": int(db.get_setting("rate_per_min", "0") or 0),
+    }
+
+
+def _version():
+    try:
+        from . import __version__
+        return __version__
+    except Exception:
+        return "1.0.0"
+
+
 @route("GET", r"/site-usage")
 def site_usage(ctx):
     """What the browser access gate logged: which tool, who, when, how long. No page content."""
@@ -560,6 +593,7 @@ def get_settings(ctx):
             "store_bodies": db.get_setting("store_bodies", "1") == "1",
             "staff_self_keys": db.get_setting("staff_self_keys", "1") == "1",
             "gate_log_full": db.get_setting("gate_log_full", "0") == "1",
+            "rate_per_min": int(db.get_setting("rate_per_min", "0") or 0),
             "providers": _providers(ctx), "base_url": ctx.gw.public_url(ctx.h),
             "tz_offset_minutes": ctx.gw.settings.tz_offset_minutes,
             "db_bytes": (db.scalar("SELECT page_count * page_size FROM pragma_page_count(), pragma_page_size()") or 0),
@@ -580,6 +614,14 @@ def put_settings(ctx):
     for flag in ("block_secrets", "store_bodies", "staff_self_keys", "gate_log_full"):
         if flag in ctx.body:
             changed[flag] = "1" if ctx.body[flag] else "0"
+    if "rate_per_min" in ctx.body:
+        try:
+            rpm = int(ctx.body["rate_per_min"])
+        except (TypeError, ValueError):
+            raise ApiError(400, "rate_per_min must be a whole number (0 = no limit)")
+        if rpm < 0:
+            raise ApiError(400, "rate_per_min cannot be negative")
+        changed["rate_per_min"] = rpm
     for k, v in changed.items():
         ctx.db.set_setting(k, v)
     if changed:

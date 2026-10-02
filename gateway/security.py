@@ -102,3 +102,27 @@ class LoginThrottle:
     def clear(self, ip):
         with self.lock:
             self.failures.pop(ip, None)
+
+
+class RateLimiter:
+    """A per-person sliding window, to catch a runaway tool. In memory; one process, one company."""
+
+    def __init__(self, window=60):
+        self.window = window
+        self.hits = {}
+        self.lock = threading.Lock()
+
+    def over(self, person_id, limit):
+        """True if this person has already made `limit` requests in the last window."""
+        if not limit or limit <= 0:
+            return False
+        now = time.time()
+        with self.lock:
+            recent = [t for t in self.hits.get(person_id, []) if now - t < self.window]
+            self.hits[person_id] = recent
+            if len(recent) >= limit:
+                return True
+            recent.append(now)
+            if len(self.hits) > 10000:  # bound memory
+                self.hits = {k: v for k, v in self.hits.items() if v and now - v[-1] < self.window}
+            return False

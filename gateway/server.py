@@ -38,6 +38,8 @@ class Gateway:
         self.live = Live()
         self.pool = proxy.Pool(settings.upstream_timeout)
         self.throttle = security.LoginThrottle()
+        self.ratelimit = security.RateLimiter()
+        self.started_at = time.time()
         self._prices = None
         self._prices_lock = threading.Lock()
         self.trust_proxy = os.environ.get("GATEWAY_TRUST_PROXY", "") in ("1", "true", "yes")
@@ -128,6 +130,10 @@ class Gateway:
                 return 403, "permission_error", f"your daily AI budget (${key['daily_budget']:.2f}) is used up.", "daily budget"
             if key["monthly_budget"] is not None and self.spend(key["person_id"], month) >= key["monthly_budget"]:
                 return 403, "permission_error", f"your monthly AI budget (${key['monthly_budget']:.2f}) is used up.", "monthly budget"
+        if kind != "other":
+            limit = int(self.db.get_setting("rate_per_min", "0") or 0)
+            if self.ratelimit.over(key["person_id"], limit):
+                return 429, "rate_limit_error", f"too many requests — the limit is {limit} a minute. Wait a moment.", "rate limited"
         return None
 
     def spend(self, person_id, since):
@@ -227,7 +233,11 @@ class Handler(BaseHTTPRequestHandler):
             if provider is not None:
                 return proxy.Call(self.gw, self, provider, "/" + rest if rest else "", query).run()
             if path == "/healthz":
-                return self.send_json(200, {"ok": True})
+                try:
+                    ok = self.gw.db.scalar("SELECT 1") == 1
+                except Exception:
+                    ok = False
+                return self.send_json(200 if ok else 503, {"ok": ok, "uptime_seconds": int(time.time() - self.gw.started_at)})
             if self.command in ("GET", "HEAD"):
                 return self.serve_static(path)
             self.send_json(404, {"error": "not found"})

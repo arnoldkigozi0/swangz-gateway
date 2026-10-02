@@ -1189,6 +1189,7 @@
     const blockSecrets = el("input", { type: "checkbox", checked: st.block_secrets, disabled: !owner });
     const selfKeys = el("input", { type: "checkbox", checked: st.staff_self_keys, disabled: !owner });
     const gateFull = el("input", { type: "checkbox", checked: st.gate_log_full, disabled: !owner });
+    const rate = el("input", { type: "number", min: "0", step: "1", value: String(st.rate_per_min || 0), disabled: !owner });
     const recErr = el("div", { class: "err" });
     const records = panel("Records", `${st.records.toLocaleString()} requests · ${(st.db_bytes / 1048576).toFixed(1)} MB on disk`, el("div", { class: "body stack" },
       el("label", { class: "field", style: null }, "Keep records for (days)", retention, el("span", { class: "hint" }, "Older records and their bodies are deleted automatically every hour. 0 keeps everything.")),
@@ -1196,10 +1197,11 @@
       el("label", { class: "check" }, selfKeys, el("span", null, el("strong", null, "Staff can connect their own devices"), el("div", { class: "hint" }, "In the Swangz AI app they create and disconnect their own keys. Every key still shows up here, and you can revoke any of them."))),
       el("label", { class: "check" }, blockSecrets, el("span", null, el("strong", null, "Refuse requests that contain credentials"), el("div", { class: "hint" }, "API keys, cloud keys, private keys. Off = let them through but flag them. On can interrupt an agent that reads a .env file."))),
       el("label", { class: "check" }, gateFull, el("span", null, el("strong", null, "Website gate: full-content logging"), el("div", { class: "hint" }, "Off by default, and the honest choice. The browser extension records only which approved site staff open and for how long. Turn this on only with legal sign-off — staff are told in the extension's policy."))),
+      el("label", { class: "field", style: null }, "Rate limit (requests per person per minute)", rate, el("span", { class: "hint" }, "Catches a runaway tool. 0 = no limit. A busy agent can make several a minute, so keep it generous.")),
       recErr,
       owner ? el("div", null, el("button", { class: "btn primary", onclick: async () => {
         try {
-          await api("PUT", "/settings", { retention_days: retention.value, store_bodies: storeBodies.checked, block_secrets: blockSecrets.checked, staff_self_keys: selfKeys.checked, gate_log_full: gateFull.checked });
+          await api("PUT", "/settings", { retention_days: retention.value, store_bodies: storeBodies.checked, block_secrets: blockSecrets.checked, staff_self_keys: selfKeys.checked, gate_log_full: gateFull.checked, rate_per_min: rate.value });
           toast("Saved.");
         } catch (e) { recErr.textContent = e.message; }
       } }, "Save")) : null));
