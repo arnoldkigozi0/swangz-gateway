@@ -283,7 +283,8 @@
   }
 
   const NAV = [
-    ["#/", "Live"], ["#/people", "People"], ["#/activity", "Activity"], ["#/settings", "Settings"], ["#/audit", "Audit log"],
+    ["#/", "Live"], ["#/people", "People"], ["#/tools", "Tools"], ["#/activity", "Activity"],
+    ["#/requests", "Requests"], ["#/settings", "Settings"], ["#/audit", "Audit log"],
   ];
 
   function frame(title, crumbs, content, actions) {
@@ -293,10 +294,12 @@
     const section = here === "#/" ? "#/" : "#/" + here.split("/")[1];
     const sectionFor = { "#/records": "#/activity", "#/sessions": "#/people" };
     const active = sectionFor[section] || section;
+    const openReqs = S.overview ? (S.overview.open_requests || 0) : 0;
     const nav = el("nav", { class: "nav", "aria-label": "Sections" },
       NAV.map(([href, label]) => el("a", { href, class: href === active ? "on" : null },
         el("span", null, label),
-        href === "#/" && live ? el("span", { class: "pill ok" }, el("span", { class: "dot pulse" }), String(live)) : null)));
+        href === "#/" && live ? el("span", { class: "pill ok" }, el("span", { class: "dot pulse" }), String(live)) : null,
+        href === "#/requests" && openReqs ? el("span", { class: "pill warn" }, String(openReqs)) : null)));
     const side = el("aside", { class: "side" },
       el("div", { class: "brand" }, el("img", { src: "/static/icon.svg", alt: "" }), el("div", null, "Swangz ", el("b", null, "AI"), el("small", null, "Control room"))),
       nav, el("div", { class: "grow" }),
@@ -345,6 +348,8 @@
     [/^#?\/?$/, pageLive],
     [/^#\/people$/, pagePeople],
     [/^#\/people\/(\d+)$/, pagePerson],
+    [/^#\/tools$/, pageTools],
+    [/^#\/requests$/, pageRequests],
     [/^#\/sessions\/(.+)$/, pageSession],
     [/^#\/records\/(\d+)$/, pageRecord],
     [/^#\/activity$/, pageActivity],
@@ -510,6 +515,7 @@
       allowed_services: el("input", { type: "text", value: p.allowed_services || "", placeholder: "every service" }),
       notes: el("textarea", null, p.notes || ""),
     };
+    f.budget_visible = el("input", { type: "checkbox", checked: !!p.budget_visible });
     const node = el("div", { class: "stack" },
       el("div", { class: "form-grid" },
         el("label", { class: "field" }, "Name", f.name),
@@ -519,12 +525,15 @@
       el("div", { class: "form-grid" },
         el("label", { class: "field" }, "Daily budget (USD)", f.daily_budget),
         el("label", { class: "field" }, "Monthly budget (USD)", f.monthly_budget)),
+      el("label", { class: "check" }, f.budget_visible, el("span", null, el("strong", null, "Let this person see their budget"),
+        el("div", { class: "hint" }, "Off by default — staff don't see the budget set for them until you turn this on."))),
       el("label", { class: "field" }, "Allowed models", f.allowed_models,
         el("span", { class: "hint" }, "Comma-separated, * works as a wildcard: claude-sonnet-*, gpt-6-*. Empty = any model. Through a gateway, Claude Code runs its background tasks on the main model, so allowing that model is enough.")),
       el("label", { class: "field" }, "Allowed services", f.allowed_services,
         el("span", { class: "hint" }, "Comma-separated: " + S.me.providers.map((x) => x.name).join(", ") + ". Empty = every service the company has switched on.")),
       el("label", { class: "field" }, "Notes", f.notes));
-    const values = () => Object.fromEntries(Object.entries(f).map(([k, input]) => [k, input.value]));
+    const values = () => Object.fromEntries(Object.entries(f).map(([k, input]) =>
+      [k, input.type === "checkbox" ? input.checked : input.value]));
     return { node, values, focus: () => f.name.focus() };
   }
 
@@ -625,10 +634,12 @@
         : "Add their email under Details first — it is what they sign in with."),
       owner && p.email ? el("div", null, el("button", { class: "btn", onclick: () => inviteLink(p) }, p.sign_in === "active" ? "New sign-in link (reset password)" : "Create sign-in link")) : null));
     const issue = owner && p.status === "active" ? el("button", { class: "btn primary", onclick: () => issueKey(p) }, "Issue a key") : null;
+    const toolsPanel = personToolsPanel(p, owner);
     app.replaceChildren(frame(p.name, el("a", { href: "#/people" }, "People"), [
       el("div", { class: "row", style: null }, statusPill, el("span", { class: "muted" }, [p.title, p.department, p.email].filter(Boolean).join(" · "))),
       el("div", { style: null, class: "spacer" }),
       kpis,
+      toolsPanel,
       el("div", { class: "grid cols-2" },
         el("div", { class: "grid" }, live,
           panel("Sessions", "one conversation each — open one to see everything that happened", sessions),
@@ -639,6 +650,35 @@
           controls,
           p.notes && !owner ? panel("Notes", null, el("div", { class: "body" }, longText(p.notes))) : null)),
     ], [el("a", { class: "btn", href: `/admin/api/export.csv?person=${p.id}` }, "Export CSV"), issue, toggle]));
+  }
+
+  function personToolsPanel(p, owner) {
+    const tools = p.tools || [];
+    const grid = el("div", { class: "ptools" });
+    function cell(t) {
+      const can = owner && t.state !== "locked" && t.grant !== "team";  // team grants are changed on the Tools page
+      const on = t.state === "enabled";
+      const label = t.grant === "team" ? "Team" : t.state === "locked" ? "Locked" : on ? "On" : "Off";
+      const btn = el("button", {
+        class: "btn small" + (on && t.grant !== "team" ? " primary" : ""), disabled: !can,
+        title: t.grant === "team" ? "Granted to the whole " + (p.department || "team") : t.reason,
+        onclick: can ? async () => {
+          const adding = !btn.classList.contains("primary");
+          try { await api(adding ? "POST" : "DELETE", `/people/${p.id}/tools/${t.id}`); render(); }
+          catch (e) { toast(e.message, true); }
+        } : null,
+      }, label);
+      return el("div", { class: "ptool" + (on ? " on" : "") },
+        el("div", { class: "pn" }, el("strong", null, t.name),
+          el("div", { class: "hint" }, t.category + (t.state === "locked" ? " · not subscribed" : ""))), btn);
+    }
+    const assigned = tools.filter((t) => t.assigned);
+    const rest = tools.filter((t) => !t.assigned && t.state !== "locked");
+    grid.replaceChildren(...assigned.map(cell), ...rest.map(cell));
+    return panel("Tools", `${p.tool_summary.enabled} ready · ${p.tool_summary.assigned} assigned — ` +
+      (owner ? "turn tools on or off for this person" : "what this person can use"),
+      tools.length ? grid : empty("No tools in the catalog."),
+      el("div", { class: "body hint" }, "Locked tools need a company subscription first (set it on the Tools page). Team grants are changed there too."));
   }
 
   async function inviteLink(p) {
@@ -913,6 +953,190 @@
         el("div", null)),
       list, el("div", { class: "body" }, more)), exportLink));
     await load(true);
+  }
+
+  // ------------------------------------------------------------------ Tools (catalog & subscriptions)
+
+  const SUB_LABEL = { none: "Not subscribed", active: "Active", past_due: "Past due", cancelled: "Cancelled" };
+
+  async function pageTools() {
+    const data = await api("GET", "/catalog");
+    const state = { q: "", cat: "all", show: "all" };
+    const kpis = el("div", { class: "kpis" },
+      kpiCell("Tools in catalog", String(data.summary.total)),
+      kpiCell("Paid subscriptions", String(data.summary.paid)),
+      kpiCell("Monthly cost", fmt.money(data.summary.monthly_cost)));
+    const q = el("input", { type: "search", placeholder: "Search tools…", oninput: (e) => { state.q = e.target.value; draw(); } });
+    const cat = el("select", null, el("option", { value: "all" }, "All categories"),
+      data.categories.map((c) => el("option", { value: c }, c)));
+    cat.addEventListener("change", () => { state.cat = cat.value; draw(); });
+    const show = el("select", null, [["all", "All tools"], ["active", "Subscribed"], ["none", "Not subscribed"]].map(([v, t]) => el("option", { value: v }, t)));
+    show.addEventListener("change", () => { state.show = show.value; draw(); });
+    const grid = el("div", { class: "toolsadmin" });
+    function draw() {
+      const qq = state.q.trim().toLowerCase();
+      let list = data.tools.filter((t) => (state.cat === "all" || t.category === state.cat));
+      if (state.show === "active") list = list.filter((t) => t.subscription.state === "active");
+      if (state.show === "none") list = list.filter((t) => t.subscription.state === "none");
+      if (qq) list = list.filter((t) => t.name.toLowerCase().includes(qq) || t.category.toLowerCase().includes(qq));
+      grid.replaceChildren(...(list.length ? list.map(toolAdminCard) : [empty("No tools match.")]));
+    }
+    draw();
+    const add = isOwner() ? el("button", { class: "btn primary", onclick: addTool }, "Add a tool") : null;
+    app.replaceChildren(frame("Tools", null, [
+      kpis,
+      panel("The tool catalog", "what the company subscribes to, and who can use each tool",
+        el("div", { class: "filters filters-3" },
+          el("label", { class: "field" }, "Search", q),
+          el("label", { class: "field" }, "Category", cat),
+          el("label", { class: "field" }, "Show", show)),
+        grid),
+    ], add));
+  }
+
+  function toolAdminCard(t) {
+    const sub = t.subscription;
+    const onKey = t.kind === "dev" || t.kind === "api";
+    const badge = onKey && sub.state === "none"
+      ? el("span", { class: "pill" }, "On our API key")
+      : el("span", { class: "pill " + (sub.state === "active" ? "ok" : sub.state === "past_due" ? "warn" : sub.state === "cancelled" ? "bad" : "") },
+        SUB_LABEL[sub.state] || sub.state);
+    const kindPill = el("span", { class: "pill" }, t.kind === "api" ? "API" : t.kind === "dev" ? "Developer" : "Website");
+    const assigned = el("div", { class: "hint" },
+      t.assigned_people + t.assigned_teams === 0 ? "No one assigned"
+        : `${t.assigned_people} ${t.assigned_people === 1 ? "person" : "people"}` + (t.assigned_teams ? `, ${t.assigned_teams} team(s)` : ""));
+    const actions = isOwner() ? el("div", { class: "row" },
+      t.kind === "dev" ? null : el("button", { class: "btn small", onclick: () => editSubscription(t) }, sub.state === "none" ? "Subscribe" : "Subscription"),
+      el("button", { class: "btn small", onclick: () => manageAssignments(t) }, "Who can use it")) : null;
+    const bodyNote = t.kind === "dev" ? el("div", { class: "hint" }, "Runs on the company API key — assignment only")
+      : sub.state !== "none" ? el("div", { class: "hint" }, [sub.plan, sub.monthly_cost != null ? fmt.money(sub.monthly_cost) + "/mo" : null, sub.seats ? sub.seats + " seats" : null].filter(Boolean).join(" · ") || "Active")
+      : el("div", { class: "hint" }, onKey ? "API metered on our key — or add the website subscription" : "No company subscription");
+    return el("div", { class: "tooladmin" + (sub.state === "active" ? " paid" : "") },
+      el("div", { class: "ta-head" },
+        el("div", null, el("strong", null, t.name), el("div", { class: "hint" }, t.category)),
+        el("div", { class: "row" }, kindPill, badge)),
+      el("div", { class: "ta-body" }, bodyNote, assigned),
+      actions);
+  }
+
+  function editSubscription(t) {
+    const sub = t.subscription;
+    const f = {
+      state: el("select", null, Object.entries(SUB_LABEL).map(([v, l]) => el("option", { value: v }, l))),
+      plan: el("input", { type: "text", value: sub.plan || "", placeholder: (t.plans[0] && t.plans[0].name) || "Plan name" }),
+      monthly_cost: el("input", { type: "number", min: "0", step: "0.01", value: sub.monthly_cost ?? "", placeholder: t.entry_usd ? String(t.entry_usd) : "0" }),
+      seats: el("input", { type: "number", min: "0", step: "1", value: sub.seats ?? "" }),
+      renews_on: el("input", { type: "date", value: sub.renews_on ? new Date(sub.renews_on * 1000).toISOString().slice(0, 10) : "" }),
+      note: el("input", { type: "text", value: sub.note || "" }),
+    };
+    f.state.value = sub.state || "none";
+    const planHint = t.plans.length ? el("div", { class: "hint" }, "Published plans: " + t.plans.map((p) => `${p.name} ${p.monthlyUSD ? "$" + p.monthlyUSD : ""}`.trim()).join(" · ")) : null;
+    const err = el("div", { class: "err" });
+    const save = el("button", { class: "btn primary", onclick: async () => {
+      try {
+        await api("PUT", "/subscriptions/" + t.id, { state: f.state.value, plan: f.plan.value, monthly_cost: f.monthly_cost.value, seats: f.seats.value, renews_on: f.renews_on.value, note: f.note.value });
+        d.close(); toast("Saved."); render();
+      } catch (e) { err.textContent = e.message; }
+    } }, "Save");
+    const d = dialog(t.name + " subscription", el("div", { class: "stack" },
+      el("div", { class: "form-grid" },
+        el("label", { class: "field" }, "Status", f.state),
+        el("label", { class: "field" }, "Plan", f.plan),
+        el("label", { class: "field" }, "Monthly cost (USD)", f.monthly_cost),
+        el("label", { class: "field" }, "Seats", f.seats),
+        el("label", { class: "field" }, "Renews on", f.renews_on)),
+      el("label", { class: "field" }, "Note", f.note),
+      planHint, err), [save]);
+  }
+
+  async function manageAssignments(t) {
+    const [people, cat] = await Promise.all([api("GET", "/people"), api("GET", "/catalog")]);
+    const tool = cat.tools.find((x) => x.id === t.id) || t;
+    const assignedTeams = new Set();
+    const body = el("div", { class: "stack" });
+    const teamRows = el("div", { class: "row" });
+    (cat.departments || []).forEach((dept) => {
+      const on = tool.assigned_teams && false; // team state comes from the per-person 'team' grant; show toggle
+      const btn = el("button", { class: "btn small", onclick: async () => {
+        const adding = btn.textContent === "Off";
+        try { await api(adding ? "POST" : "DELETE", `/teams/${encodeURIComponent(dept)}/tools/${t.id}`); btn.textContent = adding ? "On" : "Off"; btn.classList.toggle("primary", adding); toast("Saved."); }
+        catch (e) { toast(e.message, true); }
+      } }, "Off");
+      teamRows.append(el("div", { class: "team-toggle" }, el("span", null, dept), btn));
+    });
+    // whether each team is granted
+    const grantedTeams = await api("GET", "/people");  // not ideal; we derive team grants below per person
+    const personRows = el("div", { class: "assign-list" });
+    for (const p of people.items) {
+      const granted = await isGranted(t.id, p.id);
+      const btn = el("button", { class: "btn small" + (granted ? " primary" : ""), onclick: async () => {
+        const on = !btn.classList.contains("primary");
+        try { await api(on ? "POST" : "DELETE", `/people/${p.id}/tools/${t.id}`); btn.classList.toggle("primary", on); btn.textContent = on ? "On" : "Off"; }
+        catch (e) { toast(e.message, true); }
+      } }, granted ? "On" : "Off");
+      personRows.append(el("div", { class: "assign-row" },
+        el("div", null, el("strong", null, p.name), el("div", { class: "hint" }, p.department || "—")), btn));
+    }
+    body.append(
+      el("div", null, el("div", { class: "tag" }, "Whole teams"), teamRows),
+      el("div", null, el("div", { class: "tag" }, "People"), personRows));
+    dialog("Who can use " + t.name, body, [el("button", { class: "btn primary", onclick: (e) => { e.target.closest("dialog").close(); render(); } }, "Done")]);
+  }
+
+  async function isGranted(toolId, personId) {
+    const p = await api("GET", "/people/" + personId);
+    const row = (p.tools || []).find((x) => x.id === toolId);
+    return row && row.grant === "direct";
+  }
+
+  function addTool() {
+    const f = {
+      name: el("input", { type: "text" }), category: el("input", { type: "text", placeholder: "e.g. Writing" }),
+      kind: el("select", null, el("option", { value: "site" }, "Website (access gate)"), el("option", { value: "api" }, "API (through the gateway)"), el("option", { value: "dev" }, "Developer agent")),
+      url: el("input", { type: "text", placeholder: "https://…" }), hosts: el("input", { type: "text", placeholder: "example.com, app.example.com" }),
+      pricing_url: el("input", { type: "text", placeholder: "https://…/pricing" }),
+    };
+    const err = el("div", { class: "err" });
+    const save = el("button", { class: "btn primary", onclick: async () => {
+      try { await api("POST", "/tools", { name: f.name.value, category: f.category.value, kind: f.kind.value, url: f.url.value, hosts: f.hosts.value, pricing_url: f.pricing_url.value }); d.close(); toast("Added."); render(); }
+      catch (e) { err.textContent = e.message; }
+    } }, "Add tool");
+    const d = dialog("Add a tool", el("div", { class: "stack" },
+      el("div", { class: "form-grid" },
+        el("label", { class: "field" }, "Name", f.name), el("label", { class: "field" }, "Category", f.category),
+        el("label", { class: "field" }, "Type", f.kind)),
+      el("label", { class: "field" }, "Website", f.url),
+      el("label", { class: "field" }, "Domains for the access gate", f.hosts, el("span", { class: "hint" }, "Only for website tools. Comma-separated.")),
+      el("label", { class: "field" }, "Pricing page", f.pricing_url), err), [save]);
+    f.name.focus();
+  }
+
+  function kpiCell(label, value, note) {
+    return el("div", { class: "kpi" }, el("div", { class: "label" }, label), el("div", { class: "value" }, value), note ? el("div", { class: "note" }, note) : null);
+  }
+
+  // ------------------------------------------------------------------ Access requests
+
+  async function pageRequests() {
+    const state = location.hash.includes("state=") ? location.hash.split("state=")[1] : "open";
+    const data = await api("GET", "/access-requests?state=" + encodeURIComponent(state));
+    const tabs = el("div", { class: "row reqtabs" },
+      [["open", "Open" + (data.open ? ` (${data.open})` : "")], ["granted", "Granted"], ["declined", "Declined"]].map(([v, t]) =>
+        el("button", { class: "btn small" + (state === v ? " primary" : ""), onclick: () => { location.hash = "#/requests?state=" + v; } }, t)));
+    const rows = data.items.map((r) => el("div", { class: "req" },
+      el("div", null, el("strong", null, r.person), el("span", { class: "muted" }, " wants "), el("strong", null, r.tool),
+        el("div", { class: "hint" }, (r.department || "—") + " · " + fmt.ago(r.created) + (r.reason ? " · “" + r.reason + "”" : ""))),
+      r.state === "open" && isOwner() ? el("div", { class: "row" },
+        el("button", { class: "btn small primary", onclick: () => decideRequest(r.id, "grant") }, "Grant"),
+        el("button", { class: "btn small danger", onclick: () => decideRequest(r.id, "decline") }, "Decline"))
+        : el("span", { class: "pill " + (r.state === "granted" ? "ok" : "bad") }, r.state)));
+    app.replaceChildren(frame("Access requests", null, panel("Staff asking for tools", "grant one and it's turned on for them",
+      el("div", { class: "body" }, tabs), rows.length ? el("div", { class: "reqlist" }, rows) : empty("Nothing here."))));
+  }
+
+  async function decideRequest(id, action) {
+    try { await api("POST", `/access-requests/${id}/${action}`); toast(action === "grant" ? "Granted." : "Declined."); render(); }
+    catch (e) { toast(e.message, true); }
   }
 
   // ------------------------------------------------------------------ Settings

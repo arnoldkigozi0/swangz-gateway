@@ -239,3 +239,50 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 @keyframes spin { to { transform: rotate(360deg); } }
 .spread { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; }
 @media (max-width: 900px) { .form-row { grid-template-columns: minmax(0, 1fr); } }
+
+/* ------------------------------------------------------------ topbar search + budget strip */
+.topsearch { flex: 1; max-width: 420px; min-height: 40px; background: var(--ink-0); border: 1px solid var(--line-hi);
+  border-radius: var(--r-sm); padding: 0 var(--s4); font-size: 14px; }
+.topsearch:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+@media (max-width: 760px) { .topsearch { display: none; } }
+
+.bstrip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--line);
+  border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; margin-top: var(--s6); max-width: 560px; }
+.bstat { background: var(--ink-1); padding: var(--s4) var(--s5); }
+.bstat .big { font-size: 1.6rem; font-weight: 780; font-stretch: 90%; letter-spacing: -.02em; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.bstat .note { color: var(--tx-2); font-size: var(--t-small); margin-top: 2px; }
+
+/* ------------------------------------------------------------ category chips */
+.chips-row { display: flex; flex-wrap: wrap; gap: var(--s2); margin-bottom: var(--s5); }
+.chips-row .chip { background: var(--ink-1); border: 1px solid var(--line); color: var(--tx-2); padding: 7px 14px;
+  border-radius: 999px; font-weight: 600; font-size: 13px; cursor: pointer; transition: all var(--d-fast); }
+.chips-row .chip:hover { color: var(--tx-1); border-color: var(--line-hi); }
+.chips-row .chip.on { background: var(--tx-1); color: var(--ink-0); border-color: var(--tx-1); }
+
+/* ------------------------------------------------------------ tool cards */
+.tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--s4); }
+.tcard { position: relative; background: var(--ink-1); border: 1px solid var(--line); border-radius: var(--r-md);
+  padding: var(--s5); display: flex; flex-direction: column; gap: var(--s3); min-height: 168px;
+  transition: border-color var(--d-base) var(--e-out), transform var(--d-base) var(--e-out); }
+.tcard:hover { border-color: var(--line-hi); transform: translateY(-2px); }
+.tcard.live { border-color: color-mix(in srgb, var(--ok) 28%, var(--line)); }
+.tcard-top { display: flex; align-items: center; gap: var(--s3); min-width: 0; }
+.tool-mono { width: 44px; height: 44px; flex: none; border-radius: 11px; display: grid; place-items: center;
+  font-weight: 800; font-stretch: 112%; font-size: 15px; letter-spacing: .01em; }
+.tcard-id { min-width: 0; }
+.tcard-id h3 { margin: 0; font-size: var(--t-h3); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tcat { color: var(--tx-2); font-size: var(--t-small); }
+.state-chip { align-self: flex-start; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  padding: 2px 9px; border-radius: 999px; border: 1px solid; }
+.state-chip.s-enabled { color: var(--ok-hi); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.state-chip.s-not_assigned { color: var(--tx-2); border-color: var(--line-hi); }
+.state-chip.s-locked { color: var(--tx-3); border-color: var(--line); }
+.state-chip.s-past_due { color: var(--accent); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.state-chip.s-suspended { color: var(--bad-hi); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+.tcard-actions { margin-top: auto; display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; }
+.tlink { background: none; border: 0; color: var(--tx-2); font-weight: 600; font-size: var(--t-small); cursor: pointer;
+  text-decoration: underline; text-underline-offset: 3px; padding: 0; }
+.tlink:hover { color: var(--tx-1); }
+.tlocked { color: var(--tx-3); font-size: 12px; flex-basis: 100%; }
+.requested { color: var(--ok-hi); font-weight: 650; font-size: var(--t-small); }
+.small { font-size: var(--t-small); }

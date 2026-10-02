@@ -211,6 +211,7 @@ def overview(ctx):
     return {
         "now": now, "day_start": day, "month_start": month,
         "paused": db.get_setting("paused", "0") == "1",
+        "open_requests": db.scalar("SELECT COUNT(*) FROM access_requests WHERE state = 'open'") or 0,
         "today": _totals(db, day), "month": _totals(db, month),
         "live": ctx.gw.live.snapshot(),
         "people_today": people_today, "models_month": models, "clients_month": clients,
