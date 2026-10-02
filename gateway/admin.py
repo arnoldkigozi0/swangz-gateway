@@ -523,6 +523,22 @@ def revoke_key(ctx, kid):
     return {"ok": True, "cut": cut}
 
 
+@route("GET", r"/site-usage")
+def site_usage(ctx):
+    """What the browser access gate logged: which tool, who, when, how long. No page content."""
+    since = ctx.arg("since", 0.0, float) or (time.time() - 30 * 86400)
+    rows = ctx.db.q(
+        "SELECT su.id, su.host, su.outcome, su.started, su.seconds, p.name AS person, t.name AS tool, t.category"
+        " FROM site_usage su LEFT JOIN people p ON p.id = su.person_id LEFT JOIN tools t ON t.id = su.tool_id"
+        " WHERE su.started >= ? ORDER BY su.id DESC LIMIT 500", (since,))
+    by_tool = ctx.db.q(
+        "SELECT t.name AS tool, COUNT(*) AS opens, SUM(su.outcome='blocked') AS blocked,"
+        " COALESCE(SUM(su.seconds), 0) AS seconds FROM site_usage su LEFT JOIN tools t ON t.id = su.tool_id"
+        " WHERE su.started >= ? GROUP BY su.tool_id ORDER BY opens DESC", (since,))
+    return {"items": rows, "by_tool": by_tool,
+            "blocked": ctx.db.scalar("SELECT COUNT(*) FROM site_usage WHERE started >= ? AND outcome = 'blocked'", (since,)) or 0}
+
+
 # ---------------------------------------------------------------- the switch, settings, prices
 
 
@@ -543,6 +559,7 @@ def get_settings(ctx):
             "block_secrets": db.get_setting("block_secrets", "0") == "1",
             "store_bodies": db.get_setting("store_bodies", "1") == "1",
             "staff_self_keys": db.get_setting("staff_self_keys", "1") == "1",
+            "gate_log_full": db.get_setting("gate_log_full", "0") == "1",
             "providers": _providers(ctx), "base_url": ctx.gw.public_url(ctx.h),
             "tz_offset_minutes": ctx.gw.settings.tz_offset_minutes,
             "db_bytes": (db.scalar("SELECT page_count * page_size FROM pragma_page_count(), pragma_page_size()") or 0),
@@ -560,7 +577,7 @@ def put_settings(ctx):
         if days < 0:
             raise ApiError(400, "retention_days cannot be negative")
         changed["retention_days"] = days
-    for flag in ("block_secrets", "store_bodies", "staff_self_keys"):
+    for flag in ("block_secrets", "store_bodies", "staff_self_keys", "gate_log_full"):
         if flag in ctx.body:
             changed[flag] = "1" if ctx.body[flag] else "0"
     for k, v in changed.items():

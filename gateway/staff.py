@@ -63,7 +63,13 @@ def dispatch(h, gw, path, query):
 
 
 def current_person(ctx):
+    # The web app uses a cookie; the browser extension can't send a Lax cookie cross-site, so it
+    # presents the same session token as a bearer instead.
     token = _cookie(ctx.h.headers.get("cookie") or "", COOKIE)
+    if not token:
+        auth = (ctx.h.headers.get("authorization") or "").strip()
+        if auth[:7].lower() == "bearer ":
+            token = auth[7:].strip()
     if not token:
         return None
     return ctx.db.one(
@@ -237,6 +243,90 @@ def request_access(ctx, tid):
     ctx.db.x("INSERT INTO access_requests(tool_id, person_id, reason, created) VALUES(?,?,?,?)",
              (tid, ctx.person["id"], reason, time.time()))
     ctx.gw.audit(ctx.person["name"], "asked for a tool", tool["name"], reason, ctx.ip)
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------- the browser access gate
+
+EXTENSION_SECONDS = 30 * 86400
+
+
+@route("POST", r"/extension/login", signed_in=False)
+def extension_login(ctx):
+    """The company browser extension signs in here and keeps a token. Same password as the app."""
+    email = str(ctx.body.get("email") or "").strip().lower()
+    password = str(ctx.body.get("password") or "")
+    if ctx.gw.throttle.blocked("ext:" + ctx.ip):
+        raise ApiError(429, "Too many attempts. Wait ten minutes.")
+    person = ctx.db.one("SELECT * FROM people WHERE lower(email) = ? AND email != ''", (email,)) if email else None
+    if not person or not person["pw_hash"] or not security.check_password(password, person["pw_hash"]):
+        ctx.gw.throttle.fail("ext:" + ctx.ip)
+        raise ApiError(401, "That email and password don't match.")
+    ctx.gw.throttle.clear("ext:" + ctx.ip)
+    token = security.new_session_token()
+    now = time.time()
+    ctx.db.x("INSERT INTO staff_sessions(token_hash, person_id, created, expires, ip) VALUES(?,?,?,?,?)",
+             (security.sha256(token), person["id"], now, now + EXTENSION_SECONDS, ctx.ip))
+    ctx.gw.audit(person["name"], "connected the access extension", "", "", ctx.ip)
+    return {"token": token, "name": person["name"], "policy": _gate_policy(ctx)}
+
+
+def _gate_policy(ctx):
+    full = ctx.db.get_setting("gate_log_full", "0") == "1"
+    return ("Swangz AI records which approved tool you open, when, and for how long — the same as any "
+            "company system. It does not read the pages or what you type."
+            + (" Your admin has turned on full-content logging for compliance." if full else ""))
+
+
+@route("GET", r"/gate/config", signed_in=False)
+def gate_config(ctx):
+    """The hosts the gate governs, so the extension only acts on those. Needs a valid token."""
+    if not ctx.person:
+        raise ApiError(401, "Sign in through the extension.")
+    from . import catalog
+
+    hosts = {}
+    for h, tool in catalog.host_index(ctx.db).items():
+        hosts[h] = tool["id"]
+    return {"hosts": hosts, "policy": _gate_policy(ctx), "base_url": ctx.gw.public_url(ctx.h)}
+
+
+@route("POST", r"/gate/open")
+def gate_open(ctx):
+    """The person navigated to an AI site. Decide allow/block and start a usage record. No page data."""
+    from . import catalog, entitle
+
+    host = str(ctx.body.get("host") or "").strip().lower()[:200]
+    tool = catalog.match_host(catalog.host_index(ctx.db), host)
+    paused = ctx.db.get_setting("paused", "0") == "1"
+    if ctx.person["status"] != "active" or paused:
+        allowed, reason, state = False, ("AI access is paused." if paused else "Your access is paused."), "suspended"
+    elif not tool:
+        return {"known": False, "allowed": True}  # not an AI tool we govern; the extension does nothing
+    else:
+        ok, state, reason = entitle.is_enabled(ctx.db, ctx.person, tool)
+        allowed = ok
+    outcome = "allowed" if allowed else "blocked"
+    rid = ctx.db.x("INSERT INTO site_usage(tool_id, person_id, host, outcome, started) VALUES(?,?,?,?,?)",
+                   (tool["id"] if tool else None, ctx.person["id"], host, outcome, time.time())).lastrowid
+    pending = bool(tool and ctx.db.one("SELECT 1 FROM access_requests WHERE tool_id = ? AND person_id = ? AND state = 'open'",
+                                       (tool["id"], ctx.person["id"])))
+    return {"known": True, "allowed": allowed, "id": rid, "tool_id": tool["id"] if tool else None,
+            "tool": tool["name"] if tool else None, "state": state if tool else None,
+            "reason": reason if not allowed else None, "pending": pending,
+            "app_url": ctx.gw.public_url(ctx.h)}
+
+
+@route("POST", r"/gate/close")
+def gate_close(ctx):
+    """End a usage record with how long the tab was open. Still no page data."""
+    try:
+        rid = int(ctx.body.get("id") or 0)
+        seconds = max(0, min(int(ctx.body.get("seconds") or 0), 86400))
+    except (TypeError, ValueError):
+        raise ApiError(400, "bad id or seconds")
+    ctx.db.x("UPDATE site_usage SET ended = ?, seconds = ? WHERE id = ? AND person_id = ?",
+             (time.time(), seconds, rid, ctx.person["id"]))
     return {"ok": True}
 
 

@@ -85,6 +85,7 @@
       return s < 60 ? s + "s" : Math.floor(s / 60) + "m " + String(s % 60).padStart(2, "0") + "s";
     },
     ms(v) { return v === null || v === undefined ? "—" : v < 1000 ? v + " ms" : (v / 1000).toFixed(1) + " s"; },
+    dur(s) { s = s || 0; if (s < 60) return s + "s"; if (s < 3600) return Math.round(s / 60) + " min"; return (s / 3600).toFixed(1) + " h"; },
   };
 
   function toast(message, bad) {
@@ -961,6 +962,8 @@
 
   async function pageTools() {
     const data = await api("GET", "/catalog");
+    let usage = { by_tool: [], items: [], blocked: 0 };
+    try { usage = await api("GET", "/site-usage"); } catch (e) { /* none yet */ }
     const state = { q: "", cat: "all", show: "all" };
     const kpis = el("div", { class: "kpis" },
       kpiCell("Tools in catalog", String(data.summary.total)),
@@ -991,7 +994,21 @@
           el("label", { class: "field" }, "Category", cat),
           el("label", { class: "field" }, "Show", show)),
         grid),
+      usage.by_tool.length ? el("div", { class: "spacer" }) : null,
+      usage.by_tool.length ? sitesPanel(usage) : null,
     ], add));
+  }
+
+  function sitesPanel(usage) {
+    const rows = usage.by_tool.map((t) => el("tr", null,
+      el("td", null, t.tool || "—"),
+      el("td", { class: "num" }, String(t.opens)),
+      el("td", { class: "num" }, t.blocked ? el("span", { class: "pill bad" }, t.blocked + " blocked") : el("span", { class: "muted" }, "—")),
+      el("td", { class: "num" }, fmt.dur ? fmt.dur(t.seconds) : Math.round(t.seconds / 60) + " min")));
+    return panel("Website access", "the browser extension's log — which approved site, who, when, how long. No page content.",
+      el("div", { class: "table-wrap" }, el("table", null,
+        el("thead", null, el("tr", null, el("th", null, "Tool"), el("th", { class: "num" }, "Opens"), el("th", { class: "num" }, "Blocked"), el("th", { class: "num" }, "Time"))),
+        el("tbody", null, rows))));
   }
 
   function toolAdminCard(t) {
@@ -1171,16 +1188,18 @@
     const storeBodies = el("input", { type: "checkbox", checked: st.store_bodies, disabled: !owner });
     const blockSecrets = el("input", { type: "checkbox", checked: st.block_secrets, disabled: !owner });
     const selfKeys = el("input", { type: "checkbox", checked: st.staff_self_keys, disabled: !owner });
+    const gateFull = el("input", { type: "checkbox", checked: st.gate_log_full, disabled: !owner });
     const recErr = el("div", { class: "err" });
     const records = panel("Records", `${st.records.toLocaleString()} requests · ${(st.db_bytes / 1048576).toFixed(1)} MB on disk`, el("div", { class: "body stack" },
       el("label", { class: "field", style: null }, "Keep records for (days)", retention, el("span", { class: "hint" }, "Older records and their bodies are deleted automatically every hour. 0 keeps everything.")),
       el("label", { class: "check" }, storeBodies, el("span", null, el("strong", null, "Keep full request and response bodies"), el("div", { class: "hint" }, "Needed to pull back exactly what was sent. Off = only the summary (who, model, prompt, commands, cost)."))),
       el("label", { class: "check" }, selfKeys, el("span", null, el("strong", null, "Staff can connect their own devices"), el("div", { class: "hint" }, "In the Swangz AI app they create and disconnect their own keys. Every key still shows up here, and you can revoke any of them."))),
       el("label", { class: "check" }, blockSecrets, el("span", null, el("strong", null, "Refuse requests that contain credentials"), el("div", { class: "hint" }, "API keys, cloud keys, private keys. Off = let them through but flag them. On can interrupt an agent that reads a .env file."))),
+      el("label", { class: "check" }, gateFull, el("span", null, el("strong", null, "Website gate: full-content logging"), el("div", { class: "hint" }, "Off by default, and the honest choice. The browser extension records only which approved site staff open and for how long. Turn this on only with legal sign-off — staff are told in the extension's policy."))),
       recErr,
       owner ? el("div", null, el("button", { class: "btn primary", onclick: async () => {
         try {
-          await api("PUT", "/settings", { retention_days: retention.value, store_bodies: storeBodies.checked, block_secrets: blockSecrets.checked, staff_self_keys: selfKeys.checked });
+          await api("PUT", "/settings", { retention_days: retention.value, store_bodies: storeBodies.checked, block_secrets: blockSecrets.checked, staff_self_keys: selfKeys.checked, gate_log_full: gateFull.checked });
           toast("Saved.");
         } catch (e) { recErr.textContent = e.message; }
       } }, "Save")) : null));

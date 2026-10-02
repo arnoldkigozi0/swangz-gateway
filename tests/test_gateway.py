@@ -734,3 +734,73 @@ class CatalogTests(unittest.TestCase):
         # granting assigns the tool and closes the request
         self.assertTrue(rig.gw.db.one("SELECT 1 FROM entitlements WHERE tool_id='midjourney' AND person_id=?", (rig.person_id,)))
         self.assertEqual(rig.api("GET", "/access-requests")[1]["open"], 0)
+
+
+class AccessGateTests(StaffBase):
+    """The browser access gate: which tool, when, duration — allow or block by entitlement. No page data."""
+
+    def setUp(self):
+        super().setUp()
+        from gateway import security
+        self.rig.api("PATCH", f"/people/{self.rig.person_id}", {"email": "grace@swangz.test"})
+        self.rig.gw.db.x("UPDATE people SET pw_hash = ? WHERE id = ?",
+                         (security.hash_password("a-long-password", 1000), self.rig.person_id))
+
+    def ext_login(self):
+        s, out = self.staff("POST", "/extension/login", {"email": "grace@swangz.test", "password": "a-long-password"}, header=True)
+        self.assertEqual(s, 200)
+        return out["token"]
+
+    def gate(self, method, path, body=None, token=None):
+        headers = {"x-swangz-app": "1"}
+        if token:
+            headers["authorization"] = "Bearer " + token
+        s, h, payload = self.rig.request(method, "/api" + path, body, headers)
+        return s, json.loads(payload) if payload else None
+
+    def test_gate_allows_enabled_blocks_others_and_logs_only_access(self):
+        rig = self.rig
+        token = self.ext_login()
+        # config lists the governed hosts and the honest policy
+        s, cfg = self.gate("GET", "/gate/config", None, token)
+        self.assertEqual(s, 200)
+        self.assertIn("midjourney.com", cfg["hosts"])
+        self.assertNotIn("read", cfg["policy"].lower().split("does not")[0])  # policy says it does NOT read pages
+        self.assertIn("does not read", cfg["policy"])
+        # an unknown host is ignored
+        self.assertEqual(self.gate("POST", "/gate/open", {"host": "example.com"}, token)[1], {"known": False, "allowed": True})
+        # midjourney not subscribed -> blocked
+        s, r = self.gate("POST", "/gate/open", {"host": "www.midjourney.com"}, token)
+        self.assertEqual((r["known"], r["allowed"], r["tool"]), (True, False, "Midjourney"))
+        self.assertIn("subscribed", r["reason"].lower())
+        blocked_id = r["id"]
+        # subscribe + assign -> allowed
+        rig.api("PUT", "/subscriptions/midjourney", {"state": "active"})
+        rig.api("POST", f"/people/{rig.person_id}/tools/midjourney")
+        s, r = self.gate("POST", "/gate/open", {"host": "app.midjourney.com"}, token)
+        self.assertTrue(r["allowed"])
+        # close with a duration
+        self.assertEqual(self.gate("POST", "/gate/close", {"id": r["id"], "seconds": 142}, token)[0], 200)
+        row = rig.gw.db.one("SELECT * FROM site_usage WHERE id = ?", (r["id"],))
+        self.assertEqual((row["outcome"], row["seconds"], row["host"]), ("allowed", 142, "app.midjourney.com"))
+        # the only columns are access-level: no prompt/content columns exist on site_usage
+        cols = {c[1] for c in rig.gw.db.conn.execute("pragma table_info(site_usage)")}
+        self.assertEqual(cols, {"id", "tool_id", "person_id", "host", "outcome", "started", "ended", "seconds"})
+        # admin sees the access log
+        s, report = rig.api("GET", "/site-usage")
+        self.assertGreaterEqual(report["blocked"], 1)
+        self.assertTrue(any(t["tool"] == "Midjourney" for t in report["by_tool"]))
+
+    def test_gate_needs_a_valid_token(self):
+        self.assertEqual(self.gate("GET", "/gate/config")[0], 401)
+        self.assertEqual(self.gate("POST", "/gate/open", {"host": "x.com"})[0], 401)
+
+    def test_suspended_person_is_blocked_everywhere(self):
+        rig = self.rig
+        token = self.ext_login()
+        rig.api("PUT", "/subscriptions/canva", {"state": "active"})
+        rig.api("POST", f"/people/{rig.person_id}/tools/canva")
+        self.assertTrue(self.gate("POST", "/gate/open", {"host": "canva.com"}, token)[1]["allowed"])
+        rig.api("POST", f"/people/{rig.person_id}/suspend")
+        # suspending invalidates the extension's token too, so the gate refuses it outright
+        self.assertEqual(self.gate("POST", "/gate/open", {"host": "canva.com"}, token)[0], 401)
