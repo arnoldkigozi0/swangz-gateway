@@ -160,6 +160,72 @@ SCHEMA = [
     ALTER TABLE requests ADD COLUMN resp_ctype TEXT;
     ALTER TABLE people ADD COLUMN allowed_services TEXT NOT NULL DEFAULT '';
     """,
+    # v5: the tool catalog, company subscriptions, per-person/team entitlements, the website access
+    # gate's usage log, and budgets hidden from staff until an admin accepts them
+    """
+    CREATE TABLE tools (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        category TEXT NOT NULL DEFAULT '',
+        kind TEXT NOT NULL DEFAULT 'site' CHECK (kind IN ('api', 'dev', 'site')),
+        provider TEXT NOT NULL DEFAULT '',
+        url TEXT NOT NULL DEFAULT '',
+        hosts TEXT NOT NULL DEFAULT '',
+        pricing_url TEXT NOT NULL DEFAULT '',
+        entry_usd REAL NOT NULL DEFAULT 0,
+        plans TEXT NOT NULL DEFAULT '[]',
+        builtin INTEGER NOT NULL DEFAULT 0,
+        archived INTEGER NOT NULL DEFAULT 0,
+        created REAL NOT NULL
+    );
+    CREATE TABLE subscriptions (
+        tool_id TEXT PRIMARY KEY REFERENCES tools(id) ON DELETE CASCADE,
+        state TEXT NOT NULL DEFAULT 'none' CHECK (state IN ('none', 'active', 'past_due', 'cancelled')),
+        plan TEXT NOT NULL DEFAULT '',
+        seats INTEGER,
+        monthly_cost REAL,
+        renews_on REAL,
+        note TEXT NOT NULL DEFAULT '',
+        updated REAL NOT NULL,
+        updated_by TEXT NOT NULL DEFAULT ''
+    );
+    CREATE TABLE entitlements (
+        id INTEGER PRIMARY KEY,
+        tool_id TEXT NOT NULL REFERENCES tools(id) ON DELETE CASCADE,
+        person_id INTEGER REFERENCES people(id) ON DELETE CASCADE,
+        department TEXT,
+        granted REAL NOT NULL,
+        granted_by TEXT NOT NULL DEFAULT ''
+    );
+    CREATE UNIQUE INDEX entitlements_person ON entitlements(tool_id, person_id) WHERE person_id IS NOT NULL;
+    CREATE UNIQUE INDEX entitlements_dept ON entitlements(tool_id, department) WHERE department IS NOT NULL;
+    CREATE TABLE access_requests (
+        id INTEGER PRIMARY KEY,
+        tool_id TEXT NOT NULL REFERENCES tools(id) ON DELETE CASCADE,
+        person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+        reason TEXT NOT NULL DEFAULT '',
+        state TEXT NOT NULL DEFAULT 'open' CHECK (state IN ('open', 'granted', 'declined')),
+        created REAL NOT NULL,
+        decided REAL,
+        decided_by TEXT NOT NULL DEFAULT '',
+        decision_note TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX access_requests_state ON access_requests(state, created);
+    -- the website access gate records only this: which tool, who, when, how long. No page content.
+    CREATE TABLE site_usage (
+        id INTEGER PRIMARY KEY,
+        tool_id TEXT REFERENCES tools(id) ON DELETE SET NULL,
+        person_id INTEGER REFERENCES people(id) ON DELETE SET NULL,
+        host TEXT NOT NULL DEFAULT '',
+        outcome TEXT NOT NULL DEFAULT 'allowed',
+        started REAL NOT NULL,
+        ended REAL,
+        seconds INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX site_usage_person ON site_usage(person_id, started);
+    CREATE INDEX site_usage_tool ON site_usage(tool_id, started);
+    ALTER TABLE people ADD COLUMN budget_visible INTEGER NOT NULL DEFAULT 0;
+    """,
 ]
 
 

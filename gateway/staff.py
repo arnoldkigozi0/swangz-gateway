@@ -179,24 +179,65 @@ def _self_keys_allowed(ctx):
 
 @route("GET", r"/me")
 def me(ctx):
+    from . import entitle
+
     p = ctx.person
     day, month = proxy.period_starts(time.time(), ctx.gw.settings.tz_offset_minutes)
     keys = ctx.db.q("SELECT id, label, hint, created, last_used, revoked FROM keys WHERE person_id = ?"
                     " ORDER BY revoked IS NOT NULL, created DESC", (p["id"],))
-    models = [m.strip() for m in (p["allowed_models"] or "").replace("\n", ",").split(",") if m.strip()]
-    return {
+    catalog = entitle.for_person(ctx.db, p)
+    enabled_ids = {t["id"] for t in catalog if t["state"] == "enabled"}
+    pending = {r["tool_id"] for r in ctx.db.q(
+        "SELECT tool_id FROM access_requests WHERE person_id = ? AND state = 'open'", (p["id"],))}
+    for t in catalog:
+        t["pending"] = t["id"] in pending
+    # connection guides only for the API/dev tools this person is actually entitled to
+    guide_provider = {"anthropic", "openai", "elevenlabs", "higgsfield"}
+    allow_providers = {row["provider"] for row in ctx.db.q(
+        "SELECT provider FROM tools WHERE id IN (%s) AND provider != ''" % ",".join("?" * len(enabled_ids) or "''"),
+        tuple(enabled_ids)) if enabled_ids} & guide_provider
+    connect = [g for g in guides.guides(ctx.gw, None, ctx.gw.public_url(ctx.h))
+               if _guide_provider(g["id"]) in allow_providers]
+    out = {
         "name": p["name"], "email": p["email"],
         "title": p["title"], "department": p["department"],
         "active": p["status"] == "active" and ctx.db.get_setting("paused", "0") != "1",
         "suspended": p["status"] != "active", "paused": ctx.db.get_setting("paused", "0") == "1",
-        "budget": {"daily": p["daily_budget"], "monthly": p["monthly_budget"],
-                   "today": ctx.gw.spend(p["id"], day), "month": ctx.gw.spend(p["id"], month)},
-        "models": models,
+        "catalog": catalog,
         "keys": keys,
         "can_add_keys": _self_keys_allowed(ctx) and p["status"] == "active",
-        "tools": guides.guides(ctx.gw, None, ctx.gw.public_url(ctx.h)),
+        "connect": connect,
         "base_url": ctx.gw.public_url(ctx.h),
+        "budget_visible": bool(p["budget_visible"]),
     }
+    if p["budget_visible"]:
+        out["budget"] = {"daily": p["daily_budget"], "monthly": p["monthly_budget"],
+                         "today": ctx.gw.spend(p["id"], day), "month": ctx.gw.spend(p["id"], month)}
+    return out
+
+
+_GUIDE_TO_PROVIDER = {"claude-code": "anthropic", "anthropic-sdk": "anthropic", "codex": "openai",
+                      "openai-compatible": "openai", "elevenlabs": "elevenlabs", "higgsfield": "higgsfield"}
+
+
+def _guide_provider(guide_id):
+    return _GUIDE_TO_PROVIDER.get(guide_id, "")
+
+
+@route("POST", r"/tools/(?P<tid>[a-z0-9-]+)/request")
+def request_access(ctx, tid):
+    tool = ctx.db.one("SELECT * FROM tools WHERE id = ? AND archived = 0", (tid,))
+    if not tool:
+        raise ApiError(404, "No such tool.")
+    existing = ctx.db.one("SELECT id FROM access_requests WHERE tool_id = ? AND person_id = ? AND state = 'open'",
+                          (tid, ctx.person["id"]))
+    if existing:
+        return {"ok": True, "already": True}
+    reason = str(ctx.body.get("reason") or "").strip()[:500]
+    ctx.db.x("INSERT INTO access_requests(tool_id, person_id, reason, created) VALUES(?,?,?,?)",
+             (tid, ctx.person["id"], reason, time.time()))
+    ctx.gw.audit(ctx.person["name"], "asked for a tool", tool["name"], reason, ctx.ip)
+    return {"ok": True}
 
 
 @route("POST", r"/keys")

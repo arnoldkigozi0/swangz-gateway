@@ -337,6 +337,7 @@ class ConsoleTests(unittest.TestCase):
         stored = rig.gw.db.one("SELECT * FROM keys WHERE id = ?", (key["id"],))
         self.assertNotIn(key["key"].split("_", 2)[2], json.dumps(stored))  # only a hash is kept
 
+        rig.api("POST", f"/people/{pid}/tools/claude-code")  # Brian is assigned Claude Code
         rig.anthropic({"model": "claude-opus-5-5", "messages": [{"role": "user", "content": "hi"}]}, key=key["key"],
                       extra={"x-claude-code-session-id": "s-9"})
         status, people = rig.api("GET", "/people", who="viewer")
@@ -461,10 +462,14 @@ class StaffAppTests(StaffBase):
         self.assertEqual(self.staff("POST", "/login", {"email": " GRACE@swangz.com ", "password": "a-long-password"})[0], 200)
 
         status, me = self.staff("GET", "/me")
-        self.assertEqual((me["budget"]["monthly"], len(me["keys"]), me["can_add_keys"]), (50, 1, True))
-        self.assertIn("claude-code", [t["id"] for t in me["tools"]])
+        self.assertEqual((len(me["keys"]), me["can_add_keys"], me["budget_visible"]), (1, True, False))
+        self.assertNotIn("budget", me)  # budgets are hidden from staff until an admin accepts them
+        self.assertIn("claude-code", [t["id"] for t in me["catalog"]])
         for leak in ("prompt", "requests", "actions", "reply", "sessions", "pw_hash", "allowed_models"):
             self.assertNotIn(leak, me)  # the staff app never shows anyone's activity, not even their own
+        # once the admin makes the budget visible, the staff app shows it
+        rig.api("PATCH", f"/people/{rig.person_id}", {"budget_visible": True})
+        self.assertEqual(self.staff("GET", "/me")[1]["budget"]["monthly"], 50)
 
         status, key = self.staff("POST", "/keys", {"label": "Grace MacBook"})
         self.assertEqual(status, 200)
@@ -626,3 +631,106 @@ class AddressTests(unittest.TestCase):
             self.assertNotIn("evil", json.loads(payload)["base_url"])  # a malformed host header is ignored
         finally:
             rig.close()
+
+
+class CatalogTests(unittest.TestCase):
+    """The tool catalog, company subscriptions, and per-person/team entitlements."""
+
+    def setUp(self):
+        self.rig = Rig()
+
+    def tearDown(self):
+        self.rig.close()
+
+    def test_catalog_is_seeded(self):
+        status, cat = self.rig.api("GET", "/catalog")
+        self.assertEqual(status, 200)
+        self.assertGreaterEqual(cat["summary"]["total"], 49)
+        ids = {t["id"] for t in cat["tools"]}
+        self.assertTrue({"claude-code", "codex", "midjourney", "elevenlabs", "chatgpt"} <= ids)
+        mj = next(t for t in cat["tools"] if t["id"] == "midjourney")
+        self.assertEqual(mj["subscription"]["state"], "none")
+        self.assertTrue(mj["plans"])
+        self.assertIn("Creative", cat["departments"])
+
+    def test_paid_and_assigned_is_the_rule(self):
+        rig = self.rig
+        pid = rig.person_id
+        # nothing yet: midjourney is locked (no subscription)
+        person = rig.api("GET", f"/people/{pid}")[1]
+        mj = next(t for t in person["tools"] if t["id"] == "midjourney")
+        self.assertEqual(mj["state"], "locked")
+        # company subscribes -> paid but not assigned
+        self.assertEqual(rig.api("PUT", "/subscriptions/midjourney", {"state": "active", "plan": "Standard", "monthly_cost": 30})[0], 200)
+        person = rig.api("GET", f"/people/{pid}")[1]
+        self.assertEqual(next(t for t in person["tools"] if t["id"] == "midjourney")["state"], "not_assigned")
+        # assign to the person -> enabled
+        self.assertEqual(rig.api("POST", f"/people/{pid}/tools/midjourney")[0], 200)
+        person = rig.api("GET", f"/people/{pid}")[1]
+        mj = next(t for t in person["tools"] if t["id"] == "midjourney")
+        self.assertEqual((mj["state"], mj["grant"]), ("enabled", "direct"))
+        # past due -> blocked again
+        rig.api("PUT", "/subscriptions/midjourney", {"state": "past_due"})
+        self.assertEqual(next(t for t in rig.api("GET", f"/people/{pid}")[1]["tools"] if t["id"] == "midjourney")["state"], "past_due")
+
+    def test_team_grant_by_department(self):
+        rig = self.rig
+        rig.api("PUT", "/subscriptions/canva", {"state": "active"})
+        self.assertEqual(rig.api("POST", "/teams/Creative/tools/canva")[0], 200)
+        person = rig.api("GET", f"/people/{rig.person_id}")[1]  # person is in Creative
+        canva = next(t for t in person["tools"] if t["id"] == "canva")
+        self.assertEqual((canva["state"], canva["grant"]), ("enabled", "team"))
+
+    def test_viewer_cannot_change_catalog(self):
+        rig = self.rig
+        self.assertEqual(rig.api("PUT", "/subscriptions/canva", {"state": "active"}, who="viewer")[0], 403)
+        self.assertEqual(rig.api("POST", f"/people/{rig.person_id}/tools/canva", who="viewer")[0], 403)
+        self.assertEqual(rig.api("GET", "/catalog", who="viewer")[0], 200)  # viewers can look
+
+    def test_add_and_archive_a_custom_tool(self):
+        rig = self.rig
+        status, out = rig.api("POST", "/tools", {"name": "Lovable", "category": "Coding", "kind": "site",
+                                                 "url": "https://lovable.dev", "hosts": "lovable.dev, www.lovable.dev"})
+        self.assertEqual((status, out["id"]), (200, "lovable"))
+        row = rig.gw.db.one("SELECT * FROM tools WHERE id = 'lovable'")
+        self.assertEqual((row["builtin"], row["hosts"]), (0, "lovable.dev"))
+        self.assertEqual(rig.api("POST", "/tools/lovable/archive")[0], 200)
+        self.assertNotIn("lovable", {t["id"] for t in rig.api("GET", "/catalog")[1]["tools"]})
+
+    def test_dev_tool_needs_assignment_at_the_proxy(self):
+        rig = self.rig
+        # the rig grants claude-code to the person; remove it and Claude Code is refused
+        rig.api("DELETE", f"/people/{rig.person_id}/tools/claude-code")
+        status, _, payload = rig.anthropic({"model": "claude-opus-5-5", "messages": [{"role": "user", "content": "run ls"}]},
+                                           extra={"user-agent": "claude-cli/2.1.286 (external, cli)"})
+        self.assertEqual(status, 403)
+        self.assertIn("Claude Code isn't switched on for you", payload.decode())
+        self.assertEqual(rig.last_record()["reason"], "tool not assigned")
+        # a plain Anthropic SDK call (not a dev agent) is unaffected by the dev-tool rule
+        self.assertEqual(rig.anthropic({"model": "claude-haiku-4-5", "messages": [{"role": "user", "content": "hi"}]},
+                                       extra={"user-agent": "Anthropic/Python 1.2"})[0], 200)
+        # re-assign and Claude Code works again
+        rig.api("POST", f"/people/{rig.person_id}/tools/claude-code")
+        self.assertEqual(rig.anthropic({"model": "claude-opus-5-5", "messages": [{"role": "user", "content": "hi"}]},
+                                       extra={"user-agent": "claude-cli/2.1.286 (external, cli)"})[0], 200)
+
+    def test_access_request_flow(self):
+        rig = self.rig
+        # a staff member signs in to the app
+        from gateway import security
+        rig.api("PATCH", f"/people/{rig.person_id}", {"email": "grace@swangz.test"})
+        rig.gw.db.x("UPDATE people SET pw_hash = ? WHERE id = ?",
+                    (security.hash_password("a-long-password", 1000), rig.person_id))
+        s, h, _ = rig.request("POST", "/api/login", {"email": "grace@swangz.test", "password": "a-long-password"}, {"x-swangz-app": "1"})
+        staff_cookie = h["set-cookie"].split(";")[0]
+        # and asks for a tool
+        s, _, _ = rig.request("POST", "/api/tools/midjourney/request", {"reason": "cover art"},
+                              {"x-swangz-app": "1", "cookie": staff_cookie})
+        self.assertEqual(s, 200)
+        status, reqs = rig.api("GET", "/access-requests")
+        self.assertEqual((reqs["open"], reqs["items"][0]["tool"]), (1, "Midjourney"))
+        rid = reqs["items"][0]["id"]
+        self.assertEqual(rig.api("POST", f"/access-requests/{rid}/grant")[0], 200)
+        # granting assigns the tool and closes the request
+        self.assertTrue(rig.gw.db.one("SELECT 1 FROM entitlements WHERE tool_id='midjourney' AND person_id=?", (rig.person_id,)))
+        self.assertEqual(rig.api("GET", "/access-requests")[1]["open"], 0)

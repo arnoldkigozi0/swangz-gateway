@@ -50,6 +50,10 @@ class Rig:
         self.key_id, self.key, secret_hash, hint = security.new_key()
         db.x("INSERT INTO keys(id, person_id, label, secret_hash, hint, created) VALUES(?,?,?,?,?,?)",
              (self.key_id, self.person_id, "laptop", secret_hash, hint, now))
+        # a real person who uses Claude Code / Codex has been assigned them by an admin
+        for tool_id in ("claude-code", "codex"):
+            db.x("INSERT OR IGNORE INTO entitlements(tool_id, person_id, granted) VALUES(?,?,?)",
+                 (tool_id, self.person_id, now))
         self.cookies = {}
 
     def close(self):

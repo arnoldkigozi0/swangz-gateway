@@ -11,7 +11,7 @@ import time
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import admin, pricing, proxy, security, staff, store
+from . import admin, catalog, pricing, proxy, security, staff, store
 from .db import DB
 from .live import Live
 
@@ -34,6 +34,7 @@ class Gateway:
         self.settings = settings
         self.db = DB(settings.db_path)
         pricing.seed(self.db)
+        catalog.seed(self.db)
         self.live = Live()
         self.pool = proxy.Pool(settings.upstream_timeout)
         self.throttle = security.LoginThrottle()
@@ -69,7 +70,8 @@ class Gateway:
             return None, None
         row = self.db.one(
             "SELECT k.*, p.name AS person_name, p.status AS person_status, p.allowed_models, p.allowed_services,"
-            " p.daily_budget, p.monthly_budget FROM keys k JOIN people p ON p.id = k.person_id WHERE k.id = ?",
+            " p.department, p.daily_budget, p.monthly_budget FROM keys k JOIN people p ON p.id = k.person_id"
+            " WHERE k.id = ?",
             (key_id,),
         )
         if not row or not security.secret_matches(secret, row["secret_hash"]):
@@ -88,8 +90,23 @@ class Gateway:
         except ValueError:
             return None
         row = self.db.one("SELECT NULL AS id, NULL AS revoked, p.id AS person_id, p.name AS person_name, p.status AS person_status,"
-                          " p.allowed_models, p.allowed_services, p.daily_budget, p.monthly_budget FROM people p WHERE p.id = ?", (pid,))
+                          " p.allowed_models, p.allowed_services, p.department, p.daily_budget, p.monthly_budget"
+                          " FROM people p WHERE p.id = ?", (pid,))
         return (row, None) if row else None
+
+    def dev_tool_gate(self, key, client):
+        """Claude Code and Codex are developer agents an admin assigns per person. Other clients
+        (the raw SDKs, Studio) are governed by services and models, not by this check."""
+        tool_id = {"Claude Code": "claude-code", "Codex": "codex"}.get(client)
+        if not tool_id:
+            return None
+        granted = self.db.one(
+            "SELECT 1 FROM entitlements WHERE tool_id = ? AND (person_id = ? OR (department != '' AND department = ?))",
+            (tool_id, key["person_id"], key.get("department") or "\0"))
+        if granted:
+            return None
+        name = "Claude Code" if tool_id == "claude-code" else "Codex"
+        return 403, "permission_error", f"{name} isn't switched on for you. Ask an administrator to enable it.", "tool not assigned"
 
     def gate(self, key, model, kind, provider=None):
         """None when the request may go ahead, else (status, error type, message, short reason)."""

@@ -189,7 +189,8 @@ class Call:
             return self.refuse(403, "permission_error",
                                f"{self.h.command} {self.rest.split('?')[0]} is not available through the gateway.",
                                "blocked", "endpoint not allowed")
-        gate = self.gw.gate(row, self.rec["model"], self.kind, self.provider)
+        gate = self.gw.gate(row, self.rec["model"], self.kind, self.provider) \
+            or self.gw.dev_tool_gate(row, self.rec["client"])
         if gate:
             status, etype, message, why = gate
             return self.refuse(status, etype, message, "blocked", why)

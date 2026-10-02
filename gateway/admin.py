@@ -335,7 +335,7 @@ def cut_live(ctx, tid):
 # ---------------------------------------------------------------- people and keys
 
 PERSON_FIELDS = ("name", "email", "department", "title", "daily_budget", "monthly_budget", "allowed_models",
-                 "allowed_services", "notes")
+                 "allowed_services", "notes", "budget_visible")
 
 
 def _person_values(body, partial):
@@ -344,7 +344,9 @@ def _person_values(body, partial):
         if field not in body:
             continue
         v = body[field]
-        if field in ("daily_budget", "monthly_budget"):
+        if field == "budget_visible":
+            v = 1 if v else 0
+        elif field in ("daily_budget", "monthly_budget"):
             if v in (None, ""):
                 v = None
             else:
@@ -438,6 +440,15 @@ def get_person(ctx, pid):
         " ORDER BY r2.id LIMIT 1) AS first_prompt FROM requests r WHERE person_id = ? AND session IS NOT NULL"
         " AND kind NOT IN ('other', 'media-status') GROUP BY session ORDER BY last DESC LIMIT 40", (pid,))
     person["live"] = [t for t in ctx.gw.live.snapshot() if t["person_id"] == pid]
+    from . import entitle
+
+    tools = entitle.for_person(ctx.db, person)
+    direct = {r["tool_id"] for r in ctx.db.q("SELECT tool_id FROM entitlements WHERE person_id = ?", (pid,))}
+    for t in tools:
+        t["grant"] = "direct" if t["id"] in direct else ("team" if t["assigned"] else None)
+    person["tools"] = tools
+    person["tool_summary"] = {"enabled": sum(1 for t in tools if t["state"] == "enabled"),
+                              "assigned": sum(1 for t in tools if t["assigned"])}
     return person
 
 
@@ -598,6 +609,232 @@ def delete_price(ctx, model):
     ctx.db.x("DELETE FROM prices WHERE model = ?", (model,))
     ctx.gw.reload_prices()
     ctx.audit("removed a model price", model)
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------- the tool catalog & subscriptions
+
+_SUB_STATES = ("none", "active", "past_due", "cancelled")
+
+
+def _tool_row(t, sub, counts):
+    out = dict(t)
+    out["plans"] = json.loads(t["plans"]) if t["plans"] else []
+    out["hosts"] = [h for h in (t["hosts"] or "").split(",") if h]
+    out["subscription"] = {k: sub[k] for k in ("state", "plan", "seats", "monthly_cost", "renews_on", "note",
+                                               "updated", "updated_by")} if sub else {"state": "none"}
+    out["assigned_people"] = counts.get((t["id"], "person"), 0)
+    out["assigned_teams"] = counts.get((t["id"], "dept"), 0)
+    return out
+
+
+@route("GET", r"/catalog")
+def catalog_list(ctx):
+    from . import entitle
+
+    subs = entitle.subscriptions(ctx.db)
+    counts = {}
+    for r in ctx.db.q("SELECT tool_id, SUM(person_id IS NOT NULL) AS p, SUM(department IS NOT NULL) AS d"
+                      " FROM entitlements GROUP BY tool_id"):
+        counts[(r["tool_id"], "person")] = r["p"] or 0
+        counts[(r["tool_id"], "dept")] = r["d"] or 0
+    tools = [_tool_row(t, subs.get(t["id"]), counts)
+             for t in ctx.db.q("SELECT * FROM tools WHERE archived = 0 ORDER BY category, name")]
+    cats = sorted({t["category"] for t in tools})
+    paid = sum(1 for t in tools if t["subscription"]["state"] == "active")
+    monthly = ctx.db.scalar("SELECT COALESCE(SUM(monthly_cost), 0) FROM subscriptions WHERE state IN ('active','past_due')")
+    return {"tools": tools, "categories": cats, "departments": _departments(ctx.db),
+            "summary": {"total": len(tools), "paid": paid, "monthly_cost": monthly or 0}}
+
+
+def _departments(db):
+    return [r["department"] for r in db.q(
+        "SELECT DISTINCT department FROM people WHERE department != '' ORDER BY department")]
+
+
+@route("POST", r"/tools", role="owner")
+def add_tool(ctx):
+    name = str(ctx.body.get("name") or "").strip()
+    if not name:
+        raise ApiError(400, "a tool needs a name")
+    tid = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "tool"
+    base, n = tid, 2
+    while ctx.db.one("SELECT id FROM tools WHERE id = ?", (tid,)):
+        tid = f"{base}-{n}"; n += 1
+    kind = ctx.body.get("kind") if ctx.body.get("kind") in ("site", "api", "dev") else "site"
+    hosts = ",".join(_clean_hosts(ctx.body.get("hosts")))
+    plans = ctx.body.get("plans") if isinstance(ctx.body.get("plans"), list) else []
+    ctx.db.x("INSERT INTO tools(id, name, category, kind, provider, url, hosts, pricing_url, entry_usd, plans,"
+             " builtin, created) VALUES(?,?,?,?,?,?,?,?,?,?,0,?)",
+             (tid, name, str(ctx.body.get("category") or "Other")[:40], kind, str(ctx.body.get("provider") or "")[:40],
+              str(ctx.body.get("url") or "")[:300], hosts, str(ctx.body.get("pricing_url") or "")[:300],
+              _money(ctx.body.get("entry_usd")) or 0, json.dumps(plans), time.time()))
+    ctx.audit("added a tool to the catalog", name)
+    return {"id": tid}
+
+
+def _clean_hosts(value):
+    raw = value if isinstance(value, list) else str(value or "").replace("\n", ",").split(",")
+    out = []
+    for h in raw:
+        h = str(h).strip().lower().removeprefix("https://").removeprefix("http://").split("/")[0]
+        if h.startswith("www."):
+            h = h[4:]
+        if re.fullmatch(r"[a-z0-9.-]+\.[a-z]{2,}", h) and h not in out:
+            out.append(h)
+    return out
+
+
+@route("PATCH", r"/tools/(?P<tid>[a-z0-9-]+)", role="owner")
+def edit_tool(ctx, tid):
+    tool = ctx.db.one("SELECT * FROM tools WHERE id = ?", (tid,))
+    if not tool:
+        raise ApiError(404, "no such tool")
+    fields = {}
+    for key in ("name", "category", "url", "pricing_url", "provider"):
+        if key in ctx.body:
+            fields[key] = str(ctx.body[key] or "").strip()[:300]
+    if "hosts" in ctx.body:
+        fields["hosts"] = ",".join(_clean_hosts(ctx.body["hosts"]))
+    if "entry_usd" in ctx.body:
+        fields["entry_usd"] = _money(ctx.body["entry_usd"]) or 0
+    if "plans" in ctx.body and isinstance(ctx.body["plans"], list):
+        fields["plans"] = json.dumps(ctx.body["plans"])
+    if "kind" in ctx.body and ctx.body["kind"] in ("site", "api", "dev") and not tool["builtin"]:
+        fields["kind"] = ctx.body["kind"]
+    if fields:
+        ctx.db.x(f"UPDATE tools SET {', '.join(f'{k}=?' for k in fields)} WHERE id = ?", [*fields.values(), tid])
+        ctx.audit("edited a tool", tool["name"], json.dumps(fields, default=str))
+    return {"ok": True}
+
+
+@route("POST", r"/tools/(?P<tid>[a-z0-9-]+)/(?P<action>archive|restore)", role="owner")
+def archive_tool(ctx, tid, action):
+    tool = ctx.db.one("SELECT * FROM tools WHERE id = ?", (tid,))
+    if not tool:
+        raise ApiError(404, "no such tool")
+    ctx.db.x("UPDATE tools SET archived = ? WHERE id = ?", (1 if action == "archive" else 0, tid))
+    ctx.audit("archived a tool" if action == "archive" else "restored a tool", tool["name"])
+    return {"ok": True}
+
+
+@route("PUT", r"/subscriptions/(?P<tid>[a-z0-9-]+)", role="owner")
+def set_subscription(ctx, tid):
+    tool = ctx.db.one("SELECT * FROM tools WHERE id = ?", (tid,))
+    if not tool:
+        raise ApiError(404, "no such tool")
+    state = ctx.body.get("state")
+    if state not in _SUB_STATES:
+        raise ApiError(400, "state must be one of: " + ", ".join(_SUB_STATES))
+    seats = ctx.body.get("seats")
+    seats = int(seats) if str(seats or "").strip().isdigit() else None
+    renews = ctx.body.get("renews_on")
+    renews = _date_to_ts(renews) if renews else None
+    ctx.db.x("INSERT INTO subscriptions(tool_id, state, plan, seats, monthly_cost, renews_on, note, updated, updated_by)"
+             " VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(tool_id) DO UPDATE SET state=excluded.state, plan=excluded.plan,"
+             " seats=excluded.seats, monthly_cost=excluded.monthly_cost, renews_on=excluded.renews_on,"
+             " note=excluded.note, updated=excluded.updated, updated_by=excluded.updated_by",
+             (tid, state, str(ctx.body.get("plan") or "")[:80], seats, _money(ctx.body.get("monthly_cost")),
+              renews, str(ctx.body.get("note") or "")[:500], time.time(), ctx.admin["username"]))
+    ctx.audit("set a subscription", tool["name"], f"{state}" + (f", {ctx.body.get('plan')}" if ctx.body.get("plan") else ""))
+    return {"ok": True}
+
+
+def _date_to_ts(text):
+    text = str(text).strip()[:10]
+    try:
+        import calendar
+        return float(calendar.timegm(time.strptime(text, "%Y-%m-%d")))
+    except ValueError:
+        raise ApiError(400, "date must be YYYY-MM-DD")
+
+
+def _money(v):
+    if v in (None, ""):
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        raise ApiError(400, "that cost must be a number of dollars")
+    if f < 0:
+        raise ApiError(400, "cost cannot be negative")
+    return f
+
+
+# ---------------------------------------------------------------- entitlements (who may use what)
+
+
+@route("POST", r"/people/(?P<pid>\d+)/tools/(?P<tid>[a-z0-9-]+)", role="owner")
+def grant_person(ctx, pid, tid):
+    person = ctx.db.one("SELECT name FROM people WHERE id = ?", (int(pid),))
+    tool = ctx.db.one("SELECT name FROM tools WHERE id = ?", (tid,))
+    if not person or not tool:
+        raise ApiError(404, "no such person or tool")
+    ctx.db.x("INSERT OR IGNORE INTO entitlements(tool_id, person_id, granted, granted_by) VALUES(?,?,?,?)",
+             (tid, int(pid), time.time(), ctx.admin["username"]))
+    _mark_requests(ctx, tid, int(pid), "granted")
+    ctx.audit("turned a tool on for a person", f"{person['name']} · {tool['name']}")
+    return {"ok": True}
+
+
+@route("DELETE", r"/people/(?P<pid>\d+)/tools/(?P<tid>[a-z0-9-]+)", role="owner")
+def revoke_person(ctx, pid, tid):
+    ctx.db.x("DELETE FROM entitlements WHERE tool_id = ? AND person_id = ?", (tid, int(pid)))
+    tool = ctx.db.one("SELECT name FROM tools WHERE id = ?", (tid,))
+    person = ctx.db.one("SELECT name FROM people WHERE id = ?", (int(pid),))
+    ctx.audit("turned a tool off for a person", f"{(person or {}).get('name','?')} · {(tool or {}).get('name', tid)}")
+    return {"ok": True}
+
+
+@route("POST", r"/teams/(?P<dept>[^/]+)/tools/(?P<tid>[a-z0-9-]+)", role="owner")
+def grant_team(ctx, dept, tid):
+    tool = ctx.db.one("SELECT name FROM tools WHERE id = ?", (tid,))
+    if not tool:
+        raise ApiError(404, "no such tool")
+    ctx.db.x("INSERT OR IGNORE INTO entitlements(tool_id, department, granted, granted_by) VALUES(?,?,?,?)",
+             (tid, dept, time.time(), ctx.admin["username"]))
+    ctx.audit("turned a tool on for a team", f"{dept} · {tool['name']}")
+    return {"ok": True}
+
+
+@route("DELETE", r"/teams/(?P<dept>[^/]+)/tools/(?P<tid>[a-z0-9-]+)", role="owner")
+def revoke_team(ctx, dept, tid):
+    ctx.db.x("DELETE FROM entitlements WHERE tool_id = ? AND department = ?", (tid, dept))
+    tool = ctx.db.one("SELECT name FROM tools WHERE id = ?", (tid,))
+    ctx.audit("turned a tool off for a team", f"{dept} · {(tool or {}).get('name', tid)}")
+    return {"ok": True}
+
+
+def _mark_requests(ctx, tid, pid, state):
+    ctx.db.x("UPDATE access_requests SET state = ?, decided = ?, decided_by = ? WHERE tool_id = ? AND person_id = ?"
+             " AND state = 'open'", (state, time.time(), ctx.admin["username"], tid, pid))
+
+
+@route("GET", r"/access-requests")
+def list_access_requests(ctx):
+    state = ctx.arg("state", "open")
+    rows = ctx.db.q(
+        "SELECT ar.*, p.name AS person, p.department, t.name AS tool, t.kind FROM access_requests ar"
+        " JOIN people p ON p.id = ar.person_id JOIN tools t ON t.id = ar.tool_id"
+        + (" WHERE ar.state = ?" if state in ("open", "granted", "declined") else "")
+        + " ORDER BY ar.created DESC LIMIT 200", ([state] if state in ("open", "granted", "declined") else []))
+    return {"items": rows, "open": ctx.db.scalar("SELECT COUNT(*) FROM access_requests WHERE state = 'open'") or 0}
+
+
+@route("POST", r"/access-requests/(?P<rid>\d+)/(?P<action>grant|decline)", role="owner")
+def decide_access_request(ctx, rid, action):
+    req = ctx.db.one("SELECT ar.*, p.name AS person, t.name AS tool FROM access_requests ar"
+                     " JOIN people p ON p.id = ar.person_id JOIN tools t ON t.id = ar.tool_id WHERE ar.id = ?", (int(rid),))
+    if not req:
+        raise ApiError(404, "no such request")
+    note = str(ctx.body.get("note") or "")[:500]
+    if action == "grant":
+        ctx.db.x("INSERT OR IGNORE INTO entitlements(tool_id, person_id, granted, granted_by) VALUES(?,?,?,?)",
+                 (req["tool_id"], req["person_id"], time.time(), ctx.admin["username"]))
+    ctx.db.x("UPDATE access_requests SET state = ?, decided = ?, decided_by = ?, decision_note = ? WHERE id = ?",
+             ("granted" if action == "grant" else "declined", time.time(), ctx.admin["username"], note, int(rid)))
+    ctx.audit("granted an access request" if action == "grant" else "declined an access request",
+              f"{req['person']} · {req['tool']}", note)
     return {"ok": True}
 
 
