@@ -1,5 +1,9 @@
 # Swangz AI Gateway
 
+> **New here?** Start with [`CLAUDE.md`](CLAUDE.md) for the project guide and conventions, then
+> [`docs/STATE.md`](docs/STATE.md) for the current status and what's next. On a new machine:
+> `git clone … && cd swangz-gateway && claude` (Claude Code reads `CLAUDE.md` automatically).
+
 One controlled way into AI for everyone at Swangz. Staff get a personal key and point their tools at
 the gateway instead of at Anthropic or OpenAI. The gateway holds the real provider keys, passes each
 request through, and keeps a record of **who** used AI, **with which tool**, **what they asked**,
