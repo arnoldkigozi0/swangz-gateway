@@ -34,6 +34,13 @@ the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
 - **Hardening.** `/healthz` (DB check + uptime, 503 when down) and `/admin/api/health`; a per-person
   rate limit (Settings → requests per minute, 0 = off → 429).
 
+### Accounts are restricted to Swangz emails
+
+A person can only be given an account with a `@swangzavenue.com` email (configurable via
+`SWANGZ_EMAIL_DOMAINS`). The only exceptions are the owner `arnoldkigozi0@gmail.com` and the demo
+account `webdev02022007@gmail.com` (extendable via `SWANGZ_EMAIL_EXCEPTIONS`). Enforced when an admin
+adds or edits a person, so only allowed emails can ever sign in.
+
 ### Security model (summary)
 
 Staff keys are `sgw_<id>_<secret>`, stored as a SHA-256 only, shown once. Provider keys live only in

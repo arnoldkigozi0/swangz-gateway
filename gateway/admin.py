@@ -373,6 +373,8 @@ def _person_values(body, partial):
 
 
 def _email_free(ctx, email, person_id=None):
+    if email and not ctx.gw.settings.email_allowed(email):
+        raise ApiError(400, ctx.gw.settings.email_rule() + " That address isn't allowed.")
     if email and ctx.db.one("SELECT id FROM people WHERE lower(email) = lower(?) AND id != ?", (email, person_id or -1)):
         raise ApiError(400, "someone else already uses that email")
 

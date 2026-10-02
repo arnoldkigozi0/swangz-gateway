@@ -431,7 +431,7 @@ class StaffBase(unittest.TestCase):
 
     def invite(self):
         rig = self.rig
-        rig.api("PATCH", f"/people/{rig.person_id}", {"email": "Grace@Swangz.com", "monthly_budget": 50})
+        rig.api("PATCH", f"/people/{rig.person_id}", {"email": "Grace@swangzavenue.com", "monthly_budget": 50})
         status, out = rig.api("POST", f"/people/{rig.person_id}/invite")
         self.assertEqual(status, 200)
         return out["link"].rsplit("/", 1)[1]
@@ -457,9 +457,9 @@ class StaffAppTests(StaffBase):
         token = self.invite()
         self.staff("POST", "/welcome", {"token": token, "password": "a-long-password"})
         self.cookie = None
-        self.assertEqual(self.staff("POST", "/login", {"email": "grace@swangz.com", "password": "wrong-password"})[0], 401)
-        self.assertEqual(self.staff("POST", "/login", {"email": "grace@swangz.com", "password": "a-long-password"}, header=False)[0], 403)
-        self.assertEqual(self.staff("POST", "/login", {"email": " GRACE@swangz.com ", "password": "a-long-password"})[0], 200)
+        self.assertEqual(self.staff("POST", "/login", {"email": "grace@swangzavenue.com", "password": "wrong-password"})[0], 401)
+        self.assertEqual(self.staff("POST", "/login", {"email": "grace@swangzavenue.com", "password": "a-long-password"}, header=False)[0], 403)
+        self.assertEqual(self.staff("POST", "/login", {"email": " GRACE@swangzavenue.com ", "password": "a-long-password"})[0], 200)
 
         status, me = self.staff("GET", "/me")
         self.assertEqual((len(me["keys"]), me["can_add_keys"], me["budget_visible"]), (1, True, False))
@@ -718,10 +718,10 @@ class CatalogTests(unittest.TestCase):
         rig = self.rig
         # a staff member signs in to the app
         from gateway import security
-        rig.api("PATCH", f"/people/{rig.person_id}", {"email": "grace@swangz.test"})
+        rig.api("PATCH", f"/people/{rig.person_id}", {"email": "grace@swangzavenue.com"})
         rig.gw.db.x("UPDATE people SET pw_hash = ? WHERE id = ?",
                     (security.hash_password("a-long-password", 1000), rig.person_id))
-        s, h, _ = rig.request("POST", "/api/login", {"email": "grace@swangz.test", "password": "a-long-password"}, {"x-swangz-app": "1"})
+        s, h, _ = rig.request("POST", "/api/login", {"email": "grace@swangzavenue.com", "password": "a-long-password"}, {"x-swangz-app": "1"})
         staff_cookie = h["set-cookie"].split(";")[0]
         # and asks for a tool
         s, _, _ = rig.request("POST", "/api/tools/midjourney/request", {"reason": "cover art"},
@@ -742,12 +742,12 @@ class AccessGateTests(StaffBase):
     def setUp(self):
         super().setUp()
         from gateway import security
-        self.rig.api("PATCH", f"/people/{self.rig.person_id}", {"email": "grace@swangz.test"})
+        self.rig.api("PATCH", f"/people/{self.rig.person_id}", {"email": "grace@swangzavenue.com"})
         self.rig.gw.db.x("UPDATE people SET pw_hash = ? WHERE id = ?",
                          (security.hash_password("a-long-password", 1000), self.rig.person_id))
 
     def ext_login(self):
-        s, out = self.staff("POST", "/extension/login", {"email": "grace@swangz.test", "password": "a-long-password"}, header=True)
+        s, out = self.staff("POST", "/extension/login", {"email": "grace@swangzavenue.com", "password": "a-long-password"}, header=True)
         self.assertEqual(s, 200)
         return out["token"]
 
@@ -881,3 +881,34 @@ class CorsTests(unittest.TestCase):
                                         {"x-gateway-admin": "1", "origin": "https://evil.example"})
         self.assertNotIn("access-control-allow-origin", h)
         self.assertIn("SameSite=Strict", h["set-cookie"])  # unlisted origin = treated as same-site
+
+
+class EmailRuleTests(unittest.TestCase):
+    """Accounts are restricted to Swangz emails, apart from the named exceptions."""
+
+    def setUp(self):
+        self.rig = Rig()
+
+    def tearDown(self):
+        self.rig.close()
+
+    def test_only_swangz_or_exception_emails(self):
+        rig = self.rig
+        # a random gmail is refused
+        status, out = rig.api("POST", "/people", {"name": "Outsider", "email": "random@gmail.com"})
+        self.assertEqual(status, 400)
+        self.assertIn("isn't allowed", out["error"])
+        # a Swangz email is fine
+        self.assertEqual(rig.api("POST", "/people", {"name": "Grace", "email": "grace2@swangzavenue.com"})[0], 200)
+        # the owner and demo exceptions are allowed even though they are gmail
+        self.assertEqual(rig.api("POST", "/people", {"name": "Arnold", "email": "arnoldkigozi0@gmail.com"})[0], 200)
+        self.assertEqual(rig.api("POST", "/people", {"name": "Demo", "email": "webdev02022007@gmail.com"})[0], 200)
+        # editing to a bad email is refused too
+        pid = rig.person_id
+        self.assertEqual(rig.api("PATCH", f"/people/{pid}", {"email": "someone@outlook.com"})[0], 400)
+        self.assertEqual(rig.api("PATCH", f"/people/{pid}", {"email": "grace@swangzavenue.com"})[0], 200)
+
+    def test_configurable_domains(self):
+        rig = self.rig
+        rig.gw.settings.email_domains = ("swangz.co", "swangzavenue.com")
+        self.assertEqual(rig.api("POST", "/people", {"name": "A", "email": "a@swangz.co"})[0], 200)

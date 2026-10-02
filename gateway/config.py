@@ -91,6 +91,24 @@ class Settings:
     bootstrap_admin: str = ""
     bootstrap_password: str = ""
     providers: dict = field(default_factory=dict)
+    # Who may be given an account: a Swangz-domain email, or one of the named exceptions (the owner
+    # and the demo user). Configurable; these are the defaults.
+    email_domains: tuple = ("swangzavenue.com",)
+    email_exceptions: frozenset = frozenset({"arnoldkigozi0@gmail.com", "webdev02022007@gmail.com"})
+
+    def email_allowed(self, email):
+        """True when this email may be used for an account: a Swangz domain, or a named exception."""
+        email = (email or "").strip().lower()
+        if not email or "@" not in email:
+            return False
+        if email in self.email_exceptions:
+            return True
+        domain = email.rsplit("@", 1)[1]
+        return any(domain == d or domain.endswith("." + d) for d in self.email_domains)
+
+    def email_rule(self):
+        doms = " or ".join("@" + d for d in self.email_domains)
+        return f"Accounts use a Swangz email ({doms})."
 
     def __post_init__(self):
         if not self.providers:
@@ -132,6 +150,10 @@ class Settings:
             bootstrap_admin=env.get("GATEWAY_BOOTSTRAP_ADMIN", ""),
             bootstrap_password=env.get("GATEWAY_BOOTSTRAP_PASSWORD", ""),
             providers=providers,
+            email_domains=tuple(d.strip().lower().lstrip("@") for d in
+                                env.get("SWANGZ_EMAIL_DOMAINS", "swangzavenue.com").split(",") if d.strip()),
+            email_exceptions=frozenset({"arnoldkigozi0@gmail.com", "webdev02022007@gmail.com"}
+                                       | {e.strip().lower() for e in env.get("SWANGZ_EMAIL_EXCEPTIONS", "").split(",") if e.strip()}),
         )
 
 
