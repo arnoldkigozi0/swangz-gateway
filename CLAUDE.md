@@ -80,6 +80,7 @@ extension/      the MV3 browser access gate (its own README)
 tests/          unittest suite + fake_upstream.py (a stand-in for every provider)
 deploy/         systemd unit, Caddyfile, laptop-demo.sh, NETLIFY.md, WORKSPACE.md
 docs/STATE.md   current status, what's done, what's next  ← read this after this file
+docs/HANDOFF.md moving to another machine: what is NOT in git, and how to carry it across
 ```
 
 ## Working conventions (follow these)
@@ -123,6 +124,9 @@ username = Google email); `GATEWAY_CORS_ORIGINS` to let a Netlify-hosted front-e
 settings (retention, rate limit, kill switch, …) live in the control room under Settings.
 
 ## Picking the project up on a new machine
+
+**See `docs/HANDOFF.md`** for the full version — what travels in git, what does not (`.env`,
+`data/gateway.db`), and how to move the secrets safely.
 
 With git and Claude Code installed and signed in:
 
