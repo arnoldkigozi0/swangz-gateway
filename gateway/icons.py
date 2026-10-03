@@ -2,7 +2,8 @@
 
 The gateway fetches each tool's own icon once from its website (the apple-touch-icon or favicon the
 site publishes), keeps it in the database and serves it from /icons/<tool id> — so a staff browser
-never contacts a tool's site just to draw a tile. An admin can also upload a logo. When no logo can
+never contacts a tool's site just to draw a tile. Sites that turn away automated requests are looked
+up in DuckDuckGo's public icon service instead (only the tool's domain name is sent). An admin can also upload a logo. When no logo can
 be found the apps draw a monogram in the tool's brand colour instead.
 """
 
@@ -136,9 +137,13 @@ def fetch(tool):
     url = (tool.get("url") or "").strip()
     if not url.startswith(("https://", "http://")):
         return None
+    if not _public(urllib.parse.urlsplit(url).hostname or ""):
+        return None  # never fetch from, or name to anyone, a machine on the local network
     final, page = _get(url, HTML_BYTES)
     tried = candidates(final or url, page.decode("utf-8", "replace") if page else "")
-    for icon_url in tried[:5]:
+    host = urllib.parse.urlsplit(final or url).hostname or ""
+    tried = tried[:5] + [f"https://icons.duckduckgo.com/ip3/{host}.ico"]
+    for icon_url in tried:
         _, data = _get(icon_url, MAX_BYTES)
         if not data or len(data) > MAX_BYTES:
             continue

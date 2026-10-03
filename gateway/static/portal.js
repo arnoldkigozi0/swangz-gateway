@@ -38,7 +38,6 @@
     paths.forEach((d) => { const p = document.createElementNS(ns, "path"); p.setAttribute("d", d); s.append(p); });
     return s;
   }
-  const GLYPHS = { "claude-code": "CC", codex: "CX", "anthropic-sdk": "{ }", "openai-compatible": "AI" };
   const ICON_DEVICE = ["M4 5h16v11H4z", "M2 20h20", "M9 16v4", "M15 16v4"];
 
   class ApiError extends Error {
@@ -110,20 +109,84 @@
     return d;
   }
 
+  // ------------------------------------------------------------------ theme, icons, logos
+
+  const ICON = {
+    sun: ["M12 2.5v2", "M12 19.5v2", "M4.6 4.6L6 6", "M18 18l1.4 1.4", "M2.5 12h2", "M19.5 12h2", "M4.6 19.4L6 18", "M18 6l1.4-1.4", "M12 7.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9z"],
+    moon: ["M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.6 6.6 0 0 0 9.7 9.7z"],
+    search: ["M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14z", "M20 20l-4-4"],
+    shield: ["M12 3l7.5 3v5.5c0 4.6-3.2 7.9-7.5 9.5c-4.3-1.6-7.5-4.9-7.5-9.5V6z", "M9 12l2 2l4-4"],
+    grid: ["M4 4h7v7H4z", "M13 4h7v7h-7z", "M4 13h7v7H4z", "M13 13h7v7h-7z"],
+    clock: ["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M12 7.5V12l3 2"],
+    inbox: ["M4 13.5L6.2 5h11.6L20 13.5", "M4 13.5V19h16v-5.5", "M4 13.5h5l1.2 2h3.6l1.2-2h5"],
+    wallet: ["M4 7h15a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z", "M4 7l11-3v3", "M16 13h1.5"],
+    open: ["M8 16L16 8", "M10 8h6v6"],
+  };
+
+  const THEME_KEY = "swangz-theme";
+  const theme = () => (document.documentElement.dataset.theme === "dark" ? "dark" : "light");
+  function applyTheme(t, remember) {
+    document.documentElement.dataset.theme = t;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", t === "dark" ? "#0B1222" : "#F5F3EE");
+    if (remember) { try { localStorage.setItem(THEME_KEY, t); } catch (e) { /* private window: just this visit */ } }
+  }
+  (() => { let saved = null; try { saved = localStorage.getItem(THEME_KEY); } catch (e) { /* none */ } applyTheme(saved === "dark" ? "dark" : "light", false); })();
+  function themeButton() {
+    const b = el("button", { class: "theme-btn", type: "button" });
+    const draw = () => {
+      const dark = theme() === "dark";
+      b.replaceChildren(svg(dark ? ICON.sun : ICON.moon));
+      b.setAttribute("aria-label", dark ? "Switch to the light theme" : "Switch to the midnight theme");
+      b.title = dark ? "Light theme" : "Midnight theme";
+    };
+    b.addEventListener("click", () => { applyTheme(theme() === "dark" ? "light" : "dark", true); draw(); });
+    draw();
+    return b;
+  }
+
+  function logo(t, size) {
+    const cls = "logo" + (size ? " " + size : "");
+    const mono = () => {
+      const box = el("span", { class: cls + " mono", "aria-hidden": "true" }, initials(t.name));
+      const c = /^#[0-9a-f]{6}$/i.test(t.color || "") ? t.color : "#3A4A6B";
+      box.style.background = `linear-gradient(140deg, ${c}, color-mix(in srgb, ${c} 60%, #0B1222))`;
+      return box;
+    };
+    if (!t.icon) return mono();
+    const img = el("img", { src: gurl(t.icon), alt: "", loading: "lazy", decoding: "async" });
+    const box = el("span", { class: cls, "aria-hidden": "true" }, img);
+    img.addEventListener("error", () => box.replaceWith(mono()));
+    return box;
+  }
+
+  // how a tool signs you in when you open it from here
+  const HOW = {
+    sso: ["Company sign-in", "Opens with your Swangz work account — no separate password."],
+    seat: ["Company seat", "Your seat on the company plan. Sign in with your work email."],
+    own: ["Your own login", "Use your own account for this one."],
+    api: ["Company key", "Runs on the company's key — nothing to sign in to."],
+  };
+  const dateText = (ts) => new Date(ts * 1000).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
+
   // ------------------------------------------------------------------ gate (sign in, welcome)
 
   function gateArt() {
     return el("section", { class: "gate-art" },
       el("a", { class: "wordmark", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz ", el("b", null, "AI")),
       el("div", null,
-        el("h1", { class: "gate-title" }, "Every AI tool. ", el("em", null, "One sign-in.")),
-        el("p", { class: "gate-lede" }, "Claude, Codex and the rest — set up for your work at Swangz. No personal subscriptions, no accounts to juggle."),
-        el("div", { class: "tool-row" }, ["Claude Code", "Codex", "Cursor", "Your scripts"].map((t) => el("span", null, t)))),
-      el("div", { class: "gate-foot" }, "Swangz Avenue"));
+        el("h1", { class: "gate-title" }, "Every AI tool. ", el("em", null, "One door.")),
+        el("p", { class: "gate-lede" }, "The AI tools Swangz pays for, in one place. Open any of them with your work account — no personal subscriptions, no passwords to juggle."),
+        el("div", { class: "tool-row" }, ["ChatGPT", "Claude", "Midjourney", "ElevenLabs", "Canva", "Runway", "Claude Code"].map((t) => el("span", null, t)))),
+      el("div", { class: "gate-foot" }, el("span", null, "Swangz Avenue"), el("span", null, "Company access only")));
+  }
+
+  function gateFrame(form) {
+    return el("main", { class: "gate" }, gateArt(), el("section", { class: "gate-form" }, form));
   }
 
   function showSignIn() {
-    const email = el("input", { class: "input", type: "email", autocomplete: "email", required: true });
+    const email = el("input", { class: "input", type: "email", autocomplete: "email", required: true, placeholder: "you@swangzavenue.com" });
     const pw = passwordInput("current-password");
     const err = el("div", { class: "form-error", role: "alert" });
     const go = el("button", { class: "btn btn--solid btn--block", type: "submit" }, "Sign in");
@@ -142,8 +205,8 @@
     el("label", { class: "field" }, el("span", null, "Work email"), email),
     el("label", { class: "field" }, el("span", null, "Password"), pw.node),
     err, go,
-    el("p", { class: "muted" }, "First time? Your admin sends you a sign-in link. Forgot your password? Ask them for a new link."));
-    app.replaceChildren(el("main", { class: "gate" }, gateArt(), el("section", { class: "gate-form" }, form)));
+    el("p", { class: "muted small" }, "First time here? Your admin sends you a sign-in link. Forgot your password? Ask them for a new one."));
+    app.replaceChildren(gateFrame(form));
     email.focus();
   }
 
@@ -154,7 +217,7 @@
     } catch (e) {
       const form = el("form", null, el("div", { class: "eyebrow" }, "Sign-in link"), el("h2", null, "This link has run out"),
         el("p", { class: "muted" }, e.message), el("a", { class: "btn", href: "#/" }, "Go to sign in"));
-      app.replaceChildren(el("main", { class: "gate" }, gateArt(), el("section", { class: "gate-form" }, form)));
+      app.replaceChildren(gateFrame(form));
       return;
     }
     const pw = passwordInput("new-password");
@@ -172,7 +235,7 @@
           await api("POST", "/welcome", { token, password: pw.input.value });
           history.replaceState(null, "", location.pathname);
           await load();
-          toast("You're in. Connect your first tool below.");
+          toast("You're in. Your tools are below.");
         } catch (x) { err.textContent = x.message; go.disabled = false; }
       },
     },
@@ -182,7 +245,7 @@
     el("label", { class: "field" }, el("span", null, "Choose a password (10+ characters)"), pw.node),
     el("label", { class: "field" }, el("span", null, "Type it again"), again.node),
     err, go);
-    app.replaceChildren(el("main", { class: "gate" }, gateArt(), el("section", { class: "gate-form" }, form)));
+    app.replaceChildren(gateFrame(form));
     pw.input.focus();
   }
 
@@ -191,63 +254,105 @@
   const TOOL_TO_GUIDE = { "claude-code": "claude-code", codex: "codex", claude: "anthropic-sdk",
     chatgpt: "openai-compatible", elevenlabs: "elevenlabs", "higgsfield-ai": "higgsfield" };
   const STUDIO_TOOLS = { elevenlabs: "voice", "higgsfield-ai": "image" };
-  const STATE_LABEL = { enabled: "Ready", not_assigned: "Available", locked: "Not subscribed",
-    past_due: "Renewing", suspended: "Paused" };
-  const CAT_HUE = { Assistant: 210, Research: 250, Coding: 280, Writing: 330, Image: 20, Video: 0,
-    "Avatar video": 350, "Video editing": 15, Music: 160, Voice: 190, Design: 300, Productivity: 130,
-    Automation: 100, Analytics: 240, Other: 220 };
+  const STATE_LABEL = { enabled: "Ready", not_assigned: "Available on request", locked: "Not on the company plan",
+    past_due: "Renewal due", suspended: "Paused" };
   const S_FILTER = { q: "", cat: "all" };
+  let slashBound = false;
 
   function render() {
     const me = S.me;
+    const catalog = me.catalog || [];
     const menu = el("div", { class: "menu", role: "menu" },
       el("div", { class: "who" }, el("div", null, me.name), el("div", null, me.email)),
       el("button", { onclick: changePassword, role: "menuitem" }, "Change password"),
+      el("button", { onclick: policy, role: "menuitem" }, "Usage policy"),
       el("button", { onclick: signOut, role: "menuitem" }, "Sign out"));
     const meBtn = el("button", { class: "me-btn", "aria-haspopup": "menu", onclick: (e) => { e.stopPropagation(); menu.classList.toggle("open"); } },
       el("span", { class: "avatar" }, initials(me.name)), el("span", { class: "me-name" }, me.name));
     document.addEventListener("click", () => menu.classList.remove("open"));
 
-    const search = el("input", { class: "topsearch", type: "search", placeholder: "Search tools…", value: S_FILTER.q,
-      "aria-label": "Search tools", oninput: (e) => { S_FILTER.q = e.target.value; drawCatalog(); } });
+    const searchInput = el("input", { class: "topsearch", type: "search", placeholder: "Search tools", value: S_FILTER.q,
+      "aria-label": "Search tools", oninput: (e) => { S_FILTER.q = e.target.value; draw(); } });
+    const search = el("div", { class: "search-wrap" }, svg(ICON.search), searchInput, el("kbd", null, "/"));
+    if (!slashBound) {
+      slashBound = true;
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "/" && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "")) {
+          const box = document.querySelector(".topsearch");
+          if (box) { e.preventDefault(); box.focus(); }
+        }
+      });
+    }
     const topbar = el("header", { class: "topbar" }, el("div", { class: "inner" },
       el("a", { class: "wordmark", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz ", el("b", null, "AI")),
-      me.catalog && me.catalog.length ? search : null,
-      el("div", { class: "me-menu" }, meBtn, menu)));
+      catalog.length ? search : null,
+      el("div", { class: "top-right" }, themeButton(), el("div", { class: "me-menu" }, meBtn, menu))));
 
+    const enabled = catalog.filter((t) => t.state === "enabled");
+    const weekAgo = Date.now() / 1000 - 7 * 86400;
+    const usedWeek = enabled.filter((t) => t.last_opened && t.last_opened >= weekAgo).length;
+    const pending = catalog.filter((t) => t.pending).length;
     const statusText = me.active ? "Your tools are ready" : me.suspended ? "Your access is paused — talk to your admin" : "AI access is paused for everyone right now";
-    const enabled = (me.catalog || []).filter((t) => t.state === "enabled");
+    const stat = (icon, label, big, note, extra) => el("div", { class: "stat" },
+      el("div", { class: "label" }, svg(icon), label), el("div", { class: "big" }, big), el("div", { class: "note" }, note), extra);
+    const stats = el("div", { class: "stats" },
+      stat(ICON.grid, "Ready for you", String(enabled.length), `of ${catalog.length} tools in the company catalog`),
+      stat(ICON.clock, "Used this week", String(usedWeek), usedWeek === 1 ? "tool you opened" : "tools you opened"),
+      stat(ICON.inbox, "Requests waiting", String(pending), pending ? "an admin will review them" : "nothing pending"),
+      me.budget ? stat(ICON.wallet, "Allowance this month", money(me.budget.month),
+        me.budget.monthly !== null ? `of ${money(me.budget.monthly)}` : "no limit set",
+        me.budget.monthly !== null ? meter(me.budget.month, me.budget.monthly) : null) : null);
+    const recent = enabled.filter((t) => t.last_opened && t.launchable && t.kind !== "dev")
+      .sort((a, b) => b.last_opened - a.last_opened).slice(0, 6);
     const hero = el("section", { class: "hero" }, el("div", { class: "shell" },
       el("div", { class: "status" + (me.active ? "" : " off") }, el("i"), statusText),
-      el("h1", null, `${greeting()}, ${me.name.split(" ")[0] || me.name}.`),
-      el("p", { class: "muted", style: null }, [me.title, me.department].filter(Boolean).join(" · ") || "Swangz Avenue"),
-      me.budget ? budgetStrip(me.budget) : null,
+      el("h1", null, `${greeting()}, ${me.name}.`),
+      el("p", { class: "sub" }, [me.title, me.department].filter(Boolean).join(" · ") || "Swangz Avenue"),
+      me.access_until ? el("p", { class: "sub small" }, `Your access runs until ${dateText(me.access_until - 1)}.`) : null,
+      stats,
       me.budget && me.budget.monthly !== null && me.budget.month >= me.budget.monthly
-        ? el("div", { class: "notice" }, "You've used this month's allowance. It resets on the 1st — or ask your admin for more.") : null));
+        ? el("div", { class: "notice" }, "You've used this month's allowance. It resets on the 1st — or ask your admin for more.") : null,
+      recent.length ? el("div", { class: "recent", "aria-label": "Recently opened" },
+        recent.map((t) => el("a", { href: gurl("/go/" + t.id), target: "_blank", rel: "noopener", title: "Open " + t.name, onclick: () => opened(t) },
+          logo(t, "sm"), t.name))) : null));
 
-    const cats = ["all", ...Array.from(new Set((me.catalog || []).map((t) => t.category))).sort()];
+    const cats = ["all", ...Array.from(new Set(catalog.map((t) => t.category))).sort()];
     const chips = el("div", { class: "chips-row" }, cats.map((c) => el("button", {
-      class: "chip" + (S_FILTER.cat === c ? " on" : ""), "data-cat": c, type: "button",
-      onclick: () => { S_FILTER.cat = c; render(); } }, c === "all" ? "All" : c)));
-    const grid = el("div", { class: "tool-grid" });
-    const catalogWrap = el("section", { class: "section" }, el("div", { class: "shell" },
-      el("div", { class: "section-head" }, el("div", null, el("div", { class: "eyebrow" }, "Your AI tools"),
-        el("h2", null, enabled.length ? "Open a tool" : "Your tools"),
-        el("p", null, enabled.length
-          ? "The tools Swangz has turned on for you. Ask for any that are greyed out."
-          : "Nothing is switched on for you yet. Browse below and request what you need."))),
-      me.catalog && me.catalog.length ? chips : null, grid));
+      class: "chip" + (S_FILTER.cat === c ? " on" : ""), type: "button",
+      onclick: (e) => { S_FILTER.cat = c; chips.querySelectorAll(".chip").forEach((b) => b.classList.toggle("on", b === e.currentTarget)); draw(); } },
+    c === "all" ? "All" : c)));
+    const yours = el("div", { class: "launch-grid" });
+    const explore = el("div", { class: "explore" });
+    const exploreWrap = el("div");
 
-    function drawCatalog() {
+    const yoursSection = el("section", { class: "section" }, el("div", { class: "shell" },
+      el("div", { class: "section-head" }, el("div", null, el("div", { class: "eyebrow" }, "Your tools"),
+        el("h2", null, enabled.length ? "Open a tool" : "Nothing switched on yet"),
+        el("p", null, enabled.length
+          ? "Everything here is paid for by Swangz and ready for you. Open opens it in a new tab."
+          : "Browse the catalog below and request what you need — an admin turns it on."))),
+      catalog.length > 8 ? chips : null, yours));
+    const exploreSection = el("section", { class: "section" }, el("div", { class: "shell" },
+      el("div", { class: "section-head" }, el("div", null, el("div", { class: "eyebrow" }, "The catalog"),
+        el("h2", null, "More tools at Swangz"),
+        el("p", null, "Ask for any of these and an admin can turn it on for you."))),
+      exploreWrap));
+
+    function matches(t) {
       const q = S_FILTER.q.trim().toLowerCase();
-      let list = (me.catalog || []).filter((t) => S_FILTER.cat === "all" || t.category === S_FILTER.cat);
-      if (q) list = list.filter((t) => t.name.toLowerCase().includes(q) || t.category.toLowerCase().includes(q));
-      const order = { enabled: 0, past_due: 1, not_assigned: 2, locked: 3, suspended: 4 };
-      list.sort((a, b) => (order[a.state] - order[b.state]) || a.name.localeCompare(b.name));
-      grid.replaceChildren(...(list.length ? list.map(toolCard) : [el("div", { class: "empty" }, "No tools match that search.")]));
+      if (S_FILTER.cat !== "all" && t.category !== S_FILTER.cat) return false;
+      return !q || t.name.toLowerCase().includes(q) || t.category.toLowerCase().includes(q) || (t.description || "").toLowerCase().includes(q);
     }
-    drawCatalog();
-    render.drawCatalog = drawCatalog;
+    function draw() {
+      const mine = enabled.filter(matches).sort((a, b) => (b.last_opened || 0) - (a.last_opened || 0) || a.name.localeCompare(b.name));
+      yours.replaceChildren(...(mine.length ? mine.map(launchTile)
+        : [el("div", { class: "empty" }, enabled.length ? "None of your tools match that." : el("p", null, "When an admin turns a tool on for you, it appears here."))]));
+      const order = { not_assigned: 0, past_due: 1, locked: 2, suspended: 3 };
+      const rest = catalog.filter((t) => t.state !== "enabled" && matches(t)).sort((a, b) => (order[a.state] - order[b.state]) || a.name.localeCompare(b.name));
+      explore.replaceChildren(...rest.map(exploreRow));
+      exploreWrap.replaceChildren(rest.length ? explore : el("div", { class: "empty" }, S_FILTER.q || S_FILTER.cat !== "all" ? "No other tools match." : "You have every tool in the catalog."));
+    }
+    draw();
 
     const studio = S.studio && (S.studio.voice || S.studio.image || S.studio.video) && me.active ? studioSection() : null;
 
@@ -256,75 +361,75 @@
       el("div", null, el("strong", null, k.label), el("div", { class: "meta" },
         el("span", { class: "mono" }, k.hint), " · ", k.revoked ? "disconnected " + ago(k.revoked) : `connected ${ago(k.created)} · last used ${ago(k.last_used)}`)),
       k.revoked ? el("span", { class: "muted" }, "Disconnected") : el("button", { class: "btn btn--danger btn--small", onclick: () => disconnect(k) }, "Disconnect"))))
-      : el("div", { class: "empty" }, "No devices yet. Open a coding tool above to connect your first one.");
+      : el("div", { class: "empty" }, "No devices yet. Set up a coding tool above to connect your first one.");
     const devices = me.keys.length || enabled.some((t) => t.kind !== "site") ? el("section", { class: "section" }, el("div", { class: "shell" },
       el("div", { class: "section-head" }, el("div", null, el("div", { class: "eyebrow" }, "Your devices"), el("h2", null, "Connected devices"),
-        el("p", null, "Each laptop or tool has its own key. Disconnect one you no longer use — the others keep working."))),
+        el("p", null, "Each laptop or coding tool has its own key. Disconnect one you no longer use — the others keep working."))),
       deviceList)) : null;
 
     const foot = el("footer", { class: "foot" }, el("div", { class: "inner" },
-      el("span", null, "Swangz Avenue · Swangz AI"),
+      el("span", { class: "brandline" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz Avenue · Swangz AI"),
       el("button", { onclick: policy }, "Usage policy")));
 
-    function drawCatalogGlobal() { if (render.drawCatalog) render.drawCatalog(); }
-    search.addEventListener("input", drawCatalogGlobal);
-    app.replaceChildren(topbar, el("main", null, hero, catalogWrap, studio, devices), foot);
+    app.replaceChildren(topbar, el("main", null, hero, yoursSection, exploreSection, studio, devices), foot);
     resumeJobs();
   }
 
-  function budgetStrip(b) {
-    const cell = (label, spent, cap, per) => el("div", { class: "bstat" },
-      el("div", { class: "eyebrow" }, label), el("div", { class: "big" }, money(spent)),
-      el("div", { class: "note" }, cap !== null ? `of ${money(cap)}${per}` : "No limit"),
-      cap !== null ? meter(spent, cap) : null);
-    return el("div", { class: "bstrip" }, cell("This month", b.month, b.monthly, " allowance"), cell("Today", b.today, b.daily, " a day"));
+  function opened(t) {
+    t.last_opened = Date.now() / 1000;
+    setTimeout(() => { if (!document.querySelector("dialog, .drawer")) render(); }, 800);
   }
 
-  function toolCard(t) {
-    const hue = CAT_HUE[t.category] ?? 220;
-    const mono = el("div", { class: "tool-mono" }, initials(t.name));
-    mono.style.background = `hsl(${hue} 42% 20%)`;
-    mono.style.color = `hsl(${hue} 70% 72%)`;
-    const chip = el("span", { class: "state-chip s-" + t.state }, STATE_LABEL[t.state] || t.state);
-    const card = el("article", { class: "tcard" + (t.state === "enabled" ? " live" : "") },
-      el("div", { class: "tcard-top" }, mono, el("div", { class: "tcard-id" },
-        el("h3", null, t.name), el("div", { class: "tcat" }, t.category))),
-      chip, el("div", { class: "tcard-actions" }, toolActions(t)));
-    return card;
+  function launchTile(t) {
+    const how = HOW[t.kind === "dev" ? "api" : (t.signin || "seat")] || HOW.seat;
+    return el("article", { class: "ltile" },
+      el("div", { class: "ltile-top" }, logo(t), el("div", { class: "grow" }, el("h3", null, t.name), el("div", { class: "cat" }, t.category))),
+      el("p", null, t.description || "Ready for you to use at work."),
+      el("div", { class: "ltile-foot" },
+        el("div", { class: "ltile-meta" },
+          el("span", { class: "how", title: how[1] }, svg(ICON.shield), how[0]),
+          t.ends ? el("span", { class: "ends" }, "Until " + dateText(t.ends - 1))
+            : el("span", { class: "when" }, t.kind === "dev" ? "Set up once per device" : t.last_opened ? "Opened " + ago(t.last_opened) : "Not opened yet")),
+        el("div", { class: "ltile-actions" }, launchActions(t))));
   }
 
-  function toolActions(t) {
+  function launchActions(t) {
     const me = S.me;
-    if (t.state === "enabled") {
-      const guideId = TOOL_TO_GUIDE[t.id];
-      const guide = guideId && (me.connect || []).find((g) => g.id === guideId);
-      if (t.id in STUDIO_TOOLS && S.studio && S.studio[STUDIO_TOOLS[t.id]]) {
-        return [el("button", { class: "btn btn--solid btn--small", onclick: () => { location.hash = ""; document.querySelector(".studio")?.scrollIntoView({ behavior: "smooth" }); } }, "Open Studio"),
-          guide ? setupLink(t, guide) : null];
-      }
-      if (t.kind === "dev") {
-        return guide ? [el("button", { class: "btn btn--solid btn--small", onclick: () => connect(guide) }, "Set up"),
-          t.url ? el("a", { class: "tlink", href: t.url, target: "_blank", rel: "noopener noreferrer" }, "About") : null] : [el("span", { class: "muted small" }, "Ready")];
-      }
-      return [t.url ? el("a", { class: "btn btn--solid btn--small", href: t.url, target: "_blank", rel: "noopener noreferrer" }, "Open ↗") : el("span", { class: "muted small" }, "Ready"),
-        guide ? setupLink(t, guide) : null];
+    const guideId = TOOL_TO_GUIDE[t.id];
+    const guide = guideId && (me.connect || []).find((g) => g.id === guideId);
+    const openBtn = (label, solid) => el("a", { class: "btn btn--small " + (solid ? "btn--solid" : ""), href: gurl("/go/" + t.id), target: "_blank",
+      rel: "noopener", onclick: () => opened(t) }, label, svg(ICON.open));
+    if (t.id in STUDIO_TOOLS && S.studio && S.studio[STUDIO_TOOLS[t.id]]) {
+      return [t.launchable ? el("a", { class: "tlink", href: gurl("/go/" + t.id), target: "_blank", rel: "noopener", onclick: () => opened(t) }, "Website") : null,
+        el("button", { class: "btn btn--solid btn--small", onclick: () => document.querySelector(".studio")?.scrollIntoView({ behavior: "smooth" }) }, "Open Studio")];
     }
-    if (!me.active) return [el("span", { class: "muted small" }, "Paused")];
-    if (t.pending) return [el("span", { class: "requested" }, "Requested ✓")];
-    const label = t.state === "locked" ? "Request" : t.state === "past_due" ? "Ask to renew" : "Request access";
-    return [el("button", { class: "btn btn--small", onclick: () => requestAccess(t) }, label),
-      el("div", { class: "tlocked" }, t.reason)];
+    if (t.kind === "dev") {
+      return guide ? [el("button", { class: "btn btn--solid btn--small", onclick: () => connect(guide) }, "Set up")] : [el("span", { class: "muted small" }, "Ready")];
+    }
+    return [guide ? el("button", { class: "tlink", onclick: () => connect(guide) }, "API") : null,
+      t.launchable ? openBtn("Open", true) : el("span", { class: "muted small" }, "Ready")];
   }
 
-  function setupLink(t, guide) {
-    return el("button", { class: "tlink", onclick: () => connect(guide) }, "Set up API");
+  function exploreRow(t) {
+    const me = S.me;
+    let action;
+    if (!me.active || t.state === "suspended") action = el("span", { class: "state-chip s-suspended" }, "Paused");
+    else if (t.pending) action = el("span", { class: "requested" }, "Requested ✓");
+    else action = el("button", { class: "btn btn--small", onclick: () => requestAccess(t) }, t.state === "past_due" ? "Ask to renew" : "Request");
+    return el("div", { class: "xrow s-" + t.state },
+      logo(t),
+      el("div", { class: "grow" }, el("h3", null, t.name),
+        el("div", { class: "why", title: t.reason }, t.state === "not_assigned" ? (t.description || t.category) : `${t.category} · ${STATE_LABEL[t.state] || t.reason}`)),
+      action);
   }
 
   async function requestAccess(t) {
     const reason = el("textarea", { class: "input area", rows: "3", placeholder: "Optional — what do you need it for?" });
     const err = el("div", { class: "form-error" });
     dialog("Request " + t.name, el("div", { class: "fields" },
-      el("p", { class: "muted", style: null }, "An admin will see this and can turn " + t.name + " on for you."), reason, err),
+      el("p", null, t.state === "locked"
+        ? `Swangz isn't subscribed to ${t.name} yet. Your request tells an admin it's needed.`
+        : `An admin will see this and can turn ${t.name} on for you.`), reason, err),
     (close) => [el("button", { class: "btn btn--quiet", onclick: close }, "Cancel"),
       el("button", { class: "btn btn--solid", onclick: async () => {
         try { await api("POST", `/tools/${t.id}/request`, { reason: reason.value }); close(); toast("Request sent."); load(); }

@@ -458,8 +458,12 @@ def get_person(ctx, pid):
 
     tools = entitle.for_person(ctx.db, person)
     direct = {r["tool_id"] for r in ctx.db.q("SELECT tool_id FROM entitlements WHERE person_id = ?", (pid,))}
+    ends = entitle.grant_ends(ctx.db, person)
+    logos = {r["tool_id"]: r["fetched"] for r in ctx.db.q("SELECT tool_id, fetched FROM tool_icons WHERE ok = 1")}
     for t in tools:
         t["grant"] = "direct" if t["id"] in direct else ("team" if t["assigned"] else None)
+        t["ends"] = ends.get(t["id"])
+        t["icon"] = f"/icons/{t['id']}?v={int(logos[t['id']])}" if t["id"] in logos else None
     person["tools"] = tools
     person["tool_summary"] = {"enabled": sum(1 for t in tools if t["state"] == "enabled"),
                               "assigned": sum(1 for t in tools if t["assigned"])}

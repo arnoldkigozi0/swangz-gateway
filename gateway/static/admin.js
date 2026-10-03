@@ -253,6 +253,109 @@
     return el("div", null, pre, more);
   }
 
+  // ------------------------------------------------------------------ icons, theme, logos, side sheet
+
+  function svg(paths) {
+    const ns = "http://www.w3.org/2000/svg";
+    const s = document.createElementNS(ns, "svg");
+    for (const [k, v] of Object.entries({ viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.9", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" })) s.setAttribute(k, v);
+    paths.forEach((d) => { const p = document.createElementNS(ns, "path"); p.setAttribute("d", d); s.append(p); });
+    return s;
+  }
+  const ICON = {
+    live: ["M3 12h4l3-8l4 16l3-8h4"],
+    activity: ["M8 6h13", "M8 12h13", "M8 18h13", "M3.5 6h.01", "M3.5 12h.01", "M3.5 18h.01"],
+    people: ["M9 11a4 4 0 1 0 0-8a4 4 0 1 0 0 8z", "M2.5 21v-.5A6.5 6.5 0 0 1 9 14h0a6.5 6.5 0 0 1 6.5 6.5v.5", "M16 3.6a4 4 0 0 1 0 7.3", "M18.5 14.4a6.5 6.5 0 0 1 3 5.6v1"],
+    tools: ["M4 4h7v7H4z", "M13 4h7v7h-7z", "M4 13h7v7H4z", "M13 13h7v7h-7z"],
+    requests: ["M4 13.5L6.2 5h11.6L20 13.5", "M4 13.5V19h16v-5.5", "M4 13.5h5l1.2 2h3.6l1.2-2h5"],
+    licences: ["M3 6.5h18v11H3z", "M3 10.5h18", "M7 14.5h4"],
+    settings: ["M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6z", "M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3a1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5a1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8a1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"],
+    audit: ["M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z", "M14 3v5h5", "M9 13h6", "M9 17h6"],
+    sun: ["M12 2.5v2", "M12 19.5v2", "M4.6 4.6L6 6", "M18 18l1.4 1.4", "M2.5 12h2", "M19.5 12h2", "M4.6 19.4L6 18", "M18 6l1.4-1.4", "M12 7.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9z"],
+    moon: ["M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.6 6.6 0 0 0 9.7 9.7z"],
+    plus: ["M12 5v14", "M5 12h14"],
+    open: ["M8 16L16 8", "M10 8h6v6"],
+    clock: ["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M12 7.5V12l3 2"],
+    wallet: ["M4 7h15a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z", "M4 7l11-3v3", "M16 13h1.5"],
+    stop: ["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M9 9h6v6H9z"],
+    user: ["M12 11a4 4 0 1 0 0-8a4 4 0 1 0 0 8z", "M4 21v-.5A7.5 7.5 0 0 1 11.5 13h1A7.5 7.5 0 0 1 20 20.5v.5"],
+  };
+
+  const THEME_KEY = "swangz-theme";
+  const theme = () => (document.documentElement.dataset.theme === "dark" ? "dark" : "light");
+  function applyTheme(t, remember) {
+    document.documentElement.dataset.theme = t;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", t === "dark" ? "#0B1222" : "#F5F3EE");
+    if (remember) { try { localStorage.setItem(THEME_KEY, t); } catch (e) { /* private window: just this visit */ } }
+  }
+  (() => { let saved = null; try { saved = localStorage.getItem(THEME_KEY); } catch (e) { /* none */ } applyTheme(saved === "dark" ? "dark" : "light", false); })();
+  function themeButton() {
+    const b = el("button", { class: "theme-btn", type: "button" });
+    const draw = () => {
+      const dark = theme() === "dark";
+      b.replaceChildren(svg(dark ? ICON.sun : ICON.moon));
+      b.setAttribute("aria-label", dark ? "Switch to the light theme" : "Switch to the midnight theme");
+      b.title = dark ? "Light theme" : "Midnight theme";
+    };
+    b.addEventListener("click", () => { applyTheme(theme() === "dark" ? "light" : "dark", true); draw(); });
+    draw();
+    return b;
+  }
+
+  const initials = (name) => (name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+  const gurl = (path) => GATEWAY + path;
+  function logo(t, size) {
+    const cls = "logo" + (size ? " " + size : "");
+    const mono = () => {
+      const box = el("span", { class: cls + " mono", "aria-hidden": "true" }, initials(t.name));
+      const c = /^#[0-9a-f]{6}$/i.test(t.color || "") ? t.color : "#3A4A6B";
+      box.style.background = `linear-gradient(140deg, ${c}, color-mix(in srgb, ${c} 60%, #0B1222))`;
+      return box;
+    };
+    if (!t.icon) return mono();
+    const img = el("img", { src: gurl(t.icon), alt: "", loading: "lazy", decoding: "async" });
+    const box = el("span", { class: cls, "aria-hidden": "true" }, img);
+    img.addEventListener("error", () => box.replaceWith(mono()));
+    return box;
+  }
+  // logos and colours by tool id, for pages that only have a tool's id and name
+  async function toolIndex() {
+    if (!S.tools) {
+      const cat = await api("GET", "/catalog");
+      S.tools = Object.fromEntries([...cat.tools, ...cat.removed].map((t) => [t.id, t]));
+    }
+    return S.tools;
+  }
+  const toolLogo = (id, name, size) => logo((S.tools && S.tools[id]) || { name: name || "?" }, size);
+
+  const SIGNIN = {
+    sso: ["Company sign-in (SSO)", "Staff open it signed in with their Swangz work account. Set up single sign-on in the tool's admin settings and paste its sign-in link under Settings."],
+    seat: ["Company seat", "Each person has their own seat on the company plan, invited to their work email. Swangz pays one bill for all seats."],
+    own: ["Own login", "Staff use their own account. Swangz controls access and keeps the record of who opened it."],
+    api: ["Company API key", "Runs through this gateway on the company key — there is nothing to sign in to."],
+  };
+  const KIND = { site: "Website", api: "API + website", dev: "Developer agent" };
+  const isoDate = (ts) => new Date(ts * 1000).toISOString().slice(0, 10);
+  const dateText = (ts) => new Date(ts * 1000).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
+
+  function sheet(onClose) {
+    const scrim = el("div", { class: "scrim" });
+    const node = el("aside", { class: "sheet", role: "dialog", "aria-modal": "true" });
+    function close() {
+      if (onClose) onClose();
+      node.classList.remove("in"); scrim.classList.remove("in");
+      setTimeout(() => { scrim.remove(); node.remove(); }, 320);
+      document.removeEventListener("keydown", onKey);
+    }
+    function onKey(e) { if (e.key === "Escape" && !document.querySelector("dialog[open]")) close(); }
+    scrim.addEventListener("click", close);
+    document.addEventListener("keydown", onKey);
+    document.body.append(scrim, node);
+    requestAnimationFrame(() => { scrim.classList.add("in"); node.classList.add("in"); });
+    return { node, close };
+  }
+
   // ------------------------------------------------------------------ sign-in and frame
 
   function showSignIn() {
@@ -276,9 +379,9 @@
         }
       },
     },
-    el("div", { class: "row" }, el("img", { src: "/static/icon.svg", alt: "", width: 34, height: 34 }),
-      el("div", null, el("div", { class: "eyebrow" }, "Admin"), el("h1", null, "Swangz AI control room"))),
-    el("p", { class: "muted", style: null }, "Who is using AI, with which tool, for what — and the switches to stop it."),
+    el("div", { class: "row" }, el("img", { src: "/static/icon.svg", alt: "", width: 44, height: 44 }),
+      el("div", null, el("div", { class: "eyebrow" }, "Swangz AI"), el("h1", null, "Control room"))),
+    el("p", { class: "muted", style: null }, "Tools, people, licences and spend — and the switches to stop it all."),
     el("label", { class: "field" }, "Username", user),
     el("label", { class: "field" }, "Password", pass),
     err, go);
@@ -287,8 +390,10 @@
   }
 
   const NAV = [
-    ["#/", "Live"], ["#/people", "People"], ["#/tools", "Tools"], ["#/activity", "Activity"],
-    ["#/requests", "Requests"], ["#/settings", "Settings"], ["#/audit", "Audit log"],
+    ["Overview", [["#/", "Live", "live"], ["#/activity", "Activity", "activity"]]],
+    ["Access", [["#/people", "People", "people"], ["#/tools", "Tools", "tools"], ["#/requests", "Requests", "requests"]]],
+    ["Money", [["#/licences", "Licences & spend", "licences"]]],
+    ["System", [["#/settings", "Settings", "settings"], ["#/audit", "Audit log", "audit"]]],
   ];
 
   function frame(title, crumbs, content, actions) {
@@ -299,20 +404,22 @@
     const sectionFor = { "#/records": "#/activity", "#/sessions": "#/people" };
     const active = sectionFor[section] || section;
     const openReqs = S.overview ? (S.overview.open_requests || 0) : 0;
-    const nav = el("nav", { class: "nav", "aria-label": "Sections" },
-      NAV.map(([href, label]) => el("a", { href, class: href === active ? "on" : null },
-        el("span", null, label),
+    const nav = el("nav", { class: "nav", "aria-label": "Sections" }, NAV.map(([group, links]) => [
+      el("div", { class: "group" }, group),
+      links.map(([href, label, icon]) => el("a", { href, class: href === active ? "on" : null, "aria-current": href === active ? "page" : null },
+        svg(ICON[icon]), el("span", null, label),
         href === "#/" && live ? el("span", { class: "pill ok" }, el("span", { class: "dot pulse" }), String(live)) : null,
-        href === "#/requests" && openReqs ? el("span", { class: "pill warn" }, String(openReqs)) : null)));
+        href === "#/requests" && openReqs ? el("span", { class: "pill warn" }, String(openReqs)) : null))]));
     const side = el("aside", { class: "side" },
       el("div", { class: "brand" }, el("img", { src: "/static/icon.svg", alt: "" }), el("div", null, "Swangz ", el("b", null, "AI"), el("small", null, "Control room"))),
       nav, el("div", { class: "grow" }),
-      el("div", { class: "who" }, el("span", null, S.me.username, el("span", { class: "faint" }, " · " + S.me.role)),
-        el("button", { class: "btn small", onclick: signOut }, "Sign out")));
+      el("div", { class: "who" }, el("span", { class: "avatar" }, initials(S.me.username)),
+        el("div", { class: "id" }, el("strong", null, S.me.username), el("span", null, S.me.role)), themeButton()),
+      el("div", { class: "who-actions" }, el("button", { class: "btn small quiet", onclick: signOut }, "Sign out")));
     const stopAll = isOwner() && !paused
-      ? el("button", { class: "btn danger", onclick: () => setPaused(true) }, "Stop all AI") : null;
+      ? el("button", { class: "btn danger", onclick: () => setPaused(true) }, svg(ICON.stop), "Stop all AI") : null;
     const banner = paused ? el("div", { class: "banner", role: "alert" },
-      el("span", null, "AI access is paused for everyone. Requests are being refused."),
+      el("span", null, "AI access is paused for everyone. Requests and tool launches are being refused."),
       isOwner() ? el("button", { class: "btn primary", onclick: () => setPaused(false) }, "Resume access") : null) : null;
     const top = el("div", { class: "top" },
       el("div", null, crumbs ? el("div", { class: "crumbs" }, crumbs) : null, el("h1", null, title)),
@@ -357,12 +464,14 @@
     [/^#\/sessions\/(.+)$/, pageSession],
     [/^#\/records\/(\d+)$/, pageRecord],
     [/^#\/activity$/, pageActivity],
+    [/^#\/licences$/, pageLicences],
     [/^#\/settings$/, pageSettings],
     [/^#\/audit$/, pageAudit],
   ];
 
   async function render() {
     clearTimers();
+    document.querySelectorAll(".sheet, .scrim").forEach((n) => n.remove());
     if (!S.me) {
       try { S.me = await api("GET", "/me"); } catch (e) { return; }
     }
@@ -396,6 +505,8 @@
     const people = el("div");
     const models = el("div");
     const tools = el("div");
+    const opens = el("div");
+    await toolIndex().catch(() => null);
     app.replaceChildren(frame("Live", null, [
       kpis,
       el("div", { class: "grid cols-2" },
@@ -403,6 +514,7 @@
           panel("Working right now", "streams in flight", liveBody),
           panel("Activity", el("a", { href: "#/activity", class: "btn small" }, "Search everything"), feed)),
         el("div", { class: "grid" },
+          panel("Opened from the portal", "today", opens),
           panel("Today by person", "spend", people),
           panel("This month by model", null, models),
           panel("This month by tool", null, tools))),
@@ -414,6 +526,7 @@
       const t = ov.today, m = ov.month;
       kpis.replaceChildren(
         kpi("Spent today", fmt.money(t.cost), `${fmt.money(m.cost)} this month`),
+        kpi("Tool opens today", String(ov.launches_today || 0), (ov.tools_today || []).length ? "most: " + ov.tools_today[0].name : "from the portal"),
         kpi("Requests today", t.requests.toLocaleString(), `${fmt.tokens(t.tokens)} tokens`),
         kpi("People active today", String(t.people), `${ov.live.length} working right now`),
         kpi("Refused or cut today", String(t.blocked + t.denied + t.cut), `${t.denied} with a wrong key`, t.denied > 0),
@@ -457,15 +570,32 @@
       while (feed.children.length > 80) feed.lastChild.remove();
     }
 
+    async function loadOpens() {
+      const data = await api("GET", "/launches?since=" + (S.overview ? S.overview.day_start : 0));
+      opens.replaceChildren(data.items.length ? opensList(data.items.slice(0, 12)) : empty("Nobody has opened a tool from the portal today."));
+    }
+
+    let n = 0;
     async function tick() {
       const ov = await refreshOverview();
       if (ov) drawOverview(ov);
       await loadFeed();
+      if (++n % 4 === 0) await loadOpens();
     }
 
     drawOverview(S.overview);
-    await loadFeed();
+    await Promise.all([loadFeed(), loadOpens()]);
     every(2500, tick);
+  }
+
+  function opensList(items, noPerson) {
+    return el("ul", { class: "opens" }, items.map((o) => el("li", null,
+      toolLogo(o.tool_id, o.tool, "sm"),
+      el("div", { class: "who-line" },
+        noPerson ? el("strong", null, o.tool || "a removed tool")
+          : [el("a", { href: "#/people/" + o.person_id }, el("strong", null, o.person || "Someone")), el("span", { class: "muted" }, " opened "), el("strong", null, o.tool || "a removed tool")],
+        o.outcome === "refused" ? [" ", el("span", { class: "pill bad" }, "refused")] : null),
+      el("span", { class: "hint nowrap", title: fmt.stamp(o.ts) }, fmt.ago(o.ts)))));
   }
 
   function spendBars(rows, name, note) {
@@ -481,8 +611,10 @@
   async function pagePeople() {
     const data = await api("GET", "/people");
     const rows = data.items.map((p) => el("tr", { class: "click", onclick: () => { location.hash = "#/people/" + p.id; } },
-      el("td", null, el("a", { href: "#/people/" + p.id }, el("strong", null, p.name)), el("div", { class: "hint" }, [p.title, p.department].filter(Boolean).join(" · ") || "—")),
-      el("td", null, p.status === "active" ? el("span", { class: "pill ok" }, "active") : el("span", { class: "pill bad" }, "suspended"),
+      el("td", null, el("div", { class: "person-cell" }, el("span", { class: "avatar" }, initials(p.name)),
+        el("div", null, el("a", { href: "#/people/" + p.id }, el("strong", null, p.name)), el("div", { class: "hint" }, [p.title, p.department].filter(Boolean).join(" · ") || "—")))),
+      el("td", null, p.status === "active" ? (p.access_until && p.access_until <= Date.now() / 1000 ? el("span", { class: "pill bad" }, "ended")
+        : el("span", { class: "pill ok" }, "active")) : el("span", { class: "pill bad" }, "suspended"),
         " ", signInPill(p.sign_in),
         p.live ? el("span", { class: "pill ok" }, el("span", { class: "dot pulse" }), " live") : null),
       el("td", { class: "num" }, String(p.active_keys)),
@@ -518,6 +650,7 @@
       allowed_models: el("input", { type: "text", value: p.allowed_models || "", placeholder: "all models" }),
       allowed_services: el("input", { type: "text", value: p.allowed_services || "", placeholder: "every service" }),
       notes: el("textarea", null, p.notes || ""),
+      access_until: el("input", { type: "date", value: p.access_until ? isoDate(p.access_until - 86400) : "" }),
     };
     f.budget_visible = el("input", { type: "checkbox", checked: !!p.budget_visible });
     const node = el("div", { class: "stack" },
@@ -529,7 +662,9 @@
           el("span", { class: "hint" }, "A Swangz email (@swangzavenue.com). The owner and demo accounts are the only exceptions."))),
       el("div", { class: "form-grid" },
         el("label", { class: "field" }, "Daily budget (USD)", f.daily_budget),
-        el("label", { class: "field" }, "Monthly budget (USD)", f.monthly_budget)),
+        el("label", { class: "field" }, "Monthly budget (USD)", f.monthly_budget),
+        el("label", { class: "field" }, "Access ends on", f.access_until,
+          el("span", { class: "hint" }, "Optional — for contractors and temporary staff. Every tool and key stops after this day."))),
       el("label", { class: "check" }, f.budget_visible, el("span", null, el("strong", null, "Let this person see their budget"),
         el("div", { class: "hint" }, "Off by default — staff don't see the budget set for them until you turn this on."))),
       el("label", { class: "field" }, "Allowed models", f.allowed_models,
@@ -639,17 +774,25 @@
         : "Add their email under Details first — it is what they sign in with."),
       owner && p.email ? el("div", null, el("button", { class: "btn", onclick: () => inviteLink(p) }, p.sign_in === "active" ? "New sign-in link (reset password)" : "Create sign-in link")) : null));
     const issue = owner && p.status === "active" ? el("button", { class: "btn primary", onclick: () => issueKey(p) }, "Issue a key") : null;
+    await toolIndex().catch(() => null);
     const toolsPanel = personToolsPanel(p, owner);
+    const launches = await api("GET", `/launches?person=${p.id}`);
+    const opensPanel = panel("Tools opened from the portal", "last 30 days",
+      launches.items.length ? opensList(launches.items.slice(0, 15), true) : empty("Hasn't opened a tool from the portal yet."));
     app.replaceChildren(frame(p.name, el("a", { href: "#/people" }, "People"), [
-      el("div", { class: "row", style: null }, statusPill, el("span", { class: "muted" }, [p.title, p.department, p.email].filter(Boolean).join(" · "))),
+      el("div", { class: "row", style: null }, statusPill, el("span", { class: "muted" }, [p.title, p.department, p.email].filter(Boolean).join(" · ")),
+        p.access_until ? el("span", { class: "pill " + (p.access_until <= Date.now() / 1000 ? "bad" : "warn") },
+          (p.access_until <= Date.now() / 1000 ? "access ended " : "access until ") + dateText(p.access_until - 86400)) : null),
       el("div", { style: null, class: "spacer" }),
       kpis,
       toolsPanel,
+      el("div", { class: "spacer" }),
       el("div", { class: "grid cols-2" },
         el("div", { class: "grid" }, live,
           panel("Sessions", "one conversation each — open one to see everything that happened", sessions),
           panel("Recent activity", el("a", { class: "btn small", href: `#/activity?person=${p.id}` }, "All activity"), recent)),
         el("div", { class: "grid" },
+          opensPanel,
           panel("Keys", "one per device or tool", keyRows),
           signIn,
           controls,
@@ -673,17 +816,21 @@
           catch (e) { toast(e.message, true); }
         } : null,
       }, label);
-      return el("div", { class: "ptool" + (on ? " on" : "") },
-        el("div", { class: "pn" }, el("strong", null, t.name),
-          el("div", { class: "hint" }, t.category + (t.state === "locked" ? " · not subscribed" : ""))), btn);
+      const note = t.state === "locked" ? "not subscribed" : t.ends ? "until " + dateText(t.ends - 86400) : t.category;
+      return el("div", { class: "ptool" + (on ? " on" : "") }, logo(t, "sm"),
+        el("div", { class: "pn" }, el("strong", null, t.name), el("div", { class: "hint" }, note)), btn);
     }
     const assigned = tools.filter((t) => t.assigned);
     const rest = tools.filter((t) => !t.assigned && t.state !== "locked");
     grid.replaceChildren(...assigned.map(cell), ...rest.map(cell));
-    return panel("Tools", `${p.tool_summary.enabled} ready · ${p.tool_summary.assigned} assigned — ` +
-      (owner ? "turn tools on or off for this person" : "what this person can use"),
+    const removeAll = owner && assigned.some((t) => t.grant === "direct") ? el("button", { class: "btn small danger", onclick: async () => {
+      const ok = await confirmAction(`Remove every tool from ${p.name}?`, "Their direct tool access is removed now. Team access stays with the team, and their account stays open — suspend it too if they're leaving.", "Remove all tools", true);
+      if (!ok) return;
+      try { const out = await api("DELETE", `/people/${p.id}/tools`); toast(`Removed ${out.removed} tool(s).`); render(); } catch (e) { toast(e.message, true); }
+    } }, "Remove all tools") : null;
+    return panel("Tools", el("div", { class: "row" }, el("span", null, `${p.tool_summary.enabled} ready · ${p.tool_summary.assigned} assigned`), removeAll),
       tools.length ? grid : empty("No tools in the catalog."),
-      el("div", { class: "body hint" }, "Locked tools need a company subscription first (set it on the Tools page). Team grants are changed there too."));
+      el("div", { class: "body hint" }, "Locked tools need a company subscription first, and team access is changed — both on the Tools page. To give a tool for a limited time, set an end date there under Who can use it."));
   }
 
   async function inviteLink(p) {
@@ -963,177 +1110,375 @@
   // ------------------------------------------------------------------ Tools (catalog & subscriptions)
 
   const SUB_LABEL = { none: "Not subscribed", active: "Active", past_due: "Past due", cancelled: "Cancelled" };
+  const SUB_PILL = { active: "ok", past_due: "warn", cancelled: "bad", none: "" };
 
-  async function pageTools() {
+  function subPill(t) {
+    const sub = t.subscription;
+    if ((t.kind === "dev" || t.kind === "api") && sub.state === "none") return el("span", { class: "pill info" }, "On our API key");
+    return el("span", { class: "pill " + (SUB_PILL[sub.state] || "") }, SUB_LABEL[sub.state] || sub.state);
+  }
+
+  async function pageTools(params) {
     const data = await api("GET", "/catalog");
-    let usage = { by_tool: [], items: [], blocked: 0 };
-    try { usage = await api("GET", "/site-usage"); } catch (e) { /* none yet */ }
+    S.tools = Object.fromEntries([...data.tools, ...data.removed].map((t) => [t.id, t]));
     const state = { q: "", cat: "all", show: "all" };
+    const opens = data.tools.reduce((n, t) => n + t.usage_30d.opens, 0);
+    const users = data.tools.filter((t) => t.usage_30d.opens).length;
     const kpis = el("div", { class: "kpis" },
-      kpiCell("Tools in catalog", String(data.summary.total)),
-      kpiCell("Paid subscriptions", String(data.summary.paid)),
-      kpiCell("Monthly cost", fmt.money(data.summary.monthly_cost)));
-    const q = el("input", { type: "search", placeholder: "Search tools…", oninput: (e) => { state.q = e.target.value; draw(); } });
-    const cat = el("select", null, el("option", { value: "all" }, "All categories"),
-      data.categories.map((c) => el("option", { value: c }, c)));
+      kpiCell("Tools in the catalog", String(data.summary.total), data.removed.length ? `${data.removed.length} removed` : "across " + data.categories.length + " categories", ICON.tools),
+      kpiCell("Paid subscriptions", String(data.summary.paid), "company plans that are active", ICON.licences),
+      kpiCell("Subscriptions a month", fmt.money(data.summary.monthly_cost), "", ICON.wallet, "gold"),
+      kpiCell("Opens in 30 days", String(opens), `${users} tool${users === 1 ? "" : "s"} in use`, ICON.open));
+    const q = el("input", { type: "search", placeholder: "Search by name or category…", oninput: (e) => { state.q = e.target.value; draw(); } });
+    const cat = el("select", null, el("option", { value: "all" }, "All categories"), data.categories.map((c) => el("option", { value: c }, c)));
     cat.addEventListener("change", () => { state.cat = cat.value; draw(); });
-    const show = el("select", null, [["all", "All tools"], ["active", "Subscribed"], ["none", "Not subscribed"]].map(([v, t]) => el("option", { value: v }, t)));
+    const show = el("select", null, [["all", "All tools"], ["active", "Subscribed"], ["none", "Not subscribed"], ["assigned", "Given to someone"], ["unused", "Given, but not opened in 30 days"]]
+      .map(([v, t]) => el("option", { value: v }, t)));
     show.addEventListener("change", () => { state.show = show.value; draw(); });
     const grid = el("div", { class: "toolsadmin" });
     function draw() {
       const qq = state.q.trim().toLowerCase();
       let list = data.tools.filter((t) => (state.cat === "all" || t.category === state.cat));
+      const held = (t) => t.assigned_people + t.assigned_teams > 0;
       if (state.show === "active") list = list.filter((t) => t.subscription.state === "active");
       if (state.show === "none") list = list.filter((t) => t.subscription.state === "none");
+      if (state.show === "assigned") list = list.filter(held);
+      if (state.show === "unused") list = list.filter((t) => held(t) && !t.usage_30d.opens);
       if (qq) list = list.filter((t) => t.name.toLowerCase().includes(qq) || t.category.toLowerCase().includes(qq));
+      list.sort((a, b) => (held(b) - held(a)) || ((b.subscription.state === "active") - (a.subscription.state === "active")) || a.name.localeCompare(b.name));
       grid.replaceChildren(...(list.length ? list.map(toolAdminCard) : [empty("No tools match.")]));
     }
     draw();
-    const add = isOwner() ? el("button", { class: "btn primary", onclick: addTool }, "Add a tool") : null;
+    const removed = data.removed.length ? panel("Removed from the catalog", "staff can't see or open these", el("div", { class: "removed" }, data.removed.map((t) =>
+      el("div", null, logo(t, "sm"), el("div", { class: "grow" }, el("strong", null, t.name), el("div", { class: "hint" }, t.builtin ? "built-in" : "added by an admin")),
+        isOwner() ? el("button", { class: "btn small", onclick: () => toolAction(t, "restore") }, "Restore") : null,
+        isOwner() && !t.builtin ? el("button", { class: "btn small danger", onclick: () => deleteTool(t) }, "Delete") : null)))) : null;
+    const add = isOwner() ? el("button", { class: "btn primary", onclick: () => toolSheet(null) }, svg(ICON.plus), "Add a tool") : null;
     app.replaceChildren(frame("Tools", null, [
       kpis,
-      panel("The tool catalog", "what the company subscribes to, and who can use each tool",
+      panel("The tool catalog", "what Swangz pays for, how people sign in, and who uses it — click a tool to manage it",
         el("div", { class: "filters filters-3" },
           el("label", { class: "field" }, "Search", q),
           el("label", { class: "field" }, "Category", cat),
           el("label", { class: "field" }, "Show", show)),
         grid),
-      usage.by_tool.length ? el("div", { class: "spacer" }) : null,
-      usage.by_tool.length ? sitesPanel(usage) : null,
+      removed ? el("div", { class: "spacer" }) : null, removed,
     ], add));
-  }
-
-  function sitesPanel(usage) {
-    const rows = usage.by_tool.map((t) => el("tr", null,
-      el("td", null, t.tool || "—"),
-      el("td", { class: "num" }, String(t.opens)),
-      el("td", { class: "num" }, t.blocked ? el("span", { class: "pill bad" }, t.blocked + " blocked") : el("span", { class: "muted" }, "—")),
-      el("td", { class: "num" }, fmt.dur ? fmt.dur(t.seconds) : Math.round(t.seconds / 60) + " min")));
-    return panel("Website access", "the browser extension's log — which approved site, who, when, how long. No page content.",
-      el("div", { class: "table-wrap" }, el("table", null,
-        el("thead", null, el("tr", null, el("th", null, "Tool"), el("th", { class: "num" }, "Opens"), el("th", { class: "num" }, "Blocked"), el("th", { class: "num" }, "Time"))),
-        el("tbody", null, rows))));
+    const open = params && params.get("open");
+    if (open && S.tools[open]) toolSheet(S.tools[open], params.get("tab") || "overview");
   }
 
   function toolAdminCard(t) {
     const sub = t.subscription;
-    const onKey = t.kind === "dev" || t.kind === "api";
-    const badge = onKey && sub.state === "none"
-      ? el("span", { class: "pill" }, "On our API key")
-      : el("span", { class: "pill " + (sub.state === "active" ? "ok" : sub.state === "past_due" ? "warn" : sub.state === "cancelled" ? "bad" : "") },
-        SUB_LABEL[sub.state] || sub.state);
-    const kindPill = el("span", { class: "pill" }, t.kind === "api" ? "API" : t.kind === "dev" ? "Developer" : "Website");
-    const assigned = el("div", { class: "hint" },
-      t.assigned_people + t.assigned_teams === 0 ? "No one assigned"
-        : `${t.assigned_people} ${t.assigned_people === 1 ? "person" : "people"}` + (t.assigned_teams ? `, ${t.assigned_teams} team(s)` : ""));
-    const actions = isOwner() ? el("div", { class: "row" },
-      t.kind === "dev" ? null : el("button", { class: "btn small", onclick: () => editSubscription(t) }, sub.state === "none" ? "Subscribe" : "Subscription"),
-      el("button", { class: "btn small", onclick: () => manageAssignments(t) }, "Who can use it")) : null;
-    const bodyNote = t.kind === "dev" ? el("div", { class: "hint" }, "Runs on the company API key — assignment only")
-      : sub.state !== "none" ? el("div", { class: "hint" }, [sub.plan, sub.monthly_cost != null ? fmt.money(sub.monthly_cost) + "/mo" : null, sub.seats ? sub.seats + " seats" : null].filter(Boolean).join(" · ") || "Active")
-      : el("div", { class: "hint" }, onKey ? "API metered on our key — or add the website subscription" : "No company subscription");
-    return el("div", { class: "tooladmin" + (sub.state === "active" ? " paid" : "") },
-      el("div", { class: "ta-head" },
-        el("div", null, el("strong", null, t.name), el("div", { class: "hint" }, t.category)),
-        el("div", { class: "row" }, kindPill, badge)),
-      el("div", { class: "ta-body" }, bodyNote, assigned),
-      actions);
+    const how = SIGNIN[t.kind === "dev" ? "api" : t.signin] || SIGNIN.seat;
+    const money = sub.state !== "none" ? [sub.plan, sub.monthly_cost != null ? fmt.money(sub.monthly_cost) + "/mo" : null, sub.seats ? sub.seats + " seats" : null].filter(Boolean).join(" · ") : "";
+    return el("button", { class: "tooladmin", type: "button", onclick: () => toolSheet(t) },
+      el("div", { class: "ta-head" }, logo(t), el("div", { class: "grow" }, el("strong", null, t.name), el("div", { class: "hint" }, t.category))),
+      el("div", { class: "ta-body" },
+        el("div", { class: "row" }, subPill(t), el("span", { class: "pill" }, how[0])),
+        money ? el("div", { class: "hint" }, money) : null),
+      el("div", { class: "ta-foot" },
+        el("span", null, t.assigned_people + t.assigned_teams === 0 ? "No one assigned"
+          : [el("b", null, String(t.assigned_people)), t.assigned_people === 1 ? " person" : " people", t.assigned_teams ? [" · ", el("b", null, String(t.assigned_teams)), " team(s)"] : null]),
+        el("span", null, el("b", null, String(t.usage_30d.opens)), " opens · 30d")));
   }
 
-  function editSubscription(t) {
-    const sub = t.subscription;
-    const f = {
-      state: el("select", null, Object.entries(SUB_LABEL).map(([v, l]) => el("option", { value: v }, l))),
-      plan: el("input", { type: "text", value: sub.plan || "", placeholder: (t.plans[0] && t.plans[0].name) || "Plan name" }),
-      monthly_cost: el("input", { type: "number", min: "0", step: "0.01", value: sub.monthly_cost ?? "", placeholder: t.entry_usd ? String(t.entry_usd) : "0" }),
-      seats: el("input", { type: "number", min: "0", step: "1", value: sub.seats ?? "" }),
-      renews_on: el("input", { type: "date", value: sub.renews_on ? new Date(sub.renews_on * 1000).toISOString().slice(0, 10) : "" }),
-      note: el("input", { type: "text", value: sub.note || "" }),
-    };
-    f.state.value = sub.state || "none";
-    const planHint = t.plans.length ? el("div", { class: "hint" }, "Published plans: " + t.plans.map((p) => `${p.name} ${p.monthlyUSD ? "$" + p.monthlyUSD : ""}`.trim()).join(" · ")) : null;
-    const err = el("div", { class: "err" });
-    const save = el("button", { class: "btn primary", onclick: async () => {
-      try {
-        await api("PUT", "/subscriptions/" + t.id, { state: f.state.value, plan: f.plan.value, monthly_cost: f.monthly_cost.value, seats: f.seats.value, renews_on: f.renews_on.value, note: f.note.value });
-        d.close(); toast("Saved."); render();
-      } catch (e) { err.textContent = e.message; }
-    } }, "Save");
-    const d = dialog(t.name + " subscription", el("div", { class: "stack" },
-      el("div", { class: "form-grid" },
-        el("label", { class: "field" }, "Status", f.state),
-        el("label", { class: "field" }, "Plan", f.plan),
-        el("label", { class: "field" }, "Monthly cost (USD)", f.monthly_cost),
-        el("label", { class: "field" }, "Seats", f.seats),
-        el("label", { class: "field" }, "Renews on", f.renews_on)),
-      el("label", { class: "field" }, "Note", f.note),
-      planHint, err), [save]);
-  }
-
-  async function manageAssignments(t) {
-    const [people, cat] = await Promise.all([api("GET", "/people"), api("GET", "/catalog")]);
-    const tool = cat.tools.find((x) => x.id === t.id) || t;
-    const assignedTeams = new Set();
-    const body = el("div", { class: "stack" });
-    const teamRows = el("div", { class: "row" });
-    (cat.departments || []).forEach((dept) => {
-      const on = tool.assigned_teams && false; // team state comes from the per-person 'team' grant; show toggle
-      const btn = el("button", { class: "btn small", onclick: async () => {
-        const adding = btn.textContent === "Off";
-        try { await api(adding ? "POST" : "DELETE", `/teams/${encodeURIComponent(dept)}/tools/${t.id}`); btn.textContent = adding ? "On" : "Off"; btn.classList.toggle("primary", adding); toast("Saved."); }
-        catch (e) { toast(e.message, true); }
-      } }, "Off");
-      teamRows.append(el("div", { class: "team-toggle" }, el("span", null, dept), btn));
-    });
-    // whether each team is granted
-    const grantedTeams = await api("GET", "/people");  // not ideal; we derive team grants below per person
-    const personRows = el("div", { class: "assign-list" });
-    for (const p of people.items) {
-      const granted = await isGranted(t.id, p.id);
-      const btn = el("button", { class: "btn small" + (granted ? " primary" : ""), onclick: async () => {
-        const on = !btn.classList.contains("primary");
-        try { await api(on ? "POST" : "DELETE", `/people/${p.id}/tools/${t.id}`); btn.classList.toggle("primary", on); btn.textContent = on ? "On" : "Off"; }
-        catch (e) { toast(e.message, true); }
-      } }, granted ? "On" : "Off");
-      personRows.append(el("div", { class: "assign-row" },
-        el("div", null, el("strong", null, p.name), el("div", { class: "hint" }, p.department || "—")), btn));
+  async function toolAction(t, action) {
+    if (action === "archive") {
+      const ok = await confirmAction(`Remove ${t.name} from the catalog?`, "Staff stop seeing it straight away and can't open it from the portal. Its history stays, and you can restore it from the bottom of the Tools page.", "Remove", true);
+      if (!ok) return false;
     }
-    body.append(
-      el("div", null, el("div", { class: "tag" }, "Whole teams"), teamRows),
-      el("div", null, el("div", { class: "tag" }, "People"), personRows));
-    dialog("Who can use " + t.name, body, [el("button", { class: "btn primary", onclick: (e) => { e.target.closest("dialog").close(); render(); } }, "Done")]);
+    try { await api("POST", `/tools/${t.id}/${action}`); toast(action === "archive" ? "Removed from the catalog." : "Restored."); S.tools = null; await render(); return true; }
+    catch (e) { toast(e.message, true); return false; }
   }
 
-  async function isGranted(toolId, personId) {
-    const p = await api("GET", "/people/" + personId);
-    const row = (p.tools || []).find((x) => x.id === toolId);
-    return row && row.grant === "direct";
+  async function deleteTool(t) {
+    const ok = await confirmAction(`Delete ${t.name} for good?`, "It's removed from the catalog along with its subscription and every grant. Past launches stay in the log without a tool name. This can't be undone.", "Delete tool", true);
+    if (!ok) return;
+    try { await api("DELETE", `/tools/${t.id}`); toast("Deleted."); S.tools = null; render(); } catch (e) { toast(e.message, true); }
   }
 
-  function addTool() {
-    const f = {
-      name: el("input", { type: "text" }), category: el("input", { type: "text", placeholder: "e.g. Writing" }),
-      kind: el("select", null, el("option", { value: "site" }, "Website (access gate)"), el("option", { value: "api" }, "API (through the gateway)"), el("option", { value: "dev" }, "Developer agent")),
-      url: el("input", { type: "text", placeholder: "https://…" }), hosts: el("input", { type: "text", placeholder: "example.com, app.example.com" }),
-      pricing_url: el("input", { type: "text", placeholder: "https://…/pricing" }),
-    };
-    const err = el("div", { class: "err" });
-    const save = el("button", { class: "btn primary", onclick: async () => {
-      try { await api("POST", "/tools", { name: f.name.value, category: f.category.value, kind: f.kind.value, url: f.url.value, hosts: f.hosts.value, pricing_url: f.pricing_url.value }); d.close(); toast("Added."); render(); }
-      catch (e) { err.textContent = e.message; }
-    } }, "Add tool");
-    const d = dialog("Add a tool", el("div", { class: "stack" },
-      el("div", { class: "form-grid" },
-        el("label", { class: "field" }, "Name", f.name), el("label", { class: "field" }, "Category", f.category),
-        el("label", { class: "field" }, "Type", f.kind)),
-      el("label", { class: "field" }, "Website", f.url),
-      el("label", { class: "field" }, "Domains for the access gate", f.hosts, el("span", { class: "hint" }, "Only for website tools. Comma-separated.")),
-      el("label", { class: "field" }, "Pricing page", f.pricing_url), err), [save]);
-    f.name.focus();
+  function toolSheet(t, tab) {
+    // closing forgets ?open= so a later refresh of the page doesn't pop the sheet back up
+    const { node, close } = sheet(() => { if (location.hash.includes("open=")) history.replaceState(null, "", "#/tools"); });
+    const owner = isOwner();
+    const tabs = t ? [["overview", "Overview"], ["access", "Who can use it"], t.kind === "dev" ? null : ["billing", "Subscription"], ["settings", "Settings"]].filter(Boolean)
+      : [["settings", "New tool"]];
+    let current = t ? (tab || "overview") : "settings";
+    const body = el("div", { class: "sheet-body" });
+    const tabBar = el("div", { class: "tabs", role: "tablist" });
+    function drawTabs() {
+      tabBar.replaceChildren(...tabs.map(([id, label]) => el("button", { type: "button", role: "tab", class: id === current ? "on" : null,
+        onclick: () => { current = id; drawTabs(); show(); } }, label)));
+    }
+    async function refresh(nextTab) {
+      close();
+      S.tools = null;
+      const next = t ? `#/tools?open=${t.id}&tab=${nextTab || current}` : "#/tools";
+      if (location.hash === next) await render();
+      else location.hash = next;  // the hashchange renders the page and reopens this tool
+    }
+    function show() {
+      body.replaceChildren(el("div", { class: "hint" }, "Loading…"));
+      ({ overview: overviewTab, access: accessTab, billing: billingTab, settings: settingsTab })[current]().then((n) => body.replaceChildren(...[].concat(n).filter(Boolean)))
+        .catch((e) => body.replaceChildren(el("div", { class: "err" }, e.message)));
+    }
+
+    async function overviewTab() {
+      const how = SIGNIN[t.kind === "dev" ? "api" : t.signin] || SIGNIN.seat;
+      const sub = t.subscription;
+      return [
+        t.description ? el("p", { class: "muted", style: null }, t.description) : null,
+        el("div", { class: "facts" },
+          fact("Type", KIND[t.kind] || t.kind),
+          fact("Subscription", sub.state === "none" ? (t.kind === "site" ? "None yet" : "Metered on our API key") : [SUB_LABEL[sub.state], sub.plan].filter(Boolean).join(" · ")),
+          fact("Monthly cost", sub.monthly_cost != null ? fmt.money(sub.monthly_cost) : "—"),
+          fact("Seats", sub.seats ? `${t.assigned_people} given · ${sub.seats} paid` : `${t.assigned_people} given`),
+          fact("Opened in 30 days", `${t.usage_30d.opens} times by ${t.usage_30d.people} ${t.usage_30d.people === 1 ? "person" : "people"}`),
+          fact("Last opened", t.usage_30d.last ? fmt.ago(t.usage_30d.last) : "not in 30 days")),
+        el("div", { class: "stack" }, el("h3", { class: "section-title" }, "How people sign in — " + how[0]), el("p", { class: "hint", style: null }, how[1]),
+          t.launch_url ? el("div", { class: "hint" }, "Opens: ", el("span", { class: "mono" }, t.launch_url)) : null,
+          t.url ? el("a", { class: "btn small", href: t.url, target: "_blank", rel: "noopener noreferrer" }, "Visit website", svg(ICON.open)) : null),
+        t.hosts.length ? el("div", { class: "stack" }, el("h3", { class: "section-title" }, "Domains the browser extension governs"),
+          el("div", { class: "row" }, t.hosts.map((h) => el("span", { class: "pill mono" }, h)))) : null,
+      ];
+    }
+
+    async function accessTab() {
+      const data = await api("GET", `/tools/${t.id}/access`);
+      const teams = data.teams.length ? el("div", { class: "row" }, data.teams.map((team) => {
+        const btn = el("button", { class: "btn small" + (team.on ? " primary" : ""), disabled: !owner, onclick: async () => {
+          const adding = !btn.classList.contains("primary");
+          try { await api(adding ? "POST" : "DELETE", `/teams/${encodeURIComponent(team.name)}/tools/${t.id}`); btn.classList.toggle("primary", adding); btn.textContent = adding ? "On" : "Off"; toast("Saved."); }
+          catch (e) { toast(e.message, true); }
+        } }, team.on ? "On" : "Off");
+        return el("div", { class: "team-toggle" }, el("span", null, team.name), btn);
+      })) : el("div", { class: "hint" }, "Give people a department to grant whole teams at once.");
+      const rows = data.people.map((p) => {
+        const until = el("input", { type: "date", value: p.expires ? isoDate(p.expires - 86400) : "", disabled: !owner, title: "Optional end date", "aria-label": "Access ends on" });
+        const btn = el("button", { class: "btn small" + (p.granted ? " primary" : ""), disabled: !owner }, p.granted ? "On" : "Off");
+        btn.addEventListener("click", async () => {
+          const adding = !btn.classList.contains("primary");
+          try {
+            if (adding) await api("POST", `/people/${p.id}/tools/${t.id}`, until.value ? { until: until.value } : {});
+            else await api("DELETE", `/people/${p.id}/tools/${t.id}`);
+            btn.classList.toggle("primary", adding); btn.textContent = adding ? "On" : "Off"; toast(adding ? "Turned on." : "Turned off.");
+          } catch (e) { toast(e.message, true); }
+        });
+        until.addEventListener("change", async () => {
+          if (!btn.classList.contains("primary")) return;
+          try { await api("POST", `/people/${p.id}/tools/${t.id}`, { until: until.value || null }); toast(until.value ? "End date set." : "End date cleared."); }
+          catch (e) { toast(e.message, true); }
+        });
+        return el("div", { class: "assign-row" },
+          el("span", { class: "logo sm mono" }, initials(p.name)),
+          el("div", { class: "grow" }, el("strong", null, p.name), " ", p.status !== "active" ? el("span", { class: "pill bad" }, "suspended") : null,
+            p.team ? el("span", { class: "pill info" }, "via team") : null,
+            el("div", { class: "hint" }, [p.department || "No department", p.last_opened ? "opened " + fmt.ago(p.last_opened) : "never opened"].join(" · "))),
+          until, btn);
+      });
+      rows.forEach((r) => { const m = r.querySelector(".logo"); m.style.background = "linear-gradient(140deg, #22345C, #121C33)"; m.style.color = "#F0D89C"; });
+      const locked = t.kind === "site" && t.subscription.state !== "active";
+      return [
+        locked ? el("div", { class: "notice" }, "Staff can't open this until the company subscription is active (Subscription tab).") : null,
+        el("div", { class: "stack" }, el("h3", { class: "section-title" }, "Whole teams"), teams),
+        el("div", { class: "stack" }, el("h3", { class: "section-title" }, "People"),
+          el("p", { class: "hint", style: null }, "Turn the tool on per person. Add an end date first to give it for a limited time — access stops after that day."),
+          rows.length ? el("div", { class: "assign-list" }, rows) : empty("No people yet.")),
+      ];
+    }
+
+    async function billingTab() {
+      const sub = t.subscription;
+      const f = {
+        state: el("select", { disabled: !owner }, Object.entries(SUB_LABEL).map(([v, l]) => el("option", { value: v }, l))),
+        plan: el("input", { type: "text", value: sub.plan || "", placeholder: (t.plans[0] && t.plans[0].name) || "Plan name", disabled: !owner }),
+        monthly_cost: el("input", { type: "number", min: "0", step: "0.01", value: sub.monthly_cost ?? "", placeholder: t.entry_usd ? String(t.entry_usd) : "0", disabled: !owner }),
+        seats: el("input", { type: "number", min: "0", step: "1", value: sub.seats ?? "", disabled: !owner }),
+        renews_on: el("input", { type: "date", value: sub.renews_on ? isoDate(sub.renews_on) : "", disabled: !owner }),
+        note: el("input", { type: "text", value: sub.note || "", placeholder: "Card on file, invoice owner, account email…", disabled: !owner }),
+      };
+      f.state.value = sub.state || "none";
+      const err = el("div", { class: "err" });
+      const save = owner ? el("button", { class: "btn primary", onclick: async () => {
+        try {
+          await api("PUT", "/subscriptions/" + t.id, { state: f.state.value, plan: f.plan.value, monthly_cost: f.monthly_cost.value, seats: f.seats.value, renews_on: f.renews_on.value, note: f.note.value });
+          toast("Subscription saved."); refresh("billing");
+        } catch (e) { err.textContent = e.message; }
+      } }, "Save subscription") : null;
+      return [
+        el("p", { class: "hint", style: null }, "One company account pays for the tool; each person gets their seat through the portal. Staff can only open website tools while this is Active."),
+        el("div", { class: "form-grid" },
+          el("label", { class: "field" }, "Status", f.state),
+          el("label", { class: "field" }, "Plan", f.plan),
+          el("label", { class: "field" }, "Monthly cost (USD)", f.monthly_cost),
+          el("label", { class: "field" }, "Seats paid for", f.seats),
+          el("label", { class: "field" }, "Renews on", f.renews_on)),
+        el("label", { class: "field" }, "Note", f.note),
+        t.plans.length ? el("div", { class: "hint" }, "Published plans: " + t.plans.map((p) => `${p.name}${p.monthlyUSD ? " $" + p.monthlyUSD : ""}`).join(" · "),
+          t.pricing_url ? [" · ", el("a", { href: t.pricing_url, target: "_blank", rel: "noopener noreferrer" }, "pricing page")] : null) : null,
+        err, el("div", null, save),
+      ];
+    }
+
+    async function settingsTab() {
+      const v = t || { name: "", category: "", kind: "site", description: "", url: "", signin: "seat", launch_url: "", hosts: [], color: "#3A4A6B", pricing_url: "" };
+      const cats = Object.values(S.tools || {}).map((x) => x.category);
+      const list = el("datalist", { id: "cat-list" }, Array.from(new Set(cats)).sort().map((c) => el("option", { value: c })));
+      const f = {
+        name: el("input", { type: "text", value: v.name, maxlength: "80", required: true }),
+        category: el("input", { type: "text", value: v.category, list: "cat-list", placeholder: "e.g. Image" }),
+        kind: el("select", { disabled: t && t.builtin ? true : null }, Object.entries(KIND).map(([k, l]) => el("option", { value: k }, l))),
+        description: el("input", { type: "text", value: v.description || "", maxlength: "200", placeholder: "One line staff will read on the tile" }),
+        url: el("input", { type: "url", value: v.url || "", placeholder: "https://…" }),
+        signin: el("select", null, Object.entries(SIGNIN).map(([k, [l]]) => el("option", { value: k }, l))),
+        launch_url: el("input", { type: "url", value: v.launch_url || "", placeholder: "https://… (optional)" }),
+        hosts: el("input", { type: "text", value: (v.hosts || []).join(", "), placeholder: "Filled from the website if left empty" }),
+        color: el("input", { type: "color", value: /^#[0-9a-f]{6}$/i.test(v.color || "") ? v.color : "#3A4A6B" }),
+        pricing_url: el("input", { type: "url", value: v.pricing_url || "", placeholder: "https://…/pricing" }),
+      };
+      f.kind.value = v.kind; f.signin.value = v.kind === "dev" ? "api" : (v.signin || "seat");
+      const howHint = el("span", { class: "hint" });
+      const drawHow = () => { howHint.textContent = (SIGNIN[f.signin.value] || SIGNIN.seat)[1]; };
+      f.signin.addEventListener("change", drawHow); drawHow();
+      const err = el("div", { class: "err" });
+      const values = () => ({ name: f.name.value, category: f.category.value, kind: f.kind.value, description: f.description.value, url: f.url.value,
+        signin: f.signin.value, launch_url: f.launch_url.value, hosts: f.hosts.value, color: f.color.value, pricing_url: f.pricing_url.value });
+      const save = el("button", { class: "btn primary", onclick: async () => {
+        err.textContent = "";
+        try {
+          if (t) { await api("PATCH", "/tools/" + t.id, values()); toast("Saved."); refresh("settings"); }
+          else {
+            const out = await api("POST", "/tools", values());
+            toast("Added — now choose who can use it."); close(); S.tools = null;
+            location.hash = `#/tools?open=${out.id}&tab=access`;
+          }
+        } catch (e) { err.textContent = e.message; }
+      } }, t ? "Save changes" : "Add tool");
+      if (!owner) Object.values(f).forEach((x) => { x.disabled = true; });
+
+      let logoBox = null;
+      if (t) {
+        const file = el("input", { type: "file", accept: "image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon,image/gif", hidden: true });
+        file.addEventListener("change", () => {
+          const pick = file.files[0];
+          if (!pick) return;
+          if (pick.size > 300 * 1024) { toast("Keep the logo under 300 KB.", true); return; }
+          const reader = new FileReader();
+          reader.onload = async () => {
+            try { await api("PUT", `/tools/${t.id}/logo`, { data: reader.result }); toast("Logo uploaded."); refresh("settings"); } catch (e) { toast(e.message, true); }
+          };
+          reader.readAsDataURL(pick);
+        });
+        logoBox = el("div", { class: "logo-edit" }, logo(t, "lg"), el("div", { class: "stack" },
+          el("div", { class: "row" },
+            owner ? el("button", { class: "btn small", onclick: () => file.click() }, "Upload a logo") : null,
+            owner ? el("button", { class: "btn small", onclick: async (e) => {
+              e.target.disabled = true; e.target.textContent = "Fetching…";
+              try { const out = await api("POST", `/tools/${t.id}/logo/refresh`); toast(out.ok ? "Logo updated from the website." : "Couldn't find a logo on the website — upload one instead.", !out.ok); if (out.ok) refresh("settings"); }
+              catch (x) { toast(x.message, true); }
+              e.target.disabled = false; e.target.textContent = "Fetch from website";
+            } }, "Fetch from website") : null, file),
+          el("span", { class: "hint" }, "PNG, SVG, WebP or JPEG, under 300 KB. Without a logo, the tile shows initials in the brand colour.")));
+      }
+      return [
+        list, logoBox,
+        el("div", { class: "form-grid" },
+          el("label", { class: "field" }, "Name", f.name),
+          el("label", { class: "field" }, "Category", f.category),
+          el("label", { class: "field" }, "Type", f.kind)),
+        el("label", { class: "field" }, "Description", f.description),
+        el("div", { class: "form-grid" },
+          el("label", { class: "field" }, "Website", f.url),
+          el("label", { class: "field" }, "How people sign in", f.signin, howHint)),
+        el("label", { class: "field" }, "Company sign-in link", f.launch_url,
+          el("span", { class: "hint" }, "Where Open sends people. For single sign-on, paste the tool's SSO link — or the app's link from Google Admin → Apps → Web and mobile apps. Empty = the website.")),
+        el("div", { class: "form-grid" },
+          el("label", { class: "field" }, "Domains (for the browser extension)", f.hosts),
+          el("label", { class: "field" }, "Pricing page", f.pricing_url),
+          el("label", { class: "field" }, "Brand colour", f.color)),
+        err,
+        owner ? el("div", null, save) : null,
+        t && owner ? el("div", { class: "danger-zone" },
+          el("div", null, el("strong", null, t.builtin ? "Remove from the catalog" : "Remove or delete"),
+            el("div", { class: "hint" }, t.builtin ? "Hidden from staff and closed to launches. You can restore it any time." : "Remove hides it (restorable). Delete erases it with its grants.")),
+          el("div", { class: "row" },
+            el("button", { class: "btn danger", onclick: async () => { if (await toolAction(t, "archive")) close(); } }, "Remove"),
+            t.builtin ? null : el("button", { class: "btn danger solid", onclick: () => { close(); deleteTool(t); } }, "Delete"))) : null,
+      ];
+    }
+
+    const head = el("header", null,
+      el("div", { class: "spread" },
+        el("div", { class: "sheet-id" }, t ? logo(t, "lg") : el("span", { class: "logo lg mono" }, "+"),
+          el("div", null, el("div", { class: "eyebrow" }, t ? t.category : "Catalog"), el("h2", null, t ? t.name : "Add a tool"),
+            t ? el("div", { class: "row", style: null }, subPill(t), el("span", { class: "pill" }, KIND[t.kind] || t.kind)) : null)),
+        el("button", { class: "btn small quiet", onclick: close, "aria-label": "Close" }, "Close")),
+      tabBar);
+    if (!t) { const m = head.querySelector(".logo"); m.style.background = "linear-gradient(140deg, #22345C, #121C33)"; m.style.color = "#F0D89C"; }
+    node.setAttribute("aria-label", t ? t.name : "Add a tool");
+    node.append(head, body);
+    drawTabs();
+    show();
   }
 
-  function kpiCell(label, value, note) {
-    return el("div", { class: "kpi" }, el("div", { class: "label" }, label), el("div", { class: "value" }, value), note ? el("div", { class: "note" }, note) : null);
+  function fact(k, v) { return el("div", { class: "fact" }, el("div", { class: "k" }, k), el("div", { class: "v" }, v)); }
+
+  // ------------------------------------------------------------------ Licences & spend
+
+  async function pageLicences() {
+    const [lic] = await Promise.all([api("GET", "/licences"), toolIndex().catch(() => null)]);
+    const s = lic.summary;
+    const owner = isOwner();
+    const kpis = el("div", { class: "kpis" },
+      kpiCell("Spend this month", fmt.money(s.total_month), `${fmt.money(s.subscriptions_month)} plans + ${fmt.money(s.api_month)} API use`, ICON.wallet, "gold"),
+      kpiCell("Company plans", fmt.money(s.subscriptions_month), "a month, for the tools below", ICON.licences),
+      kpiCell("API use this month", fmt.money(s.api_month), "metered through the gateway", ICON.live),
+      kpiCell("Seats not used", String(s.idle_seats), s.idle_cost ? `≈ ${fmt.money(s.idle_cost)} a month going unused` : "everyone given a tool is using it", ICON.clock, s.idle_seats ? "alert" : null));
+    const rows = lic.tools.map((t) => el("tr", null,
+      el("td", null, el("a", { class: "tool-cell", href: `#/tools?open=${t.id}&tab=billing` }, toolLogo(t.id, t.name, "sm"), el("div", null, el("strong", null, t.name), el("div", { class: "hint" }, t.plan || (t.state === "none" ? (t.kind === "site" ? "no plan" : "API key") : SUB_LABEL[t.state]))))),
+      el("td", { class: "num" }, String(t.assigned) + (t.seats ? " / " + t.seats : ""), t.over_seats ? el("div", null, el("span", { class: "pill bad" }, "more people than seats")) : null),
+      el("td", null, t.assigned ? [el("span", null, `${t.active} of ${t.assigned}`), usageBar(t.active, t.assigned)] : el("span", { class: "hint" }, "no one given it yet")),
+      el("td", { class: "num" }, t.monthly_cost != null ? fmt.money(t.monthly_cost) : "—"),
+      el("td", { class: "num" }, t.cost_per_active != null ? fmt.money(t.cost_per_active) : "—"),
+      el("td", null, t.idle.length ? el("div", { class: "idle" }, t.idle.map((p) => el("span", { title: p.last ? "last used " + fmt.ago(p.last) : "never used" }, p.name,
+        owner ? el("button", { type: "button", onclick: async () => {
+          const ok = await confirmAction(`Take ${t.name} back from ${p.name}?`, "Their access is removed so the seat can go to someone who needs it. If they have it through their team, change that on the Tools page.", "Take it back", true);
+          if (!ok) return;
+          try { await api("DELETE", `/people/${p.id}/tools/${t.id}`); toast("Seat freed."); render(); } catch (e) { toast(e.message, true); }
+        } }, "Reclaim") : null))) : t.assigned ? el("span", { class: "pill ok" }, "all in use") : el("span", { class: "hint" }, "—"))));
+    const table = lic.tools.length ? el("div", { class: "table-wrap" }, el("table", null,
+      el("thead", null, el("tr", null, el("th", null, "Tool"), el("th", { class: "num" }, "Given / seats"), el("th", null, "Used in 30 days"),
+        el("th", { class: "num" }, "Cost a month"), el("th", { class: "num" }, "Per active user"), el("th", null, "Not used in 30 days"))),
+      el("tbody", null, rows))) : empty("No subscriptions or assigned tools yet. Subscribe on the Tools page, then give the tool to people.");
+    const renewals = lic.renewals.length ? el("ul", { class: "opens" }, lic.renewals.map((t) => el("li", null, toolLogo(t.id, t.name, "sm"),
+      el("div", { class: "who-line" }, el("strong", null, t.name), el("span", { class: "muted" }, " · " + (t.monthly_cost != null ? fmt.money(t.monthly_cost) : "cost not set"))),
+      el("span", { class: "pill warn" }, "renews " + dateText(t.renews_on))))) : empty("Nothing renews in the next 30 days.");
+    const people = lic.people.filter((p) => p.cost > 0 || p.monthly_budget !== null);
+    const spend = people.length ? el("ul", { class: "bars" }, people.map((p) => el("li", null,
+      el("div", { class: "spread" }, el("a", { href: "#/people/" + p.id }, p.name), el("span", { class: "num" }, fmt.money(p.cost) + (p.monthly_budget !== null ? " of " + fmt.money(p.monthly_budget) : ""))),
+      p.monthly_budget !== null ? bar(p.cost, p.monthly_budget) : bar(p.cost, Math.max(...people.map((x) => x.cost), 0.01)),
+      el("div", { class: "hint" }, (p.department || "—") + (p.monthly_budget === null ? " · no monthly budget" : ""))))) : empty("No API spend this month.");
+    app.replaceChildren(frame("Licences & spend", null, [
+      kpis,
+      panel("Licences", "seats paid for against real use — reclaim the ones nobody opens", table,
+        el("div", { class: "body hint" }, "Used = opened from the portal, through the browser extension, or used through the gateway in the last 30 days.")),
+      el("div", { class: "spacer" }),
+      el("div", { class: "grid cols-even" },
+        panel("Renewing in the next 30 days", null, renewals),
+        panel("API spend by person", "this month, against their budget", spend)),
+    ], el("a", { class: "btn", href: gadmin("/export.csv") }, "Export activity CSV")));
+  }
+
+  function usageBar(value, total) {
+    const fill = el("i");
+    fill.style.width = Math.min(100, (value / (total || 1)) * 100) + "%";
+    return el("div", { class: "bar use" }, fill);
+  }
+
+  function kpiCell(label, value, note, icon, tone) {
+    return el("div", { class: "kpi" + (tone ? " " + tone : "") }, el("div", { class: "label" }, icon ? svg(icon) : null, label),
+      el("div", { class: "value" }, value), note ? el("div", { class: "note" }, note) : null);
   }
 
   // ------------------------------------------------------------------ Access requests

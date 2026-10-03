@@ -13,33 +13,45 @@ Two apps on one address, plus a browser extension:
 
 | Where | What |
 |---|---|
-| `/` | **Swangz AI** — the staff app: a catalog of the company's AI tools, each enabled or disabled by entitlement; Studio for voice/image/video; connect coding tools; manage own devices |
-| `/admin` | **Control room** — owners and viewers: live requests, people, the tool catalog & subscriptions, entitlements, access requests, activity & records, settings, audit log, health |
+| `/` | **Swangz AI** — the staff app: a launchpad of the company's AI tools. **Open** goes through `/go/<tool>`, which checks access, logs the launch and sends the person to the tool's company sign-in link (SSO) or website. Studio for voice/image/video; connect coding tools; manage own devices |
+| `/admin` | **Control room** — owners and viewers: live requests and launches, people (budgets, end dates, suspend, remove all tools), the tool catalog (add / edit / remove / delete, logos, sign-in method), who can use each tool (with end dates), subscriptions, **Licences & spend** (seats vs real use, idle seats, renewals), access requests, activity & records, settings, audit log |
 | `extension/` | **Swangz AI Access** — a browser extension that governs AI *websites* (ChatGPT, Midjourney, …): opens the ones a person is entitled to, blocks the rest, logs access-level use only |
 
 The core rule everywhere: **a tool is enabled for a person only when the company subscription is
 active AND the person is assigned it** (directly or through their department). API and dev tools run
 on the company key, so they gate on assignment alone; Claude Code and Codex are assignment-only.
+A grant can carry an end date, and a person's whole account can (`access_until`).
+
+**How people get into website tools — deliberately not a shared login.** The company pays one bill;
+each person gets their own seat on the company plan (`signin = seat`) or signs in through the tool's
+single sign-on with their Swangz account (`signin = sso`, with the SSO link as `launch_url`). Do **not**
+build a mechanism that types one shared company login into many people's browsers: most AI vendors'
+terms forbid sharing one account, and they suspend accounts for it. Arnold asked for that once
+(Oct 3, 2026); it was declined and the seat/SSO model was built instead.
 
 ## Stack and layout
 
 - **Python 3.10+, standard library only.** Nothing to install. One SQLite file (`data/gateway.db`).
 - Front ends are plain JS/CSS on a self-hosted Archivo design system; strict Content-Security-Policy.
+  Design tokens ("Porcelain & Midnight") live in `static/tokens.css`: light porcelain page, white
+  cards, midnight-navy ink and primary, champagne gold accent; a navy (never black) dark theme on
+  `html[data-theme="dark"]`, toggled in both apps and remembered per browser.
 
 ```
 gateway/
   server.py     HTTP server, routing, the per-request rule checks, static files, health
   proxy.py      the core: one request from arrival through forward/stream to the record
   parse.py      reads each provider's dialect (Anthropic / OpenAI / ElevenLabs / Higgsfield)
-  catalog.py    the 49-tool catalog + host matching (seeded on start-up)
+  catalog.py    the 49-tool catalog, descriptions/colours, sign-in methods, launch targets, host matching
+  icons.py      tool logos: fetched once server-side (public hosts only, sniffed, size-capped) or uploaded
   entitle.py    who may use which tool, and why (enabled / locked / not_assigned / past_due / suspended)
   store.py      request bodies stored once per message by hash; retention clean-up
   pricing.py    model price table and cost per request
   live.py       requests in flight, and cutting them
-  db.py         SQLite + append-only numbered migrations (currently schema v5)
+  db.py         SQLite + append-only numbered migrations (currently schema v6)
   security.py   key/password hashing, sign-in throttle, per-person rate limiter
   admin.py      control-room API
-  staff.py      staff-app API, Studio, and the browser access gate
+  staff.py      staff-app API, /go/<tool> launches, Studio, and the browser access gate
   guides.py     per-tool connection steps shown to staff
   config.py     settings from the environment; provider definitions
   static/       index.html + portal.* (staff), admin.html + admin.* (console), tokens.css, fonts/
@@ -83,7 +95,8 @@ DEMO_MODEL=1 bash deploy/laptop-demo.sh  # starts the gateway + a free https tun
 
 **Configuration** (environment): provider keys `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
 `ELEVENLABS_API_KEY`, `HIGGSFIELD_CREDENTIALS`; address `GATEWAY_PUBLIC_URL`; `GATEWAY_HOST/PORT/DATA`;
-`GATEWAY_TRUST_PROXY` / `GATEWAY_FORCE_HTTPS` behind a proxy or tunnel; `GATEWAY_CORS_ORIGINS` to let a Netlify-hosted front-end call the API (see `deploy/NETLIFY.md`); `GATEWAY_TZ_OFFSET`. Runtime
+`GATEWAY_TRUST_PROXY` / `GATEWAY_FORCE_HTTPS` behind a proxy or tunnel; `GATEWAY_FETCH_ICONS=0` to stop
+logo fetching (the tests set it); `GATEWAY_CORS_ORIGINS` to let a Netlify-hosted front-end call the API (see `deploy/NETLIFY.md`); `GATEWAY_TZ_OFFSET`. Runtime
 settings (retention, rate limit, kill switch, …) live in the control room under Settings.
 
 ## Picking the project up on a new machine
