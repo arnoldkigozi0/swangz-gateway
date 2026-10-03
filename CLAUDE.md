@@ -93,6 +93,7 @@ tests/          unittest suite + fake_upstream.py (a stand-in for every provider
 deploy/         systemd unit, Caddyfile, laptop-demo.sh, NETLIFY.md, WORKSPACE.md
 docs/STATE.md   current status, what's done, what's next  ← read this after this file
 docs/HANDOFF.md moving to another machine: what is NOT in git, and how to carry it across
+docs/GO-LIVE.md the rollout checklist (who does what) and the monthly cost — Swangz uses paid accounts, not API keys
 ```
 
 ## Working conventions (follow these)

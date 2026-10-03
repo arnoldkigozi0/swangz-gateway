@@ -611,7 +611,8 @@ class StudioTests(StaffBase):
         status, out = self.staff("POST", "/studio/voice", {"text": "hi", "voice_id": "JBFqnCBsd6RMkjVDRZzb"})
         self.assertEqual(status, 403)
         self.assertIn("paused for everyone", out["error"])
-        self.assertEqual(rig.last_record()["outcome"], "blocked")  # refused, and on the record
+        # refused, and on the record — written just after the reply, so wait for it (a slow machine shows it)
+        self.assertEqual(rig.wait_for(rig.last_record)["outcome"], "blocked")
 
 
 class AddressTests(unittest.TestCase):

@@ -6,6 +6,7 @@ and the gateway swaps it for the provider key on the way out.
 
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
@@ -215,4 +216,8 @@ def load_dotenv(path=".env"):
             value = value.strip()
             if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
                 value = value[1:-1]
+            else:  # KEY=value   # a comment — the comment is not part of the value
+                value = re.split(r"\s+#", value, maxsplit=1)[0].rstrip()
+                if value.startswith("#"):  # KEY=   # only a comment
+                    value = ""
             os.environ.setdefault(key, value)

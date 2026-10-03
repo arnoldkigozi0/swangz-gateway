@@ -7,7 +7,7 @@ and what is next). This file is only about **moving to a different computer**.
 git clone https://github.com/arnoldkigozi0/swangz-gateway.git
 cd swangz-gateway
 claude                      # Claude Code reads CLAUDE.md automatically
-python3 -m unittest discover -s tests -t .    # should be 179 tests, all passing
+python3 -m unittest discover -s tests -t .    # should be 181 tests, all passing
 ```
 
 Python 3.10+ and git are the only requirements. There is nothing to install — the whole gateway is
@@ -79,6 +79,10 @@ every recorded request. It is one file.
 - **Not done:** real provider keys, and a permanent home for the gateway.
 
 ## The next job, in order
+
+**`docs/GO-LIVE.md` is the up-to-date checklist** (Oct 3: Swangz uses paid accounts, not API keys, so
+provider keys are no longer on the list). `deploy/setup-gateway-server.sh` and
+`deploy/setup-workspace-server.sh` set up each server in one run. The summary:
 
 1. **A small VPS (~$5/month)** for the gateway, at `ai.swangzavenue.com`. `deploy/` has the systemd
    unit and a Caddyfile; Caddy gets the certificate by itself. Then set `GATEWAY_PUBLIC_URL`, point

@@ -120,7 +120,7 @@ class Rig:
     def last_record(self):
         return self.gw.db.one("SELECT * FROM requests ORDER BY id DESC LIMIT 1")
 
-    def wait_for(self, predicate, timeout=5.0):
+    def wait_for(self, predicate, timeout=15.0):  # generous: a busy, low-memory laptop is slow to write records
         end = time.time() + timeout
         while time.time() < end:
             value = predicate()

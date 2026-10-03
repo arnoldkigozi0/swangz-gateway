@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 User=swangz
 WorkingDirectory=/opt/swangz-gateway
-EnvironmentFile=/opt/swangz-gateway/.env
+# the gateway reads /opt/swangz-gateway/.env itself (one parser for every setting, comments allowed)
 ExecStart=/usr/bin/python3 -m gateway serve
 Restart=always
 RestartSec=3

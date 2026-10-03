@@ -4,7 +4,7 @@ Last updated: 2026-10-03. Read `../CLAUDE.md` first for the overview and convent
 
 ## Where it stands
 
-A working platform, built and tested. **179 unit tests pass** (`python3 -m unittest discover -s tests -t .`).
+A working platform, built and tested. **181 unit tests pass** (`python3 -m unittest discover -s tests -t .`).
 Schema is **v10**. Nothing real has been called by a provider yet — there are no company API keys, and
 the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
 
