@@ -76,7 +76,16 @@ the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
   Google. `GATEWAY_WEB_URL` tells the gateway that address. Step-by-step in `deploy/NETLIFY.md`.
 - Demo accounts (Oct 3): the owner's console user is now `arnoldkigozi0@gmail.com` (renamed from
   `arnold`); the webdev demo staff account has a password. Both live only in the demo database.
-- Not yet done by Arnold: the Netlify site, the Google client, and the three `.env` lines.
+- **LIVE (Oct 3, 2026):** `https://swangz-ai.netlify.app` (staff) and `/admin` (console), Netlify
+  project `swangz-ai`, building from `main` (base `deploy/netlify`). Env var `SWANGZ_GATEWAY` = the
+  laptop's Cloudflare quick-tunnel link. Production visibility **Public**, Deploy Previews **Private**.
+  Google Cloud project `swangz-ai`, OAuth client "Swangz Ai", redirect URI
+  `https://swangz-ai.netlify.app/auth/google/callback`. Consent screen is in **Testing** with two test
+  users (arnoldkigozi0@gmail.com, webdev02022007@gmail.com); publishing it needs the Branding page
+  completed. Verified through Netlify: staff + admin password sign-in (cookies survive the proxy),
+  Open → tool redirect, Google start → accounts.google.com → back to the Netlify callback.
+- **Fragile until moved to a server:** the tunnel link changes whenever the laptop's tunnel restarts —
+  then update `SWANGZ_GATEWAY` in Netlify and redeploy.
 
 ### Oct 3, 2026 (third pass) — shared accounts, black theme, tabbed console
 
