@@ -132,14 +132,19 @@ def login(ctx):
         ctx.gw.audit(username or "?", "failed sign-in", "", "", ctx.ip)
         raise ApiError(401, "wrong username or password")
     ctx.gw.throttle.clear(ctx.ip)
+    return 200, {"username": row["username"], "role": row["role"]}, start_session(ctx, row)
+
+
+def start_session(ctx, row, how="signed in"):
+    """A console session for this admin -> the Set-Cookie header. Used by password and Google sign-in."""
     token = security.new_session_token()
     now = time.time()
     ctx.db.x("INSERT INTO admin_sessions(token_hash, admin_id, created, expires, ip) VALUES(?,?,?,?,?)",
              (security.sha256(token), row["id"], now, now + SESSION_SECONDS, ctx.ip))
     ctx.db.x("UPDATE admins SET last_login = ? WHERE id = ?", (now, row["id"]))
     ctx.admin = row
-    ctx.audit("signed in")
-    return 200, {"username": row["username"], "role": row["role"]}, {"Set-Cookie": _session_cookie(ctx, token, SESSION_SECONDS)}
+    ctx.audit(how)
+    return {"Set-Cookie": _session_cookie(ctx, token, SESSION_SECONDS)}
 
 
 @route("POST", r"/logout", role=None)
@@ -522,8 +527,10 @@ def invite_person(ctx, pid):
         raise ApiError(400, "add their email first — it is what they sign in with")
     from . import staff  # staff builds on this module's ApiError and Ctx
 
+    from . import google
+
     token = staff.new_invite(ctx.db, int(pid))
-    link = f"{ctx.gw.public_url(ctx.h)}/#/welcome/{token}"
+    link = f"{google.web_url(ctx.gw, ctx.h)}/#/welcome/{token}"
     ctx.audit("created a sign-in link", person["name"], "valid 7 days")
     return {"link": link, "expires_days": 7, "email": person["email"]}
 

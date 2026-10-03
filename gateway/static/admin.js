@@ -358,9 +358,37 @@
 
   // ------------------------------------------------------------------ sign-in and frame
 
+  const AUTH_ERRORS = {
+    cancelled: "Google sign-in was cancelled.",
+    expired: "That sign-in took too long or was started in another browser. Try again.",
+    google: "Google couldn't confirm that account. Try again.",
+    no_account: "That Google account isn't a console user. An owner can add it under Settings → Console users (use the Google email as the username).",
+    off: "Google sign-in isn't set up yet.",
+  };
+  function googleMark() {
+    const ns = "http://www.w3.org/2000/svg";
+    const s = document.createElementNS(ns, "svg");
+    s.setAttribute("viewBox", "0 0 48 48"); s.setAttribute("width", "18"); s.setAttribute("height", "18"); s.setAttribute("aria-hidden", "true");
+    [["#EA4335", "M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"],
+      ["#4285F4", "M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"],
+      ["#FBBC05", "M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"],
+      ["#34A853", "M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"]]
+      .forEach(([fill, d]) => { const p = document.createElementNS(ns, "path"); p.setAttribute("fill", fill); p.setAttribute("d", d); s.append(p); });
+    return s;
+  }
+
   function showSignIn() {
     clearTimers();
-    const err = el("div", { class: "err", role: "alert" });
+    const code = new URLSearchParams(location.search).get("auth_error");
+    if (code) history.replaceState(null, "", location.pathname + location.hash);
+    const err = el("div", { class: "err", role: "alert" }, code ? (AUTH_ERRORS[code] || "Sign-in didn't work. Try again.") : "");
+    const google = el("div", { class: "google-box" });
+    if (!GATEWAY) {
+      fetch("/auth/options", { credentials: "include" }).then((r) => (r.ok ? r.json() : {})).then((opt) => {
+        if (opt.google) google.append(el("a", { class: "btn google", href: "/auth/google/start?app=admin" }, googleMark(), "Continue with Google"),
+          el("div", { class: "or" }, el("span", null, "or with a username")));
+      }).catch(() => { /* no Google button */ });
+    }
     const user = el("input", { type: "text", autocomplete: "username", required: true, autofocus: true });
     const pass = el("input", { type: "password", autocomplete: "current-password", required: true });
     const go = el("button", { class: "btn primary", type: "submit" }, "Sign in");
@@ -382,6 +410,7 @@
     el("div", { class: "row" }, el("img", { src: "/static/icon.svg", alt: "", width: 44, height: 44 }),
       el("div", null, el("div", { class: "eyebrow" }, "Swangz AI"), el("h1", null, "Control room"))),
     el("p", { class: "muted", style: null }, "Tools, people, licences and spend — and the switches to stop it all."),
+    google,
     el("label", { class: "field" }, "Username", user),
     el("label", { class: "field" }, "Password", pass),
     err, go);
@@ -1624,7 +1653,8 @@
       try { await api("POST", "/admins", { username: user.value, password: pw.value, role: role.value }); d.close(); toast("Added."); render(); } catch (e) { err.textContent = e.message; }
     } }, "Add");
     const d = dialog("Add a console user", el("div", { class: "stack" },
-      el("label", { class: "field" }, "Username", user), el("label", { class: "field" }, "Password (10+ characters)", pw), el("label", { class: "field" }, "Role", role), err), [save]);
+      el("label", { class: "field" }, "Username", user, el("span", { class: "hint" }, "Use their Google email (e.g. name@swangzavenue.com) and they can also sign in with Google.")),
+      el("label", { class: "field" }, "Password (10+ characters)", pw), el("label", { class: "field" }, "Role", role), err), [save]);
     user.focus();
   }
 

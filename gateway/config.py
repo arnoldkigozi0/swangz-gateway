@@ -9,7 +9,7 @@ import os
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
-RESERVED_NAMES = {"admin", "api", "static", "healthz", "favicon.ico"}
+RESERVED_NAMES = {"admin", "api", "static", "healthz", "favicon.ico", "auth", "go", "icons"}
 
 
 DIALECTS = ("anthropic", "openai", "elevenlabs", "higgsfield", "media")
@@ -95,6 +95,19 @@ class Settings:
     # and the demo user). Configurable; these are the defaults.
     email_domains: tuple = ("swangzavenue.com",)
     email_exceptions: frozenset = frozenset({"arnoldkigozi0@gmail.com", "webdev02022007@gmail.com"})
+    # The address people open the apps at, when it differs from the gateway's own (e.g. a Netlify site
+    # that proxies to the gateway). Used for sign-in links and the Google sign-in return address.
+    web_url: str = ""
+    # Sign in with Google (OpenID Connect). Both empty = the Google button is hidden.
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_redirect_uri: str = ""  # optional; default <web address>/auth/google/callback
+    google_auth_url: str = "https://accounts.google.com/o/oauth2/v2/auth"
+    google_token_url: str = "https://oauth2.googleapis.com/token"
+
+    @property
+    def google_enabled(self):
+        return bool(self.google_client_id and self.google_client_secret)
 
     def email_allowed(self, email):
         """True when this email may be used for an account: a Swangz domain, or a named exception."""
@@ -154,6 +167,10 @@ class Settings:
                                 env.get("SWANGZ_EMAIL_DOMAINS", "swangzavenue.com").split(",") if d.strip()),
             email_exceptions=frozenset({"arnoldkigozi0@gmail.com", "webdev02022007@gmail.com"}
                                        | {e.strip().lower() for e in env.get("SWANGZ_EMAIL_EXCEPTIONS", "").split(",") if e.strip()}),
+            web_url=env.get("GATEWAY_WEB_URL", "").strip().rstrip("/"),
+            google_client_id=env.get("GOOGLE_CLIENT_ID", "").strip(),
+            google_client_secret=env.get("GOOGLE_CLIENT_SECRET", "").strip(),
+            google_redirect_uri=env.get("GOOGLE_REDIRECT_URI", "").strip(),
         )
 
 

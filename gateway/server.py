@@ -11,7 +11,7 @@ import time
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import admin, catalog, icons, pricing, proxy, security, staff, store
+from . import admin, catalog, google, icons, pricing, proxy, security, staff, store
 from .db import DB
 from .live import Live
 
@@ -263,6 +263,13 @@ class Handler(BaseHTTPRequestHandler):
             provider = self.gw.settings.providers.get(first)
             if provider is not None:
                 return proxy.Call(self.gw, self, provider, "/" + rest if rest else "", query).run()
+            if path.startswith("/auth/") and self.command in ("GET", "HEAD"):
+                if path == "/auth/options":
+                    return google.options(self, self.gw)
+                if path == "/auth/google/start":
+                    return google.start(self, self.gw, query)
+                if path == "/auth/google/callback":
+                    return google.callback(self, self.gw, query)
             if path.startswith("/go/") and self.command in ("GET", "HEAD"):
                 return staff.launch(self, self.gw, path[len("/go/"):])
             if path.startswith("/icons/") and self.command in ("GET", "HEAD"):

@@ -373,3 +373,11 @@ audio { width: 100%; max-width: 520px; }
 a.tool-cell { text-decoration: none; }
 a.tool-cell:hover strong { text-decoration: underline; text-underline-offset: 3px; }
 :root[data-theme="dark"] .kpi.gold { background: linear-gradient(150deg, #22345C, #152039); border-color: var(--accent-dim); }
+/* Sign in with Google */
+.google-box { display: flex; flex-direction: column; gap: 14px; }
+.google-box:empty { display: none; }
+.btn.google { background: #FFFFFF; color: #1F1F1F; border-color: #D5D9E0; min-height: 44px; gap: 12px; }
+.btn.google:hover { background: #F7F8FA; border-color: #B9C0CC; }
+:root[data-theme="dark"] .btn.google { background: #131314; color: #E3E3E3; border-color: #8E918F; }
+.or { display: flex; align-items: center; gap: 12px; color: var(--faint); font-size: 12.5px; }
+.or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line); }

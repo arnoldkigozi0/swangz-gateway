@@ -52,6 +52,7 @@ gateway/
   security.py   key/password hashing, sign-in throttle, per-person rate limiter
   admin.py      control-room API
   staff.py      staff-app API, /go/<tool> launches, Studio, and the browser access gate
+  google.py     Sign in with Google (OIDC code flow) for staff and admins: /auth/google/start|callback
   guides.py     per-tool connection steps shown to staff
   config.py     settings from the environment; provider definitions
   static/       index.html + portal.* (staff), admin.html + admin.* (console), tokens.css, fonts/
@@ -96,7 +97,9 @@ DEMO_MODEL=1 bash deploy/laptop-demo.sh  # starts the gateway + a free https tun
 **Configuration** (environment): provider keys `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
 `ELEVENLABS_API_KEY`, `HIGGSFIELD_CREDENTIALS`; address `GATEWAY_PUBLIC_URL`; `GATEWAY_HOST/PORT/DATA`;
 `GATEWAY_TRUST_PROXY` / `GATEWAY_FORCE_HTTPS` behind a proxy or tunnel; `GATEWAY_FETCH_ICONS=0` to stop
-logo fetching (the tests set it); `GATEWAY_CORS_ORIGINS` to let a Netlify-hosted front-end call the API (see `deploy/NETLIFY.md`); `GATEWAY_TZ_OFFSET`. Runtime
+logo fetching (the tests set it); `GATEWAY_WEB_URL` (the address people open, e.g. a Netlify front door);
+`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (both set = "Continue with Google" appears; admins match by
+username = Google email); `GATEWAY_CORS_ORIGINS` to let a Netlify-hosted front-end call the API (see `deploy/NETLIFY.md`); `GATEWAY_TZ_OFFSET`. Runtime
 settings (retention, rate limit, kill switch, …) live in the control room under Settings.
 
 ## Picking the project up on a new machine

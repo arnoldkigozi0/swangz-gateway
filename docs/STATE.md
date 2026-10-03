@@ -4,7 +4,7 @@ Last updated: 2026-10-03. Read `../CLAUDE.md` first for the overview and convent
 
 ## Where it stands
 
-A working platform, built and tested. **105 unit tests pass** (`python3 -m unittest discover -s tests -t .`).
+A working platform, built and tested. **115 unit tests pass** (`python3 -m unittest discover -s tests -t .`).
 Schema is **v6**. Nothing real has been called by a provider yet — there are no company API keys, and
 the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
 
@@ -63,12 +63,27 @@ the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
   opened, Your tools, the catalog). Console has a grouped icon sidebar. Extension restyled to match.
   Checked at 1440px and 390px, light and dark, in headless Chrome.
 
+### Oct 3, 2026 (later) — Sign in with Google + Netlify front door
+
+- **Continue with Google** on the staff app and the console (`gateway/google.py`, OIDC authorization-
+  code flow; state bound to the browser by a cookie and single-use; issuer, audience, expiry, nonce and
+  `email_verified` checked). Staff match a person by email (Swangz-email rule applies; suspended/ended
+  refused); admins match a console user whose username is the Google email. The button only shows when
+  `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set. 10 tests + a real-browser run through a
+  Netlify-like proxy with a cross-site fake Google (staff in, admin in, unknown account refused).
+- **Netlify front door** (`deploy/netlify/build-netlify.sh` default): Netlify proxies `/api`,
+  `/admin/api`, `/auth`, `/go`, `/icons` to the gateway; first-party cookies; one fixed address for
+  Google. `GATEWAY_WEB_URL` tells the gateway that address. Step-by-step in `deploy/NETLIFY.md`.
+- Demo accounts (Oct 3): the owner's console user is now `arnoldkigozi0@gmail.com` (renamed from
+  `arnold`); the webdev demo staff account has a password. Both live only in the demo database.
+- Not yet done by Arnold: the Netlify site, the Google client, and the three `.env` lines.
+
 ### How it compares (Oct 2026)
 
 | Need | What established products do | Swangz AI |
 |---|---|---|
 | One launchpad for company apps | Okta / Microsoft Entra / JumpCloud dashboards; Google Workspace app launcher | ✅ staff launchpad, logos, recently opened |
-| Sign in once to every tool | SAML/OIDC SSO through the identity provider | ⚠️ launches the tool's SSO link; Swangz's own login is email + password (Google sign-in not built) |
+| Sign in once to every tool | SAML/OIDC SSO through the identity provider | ✅ Swangz AI itself: Continue with Google; ⚠️ each tool: launches its own SSO link |
 | Turn access on/off, time-limited | Okta/Entra assignments; SCIM deprovisioning | ✅ per person / team, end dates; ❌ no SCIM (vendor seats still removed by hand) |
 | Licence use and waste | Zluri, Torii, Productiv, Zylo | ✅ seats vs use, idle seats, reclaim, renewals; ❌ no vendor API sync or invoice import |
 | AI API gateway with budgets | Portkey, LiteLLM, Cloudflare AI Gateway, Kong AI | ✅ keys, budgets, model rules, live cut-off, full records; ❌ no caching or provider failover |
@@ -92,9 +107,7 @@ actions, including opening a record and playing back a generation.
 
 ## Not built yet (likely next, in rough priority)
 
-1. **Google Workspace sign-in (SSO)** alongside the existing email/password. Needs a real Google
-   OAuth client ID + secret, so it can't be fully tested here until those exist. With it, the
-   portal and every SSO-capable tool share one Swangz sign-in.
+1. ~~Google sign-in~~ — built Oct 3 (needs Arnold's Google client to switch on).
 2. **SCIM / vendor seat sync** — when a person is removed here, remove their seat at the vendor too
    (ChatGPT Enterprise, Claude for Work, Canva, Figma, Notion… each has an admin API). Today that last
    step is manual.

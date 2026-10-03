@@ -1,26 +1,11 @@
-# Netlify config for the Swangz AI staff app + admin console (static front-ends only).
-# The gateway API runs elsewhere (a VPS, or the laptop demo tunnel); build-netlify.sh writes a
-# config.js that points these pages at it, and the gateway must list this Netlify URL in
-# GATEWAY_CORS_ORIGINS. See deploy/NETLIFY.md.
+# Netlify config for the Swangz AI staff app + admin console.
+# build-netlify.sh writes dist/ with a _redirects file that makes this site the gateway's "front door"
+# (/api, /admin/api, /auth, /go and /icons are passed through to the gateway; everything else is the
+# two single-page apps) and a _headers file with the security headers. See deploy/NETLIFY.md.
+#
+# In the Netlify UI: Base directory = deploy/netlify, and an environment variable SWANGZ_GATEWAY set to
+# the gateway's https address. Change that variable and redeploy whenever the gateway address changes.
 
 [build]
   publish = "dist"
   command = "bash build-netlify.sh"
-
-# The apps are hash-routed single pages, so every deep link serves its shell.
-[[redirects]]
-  from = "/admin/*"
-  to = "/admin.html"
-  status = 200
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-  # (static assets like /static/* and /config.js are served directly before this catch-all)
-
-[[headers]]
-  for = "/*"
-  [headers.values]
-    X-Content-Type-Options = "nosniff"
-    Referrer-Policy = "no-referrer"
