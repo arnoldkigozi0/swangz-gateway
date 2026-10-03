@@ -281,6 +281,15 @@ SCHEMA = [
     """
     ALTER TABLE tools ADD COLUMN workspace_url TEXT NOT NULL DEFAULT '';
     """,
+    # v9: the workspace is a pool of browsers (workspace_url, one address per line), one per person on it
+    # at a time. Each turn records the browser it was given, the sign-in the gateway made for it there,
+    # and when that sign-in was removed again.
+    """
+    ALTER TABLE tool_turns ADD COLUMN workspace TEXT NOT NULL DEFAULT '';
+    ALTER TABLE tool_turns ADD COLUMN ws_member TEXT NOT NULL DEFAULT '';
+    ALTER TABLE tool_turns ADD COLUMN ws_closed REAL;
+    CREATE INDEX tool_turns_ws ON tool_turns(ended, ws_closed);
+    """,
 ]
 
 

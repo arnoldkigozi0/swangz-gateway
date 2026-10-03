@@ -115,6 +115,9 @@ def serve(settings):
 
     server, gw = make_server(settings)
     gw.start_maintenance()
+    if settings.workspace_token:
+        gw.workspaces.start()  # removes each workspace sign-in as soon as its turn ends
+        gw.log("shared workspace: the gateway makes and removes a sign-in for every turn")
     from . import icons
 
     icons.start(gw.db, gw.log)  # tool logos for the catalog, fetched once in the background

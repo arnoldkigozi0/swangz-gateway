@@ -4,8 +4,8 @@ Last updated: 2026-10-03. Read `../CLAUDE.md` first for the overview and convent
 
 ## Where it stands
 
-A working platform, built and tested. **132 unit tests pass** (`python3 -m unittest discover -s tests -t .`).
-Schema is **v8**. Nothing real has been called by a provider yet — there are no company API keys, and
+A working platform, built and tested. **151 unit tests pass** (`python3 -m unittest discover -s tests -t .`).
+Schema is **v9**. Nothing real has been called by a provider yet — there are no company API keys, and
 the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
 
 ### Done and verified
@@ -122,6 +122,29 @@ person at a time, nothing left signed in on laptops), what it does **not** fix (
 one subscription serving several people — buy seats where a team plan exists), and what it costs
 (a separate 4–8 GB machine at ~$12–30/month, plus real latency streaming a desktop to Kampala).
 
+### Oct 3, 2026 (fifth pass) — the browser pool, with a sign-in per turn
+
+Work moved to a Windows laptop (Python 3.13; the suite passes there too). Arnold asked for the
+workspace to let **several people use one tool at once**. A remote browser is one screen, so that means
+**a pool of company browsers per tool, one per person on a turn**:
+
+- `workspace_url` now lists browsers, one address per line (≤20). Each turn is given a free browser for
+  its whole length (`tool_turns.workspace`, schema v9); the pool caps `seats_at_once`. Taking a turn and
+  picking a browser happen in one transaction, so two people opening at once can't collide.
+- With `GATEWAY_WORKSPACE_TOKEN` (the Neko API token), `gateway/workspace.py` makes a Neko sign-in for
+  the person on their browser at Open — fixed username `swangz-<id>` (Neko's page prefers a remembered
+  name over the link's), a new random password each time, never stored — and sends them in with
+  `?usr=&pwd=`. When the turn ends (handed back, run out, taken back, suspended, tool deleted) it deletes
+  that member, which ends the Neko session. A 15-second sweep catches turns that run out and retries
+  browsers that were down. A leftover sign-in is overwritten, never trusted.
+- **Neko, not Kasm** (checked Oct 2026): Kasm Community is non-commercial only; Starter ($10/user) has
+  no developer API; only Enterprise (quote) has both. Neko is Apache-2.0. Its default Chromium policy
+  turns developer tools off, which stops staff copying the session cookie out — the guide keeps it.
+- Console: the tool sheet takes the browser list, shows who is on which browser, and says whether the
+  gateway is managing sign-ins. 19 tests against a stand-in Neko (`tests/fake_neko.py`).
+- **Not done:** the workspace server itself. `deploy/WORKSPACE.md` has the compose file, Neko config,
+  Chromium policy and Caddy routes — untested against a real Neko until a server exists.
+
 ### How it compares (Oct 2026)
 
 | Need | What established products do | Swangz AI |
@@ -132,7 +155,7 @@ one subscription serving several people — buy seats where a team plan exists),
 | Licence use and waste | Zluri, Torii, Productiv, Zylo | ✅ seats vs use, idle seats, reclaim, renewals; ❌ no vendor API sync or invoice import |
 | AI API gateway with budgets | Portkey, LiteLLM, Cloudflare AI Gateway, Kong AI | ✅ keys, budgets, model rules, live cut-off, full records; ❌ no caching or provider failover |
 | Browser governance for AI sites | Island, LayerX, Microsoft Edge for Business | ✅ extension gate + access-level log + sign-out on turn end and browser restart; ❌ not a managed browser |
-| Shared/service accounts | 1Password & Bitwarden shared vaults (fill a team credential) | ✅ turns + auto sign-out give **attribution**, which a shared vault does not; ❌ no credential filling, by decision (see CLAUDE.md) |
+| Shared/service accounts | 1Password & Bitwarden shared vaults (fill a team credential) | ✅ turns + auto sign-out give **attribution**, which a shared vault does not; ✅ company browser pool with a sign-in per turn; ❌ no credential filling, by decision (see CLAUDE.md) |
 | Audit trail | all of the above | ✅ every admin action, every launch, every API call |
 
 ### Accounts are restricted to Swangz emails

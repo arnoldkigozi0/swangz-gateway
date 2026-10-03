@@ -361,6 +361,7 @@
     if (!S.tools) {
       const cat = await api("GET", "/catalog");
       S.tools = Object.fromEntries([...cat.tools, ...cat.removed].map((t) => [t.id, t]));
+      S.workspaceManaged = !!cat.workspace_managed;
     }
     return S.tools;
   }
@@ -375,6 +376,8 @@
   };
   const KIND = { site: "Website", api: "API + website", dev: "Developer agent" };
   const isoDate = (ts) => new Date(ts * 1000).toISOString().slice(0, 10);
+  // a shared tool's workspace browsers, one address per line (gateway/workspace.py)
+  const browserList = (t) => (t.workspace_url || "").split("\n").map((s) => s.trim()).filter(Boolean);
   const dateText = (ts) => new Date(ts * 1000).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
 
   function sheet(onClose) {
@@ -1290,6 +1293,7 @@
   async function pageTools(params) {
     const data = await api("GET", "/catalog");
     S.tools = Object.fromEntries([...data.tools, ...data.removed].map((t) => [t.id, t]));
+    S.workspaceManaged = !!data.workspace_managed;
     const state = { q: "", cat: "all", show: "all" };
     const opens = data.tools.reduce((n, t) => n + t.usage_30d.opens, 0);
     const users = data.tools.filter((t) => t.usage_30d.opens).length;
@@ -1404,7 +1408,9 @@
           fact("Monthly cost", sub.monthly_cost != null ? fmt.money(sub.monthly_cost) : "—"),
           fact("Seats", sub.seats ? `${t.assigned_people} given · ${sub.seats} paid` : `${t.assigned_people} given`),
           fact("Opened in 30 days", `${t.usage_30d.opens} times by ${t.usage_30d.people} ${t.usage_30d.people === 1 ? "person" : "people"}`),
-          t.signin === "shared" ? fact("Opens into", t.workspace_url ? "the shared workspace (already signed in)" : "the tool's own site (they sign in)") : null,
+          t.signin === "shared" ? fact("Opens into", browserList(t).length
+            ? `the shared workspace — ${browserList(t).length} browser${browserList(t).length === 1 ? "" : "s"}, already signed in`
+            : "the tool's own site (they sign in)") : null,
           fact("Last opened", t.usage_30d.last ? fmt.ago(t.usage_30d.last) : "not in 30 days")),
         el("div", { class: "stack" }, el("h3", { class: "section-title" }, "How people sign in — " + how[0]), el("p", { class: "hint", style: null }, how[1]),
           t.launch_url ? el("div", { class: "hint" }, "Opens: ", el("span", { class: "mono" }, t.launch_url)) : null,
@@ -1453,16 +1459,18 @@
       if (t.signin === "shared") {
         const all = await api("GET", "/turns");
         const here = all.now.filter((x) => x.tool_id === t.id);
+        const pool = browserList(t);
+        const where = (x) => x.workspace ? (pool.includes(x.workspace) ? ` · browser ${pool.indexOf(x.workspace) + 1}` : " · a browser no longer listed") : "";
         onItNow = el("div", { class: "stack" }, el("h3", { class: "section-title" }, "On the shared account right now"),
           here.length ? el("div", { class: "assign-list" }, here.map((x) => el("div", { class: "assign-row" },
             el("span", { class: "logo sm mono" }, initials(x.person)),
             el("div", { class: "grow" }, el("strong", null, x.person),
-              el("div", { class: "hint" }, "until " + new Date(x.expires * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))),
+              el("div", { class: "hint" }, "until " + new Date(x.expires * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + where(x))),
             owner ? el("button", { class: "btn small danger", onclick: async () => {
               try { await api("POST", `/tools/${t.id}/turn/end`, { person_id: x.person_id }); toast("Taken back."); refresh("access"); }
               catch (e) { toast(e.message, true); }
             } }, "Take it back") : null)))
-            : el("div", { class: "hint" }, `Nobody is on it. ${t.seats_at_once} person at a time, ${t.turn_minutes} minutes a turn.`));
+            : el("div", { class: "hint" }, `Nobody is on it. ${pool.length ? Math.min(t.seats_at_once, pool.length) : t.seats_at_once} at a time, ${t.turn_minutes} minutes a turn.`));
         here.forEach(() => {});
         onItNow.querySelectorAll(".logo").forEach((m) => { m.style.background = "linear-gradient(140deg, #2B2B31, #141417)"; m.style.color = "#F0C054"; });
       }
@@ -1526,17 +1534,20 @@
         pricing_url: el("input", { type: "url", value: v.pricing_url || "", placeholder: "https://…/pricing" }),
         seats_at_once: el("input", { type: "number", min: "1", max: "50", step: "1", value: String(v.seats_at_once || 1) }),
         turn_minutes: el("input", { type: "number", min: "5", max: "720", step: "5", value: String(v.turn_minutes || 120) }),
-        workspace_url: el("input", { type: "url", value: v.workspace_url || "", placeholder: "https://workspace.swangzavenue.com/… (optional)" }),
+        workspace_url: el("textarea", { rows: "3", spellcheck: "false", placeholder: "https://workspace.swangzavenue.com/chatgpt-1/\nhttps://workspace.swangzavenue.com/chatgpt-2/" }, v.workspace_url || ""),
       };
       const sharing = el("div", { class: "share-box" },
         el("div", { class: "form-grid" },
           el("label", { class: "field" }, "People on it at a time", f.seats_at_once,
-            el("span", { class: "hint" }, "Usually 1 — one account, one person.")),
+            el("span", { class: "hint" }, "Usually 1 — one account, one person. With a workspace, never more than its browsers.")),
           el("label", { class: "field" }, "How long a turn lasts (minutes)", f.turn_minutes,
             el("span", { class: "hint" }, "It ends by itself after this, or when they hand it back."))),
         el("div", { class: "hint" }, "While someone holds the turn, nobody else can open this tool, and the extension signs their browser out when it ends — so the vendor's credit history can be matched to a person."),
-        el("label", { class: "field" }, "Shared workspace address", f.workspace_url,
-          el("span", { class: "hint" }, "Optional. If Swangz runs a remote browser that is already signed in to this tool, put its address here and Open sends the person holding the turn straight there — signed in, without ever seeing the password. Leave empty and Open goes to the tool's own site, where they sign in themselves. See deploy/WORKSPACE.md.")));
+        el("label", { class: "field" }, "Shared workspace browsers", f.workspace_url,
+          el("span", { class: "hint" }, "Optional. One address per line — each is a browser on Swangz's own server that an admin has signed in to this tool once. Everyone holding a turn gets a browser to themselves, so as many people can work at once as there are browsers. They arrive signed in and never see the password. Leave empty and Open goes to the tool's own site, where they sign in themselves. See deploy/WORKSPACE.md."),
+          el("span", { class: "hint" }, S.workspaceManaged
+            ? "The gateway gives each person a sign-in for their turn and removes it the moment the turn ends."
+            : "The gateway isn't managing workspace sign-ins yet (GATEWAY_WORKSPACE_TOKEN is not set), so each browser's own login decides who gets in.")));
       f.kind.value = v.kind; f.signin.value = v.kind === "dev" ? "api" : (v.signin || "seat");
       const howHint = el("span", { class: "hint" });
       const drawHow = () => {

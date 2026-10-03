@@ -165,10 +165,11 @@ def launch_target(tool):
       2. the company sign-in link (SSO);
       3. the tool's own website.
 
-    Only http(s) addresses — anything else (javascript:, data:) is refused."""
-    candidates = []
-    if (tool.get("signin") or "") == "shared":
-        candidates.append(tool.get("workspace_url"))
+    Only http(s) addresses — anything else (javascript:, data:) is refused. A workspace is a pool of
+    browsers; the launch hands each turn one of its own (gateway/workspace.py), this is the first."""
+    from . import workspace
+
+    candidates = workspace.browsers(tool)[:1]
     candidates += [tool.get("launch_url"), tool.get("url")]
     for candidate in candidates:
         candidate = (candidate or "").strip()
@@ -178,8 +179,10 @@ def launch_target(tool):
 
 
 def uses_workspace(tool):
-    """True when opening this tool lands the person in the company's remote browser."""
-    return (tool.get("signin") or "") == "shared" and bool((tool.get("workspace_url") or "").strip())
+    """True when opening this tool lands the person in one of the company's remote browsers."""
+    from . import workspace
+
+    return bool(workspace.browsers(tool))
 
 
 def hosts_from_url(url):

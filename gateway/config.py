@@ -104,6 +104,9 @@ class Settings:
     google_redirect_uri: str = ""  # optional; default <web address>/auth/google/callback
     google_auth_url: str = "https://accounts.google.com/o/oauth2/v2/auth"
     google_token_url: str = "https://oauth2.googleapis.com/token"
+    # The shared workspace's API token (Neko's session.api_token, the same on every company browser).
+    # Set = the gateway makes a sign-in per turn and removes it when the turn ends. Empty = plain links.
+    workspace_token: str = ""
 
     @property
     def google_enabled(self):
@@ -171,6 +174,7 @@ class Settings:
             google_client_id=env.get("GOOGLE_CLIENT_ID", "").strip(),
             google_client_secret=env.get("GOOGLE_CLIENT_SECRET", "").strip(),
             google_redirect_uri=env.get("GOOGLE_REDIRECT_URI", "").strip(),
+            workspace_token=env.get("GATEWAY_WORKSPACE_TOKEN", "").strip(),
         )
 
 

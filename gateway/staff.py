@@ -274,6 +274,7 @@ def end_turn(ctx, tid):
     n = turns.end(ctx.db, tid, ctx.person["id"], "self", "handed back")
     if n:
         ctx.gw.audit(ctx.person["name"], "handed back a shared account", tool["name"], "", ctx.ip)
+        ctx.gw.workspaces.soon()  # their workspace sign-in goes now, not at the next sweep
     return {"ok": True, "ended": n, "sign_out_hosts": [h for h in (tool["hosts"] or "").split(",") if h]}
 
 
@@ -282,8 +283,9 @@ def end_turn(ctx, tid):
 
 def launch(h, gw, tool_id):
     """/go/<tool>: the portal's Open button. Checks that this person may use the tool right now, logs
-    the launch (who, which tool, when), and sends the browser on to the tool's sign-in link."""
-    from . import catalog, entitle, turns
+    the launch (who, which tool, when), and sends the browser on to the tool's sign-in link — or, for a
+    shared account in the company workspace, into a browser of their own, signed in for this turn."""
+    from . import catalog, entitle, turns, workspace
 
     ctx = Ctx(h, gw, "")
     person = current_person(ctx)
@@ -301,15 +303,32 @@ def launch(h, gw, tool_id):
         ok, reason = False, "This tool has no web address yet. Ask your admin."
     # a shared company account is handed out one turn at a time
     if ok and turns.is_shared(tool):
-        turn, busy = turns.take(gw.db, tool, person)
+        pool = workspace.browsers(tool)
+        asked = time.time()
+        with gw.db.tx():  # so two people opening at once can't both get the last seat or the same browser
+            turn, busy = turns.take(gw.db, tool, person)
+            browser = gw.workspaces.assign(tool, turn) if turn and pool else None
+        fresh = bool(turn) and turn["started"] >= asked
         if not turn:
             who = ", ".join(t["person"] for t in busy)
             until = min(t["expires"] for t in busy)
             ok, reason = False, (f"{who} is using the shared {tool['name']} account until "
                                  f"{_clock(gw, until)}. You'll get it next — try again then.")
-        else:
+        elif pool and not browser:
+            ok, reason = False, f"All of Swangz's browsers for {tool['name']} are in use. Try again shortly."
+        elif pool:
+            try:
+                target = gw.workspaces.open({**turn, "workspace": browser}, person)
+            except workspace.Unavailable as exc:
+                gw.log(f"workspace: {tool['name']} for {person['name']}: {exc}")
+                ok, reason = False, (f"Swangz's shared browser for {tool['name']} isn't answering right now. "
+                                     "Try again in a minute, or tell your admin.")
+        if ok and turn:
             gw.audit(person["name"], "took a turn on a shared account", tool["name"],
                      f"until {_clock(gw, turn['expires'])}", ctx.ip)
+        elif turn and fresh:  # the turn was only just made and nobody got in: don't hold the seat
+            turns.end(gw.db, tool["id"], person["id"], "system", reason[:200])
+            gw.workspaces.soon()
     gw.db.x("INSERT INTO launches(tool_id, person_id, ts, outcome, ip, user_agent) VALUES(?,?,?,?,?,?)",
             (tool["id"], person["id"], time.time(), "opened" if ok else "refused", ctx.ip,
              (h.headers.get("user-agent") or "")[:200]))

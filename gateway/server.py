@@ -14,6 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from . import admin, catalog, google, icons, pricing, proxy, security, staff, store
 from .db import DB
 from .live import Live
+from .workspace import Workspaces
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 STATIC_TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".woff2": "font/woff2",
@@ -37,6 +38,7 @@ class Gateway:
         catalog.seed(self.db)
         catalog.refine(self.db)
         self.live = Live()
+        self.workspaces = Workspaces(self)
         self.pool = proxy.Pool(settings.upstream_timeout)
         self.throttle = security.LoginThrottle()
         self.ratelimit = security.RateLimiter()

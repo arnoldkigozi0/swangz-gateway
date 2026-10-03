@@ -29,9 +29,11 @@ A grant can carry an end date, and a person's whole account can (`access_until`)
 - `shared` — **one company account the team takes turns on** (`gateway/turns.py`): the portal hands it
   to one person at a time for `turn_minutes`, blocks everyone else at the gate, and the extension
   signs the browser out when the turn ends or Chrome restarts, so vendor credit history can be
-  matched to a person. If `workspace_url` is set, Open sends the turn-holder into the company's own
-  **remote browser** (Kasm/Guacamole/Neko on a Swangz server, signed in once by an admin) instead of
-  the tool's site, so they arrive signed in and never see the password — `deploy/WORKSPACE.md`;
+  matched to a person. If `workspace_url` lists browsers (one address per line), Open gives each
+  turn-holder a **company browser of their own** (Neko on a Swangz server, signed in once by an admin)
+  instead of the tool's site, so several people can work at once and nobody sees the password. With
+  `GATEWAY_WORKSPACE_TOKEN` set, `gateway/workspace.py` makes a Neko sign-in per turn and deletes it
+  when the turn ends — `deploy/WORKSPACE.md`;
 - `own` — their own account, access still gated and logged;
 - `api` — nothing to sign in to; it runs on the company key through the gateway.
 
@@ -39,7 +41,10 @@ A grant can carry an end date, and a person's whole account can (`access_until`)
 extension type it into a tool's login form. Arnold asked three times (Oct 3, 2026). The third time he
 proposed a remote browser on a VPS instead, which **is** a legitimate answer to "arrive already signed
 in" and is now supported as `workspace_url`: the admin signs that browser in by hand, once, and the
-gateway only ever redirects to it. That is the shape to build. What stays out is the gateway holding
+gateway only ever redirects to it. That is the shape to build (Oct 3: built on **Neko**, not Kasm —
+Kasm's free edition is non-commercial only and its Starter plan has no API; Neko is Apache-2.0). On
+Oct 3 he also asked for several people on one tool at once: that is a **pool of browsers**, one per
+person, sized by `seats_at_once`. What stays out is the gateway holding
 the password and typing it for people. Reasons, in order: the
 password would have to sit in every staff browser where anyone can read it; it breaks on 2FA, captcha
 and bot checks, so it is unreliable the moment a vendor changes a form; vendors' terms forbid one
@@ -63,12 +68,13 @@ gateway/
   parse.py      reads each provider's dialect (Anthropic / OpenAI / ElevenLabs / Higgsfield)
   catalog.py    the 49-tool catalog, descriptions/colours, sign-in methods, launch targets, host matching
   turns.py      shared company accounts handed out one turn at a time, so their spend has a name on it
+  workspace.py  the company browser pool (Neko): a browser per turn, a sign-in made and removed per turn
   icons.py      tool logos: fetched once server-side (public hosts only, sniffed, size-capped) or uploaded
   entitle.py    who may use which tool, and why (enabled / locked / not_assigned / past_due / suspended)
   store.py      request bodies stored once per message by hash; retention clean-up
   pricing.py    model price table and cost per request
   live.py       requests in flight, and cutting them
-  db.py         SQLite + append-only numbered migrations (currently schema v8)
+  db.py         SQLite + append-only numbered migrations (currently schema v9)
   security.py   key/password hashing, sign-in throttle, per-person rate limiter
   admin.py      control-room API
   staff.py      staff-app API, /go/<tool> launches, Studio, and the browser access gate
@@ -120,7 +126,7 @@ DEMO_MODEL=1 bash deploy/laptop-demo.sh  # starts the gateway + a free https tun
 `GATEWAY_TRUST_PROXY` / `GATEWAY_FORCE_HTTPS` behind a proxy or tunnel; `GATEWAY_FETCH_ICONS=0` to stop
 logo fetching (the tests set it); `GATEWAY_WEB_URL` (the address people open, e.g. a Netlify front door);
 `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (both set = "Continue with Google" appears; admins match by
-username = Google email); `GATEWAY_CORS_ORIGINS` to let a Netlify-hosted front-end call the API (see `deploy/NETLIFY.md`); `GATEWAY_TZ_OFFSET`. Runtime
+username = Google email); `GATEWAY_WORKSPACE_TOKEN` (the Neko API token: per-turn workspace sign-ins); `GATEWAY_CORS_ORIGINS` to let a Netlify-hosted front-end call the API (see `deploy/NETLIFY.md`); `GATEWAY_TZ_OFFSET`. Runtime
 settings (retention, rate limit, kill switch, …) live in the control room under Settings.
 
 ## Picking the project up on a new machine

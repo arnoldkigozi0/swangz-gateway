@@ -502,6 +502,7 @@ def suspend_person(ctx, pid, action):
         cut = ctx.gw.live.cut("this person's AI access was suspended by an administrator.", person_id=pid)
         ctx.db.x("DELETE FROM staff_sessions WHERE person_id = ?", (pid,))
         turns.end_all_for(ctx.db, pid, ctx.admin["username"], "their access was suspended")
+        ctx.gw.workspaces.soon()
     ctx.audit("suspended a person" if action == "suspend" else "restored a person", person["name"],
               f"{cut} request(s) cut" if cut else "")
     return {"ok": True, "cut": cut}
@@ -745,7 +746,8 @@ def catalog_list(ctx):
     paid = sum(1 for t in tools if t["subscription"]["state"] == "active")
     monthly = ctx.db.scalar("SELECT COALESCE(SUM(monthly_cost), 0) FROM subscriptions WHERE state IN ('active','past_due')")
     return {"tools": tools, "removed": removed, "categories": cats, "departments": _departments(ctx.db),
-            "summary": {"total": len(tools), "paid": paid, "monthly_cost": monthly or 0}}
+            "summary": {"total": len(tools), "paid": paid, "monthly_cost": monthly or 0},
+            "workspace_managed": bool(ctx.gw.settings.workspace_token)}
 
 
 @route("GET", r"/tools/(?P<tid>[a-z0-9-]+)/access")
@@ -794,6 +796,7 @@ def force_end_turn(ctx, tid):
         raise ApiError(404, "no such tool or person")
     person = ctx.db.one("SELECT name FROM people WHERE id = ?", (int(pid),))
     n = turns.end(ctx.db, tid, int(pid), ctx.admin["username"], str(ctx.body.get("reason") or "an admin took it back")[:200])
+    ctx.gw.workspaces.soon()
     ctx.audit("took back a shared account", f"{(person or {}).get('name', '?')} · {tool['name']}")
     return {"ok": True, "ended": n}
 
@@ -886,6 +889,16 @@ def _web(value, what):
     return v
 
 
+def _browsers(value):
+    """The shared workspace's browser addresses: one per line, each a web address."""
+    from .workspace import MAX_BROWSERS
+
+    lines = [line.strip() for line in str(value or "").splitlines() if line.strip()]
+    if len(lines) > MAX_BROWSERS:
+        raise ApiError(400, f"at most {MAX_BROWSERS} workspace browsers per tool")
+    return "\n".join(_web(line, "workspace address") for line in lines)
+
+
 def _color(value):
     v = str(value or "").strip()
     if v and not re.fullmatch(r"#[0-9A-Fa-f]{6}", v):
@@ -943,8 +956,7 @@ def add_tool(ctx):
               _web(ctx.body.get("launch_url"), "sign-in link"), str(ctx.body.get("description") or "").strip()[:200],
               _color(ctx.body.get("color"))))
     if ctx.body.get("workspace_url"):
-        ctx.db.x("UPDATE tools SET workspace_url = ? WHERE id = ?",
-                 (_web(ctx.body.get("workspace_url"), "workspace address"), tid))
+        ctx.db.x("UPDATE tools SET workspace_url = ? WHERE id = ?", (_browsers(ctx.body.get("workspace_url")), tid))
     share = _sharing(ctx.body)
     if share:
         ctx.db.x(f"UPDATE tools SET {', '.join(f'{k}=?' for k in share)} WHERE id = ?", [*share.values(), tid])
@@ -976,10 +988,11 @@ def edit_tool(ctx, tid):
             fields[key] = str(ctx.body[key] or "").strip()[:200]
     if "name" in fields and not fields["name"]:
         raise ApiError(400, "a tool needs a name")
-    for key, what in (("url", "website"), ("pricing_url", "pricing page"), ("launch_url", "sign-in link"),
-                      ("workspace_url", "workspace address")):
+    for key, what in (("url", "website"), ("pricing_url", "pricing page"), ("launch_url", "sign-in link")):
         if key in ctx.body:
             fields[key] = _web(ctx.body[key], what)
+    if "workspace_url" in ctx.body:
+        fields["workspace_url"] = _browsers(ctx.body["workspace_url"])
     if "color" in ctx.body:
         fields["color"] = _color(ctx.body["color"])
     if "signin" in ctx.body:
@@ -1012,6 +1025,17 @@ def delete_tool(ctx, tid):
         raise ApiError(404, "no such tool")
     if tool["builtin"]:
         raise ApiError(400, "built-in tools can be removed from the catalog, not deleted")
+    # its turns go with it, so first take back anyone's workspace sign-in — nothing may be left behind
+    from .workspace import Unavailable
+
+    ctx.db.x("UPDATE tool_turns SET ended = ?, ended_by = ?, reason = 'the tool was deleted' WHERE tool_id = ?"
+             " AND ended IS NULL", (time.time(), ctx.admin["username"], tid))
+    for turn in ctx.db.q("SELECT * FROM tool_turns WHERE tool_id = ? AND ws_member != '' AND ws_closed IS NULL", (tid,)):
+        try:
+            ctx.gw.workspaces.close(turn)
+        except Unavailable as exc:
+            raise ApiError(502, f"Its workspace browser didn't answer, so someone could still be signed in there. "
+                                f"Try again in a minute. ({exc})")
     ctx.db.x("DELETE FROM tools WHERE id = ?", (tid,))
     ctx.audit("deleted a tool", tool["name"])
     return {"ok": True}

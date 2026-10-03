@@ -17,6 +17,8 @@ That is the attribution a shared login otherwise throws away.
 
 import time
 
+from . import workspace
+
 DEFAULT_MINUTES = 120
 MAX_MINUTES = 12 * 60
 
@@ -26,7 +28,10 @@ def is_shared(tool):
 
 
 def seats(tool):
-    return max(1, int(tool.get("seats_at_once") or 1))
+    """How many people may hold it at once. In a workspace each needs a browser of their own."""
+    n = max(1, int(tool.get("seats_at_once") or 1))
+    pool = workspace.browsers(tool)
+    return min(n, len(pool)) if pool else n
 
 
 def minutes(tool):
