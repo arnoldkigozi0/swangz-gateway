@@ -1,0 +1,6 @@
+# Files that run on Linux servers keep Linux line endings, even in a Windows checkout:
+# a carriage return breaks bash scripts, systemd units and Caddy's config.
+*.sh        text eol=lf
+*.service   text eol=lf
+Caddyfile   text eol=lf
+*.toml      text eol=lf
