@@ -1,0 +1,14 @@
+{
+  "token": "REPLACE with: openssl rand -hex 32  (the same value goes in the gateway's GATEWAY_WORKSPACE_AGENT_TOKEN)",
+  "public_url": "https://workspace.swangzavenue.com",
+  "public_ip": "REPLACE with this server's public IP address",
+  "gateway_ip": "REPLACE with the gateway server's IP address (only it may reach the agent)",
+  "data": "/var/lib/swangz-workspace",
+  "image": "ghcr.io/m1k1o/neko/chromium:latest",
+  "memory": "2g",
+  "idle_minutes": 15,
+  "tools": {
+    "chatgpt": {"start_url": "https://chatgpt.com/", "browsers": [1, 2]},
+    "claude": {"start_url": "https://claude.ai/", "browsers": [3]}
+  }
+}

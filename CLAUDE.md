@@ -29,11 +29,13 @@ A grant can carry an end date, and a person's whole account can (`access_until`)
 - `shared` — **one company account the team takes turns on** (`gateway/turns.py`): the portal hands it
   to one person at a time for `turn_minutes`, blocks everyone else at the gate, and the extension
   signs the browser out when the turn ends or Chrome restarts, so vendor credit history can be
-  matched to a person. If `workspace_url` lists browsers (one address per line), Open gives each
-  turn-holder a **company browser of their own** (Neko on a Swangz server, signed in once by an admin)
-  instead of the tool's site, so several people can work at once and nobody sees the password. With
-  `GATEWAY_WORKSPACE_TOKEN` set, `gateway/workspace.py` makes a Neko sign-in per turn and deletes it
-  when the turn ends — `deploy/WORKSPACE.md`;
+  matched to a person. With a workspace, Open gives each turn-holder a **company browser of their own**
+  (Neko on a Swangz server, signed in once by an admin) instead of the tool's site, so several people
+  can work at once and nobody sees the password. Production: `workspace_mode = 'agent'` — the **Swangz
+  Workspace Agent** (`workspace_agent/agent.py`, on the workspace server, next to Docker) starts the
+  browser, makes a Neko sign-in for the turn, and on release deletes it and recycles the container; the
+  gateway holds only the agent's URL + token. Fallback: fixed browsers listed in `workspace_url` (with
+  `GATEWAY_WORKSPACE_TOKEN`, the gateway manages their sign-ins itself) — `deploy/WORKSPACE.md`;
 - `own` — their own account, access still gated and logged;
 - `api` — nothing to sign in to; it runs on the company key through the gateway.
 
@@ -44,7 +46,10 @@ in" and is now supported as `workspace_url`: the admin signs that browser in by 
 gateway only ever redirects to it. That is the shape to build (Oct 3: built on **Neko**, not Kasm —
 Kasm's free edition is non-commercial only and its Starter plan has no API; Neko is Apache-2.0). On
 Oct 3 he also asked for several people on one tool at once: that is a **pool of browsers**, one per
-person, sized by `seats_at_once`. What stays out is the gateway holding
+person, sized by `seats_at_once`; then for the gateway to allocate them through a small agent rather
+than a hand-kept list — built as the Workspace Agent. Browser slots stay fixed in the agent's config,
+because each Chromium profile must be signed in by hand once and can't be shared by two running browsers;
+"dynamic" means containers start on demand, recycle after each turn and stop when idle. What stays out is the gateway holding
 the password and typing it for people. Reasons, in order: the
 password would have to sit in every staff browser where anyone can read it; it breaks on 2FA, captcha
 and bot checks, so it is unreliable the moment a vendor changes a form; vendors' terms forbid one
@@ -68,13 +73,13 @@ gateway/
   parse.py      reads each provider's dialect (Anthropic / OpenAI / ElevenLabs / Higgsfield)
   catalog.py    the 49-tool catalog, descriptions/colours, sign-in methods, launch targets, host matching
   turns.py      shared company accounts handed out one turn at a time, so their spend has a name on it
-  workspace.py  the company browser pool (Neko): a browser per turn, a sign-in made and removed per turn
+  workspace.py  company browsers for shared accounts: the Workspace Agent's client, and fixed-list mode
   icons.py      tool logos: fetched once server-side (public hosts only, sniffed, size-capped) or uploaded
   entitle.py    who may use which tool, and why (enabled / locked / not_assigned / past_due / suspended)
   store.py      request bodies stored once per message by hash; retention clean-up
   pricing.py    model price table and cost per request
   live.py       requests in flight, and cutting them
-  db.py         SQLite + append-only numbered migrations (currently schema v9)
+  db.py         SQLite + append-only numbered migrations (currently schema v10)
   security.py   key/password hashing, sign-in throttle, per-person rate limiter
   admin.py      control-room API
   staff.py      staff-app API, /go/<tool> launches, Studio, and the browser access gate
@@ -83,6 +88,7 @@ gateway/
   config.py     settings from the environment; provider definitions
   static/       index.html + portal.* (staff), admin.html + admin.* (console), tokens.css, fonts/
 extension/      the MV3 browser access gate (its own README)
+workspace_agent/ agent.py — the Swangz Workspace Agent, deployed alone on the workspace server (stdlib)
 tests/          unittest suite + fake_upstream.py (a stand-in for every provider)
 deploy/         systemd unit, Caddyfile, laptop-demo.sh, NETLIFY.md, WORKSPACE.md
 docs/STATE.md   current status, what's done, what's next  ← read this after this file
@@ -126,7 +132,8 @@ DEMO_MODEL=1 bash deploy/laptop-demo.sh  # starts the gateway + a free https tun
 `GATEWAY_TRUST_PROXY` / `GATEWAY_FORCE_HTTPS` behind a proxy or tunnel; `GATEWAY_FETCH_ICONS=0` to stop
 logo fetching (the tests set it); `GATEWAY_WEB_URL` (the address people open, e.g. a Netlify front door);
 `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (both set = "Continue with Google" appears; admins match by
-username = Google email); `GATEWAY_WORKSPACE_TOKEN` (the Neko API token: per-turn workspace sign-ins); `GATEWAY_CORS_ORIGINS` to let a Netlify-hosted front-end call the API (see `deploy/NETLIFY.md`); `GATEWAY_TZ_OFFSET`. Runtime
+username = Google email); `GATEWAY_WORKSPACE_AGENT` / `GATEWAY_WORKSPACE_AGENT_TOKEN` (the Workspace
+Agent); `GATEWAY_WORKSPACE_TOKEN` (fallback: fixed browsers' Neko API token); `GATEWAY_CORS_ORIGINS` to let a Netlify-hosted front-end call the API (see `deploy/NETLIFY.md`); `GATEWAY_TZ_OFFSET`. Runtime
 settings (retention, rate limit, kill switch, …) live in the control room under Settings.
 
 ## Picking the project up on a new machine

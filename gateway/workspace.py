@@ -1,12 +1,24 @@
 """The shared workspace: company browsers on Swangz's own server, each signed in to a tool once by an admin.
 
-For a `shared` tool, `tools.workspace_url` holds one or more browser addresses, one per line. Each is a
-Neko browser (github.com/m1k1o/neko): one Chromium, one screen, with a persistent profile that an admin
-has signed in to the tool by hand. The list is a pool. Everyone holding a turn gets a browser to
-themselves, so as many people can work at once as there are browsers (and `seats_at_once` allows).
+A `shared` tool can open into one of two kinds of workspace (`mode()`):
 
-With GATEWAY_WORKSPACE_TOKEN set (Neko's API token, the same on every browser) the gateway also decides
-who gets into each browser:
+  * **agent** (`tools.workspace_mode = 'agent'`) — the production set-up. The Swangz Workspace Agent
+    (workspace_agent/agent.py) runs on the workspace server next to Docker and owns the browsers: it
+    starts a Neko container when a turn needs one, signs the person in, and on release removes the
+    sign-in and recycles the browser. The gateway only holds the agent's address and token
+    (GATEWAY_WORKSPACE_AGENT / GATEWAY_WORKSPACE_AGENT_TOKEN) — never Docker, never a Neko token. A
+    browser that is still starting shows the person a page that waits for it.
+
+  * **static** — `tools.workspace_url` lists browser addresses, one per line, each a Neko container
+    someone runs by hand. Kept for development, tests and as a fallback; described below.
+
+In both, everyone holding a turn gets a browser to themselves, so several people can work on one tool
+at once, and each person's workspace sign-in lives exactly as long as their turn.
+
+Static mode: each address is a Neko browser (github.com/m1k1o/neko): one Chromium, one screen, with a
+persistent profile that an admin has signed in to the tool by hand. The list is a pool, capping
+`seats_at_once`. With GATEWAY_WORKSPACE_TOKEN set (Neko's API token, the same on every browser) the
+gateway also decides who gets into each browser:
 
   * Open makes a sign-in for this person on their browser: their own workspace username
     (swangz-<person id>) with a new random password, sent along in the link. Nobody else has a sign-in
@@ -28,6 +40,7 @@ import urllib.parse
 import urllib.request
 
 TIMEOUT = 10
+AGENT_TIMEOUT = 20  # starting a container takes the agent a second or two; it never waits for the browser
 SWEEP_SECONDS = 15
 MAX_BROWSERS = 20
 COMPLAIN_EVERY = 600  # a workspace that stays down is logged every ten minutes, not every sweep
@@ -43,9 +56,33 @@ class Unavailable(Exception):
     """The workspace server didn't answer, or refused the gateway."""
 
 
-def browsers(tool):
-    """The tool's browser addresses, in order. Empty unless the tool is a shared company account."""
+class Full(Exception):
+    """Every browser the workspace server has for this tool is in use."""
+
+
+class Starting(Exception):
+    """The person's browser is being started; ask again in a moment."""
+
+
+def mode(tool):
+    """'agent', 'static', or '' when Open goes to the tool's own site."""
     if (tool.get("signin") or "") != "shared":
+        return ""
+    if (tool.get("workspace_mode") or "") == "agent":
+        return "agent"
+    return "static" if browsers(tool) else ""
+
+
+def lease_id(turn):
+    """What the agent knows a turn by. Includes when it started, so a fresh database's turn #5 can never
+    be mistaken for an old one."""
+    return f"t{int(turn['id'])}.{int(turn['started'] * 1000)}"
+
+
+def browsers(tool):
+    """The tool's fixed browser addresses (static mode), in order. Empty unless the tool is a shared
+    company account using them."""
+    if (tool.get("signin") or "") != "shared" or (tool.get("workspace_mode") or "") == "agent":
         return []
     out = []
     for line in (tool.get("workspace_url") or "").splitlines():
@@ -87,6 +124,16 @@ class Workspaces:
     def managed(self):
         return bool(self.gw.settings.workspace_token)
 
+    @property
+    def agent_ready(self):
+        s = self.gw.settings
+        return bool(s.workspace_agent_url and s.workspace_agent_token)
+
+    def has_browser(self, turn_id):
+        """Has this turn actually been given a browser (not just asked for one)?"""
+        where = self.gw.db.scalar("SELECT workspace FROM tool_turns WHERE id = ?", (turn_id,)) or ""
+        return where not in ("", "agent:")
+
     def _lock(self, browser):
         with self._locks_guard:
             return self._locks.setdefault(api_root(browser), threading.Lock())
@@ -107,9 +154,12 @@ class Workspaces:
             self.gw.db.x("UPDATE tool_turns SET workspace = ? WHERE id = ?", (free, turn["id"]))
         return free
 
-    def open(self, turn, person):
+    def open(self, tool, turn, person):
         """-> where to send this person: their browser, signed in for this turn when the gateway manages
-        the workspace. Raises Unavailable when the browser's server doesn't answer."""
+        the workspace. Raises Starting (agent: ask again shortly), Full (agent: every browser busy) or
+        Unavailable (the workspace didn't answer)."""
+        if mode(tool) == "agent":
+            return self._open_agent(tool, turn, person)
         browser = turn["workspace"]
         if not self.managed:
             return browser
@@ -128,12 +178,51 @@ class Workspaces:
                 self._call(browser, "POST", f"/api/members/{user}/password", {"password": password}, ok=(204,))
         return link(browser, user, password)
 
+    def _open_agent(self, tool, turn, person):
+        if not self.agent_ready:
+            raise Unavailable("no workspace server is connected (GATEWAY_WORKSPACE_AGENT)")
+        user = username(person["id"])
+        # recorded first: whatever happens next, this turn's end will tell the agent to let go
+        self.gw.db.x("UPDATE tool_turns SET workspace = CASE WHEN workspace LIKE 'agent:_%' THEN workspace"
+                     " ELSE 'agent:' END, ws_member = ?, ws_closed = NULL WHERE id = ?", (user, turn["id"]))
+        status, out = self._agent("POST", "/allocate", {"tool": tool["id"], "lease": lease_id(turn), "user": user,
+                                                        "name": person["name"]}, ok=(200, 202, 409))
+        if status == 409:
+            raise Full()
+        if status == 202:
+            raise Starting(out.get("slot"))
+        url = str(out.get("url") or "")
+        if not url.lower().startswith(("https://", "http://")):
+            raise Unavailable("the workspace server sent no usable address")
+        self.gw.db.x("UPDATE tool_turns SET workspace = ? WHERE id = ?", ("agent:" + str(out.get("slot") or "?"), turn["id"]))
+        return url
+
+    # ------------------------------------------------------------ the workspace server, for the console
+
+    def agent_status(self):
+        """Every browser the workspace server has, and whether it is healthy."""
+        _, health = self._agent("GET", "/health")
+        _, status = self._agent("GET", "/status")
+        return {"health": health, **status}
+
+    def admin_open(self, slot, name):
+        """An admin signs a browser in to its tool. -> {"state": "ready", "url"} or {"state": "starting"}."""
+        _, out = self._agent("POST", "/admin-open", {"slot": slot, "name": name}, ok=(200, 202))
+        return out
+
+    def admin_close(self, slot):
+        self._agent("POST", "/admin-close", {"slot": slot}, ok=(200, 404))
+
     # ------------------------------------------------------------ taking them back
 
     def close(self, turn):
-        """Remove the sign-in a finished turn had. Deleting the member also ends its session in Neko."""
+        """Remove the sign-in a finished turn had. Deleting the member also ends its session in Neko;
+        in agent mode, the agent does that and recycles the browser."""
         browser, user = turn["workspace"], turn["ws_member"]
-        if user and browser and self.managed:
+        if browser.startswith("agent:"):
+            if self.agent_ready:
+                self._agent("POST", "/release", {"lease": lease_id(turn)}, ok=(200, 404))
+        elif user and browser and self.managed:
             with self._lock(browser):
                 # the same person may already be back on this browser with a newer turn: leave that one be
                 again = self.gw.db.one("SELECT 1 FROM tool_turns WHERE workspace = ? AND ws_member = ? AND ended IS NULL"
@@ -178,7 +267,32 @@ class Workspaces:
         except Exception as exc:
             self.gw.log(f"workspace clean-up failed: {exc!r}")
 
-    # ------------------------------------------------------------ Neko's API
+    # ------------------------------------------------------------ the agent's API and Neko's
+
+    def _agent(self, method, path, body=None, ok=(200,)):
+        """One call to the Workspace Agent. -> (status, JSON reply), if the status is one of `ok`."""
+        s = self.gw.settings
+        root = s.workspace_agent_url.rstrip("/")
+        req = urllib.request.Request(root + path, method=method,
+                                     data=json.dumps(body).encode() if body is not None else None,
+                                     headers={"Authorization": "Bearer " + s.workspace_agent_token,
+                                              "Content-Type": "application/json", "Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=AGENT_TIMEOUT) as resp:
+                status, raw = resp.status, resp.read(256 * 1024)
+        except urllib.error.HTTPError as exc:
+            status, raw = exc.code, exc.read(64 * 1024)
+            exc.close()
+        except (urllib.error.URLError, OSError) as exc:
+            raise Unavailable(f"the workspace server did not answer ({getattr(exc, 'reason', exc)})") from None
+        try:
+            out = json.loads(raw or b"{}")
+        except ValueError:
+            out = {}
+        if status not in ok:
+            raise Unavailable(f"the workspace server answered {method} {path} with {status}: "
+                              f"{(out.get('error') if isinstance(out, dict) else '') or 'no reason given'}")
+        return status, out if isinstance(out, dict) else {}
 
     def _call(self, browser, method, path, body=None, ok=(200, 204)):
         """One call to a browser's API with the workspace token. -> the HTTP status, if it is one of `ok`."""

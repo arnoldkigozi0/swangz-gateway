@@ -7,7 +7,7 @@ and what is next). This file is only about **moving to a different computer**.
 git clone https://github.com/arnoldkigozi0/swangz-gateway.git
 cd swangz-gateway
 claude                      # Claude Code reads CLAUDE.md automatically
-python3 -m unittest discover -s tests -t .    # should be 151 tests, all passing
+python3 -m unittest discover -s tests -t .    # should be 179 tests, all passing
 ```
 
 Python 3.10+ and git are the only requirements. There is nothing to install — the whole gateway is
@@ -78,8 +78,9 @@ every recorded request. It is one file.
    unit and a Caddyfile; Caddy gets the certificate by itself. Then set `GATEWAY_PUBLIC_URL`, point
    Netlify's `SWANGZ_GATEWAY` at it, and the changing-link problem is gone for good.
 2. **Real provider keys** from Swangz, into `.env`.
-3. **The shared workspace server** — the gateway side (browser pool, a sign-in per turn) is built; the
-   Neko server it talks to is not. `deploy/WORKSPACE.md`, and read its warnings before spending money.
+3. **The shared workspace server** — the gateway side and the Workspace Agent are built and tested
+   against stand-ins; the server itself (an 8 GB VPS with Docker, Caddy and the agent) is not.
+   `deploy/WORKSPACE.md` walks through it — read its warnings before spending money.
 
 ## Things that will trip you up
 

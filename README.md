@@ -159,7 +159,8 @@ Environment variables (or a `.env` file next to where you run it):
 | `SWANGZ_EMAIL_EXCEPTIONS` | — | extra emails allowed besides the Swangz domains (the owner and demo accounts are always allowed) |
 | `GATEWAY_CORS_ORIGINS` | — | web origins allowed to call the API cross-site, e.g. a staff app on Netlify (comma-separated); see [`deploy/NETLIFY.md`](deploy/NETLIFY.md) |
 | `GATEWAY_PROVIDERS` | — | path to a JSON list of extra providers (see below) |
-| `GATEWAY_WORKSPACE_TOKEN` | — | the shared workspace's Neko API token: the gateway makes a sign-in on a company browser per turn and removes it when the turn ends; see [`deploy/WORKSPACE.md`](deploy/WORKSPACE.md) |
+| `GATEWAY_WORKSPACE_AGENT`, `GATEWAY_WORKSPACE_AGENT_TOKEN` | — | the Swangz Workspace Agent's address and token: company browsers for shared accounts, one per person on a turn, started when needed; see [`deploy/WORKSPACE.md`](deploy/WORKSPACE.md) |
+| `GATEWAY_WORKSPACE_TOKEN` | — | fallback mode only: the Neko API token of fixed browsers listed on a tool, so the gateway makes and removes a sign-in per turn itself |
 | `GATEWAY_EXTRA_ENDPOINTS` | — | endpoints to allow beyond the model calls, e.g. `POST /v1/images/generations` |
 | `GATEWAY_TLS_CERT`, `GATEWAY_TLS_KEY` | — | serve https directly instead of behind a proxy |
 | `GATEWAY_BOOTSTRAP_ADMIN`, `GATEWAY_BOOTSTRAP_PASSWORD` | — | create the first owner on hosts with no shell |

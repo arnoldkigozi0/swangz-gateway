@@ -1,201 +1,187 @@
 # The shared workspace — company browsers on your own server
 
-For tools where Swangz has **one account** and no per-person plan, you can run browsers on the
-company's own server, sign each one in to that tool **once**, and have the portal send whoever holds a
-turn straight into one. They arrive already signed in, and the password never leaves the server.
+For tools where Swangz has **one account** and no per-person plan, staff can work in company browsers
+that run on Swangz's own server and are signed in to the tool **once**, by an admin. The portal sends
+whoever holds a turn into a browser of their own. They arrive signed in, the password never leaves the
+server, and several people can be on one tool at once — one browser each.
 
 ```
-staff browser → Swangz AI (turn, log, sign-in for this turn) → a company browser on your server → the tool
+Gateway VPS                                   Workspace VPS
+  people, tools, turns, budgets, audit          Swangz Workspace Agent  ── Docker
+  "a browser for Grace's turn on ChatGPT"  ──►    ├── chatgpt-1  (Neko + Chromium, signed in)
+  "Grace's turn is over"                   ──►    ├── chatgpt-2
+                                                  └── claude-3
 ```
 
-This is a real, mainstream category — **remote browser isolation**. It is what Island and Cloudflare
-Browser Isolation sell. Self-hosted, the gateway is built for **[Neko](https://github.com/m1k1o/neko)**:
-Apache-2.0 (free for business use), one Chromium per container, streamed over WebRTC — which copes
-with a MiFi better than desktop streaming does.
+The gateway stays the authority: who may use what, turns, and the record. The workspace server only runs
+browsers when the gateway asks. Browsers are **[Neko](https://github.com/m1k1o/neko)** containers:
+Apache-2.0 (free for business use), one Chromium each, streamed over WebRTC.
 
-**Why not Kasm?** Kasm's free Community edition is licensed for testing and non-commercial use only,
-and its $10/user Starter plan has no developer API, which the gateway needs to hand out and take back
-sign-ins. Only Kasm Enterprise has both, on a custom quote. (Checked October 2026.)
+**Why not Kasm?** Kasm's free Community edition is licensed for non-commercial use only, and its
+$10/user Starter plan has no developer API. Only Kasm Enterprise has both, on a custom quote — and it
+would duplicate the control the gateway already has. (Checked October 2026.)
 
 ## Read this before you build it
 
 **It does not make account sharing allowed.** ChatGPT, Midjourney, Canva and most others forbid one
 subscription being used by several people, whatever screen they are looking at. Several people on one
-account *at the same moment* is the pattern vendors notice most easily, and some vendors sign the other
-sessions out when a new one starts. Where a tool sells a Team or Business plan, **buy seats** — it is
-cheaper than losing the account, and nobody queues.
+account *at the same moment* is the pattern vendors notice most easily, and some sign other sessions
+out when a new one starts. Where a tool sells a Team or Business plan, **buy seats**. Use the workspace
+for the tools that have none.
 
-**What it does fix,** and these are real:
-- staff never see or hold the shared password, and can't copy the signed-in session out (developer
-  tools are switched off in the browser);
-- each person gets a browser of their own, and only for their turn — the gateway makes them a sign-in
-  when they open it and deletes it the moment the turn ends;
-- every turn is logged: who, which browser, from when to when.
+**What it does fix:** staff never see or hold the password and can't copy the signed-in session out
+(developer tools are off in the browser); each person gets a browser to themselves, only for their
+turn; every turn is logged — who, which browser, from when to when.
 
-**What it does not fix:** whoever is in a browser can do anything the account can do *on that site* —
-including its settings page. The log tells you who it was. And when several people work on one account
-at once, the vendor's usage history can't be split between them by time; one person at a time can.
+**What it does not fix:** whoever is in a browser can do anything the account can do *on that site*,
+including its settings page — the log says who it was. When several people use one account at once, the
+vendor's usage history can't be split between them by time.
 
-**What it costs:**
-- **RAM.** Each browser is one person at a time and needs roughly 1.5–2 GB. A 4 GB server runs 1–2
-  browsers; 8 GB runs 3–4. The $5 VPS that runs the gateway cannot also run browsers — this is a
-  **separate machine**, about **$12–30/month**.
-- **Speed.** You are streaming a screen. Pick the region nearest Kampala you can get.
-- **Bot checks.** Some AI sites challenge sign-ins from datacentre addresses. Expect to answer a
-  verification the first time on each browser, and occasionally again.
+**What it costs:** each browser running needs about 1.5–2 GB of RAM; Neko is free. An 8 GB server runs
+3–4 at once. Browsers only run while needed, so you can *list* more than fit in RAM, as long as they
+aren't all in use together. Keep this server **separate from the gateway's**: a browser that eats the
+RAM must not take the gateway down, and a person driving a browser must not be on the machine that holds
+the provider keys.
 
 ## How it works
 
-- In the console, a shared tool lists its **browsers**, one address per line. The pool size caps how
-  many people can be on it at once (together with *People on it at a time*).
-- **Open** takes a turn, gives the person a free browser for the whole turn, and — when
-  `GATEWAY_WORKSPACE_TOKEN` is set on the gateway — creates a Neko sign-in just for them on that
-  browser (`swangz-<their id>`, a new random password every time), then sends them there with it.
-  Nobody else has a sign-in on that browser.
-- When the turn ends — they hand it back, it runs out, an admin takes it back, they're suspended — the
-  gateway deletes that sign-in, and Neko disconnects them on the spot. A turn that runs out is caught
-  within 15 seconds. If the browser's server is down, the gateway keeps trying until it's gone.
-- The gateway never stores the password it made; it's only in the link the person opened.
+1. **Open** in the staff app takes a turn and asks the agent for a browser for that tool.
+2. The agent picks a free browser. If it isn't running it starts it (a fresh container with a new random
+   Neko API token that only the agent knows); meanwhile the person sees *Starting your browser…*, which
+   checks again every 3 seconds — usually a few seconds, never a hung request.
+3. The agent makes a Neko sign-in for that person on that browser — `swangz-<their id>` with a new random
+   password — and the gateway sends them in with it. Nobody else has a sign-in there.
+4. When the turn ends — handed back, run out (caught within 15 seconds), taken back, suspended — the
+   gateway tells the agent, which deletes the sign-in (Neko drops them at once) and **recycles** the
+   browser: a fresh container for the next person, still signed in to the tool, because the sign-in
+   lives in the browser's profile volume. If Neko doesn't answer, the container is removed instead; if
+   Docker itself is down, the gateway keeps asking until it's done.
+5. A free browser left unused for `idle_minutes` (15) is stopped, giving its RAM back.
 
-Without `GATEWAY_WORKSPACE_TOKEN`, Open still gives each person a browser of their own, but sends them
-to the plain address and Neko's own login decides who gets in. Fine for a first test, not for real use.
+The temporary Neko sign-in lives exactly as long as the turn. The tool's own sign-in, in the profile,
+lives on. That separation is the whole design.
 
 ## Setting it up
 
-### 1. A server
+### 1. The server
 
-4 GB RAM minimum (8 GB for three or four people at once), nearest region to Kampala, separate from
-the gateway. Install Docker. Point `workspace.swangzavenue.com` at it. Open the WebRTC ports below
-(UDP and TCP) in its firewall, and 80/443 for Caddy.
+Ubuntu, 8 GB RAM (4 GB for one or two at once), the region nearest Kampala you can get. Install Docker
+and Caddy. Point `workspace.swangzavenue.com` at it. Firewall: 80 and 443, plus each browser's WebRTC port
+— `59100 + its number`, UDP **and** TCP (59101 for browser 1, …).
 
-### 2. Shared settings for every browser
+Pull the browser image once, pinned to a version you've tested:
 
-Make two secrets: `openssl rand -hex 32` for the API token, and a long password for the Neko admin.
-
-`neko.yaml` — the same file for every browser:
-
-```yaml
-server:
-  proxy: true                      # behind Caddy
-member:
-  provider: object                 # sign-ins the gateway makes live in memory: a restart clears them
-  object:
-    users:
-      - username: admin            # only for signing each browser in to the tool, by hand
-        password: "<the long admin password>"
-        profile: {name: Swangz admin, is_admin: true, can_login: true, can_connect: true, can_watch: true,
-                  can_host: true, can_share_media: false, can_access_clipboard: true,
-                  sends_inactive_cursor: true, can_see_inactive_cursors: true}
-session:
-  api_token: "<the API token — the same value goes in the gateway's GATEWAY_WORKSPACE_TOKEN>"
-webrtc:
-  icelite: true
-  nat1to1: "<this server's public IP>"
+```bash
+docker pull ghcr.io/m1k1o/neko/chromium:latest   # then pin, e.g. :3.1.6, in the config
 ```
 
-`policies.json` — Neko's own Chromium policy (copy `apps/chromium/policies.json` from the Neko repo)
-with these changes, so the browser **stays signed in** and staff can't lift the session out of it:
+### 2. The agent
+
+```bash
+sudo useradd --system --create-home --home-dir /var/lib/swangz-workspace --groups docker swangz-ws
+sudo mkdir -p /opt/swangz-workspace /etc/swangz-workspace
+sudo cp workspace_agent/agent.py /opt/swangz-workspace/
+sudo cp workspace_agent/agent.example.json /etc/swangz-workspace/agent.json
+sudo nano /etc/swangz-workspace/agent.json      # token, public_ip, gateway_ip, tools and browsers
+sudo chown root:swangz-ws /etc/swangz-workspace/agent.json && sudo chmod 640 /etc/swangz-workspace/agent.json
+sudo -u swangz-ws python3 /opt/swangz-workspace/agent.py check --config /etc/swangz-workspace/agent.json
+```
+
+In the config, each tool lists its browsers by **number**, unique across the whole server; the number
+fixes the browser's ports. The tool id must be the gateway's — it's in the console's address bar when
+the tool is open (`#/tools?open=chatgpt`); the built-ins include `chatgpt`, `claude`, `midjourney`,
+`suno`. `start_url` is the page new tabs open.
 
 ```json
-  "DefaultCookiesSetting": 1,
-  "RestoreOnStartup": 1,
-  "DeveloperToolsAvailability": 2,
-  "URLBlocklist": ["file://*", "chrome://policy", "chrome://settings", "chrome://flags", "chrome://inspect"]
-```
-
-(`DeveloperToolsAvailability: 2` is already Neko's default — keep it. With developer tools on, anyone
-in the browser could copy the account's session cookie and use it from their own laptop.)
-
-### 3. One container per browser
-
-`docker-compose.yml` — two ChatGPT browsers here; add more the same way, each with its **own profile
-folder, path and WebRTC port**:
-
-```yaml
-x-browser: &browser
-  image: ghcr.io/m1k1o/neko/chromium:latest   # pin a version tag once it works
-  restart: unless-stopped
-  shm_size: 2gb
-
-services:
-  chatgpt-1:
-    <<: *browser
-    ports: ["127.0.0.1:8101:8080", "59101:59101/udp", "59101:59101/tcp"]
-    volumes:
-      - ./neko.yaml:/etc/neko/neko.yaml:ro
-      - ./policies.json:/etc/chromium/policies/managed/policies.json:ro
-      - ./profiles/chatgpt-1:/home/neko/.config/chromium    # where the signed-in session lives
-    environment:
-      NEKO_CONFIG: /etc/neko/neko.yaml
-      NEKO_SERVER_PATH_PREFIX: /chatgpt-1
-      NEKO_WEBRTC_UDPMUX: "59101"
-      NEKO_WEBRTC_TCPMUX: "59101"
-
-  chatgpt-2:
-    <<: *browser
-    ports: ["127.0.0.1:8102:8080", "59102:59102/udp", "59102:59102/tcp"]
-    volumes:
-      - ./neko.yaml:/etc/neko/neko.yaml:ro
-      - ./policies.json:/etc/chromium/policies/managed/policies.json:ro
-      - ./profiles/chatgpt-2:/home/neko/.config/chromium
-    environment:
-      NEKO_CONFIG: /etc/neko/neko.yaml
-      NEKO_SERVER_PATH_PREFIX: /chatgpt-2
-      NEKO_WEBRTC_UDPMUX: "59102"
-      NEKO_WEBRTC_TCPMUX: "59102"
-```
-
-Create each profile folder before the first start and give it to Neko's user:
-`mkdir -p profiles/chatgpt-1 profiles/chatgpt-2 && sudo chown -R 1000:1000 profiles`.
-
-### 4. Caddy in front
-
-```
-workspace.swangzavenue.com {
-    handle /chatgpt-1* {
-        reverse_proxy 127.0.0.1:8101
-    }
-    handle /chatgpt-2* {
-        reverse_proxy 127.0.0.1:8102
-    }
+"tools": {
+  "chatgpt": {"start_url": "https://chatgpt.com/", "browsers": [1, 2]},
+  "claude":  {"start_url": "https://claude.ai/",   "browsers": [3]}
 }
 ```
 
-`handle` (not `handle_path`): Neko expects its path prefix to arrive intact.
+### 3. Caddy
 
-### 5. Sign each browser in, once, by hand
-
-Open `https://workspace.swangzavenue.com/chatgpt-1/`, log in to Neko as **admin**, go to the tool in
-that browser and sign in with the Swangz subscription account. Do the same in every browser — each has
-its own profile. Nobody else ever types that password. Restart the container once and check it is
-still signed in.
-
-### 6. Connect the gateway
-
-On the gateway's machine, add to its `.env` and restart it:
-
-```
-GATEWAY_WORKSPACE_TOKEN=<the same API token as in neko.yaml>
+```bash
+sudo -u swangz-ws python3 /opt/swangz-workspace/agent.py caddy --config /etc/swangz-workspace/agent.json | sudo tee /etc/caddy/Caddyfile
+sudo systemctl reload caddy
 ```
 
-Then in the control room: **Tools → the tool → Settings** → *How people sign in* = **Shared company
-account** → **Shared workspace browsers**, one per line:
+It routes `/agent/*` to the agent — only from `gateway_ip` — and `/chatgpt-1/…` etc. to each browser.
+
+### 4. Start it
+
+```bash
+sudo cp deploy/swangz-workspace-agent.service /etc/systemd/system/
+sudo systemctl enable --now swangz-workspace-agent
+```
+
+### 5. Connect the gateway
+
+In the gateway's `.env`, then restart the gateway:
 
 ```
-https://workspace.swangzavenue.com/chatgpt-1/
-https://workspace.swangzavenue.com/chatgpt-2/
+GATEWAY_WORKSPACE_AGENT=https://workspace.swangzavenue.com/agent
+GATEWAY_WORKSPACE_AGENT_TOKEN=<the same token as in agent.json>
 ```
 
-Set *People on it at a time* to the number of browsers (or fewer), and how long a turn lasts.
+### 6. Set the tool up, and sign each browser in once
 
-**Keep the API token secret.** It can make and remove sign-ins on every browser. It lives only in
-`neko.yaml` and the gateway's `.env` — never in the console, never in git.
+Control room → **Tools → the tool → Settings**: *How people sign in* = **Shared company account**,
+*Company browsers* = **From the workspace server**, *People on it at a time* = how many browsers it has
+(or fewer).
+
+Then **Who can use it → Browsers on the workspace server**: for each browser press **Sign in to the
+tool**, **Open it**, sign in to the tool inside it with the company account, and press **Done**. While
+you're in it, nobody can be given that browser. Each browser has its own profile, so each needs this
+once. Your admin session ends by itself after 30 minutes.
+
+**Adding a browser later:** add a new number in `agent.json`, open its port in the firewall, run the
+Caddy step again, `sudo systemctl restart swangz-workspace-agent`, and sign it in.
+
+## Settings worth knowing
+
+| `agent.json` | Default | |
+|---|---|---|
+| `idle_minutes` | 15 | a free browser unused this long is stopped |
+| `recycle` | true | restart the browser after every turn, so the next person starts fresh |
+| `fresh_start` | false | open `start_url` on every start instead of restoring the last tabs. Test it per tool: a tool that keeps its sign-in in a *session* cookie loses it when tabs aren't restored. Can be set per tool |
+| `memory` / `cpus` / `shm` | 2g / 1.5 / 2g | each browser's limits |
+| `start_timeout` | 120 | seconds before a browser that won't start counts as failed |
+| `admin_minutes` | 30 | an admin's sign-in session ends by itself after this |
+
+The browser policy the agent writes keeps cookies (`DefaultCookiesSetting: 1`), restores the session
+(`RestoreOnStartup: 1`) so the browser stays signed in, and keeps **developer tools off**
+(`DeveloperToolsAvailability: 2`) — with them on, anyone in the browser could copy the account's session
+cookie to their own laptop. `file://` and `chrome://settings`, `flags` and `inspect` are blocked.
+
+## Security
+
+- **Two secrets, both only on servers:** the agent token (in `agent.json` and the gateway's `.env`) and,
+  per browser start, a Neko API token the agent makes and keeps to itself. No fixed Neko password exists.
+- The agent listens on `127.0.0.1` only; Caddy lets just the gateway's address reach `/agent/`, and every
+  call still needs the token. Browser containers can't reach the agent, the Docker socket, or anything
+  of the gateway's.
+- The agent's user is in the `docker` group, which is as powerful as root on that server. Keep the
+  server for this alone.
+- Sign-in profiles are Docker volumes (`swangz-ws-profile-<browser>`). Removing a container never removes
+  one; `docker volume rm` does — that signs the browser out for good.
 
 ## Checking it works
 
-- Open the tool from the staff app → you land in a browser, signed in to Neko and to the tool.
-- A second person presses Open → they get the other browser. A third → told who has them, until when.
-- Hand it back in the staff app → within a second or two your browser tab is disconnected, and the old
-  link no longer works.
-- Control room → the tool → **Who can use it** shows who is on which browser; **Live** shows who is on a
-  shared account; **Staff activity → Tools opened** has the history.
+- Open the tool from the staff app → *Starting your browser…* → you land in it, signed in.
+- A second person opens it → they get the other browser. With every browser busy, the next person is told
+  so, and keeps no seat.
+- Hand it back → within a second or two your tab is disconnected and the old link no longer works.
+- Control room → the tool → **Who can use it** shows each browser — running, starting or stopped — and
+  who is on it.
+
+## The fallback: fixed browsers
+
+Without the agent, a tool can list browsers you run yourself — *Company browsers* = **The browsers
+listed below**, one address per line. Each person on a turn gets one of them. With
+`GATEWAY_WORKSPACE_TOKEN` set to the browsers' shared Neko API token, the gateway makes and removes a
+sign-in per turn itself; without it, it just sends people to the address. Run each browser with the same
+image, the policy above mounted at `/etc/chromium/policies/managed/policies.json`, a profile volume at
+`/home/neko/.config/chromium`, and `NEKO_MEMBER_PROVIDER=object`, `NEKO_SESSION_API_TOKEN`,
+`NEKO_SERVER_PROXY=true`, `NEKO_SERVER_PATH_PREFIX`, `NEKO_WEBRTC_UDPMUX`/`TCPMUX` and `NEKO_WEBRTC_NAT1TO1`
+set. Useful for development and as an emergency fallback; the agent is the way to run it for real.

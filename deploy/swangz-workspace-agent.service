@@ -1,0 +1,20 @@
+[Unit]
+Description=Swangz Workspace Agent (company browsers for the AI gateway)
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+# its own user, in the docker group: the only thing on this server allowed to run browsers.
+# (The docker group is as powerful as root, so keep this user for the agent alone.)
+User=swangz-ws
+Group=docker
+Environment=HOME=/var/lib/swangz-workspace
+ExecStart=/usr/bin/python3 /opt/swangz-workspace/agent.py serve --config /etc/swangz-workspace/agent.json
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

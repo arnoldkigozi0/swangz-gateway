@@ -107,6 +107,10 @@ class Settings:
     # The shared workspace's API token (Neko's session.api_token, the same on every company browser).
     # Set = the gateway makes a sign-in per turn and removes it when the turn ends. Empty = plain links.
     workspace_token: str = ""
+    # The Swangz Workspace Agent on the workspace server (workspace_agent/agent.py): its address, e.g.
+    # https://workspace.swangzavenue.com/agent, and its token. Tools in 'agent' mode get browsers from it.
+    workspace_agent_url: str = ""
+    workspace_agent_token: str = ""
 
     @property
     def google_enabled(self):
@@ -175,6 +179,8 @@ class Settings:
             google_client_secret=env.get("GOOGLE_CLIENT_SECRET", "").strip(),
             google_redirect_uri=env.get("GOOGLE_REDIRECT_URI", "").strip(),
             workspace_token=env.get("GATEWAY_WORKSPACE_TOKEN", "").strip(),
+            workspace_agent_url=env.get("GATEWAY_WORKSPACE_AGENT", "").strip().rstrip("/"),
+            workspace_agent_token=env.get("GATEWAY_WORKSPACE_AGENT_TOKEN", "").strip(),
         )
 
 

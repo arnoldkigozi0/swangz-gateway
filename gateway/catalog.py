@@ -182,7 +182,7 @@ def uses_workspace(tool):
     """True when opening this tool lands the person in one of the company's remote browsers."""
     from . import workspace
 
-    return bool(workspace.browsers(tool))
+    return bool(workspace.mode(tool))
 
 
 def hosts_from_url(url):

@@ -290,6 +290,11 @@ SCHEMA = [
     ALTER TABLE tool_turns ADD COLUMN ws_closed REAL;
     CREATE INDEX tool_turns_ws ON tool_turns(ended, ws_closed);
     """,
+    # v10: a shared tool can take its browsers from the Swangz Workspace Agent instead of a fixed list
+    # ('agent'); '' keeps the fixed list, or the tool's own site when there is none.
+    """
+    ALTER TABLE tools ADD COLUMN workspace_mode TEXT NOT NULL DEFAULT '';
+    """,
 ]
 
 

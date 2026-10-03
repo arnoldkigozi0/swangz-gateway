@@ -9,6 +9,7 @@ from gateway import security, turns, workspace
 
 from .fake_neko import FakeNeko
 from .test_turns import TurnBase
+from .test_workspace_agent import TOKEN, AgentRig
 
 
 def signin_in(location):
@@ -16,19 +17,7 @@ def signin_in(location):
     return q.get("usr"), q.get("pwd")
 
 
-class PoolBase(TurnBase):
-    """Midjourney as a shared account in two company browsers, with the gateway managing sign-ins."""
-
-    def setUp(self):
-        super().setUp()
-        self.a, self.b = FakeNeko(), FakeNeko()
-        self.addCleanup(self.a.close)
-        self.addCleanup(self.b.close)
-        self.rig.gw.settings.workspace_token = "neko-api-token"
-        self.assertEqual(self.rig.api("PATCH", "/tools/midjourney", {
-            "workspace_url": f"{self.a.url}/\n{self.b.url}/", "seats_at_once": 3})[0], 200)
-        self.grace = workspace.username(self.rig.person_id)
-
+class ThreePeople(TurnBase):
     def go_as_third(self):
         db = self.rig.gw.db
         if not hasattr(self, "third"):
@@ -43,6 +32,20 @@ class PoolBase(TurnBase):
 
     def turn_of(self, person_id):
         return self.rig.gw.db.one("SELECT * FROM tool_turns WHERE person_id = ? ORDER BY id DESC LIMIT 1", (person_id,))
+
+
+class PoolBase(ThreePeople):
+    """Midjourney as a shared account in two fixed company browsers, with the gateway managing sign-ins."""
+
+    def setUp(self):
+        super().setUp()
+        self.a, self.b = FakeNeko(), FakeNeko()
+        self.addCleanup(self.a.close)
+        self.addCleanup(self.b.close)
+        self.rig.gw.settings.workspace_token = "neko-api-token"
+        self.assertEqual(self.rig.api("PATCH", "/tools/midjourney", {
+            "workspace_url": f"{self.a.url}/\n{self.b.url}/", "seats_at_once": 3})[0], 200)
+        self.grace = workspace.username(self.rig.person_id)
 
 
 class OpeningTests(PoolBase):
@@ -210,6 +213,105 @@ class SettingsTests(PoolBase):
         self.assertEqual(rig.gw.db.scalar("SELECT workspace_url FROM tools WHERE id = 'midjourney'"),
                          "https://a.example/\nhttps://b.example/")
         self.assertTrue(rig.api("GET", "/catalog")[1]["workspace_managed"])
+
+
+class AgentModeTests(ThreePeople):
+    """Midjourney taking its browsers from the Workspace Agent: two browsers, started when needed."""
+
+    def setUp(self):
+        super().setUp()
+        self.ws = AgentRig()
+        self.addCleanup(self.ws.close)
+        settings = self.rig.gw.settings
+        settings.workspace_agent_url, settings.workspace_agent_token = self.ws.url, TOKEN
+        self.assertEqual(self.rig.api("PATCH", "/tools/midjourney", {"workspace_mode": "agent", "seats_at_once": 3})[0], 200)
+        self.n1 = self.ws.nekos["midjourney-1"]
+
+    def open_until_in(self, go):
+        for _ in range(5):
+            status, h, body = go("midjourney")
+            if status != 200:
+                return status, h, body
+            self.assertIn("Starting your Midjourney browser", body)
+            self.assertIn('http-equiv=refresh content=3', body)
+        raise AssertionError("the browser never became ready")
+
+    def test_open_waits_for_the_browser_then_signs_you_in(self):
+        status, _, body = self.go("midjourney")
+        self.assertEqual(status, 200)  # the starting page, which asks again by itself
+        self.assertIn("Starting your Midjourney browser", body)
+        self.assertEqual(self.rig.gw.db.scalar("SELECT COUNT(*) FROM launches"), 0)  # not opened yet
+        status, h, _ = self.open_until_in(self.go)
+        self.assertEqual(status, 302)
+        self.assertTrue(h["location"].startswith("https://ws.example.test/midjourney-1/?usr="))
+        usr, pwd = signin_in(h["location"])
+        self.assertEqual(usr, workspace.username(self.rig.person_id))
+        self.assertTrue(self.n1.sign_in(usr, pwd))
+        turn = self.turn_of(self.rig.person_id)
+        self.assertEqual((turn["workspace"], turn["ws_member"]), ("agent:midjourney-1", usr))
+        self.assertEqual(self.rig.gw.db.scalar("SELECT COUNT(*) FROM launches WHERE outcome = 'opened'"), 1)
+        me = self.staff("GET", "/me")[1]
+        self.assertTrue(next(t for t in me["catalog"] if t["id"] == "midjourney")["workspace"])
+
+    def test_handing_back_releases_and_recycles_the_browser(self):
+        self.open_until_in(self.go)
+        self.staff("POST", "/tools/midjourney/turn/end")
+        self.rig.wait_for(lambda: ("DELETE", "/midjourney-1/api/members/" + workspace.username(self.rig.person_id), None)
+                          in self.n1.calls)
+        self.rig.wait_for(lambda: self.turn_of(self.rig.person_id)["ws_closed"])
+        self.assertIsNone(next(b for b in self.ws.call("GET", "/status")[1]["browsers"] if b["slot"] == "midjourney-1")["holder"])
+
+    def test_a_turn_that_runs_out_releases_its_browser(self):
+        self.open_until_in(self.go)
+        self.rig.gw.db.x("UPDATE tool_turns SET expires = ? WHERE ended IS NULL", (time.time() - 1,))
+        self.rig.gw.workspaces.sweep()
+        self.assertTrue(self.turn_of(self.rig.person_id)["ws_closed"])
+        self.assertTrue(all(b["holder"] is None for b in self.ws.call("GET", "/status")[1]["browsers"]))
+
+    def test_when_every_browser_is_busy_the_next_person_is_told_and_keeps_no_seat(self):
+        self.open_until_in(self.go)
+        self.assertEqual(self.open_until_in(lambda tool: self.go_as_other(tool))[0], 302)
+        status, _, body = self.go_as_third()
+        self.assertEqual(status, 403)
+        self.assertIn("All of Swangz&#x27;s browsers for Midjourney are in use", body)
+        self.assertEqual(self.turn_of(self.third)["ended_by"], "system")
+
+    def test_a_workspace_server_that_does_not_answer_frees_the_seat(self):
+        self.rig.gw.settings.workspace_agent_url = "http://127.0.0.1:9"
+        status, _, body = self.go("midjourney")
+        self.assertEqual(status, 403)
+        self.assertIn("isn&#x27;t answering right now", body)
+        self.assertEqual(self.rig.gw.db.scalar("SELECT COUNT(*) FROM tool_turns WHERE ended IS NULL"), 0)
+
+    def test_without_a_workspace_server_nobody_is_sent_anywhere(self):
+        self.rig.gw.settings.workspace_agent_url = ""
+        self.assertEqual(self.go("midjourney")[0], 403)
+        self.assertEqual(self.rig.gw.db.scalar("SELECT COUNT(*) FROM tool_turns WHERE ended IS NULL"), 0)
+
+    def test_the_console_lists_the_browsers_and_an_admin_signs_one_in(self):
+        rig = self.rig
+        status, out = rig.api("GET", "/workspace")
+        self.assertEqual((status, out["configured"], out["health"]["ok"]), (200, True, True))
+        self.assertEqual([b["slot"] for b in out["browsers"]], ["midjourney-1", "midjourney-2"])
+        self.assertEqual(rig.api("POST", "/workspace/browsers/midjourney-2/open", who="viewer")[0], 403)
+        self.assertEqual(rig.api("POST", "/workspace/browsers/midjourney-2/open"), (200, {"state": "starting", "url": None}))
+        status, out = rig.api("POST", "/workspace/browsers/midjourney-2/open")
+        self.assertEqual((status, out["state"]), (200, "ready"))
+        usr, _ = signin_in(out["url"])
+        self.assertTrue(self.ws.nekos["midjourney-2"].members[usr]["profile"]["is_admin"])
+        self.assertTrue(rig.gw.db.one("SELECT 1 FROM audit WHERE action = 'opened a workspace browser to sign it in'"))
+        self.assertEqual(rig.api("POST", "/workspace/browsers/midjourney-2/close")[0], 200)
+        self.assertIsNone(rig.api("GET", "/workspace")[1]["browsers"][1]["holder"])
+
+    def test_the_console_says_when_there_is_no_workspace_server(self):
+        self.rig.gw.settings.workspace_agent_url = ""
+        self.assertEqual(self.rig.api("GET", "/workspace"), (200, {"configured": False}))
+        self.rig.gw.settings.workspace_agent_url = "http://127.0.0.1:9"
+        self.assertIn("did not answer", self.rig.api("GET", "/workspace")[1]["error"])
+
+    def test_the_mode_is_checked(self):
+        self.assertEqual(self.rig.api("PATCH", "/tools/midjourney", {"workspace_mode": "kasm"})[0], 400)
+        self.assertEqual(self.rig.api("GET", "/catalog")[1]["workspace_agent"], True)
 
 
 class HelperTests(unittest.TestCase):

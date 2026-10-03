@@ -4,8 +4,8 @@ Last updated: 2026-10-03. Read `../CLAUDE.md` first for the overview and convent
 
 ## Where it stands
 
-A working platform, built and tested. **151 unit tests pass** (`python3 -m unittest discover -s tests -t .`).
-Schema is **v9**. Nothing real has been called by a provider yet — there are no company API keys, and
+A working platform, built and tested. **179 unit tests pass** (`python3 -m unittest discover -s tests -t .`).
+Schema is **v10**. Nothing real has been called by a provider yet — there are no company API keys, and
 the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
 
 ### Done and verified
@@ -142,8 +142,34 @@ workspace to let **several people use one tool at once**. A remote browser is on
   turns developer tools off, which stops staff copying the session cookie out — the guide keeps it.
 - Console: the tool sheet takes the browser list, shows who is on which browser, and says whether the
   gateway is managing sign-ins. 19 tests against a stand-in Neko (`tests/fake_neko.py`).
-- **Not done:** the workspace server itself. `deploy/WORKSPACE.md` has the compose file, Neko config,
-  Chromium policy and Caddy routes — untested against a real Neko until a server exists.
+- **Not done:** the workspace server itself — see the next section.
+
+### Oct 3, 2026 (sixth pass) — the Swangz Workspace Agent
+
+Arnold asked for the gateway to allocate browsers through an agent on the workspace server rather
+than a hand-kept list, keeping the list as a fallback. Built:
+
+- **`workspace_agent/agent.py`** — standalone, stdlib, deployed alone on the workspace VPS next to
+  Docker, behind Caddy, reachable only from the gateway's IP and with a token. API: `/health`,
+  `/status`, `/allocate`, `/release`, `/admin-open`, `/admin-close`. Browsers ("slots") are fixed in
+  its config per tool, by number (ports = base + number), because a Chromium profile is signed in by
+  hand once and can't be used by two running browsers. Containers start when a turn needs one, are
+  **recycled** after every turn (fresh container, profile volume kept, so still signed in) and stop
+  after `idle_minutes`. Every container start gets a new random Neko API token that only the agent
+  holds (passed by `--env-file`, never on the command line); no fixed Neko password exists. Release
+  deletes the Neko member, or removes the container if Neko doesn't answer; if Docker is down too the
+  lease is kept and the gateway retries. Profiles are named volumes (`swangz-ws-profile-<slot>`), so
+  the browser's uid 1000 owns them. State survives an agent restart (`state.json`, 0600).
+- **Gateway:** `tools.workspace_mode = 'agent'` (schema v10). Open asks the agent; while the browser
+  starts, the person sees a self-refreshing *Starting your browser…* page (no request held open past
+  Netlify's 26 s). Leases are `t<turn id>.<start ms>`, so a fresh database can't collide with old
+  leases. A turn that never got a browser is ended, not left holding a seat. Console: *Company
+  browsers* setting, and the tool's **Who can use it** lists the server's browsers with **Sign in to
+  the tool / Done** for admins (`/admin/api/workspace…`). The static list (fifth pass) is unchanged.
+- **Tests:** 28 new — the agent against a fake Docker (which reads the env file, so each restart's new
+  token really reaches the stand-in Neko) and the gateway end-to-end through a real agent.
+- **Not done:** a real workspace server. Nothing here has run against real Docker or Neko yet; the
+  first deployment should walk `deploy/WORKSPACE.md` and check each step.
 
 ### How it compares (Oct 2026)
 

@@ -362,6 +362,7 @@
       const cat = await api("GET", "/catalog");
       S.tools = Object.fromEntries([...cat.tools, ...cat.removed].map((t) => [t.id, t]));
       S.workspaceManaged = !!cat.workspace_managed;
+      S.workspaceAgent = !!cat.workspace_agent;
     }
     return S.tools;
   }
@@ -377,7 +378,7 @@
   const KIND = { site: "Website", api: "API + website", dev: "Developer agent" };
   const isoDate = (ts) => new Date(ts * 1000).toISOString().slice(0, 10);
   // a shared tool's workspace browsers, one address per line (gateway/workspace.py)
-  const browserList = (t) => (t.workspace_url || "").split("\n").map((s) => s.trim()).filter(Boolean);
+  const browserList = (t) => t.workspace_mode === "agent" ? [] : (t.workspace_url || "").split("\n").map((s) => s.trim()).filter(Boolean);
   const dateText = (ts) => new Date(ts * 1000).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
 
   function sheet(onClose) {
@@ -1294,6 +1295,7 @@
     const data = await api("GET", "/catalog");
     S.tools = Object.fromEntries([...data.tools, ...data.removed].map((t) => [t.id, t]));
     S.workspaceManaged = !!data.workspace_managed;
+    S.workspaceAgent = !!data.workspace_agent;
     const state = { q: "", cat: "all", show: "all" };
     const opens = data.tools.reduce((n, t) => n + t.usage_30d.opens, 0);
     const users = data.tools.filter((t) => t.usage_30d.opens).length;
@@ -1408,9 +1410,11 @@
           fact("Monthly cost", sub.monthly_cost != null ? fmt.money(sub.monthly_cost) : "—"),
           fact("Seats", sub.seats ? `${t.assigned_people} given · ${sub.seats} paid` : `${t.assigned_people} given`),
           fact("Opened in 30 days", `${t.usage_30d.opens} times by ${t.usage_30d.people} ${t.usage_30d.people === 1 ? "person" : "people"}`),
-          t.signin === "shared" ? fact("Opens into", browserList(t).length
-            ? `the shared workspace — ${browserList(t).length} browser${browserList(t).length === 1 ? "" : "s"}, already signed in`
-            : "the tool's own site (they sign in)") : null,
+          t.signin === "shared" ? fact("Opens into", t.workspace_mode === "agent"
+            ? "a browser of their own on the workspace server, already signed in"
+            : browserList(t).length
+              ? `the shared workspace — ${browserList(t).length} browser${browserList(t).length === 1 ? "" : "s"}, already signed in`
+              : "the tool's own site (they sign in)") : null,
           fact("Last opened", t.usage_30d.last ? fmt.ago(t.usage_30d.last) : "not in 30 days")),
         el("div", { class: "stack" }, el("h3", { class: "section-title" }, "How people sign in — " + how[0]), el("p", { class: "hint", style: null }, how[1]),
           t.launch_url ? el("div", { class: "hint" }, "Opens: ", el("span", { class: "mono" }, t.launch_url)) : null,
@@ -1474,9 +1478,64 @@
         here.forEach(() => {});
         onItNow.querySelectorAll(".logo").forEach((m) => { m.style.background = "linear-gradient(140deg, #2B2B31, #141417)"; m.style.color = "#F0C054"; });
       }
+      // browsers from the workspace server: each must be signed in to the tool once, by an admin, here
+      let fromServer = null;
+      if (t.signin === "shared" && t.workspace_mode === "agent") {
+        const ws = await api("GET", "/workspace");
+        const mine = ws.configured && !ws.error ? (ws.browsers || []).filter((b) => b.tool === t.id) : [];
+        const STATE = { running: ["ok", "Running"], starting: ["warn", "Starting"], stopped: ["tool", "Stopped"] };
+        const hhmm = (ts) => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        const openBrowser = async (slot, btn) => {
+          btn.disabled = true; btn.textContent = "Starting…";
+          try {
+            for (let i = 0; i < 45; i++) {  // a cold start takes a few seconds; give it up to ~2 minutes
+              const out = await api("POST", `/workspace/browsers/${slot}/open`);
+              if (out.state === "ready" && out.url) {
+                btn.replaceWith(el("a", { class: "btn small primary", href: out.url, target: "_blank", rel: "noopener noreferrer" }, "Open it"));
+                toast("Ready. Sign in to the tool inside it, then press Done.");
+                return;
+              }
+              await new Promise((r) => setTimeout(r, 3000));
+            }
+            toast("The browser is taking too long to start. Try again in a minute.", true);
+          } catch (e) { toast(e.message, true); }
+          btn.disabled = false; btn.textContent = "Sign in to the tool";
+        };
+        const closeBrowser = async (slot) => {
+          try { await api("POST", `/workspace/browsers/${slot}/close`); toast("Done — the browser is free again."); refresh("access"); }
+          catch (e) { toast(e.message, true); }
+        };
+        const row = (b) => {
+          const [tone, label] = STATE[b.state] || ["tool", b.state];
+          const who = !b.holder ? "Free"
+            : b.holder.kind === "admin" ? `${b.holder.name} is signing it in`
+            : `${b.holder.name} · since ${hhmm(b.holder.since)}`;
+          let action = null;
+          if (owner && b.holder && b.holder.kind === "admin") {
+            action = el("span", { class: "row" },
+              el("button", { class: "btn small", onclick: (e) => openBrowser(b.slot, e.currentTarget) }, "Open again"),
+              el("button", { class: "btn small primary", onclick: () => closeBrowser(b.slot) }, "Done"));
+          } else if (owner && !b.holder) {
+            action = el("button", { class: "btn small", onclick: (e) => openBrowser(b.slot, e.currentTarget) }, "Sign in to the tool");
+          }
+          return el("div", { class: "assign-row" },
+            el("span", { class: "logo sm mono" }, String(b.n)),
+            el("div", { class: "grow" }, el("strong", null, `Browser ${b.n}`), " ", el("span", { class: "pill " + tone }, label),
+              el("div", { class: "hint" }, who)),
+            action);
+        };
+        fromServer = el("div", { class: "stack" }, el("h3", { class: "section-title" }, "Browsers on the workspace server"),
+          !ws.configured ? el("div", { class: "notice" }, "No workspace server is connected yet (GATEWAY_WORKSPACE_AGENT on the gateway).")
+            : ws.error ? el("div", { class: "notice" }, "The workspace server isn't answering: " + ws.error)
+            : mine.length ? el("div", { class: "assign-list" }, mine.map(row))
+            : el("div", { class: "notice" }, `The workspace server has no browsers for this tool yet — add "${t.id}" to its config.`),
+          el("p", { class: "hint", style: null }, "Each browser keeps its own sign-in to the tool, so sign each one in once: press Sign in to the tool, open it, sign in to the tool inside it with the company account, then press Done. Nobody can be given that browser meanwhile."));
+        fromServer.querySelectorAll(".logo").forEach((m) => { m.style.background = "linear-gradient(140deg, #2B2B31, #141417)"; m.style.color = "#F0C054"; });
+      }
       return [
         locked ? el("div", { class: "notice" }, "Staff can't open this until the company subscription is active (Subscription tab).") : null,
         onItNow,
+        fromServer,
         el("div", { class: "stack" }, el("h3", { class: "section-title" }, "Whole teams"), teams),
         el("div", { class: "stack" }, el("h3", { class: "section-title" }, "People"),
           el("p", { class: "hint", style: null }, "Turn the tool on per person. Add an end date first to give it for a limited time — access stops after that day."),
@@ -1535,7 +1594,21 @@
         seats_at_once: el("input", { type: "number", min: "1", max: "50", step: "1", value: String(v.seats_at_once || 1) }),
         turn_minutes: el("input", { type: "number", min: "5", max: "720", step: "5", value: String(v.turn_minutes || 120) }),
         workspace_url: el("textarea", { rows: "3", spellcheck: "false", placeholder: "https://workspace.swangzavenue.com/chatgpt-1/\nhttps://workspace.swangzavenue.com/chatgpt-2/" }, v.workspace_url || ""),
+        workspace_mode: el("select", null,
+          el("option", { value: "agent" }, "From the workspace server — started when needed"),
+          el("option", { value: "" }, "The browsers listed below, or none")),
       };
+      f.workspace_mode.value = v.workspace_mode === "agent" ? "agent" : "";
+      const listField = el("label", { class: "field" }, "Shared workspace browsers", f.workspace_url,
+        el("span", { class: "hint" }, "Optional. One address per line — each is a browser on Swangz's own server that an admin has signed in to this tool once. Everyone holding a turn gets a browser to themselves, so as many people can work at once as there are browsers. They arrive signed in and never see the password. Leave empty and Open goes to the tool's own site, where they sign in themselves. See deploy/WORKSPACE.md."),
+        el("span", { class: "hint" }, S.workspaceManaged
+          ? "The gateway gives each person a sign-in for their turn and removes it the moment the turn ends."
+          : "The gateway isn't managing workspace sign-ins yet (GATEWAY_WORKSPACE_TOKEN is not set), so each browser's own login decides who gets in."));
+      const agentHint = el("span", { class: "hint" }, S.workspaceAgent
+        ? "The workspace server starts a browser of their own for each person on a turn, signs them in, and recycles it when the turn ends. Its browsers for this tool are listed under Who can use it — sign each one in to the tool there, once."
+        : "No workspace server is connected yet (GATEWAY_WORKSPACE_AGENT is not set). Until it is, Open can't give anyone a browser for this tool. See deploy/WORKSPACE.md.");
+      const drawWhere = () => { listField.hidden = f.workspace_mode.value === "agent"; agentHint.hidden = f.workspace_mode.value !== "agent"; };
+      f.workspace_mode.addEventListener("change", drawWhere); drawWhere();
       const sharing = el("div", { class: "share-box" },
         el("div", { class: "form-grid" },
           el("label", { class: "field" }, "People on it at a time", f.seats_at_once,
@@ -1543,11 +1616,8 @@
           el("label", { class: "field" }, "How long a turn lasts (minutes)", f.turn_minutes,
             el("span", { class: "hint" }, "It ends by itself after this, or when they hand it back."))),
         el("div", { class: "hint" }, "While someone holds the turn, nobody else can open this tool, and the extension signs their browser out when it ends — so the vendor's credit history can be matched to a person."),
-        el("label", { class: "field" }, "Shared workspace browsers", f.workspace_url,
-          el("span", { class: "hint" }, "Optional. One address per line — each is a browser on Swangz's own server that an admin has signed in to this tool once. Everyone holding a turn gets a browser to themselves, so as many people can work at once as there are browsers. They arrive signed in and never see the password. Leave empty and Open goes to the tool's own site, where they sign in themselves. See deploy/WORKSPACE.md."),
-          el("span", { class: "hint" }, S.workspaceManaged
-            ? "The gateway gives each person a sign-in for their turn and removes it the moment the turn ends."
-            : "The gateway isn't managing workspace sign-ins yet (GATEWAY_WORKSPACE_TOKEN is not set), so each browser's own login decides who gets in.")));
+        el("label", { class: "field" }, "Company browsers", f.workspace_mode, agentHint),
+        listField);
       f.kind.value = v.kind; f.signin.value = v.kind === "dev" ? "api" : (v.signin || "seat");
       const howHint = el("span", { class: "hint" });
       const drawHow = () => {
@@ -1558,7 +1628,8 @@
       const err = el("div", { class: "err" });
       const values = () => ({ name: f.name.value, category: f.category.value, kind: f.kind.value, description: f.description.value, url: f.url.value,
         signin: f.signin.value, launch_url: f.launch_url.value, hosts: f.hosts.value, color: f.color.value, pricing_url: f.pricing_url.value,
-        seats_at_once: f.seats_at_once.value, turn_minutes: f.turn_minutes.value, workspace_url: f.workspace_url.value });
+        seats_at_once: f.seats_at_once.value, turn_minutes: f.turn_minutes.value, workspace_url: f.workspace_url.value,
+        workspace_mode: f.workspace_mode.value });
       const save = el("button", { class: "btn primary", onclick: async () => {
         err.textContent = "";
         try {

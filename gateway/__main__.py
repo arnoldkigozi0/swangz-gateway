@@ -115,9 +115,12 @@ def serve(settings):
 
     server, gw = make_server(settings)
     gw.start_maintenance()
-    if settings.workspace_token:
+    if settings.workspace_token or gw.workspaces.agent_ready:
         gw.workspaces.start()  # removes each workspace sign-in as soon as its turn ends
-        gw.log("shared workspace: the gateway makes and removes a sign-in for every turn")
+        if gw.workspaces.agent_ready:
+            gw.log(f"shared workspace: browsers come from the workspace server at {settings.workspace_agent_url}")
+        if settings.workspace_token:
+            gw.log("shared workspace: a sign-in per turn on the listed browsers")
     from . import icons
 
     icons.start(gw.db, gw.log)  # tool logos for the catalog, fetched once in the background

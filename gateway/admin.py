@@ -712,6 +712,7 @@ def _tool_row(t, sub, counts):
     out["subscription"] = {k: sub[k] for k in ("state", "plan", "seats", "monthly_cost", "renews_on", "note",
                                                "updated", "updated_by")} if sub else {"state": "none"}
     out["workspace_url"] = t["workspace_url"]
+    out["workspace_mode"] = t["workspace_mode"]
     out["seats_at_once"] = t["seats_at_once"]
     out["turn_minutes"] = t["turn_minutes"]
     out["assigned_people"] = counts.get((t["id"], "person"), 0)
@@ -747,7 +748,8 @@ def catalog_list(ctx):
     monthly = ctx.db.scalar("SELECT COALESCE(SUM(monthly_cost), 0) FROM subscriptions WHERE state IN ('active','past_due')")
     return {"tools": tools, "removed": removed, "categories": cats, "departments": _departments(ctx.db),
             "summary": {"total": len(tools), "paid": paid, "monthly_cost": monthly or 0},
-            "workspace_managed": bool(ctx.gw.settings.workspace_token)}
+            "workspace_managed": bool(ctx.gw.settings.workspace_token),
+            "workspace_agent": ctx.gw.workspaces.agent_ready}
 
 
 @route("GET", r"/tools/(?P<tid>[a-z0-9-]+)/access")
@@ -783,6 +785,42 @@ def list_turns(ctx):
         " JOIN tools tl ON tl.id = t.tool_id WHERE t.ended IS NOT NULL ORDER BY t.id DESC LIMIT 100")
     shared = ctx.db.q("SELECT id, name, seats_at_once, turn_minutes FROM tools WHERE signin = 'shared' AND archived = 0 ORDER BY name")
     return {"now": now, "recent": recent, "tools": shared}
+
+
+@route("GET", r"/workspace")
+def workspace_status(ctx):
+    """The workspace server's browsers: which tool, running or not, who is on each."""
+    from .workspace import Unavailable
+
+    w = ctx.gw.workspaces
+    if not w.agent_ready:
+        return {"configured": False}
+    try:
+        return {"configured": True, **w.agent_status()}
+    except Unavailable as exc:
+        return {"configured": True, "error": str(exc)}
+
+
+@route("POST", r"/workspace/browsers/(?P<slot>[a-z0-9-]{1,80})/(?P<action>open|close)", role="owner")
+def workspace_browser(ctx, slot, action):
+    """An admin opens a workspace browser to sign it in to its tool by hand — once per browser — and
+    closes it again. Nobody else can be given that browser meanwhile."""
+    from .workspace import Unavailable
+
+    w = ctx.gw.workspaces
+    if not w.agent_ready:
+        raise ApiError(400, "no workspace server is connected (GATEWAY_WORKSPACE_AGENT)")
+    try:
+        if action == "close":
+            w.admin_close(slot)
+            ctx.audit("closed a workspace browser after signing it in", slot)
+            return {"ok": True}
+        out = w.admin_open(slot, ctx.admin["username"])
+    except Unavailable as exc:
+        raise ApiError(502, str(exc))
+    if out.get("state") == "ready":
+        ctx.audit("opened a workspace browser to sign it in", slot)
+    return {"state": out.get("state"), "url": out.get("url") if out.get("state") == "ready" else None}
 
 
 @route("POST", r"/tools/(?P<tid>[a-z0-9-]+)/turn/end", role="owner")
@@ -889,6 +927,14 @@ def _web(value, what):
     return v
 
 
+def _workspace_mode(value):
+    """'' (fixed browsers listed on the tool, or none) or 'agent' (browsers from the workspace server)."""
+    v = str(value or "").strip()
+    if v not in ("", "agent"):
+        raise ApiError(400, "the workspace is either the browsers listed here or the workspace server")
+    return v
+
+
 def _browsers(value):
     """The shared workspace's browser addresses: one per line, each a web address."""
     from .workspace import MAX_BROWSERS
@@ -957,6 +1003,8 @@ def add_tool(ctx):
               _color(ctx.body.get("color"))))
     if ctx.body.get("workspace_url"):
         ctx.db.x("UPDATE tools SET workspace_url = ? WHERE id = ?", (_browsers(ctx.body.get("workspace_url")), tid))
+    if ctx.body.get("workspace_mode"):
+        ctx.db.x("UPDATE tools SET workspace_mode = ? WHERE id = ?", (_workspace_mode(ctx.body.get("workspace_mode")), tid))
     share = _sharing(ctx.body)
     if share:
         ctx.db.x(f"UPDATE tools SET {', '.join(f'{k}=?' for k in share)} WHERE id = ?", [*share.values(), tid])
@@ -993,6 +1041,8 @@ def edit_tool(ctx, tid):
             fields[key] = _web(ctx.body[key], what)
     if "workspace_url" in ctx.body:
         fields["workspace_url"] = _browsers(ctx.body["workspace_url"])
+    if "workspace_mode" in ctx.body:
+        fields["workspace_mode"] = _workspace_mode(ctx.body["workspace_mode"])
     if "color" in ctx.body:
         fields["color"] = _color(ctx.body["color"])
     if "signin" in ctx.body:

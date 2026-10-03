@@ -303,22 +303,28 @@ def launch(h, gw, tool_id):
         ok, reason = False, "This tool has no web address yet. Ask your admin."
     # a shared company account is handed out one turn at a time
     if ok and turns.is_shared(tool):
+        where = workspace.mode(tool)
         pool = workspace.browsers(tool)
         asked = time.time()
         with gw.db.tx():  # so two people opening at once can't both get the last seat or the same browser
             turn, busy = turns.take(gw.db, tool, person)
             browser = gw.workspaces.assign(tool, turn) if turn and pool else None
         fresh = bool(turn) and turn["started"] >= asked
+        full = f"All of Swangz's browsers for {tool['name']} are in use. Try again shortly."
         if not turn:
             who = ", ".join(t["person"] for t in busy)
             until = min(t["expires"] for t in busy)
             ok, reason = False, (f"{who} is using the shared {tool['name']} account until "
                                  f"{_clock(gw, until)}. You'll get it next — try again then.")
         elif pool and not browser:
-            ok, reason = False, f"All of Swangz's browsers for {tool['name']} are in use. Try again shortly."
-        elif pool:
+            ok, reason = False, full
+        elif where:
             try:
-                target = gw.workspaces.open({**turn, "workspace": browser}, person)
+                target = gw.workspaces.open(tool, {**turn, "workspace": browser or turn["workspace"]}, person)
+            except workspace.Starting:
+                return _starting_page(h, tool)  # the turn is theirs; this page asks again until it's ready
+            except workspace.Full:
+                ok, reason = False, full
             except workspace.Unavailable as exc:
                 gw.log(f"workspace: {tool['name']} for {person['name']}: {exc}")
                 ok, reason = False, (f"Swangz's shared browser for {tool['name']} isn't answering right now. "
@@ -326,7 +332,8 @@ def launch(h, gw, tool_id):
         if ok and turn:
             gw.audit(person["name"], "took a turn on a shared account", tool["name"],
                      f"until {_clock(gw, turn['expires'])}", ctx.ip)
-        elif turn and fresh:  # the turn was only just made and nobody got in: don't hold the seat
+        elif turn and (fresh or (where == "agent" and not gw.workspaces.has_browser(turn["id"]))):
+            # nobody got in on this turn: don't hold the seat (or a browser) for them
             turns.end(gw.db, tool["id"], person["id"], "system", reason[:200])
             gw.workspaces.soon()
     gw.db.x("INSERT INTO launches(tool_id, person_id, ts, outcome, ip, user_agent) VALUES(?,?,?,?,?,?)",
@@ -340,6 +347,25 @@ def launch(h, gw, tool_id):
 
 def _clock(gw, ts):
     return time.strftime("%H:%M", time.gmtime(ts + gw.settings.tz_offset_minutes * 60))
+
+
+def _starting_page(h, tool):
+    """The person's browser on the workspace server is starting. This page asks /go again every few
+    seconds — a plain refresh, no script — and lands in the browser as soon as it's ready. (Waiting here
+    instead of holding the request open keeps under Netlify's 26-second proxy limit.)"""
+    from .server import CONSOLE_HEADERS
+
+    body = ("<!doctype html><html lang=en><head><meta charset=utf-8>"
+            "<meta name=viewport content='width=device-width, initial-scale=1'>"
+            "<meta http-equiv=refresh content=3><title>Starting your browser · Swangz AI</title>"
+            "<link rel=stylesheet href=/static/tokens.css><link rel=stylesheet href=/static/portal.css></head>"
+            "<body><main class=launch-msg><div class=launch-card>"
+            "<img src=/static/icon.svg alt='' width=40 height=40>"
+            f"<h1>Starting your {html.escape(tool['name'])} browser…</h1>"
+            "<p>It's starting on Swangz's own server and opens here by itself as soon as it's ready — "
+            "usually within half a minute.</p>"
+            "<a class='btn btn--solid' href=/>Back to Swangz AI</a></div></main></body></html>")
+    h.send_bytes(200, body.encode(), "text/html; charset=utf-8", {"Cache-Control": "no-store", **CONSOLE_HEADERS})
 
 
 def _launch_page(h, status, title, text):
