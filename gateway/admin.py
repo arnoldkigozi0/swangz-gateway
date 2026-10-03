@@ -219,6 +219,11 @@ def overview(ctx):
         "live": ctx.gw.live.snapshot(),
         "people_today": people_today, "models_month": models, "clients_month": clients,
         "providers": _providers(ctx),
+        "launches_today": db.scalar("SELECT COUNT(*) FROM launches WHERE ts >= ? AND outcome = 'opened'", (day,)) or 0,
+        "tools_today": db.q(
+            "SELECT t.id, t.name, COUNT(*) AS opens, COUNT(DISTINCT l.person_id) AS people FROM launches l"
+            " JOIN tools t ON t.id = l.tool_id WHERE l.ts >= ? AND l.outcome = 'opened'"
+            " GROUP BY t.id ORDER BY opens DESC LIMIT 8", (day,)),
     }
 
 
@@ -339,7 +344,7 @@ def cut_live(ctx, tid):
 # ---------------------------------------------------------------- people and keys
 
 PERSON_FIELDS = ("name", "email", "department", "title", "daily_budget", "monthly_budget", "allowed_models",
-                 "allowed_services", "notes", "budget_visible")
+                 "allowed_services", "notes", "budget_visible", "access_until")
 
 
 def _person_values(body, partial):
@@ -350,6 +355,9 @@ def _person_values(body, partial):
         v = body[field]
         if field == "budget_visible":
             v = 1 if v else 0
+        elif field == "access_until":
+            # the last day they can use AI tools; access ends at the end of that day
+            v = _date_to_ts(v) + 86400 if v not in (None, "") else None
         elif field in ("daily_budget", "monthly_budget"):
             if v in (None, ""):
                 v = None
@@ -703,13 +711,119 @@ def catalog_list(ctx):
                       " FROM entitlements GROUP BY tool_id"):
         counts[(r["tool_id"], "person")] = r["p"] or 0
         counts[(r["tool_id"], "dept")] = r["d"] or 0
-    tools = [_tool_row(t, subs.get(t["id"]), counts)
-             for t in ctx.db.q("SELECT * FROM tools WHERE archived = 0 ORDER BY category, name")]
+    logos = {r["tool_id"]: r["fetched"] for r in ctx.db.q("SELECT tool_id, fetched FROM tool_icons WHERE ok = 1")}
+    since = time.time() - 30 * 86400
+    use = {r["tool_id"]: r for r in ctx.db.q(
+        "SELECT tool_id, COUNT(*) AS opens, COUNT(DISTINCT person_id) AS people, MAX(ts) AS last FROM launches"
+        " WHERE ts >= ? AND outcome = 'opened' GROUP BY tool_id", (since,))}
+    rows = ctx.db.q("SELECT * FROM tools ORDER BY category, name")
+    tools, removed = [], []
+    for t in rows:
+        row = _tool_row(t, subs.get(t["id"]), counts)
+        row["icon"] = f"/icons/{t['id']}?v={int(logos[t['id']])}" if t["id"] in logos else None
+        u = use.get(t["id"]) or {}
+        row["usage_30d"] = {"opens": u.get("opens", 0), "people": u.get("people", 0), "last": u.get("last")}
+        (removed if t["archived"] else tools).append(row)
     cats = sorted({t["category"] for t in tools})
     paid = sum(1 for t in tools if t["subscription"]["state"] == "active")
     monthly = ctx.db.scalar("SELECT COALESCE(SUM(monthly_cost), 0) FROM subscriptions WHERE state IN ('active','past_due')")
-    return {"tools": tools, "categories": cats, "departments": _departments(ctx.db),
+    return {"tools": tools, "removed": removed, "categories": cats, "departments": _departments(ctx.db),
             "summary": {"total": len(tools), "paid": paid, "monthly_cost": monthly or 0}}
+
+
+@route("GET", r"/tools/(?P<tid>[a-z0-9-]+)/access")
+def tool_access(ctx, tid):
+    """Everyone and every team that holds this tool, with end dates and when each person last opened it."""
+    tool = ctx.db.one("SELECT * FROM tools WHERE id = ?", (tid,))
+    if not tool:
+        raise ApiError(404, "no such tool")
+    people = ctx.db.q(
+        "SELECT p.id, p.name, p.department, p.title, p.status, e.expires, e.granted, e.granted_by,"
+        " (SELECT MAX(ts) FROM launches l WHERE l.person_id = p.id AND l.tool_id = ? AND l.outcome = 'opened') AS last_opened"
+        " FROM people p LEFT JOIN entitlements e ON e.person_id = p.id AND e.tool_id = ?"
+        " ORDER BY e.id IS NULL, p.name COLLATE NOCASE", (tid, tid))
+    teams = {r["department"]: r for r in ctx.db.q(
+        "SELECT department, expires FROM entitlements WHERE tool_id = ? AND department IS NOT NULL", (tid,))}
+    for p in people:
+        p["granted"] = p["granted"] is not None
+        p["team"] = bool(p["department"]) and p["department"] in teams
+    return {"people": people, "teams": [{"name": d, "on": d in teams} for d in _departments(ctx.db)]}
+
+
+@route("GET", r"/launches")
+def list_launches(ctx):
+    """Opens from the portal: who opened which tool, and when."""
+    since = ctx.arg("since", 0.0, float) or (time.time() - 30 * 86400)
+    person = ctx.arg("person", cast=int)
+    rows = ctx.db.q(
+        "SELECT l.id, l.ts, l.outcome, l.ip, l.person_id, p.name AS person, p.department, l.tool_id, t.name AS tool"
+        " FROM launches l LEFT JOIN people p ON p.id = l.person_id LEFT JOIN tools t ON t.id = l.tool_id"
+        " WHERE l.ts >= ?" + (" AND l.person_id = ?" if person else "") + " ORDER BY l.id DESC LIMIT 300",
+        [since] + ([person] if person else []))
+    return {"items": rows}
+
+
+@route("GET", r"/licences")
+def licences(ctx):
+    """What the company pays for, who actually uses it, and where seats are going to waste —
+    so the monthly bill can be matched to real use."""
+    from . import entitle
+
+    db = ctx.db
+    now = time.time()
+    since = now - 30 * 86400
+    _, month = proxy.period_starts(now, ctx.gw.settings.tz_offset_minutes)
+    subs = entitle.subscriptions(db)
+    people = db.q("SELECT * FROM people WHERE status = 'active' ORDER BY name COLLATE NOCASE")
+    last_open = {}
+    for r in db.q("SELECT tool_id, person_id, MAX(ts) AS last FROM launches WHERE outcome = 'opened' GROUP BY tool_id, person_id"):
+        last_open[(r["tool_id"], r["person_id"])] = r["last"]
+    for r in db.q("SELECT tool_id, person_id, MAX(started) AS last FROM site_usage WHERE outcome = 'allowed' GROUP BY tool_id, person_id"):
+        key = (r["tool_id"], r["person_id"])
+        last_open[key] = max(last_open.get(key) or 0, r["last"] or 0)
+    api_use = {}
+    for r in db.q("SELECT person_id, client, provider, MAX(ts) AS last FROM requests WHERE kind NOT IN ('other', 'media-status')"
+                  " AND outcome = 'ok' GROUP BY person_id, client, provider"):
+        api_use.setdefault(r["person_id"], []).append(r)
+    grants = {p["id"]: entitle.person_grants(db, p) for p in people}
+    tools = []
+    for t in db.q("SELECT * FROM tools WHERE archived = 0 ORDER BY name"):
+        sub = subs.get(t["id"]) or {}
+        holders = [p for p in people if t["id"] in grants[p["id"]]]
+        if not holders and sub.get("state") not in ("active", "past_due"):
+            continue
+        def used(p):
+            last = last_open.get((t["id"], p["id"])) or 0
+            for r in api_use.get(p["id"], []):
+                if (t["kind"] == "dev" and r["client"] == {"claude-code": "Claude Code", "codex": "Codex"}.get(t["id"])) \
+                        or (t["kind"] == "api" and r["provider"] == t["provider"]):
+                    last = max(last, r["last"] or 0)
+            return last
+        active = [p for p in holders if used(p) >= since]
+        idle = [{"id": p["id"], "name": p["name"], "last": used(p) or None} for p in holders if used(p) < since]
+        cost = sub.get("monthly_cost") if sub.get("state") in ("active", "past_due") else None
+        tools.append({
+            "id": t["id"], "name": t["name"], "category": t["category"], "kind": t["kind"],
+            "state": sub.get("state", "none"), "plan": sub.get("plan", ""), "seats": sub.get("seats"),
+            "monthly_cost": cost, "renews_on": sub.get("renews_on"),
+            "assigned": len(holders), "active": len(active), "idle": idle,
+            "cost_per_active": (cost / len(active)) if cost and active else None,
+            "over_seats": bool(sub.get("seats")) and len(holders) > (sub.get("seats") or 0),
+        })
+    renewals = [t for t in tools if t["renews_on"] and now <= t["renews_on"] <= now + 30 * 86400]
+    api_month = db.scalar("SELECT COALESCE(SUM(cost), 0) FROM requests WHERE ts >= ?", (month,)) or 0
+    subs_month = sum(t["monthly_cost"] or 0 for t in tools)
+    spend = db.q(
+        "SELECT p.id, p.name, p.department, p.monthly_budget, COALESCE(SUM(r.cost), 0) AS cost FROM people p"
+        " LEFT JOIN requests r ON r.person_id = p.id AND r.ts >= ? GROUP BY p.id ORDER BY cost DESC", (month,))
+    return {
+        "tools": tools, "renewals": sorted(renewals, key=lambda t: t["renews_on"]),
+        "summary": {"subscriptions_month": subs_month, "api_month": api_month, "total_month": subs_month + api_month,
+                    "idle_seats": sum(len(t["idle"]) for t in tools),
+                    "idle_cost": sum((t["monthly_cost"] or 0) / max(t["assigned"], 1) * len(t["idle"])
+                                     for t in tools if t["monthly_cost"])},
+        "people": spend,
+    }
 
 
 def _departments(db):
@@ -717,24 +831,53 @@ def _departments(db):
         "SELECT DISTINCT department FROM people WHERE department != '' ORDER BY department")]
 
 
+def _web(value, what):
+    v = str(value or "").strip()[:500]
+    if v and not v.lower().startswith(("https://", "http://")):
+        raise ApiError(400, f"the {what} must start with https://")
+    return v
+
+
+def _color(value):
+    v = str(value or "").strip()
+    if v and not re.fullmatch(r"#[0-9A-Fa-f]{6}", v):
+        raise ApiError(400, "colour must look like #1B2B4B")
+    return v
+
+
+def _signin(value, kind):
+    from . import catalog
+
+    if value in catalog.SIGNIN:
+        return value
+    return "api" if kind == "dev" else "seat"
+
+
 @route("POST", r"/tools", role="owner")
 def add_tool(ctx):
-    name = str(ctx.body.get("name") or "").strip()
+    from . import catalog, icons
+
+    name = str(ctx.body.get("name") or "").strip()[:80]
     if not name:
         raise ApiError(400, "a tool needs a name")
-    tid = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "tool"
+    tid = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:60] or "tool"
     base, n = tid, 2
     while ctx.db.one("SELECT id FROM tools WHERE id = ?", (tid,)):
         tid = f"{base}-{n}"; n += 1
     kind = ctx.body.get("kind") if ctx.body.get("kind") in ("site", "api", "dev") else "site"
-    hosts = ",".join(_clean_hosts(ctx.body.get("hosts")))
+    url = _web(ctx.body.get("url"), "website")
+    hosts = _clean_hosts(ctx.body.get("hosts")) or catalog.hosts_from_url(url)
     plans = ctx.body.get("plans") if isinstance(ctx.body.get("plans"), list) else []
     ctx.db.x("INSERT INTO tools(id, name, category, kind, provider, url, hosts, pricing_url, entry_usd, plans,"
-             " builtin, created) VALUES(?,?,?,?,?,?,?,?,?,?,0,?)",
-             (tid, name, str(ctx.body.get("category") or "Other")[:40], kind, str(ctx.body.get("provider") or "")[:40],
-              str(ctx.body.get("url") or "")[:300], hosts, str(ctx.body.get("pricing_url") or "")[:300],
-              _money(ctx.body.get("entry_usd")) or 0, json.dumps(plans), time.time()))
+             " builtin, created, signin, launch_url, description, color) VALUES(?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?)",
+             (tid, name, str(ctx.body.get("category") or "Other").strip()[:40] or "Other", kind,
+              str(ctx.body.get("provider") or "")[:40], url, ",".join(hosts),
+              _web(ctx.body.get("pricing_url"), "pricing page"), _money(ctx.body.get("entry_usd")) or 0,
+              json.dumps(plans), time.time(), _signin(ctx.body.get("signin"), kind),
+              _web(ctx.body.get("launch_url"), "sign-in link"), str(ctx.body.get("description") or "").strip()[:200],
+              _color(ctx.body.get("color"))))
     ctx.audit("added a tool to the catalog", name)
+    icons.fetch_soon(ctx.db, tid, ctx.gw.log)
     return {"id": tid}
 
 
@@ -756,9 +899,18 @@ def edit_tool(ctx, tid):
     if not tool:
         raise ApiError(404, "no such tool")
     fields = {}
-    for key in ("name", "category", "url", "pricing_url", "provider"):
+    for key in ("name", "category", "provider", "description"):
         if key in ctx.body:
-            fields[key] = str(ctx.body[key] or "").strip()[:300]
+            fields[key] = str(ctx.body[key] or "").strip()[:200]
+    if "name" in fields and not fields["name"]:
+        raise ApiError(400, "a tool needs a name")
+    for key, what in (("url", "website"), ("pricing_url", "pricing page"), ("launch_url", "sign-in link")):
+        if key in ctx.body:
+            fields[key] = _web(ctx.body[key], what)
+    if "color" in ctx.body:
+        fields["color"] = _color(ctx.body["color"])
+    if "signin" in ctx.body:
+        fields["signin"] = _signin(ctx.body["signin"], tool["kind"])
     if "hosts" in ctx.body:
         fields["hosts"] = ",".join(_clean_hosts(ctx.body["hosts"]))
     if "entry_usd" in ctx.body:
@@ -770,7 +922,53 @@ def edit_tool(ctx, tid):
     if fields:
         ctx.db.x(f"UPDATE tools SET {', '.join(f'{k}=?' for k in fields)} WHERE id = ?", [*fields.values(), tid])
         ctx.audit("edited a tool", tool["name"], json.dumps(fields, default=str))
+        if fields.get("url") and fields["url"] != tool["url"]:
+            from . import icons
+
+            ctx.db.x("DELETE FROM tool_icons WHERE tool_id = ? AND source != 'upload'", (tid,))
+            icons.fetch_soon(ctx.db, tid, ctx.gw.log)
     return {"ok": True}
+
+
+@route("DELETE", r"/tools/(?P<tid>[a-z0-9-]+)", role="owner")
+def delete_tool(ctx, tid):
+    """Delete a tool an admin added. Built-ins can only be removed (archived) and restored."""
+    tool = ctx.db.one("SELECT * FROM tools WHERE id = ?", (tid,))
+    if not tool:
+        raise ApiError(404, "no such tool")
+    if tool["builtin"]:
+        raise ApiError(400, "built-in tools can be removed from the catalog, not deleted")
+    ctx.db.x("DELETE FROM tools WHERE id = ?", (tid,))
+    ctx.audit("deleted a tool", tool["name"])
+    return {"ok": True}
+
+
+@route("PUT", r"/tools/(?P<tid>[a-z0-9-]+)/logo", role="owner")
+def upload_logo(ctx, tid):
+    from . import icons
+
+    tool = ctx.db.one("SELECT name FROM tools WHERE id = ?", (tid,))
+    if not tool:
+        raise ApiError(404, "no such tool")
+    try:
+        ctype, data = icons.from_data_url(ctx.body.get("data"))
+    except ValueError as err:
+        raise ApiError(400, str(err))
+    icons.save(ctx.db, tid, (ctype, data, "upload"))
+    ctx.audit("uploaded a tool logo", tool["name"])
+    return {"ok": True}
+
+
+@route("POST", r"/tools/(?P<tid>[a-z0-9-]+)/logo/refresh", role="owner")
+def refresh_logo(ctx, tid):
+    from . import icons
+
+    tool = ctx.db.one("SELECT * FROM tools WHERE id = ?", (tid,))
+    if not tool:
+        raise ApiError(404, "no such tool")
+    found = icons.fetch(tool)
+    icons.save(ctx.db, tid, found, tool["url"])
+    return {"ok": bool(found)}
 
 
 @route("POST", r"/tools/(?P<tid>[a-z0-9-]+)/(?P<action>archive|restore)", role="owner")
@@ -835,11 +1033,29 @@ def grant_person(ctx, pid, tid):
     tool = ctx.db.one("SELECT name FROM tools WHERE id = ?", (tid,))
     if not person or not tool:
         raise ApiError(404, "no such person or tool")
-    ctx.db.x("INSERT OR IGNORE INTO entitlements(tool_id, person_id, granted, granted_by) VALUES(?,?,?,?)",
-             (tid, int(pid), time.time(), ctx.admin["username"]))
+    until = ctx.body.get("until")
+    expires = _date_to_ts(until) + 86400 if until else None
+    if expires is not None and expires <= time.time():
+        raise ApiError(400, "pick an end date in the future")
+    ctx.db.x("INSERT INTO entitlements(tool_id, person_id, granted, granted_by, expires) VALUES(?,?,?,?,?)"
+             " ON CONFLICT(tool_id, person_id) WHERE person_id IS NOT NULL DO UPDATE SET expires = excluded.expires,"
+             " granted = excluded.granted, granted_by = excluded.granted_by",
+             (tid, int(pid), time.time(), ctx.admin["username"], expires))
     _mark_requests(ctx, tid, int(pid), "granted")
-    ctx.audit("turned a tool on for a person", f"{person['name']} · {tool['name']}")
+    ctx.audit("turned a tool on for a person", f"{person['name']} · {tool['name']}",
+              f"until {str(until)[:10]}" if expires else "")
     return {"ok": True}
+
+
+@route("DELETE", r"/people/(?P<pid>\d+)/tools", role="owner")
+def revoke_all(ctx, pid):
+    """Remove every tool this person was given directly (team grants stay with the team)."""
+    person = ctx.db.one("SELECT name FROM people WHERE id = ?", (int(pid),))
+    if not person:
+        raise ApiError(404, "no such person")
+    n = ctx.db.x("DELETE FROM entitlements WHERE person_id = ?", (int(pid),)).rowcount
+    ctx.audit("removed all tools from a person", person["name"], f"{n} tool(s)")
+    return {"ok": True, "removed": n}
 
 
 @route("DELETE", r"/people/(?P<pid>\d+)/tools/(?P<tid>[a-z0-9-]+)", role="owner")

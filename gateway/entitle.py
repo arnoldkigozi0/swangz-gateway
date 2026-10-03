@@ -11,6 +11,7 @@ assignment alone (and dev tools, like Claude Code, only ever by direct assignmen
 """
 
 import json
+import time
 
 
 def _plans(tool):
@@ -21,11 +22,25 @@ def _plans(tool):
 
 
 def person_grants(db, person):
-    """The set of tool ids this person is assigned, by their own grant or their department's."""
+    """The set of tool ids this person is assigned, by their own grant or their department's.
+    A grant with an end date stops counting once that date has passed."""
     rows = db.q(
-        "SELECT DISTINCT tool_id FROM entitlements WHERE person_id = ? OR (department != '' AND department = ?)",
-        (person["id"], person.get("department") or "\0"))
+        "SELECT DISTINCT tool_id FROM entitlements WHERE (person_id = ? OR (department != '' AND department = ?))"
+        " AND (expires IS NULL OR expires > ?)",
+        (person["id"], person.get("department") or "\0", time.time()))
     return {r["tool_id"] for r in rows}
+
+
+def grant_ends(db, person):
+    """{tool id: when this person's own time-limited grant ends} for grants that have an end date."""
+    return {r["tool_id"]: r["expires"] for r in db.q(
+        "SELECT tool_id, expires FROM entitlements WHERE person_id = ? AND expires IS NOT NULL", (person["id"],))}
+
+
+def access_ended(person):
+    """True once a person's account end date (for a contractor, say) has passed."""
+    until = person.get("access_until") if person else None
+    return bool(until) and until <= time.time()
 
 
 def subscriptions(db):
@@ -39,6 +54,8 @@ def status(tool, assigned, sub, person):
     """
     if person and person.get("status") != "active":
         return "suspended", "Your access is paused."
+    if access_ended(person):
+        return "suspended", "Your access period has ended."
     kind = tool["kind"]
     sub_state = (sub or {}).get("state", "none")
     needs_sub = kind == "site"  # api/dev tools run on the company API key, no per-tool subscription
@@ -67,6 +84,8 @@ def for_person(db, person, include_disabled=True):
         out.append({
             "id": tool["id"], "name": tool["name"], "category": tool["category"], "kind": tool["kind"],
             "url": tool["url"], "pricing_url": tool["pricing_url"], "entry_usd": tool["entry_usd"],
+            "description": tool.get("description") or "", "color": tool.get("color") or "",
+            "signin": tool.get("signin") or "seat", "launchable": bool(tool.get("launch_url") or tool.get("url")),
             "state": state, "reason": reason, "assigned": assigned,
         })
     return out

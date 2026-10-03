@@ -5,7 +5,14 @@ Seeded from the Swangz AI Tracker registry (47 tools) plus the two developer age
   dev  — a developer agent on an API key, available only to people an admin assigns (Claude Code, Codex)
   site — a website staff use directly; the browser access gate enables or blocks it by entitlement
 
-Admins can add more tools at runtime; these are the built-ins (builtin=1) and cannot be deleted.
+Admins can add more tools at runtime. The built-ins (builtin=1) can be removed from the catalog and
+restored, but not deleted outright; tools an admin added can be deleted.
+
+`signin` is how a person gets into the tool when they open it from the portal:
+  sso   — the tool's company plan signs them in with their Swangz (Google Workspace) account
+  seat  — a seat on the company plan, under their own work email (the vendor invites them)
+  own   — they use their own login (free tools)
+  api   — nothing to sign in to: it runs on the company API key through the gateway
 """
 
 import json
@@ -64,6 +71,61 @@ SEED = [
     ["jasper", "Jasper", "Writing", "site", "", "https://www.jasper.ai/", ["jasper.ai"], "https://www.jasper.ai/pricing", 39, [{"name": "Creator", "monthlyUSD": 39, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Pro", "monthlyUSD": 59, "unit": None, "included": None, "unitCostUSD": None}]],
 ]
 
+# one line about each built-in, and a brand colour for its tile when there is no logo yet
+DETAILS = {
+    "chatgpt": ("OpenAI's assistant for writing, research, analysis and images.", "#10A37F"),
+    "claude": ("Anthropic's assistant for writing, analysis and long documents.", "#D97757"),
+    "higgsfield-ai": ("Cinematic AI video and image generation.", "#7FA830"),
+    "elevenlabs": ("Lifelike voice-overs, dubbing and sound effects.", "#5B5B6B"),
+    "claude-code": ("Anthropic's coding agent for the terminal and editor.", "#D97757"),
+    "codex": ("OpenAI's coding agent for the terminal and editor.", "#10A37F"),
+    "social-insider": ("Social media analytics and competitor benchmarks.", "#3B5BDB"),
+    "gemini": ("Google's assistant, connected to Workspace.", "#4285F4"),
+    "make": ("Visual automation across apps and AI services.", "#6D00CC"),
+    "zapier": ("Connect apps and automate workflows with AI steps.", "#FF4F00"),
+    "n8n": ("Workflow automation with AI agents.", "#EA4B71"),
+    "heygen": ("AI avatar videos and video translation.", "#7559FF"),
+    "synthesia": ("Presenter-led AI videos from a script.", "#4C3AE3"),
+    "copilot": ("Microsoft's AI assistant.", "#0078D4"),
+    "cursor": ("The AI-first code editor.", "#3C4A5E"),
+    "canva": ("Design anything, with Magic Studio AI.", "#00A9B0"),
+    "figma-ai": ("AI features inside Figma.", "#A259FF"),
+    "photoshop": ("Photoshop with Generative Fill.", "#1C8FE0"),
+    "adobe-firefly": ("Adobe's generative image and video models.", "#E1251B"),
+    "dall-e": ("OpenAI's image generation.", "#10A37F"),
+    "ideogram": ("Image generation with strong typography.", "#5B3DF5"),
+    "krea": ("Real-time image generation and upscaling.", "#2F6BFF"),
+    "magnific": ("AI upscaling and image enhancement.", "#E8447A"),
+    "midjourney": ("High-end image generation.", "#3A4CC0"),
+    "stable-diffusion": ("Stability AI's open image models.", "#8B5CF6"),
+    "suno": ("Songs and music from a prompt.", "#E8863A"),
+    "udio": ("AI music generation.", "#E84D8A"),
+    "heyeddie": ("From the Swangz AI Tracker registry.", "#4C9A8A"),
+    "airtable-ai": ("AI fields and apps on Airtable data.", "#E0A100"),
+    "loom-ai": ("Screen recordings with AI titles, summaries and edits.", "#625DF5"),
+    "notion-ai": ("Write, summarise and search inside Notion.", "#5A5A55"),
+    "otter-ai": ("Meeting transcription and notes.", "#2E7CF6"),
+    "perplexity": ("Answers with cited sources.", "#20808D"),
+    "kling-ai": ("Text- and image-to-video generation.", "#00A396"),
+    "luma-dream-machine": ("Luma's video generation.", "#6E56CF"),
+    "pika-labs": ("Playful AI video generation and effects.", "#D4A12A"),
+    "runway": ("AI video generation and editing tools.", "#5B5F97"),
+    "seedance": ("ByteDance's video model, on Higgsfield.", "#3EA6FF"),
+    "sora": ("OpenAI's video generation.", "#10A37F"),
+    "adobe-premiere": ("Adobe's video editor, with AI features.", "#7C6CF0"),
+    "capcut": ("Video editing with AI captions and effects.", "#4A4F5A"),
+    "davinci-resolve": ("Editing, colour and audio with Neural Engine AI.", "#E2643B"),
+    "opus-clip": ("Turns long videos into short clips.", "#6C5CE7"),
+    "topaz-video-ai": ("Video upscaling, denoising and frame interpolation.", "#2D9CDB"),
+    "descript": ("Edit audio and video by editing the transcript.", "#0A5DFF"),
+    "copy-ai": ("Marketing copy and go-to-market workflows.", "#6C47FF"),
+    "deepl": ("High-quality translation and writing.", "#0F2B46"),
+    "grammarly": ("Writing assistance and tone checks.", "#15A383"),
+    "jasper": ("Marketing content in your brand voice.", "#FA4028"),
+}
+
+SIGNIN = ("sso", "seat", "own", "api")
+
 FIELDS = ("id", "name", "category", "kind", "provider", "url", "hosts", "pricing_url", "entry_usd", "plans")
 
 
@@ -80,6 +142,38 @@ def seed(db):
                  (d["id"], d["name"], d["category"], d["kind"], d["provider"], d["url"],
                   ",".join(d["hosts"]), d["pricing_url"], d["entry_usd"], json.dumps(d["plans"]), now))
         db.set_setting("catalog_seeded", "1")
+
+
+def refine(db):
+    """Fill in a description and colour for built-ins that have none. Never overwrites an admin's edit."""
+    if db.get_setting("catalog_details") == "1":
+        return
+    with db.tx():
+        for tid, (description, color) in DETAILS.items():
+            db.x("UPDATE tools SET description = ? WHERE id = ? AND description = ''", (description, tid))
+            db.x("UPDATE tools SET color = ? WHERE id = ? AND color = ''", (color, tid))
+        db.set_setting("catalog_details", "1")
+
+
+def launch_target(tool):
+    """Where the portal sends someone who opens this tool: its sign-in link if set, else its website.
+    Only http(s) addresses — anything else (javascript:, data:) is refused."""
+    for candidate in (tool.get("launch_url"), tool.get("url")):
+        candidate = (candidate or "").strip()
+        if candidate.lower().startswith(("https://", "http://")):
+            return candidate
+    return None
+
+
+def hosts_from_url(url):
+    """example.com from https://www.example.com/path — so a new tool is governed without typing domains."""
+    url = (url or "").strip().lower()
+    if not url.startswith(("https://", "http://")):
+        return []
+    host = url.split("://", 1)[1].split("/")[0].split(":")[0]
+    if host.startswith("www."):
+        host = host[4:]
+    return [host] if "." in host else []
 
 
 def host_index(db):

@@ -820,7 +820,7 @@ class HardeningTests(unittest.TestCase):
         status, health = self.rig.api("GET", "/health", who="viewer")
         self.assertEqual(status, 200)
         self.assertTrue(health["ok"])
-        self.assertEqual(health["schema"], 5)
+        self.assertEqual(health["schema"], 6)
         self.assertGreaterEqual(health["uptime_seconds"], 0)
         self.assertTrue(any(p["name"] == "anthropic" for p in health["providers"]))
 

@@ -14,6 +14,7 @@ from gateway.server import make_server
 from .fake_upstream import FakeUpstream
 
 os.environ.setdefault("GATEWAY_ACCESS_LOG", "0")
+os.environ.setdefault("GATEWAY_FETCH_ICONS", "0")  # never reach the internet for logos in tests
 # the stand-in provider leaves sockets for the gateway to close when a stream is cut; that's expected
 warnings.simplefilter("ignore", ResourceWarning)
 

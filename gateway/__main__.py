@@ -115,6 +115,9 @@ def serve(settings):
 
     server, gw = make_server(settings)
     gw.start_maintenance()
+    from . import icons
+
+    icons.start(gw.db, gw.log)  # tool logos for the catalog, fetched once in the background
     configured = [p.name for p in settings.providers.values() if p.api_key()]
     missing = [p.name for p in settings.providers.values() if not p.api_key()]
     gw.log(f"Swangz AI Gateway on {settings.base_url()}  (listening {settings.host}:{settings.port})")

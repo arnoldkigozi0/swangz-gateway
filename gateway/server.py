@@ -11,7 +11,7 @@ import time
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import admin, catalog, pricing, proxy, security, staff, store
+from . import admin, catalog, icons, pricing, proxy, security, staff, store
 from .db import DB
 from .live import Live
 
@@ -35,6 +35,7 @@ class Gateway:
         self.db = DB(settings.db_path)
         pricing.seed(self.db)
         catalog.seed(self.db)
+        catalog.refine(self.db)
         self.live = Live()
         self.pool = proxy.Pool(settings.upstream_timeout)
         self.throttle = security.LoginThrottle()
@@ -74,7 +75,7 @@ class Gateway:
             return None, None
         row = self.db.one(
             "SELECT k.*, p.name AS person_name, p.status AS person_status, p.allowed_models, p.allowed_services,"
-            " p.department, p.daily_budget, p.monthly_budget FROM keys k JOIN people p ON p.id = k.person_id"
+            " p.department, p.daily_budget, p.monthly_budget, p.access_until FROM keys k JOIN people p ON p.id = k.person_id"
             " WHERE k.id = ?",
             (key_id,),
         )
@@ -94,8 +95,8 @@ class Gateway:
         except ValueError:
             return None
         row = self.db.one("SELECT NULL AS id, NULL AS revoked, p.id AS person_id, p.name AS person_name, p.status AS person_status,"
-                          " p.allowed_models, p.allowed_services, p.department, p.daily_budget, p.monthly_budget"
-                          " FROM people p WHERE p.id = ?", (pid,))
+                          " p.allowed_models, p.allowed_services, p.department, p.daily_budget, p.monthly_budget,"
+                          " p.access_until FROM people p WHERE p.id = ?", (pid,))
         return (row, None) if row else None
 
     def dev_tool_gate(self, key, client):
@@ -105,8 +106,9 @@ class Gateway:
         if not tool_id:
             return None
         granted = self.db.one(
-            "SELECT 1 FROM entitlements WHERE tool_id = ? AND (person_id = ? OR (department != '' AND department = ?))",
-            (tool_id, key["person_id"], key.get("department") or "\0"))
+            "SELECT 1 FROM entitlements WHERE tool_id = ? AND (person_id = ? OR (department != '' AND department = ?))"
+            " AND (expires IS NULL OR expires > ?)",
+            (tool_id, key["person_id"], key.get("department") or "\0", time.time()))
         if granted:
             return None
         name = "Claude Code" if tool_id == "claude-code" else "Codex"
@@ -120,6 +122,8 @@ class Gateway:
             return 403, "permission_error", "this key was revoked by an administrator.", "key revoked"
         if key["person_status"] != "active":
             return 403, "permission_error", "your AI access is suspended. Talk to an administrator.", "suspended"
+        if key.get("access_until") and key["access_until"] <= time.time():
+            return 403, "permission_error", "your access period has ended. Talk to an administrator.", "access ended"
         services = [s.strip().lower() for s in (key.get("allowed_services") or "").split(",") if s.strip()]
         if provider is not None and services and provider.name.lower() not in services:
             return 403, "permission_error", f"{provider.label} isn't switched on for you. Talk to an administrator.", "service not allowed"
@@ -259,6 +263,10 @@ class Handler(BaseHTTPRequestHandler):
             provider = self.gw.settings.providers.get(first)
             if provider is not None:
                 return proxy.Call(self.gw, self, provider, "/" + rest if rest else "", query).run()
+            if path.startswith("/go/") and self.command in ("GET", "HEAD"):
+                return staff.launch(self, self.gw, path[len("/go/"):])
+            if path.startswith("/icons/") and self.command in ("GET", "HEAD"):
+                return self.serve_icon(path[len("/icons/"):])
             if path == "/healthz":
                 try:
                     ok = self.gw.db.scalar("SELECT 1") == 1
@@ -351,6 +359,18 @@ class Handler(BaseHTTPRequestHandler):
         # small files; always revalidate so a new release never runs against a stale script
         self.send_bytes(200, data, STATIC_TYPES.get(ext, "application/octet-stream"),
                         {"Cache-Control": "no-cache", **CONSOLE_HEADERS})
+
+    def serve_icon(self, tool_id):
+        """A tool's logo. Not secret — the same picture is on the tool's own website."""
+        row = self.gw.db.one("SELECT data, ctype FROM tool_icons WHERE tool_id = ? AND ok = 1", (tool_id,)) \
+            if re.fullmatch(r"[a-z0-9-]{1,80}", tool_id) else None
+        if not row or not row["data"]:
+            return self.send_bytes(404, b"no logo", "text/plain", {"Cache-Control": "no-store"})
+        ctype = icons.sniff(row["data"]) or "application/octet-stream"
+        headers = {"Cache-Control": "public, max-age=86400", "X-Content-Type-Options": "nosniff",
+                   # an SVG opened on its own must not run anything in this origin
+                   "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"}
+        self.send_bytes(200, bytes(row["data"]), ctype, headers)
 
     def log_message(self, fmt, *args):
         if os.environ.get("GATEWAY_ACCESS_LOG", "1") != "0":

@@ -226,6 +226,37 @@ SCHEMA = [
     CREATE INDEX site_usage_tool ON site_usage(tool_id, started);
     ALTER TABLE people ADD COLUMN budget_visible INTEGER NOT NULL DEFAULT 0;
     """,
+    # v6: launching tools from the portal. How each tool signs people in (company SSO, a company seat
+    # under their work email, their own login, or the company API key), the link the portal opens,
+    # a one-line description, brand colour and logo, time-limited access, and the launch log.
+    """
+    ALTER TABLE tools ADD COLUMN signin TEXT NOT NULL DEFAULT 'seat';
+    ALTER TABLE tools ADD COLUMN launch_url TEXT NOT NULL DEFAULT '';
+    ALTER TABLE tools ADD COLUMN description TEXT NOT NULL DEFAULT '';
+    ALTER TABLE tools ADD COLUMN color TEXT NOT NULL DEFAULT '';
+    UPDATE tools SET signin = 'api' WHERE kind = 'dev';
+    ALTER TABLE entitlements ADD COLUMN expires REAL;
+    ALTER TABLE people ADD COLUMN access_until REAL;
+    CREATE TABLE tool_icons (
+        tool_id TEXT PRIMARY KEY REFERENCES tools(id) ON DELETE CASCADE,
+        data BLOB,
+        ctype TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL DEFAULT '',
+        fetched REAL NOT NULL,
+        ok INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE launches (
+        id INTEGER PRIMARY KEY,
+        tool_id TEXT REFERENCES tools(id) ON DELETE SET NULL,
+        person_id INTEGER REFERENCES people(id) ON DELETE SET NULL,
+        ts REAL NOT NULL,
+        outcome TEXT NOT NULL DEFAULT 'opened',
+        ip TEXT NOT NULL DEFAULT '',
+        user_agent TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX launches_tool ON launches(tool_id, ts);
+    CREATE INDEX launches_person ON launches(person_id, ts);
+    """,
 ]
 
 

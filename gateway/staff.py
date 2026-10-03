@@ -4,6 +4,7 @@ For staff, Swangz AI is simply how they reach AI tools at work. This API only ev
 signed-in person's own profile, budget and keys.
 """
 
+import html
 import http.client
 import json
 import re
@@ -199,8 +200,15 @@ def me(ctx):
     enabled_ids = {t["id"] for t in catalog if t["state"] == "enabled"}
     pending = {r["tool_id"] for r in ctx.db.q(
         "SELECT tool_id FROM access_requests WHERE person_id = ? AND state = 'open'", (p["id"],))}
+    logos = {r["tool_id"]: r["fetched"] for r in ctx.db.q("SELECT tool_id, fetched FROM tool_icons WHERE ok = 1")}
+    opened = {r["tool_id"]: r["last"] for r in ctx.db.q(
+        "SELECT tool_id, MAX(ts) AS last FROM launches WHERE person_id = ? AND outcome = 'opened' GROUP BY tool_id", (p["id"],))}
+    ends = entitle.grant_ends(ctx.db, p)
     for t in catalog:
         t["pending"] = t["id"] in pending
+        t["icon"] = f"/icons/{t['id']}?v={int(logos[t['id']])}" if t["id"] in logos else None
+        t["last_opened"] = opened.get(t["id"])
+        t["ends"] = ends.get(t["id"])
     # connection guides only for the API/dev tools this person is actually entitled to
     guide_provider = {"anthropic", "openai", "elevenlabs", "higgsfield"}
     allow_providers = {row["provider"] for row in ctx.db.q(
@@ -219,6 +227,7 @@ def me(ctx):
         "connect": connect,
         "base_url": ctx.gw.public_url(ctx.h),
         "budget_visible": bool(p["budget_visible"]),
+        "access_until": p.get("access_until"),
     }
     if p["budget_visible"]:
         out["budget"] = {"daily": p["daily_budget"], "monthly": p["monthly_budget"],
@@ -248,6 +257,50 @@ def request_access(ctx, tid):
              (tid, ctx.person["id"], reason, time.time()))
     ctx.gw.audit(ctx.person["name"], "asked for a tool", tool["name"], reason, ctx.ip)
     return {"ok": True}
+
+
+# ---------------------------------------------------------------- opening a tool from the portal
+
+
+def launch(h, gw, tool_id):
+    """/go/<tool>: the portal's Open button. Checks that this person may use the tool right now, logs
+    the launch (who, which tool, when), and sends the browser on to the tool's sign-in link."""
+    from . import catalog, entitle
+
+    ctx = Ctx(h, gw, "")
+    person = current_person(ctx)
+    if not person:
+        return h.send_bytes(302, b"", "text/plain", {"Location": "/", "Cache-Control": "no-store"})
+    tool = gw.db.one("SELECT * FROM tools WHERE id = ? AND archived = 0", (tool_id,)) \
+        if re.fullmatch(r"[a-z0-9-]{1,80}", tool_id) else None
+    if not tool:
+        return _launch_page(h, 404, "That tool isn't in the catalog any more.", "Your admin may have removed it.")
+    ok, state, reason = entitle.is_enabled(gw.db, person, tool)
+    if gw.db.get_setting("paused", "0") == "1":
+        ok, reason = False, "AI access is paused for everyone right now."
+    target = catalog.launch_target(tool)
+    if ok and not target:
+        ok, reason = False, "This tool has no web address yet. Ask your admin."
+    gw.db.x("INSERT INTO launches(tool_id, person_id, ts, outcome, ip, user_agent) VALUES(?,?,?,?,?,?)",
+            (tool["id"], person["id"], time.time(), "opened" if ok else "refused", ctx.ip,
+             (h.headers.get("user-agent") or "")[:200]))
+    if not ok:
+        return _launch_page(h, 403, f"{tool['name']} isn't open to you right now", reason)
+    return h.send_bytes(302, b"", "text/plain", {"Location": target, "Cache-Control": "no-store",
+                                                  "Referrer-Policy": "no-referrer"})
+
+
+def _launch_page(h, status, title, text):
+    from .server import CONSOLE_HEADERS
+
+    body = ("<!doctype html><html lang=en><head><meta charset=utf-8>"
+            "<meta name=viewport content='width=device-width, initial-scale=1'><title>Swangz AI</title>"
+            "<link rel=stylesheet href=/static/tokens.css><link rel=stylesheet href=/static/portal.css></head>"
+            "<body><main class=launch-msg><div class=launch-card>"
+            "<img src=/static/icon.svg alt='' width=40 height=40>"
+            f"<h1>{html.escape(title)}</h1><p>{html.escape(text)}</p>"
+            "<a class='btn btn--solid' href=/>Back to Swangz AI</a></div></main></body></html>")
+    h.send_bytes(status, body.encode(), "text/html; charset=utf-8", {"Cache-Control": "no-store", **CONSOLE_HEADERS})
 
 
 # ---------------------------------------------------------------- the browser access gate
