@@ -9,3 +9,6 @@
 [build]
   publish = "dist"
   command = "bash build-netlify.sh"
+  # Always build. Netlify otherwise cancels a build when this base directory didn't change, but the
+  # pages come from gateway/static, so app changes were never deployed by a push. The build takes seconds.
+  ignore = "exit 1"

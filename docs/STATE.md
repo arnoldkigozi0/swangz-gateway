@@ -85,7 +85,10 @@ the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
   completed. Verified through Netlify: staff + admin password sign-in (cookies survive the proxy),
   Open → tool redirect, Google start → accounts.google.com → back to the Netlify callback.
 - **Fragile until moved to a server:** the tunnel link changes whenever the laptop's tunnel restarts —
-  then update `SWANGZ_GATEWAY` in Netlify and redeploy.
+  then update `SWANGZ_GATEWAY` in Netlify and redeploy. (Oct 3, Windows: `deploy/windows-demo.ps1` does
+  both itself through the Netlify API when `NETLIFY_AUTH_TOKEN` is in the demo `.env`. Also learned that
+  day: Netlify cancelled push builds when `deploy/netlify` didn't change, so app changes never deployed —
+  `netlify.toml` now sets `ignore = "exit 1"`; and the variable only counts once a deploy has used it.)
 
 ### Oct 3, 2026 (third pass) — shared accounts, black theme, tabbed console
 

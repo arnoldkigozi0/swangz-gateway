@@ -5,13 +5,16 @@
 #   powershell -ExecutionPolicy Bypass -File deploy\windows-demo.ps1 -Restart   restart only the gateway (new code,
 #                                                                                new .env) — the tunnel link stays
 #   powershell -ExecutionPolicy Bypass -File deploy\windows-demo.ps1 -Stop      stop it all
+#   powershell -ExecutionPolicy Bypass -File deploy\windows-demo.ps1 -Netlify   point Netlify at the running tunnel again
 #
 # Settings: $HOME\swangz-gateway-demo\.env (copy .env.example). If it sets DEMO_PROVIDER_KEY, the stand-in
 # model (tests\fake_upstream.py --demo on port 18902) is started too, so nothing real is spent.
-# Each start of the tunnel gives a NEW link: put it in Netlify's SWANGZ_GATEWAY and redeploy.
+# Each start of the tunnel gives a NEW link, which the Netlify site must proxy to. With NETLIFY_AUTH_TOKEN
+# in the .env (a Netlify access token), this script sets the site's SWANGZ_GATEWAY to the new link and
+# redeploys by itself; NETLIFY_SITE names the site (default swangz-ai). Without it, do that by hand.
 # Everything runs as hidden background programs, so closing this window doesn't stop them.
 
-param([switch]$Restart, [switch]$Stop)
+param([switch]$Restart, [switch]$Stop, [switch]$Netlify)
 $ErrorActionPreference = 'Stop'
 $Repo = Split-Path -Parent $PSScriptRoot
 $Dir = Join-Path $env:USERPROFILE 'swangz-gateway-demo'
@@ -50,6 +53,45 @@ function Get-Ours {
 
 function Save-Ours($procs) { $procs | ForEach-Object { "$($_.Id) $($_.Role)" } | Set-Content $PidFile }
 
+function Read-Setting($key) {
+    $line = Get-Content $EnvFile | Where-Object { $_ -match "^$key=" } | Select-Object -Last 1
+    if ($line) { return ($line -replace "^$key=", '').Trim().Trim('"') }
+    return ''
+}
+
+# Point the Netlify site at this tunnel link and redeploy it, then check the site reaches the gateway.
+# The token is read from the .env and never printed.
+function Update-Netlify($url) {
+    $token = Read-Setting 'NETLIFY_AUTH_TOKEN'
+    $name = Read-Setting 'NETLIFY_SITE'
+    if (-not $name) { $name = 'swangz-ai' }
+    if (-not $token) {
+        Write-Host "  Netlify -> $name -> Environment variables -> SWANGZ_GATEWAY = that link, then Deploys -> Trigger deploy."
+        return
+    }
+    $api = 'https://api.netlify.com/api/v1'
+    $auth = @{ Authorization = "Bearer $token" }
+    $site = Invoke-RestMethod "$api/sites?filter=all&name=$name" -Headers $auth -TimeoutSec 30 | Where-Object { $_.name -eq $name } | Select-Object -First 1
+    if (-not $site) { throw "No Netlify site called $name for this token." }
+    # PUT replaces the variable's values (PATCH refuses context "all"); scopes are left as they are
+    $body = @{ key = 'SWANGZ_GATEWAY'; values = @(@{ context = 'all'; value = $url }) } | ConvertTo-Json -Depth 4
+    Invoke-RestMethod "$api/accounts/$($site.account_id)/env/SWANGZ_GATEWAY?site_id=$($site.id)" -Method PUT -Headers $auth `
+        -ContentType 'application/json' -Body $body -TimeoutSec 30 | Out-Null
+    $build = Invoke-RestMethod "$api/sites/$($site.id)/builds" -Method POST -Headers $auth -ContentType 'application/json' `
+        -Body '{"clear_cache": true}' -TimeoutSec 30
+    Write-Host "  Netlify: SWANGZ_GATEWAY set, $name is redeploying..."
+    for ($i = 0; $i -lt 50; $i++) {
+        Start-Sleep -Seconds 6
+        $deploy = Invoke-RestMethod "$api/deploys/$($build.deploy_id)" -Headers $auth -TimeoutSec 30
+        if ($deploy.state -in 'ready', 'error') { break }
+    }
+    if ($deploy.state -ne 'ready') { throw "The Netlify deploy did not finish ($($deploy.state)): $($deploy.error_message)" }
+    $live = "https://$name.netlify.app"
+    try { $ok = (Invoke-WebRequest "$live/healthz" -UseBasicParsing -TimeoutSec 25).StatusCode -eq 200 } catch { $ok = $false }
+    if ($ok) { Write-Host "  Live: $live reaches the gateway." }
+    else { Write-Host "  Deployed, but $live doesn't reach the gateway yet - check $Logs\tunnel.log" }
+}
+
 function Start-Gateway($py) {
     $env:GATEWAY_ENV_FILE = $EnvFile
     $p = Start-Process $py -ArgumentList '-m', 'gateway', 'serve' -WorkingDirectory $Repo -WindowStyle Hidden -PassThru `
@@ -69,6 +111,14 @@ $ours = @(Get-Ours)
 if ($Stop) {
     $ours | ForEach-Object { Stop-Process -Id $_.Id -Force -Confirm:$false; Write-Host "stopped $($_.Role)" }
     Remove-Item $PidFile -ErrorAction SilentlyContinue
+    return
+}
+
+if ($Netlify) {
+    $current = (Get-Content (Join-Path $Dir 'tunnel-url.txt') -ErrorAction SilentlyContinue | Select-Object -First 1)
+    if (-not $current -or -not ($ours | Where-Object Role -eq 'tunnel')) { throw 'No tunnel is running - start everything first.' }
+    Write-Host "  Tunnel link:   $current"
+    Update-Netlify $current.Trim()
     return
 }
 
@@ -108,4 +158,4 @@ $url | Set-Content (Join-Path $Dir 'tunnel-url.txt')
 Write-Host ''
 Write-Host "  Tunnel link:   $url"
 Write-Host ''
-Write-Host '  Netlify -> swangz-ai -> Environment variables -> SWANGZ_GATEWAY = that link, then Deploys -> Trigger deploy.'
+Update-Netlify $url

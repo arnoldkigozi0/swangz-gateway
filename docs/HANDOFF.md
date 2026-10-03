@@ -66,8 +66,14 @@ every recorded request. It is one file.
 - **Live:** `https://swangz-ai.netlify.app` (staff) and `/admin` (console). Netlify project
   `swangz-ai` builds from `main`, base directory `deploy/netlify`.
 - **Netlify needs one variable:** `SWANGZ_GATEWAY` = the gateway's https address. It is currently the
-  laptop's Cloudflare quick-tunnel link, **which changes every time the tunnel restarts**. When it
-  changes: Netlify → Site configuration → Environment variables → edit it → Deploys → Trigger deploy.
+  laptop's Cloudflare quick-tunnel link, **which changes every time the tunnel restarts**, and it only
+  takes effect when a deploy runs with it. When it changes: Netlify → Site configuration → Environment
+  variables → edit it → Deploys → Trigger deploy.
+- **On Windows** (since Oct 3) the demo runs from `deploy/windows-demo.ps1`, with its settings in
+  `%USERPROFILE%\swangz-gateway-demo\.env`. With `NETLIFY_AUTH_TOKEN` in that file it updates
+  `SWANGZ_GATEWAY` and redeploys by itself whenever the tunnel link changes; `-Restart` restarts only the
+  gateway and keeps the link. The token gives full access to the Netlify account: it belongs in that
+  file only, and can be revoked under Netlify → User settings → Applications.
 - **Google sign-in** works, in Testing mode, with two test users (`arnoldkigozi0@gmail.com`,
   `webdev02022007@gmail.com`). Publishing it needs the Branding page completed first.
 - **Not done:** real provider keys, and a permanent home for the gateway.

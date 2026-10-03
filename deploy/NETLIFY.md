@@ -28,7 +28,18 @@ AI streams.
    the address is `https://swangz-ai.netlify.app`. (A custom domain works the same way.)
 
 **When the gateway address changes** (the laptop tunnel restarts): Netlify → Project configuration →
-Environment variables → edit `SWANGZ_GATEWAY` → **Deploys → Trigger deploy → Deploy project**.
+Environment variables → edit `SWANGZ_GATEWAY` → **Deploys → Trigger deploy → Deploy project**. The value
+is read **at build time**: changing it does nothing until a deploy has run with it. To check, open the
+deploy's log and find `Built … → gateway <address>`.
+
+On Windows, `deploy/windows-demo.ps1` does this itself when `NETLIFY_AUTH_TOKEN` (a Netlify access
+token) is in the demo's `.env`: every new tunnel link is set as `SWANGZ_GATEWAY` and the site redeployed
+and checked. `-Netlify` re-points the site at the running tunnel. On a server with a fixed address
+(`ai.swangzavenue.com`) none of this is needed — set it once.
+
+`netlify.toml` sets `ignore = "exit 1"`, so every push builds. Without it Netlify cancels a build when
+`deploy/netlify` didn't change ("no content change") — and the pages live in `gateway/static`, so app
+changes were silently never deployed.
 
 No GitHub? Build on the laptop and drag the folder in instead:
 `SWANGZ_GATEWAY=https://<gateway> bash deploy/netlify/build-netlify.sh`, then drag
