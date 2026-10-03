@@ -14,7 +14,7 @@ Two apps on one address, plus a browser extension:
 | Where | What |
 |---|---|
 | `/` | **Swangz AI** — the staff app: a launchpad of the company's AI tools. **Open** goes through `/go/<tool>`, which checks access, logs the launch and sends the person to the tool's company sign-in link (SSO) or website. Studio for voice/image/video; connect coding tools; manage own devices |
-| `/admin` | **Control room** — owners and viewers: live requests and launches, people (budgets, end dates, suspend, remove all tools), the tool catalog (add / edit / remove / delete, logos, sign-in method), who can use each tool (with end dates), subscriptions, **Licences & spend** (seats vs real use, idle seats, renewals), access requests, activity & records, settings, audit log |
+| `/admin` | **Control room** — Live (incl. who holds a shared account), Staff activity (AI requests / tools opened / websites visited), People, Tools, Tool requests, Licences & spend, Settings, Audit log. Dense pages are split with `pageTabs()`, which builds each tab on demand and keeps the chosen one in `?tab=`. |
 | `extension/` | **Swangz AI Access** — a browser extension that governs AI *websites* (ChatGPT, Midjourney, …): opens the ones a person is entitled to, blocks the rest, logs access-level use only |
 
 The core rule everywhere: **a tool is enabled for a person only when the company subscription is
@@ -22,20 +22,33 @@ active AND the person is assigned it** (directly or through their department). A
 on the company key, so they gate on assignment alone; Claude Code and Codex are assignment-only.
 A grant can carry an end date, and a person's whole account can (`access_until`).
 
-**How people get into website tools — deliberately not a shared login.** The company pays one bill;
-each person gets their own seat on the company plan (`signin = seat`) or signs in through the tool's
-single sign-on with their Swangz account (`signin = sso`, with the SSO link as `launch_url`). Do **not**
-build a mechanism that types one shared company login into many people's browsers: most AI vendors'
-terms forbid sharing one account, and they suspend accounts for it. Arnold asked for that once
-(Oct 3, 2026); it was declined and the seat/SSO model was built instead.
+**How people get into website tools.** `tools.signin` is one of:
+
+- `sso` — the tool's single sign-on, with their Swangz Google account (`launch_url` = the SSO link);
+- `seat` — their own seat on the company plan, invited to their work email (Swangz pays one bill);
+- `shared` — **one company account the team takes turns on** (`gateway/turns.py`): the portal hands it
+  to one person at a time for `turn_minutes`, blocks everyone else at the gate, and the extension
+  signs the browser out when the turn ends or Chrome restarts, so vendor credit history can be
+  matched to a person;
+- `own` — their own account, access still gated and logged;
+- `api` — nothing to sign in to; it runs on the company key through the gateway.
+
+**Do not build credential injection** — storing the shared account's password and having the portal or
+extension type it into a tool's login form. Arnold asked twice (Oct 3, 2026). Reasons, in order: the
+password would have to sit in every staff browser where anyone can read it; it breaks on 2FA, captcha
+and bot checks, so it is unreliable the moment a vendor changes a form; vendors' terms forbid one
+account being used by many people and they suspend accounts for it; and it does not actually solve
+the problem he has, which is *attribution*. Turns solve attribution. If asked again, explain turns
+rather than reopening this.
 
 ## Stack and layout
 
 - **Python 3.10+, standard library only.** Nothing to install. One SQLite file (`data/gateway.db`).
 - Front ends are plain JS/CSS on a self-hosted Archivo design system; strict Content-Security-Policy.
-  Design tokens ("Porcelain & Midnight") live in `static/tokens.css`: light porcelain page, white
-  cards, midnight-navy ink and primary, champagne gold accent; a navy (never black) dark theme on
-  `html[data-theme="dark"]`, toggled in both apps and remembered per browser.
+  Design tokens ("Obsidian & Gold") live in `static/tokens.css`: near-black neutral surfaces (no blue
+  cast), champagne gold as the brand, bright mint/sky/coral for states. **Dark is the default**; a
+  light "Porcelain" theme is on `html[data-theme="light"]`, toggled in both apps and remembered per
+  browser. Arnold asked for black over navy on Oct 3, 2026.
 
 ```
 gateway/
@@ -43,12 +56,13 @@ gateway/
   proxy.py      the core: one request from arrival through forward/stream to the record
   parse.py      reads each provider's dialect (Anthropic / OpenAI / ElevenLabs / Higgsfield)
   catalog.py    the 49-tool catalog, descriptions/colours, sign-in methods, launch targets, host matching
+  turns.py      shared company accounts handed out one turn at a time, so their spend has a name on it
   icons.py      tool logos: fetched once server-side (public hosts only, sniffed, size-capped) or uploaded
   entitle.py    who may use which tool, and why (enabled / locked / not_assigned / past_due / suspended)
   store.py      request bodies stored once per message by hash; retention clean-up
   pricing.py    model price table and cost per request
   live.py       requests in flight, and cutting them
-  db.py         SQLite + append-only numbered migrations (currently schema v6)
+  db.py         SQLite + append-only numbered migrations (currently schema v7)
   security.py   key/password hashing, sign-in throttle, per-person rate limiter
   admin.py      control-room API
   staff.py      staff-app API, /go/<tool> launches, Studio, and the browser access gate

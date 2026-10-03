@@ -18,7 +18,7 @@
 .btn:active { transform: translateY(1px); }
 .btn:disabled { opacity: .5; cursor: default; }
 .btn svg { width: 16px; height: 16px; }
-.btn--solid { background: var(--primary); border-color: var(--primary); color: var(--on-primary); box-shadow: 0 1px 2px rgba(17, 26, 46, .18), inset 0 1px 0 rgba(255, 255, 255, .08); }
+.btn--solid { background: var(--primary); border-color: var(--primary); color: var(--on-primary); box-shadow: 0 1px 2px rgba(0, 0, 0, .4), inset 0 1px 0 rgba(255, 255, 255, .16); }
 .btn--solid:hover { background: var(--primary-hi); border-color: var(--primary-hi); }
 .btn--gold { background: var(--accent); border-color: var(--accent); color: #1A1406; }
 .btn--gold:hover { background: #D4AF5C; border-color: #D4AF5C; }
@@ -50,11 +50,11 @@
 .gate { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(400px, .9fr); background: var(--ink-1); }
 .gate-art {
   position: relative; overflow: hidden; padding: var(--s7) var(--gutter); display: flex; flex-direction: column; justify-content: space-between;
-  color: #EEF2F9;
+  color: #F6F6F4;
   background:
-    radial-gradient(900px 520px at 0% 100%, rgba(201, 162, 74, .30), transparent 62%),
-    radial-gradient(700px 480px at 100% 0%, rgba(84, 122, 196, .28), transparent 60%),
-    linear-gradient(160deg, #1B2A4D 0%, #121C33 100%);
+    radial-gradient(880px 520px at 0% 100%, rgba(245, 179, 43, .30), transparent 62%),
+    radial-gradient(680px 460px at 100% 0%, rgba(47, 217, 154, .14), transparent 60%),
+    linear-gradient(160deg, #18181B 0%, #09090A 100%);
 }
 .gate-art::before {
   content: ""; position: absolute; inset: 0; pointer-events: none;
@@ -63,9 +63,9 @@
 }
 .gate-art > * { position: relative; }
 .gate-art .wordmark { color: #fff; }
-.gate-art .wordmark b { color: #E2C27A; }
+.gate-art .wordmark b { color: var(--primary); }
 .gate-title { font-size: var(--t-display); line-height: .98; font-weight: 760; letter-spacing: -.035em; margin: 0 0 var(--s5); max-width: 12ch; }
-.gate-title em { font-style: normal; background: linear-gradient(180deg, #F0D89C, #C9A24A); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.gate-title em { font-style: normal; background: linear-gradient(180deg, #FFD97A, #E0A020); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .gate-lede { font-size: 1.125rem; color: rgba(238, 242, 249, .74); max-width: 44ch; margin: 0; }
 .tool-row { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s6); }
 .tool-row span { border: 1px solid rgba(255, 255, 255, .16); padding: 7px 14px; border-radius: var(--r-full); font-size: var(--t-small); color: rgba(238, 242, 249, .86); background: rgba(255, 255, 255, .06); backdrop-filter: blur(6px); }
@@ -91,7 +91,7 @@
 .me-menu { position: relative; }
 .me-btn { display: inline-flex; align-items: center; gap: var(--s3); background: none; border: 1px solid transparent; padding: 4px 8px 4px 4px; border-radius: var(--r-sm); cursor: pointer; }
 .me-btn:hover { background: var(--ink-3); }
-.avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(140deg, #22345C, #121C33); color: #F0D89C; display: grid; place-items: center; font-weight: 700; font-size: 13px; letter-spacing: .02em; }
+.avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(140deg, #2B2B31, #141417); color: var(--accent-tx); border: 1px solid var(--line-hi); display: grid; place-items: center; font-weight: 700; font-size: 13px; letter-spacing: .02em; }
 .me-name { font-weight: 600; font-size: var(--t-small); }
 .menu { position: absolute; right: 0; top: calc(100% + 8px); min-width: 240px; background: var(--ink-1); border: 1px solid var(--line); border-radius: var(--r-md); box-shadow: var(--shadow-lg); padding: var(--s2); display: none; }
 .menu.open { display: block; animation: pop var(--d-base) var(--e-out); }
@@ -326,3 +326,11 @@ h1, h2, h3 { text-wrap: balance; }
 :root[data-theme="dark"] .btn--google { background: #131314; color: #E3E3E3; border-color: #8E918F; }
 .or { display: flex; align-items: center; gap: var(--s3); color: var(--tx-3); font-size: var(--t-small); }
 .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+/* Shared company accounts, taken a turn at a time */
+.ltile.holding { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
+.ltile.holding::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 35%, transparent); }
+.ltile.busy { opacity: .72; }
+.turn-on { font-size: 11.5px; font-weight: 650; color: var(--ok-hi); }
+.turn-busy { font-size: 11.5px; font-weight: 600; color: var(--warn-hi); }

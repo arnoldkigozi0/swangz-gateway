@@ -5,6 +5,18 @@ routed through the gateway. This company extension governs those sites: it opens
 turned on for a person, shows a clear "not enabled" page for the rest, and keeps an access-level
 record of use.
 
+## Shared company accounts
+
+Some tools are one account the whole team uses. The portal hands those out **a turn at a time**. This
+extension enforces the other half: it lets only the person holding the turn onto the site, and it
+**signs the browser out** of a shared tool when their turn ends, when an admin takes it back, and
+again every time Chrome starts. It does that by clearing that site's cookies and stored data
+(`chrome.browsingData.remove` for the tool's own domains — nothing else is touched).
+
+So re-opening the tool always means going back through Swangz AI, and the next person never inherits
+someone else's session. It also means the vendor's credit history lines up with the turn log: whoever
+held the account at the time spent what was spent.
+
 ## What it records, and what it doesn't
 
 It records only: **which approved tool, who, when, and for how long.** It never reads page content,
@@ -47,6 +59,7 @@ staff get it automatically and can't remove it.
 - `POST /api/extension/login` — sign in, returns the token and the policy text.
 - `GET /api/gate/config` — the governed host list and policy (needs the token).
 - `POST /api/gate/open` — decide allow/block for a host, start a usage record.
+- `GET /api/gate/turns` — which shared tools this person holds, and which to sign out of.
 - `POST /api/gate/close` — end a usage record with the duration.
 - `POST /api/tools/<id>/request` — the "Request access" button.
 
@@ -57,6 +70,6 @@ Admins see the log under **Tools → Website access** in the control room.
 | File | Job |
 |---|---|
 | `manifest.json` | MV3 manifest, permissions |
-| `background.js` | the service worker: host matching, the gate decision, open/close logging |
+| `background.js` | the service worker: host matching, the gate decision, open/close logging, shared-account sign-out |
 | `popup.html` / `popup.js` | sign in, show status and the policy |
 | `blocked.html` / `blocked.js` | the "not enabled for you" page, with Request access |

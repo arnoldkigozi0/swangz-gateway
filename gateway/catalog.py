@@ -12,7 +12,9 @@ restored, but not deleted outright; tools an admin added can be deleted.
   sso   — the tool's company plan signs them in with their Swangz (Google Workspace) account
   seat  — a seat on the company plan, under their own work email (the vendor invites them)
   own   — they use their own login (free tools)
-  api   — nothing to sign in to: it runs on the company API key through the gateway
+  api   — nothing to sign in to: it runs on the company API key
+  shared— ONE company account the team shares. The portal hands it out one turn at a time, so the
+          credits and tokens it burns can be traced to whoever held it. through the gateway
 """
 
 import json
@@ -124,7 +126,7 @@ DETAILS = {
     "jasper": ("Marketing content in your brand voice.", "#FA4028"),
 }
 
-SIGNIN = ("sso", "seat", "own", "api")
+SIGNIN = ("sso", "seat", "own", "api", "shared")
 
 FIELDS = ("id", "name", "category", "kind", "provider", "url", "hosts", "pricing_url", "entry_usd", "plans")
 

@@ -4,8 +4,8 @@ Last updated: 2026-10-03. Read `../CLAUDE.md` first for the overview and convent
 
 ## Where it stands
 
-A working platform, built and tested. **115 unit tests pass** (`python3 -m unittest discover -s tests -t .`).
-Schema is **v6**. Nothing real has been called by a provider yet — there are no company API keys, and
+A working platform, built and tested. **128 unit tests pass** (`python3 -m unittest discover -s tests -t .`).
+Schema is **v7**. Nothing real has been called by a provider yet — there are no company API keys, and
 the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
 
 ### Done and verified
@@ -78,6 +78,28 @@ the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
   `arnold`); the webdev demo staff account has a password. Both live only in the demo database.
 - Not yet done by Arnold: the Netlify site, the Google client, and the three `.env` lines.
 
+### Oct 3, 2026 (third pass) — shared accounts, black theme, tabbed console
+
+- **Shared company accounts, a turn at a time** (`gateway/turns.py`, schema v7). Swangz pays for one
+  account on some tools and everyone uses it, so nobody can tell who burned the credits. A tool set to
+  `signin = 'shared'` is now handed to **one person at a time** (`seats_at_once`) for `turn_minutes`:
+  the portal's Open takes the turn, the browser gate blocks everyone else, staff can hand it back, it
+  expires by itself, and an admin can take it back. Suspending someone ends their turns. Live and the
+  tool sheet show who is on what; `/admin/api/turns` keeps the history. **This is the answer to
+  "who spent the credits" — the vendor's usage at a given hour belongs to whoever held the turn.**
+- **Automatic sign-out** (extension 1.1.0, `browsingData` permission). When a turn ends, when an admin
+  takes it back, and every time **Chrome restarts**, the extension clears that tool's cookies and
+  stored data, so the tool is signed out and the person must come back through the portal. Nothing
+  outside the governed tools' own domains is touched.
+- **"Obsidian & Gold" theme**, now the default: near-black neutral surfaces (no blue cast), champagne
+  gold brand, bright mint/sky/coral states. The light "Porcelain" theme is still there behind the
+  toggle. Arnold asked for black over navy, and for a brighter accent.
+- **The console is tabbed.** `pageTabs()` builds each tab on demand and keeps the choice in `?tab=`.
+  Person → Overview / Tools / Activity / Devices & sign-in / Details. Settings → Access & records /
+  Addresses / Model prices / Console users / Your account. **Staff activity** (renamed from Activity)
+  → AI requests / Tools opened / Websites visited, which is where "what did staff do" now lives.
+  Nav renamed "Requests" → "Tool requests" so the two senses of "request" stop colliding.
+
 ### How it compares (Oct 2026)
 
 | Need | What established products do | Swangz AI |
@@ -87,7 +109,8 @@ the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
 | Turn access on/off, time-limited | Okta/Entra assignments; SCIM deprovisioning | ✅ per person / team, end dates; ❌ no SCIM (vendor seats still removed by hand) |
 | Licence use and waste | Zluri, Torii, Productiv, Zylo | ✅ seats vs use, idle seats, reclaim, renewals; ❌ no vendor API sync or invoice import |
 | AI API gateway with budgets | Portkey, LiteLLM, Cloudflare AI Gateway, Kong AI | ✅ keys, budgets, model rules, live cut-off, full records; ❌ no caching or provider failover |
-| Browser governance for AI sites | Island, LayerX, Microsoft Edge for Business | ✅ extension gate + access-level log; ❌ not a managed browser |
+| Browser governance for AI sites | Island, LayerX, Microsoft Edge for Business | ✅ extension gate + access-level log + sign-out on turn end and browser restart; ❌ not a managed browser |
+| Shared/service accounts | 1Password & Bitwarden shared vaults (fill a team credential) | ✅ turns + auto sign-out give **attribution**, which a shared vault does not; ❌ no credential filling, by decision (see CLAUDE.md) |
 | Audit trail | all of the above | ✅ every admin action, every launch, every API call |
 
 ### Accounts are restricted to Swangz emails
@@ -108,18 +131,21 @@ actions, including opening a record and playing back a generation.
 ## Not built yet (likely next, in rough priority)
 
 1. ~~Google sign-in~~ — built Oct 3 (needs Arnold's Google client to switch on).
-2. **SCIM / vendor seat sync** — when a person is removed here, remove their seat at the vendor too
+2. **Shared-account credit reconciliation** — pull each vendor's own usage/credit history (where it
+   has an API) and line it up with the turn log, so the console can say "Grace: 180 credits" instead
+   of the admin matching timestamps by hand. Turns already make that matching possible.
+3. **SCIM / vendor seat sync** — when a person is removed here, remove their seat at the vendor too
    (ChatGPT Enterprise, Claude for Work, Canva, Figma, Notion… each has an admin API). Today that last
    step is manual.
-3. **Media costs in dollars.** Voice/image/video are currently metered in characters/images, not
+4. **Media costs in dollars.** Voice/image/video are currently metered in characters/images, not
    dollars. Add per-tool media rates (ElevenLabs per 1k characters, Higgsfield per credit/image) and
    compute cost, the way `pricing.py` does for tokens.
-4. **Renewal and spend alerts by email** — renewals in the next 30 days and idle seats are now on the
+5. **Renewal and spend alerts by email** — renewals in the next 30 days and idle seats are now on the
    Licences page; sending them as email/WhatsApp alerts is not built.
-5. **Reports** — spend by person / team / tool over a window, usage trends, exportable CSV.
-6. **Billing-only admin role** — a third tier beyond owner/viewer (needs a migration to relax the
+6. **Reports** — spend by person / team / tool over a window, usage trends, exportable CSV.
+7. **Billing-only admin role** — a third tier beyond owner/viewer (needs a migration to relax the
    `admins.role` CHECK).
-7. **Audit-log filtering** in the admin UI (by actor, action, date).
+8. **Audit-log filtering** in the admin UI (by actor, action, date).
 
 ## Going live for Swangz (operational)
 

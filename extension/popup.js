@@ -23,6 +23,8 @@ async function render() {
       el("div", { class: "status" }, el("span", { class: "dot" }), "Connected to Swangz AI"),
       el("div", { class: "muted" }, st.base),
       el("div", { class: "muted" }, `Guarding ${st.count} AI site${st.count === 1 ? "" : "s"}.`),
+      st.holding ? el("div", { class: "status" }, el("span", { class: "dot" }),
+        `You have ${st.holding} shared company account${st.holding === 1 ? "" : "s"} right now.`) : null,
       st.policy ? el("div", { class: "policy" }, st.policy) : null,
       el("button", { class: "ghost", onclick: async () => { await send({ type: "signout" }); render(); } }, "Sign out"));
     return;

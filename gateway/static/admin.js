@@ -113,6 +113,43 @@
 
   function empty(text) { return el("div", { class: "empty" }, text); }
 
+  /* A page split into tabs. Each tab builds its own content the first time it is opened, so a page
+     only ever loads what is on screen. The chosen tab lives in the URL (?tab=…) so it can be linked
+     and survives a refresh. */
+  function pageTabs(base, params, tabs) {
+    tabs = tabs.filter(Boolean);
+    const body = el("div", { class: "tab-body" });
+    const built = new Map();
+    let current = tabs.some((t) => t[0] === params.get("tab")) ? params.get("tab") : tabs[0][0];
+    const bar = el("div", { class: "ptabs", role: "tablist" });
+
+    function show(id) {
+      current = id;
+      bar.querySelectorAll("button").forEach((b) => {
+        const on = b.dataset.tab === id;
+        b.classList.toggle("on", on);
+        b.setAttribute("aria-selected", on ? "true" : "false");
+      });
+      const keep = new URLSearchParams(location.hash.split("?")[1] || "");
+      keep.set("tab", id);
+      history.replaceState(null, "", base + "?" + keep.toString());
+      if (built.has(id)) { body.replaceChildren(built.get(id)); return; }
+      const holder = el("div");
+      built.set(id, holder);
+      body.replaceChildren(holder);
+      holder.append(el("div", { class: "body hint" }, "Loading…"));
+      Promise.resolve(tabs.find((t) => t[0] === id)[2]())
+        .then((n) => holder.replaceChildren(...[].concat(n).filter(Boolean)))
+        .catch((e) => holder.replaceChildren(el("div", { class: "body err" }, e.message)));
+    }
+
+    bar.replaceChildren(...tabs.map(([id, label, , badge]) => el("button", {
+      type: "button", role: "tab", "data-tab": id, onclick: () => show(id),
+    }, label, badge ? el("span", { class: "tab-count" }, String(badge)) : null)));
+    show(current);
+    return el("div", null, bar, body);
+  }
+
   async function copy(text) {
     try {
       await navigator.clipboard.writeText(text);
@@ -286,10 +323,10 @@
   function applyTheme(t, remember) {
     document.documentElement.dataset.theme = t;
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", t === "dark" ? "#0B1222" : "#F5F3EE");
+    if (meta) meta.setAttribute("content", t === "dark" ? "#0A0A0B" : "#F4F2ED");
     if (remember) { try { localStorage.setItem(THEME_KEY, t); } catch (e) { /* private window: just this visit */ } }
   }
-  (() => { let saved = null; try { saved = localStorage.getItem(THEME_KEY); } catch (e) { /* none */ } applyTheme(saved === "dark" ? "dark" : "light", false); })();
+  (() => { let saved = null; try { saved = localStorage.getItem(THEME_KEY); } catch (e) { /* none */ } applyTheme(saved === "light" ? "light" : "dark", false); })();  // dark is the default
   function themeButton() {
     const b = el("button", { class: "theme-btn", type: "button" });
     const draw = () => {
@@ -309,8 +346,8 @@
     const cls = "logo" + (size ? " " + size : "");
     const mono = () => {
       const box = el("span", { class: cls + " mono", "aria-hidden": "true" }, initials(t.name));
-      const c = /^#[0-9a-f]{6}$/i.test(t.color || "") ? t.color : "#3A4A6B";
-      box.style.background = `linear-gradient(140deg, ${c}, color-mix(in srgb, ${c} 60%, #0B1222))`;
+      const c = /^#[0-9a-f]{6}$/i.test(t.color || "") ? t.color : "#3F3F46";
+      box.style.background = `linear-gradient(140deg, ${c}, color-mix(in srgb, ${c} 55%, #0A0A0B))`;
       return box;
     };
     if (!t.icon) return mono();
@@ -332,6 +369,7 @@
   const SIGNIN = {
     sso: ["Company sign-in (SSO)", "Staff open it signed in with their Swangz work account. Set up single sign-on in the tool's admin settings and paste its sign-in link under Settings."],
     seat: ["Company seat", "Each person has their own seat on the company plan, invited to their work email. Swangz pays one bill for all seats."],
+    shared: ["Shared company account", "One account the whole team uses. The portal hands it out a turn at a time, so whatever credits it burns can be traced to whoever held it, and the browser is signed out when the turn ends."],
     own: ["Own login", "Staff use their own account. Swangz controls access and keeps the record of who opened it."],
     api: ["Company API key", "Runs through this gateway on the company key — there is nothing to sign in to."],
   };
@@ -419,8 +457,8 @@
   }
 
   const NAV = [
-    ["Overview", [["#/", "Live", "live"], ["#/activity", "Activity", "activity"]]],
-    ["Access", [["#/people", "People", "people"], ["#/tools", "Tools", "tools"], ["#/requests", "Requests", "requests"]]],
+    ["Overview", [["#/", "Live", "live"], ["#/activity", "Staff activity", "activity"]]],
+    ["Access", [["#/people", "People", "people"], ["#/tools", "Tools", "tools"], ["#/requests", "Tool requests", "requests"]]],
     ["Money", [["#/licences", "Licences & spend", "licences"]]],
     ["System", [["#/settings", "Settings", "settings"], ["#/audit", "Audit log", "audit"]]],
   ];
@@ -535,6 +573,8 @@
     const models = el("div");
     const tools = el("div");
     const opens = el("div");
+    const sharedBody = el("div");
+    const sharedPanel = panel("Shared company accounts", "who is on one now", sharedBody);
     await toolIndex().catch(() => null);
     app.replaceChildren(frame("Live", null, [
       kpis,
@@ -543,6 +583,7 @@
           panel("Working right now", "streams in flight", liveBody),
           panel("Activity", el("a", { href: "#/activity", class: "btn small" }, "Search everything"), feed)),
         el("div", { class: "grid" },
+          sharedPanel,
           panel("Opened from the portal", "today", opens),
           panel("Today by person", "spend", people),
           panel("This month by model", null, models),
@@ -599,6 +640,19 @@
       while (feed.children.length > 80) feed.lastChild.remove();
     }
 
+    async function loadShared() {
+      const data = await api("GET", "/turns");
+      if (!data.tools.length) { sharedPanel.hidden = true; return; }
+      sharedPanel.hidden = false;
+      sharedBody.replaceChildren(data.now.length
+        ? el("ul", { class: "opens" }, data.now.map((x) => el("li", null,
+          toolLogo(x.tool_id, x.tool, "sm"),
+          el("div", { class: "who-line" }, el("a", { href: "#/people/" + x.person_id }, el("strong", null, x.person)),
+            el("span", { class: "muted" }, " is on "), el("strong", null, x.tool)),
+          el("span", { class: "pill warn nowrap" }, "until " + new Date(x.expires * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })))))
+        : empty(`Nobody is on a shared account. ${data.tools.length} tool(s) are set up this way.`));
+    }
+
     async function loadOpens() {
       const data = await api("GET", "/launches?since=" + (S.overview ? S.overview.day_start : 0));
       opens.replaceChildren(data.items.length ? opensList(data.items.slice(0, 12)) : empty("Nobody has opened a tool from the portal today."));
@@ -609,11 +663,11 @@
       const ov = await refreshOverview();
       if (ov) drawOverview(ov);
       await loadFeed();
-      if (++n % 4 === 0) await loadOpens();
+      if (++n % 4 === 0) await Promise.all([loadOpens(), loadShared()]);
     }
 
     drawOverview(S.overview);
-    await Promise.all([loadFeed(), loadOpens()]);
+    await Promise.all([loadFeed(), loadOpens(), loadShared()]);
     every(2500, tick);
   }
 
@@ -622,9 +676,10 @@
       toolLogo(o.tool_id, o.tool, "sm"),
       el("div", { class: "who-line" },
         noPerson ? el("strong", null, o.tool || "a removed tool")
-          : [el("a", { href: "#/people/" + o.person_id }, el("strong", null, o.person || "Someone")), el("span", { class: "muted" }, " opened "), el("strong", null, o.tool || "a removed tool")],
-        o.outcome === "refused" ? [" ", el("span", { class: "pill bad" }, "refused")] : null),
-      el("span", { class: "hint nowrap", title: fmt.stamp(o.ts) }, fmt.ago(o.ts)))));
+          : [el("a", { href: "#/people/" + o.person_id }, el("strong", null, o.person || "Someone")), el("span", { class: "muted" }, " opened "), el("strong", null, o.tool || "a removed tool")]),
+      el("span", { class: "row nowrap" },
+        o.outcome === "refused" ? el("span", { class: "pill bad" }, "refused") : null,
+        el("span", { class: "hint nowrap", title: fmt.stamp(o.ts) }, fmt.ago(o.ts))))));
   }
 
   function spendBars(rows, name, note) {
@@ -723,14 +778,16 @@
   async function pagePerson(params, id) {
     const p = await api("GET", "/people/" + id);
     const owner = isOwner();
-    const statusPill = p.status === "active" ? el("span", { class: "pill ok" }, "active") : el("span", { class: "pill bad" }, "suspended");
+    const ended = p.access_until && p.access_until <= Date.now() / 1000;
+    const statusPill = p.status !== "active" ? el("span", { class: "pill bad" }, "suspended")
+      : ended ? el("span", { class: "pill bad" }, "access ended") : el("span", { class: "pill ok" }, "active");
     const toggle = owner ? (p.status === "active"
       ? el("button", { class: "btn danger", onclick: () => suspend(true) }, "Suspend access")
       : el("button", { class: "btn primary", onclick: () => suspend(false) }, "Restore access")) : null;
 
     async function suspend(on) {
       if (on) {
-        const ok = await confirmAction(`Suspend ${p.name}?`, "Every key they hold stops working now, and anything they have streaming is cut. You can restore access later.", "Suspend", true);
+        const ok = await confirmAction(`Suspend ${p.name}?`, "Every key they hold stops working now, anything they have streaming is cut, and the portal stops opening tools for them. You can restore access later.", "Suspend", true);
         if (!ok) return;
       }
       try {
@@ -739,25 +796,6 @@
         render();
       } catch (e) { toast(e.message, true); }
     }
-
-    const kpis = el("div", { class: "kpis" },
-      el("div", { class: "kpi" }, el("div", { class: "label" }, "Spent today"), el("div", { class: "value" }, fmt.money(p.today.cost)),
-        el("div", { class: "note" }, p.daily_budget !== null ? `of ${fmt.money(p.daily_budget)} daily budget` : "no daily limit"), p.daily_budget !== null ? bar(p.today.cost, p.daily_budget) : null),
-      el("div", { class: "kpi" }, el("div", { class: "label" }, "Spent this month"), el("div", { class: "value" }, fmt.money(p.month.cost)),
-        el("div", { class: "note" }, p.monthly_budget !== null ? `of ${fmt.money(p.monthly_budget)} monthly budget` : "no monthly limit"), p.monthly_budget !== null ? bar(p.month.cost, p.monthly_budget) : null),
-      el("div", { class: "kpi" }, el("div", { class: "label" }, "Active keys"), el("div", { class: "value" }, String(p.keys.filter((k) => !k.revoked).length)), el("div", { class: "note" }, `${p.keys.length} issued in total`)),
-      el("div", { class: "kpi" }, el("div", { class: "label" }, "Allowed"), el("div", { class: "value", style: null }, p.allowed_models || p.allowed_services ? "limited" : "everything"),
-        el("div", { class: "note" }, [p.allowed_services && "services: " + p.allowed_services, p.allowed_models && "models: " + p.allowed_models].filter(Boolean).join(" · ") || "every service and model")));
-
-    // keys
-    const keyRows = p.keys.length ? el("ul", { class: "keys" }, p.keys.map((k) => el("li", { class: k.revoked ? "revoked" : null },
-      el("div", null,
-        el("strong", null, k.label),
-        el("div", { class: "hint mono" }, k.hint),
-        el("div", { class: "hint" }, (k.created_by === "self" ? `added by them in the app ${fmt.ago(k.created)}` : `issued ${fmt.ago(k.created)}` + (k.created_by ? ` by ${k.created_by}` : "")) + ` · last used ${fmt.ago(k.last_used)}`),
-        k.revoked ? el("div", { class: "hint" }, `revoked ${fmt.ago(k.revoked)}` + (k.revoked_by === "self" ? " by them in the app" : k.revoked_by ? ` by ${k.revoked_by}` : "")) : null),
-      k.revoked ? el("span", { class: "pill bad" }, "revoked")
-        : owner ? el("button", { class: "btn danger small", onclick: () => revoke(k) }, "Revoke") : el("span", { class: "pill ok" }, "active")))) : empty("No keys yet.");
 
     async function revoke(k) {
       const ok = await confirmAction(`Revoke “${k.label}”?`, `${k.hint} stops working immediately, including anything it is streaming right now. This can't be undone — issue a new key instead.`, "Revoke key", true);
@@ -769,63 +807,102 @@
       } catch (e) { toast(e.message, true); }
     }
 
-    // sessions
-    const sessions = p.sessions.length ? el("ul", { class: "feed" }, p.sessions.map((s) => el("li", null,
-      el("a", { class: "item", href: "#/sessions/" + encodeURIComponent(s.session) },
-        el("div", { class: "when", title: fmt.stamp(s.started) }, fmt.when(s.last)),
-        el("div", { class: "what" }, el("div", { class: "line1" }, toolPill(s.client), el("span", { class: "model" }, plural(s.requests, "request"))),
-          s.first_prompt ? el("div", { class: "prompt" }, s.first_prompt) : el("div", { class: "reply" }, "(no typed prompt recorded)")),
-        el("div", { class: "side-meta" }, fmt.money(s.cost)))))) : empty("No sessions yet.");
+    await toolIndex().catch(() => null);
 
-    const recent = el("ul", { class: "feed" });
-    const data = await api("GET", `/requests?person=${p.id}&limit=25`);
-    recent.replaceChildren(...(data.items.length ? data.items.map((r) => feedItem(r, { noPerson: true })) : [el("li", null, empty("Nothing yet."))]));
+    // ---- Overview
+    async function overviewTab() {
+      const kpis = el("div", { class: "kpis" },
+        el("div", { class: "kpi" }, el("div", { class: "label" }, svg(ICON.wallet), "Spent today"), el("div", { class: "value" }, fmt.money(p.today.cost)),
+          el("div", { class: "note" }, p.daily_budget !== null ? `of ${fmt.money(p.daily_budget)} daily budget` : "no daily limit"), p.daily_budget !== null ? bar(p.today.cost, p.daily_budget) : null),
+        el("div", { class: "kpi" }, el("div", { class: "label" }, svg(ICON.wallet), "Spent this month"), el("div", { class: "value" }, fmt.money(p.month.cost)),
+          el("div", { class: "note" }, p.monthly_budget !== null ? `of ${fmt.money(p.monthly_budget)} monthly budget` : "no monthly limit"), p.monthly_budget !== null ? bar(p.month.cost, p.monthly_budget) : null),
+        el("div", { class: "kpi" }, el("div", { class: "label" }, svg(ICON.tools), "Tools ready"), el("div", { class: "value" }, String(p.tool_summary.enabled)),
+          el("div", { class: "note" }, `${p.tool_summary.assigned} assigned to them`)),
+        el("div", { class: "kpi" }, el("div", { class: "label" }, svg(ICON.settings), "Allowed"), el("div", { class: "value", style: null }, p.allowed_models || p.allowed_services ? "limited" : "everything"),
+          el("div", { class: "note" }, [p.allowed_services && "services: " + p.allowed_services, p.allowed_models && "models: " + p.allowed_models].filter(Boolean).join(" · ") || "every service and model")));
+      const live = p.live.length ? panel("Working right now", null, el("div", { class: "live-list" }, p.live.map((t) => el("div", { class: "live-card" },
+        el("div", null, el("div", { class: "row" }, el("span", { class: "dot pulse" }), toolPill(t.client), el("span", { class: "faint mono" }, t.model || "")),
+          t.prompt ? el("div", { class: "p" }, "“" + t.prompt + "”") : null, el("div", { class: "hint" }, fmt.elapsed(t.started))))))) : null;
+      const launches = await api("GET", `/launches?person=${p.id}`);
+      const opensPanel = panel("Tools opened from the portal", "last 30 days",
+        launches.items.length ? opensList(launches.items.slice(0, 10), true) : empty("Hasn't opened a tool from the portal yet."));
+      const sessions = p.sessions.length ? el("ul", { class: "feed" }, p.sessions.slice(0, 8).map((x) => el("li", null,
+        el("a", { class: "item", href: "#/sessions/" + encodeURIComponent(x.session) },
+          el("div", { class: "when", title: fmt.stamp(x.started) }, fmt.when(x.last)),
+          el("div", { class: "what" }, el("div", { class: "line1" }, toolPill(x.client), el("span", { class: "model" }, plural(x.requests, "request"))),
+            x.first_prompt ? el("div", { class: "prompt" }, x.first_prompt) : el("div", { class: "reply" }, "(no typed prompt recorded)")),
+          el("div", { class: "side-meta" }, fmt.money(x.cost)))))) : empty("No sessions yet.");
+      return [kpis, live, el("div", { class: "grid cols-even" }, opensPanel,
+        panel("Recent sessions", "one conversation each", sessions)),
+        p.notes ? panel("Notes", null, el("div", { class: "body" }, longText(p.notes))) : null];
+    }
 
-    let controls = null;
-    if (owner) {
+    // ---- Tools
+    async function toolsTab() {
+      return personToolsPanel(p, owner);
+    }
+
+    // ---- Activity
+    async function activityTab() {
+      const recent = el("ul", { class: "feed" });
+      const data = await api("GET", `/requests?person=${p.id}&limit=40`);
+      recent.replaceChildren(...(data.items.length ? data.items.map((r) => feedItem(r, { noPerson: true })) : [el("li", null, empty("Nothing through the gateway yet."))]));
+      const sessions = p.sessions.length ? el("ul", { class: "feed" }, p.sessions.map((x) => el("li", null,
+        el("a", { class: "item", href: "#/sessions/" + encodeURIComponent(x.session) },
+          el("div", { class: "when", title: fmt.stamp(x.started) }, fmt.when(x.last)),
+          el("div", { class: "what" }, el("div", { class: "line1" }, toolPill(x.client), el("span", { class: "model" }, plural(x.requests, "request"))),
+            x.first_prompt ? el("div", { class: "prompt" }, x.first_prompt) : el("div", { class: "reply" }, "(no typed prompt recorded)")),
+          el("div", { class: "side-meta" }, fmt.money(x.cost)))))) : empty("No sessions yet.");
+      return [
+        panel("Through the gateway", el("a", { class: "btn small", href: `#/activity?tab=ai&person=${p.id}` }, "Search all"), recent),
+        panel("Sessions", "one conversation each — open one to see everything that happened", sessions),
+      ];
+    }
+
+    // ---- Devices & sign-in
+    async function devicesTab() {
+      const keyRows = p.keys.length ? el("ul", { class: "keys" }, p.keys.map((k) => el("li", { class: k.revoked ? "revoked" : null },
+        el("div", null,
+          el("strong", null, k.label),
+          el("div", { class: "hint mono" }, k.hint),
+          el("div", { class: "hint" }, (k.created_by === "self" ? `added by them in the app ${fmt.ago(k.created)}` : `issued ${fmt.ago(k.created)}` + (k.created_by ? ` by ${k.created_by}` : "")) + ` · last used ${fmt.ago(k.last_used)}`),
+          k.revoked ? el("div", { class: "hint" }, `revoked ${fmt.ago(k.revoked)}` + (k.revoked_by === "self" ? " by them in the app" : k.revoked_by ? ` by ${k.revoked_by}` : "")) : null),
+        k.revoked ? el("span", { class: "pill bad" }, "revoked")
+          : owner ? el("button", { class: "btn danger small", onclick: () => revoke(k) }, "Revoke") : el("span", { class: "pill ok" }, "active")))) : empty("No keys yet.");
+      const signInState = { active: "Signs in to the Swangz AI app" + (p.last_login ? ` · last signed in ${fmt.ago(p.last_login)}` : ""),
+        invited: `Sign-in link sent — valid until ${fmt.stamp(p.invite_expires)}`, none: "No app sign-in yet" }[p.sign_in];
+      const signIn = panel("Swangz AI app", null, el("div", { class: "body stack" },
+        el("div", null, signInPill(p.sign_in), " ", el("span", { class: "muted" }, signInState)),
+        el("div", { class: "hint" }, p.email ? `They sign in at ${S.me.base_url}/ with ${p.email}, or with Continue with Google if that email is their Google account.`
+          : "Add their email under Details first — it is what they sign in with."),
+        owner && p.email ? el("div", null, el("button", { class: "btn", onclick: () => inviteLink(p) }, p.sign_in === "active" ? "New sign-in link (reset password)" : "Create sign-in link")) : null));
+      return [signIn, panel("Keys", "one per device or coding tool", keyRows)];
+    }
+
+    // ---- Details
+    async function detailsTab() {
+      if (!owner) return panel("Details", null, el("div", { class: "body hint" }, "Only an owner can change someone's details."));
       const form = personForm(p);
       const err = el("div", { class: "err" });
-      controls = panel("Details and limits", null, el("div", { class: "body stack" }, form.node, err,
+      return panel("Details and limits", null, el("div", { class: "body stack" }, form.node, err,
         el("div", null, el("button", { class: "btn primary", onclick: async () => {
           try { await api("PATCH", "/people/" + p.id, form.values()); toast("Saved."); render(); } catch (e) { err.textContent = e.message; }
         } }, "Save changes"))));
     }
 
-    const live = p.live.length ? panel("Working right now", null, el("div", { class: "live-list" }, p.live.map((t) => el("div", { class: "live-card" },
-      el("div", null, el("div", { class: "row" }, el("span", { class: "dot pulse" }), toolPill(t.client), el("span", { class: "faint mono" }, t.model || "")),
-        t.prompt ? el("div", { class: "p" }, "“" + t.prompt + "”") : null, el("div", { class: "hint" }, fmt.elapsed(t.started))))))) : null;
-
-    const signInState = { active: "Signs in to the Swangz AI app" + (p.last_login ? ` · last signed in ${fmt.ago(p.last_login)}` : ""),
-      invited: `Sign-in link sent — valid until ${fmt.stamp(p.invite_expires)}`, none: "No app sign-in yet" }[p.sign_in];
-    const signIn = panel("Swangz AI app", null, el("div", { class: "body stack" },
-      el("div", null, signInPill(p.sign_in), " ", el("span", { class: "muted" }, signInState)),
-      el("div", { class: "hint" }, p.email ? `They sign in at ${S.me.base_url}/ with ${p.email}. There they connect their own devices and see their allowance — nothing about monitoring.`
-        : "Add their email under Details first — it is what they sign in with."),
-      owner && p.email ? el("div", null, el("button", { class: "btn", onclick: () => inviteLink(p) }, p.sign_in === "active" ? "New sign-in link (reset password)" : "Create sign-in link")) : null));
     const issue = owner && p.status === "active" ? el("button", { class: "btn primary", onclick: () => issueKey(p) }, "Issue a key") : null;
-    await toolIndex().catch(() => null);
-    const toolsPanel = personToolsPanel(p, owner);
-    const launches = await api("GET", `/launches?person=${p.id}`);
-    const opensPanel = panel("Tools opened from the portal", "last 30 days",
-      launches.items.length ? opensList(launches.items.slice(0, 15), true) : empty("Hasn't opened a tool from the portal yet."));
     app.replaceChildren(frame(p.name, el("a", { href: "#/people" }, "People"), [
       el("div", { class: "row", style: null }, statusPill, el("span", { class: "muted" }, [p.title, p.department, p.email].filter(Boolean).join(" · ")),
-        p.access_until ? el("span", { class: "pill " + (p.access_until <= Date.now() / 1000 ? "bad" : "warn") },
-          (p.access_until <= Date.now() / 1000 ? "access ended " : "access until ") + dateText(p.access_until - 86400)) : null),
+        p.access_until ? el("span", { class: "pill " + (ended ? "bad" : "warn") },
+          (ended ? "access ended " : "access until ") + dateText(p.access_until - 86400)) : null),
       el("div", { style: null, class: "spacer" }),
-      kpis,
-      toolsPanel,
-      el("div", { class: "spacer" }),
-      el("div", { class: "grid cols-2" },
-        el("div", { class: "grid" }, live,
-          panel("Sessions", "one conversation each — open one to see everything that happened", sessions),
-          panel("Recent activity", el("a", { class: "btn small", href: `#/activity?person=${p.id}` }, "All activity"), recent)),
-        el("div", { class: "grid" },
-          opensPanel,
-          panel("Keys", "one per device or tool", keyRows),
-          signIn,
-          controls,
-          p.notes && !owner ? panel("Notes", null, el("div", { class: "body" }, longText(p.notes))) : null)),
+      pageTabs("#/people/" + p.id, params, [
+        ["overview", "Overview", overviewTab],
+        ["tools", "Tools", toolsTab, p.tool_summary.enabled],
+        ["activity", "Activity", activityTab],
+        ["devices", "Devices & sign-in", devicesTab],
+        ["details", "Details", detailsTab],
+      ]),
     ], [el("a", { class: "btn", href: gadmin(`/export.csv?person=${p.id}`) }, "Export CSV"), issue, toggle]));
   }
 
@@ -1070,6 +1147,17 @@
   // ------------------------------------------------------------------ Activity (search)
 
   async function pageActivity(params) {
+    await toolIndex().catch(() => null);
+    const exportLink = el("a", { class: "btn", href: gadmin("/export.csv") }, "Export CSV");
+    app.replaceChildren(frame("Staff activity", null, pageTabs("#/activity", params, [
+      ["ai", "AI requests", () => aiRequestsTab(params, exportLink)],
+      ["opens", "Tools opened", () => toolOpensTab()],
+      ["sites", "Websites visited", () => siteVisitsTab()],
+    ]), exportLink));
+  }
+
+  /* Everything that went through the gateway: typed prompts, the commands an agent ran, replies. */
+  async function aiRequestsTab(params, exportLink) {
     const peopleData = await api("GET", "/people");
     const state = {
       q: params.get("q") || "", person: params.get("person") || "", client: params.get("client") || "",
@@ -1086,7 +1174,6 @@
     show.value = params.get("kind") === "media" ? "media" : state.only === "prompts" ? "prompts" : state.flag === "secret" ? "secret" : state.all ? "all" : "";
     const list = el("ul", { class: "feed" });
     const more = el("button", { class: "btn", onclick: () => load(false) }, "Load older");
-    const exportLink = el("a", { class: "btn", href: gadmin("/export.csv") }, "Export CSV");
     let minId = null;
 
     function query() {
@@ -1112,19 +1199,21 @@
       data.items.forEach((r) => list.append(feedItem(r)));
       if (data.items.length) minId = Math.min(...data.items.map((r) => r.id));
       more.hidden = !data.more;
-      exportLink.href = gadmin("/export.csv" + (person.value ? "?person=" + person.value : ""));
+      if (exportLink) exportLink.href = gadmin("/export.csv" + (person.value ? "?person=" + person.value : ""));
     }
 
     let timer = null;
     const apply = () => {
       minId = null;
-      history.replaceState(null, "", "#/activity" + (query().toString() ? "?" + query().toString() : ""));
+      const keep = query();
+      keep.set("tab", "ai");
+      history.replaceState(null, "", "#/activity?" + keep.toString());
       load(true).catch((e) => toast(e.message, true));
     };
     q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(apply, 300); });
-    [person, tool, outcome, show].forEach((s) => s.addEventListener("change", apply));
+    [person, tool, outcome, show].forEach((sel) => sel.addEventListener("change", apply));
 
-    app.replaceChildren(frame("Activity", null, panel("Every request through the gateway", null,
+    const node = panel("Through the gateway", "every API call: who, which tool, the typed prompt, what the agent did, the reply, tokens and cost",
       el("div", { class: "filters" },
         el("label", { class: "field" }, "Search", q),
         el("label", { class: "field" }, "Person", person),
@@ -1132,8 +1221,59 @@
         el("label", { class: "field" }, "Outcome", outcome),
         el("label", { class: "field" }, "Show", show),
         el("div", null)),
-      list, el("div", { class: "body" }, more)), exportLink));
+      list, el("div", { class: "body" }, more));
     await load(true);
+    return node;
+  }
+
+  /* Tools opened from the portal — the Open button on a staff tile. */
+  async function toolOpensTab() {
+    const peopleData = await api("GET", "/people");
+    const person = el("select", null, el("option", { value: "" }, "Everyone"), peopleData.items.map((p) => el("option", { value: String(p.id) }, p.name)));
+    const days = el("select", null, [["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"]].map(([v, t]) => el("option", { value: v }, t)));
+    days.value = "30";
+    const listBox = el("div");
+    async function load() {
+      const since = Date.now() / 1000 - Number(days.value) * 86400;
+      const p = new URLSearchParams({ since: String(since) });
+      if (person.value) p.set("person", person.value);
+      const data = await api("GET", "/launches?" + p.toString());
+      const refused = data.items.filter((o) => o.outcome === "refused").length;
+      listBox.replaceChildren(data.items.length
+        ? el("div", null, refused ? el("div", { class: "body hint" }, `${refused} refused — the person wasn't entitled at that moment.`) : null,
+          opensList(data.items))
+        : empty("No tools opened from the portal in this period."));
+    }
+    [person, days].forEach((sel) => sel.addEventListener("change", () => load().catch((e) => toast(e.message, true))));
+    await load();
+    return panel("Opened from the portal", "who clicked Open on which tool, and when",
+      el("div", { class: "filters filters-3" }, el("label", { class: "field" }, "Person", person), el("label", { class: "field" }, "Period", days), el("div", null)),
+      listBox);
+  }
+
+  /* AI websites staff opened, as recorded by the company browser extension. */
+  async function siteVisitsTab() {
+    const usage = await api("GET", "/site-usage");
+    const summary = usage.by_tool.length ? el("div", { class: "table-wrap" }, el("table", null,
+      el("thead", null, el("tr", null, el("th", null, "Tool"), el("th", { class: "num" }, "Opens"), el("th", { class: "num" }, "Blocked"), el("th", { class: "num" }, "Time"))),
+      el("tbody", null, usage.by_tool.map((t) => el("tr", null,
+        el("td", null, el("div", { class: "tool-cell" }, toolLogo(null, t.tool, "sm"), t.tool || "—")),
+        el("td", { class: "num" }, String(t.opens)),
+        el("td", { class: "num" }, t.blocked ? el("span", { class: "pill bad" }, String(t.blocked)) : el("span", { class: "faint" }, "—")),
+        el("td", { class: "num" }, fmt.dur(t.seconds))))))) : empty("Nothing yet — staff need the browser extension installed.");
+    const rows = usage.items.slice(0, 200).map((v) => el("tr", null,
+      el("td", { class: "nowrap muted", title: fmt.stamp(v.started) }, fmt.when(v.started)),
+      el("td", null, v.person || "—"),
+      el("td", null, el("div", { class: "tool-cell" }, toolLogo(null, v.tool || v.host, "sm"), v.tool || v.host)),
+      el("td", { class: "num" }, v.seconds ? fmt.dur(v.seconds) : "—"),
+      el("td", null, v.outcome === "blocked" ? el("span", { class: "pill bad" }, "blocked") : el("span", { class: "pill ok" }, "allowed"))));
+    return [
+      panel("By tool", "last 30 days", summary),
+      panel("Every visit", "which approved site, who, when, for how long — never page content or anything typed",
+        rows.length ? el("div", { class: "table-wrap" }, el("table", null,
+          el("thead", null, el("tr", null, el("th", null, "When"), el("th", null, "Person"), el("th", null, "Tool"), el("th", { class: "num" }, "Time"), el("th", null, ""))),
+          el("tbody", null, rows))) : empty("No visits recorded yet.")),
+    ];
   }
 
   // ------------------------------------------------------------------ Tools (catalog & subscriptions)
@@ -1306,10 +1446,28 @@
             el("div", { class: "hint" }, [p.department || "No department", p.last_opened ? "opened " + fmt.ago(p.last_opened) : "never opened"].join(" · "))),
           until, btn);
       });
-      rows.forEach((r) => { const m = r.querySelector(".logo"); m.style.background = "linear-gradient(140deg, #22345C, #121C33)"; m.style.color = "#F0D89C"; });
+      rows.forEach((r) => { const m = r.querySelector(".logo"); m.style.background = "linear-gradient(140deg, #2B2B31, #141417)"; m.style.color = "#F0C054"; });
       const locked = t.kind === "site" && t.subscription.state !== "active";
+      let onItNow = null;
+      if (t.signin === "shared") {
+        const all = await api("GET", "/turns");
+        const here = all.now.filter((x) => x.tool_id === t.id);
+        onItNow = el("div", { class: "stack" }, el("h3", { class: "section-title" }, "On the shared account right now"),
+          here.length ? el("div", { class: "assign-list" }, here.map((x) => el("div", { class: "assign-row" },
+            el("span", { class: "logo sm mono" }, initials(x.person)),
+            el("div", { class: "grow" }, el("strong", null, x.person),
+              el("div", { class: "hint" }, "until " + new Date(x.expires * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))),
+            owner ? el("button", { class: "btn small danger", onclick: async () => {
+              try { await api("POST", `/tools/${t.id}/turn/end`, { person_id: x.person_id }); toast("Taken back."); refresh("access"); }
+              catch (e) { toast(e.message, true); }
+            } }, "Take it back") : null)))
+            : el("div", { class: "hint" }, `Nobody is on it. ${t.seats_at_once} person at a time, ${t.turn_minutes} minutes a turn.`));
+        here.forEach(() => {});
+        onItNow.querySelectorAll(".logo").forEach((m) => { m.style.background = "linear-gradient(140deg, #2B2B31, #141417)"; m.style.color = "#F0C054"; });
+      }
       return [
         locked ? el("div", { class: "notice" }, "Staff can't open this until the company subscription is active (Subscription tab).") : null,
+        onItNow,
         el("div", { class: "stack" }, el("h3", { class: "section-title" }, "Whole teams"), teams),
         el("div", { class: "stack" }, el("h3", { class: "section-title" }, "People"),
           el("p", { class: "hint", style: null }, "Turn the tool on per person. Add an end date first to give it for a limited time — access stops after that day."),
@@ -1351,7 +1509,7 @@
     }
 
     async function settingsTab() {
-      const v = t || { name: "", category: "", kind: "site", description: "", url: "", signin: "seat", launch_url: "", hosts: [], color: "#3A4A6B", pricing_url: "" };
+      const v = t || { name: "", category: "", kind: "site", description: "", url: "", signin: "seat", launch_url: "", hosts: [], color: "#3F3F46", pricing_url: "" };
       const cats = Object.values(S.tools || {}).map((x) => x.category);
       const list = el("datalist", { id: "cat-list" }, Array.from(new Set(cats)).sort().map((c) => el("option", { value: c })));
       const f = {
@@ -1363,16 +1521,29 @@
         signin: el("select", null, Object.entries(SIGNIN).map(([k, [l]]) => el("option", { value: k }, l))),
         launch_url: el("input", { type: "url", value: v.launch_url || "", placeholder: "https://… (optional)" }),
         hosts: el("input", { type: "text", value: (v.hosts || []).join(", "), placeholder: "Filled from the website if left empty" }),
-        color: el("input", { type: "color", value: /^#[0-9a-f]{6}$/i.test(v.color || "") ? v.color : "#3A4A6B" }),
+        color: el("input", { type: "color", value: /^#[0-9a-f]{6}$/i.test(v.color || "") ? v.color : "#3F3F46" }),
         pricing_url: el("input", { type: "url", value: v.pricing_url || "", placeholder: "https://…/pricing" }),
+        seats_at_once: el("input", { type: "number", min: "1", max: "50", step: "1", value: String(v.seats_at_once || 1) }),
+        turn_minutes: el("input", { type: "number", min: "5", max: "720", step: "5", value: String(v.turn_minutes || 120) }),
       };
+      const sharing = el("div", { class: "share-box" },
+        el("div", { class: "form-grid" },
+          el("label", { class: "field" }, "People on it at a time", f.seats_at_once,
+            el("span", { class: "hint" }, "Usually 1 — one account, one person.")),
+          el("label", { class: "field" }, "How long a turn lasts (minutes)", f.turn_minutes,
+            el("span", { class: "hint" }, "It ends by itself after this, or when they hand it back."))),
+        el("div", { class: "hint" }, "While someone holds the turn, nobody else can open this tool, and the extension signs their browser out when it ends — so the vendor's credit history can be matched to a person."));
       f.kind.value = v.kind; f.signin.value = v.kind === "dev" ? "api" : (v.signin || "seat");
       const howHint = el("span", { class: "hint" });
-      const drawHow = () => { howHint.textContent = (SIGNIN[f.signin.value] || SIGNIN.seat)[1]; };
+      const drawHow = () => {
+        howHint.textContent = (SIGNIN[f.signin.value] || SIGNIN.seat)[1];
+        sharing.hidden = f.signin.value !== "shared";
+      };
       f.signin.addEventListener("change", drawHow); drawHow();
       const err = el("div", { class: "err" });
       const values = () => ({ name: f.name.value, category: f.category.value, kind: f.kind.value, description: f.description.value, url: f.url.value,
-        signin: f.signin.value, launch_url: f.launch_url.value, hosts: f.hosts.value, color: f.color.value, pricing_url: f.pricing_url.value });
+        signin: f.signin.value, launch_url: f.launch_url.value, hosts: f.hosts.value, color: f.color.value, pricing_url: f.pricing_url.value,
+        seats_at_once: f.seats_at_once.value, turn_minutes: f.turn_minutes.value });
       const save = el("button", { class: "btn primary", onclick: async () => {
         err.textContent = "";
         try {
@@ -1420,6 +1591,7 @@
         el("div", { class: "form-grid" },
           el("label", { class: "field" }, "Website", f.url),
           el("label", { class: "field" }, "How people sign in", f.signin, howHint)),
+        sharing,
         el("label", { class: "field" }, "Company sign-in link", f.launch_url,
           el("span", { class: "hint" }, "Where Open sends people. For single sign-on, paste the tool's SSO link — or the app's link from Google Admin → Apps → Web and mobile apps. Empty = the website.")),
         el("div", { class: "form-grid" },
@@ -1444,7 +1616,7 @@
             t ? el("div", { class: "row", style: null }, subPill(t), el("span", { class: "pill" }, KIND[t.kind] || t.kind)) : null)),
         el("button", { class: "btn small quiet", onclick: close, "aria-label": "Close" }, "Close")),
       tabBar);
-    if (!t) { const m = head.querySelector(".logo"); m.style.background = "linear-gradient(140deg, #22345C, #121C33)"; m.style.color = "#F0D89C"; }
+    if (!t) { const m = head.querySelector(".logo"); m.style.background = "linear-gradient(140deg, #2B2B31, #141417)"; m.style.color = "#F0C054"; }
     node.setAttribute("aria-label", t ? t.name : "Add a tool");
     node.append(head, body);
     drawTabs();
@@ -1536,31 +1708,24 @@
 
   // ------------------------------------------------------------------ Settings
 
-  async function pageSettings() {
-    const [st, prices] = await Promise.all([api("GET", "/settings"), api("GET", "/prices")]);
+  async function pageSettings(params) {
     const owner = isOwner();
-    const admins = owner ? await api("GET", "/admins") : null;
+    app.replaceChildren(frame("Settings", null, pageTabs("#/settings", params, [
+      ["safety", "Access & records", () => safetyTab(owner)],
+      ["addresses", "Addresses", () => addressesTab()],
+      ["prices", "Model prices", () => pricesTab(owner)],
+      owner && ["users", "Console users", () => consoleUsersTab()],
+      ["account", "Your account", () => accountTab()],
+    ])));
+  }
 
+  async function safetyTab(owner) {
+    const st = await api("GET", "/settings");
     const switchPanel = panel("Kill switch", null, el("div", { class: "body spread" },
       el("div", null, el("strong", null, st.paused ? "AI access is paused for everyone." : "AI access is on."),
-        el("div", { class: "hint" }, "Stopping cuts every request in flight and refuses new ones until someone resumes.")),
+        el("div", { class: "hint" }, "Stopping cuts every request in flight, refuses new ones, and closes the portal's Open buttons until someone resumes.")),
       owner ? (st.paused ? el("button", { class: "btn primary", onclick: () => setPaused(false) }, "Resume access")
         : el("button", { class: "btn danger", onclick: () => setPaused(true) }, "Stop all AI")) : null));
-
-    const providerRows = st.providers.map((p) => el("tr", null,
-      el("td", null, el("strong", null, p.label || p.name), el("div", { class: "hint" }, { anthropic: "chat & coding models", openai: "chat & coding models", elevenlabs: "voice & sound",
-        higgsfield: "image & video" }[p.dialect] || "AI service")),
-      el("td", { class: "mono" }, `${st.base_url}/${p.name}` + (p.dialect === "openai" ? "/v1" : "")),
-      el("td", { class: "mono muted" }, p.upstream),
-      el("td", null, p.configured ? el("span", { class: "pill ok" }, "key set")
-        : el("span", null, el("span", { class: "pill bad" }, "off"), el("div", { class: "hint" }, `set ${p.key_env} on the server`)))));
-    const connections = panel("Addresses and providers", "staff tools point at these", el("div", { class: "table-wrap" }, el("table", null,
-      el("thead", null, el("tr", null, el("th", null, "Provider"), el("th", null, "Address for staff tools"), el("th", null, "Forwards to"), el("th", null, "API key"))),
-      el("tbody", null, providerRows))),
-    el("div", { class: "body stack" },
-      el("div", null, el("span", { class: "tag" }, "Staff app  "), el("span", { class: "mono" }, st.base_url + "/"), el("span", { class: "hint" }, "  — where staff sign in and connect their tools")),
-      el("div", null, el("span", { class: "tag" }, "Admin console  "), el("span", { class: "mono" }, st.base_url + "/admin"), el("span", { class: "hint" }, "  — this console; don't share it with staff"))),
-    el("div", { class: "body hint" }, "Provider API keys live only in the server's environment (ANTHROPIC_API_KEY, OPENAI_API_KEY, …). They are never shown here and never leave the server."));
 
     const retention = el("input", { type: "number", min: "0", step: "1", value: String(st.retention_days), disabled: !owner });
     const storeBodies = el("input", { type: "checkbox", checked: st.store_bodies, disabled: !owner });
@@ -1583,40 +1748,62 @@
           toast("Saved.");
         } catch (e) { recErr.textContent = e.message; }
       } }, "Save")) : null));
+    return [switchPanel, records];
+  }
 
+  async function addressesTab() {
+    const st = await api("GET", "/settings");
+    const providerRows = st.providers.map((p) => el("tr", null,
+      el("td", null, el("strong", null, p.label || p.name), el("div", { class: "hint" }, { anthropic: "chat & coding models", openai: "chat & coding models", elevenlabs: "voice & sound",
+        higgsfield: "image & video" }[p.dialect] || "AI service")),
+      el("td", { class: "mono" }, `${st.base_url}/${p.name}` + (p.dialect === "openai" ? "/v1" : "")),
+      el("td", { class: "mono muted" }, p.upstream),
+      el("td", null, p.configured ? el("span", { class: "pill ok" }, "key set")
+        : el("span", null, el("span", { class: "pill bad" }, "off"), el("div", { class: "hint" }, `set ${p.key_env} on the server`)))));
+    return panel("Addresses and providers", "staff tools point at these", el("div", { class: "table-wrap" }, el("table", null,
+      el("thead", null, el("tr", null, el("th", null, "Provider"), el("th", null, "Address for staff tools"), el("th", null, "Forwards to"), el("th", null, "API key"))),
+      el("tbody", null, providerRows))),
+    el("div", { class: "body stack" },
+      el("div", null, el("span", { class: "tag" }, "Staff app  "), el("span", { class: "mono" }, st.base_url + "/"), el("span", { class: "hint" }, "  — where staff sign in and open their tools")),
+      el("div", null, el("span", { class: "tag" }, "Admin console  "), el("span", { class: "mono" }, st.base_url + "/admin"), el("span", { class: "hint" }, "  — this console; don't share it with staff"))),
+    el("div", { class: "body hint" }, "Provider API keys live only in the server's environment (ANTHROPIC_API_KEY, OPENAI_API_KEY, …). They are never shown here and never leave the server."));
+  }
+
+  async function pricesTab(owner) {
+    const prices = await api("GET", "/prices");
     const priceRows = prices.items.map((x) => el("tr", null,
       el("td", { class: "mono" }, x.model), el("td", { class: "num" }, usd(x.input)), el("td", { class: "num" }, usd(x.output)),
       el("td", { class: "num" }, x.cache_write === null ? "—" : usd(x.cache_write)), el("td", { class: "num" }, x.cache_read === null ? "—" : usd(x.cache_read)),
       el("td", { class: "num" }, owner ? el("button", { class: "btn small", onclick: () => editPrice(x) }, "Edit") : null)));
     const unpriced = prices.unpriced_models.length ? el("div", { class: "body" }, el("div", { class: "err" }, "Used but not priced (their cost shows as “unpriced”):"),
       el("div", { class: "row", style: null }, prices.unpriced_models.map((m) => owner ? el("button", { class: "btn small", onclick: () => editPrice({ model: m }) }, "Price " + m) : el("span", { class: "pill warn" }, m)))) : null;
-    const pricePanel = panel("Model prices", "US dollars per million tokens", unpriced, el("div", { class: "table-wrap" }, el("table", null,
+    return panel("Model prices", "US dollars per million tokens", unpriced, el("div", { class: "table-wrap" }, el("table", null,
       el("thead", null, el("tr", null, el("th", null, "Model"), el("th", { class: "num" }, "Input"), el("th", { class: "num" }, "Output"), el("th", { class: "num" }, "Cache write"), el("th", { class: "num" }, "Cache read"), el("th", null, ""))),
       el("tbody", null, priceRows))),
     owner ? el("div", { class: "body" }, el("button", { class: "btn", onclick: () => editPrice({}) }, "Add a model price")) : null);
+  }
 
-    let adminPanel = null;
-    if (admins) {
-      adminPanel = panel("Console users", "owners change things; viewers only look", el("div", { class: "table-wrap" }, el("table", null,
-        el("tbody", null, admins.items.map((a) => el("tr", null,
-          el("td", null, el("strong", null, a.username)), el("td", null, el("span", { class: "pill" }, a.role)),
-          el("td", { class: "muted" }, "last sign-in " + fmt.ago(a.last_login)),
-          el("td", { class: "num" }, a.username === S.me.username ? el("span", { class: "faint" }, "you") : el("button", { class: "btn danger small", onclick: () => removeAdmin(a) }, "Remove"))))))),
-      el("div", { class: "body" }, el("button", { class: "btn", onclick: addAdmin }, "Add a console user")));
-    }
+  async function consoleUsersTab() {
+    const admins = await api("GET", "/admins");
+    return panel("Console users", "owners change things; viewers only look", el("div", { class: "table-wrap" }, el("table", null,
+      el("tbody", null, admins.items.map((a) => el("tr", null,
+        el("td", null, el("div", { class: "person-cell" }, el("span", { class: "avatar" }, initials(a.username)), el("strong", null, a.username))),
+        el("td", null, el("span", { class: "pill" }, a.role)),
+        el("td", { class: "muted" }, "last sign-in " + fmt.ago(a.last_login)),
+        el("td", { class: "num" }, a.username === S.me.username ? el("span", { class: "faint" }, "you") : el("button", { class: "btn danger small", onclick: () => removeAdmin(a) }, "Remove"))))))),
+    el("div", { class: "body" }, el("button", { class: "btn", onclick: addAdmin }, "Add a console user")),
+    el("div", { class: "body hint" }, "A console user whose username is their Google email can also sign in with Continue with Google."));
+  }
 
+  async function accountTab() {
     const cur = el("input", { type: "password", autocomplete: "current-password" });
     const nw = el("input", { type: "password", autocomplete: "new-password" });
     const pwErr = el("div", { class: "err" });
-    const pwPanel = panel("Your password", null, el("div", { class: "body stack" },
+    return panel("Your password", S.me.username, el("div", { class: "body stack" },
       el("div", { class: "form-grid" }, el("label", { class: "field" }, "Current password", cur), el("label", { class: "field" }, "New password (10+ characters)", nw)), pwErr,
-      el("div", null, el("button", { class: "btn", onclick: async () => {
+      el("div", null, el("button", { class: "btn primary", onclick: async () => {
         try { await api("POST", "/password", { current: cur.value, new: nw.value }); toast("Password changed."); cur.value = nw.value = ""; pwErr.textContent = ""; } catch (e) { pwErr.textContent = e.message; }
       } }, "Change password"))));
-
-    app.replaceChildren(frame("Settings", null, el("div", { class: "grid" },
-      el("div", { class: "grid cols-even" }, switchPanel, records), connections, pricePanel,
-      el("div", { class: "grid cols-even" }, adminPanel, pwPanel))));
   }
 
   function editPrice(x) {

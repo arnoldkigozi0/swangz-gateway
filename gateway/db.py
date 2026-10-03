@@ -257,6 +257,24 @@ SCHEMA = [
     CREATE INDEX launches_tool ON launches(tool_id, ts);
     CREATE INDEX launches_person ON launches(person_id, ts);
     """,
+    # v7: tools that are one company account shared by the whole team. Only so many people may hold
+    # it at a time, each for a limited turn, so every credit spent on it has a name against it.
+    """
+    ALTER TABLE tools ADD COLUMN seats_at_once INTEGER NOT NULL DEFAULT 1;
+    ALTER TABLE tools ADD COLUMN turn_minutes INTEGER NOT NULL DEFAULT 120;
+    CREATE TABLE tool_turns (
+        id INTEGER PRIMARY KEY,
+        tool_id TEXT NOT NULL REFERENCES tools(id) ON DELETE CASCADE,
+        person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+        started REAL NOT NULL,
+        expires REAL NOT NULL,
+        ended REAL,
+        ended_by TEXT NOT NULL DEFAULT '',
+        reason TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX tool_turns_open ON tool_turns(tool_id, ended, expires);
+    CREATE INDEX tool_turns_person ON tool_turns(person_id, started);
+    """,
 ]
 
 

@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Swangz AI Access",
-  "version": "1.0.0",
-  "description": "Company access for AI websites: opens the ones Swangz has turned on for you, and keeps a record of which tool you used and for how long. It does not read pages or what you type.",
-  "permissions": ["storage", "tabs", "alarms"],
+  "version": "1.1.0",
+  "description": "Company access for AI websites: opens the ones Swangz has turned on for you, signs you out of shared company accounts when your turn ends or you close Chrome, and records which tool you used and for how long. It does not read pages or what you type.",
+  "permissions": ["storage", "tabs", "alarms", "browsingData"],
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "background.js" },
   "action": { "default_popup": "popup.html", "default_title": "Swangz AI Access" },

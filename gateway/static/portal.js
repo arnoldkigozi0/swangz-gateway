@@ -128,10 +128,10 @@
   function applyTheme(t, remember) {
     document.documentElement.dataset.theme = t;
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", t === "dark" ? "#0B1222" : "#F5F3EE");
+    if (meta) meta.setAttribute("content", t === "dark" ? "#0A0A0B" : "#F4F2ED");
     if (remember) { try { localStorage.setItem(THEME_KEY, t); } catch (e) { /* private window: just this visit */ } }
   }
-  (() => { let saved = null; try { saved = localStorage.getItem(THEME_KEY); } catch (e) { /* none */ } applyTheme(saved === "dark" ? "dark" : "light", false); })();
+  (() => { let saved = null; try { saved = localStorage.getItem(THEME_KEY); } catch (e) { /* none */ } applyTheme(saved === "light" ? "light" : "dark", false); })();  // dark is the default
   function themeButton() {
     const b = el("button", { class: "theme-btn", type: "button" });
     const draw = () => {
@@ -149,8 +149,8 @@
     const cls = "logo" + (size ? " " + size : "");
     const mono = () => {
       const box = el("span", { class: cls + " mono", "aria-hidden": "true" }, initials(t.name));
-      const c = /^#[0-9a-f]{6}$/i.test(t.color || "") ? t.color : "#3A4A6B";
-      box.style.background = `linear-gradient(140deg, ${c}, color-mix(in srgb, ${c} 60%, #0B1222))`;
+      const c = /^#[0-9a-f]{6}$/i.test(t.color || "") ? t.color : "#3F3F46";
+      box.style.background = `linear-gradient(140deg, ${c}, color-mix(in srgb, ${c} 55%, #0A0A0B))`;
       return box;
     };
     if (!t.icon) return mono();
@@ -166,7 +166,9 @@
     seat: ["Company seat", "Your seat on the company plan. Sign in with your work email."],
     own: ["Your own login", "Use your own account for this one."],
     api: ["Company key", "Runs on the company's key — nothing to sign in to."],
+    shared: ["Shared account", "One company account the team takes turns on, so the credits it spends can be traced."],
   };
+  const clock = (ts) => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const dateText = (ts) => new Date(ts * 1000).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
 
   // ------------------------------------------------------------------ Google sign-in
@@ -426,15 +428,35 @@
 
   function launchTile(t) {
     const how = HOW[t.kind === "dev" ? "api" : (t.signin || "seat")] || HOW.seat;
-    return el("article", { class: "ltile" },
+    const busy = t.turn && !t.turn.mine && !t.turn.free;
+    return el("article", { class: "ltile" + (t.turn && t.turn.mine ? " holding" : busy ? " busy" : "") },
       el("div", { class: "ltile-top" }, logo(t), el("div", { class: "grow" }, el("h3", null, t.name), el("div", { class: "cat" }, t.category))),
       el("p", null, t.description || "Ready for you to use at work."),
       el("div", { class: "ltile-foot" },
         el("div", { class: "ltile-meta" },
           el("span", { class: "how", title: how[1] }, svg(ICON.shield), how[0]),
-          t.ends ? el("span", { class: "ends" }, "Until " + dateText(t.ends - 1))
-            : el("span", { class: "when" }, t.kind === "dev" ? "Set up once per device" : t.last_opened ? "Opened " + ago(t.last_opened) : "Not opened yet")),
+          turnLine(t) || (t.ends ? el("span", { class: "ends" }, "Until " + dateText(t.ends - 1))
+            : el("span", { class: "when" }, t.kind === "dev" ? "Set up once per device" : t.last_opened ? "Opened " + ago(t.last_opened) : "Not opened yet"))),
         el("div", { class: "ltile-actions" }, launchActions(t))));
+  }
+
+  function turnLine(t) {
+    const turn = t.turn;
+    if (!turn) return null;
+    if (turn.mine) return el("span", { class: "turn-on" }, "Yours until " + clock(turn.mine.expires));
+    if (turn.others.length) {
+      const soonest = turn.others.slice().sort((a, b) => a.expires - b.expires)[0];
+      return el("span", { class: "turn-busy" }, `${soonest.person} has it until ${clock(soonest.expires)}`);
+    }
+    return el("span", { class: "when" }, `Free — your turn lasts ${turn.minutes} min`);
+  }
+
+  async function handBack(t) {
+    try {
+      await api("POST", `/tools/${t.id}/turn/end`);
+      toast("Handed back. Your browser is being signed out of it.");
+      load();
+    } catch (e) { toast(e.message, true); }
   }
 
   function launchActions(t) {
@@ -449,6 +471,15 @@
     }
     if (t.kind === "dev") {
       return guide ? [el("button", { class: "btn btn--solid btn--small", onclick: () => connect(guide) }, "Set up")] : [el("span", { class: "muted small" }, "Ready")];
+    }
+    if (t.turn) {
+      if (t.turn.mine) {
+        return [el("button", { class: "tlink", onclick: () => handBack(t) }, "Hand back"), openBtn("Open", true)];
+      }
+      if (!t.turn.free) {
+        return [el("button", { class: "btn btn--small", disabled: true, title: "Someone else has the shared account" }, "In use")];
+      }
+      return [openBtn("Take your turn", true)];
     }
     return [guide ? el("button", { class: "tlink", onclick: () => connect(guide) }, "API") : null,
       t.launchable ? openBtn("Open", true) : el("span", { class: "muted small" }, "Ready")];

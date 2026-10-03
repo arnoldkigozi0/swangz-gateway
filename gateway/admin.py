@@ -497,8 +497,11 @@ def suspend_person(ctx, pid, action):
     ctx.db.x("UPDATE people SET status = ? WHERE id = ?", ("suspended" if action == "suspend" else "active", pid))
     cut = 0
     if action == "suspend":
+        from . import turns
+
         cut = ctx.gw.live.cut("this person's AI access was suspended by an administrator.", person_id=pid)
         ctx.db.x("DELETE FROM staff_sessions WHERE person_id = ?", (pid,))
+        turns.end_all_for(ctx.db, pid, ctx.admin["username"], "their access was suspended")
     ctx.audit("suspended a person" if action == "suspend" else "restored a person", person["name"],
               f"{cut} request(s) cut" if cut else "")
     return {"ok": True, "cut": cut}
@@ -707,6 +710,8 @@ def _tool_row(t, sub, counts):
     out["hosts"] = [h for h in (t["hosts"] or "").split(",") if h]
     out["subscription"] = {k: sub[k] for k in ("state", "plan", "seats", "monthly_cost", "renews_on", "note",
                                                "updated", "updated_by")} if sub else {"state": "none"}
+    out["seats_at_once"] = t["seats_at_once"]
+    out["turn_minutes"] = t["turn_minutes"]
     out["assigned_people"] = counts.get((t["id"], "person"), 0)
     out["assigned_teams"] = counts.get((t["id"], "dept"), 0)
     return out
@@ -759,6 +764,37 @@ def tool_access(ctx, tid):
         p["granted"] = p["granted"] is not None
         p["team"] = bool(p["department"]) and p["department"] in teams
     return {"people": people, "teams": [{"name": d, "on": d in teams} for d in _departments(ctx.db)]}
+
+
+@route("GET", r"/turns")
+def list_turns(ctx):
+    """Shared company accounts: who is on each one now, and who has had it recently."""
+    from . import turns
+
+    turns.expire(ctx.db)
+    now = ctx.db.q(
+        "SELECT t.*, p.name AS person, tl.name AS tool FROM tool_turns t JOIN people p ON p.id = t.person_id"
+        " JOIN tools tl ON tl.id = t.tool_id WHERE t.ended IS NULL ORDER BY t.expires")
+    recent = ctx.db.q(
+        "SELECT t.*, p.name AS person, tl.name AS tool FROM tool_turns t JOIN people p ON p.id = t.person_id"
+        " JOIN tools tl ON tl.id = t.tool_id WHERE t.ended IS NOT NULL ORDER BY t.id DESC LIMIT 100")
+    shared = ctx.db.q("SELECT id, name, seats_at_once, turn_minutes FROM tools WHERE signin = 'shared' AND archived = 0 ORDER BY name")
+    return {"now": now, "recent": recent, "tools": shared}
+
+
+@route("POST", r"/tools/(?P<tid>[a-z0-9-]+)/turn/end", role="owner")
+def force_end_turn(ctx, tid):
+    """Take a shared account back from whoever is holding it."""
+    from . import turns
+
+    pid = ctx.body.get("person_id")
+    tool = ctx.db.one("SELECT name FROM tools WHERE id = ?", (tid,))
+    if not tool or not str(pid or "").isdigit():
+        raise ApiError(404, "no such tool or person")
+    person = ctx.db.one("SELECT name FROM people WHERE id = ?", (int(pid),))
+    n = turns.end(ctx.db, tid, int(pid), ctx.admin["username"], str(ctx.body.get("reason") or "an admin took it back")[:200])
+    ctx.audit("took back a shared account", f"{(person or {}).get('name', '?')} · {tool['name']}")
+    return {"ok": True, "ended": n}
 
 
 @route("GET", r"/launches")
@@ -856,6 +892,24 @@ def _color(value):
     return v
 
 
+def _sharing(body):
+    """How many people may hold a shared company account at once, and for how long each turn."""
+    from . import turns
+
+    out = {}
+    if "seats_at_once" in body:
+        try:
+            out["seats_at_once"] = max(1, min(int(body["seats_at_once"] or 1), 50))
+        except (TypeError, ValueError):
+            raise ApiError(400, "people at a time must be a whole number")
+    if "turn_minutes" in body:
+        try:
+            out["turn_minutes"] = max(5, min(int(body["turn_minutes"] or turns.DEFAULT_MINUTES), turns.MAX_MINUTES))
+        except (TypeError, ValueError):
+            raise ApiError(400, "a turn must be a whole number of minutes")
+    return out
+
+
 def _signin(value, kind):
     from . import catalog
 
@@ -887,6 +941,9 @@ def add_tool(ctx):
               json.dumps(plans), time.time(), _signin(ctx.body.get("signin"), kind),
               _web(ctx.body.get("launch_url"), "sign-in link"), str(ctx.body.get("description") or "").strip()[:200],
               _color(ctx.body.get("color"))))
+    share = _sharing(ctx.body)
+    if share:
+        ctx.db.x(f"UPDATE tools SET {', '.join(f'{k}=?' for k in share)} WHERE id = ?", [*share.values(), tid])
     ctx.audit("added a tool to the catalog", name)
     icons.fetch_soon(ctx.db, tid, ctx.gw.log)
     return {"id": tid}
@@ -922,6 +979,7 @@ def edit_tool(ctx, tid):
         fields["color"] = _color(ctx.body["color"])
     if "signin" in ctx.body:
         fields["signin"] = _signin(ctx.body["signin"], tool["kind"])
+    fields.update(_sharing(ctx.body))
     if "hosts" in ctx.body:
         fields["hosts"] = ",".join(_clean_hosts(ctx.body["hosts"]))
     if "entry_usd" in ctx.body:

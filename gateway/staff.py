@@ -190,7 +190,7 @@ def _self_keys_allowed(ctx):
 
 @route("GET", r"/me")
 def me(ctx):
-    from . import entitle
+    from . import entitle, turns
 
     p = ctx.person
     day, month = proxy.period_starts(time.time(), ctx.gw.settings.tz_offset_minutes)
@@ -204,8 +204,10 @@ def me(ctx):
     opened = {r["tool_id"]: r["last"] for r in ctx.db.q(
         "SELECT tool_id, MAX(ts) AS last FROM launches WHERE person_id = ? AND outcome = 'opened' GROUP BY tool_id", (p["id"],))}
     ends = entitle.grant_ends(ctx.db, p)
+    rows = {r["id"]: r for r in ctx.db.q("SELECT * FROM tools WHERE archived = 0")}
     for t in catalog:
         t["pending"] = t["id"] in pending
+        t["turn"] = turns.state_for(ctx.db, rows[t["id"]], p) if t["id"] in rows else None
         t["icon"] = f"/icons/{t['id']}?v={int(logos[t['id']])}" if t["id"] in logos else None
         t["last_opened"] = opened.get(t["id"])
         t["ends"] = ends.get(t["id"])
@@ -259,13 +261,27 @@ def request_access(ctx, tid):
     return {"ok": True}
 
 
+@route("POST", r"/tools/(?P<tid>[a-z0-9-]+)/turn/end")
+def end_turn(ctx, tid):
+    """Hand the shared account back so the next person can have it."""
+    from . import turns
+
+    tool = ctx.db.one("SELECT * FROM tools WHERE id = ?", (tid,))
+    if not tool:
+        raise ApiError(404, "No such tool.")
+    n = turns.end(ctx.db, tid, ctx.person["id"], "self", "handed back")
+    if n:
+        ctx.gw.audit(ctx.person["name"], "handed back a shared account", tool["name"], "", ctx.ip)
+    return {"ok": True, "ended": n, "sign_out_hosts": [h for h in (tool["hosts"] or "").split(",") if h]}
+
+
 # ---------------------------------------------------------------- opening a tool from the portal
 
 
 def launch(h, gw, tool_id):
     """/go/<tool>: the portal's Open button. Checks that this person may use the tool right now, logs
     the launch (who, which tool, when), and sends the browser on to the tool's sign-in link."""
-    from . import catalog, entitle
+    from . import catalog, entitle, turns
 
     ctx = Ctx(h, gw, "")
     person = current_person(ctx)
@@ -281,6 +297,17 @@ def launch(h, gw, tool_id):
     target = catalog.launch_target(tool)
     if ok and not target:
         ok, reason = False, "This tool has no web address yet. Ask your admin."
+    # a shared company account is handed out one turn at a time
+    if ok and turns.is_shared(tool):
+        turn, busy = turns.take(gw.db, tool, person)
+        if not turn:
+            who = ", ".join(t["person"] for t in busy)
+            until = min(t["expires"] for t in busy)
+            ok, reason = False, (f"{who} is using the shared {tool['name']} account until "
+                                 f"{_clock(gw, until)}. You'll get it next — try again then.")
+        else:
+            gw.audit(person["name"], "took a turn on a shared account", tool["name"],
+                     f"until {_clock(gw, turn['expires'])}", ctx.ip)
     gw.db.x("INSERT INTO launches(tool_id, person_id, ts, outcome, ip, user_agent) VALUES(?,?,?,?,?,?)",
             (tool["id"], person["id"], time.time(), "opened" if ok else "refused", ctx.ip,
              (h.headers.get("user-agent") or "")[:200]))
@@ -288,6 +315,10 @@ def launch(h, gw, tool_id):
         return _launch_page(h, 403, f"{tool['name']} isn't open to you right now", reason)
     return h.send_bytes(302, b"", "text/plain", {"Location": target, "Cache-Control": "no-store",
                                                   "Referrer-Policy": "no-referrer"})
+
+
+def _clock(gw, ts):
+    return time.strftime("%H:%M", time.gmtime(ts + gw.settings.tz_offset_minutes * 60))
 
 
 def _launch_page(h, status, title, text):
@@ -348,12 +379,31 @@ def gate_config(ctx):
     return {"hosts": hosts, "policy": _gate_policy(ctx), "base_url": ctx.gw.public_url(ctx.h)}
 
 
+@route("GET", r"/gate/turns")
+def gate_turns(ctx):
+    """Which shared tools this person still holds. The extension signs the browser out of any
+    shared tool they are NOT holding, so the next person never inherits the session."""
+    from . import turns
+
+    mine = turns.held_by(ctx.db, ctx.person["id"])
+    out, drop = [], []
+    for tool in ctx.db.q("SELECT * FROM tools WHERE signin = 'shared' AND archived = 0"):
+        hosts = [h for h in (tool["hosts"] or "").split(",") if h]
+        if not hosts:
+            continue
+        if tool["id"] in mine:
+            out.append({"tool_id": tool["id"], "hosts": hosts, "expires": mine[tool["id"]]["expires"]})
+        else:
+            drop.append({"tool_id": tool["id"], "hosts": hosts})
+    return {"holding": out, "sign_out": drop}
+
+
 @route("POST", r"/gate/open")
 def gate_open(ctx):
     """The person navigated to an AI site. Decide allow/block and start a usage record. No page data."""
     from . import catalog, entitle
 
-    host = str(ctx.body.get("host") or "").strip().lower()[:200]
+    host = str(ctx.body.get("host") or "").strip().lower()[:200]  # noqa: E501
     tool = catalog.match_host(catalog.host_index(ctx.db), host)
     paused = ctx.db.get_setting("paused", "0") == "1"
     if ctx.person["status"] != "active" or paused:
@@ -361,7 +411,14 @@ def gate_open(ctx):
     elif not tool:
         return {"known": False, "allowed": True}  # not an AI tool we govern; the extension does nothing
     else:
+        from . import turns
+
         ok, state, reason = entitle.is_enabled(ctx.db, ctx.person, tool)
+        if ok and turns.is_shared(tool):
+            ok, why = turns.may_open(ctx.db, tool, ctx.person)
+            if not why:
+                why = reason
+            state, reason = ("no_turn" if not ok else state), (why if not ok else reason)
         allowed = ok
     outcome = "allowed" if allowed else "blocked"
     rid = ctx.db.x("INSERT INTO site_usage(tool_id, person_id, host, outcome, started) VALUES(?,?,?,?,?)",
