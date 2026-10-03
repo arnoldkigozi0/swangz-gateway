@@ -190,6 +190,7 @@ def _self_keys_allowed(ctx):
 
 @route("GET", r"/me")
 def me(ctx):
+    from . import catalog as catalog_mod
     from . import entitle, turns
 
     p = ctx.person
@@ -209,6 +210,7 @@ def me(ctx):
         t["pending"] = t["id"] in pending
         t["turn"] = turns.state_for(ctx.db, rows[t["id"]], p) if t["id"] in rows else None
         t["icon"] = f"/icons/{t['id']}?v={int(logos[t['id']])}" if t["id"] in logos else None
+        t["workspace"] = catalog_mod.uses_workspace(rows[t["id"]]) if t["id"] in rows else False
         t["last_opened"] = opened.get(t["id"])
         t["ends"] = ends.get(t["id"])
     # connection guides only for the API/dev tools this person is actually entitled to

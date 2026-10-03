@@ -175,3 +175,32 @@ class AdminTurnTests(TurnBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WorkspaceTests(TurnBase):
+    """A shared account can live in a remote browser on the company's own server."""
+
+    WS = "https://workspace.swangzavenue.com/launch/midjourney"
+
+    def test_open_lands_in_the_workspace_not_the_tool_site(self):
+        self.assertEqual(self.rig.api("PATCH", "/tools/midjourney", {"workspace_url": self.WS})[0], 200)
+        status, h, _ = self.go("midjourney")
+        self.assertEqual((status, h["location"]), (302, self.WS))
+        # and the person is told that is where Open goes
+        me = self.staff("GET", "/me")[1]
+        self.assertTrue(next(t for t in me["catalog"] if t["id"] == "midjourney")["workspace"])
+
+    def test_the_turn_still_decides_who_gets_in(self):
+        self.rig.api("PATCH", "/tools/midjourney", {"workspace_url": self.WS})
+        self.assertEqual(self.go("midjourney")[0], 302)
+        status, _, body = self.go_as_other("midjourney")
+        self.assertEqual(status, 403)
+        self.assertIn("Nansubuga Grace is using the shared Midjourney account", body)
+
+    def test_a_workspace_is_ignored_unless_the_tool_is_shared(self):
+        self.rig.api("PATCH", "/tools/midjourney", {"workspace_url": self.WS, "signin": "seat"})
+        self.assertEqual(self.go("midjourney")[1]["location"], "https://www.midjourney.com/")
+
+    def test_the_address_must_be_a_web_address(self):
+        self.assertEqual(self.rig.api("PATCH", "/tools/midjourney", {"workspace_url": "vnc://10.0.0.5"})[0], 400)
+        self.assertEqual(self.rig.api("PATCH", "/tools/midjourney", {"workspace_url": "javascript:alert(1)"})[0], 400)

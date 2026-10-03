@@ -167,6 +167,7 @@
     own: ["Your own login", "Use your own account for this one."],
     api: ["Company key", "Runs on the company's key — nothing to sign in to."],
     shared: ["Shared account", "One company account the team takes turns on, so the credits it spends can be traced."],
+    workspace: ["Shared workspace", "Opens Swangz's own browser, already signed in to this tool. Your turn, nobody else's."],
   };
   const clock = (ts) => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const dateText = (ts) => new Date(ts * 1000).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
@@ -427,7 +428,7 @@
   }
 
   function launchTile(t) {
-    const how = HOW[t.kind === "dev" ? "api" : (t.signin || "seat")] || HOW.seat;
+    const how = HOW[t.workspace ? "workspace" : t.kind === "dev" ? "api" : (t.signin || "seat")] || HOW.seat;
     const busy = t.turn && !t.turn.mine && !t.turn.free;
     return el("article", { class: "ltile" + (t.turn && t.turn.mine ? " holding" : busy ? " busy" : "") },
       el("div", { class: "ltile-top" }, logo(t), el("div", { class: "grow" }, el("h3", null, t.name), el("div", { class: "cat" }, t.category))),

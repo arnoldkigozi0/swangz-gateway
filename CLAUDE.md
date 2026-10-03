@@ -29,12 +29,18 @@ A grant can carry an end date, and a person's whole account can (`access_until`)
 - `shared` — **one company account the team takes turns on** (`gateway/turns.py`): the portal hands it
   to one person at a time for `turn_minutes`, blocks everyone else at the gate, and the extension
   signs the browser out when the turn ends or Chrome restarts, so vendor credit history can be
-  matched to a person;
+  matched to a person. If `workspace_url` is set, Open sends the turn-holder into the company's own
+  **remote browser** (Kasm/Guacamole/Neko on a Swangz server, signed in once by an admin) instead of
+  the tool's site, so they arrive signed in and never see the password — `deploy/WORKSPACE.md`;
 - `own` — their own account, access still gated and logged;
 - `api` — nothing to sign in to; it runs on the company key through the gateway.
 
 **Do not build credential injection** — storing the shared account's password and having the portal or
-extension type it into a tool's login form. Arnold asked twice (Oct 3, 2026). Reasons, in order: the
+extension type it into a tool's login form. Arnold asked three times (Oct 3, 2026). The third time he
+proposed a remote browser on a VPS instead, which **is** a legitimate answer to "arrive already signed
+in" and is now supported as `workspace_url`: the admin signs that browser in by hand, once, and the
+gateway only ever redirects to it. That is the shape to build. What stays out is the gateway holding
+the password and typing it for people. Reasons, in order: the
 password would have to sit in every staff browser where anyone can read it; it breaks on 2FA, captcha
 and bot checks, so it is unreliable the moment a vendor changes a form; vendors' terms forbid one
 account being used by many people and they suspend accounts for it; and it does not actually solve
@@ -62,7 +68,7 @@ gateway/
   store.py      request bodies stored once per message by hash; retention clean-up
   pricing.py    model price table and cost per request
   live.py       requests in flight, and cutting them
-  db.py         SQLite + append-only numbered migrations (currently schema v7)
+  db.py         SQLite + append-only numbered migrations (currently schema v8)
   security.py   key/password hashing, sign-in throttle, per-person rate limiter
   admin.py      control-room API
   staff.py      staff-app API, /go/<tool> launches, Studio, and the browser access gate
@@ -72,7 +78,7 @@ gateway/
   static/       index.html + portal.* (staff), admin.html + admin.* (console), tokens.css, fonts/
 extension/      the MV3 browser access gate (its own README)
 tests/          unittest suite + fake_upstream.py (a stand-in for every provider)
-deploy/         systemd unit, Caddyfile, laptop-demo.sh
+deploy/         systemd unit, Caddyfile, laptop-demo.sh, NETLIFY.md, WORKSPACE.md
 docs/STATE.md   current status, what's done, what's next  ← read this after this file
 ```
 

@@ -275,6 +275,12 @@ SCHEMA = [
     CREATE INDEX tool_turns_open ON tool_turns(tool_id, ended, expires);
     CREATE INDEX tool_turns_person ON tool_turns(person_id, started);
     """,
+    # v8: a shared account can live in a remote browser workspace on the company's own server, which
+    # the admin signs in once. The portal sends the person holding the turn there instead of to the
+    # tool's own website, so they arrive already signed in and the password never leaves the server.
+    """
+    ALTER TABLE tools ADD COLUMN workspace_url TEXT NOT NULL DEFAULT '';
+    """,
 ]
 
 

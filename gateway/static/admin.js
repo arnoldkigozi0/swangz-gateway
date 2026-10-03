@@ -1404,6 +1404,7 @@
           fact("Monthly cost", sub.monthly_cost != null ? fmt.money(sub.monthly_cost) : "—"),
           fact("Seats", sub.seats ? `${t.assigned_people} given · ${sub.seats} paid` : `${t.assigned_people} given`),
           fact("Opened in 30 days", `${t.usage_30d.opens} times by ${t.usage_30d.people} ${t.usage_30d.people === 1 ? "person" : "people"}`),
+          t.signin === "shared" ? fact("Opens into", t.workspace_url ? "the shared workspace (already signed in)" : "the tool's own site (they sign in)") : null,
           fact("Last opened", t.usage_30d.last ? fmt.ago(t.usage_30d.last) : "not in 30 days")),
         el("div", { class: "stack" }, el("h3", { class: "section-title" }, "How people sign in — " + how[0]), el("p", { class: "hint", style: null }, how[1]),
           t.launch_url ? el("div", { class: "hint" }, "Opens: ", el("span", { class: "mono" }, t.launch_url)) : null,
@@ -1525,6 +1526,7 @@
         pricing_url: el("input", { type: "url", value: v.pricing_url || "", placeholder: "https://…/pricing" }),
         seats_at_once: el("input", { type: "number", min: "1", max: "50", step: "1", value: String(v.seats_at_once || 1) }),
         turn_minutes: el("input", { type: "number", min: "5", max: "720", step: "5", value: String(v.turn_minutes || 120) }),
+        workspace_url: el("input", { type: "url", value: v.workspace_url || "", placeholder: "https://workspace.swangzavenue.com/… (optional)" }),
       };
       const sharing = el("div", { class: "share-box" },
         el("div", { class: "form-grid" },
@@ -1532,7 +1534,9 @@
             el("span", { class: "hint" }, "Usually 1 — one account, one person.")),
           el("label", { class: "field" }, "How long a turn lasts (minutes)", f.turn_minutes,
             el("span", { class: "hint" }, "It ends by itself after this, or when they hand it back."))),
-        el("div", { class: "hint" }, "While someone holds the turn, nobody else can open this tool, and the extension signs their browser out when it ends — so the vendor's credit history can be matched to a person."));
+        el("div", { class: "hint" }, "While someone holds the turn, nobody else can open this tool, and the extension signs their browser out when it ends — so the vendor's credit history can be matched to a person."),
+        el("label", { class: "field" }, "Shared workspace address", f.workspace_url,
+          el("span", { class: "hint" }, "Optional. If Swangz runs a remote browser that is already signed in to this tool, put its address here and Open sends the person holding the turn straight there — signed in, without ever seeing the password. Leave empty and Open goes to the tool's own site, where they sign in themselves. See deploy/WORKSPACE.md.")));
       f.kind.value = v.kind; f.signin.value = v.kind === "dev" ? "api" : (v.signin || "seat");
       const howHint = el("span", { class: "hint" });
       const drawHow = () => {
@@ -1543,7 +1547,7 @@
       const err = el("div", { class: "err" });
       const values = () => ({ name: f.name.value, category: f.category.value, kind: f.kind.value, description: f.description.value, url: f.url.value,
         signin: f.signin.value, launch_url: f.launch_url.value, hosts: f.hosts.value, color: f.color.value, pricing_url: f.pricing_url.value,
-        seats_at_once: f.seats_at_once.value, turn_minutes: f.turn_minutes.value });
+        seats_at_once: f.seats_at_once.value, turn_minutes: f.turn_minutes.value, workspace_url: f.workspace_url.value });
       const save = el("button", { class: "btn primary", onclick: async () => {
         err.textContent = "";
         try {

@@ -158,13 +158,28 @@ def refine(db):
 
 
 def launch_target(tool):
-    """Where the portal sends someone who opens this tool: its sign-in link if set, else its website.
+    """Where the portal sends someone who opens this tool, best first:
+
+      1. the shared workspace — a remote browser on the company's own server that an admin has
+         already signed in to this tool (only for `shared` tools, and only to whoever holds the turn);
+      2. the company sign-in link (SSO);
+      3. the tool's own website.
+
     Only http(s) addresses — anything else (javascript:, data:) is refused."""
-    for candidate in (tool.get("launch_url"), tool.get("url")):
+    candidates = []
+    if (tool.get("signin") or "") == "shared":
+        candidates.append(tool.get("workspace_url"))
+    candidates += [tool.get("launch_url"), tool.get("url")]
+    for candidate in candidates:
         candidate = (candidate or "").strip()
         if candidate.lower().startswith(("https://", "http://")):
             return candidate
     return None
+
+
+def uses_workspace(tool):
+    """True when opening this tool lands the person in the company's remote browser."""
+    return (tool.get("signin") or "") == "shared" and bool((tool.get("workspace_url") or "").strip())
 
 
 def hosts_from_url(url):

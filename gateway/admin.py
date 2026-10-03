@@ -710,6 +710,7 @@ def _tool_row(t, sub, counts):
     out["hosts"] = [h for h in (t["hosts"] or "").split(",") if h]
     out["subscription"] = {k: sub[k] for k in ("state", "plan", "seats", "monthly_cost", "renews_on", "note",
                                                "updated", "updated_by")} if sub else {"state": "none"}
+    out["workspace_url"] = t["workspace_url"]
     out["seats_at_once"] = t["seats_at_once"]
     out["turn_minutes"] = t["turn_minutes"]
     out["assigned_people"] = counts.get((t["id"], "person"), 0)
@@ -941,6 +942,9 @@ def add_tool(ctx):
               json.dumps(plans), time.time(), _signin(ctx.body.get("signin"), kind),
               _web(ctx.body.get("launch_url"), "sign-in link"), str(ctx.body.get("description") or "").strip()[:200],
               _color(ctx.body.get("color"))))
+    if ctx.body.get("workspace_url"):
+        ctx.db.x("UPDATE tools SET workspace_url = ? WHERE id = ?",
+                 (_web(ctx.body.get("workspace_url"), "workspace address"), tid))
     share = _sharing(ctx.body)
     if share:
         ctx.db.x(f"UPDATE tools SET {', '.join(f'{k}=?' for k in share)} WHERE id = ?", [*share.values(), tid])
@@ -972,7 +976,8 @@ def edit_tool(ctx, tid):
             fields[key] = str(ctx.body[key] or "").strip()[:200]
     if "name" in fields and not fields["name"]:
         raise ApiError(400, "a tool needs a name")
-    for key, what in (("url", "website"), ("pricing_url", "pricing page"), ("launch_url", "sign-in link")):
+    for key, what in (("url", "website"), ("pricing_url", "pricing page"), ("launch_url", "sign-in link"),
+                      ("workspace_url", "workspace address")):
         if key in ctx.body:
             fields[key] = _web(ctx.body[key], what)
     if "color" in ctx.body:

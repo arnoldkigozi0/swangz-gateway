@@ -4,8 +4,8 @@ Last updated: 2026-10-03. Read `../CLAUDE.md` first for the overview and convent
 
 ## Where it stands
 
-A working platform, built and tested. **128 unit tests pass** (`python3 -m unittest discover -s tests -t .`).
-Schema is **v7**. Nothing real has been called by a provider yet — there are no company API keys, and
+A working platform, built and tested. **132 unit tests pass** (`python3 -m unittest discover -s tests -t .`).
+Schema is **v8**. Nothing real has been called by a provider yet — there are no company API keys, and
 the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
 
 ### Done and verified
@@ -108,6 +108,19 @@ the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
   Addresses / Model prices / Console users / Your account. **Staff activity** (renamed from Activity)
   → AI requests / Tools opened / Websites visited, which is where "what did staff do" now lives.
   Nav renamed "Requests" → "Tool requests" so the two senses of "request" stop colliding.
+
+### Oct 3, 2026 (fourth pass) — the shared workspace
+
+A shared tool can now carry a **`workspace_url`**: the address of a remote browser Swangz runs on its
+own server, which an admin has signed in to that tool once. `Open` then sends whoever holds the turn
+there instead of to the tool's website, so they arrive signed in and the password never leaves the
+server. Turns still decide who gets in; launches are still logged. Empty = Open goes to the tool's own
+site as before. Set under **Tools → the tool → Settings → Shared workspace address**.
+
+`deploy/WORKSPACE.md` is the honest build guide: what it fixes (staff never hold the password, one
+person at a time, nothing left signed in on laptops), what it does **not** fix (vendors still forbid
+one subscription serving several people — buy seats where a team plan exists), and what it costs
+(a separate 4–8 GB machine at ~$12–30/month, plus real latency streaming a desktop to Kampala).
 
 ### How it compares (Oct 2026)
 
