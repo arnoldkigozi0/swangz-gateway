@@ -6,6 +6,8 @@
 #                                                                                new .env) — the tunnel link stays
 #   powershell -ExecutionPolicy Bypass -File deploy\windows-demo.ps1 -Stop      stop it all
 #   powershell -ExecutionPolicy Bypass -File deploy\windows-demo.ps1 -Netlify   point Netlify at the running tunnel again
+#   powershell -ExecutionPolicy Bypass -File deploy\windows-demo.ps1 -NetlifyTo https://ai.swangzavenue.com
+#                                                                                point Netlify at a gateway server, for good
 #
 # Settings: $HOME\swangz-gateway-demo\.env (copy .env.example). If it sets DEMO_PROVIDER_KEY, the stand-in
 # model (tests\fake_upstream.py --demo on port 18902) is started too, so nothing real is spent.
@@ -14,7 +16,7 @@
 # redeploys by itself; NETLIFY_SITE names the site (default swangz-ai). Without it, do that by hand.
 # Everything runs as hidden background programs, so closing this window doesn't stop them.
 
-param([switch]$Restart, [switch]$Stop, [switch]$Netlify)
+param([switch]$Restart, [switch]$Stop, [switch]$Netlify, [string]$NetlifyTo)
 $ErrorActionPreference = 'Stop'
 $Repo = Split-Path -Parent $PSScriptRoot
 $Dir = Join-Path $env:USERPROFILE 'swangz-gateway-demo'
@@ -111,6 +113,12 @@ $ours = @(Get-Ours)
 if ($Stop) {
     $ours | ForEach-Object { Stop-Process -Id $_.Id -Force -Confirm:$false; Write-Host "stopped $($_.Role)" }
     Remove-Item $PidFile -ErrorAction SilentlyContinue
+    return
+}
+
+if ($NetlifyTo) {
+    if ($NetlifyTo -notmatch '^https://[^/\s]+$') { throw 'Give the gateway server''s address, e.g. https://ai.swangzavenue.com' }
+    Update-Netlify $NetlifyTo
     return
 }
 
