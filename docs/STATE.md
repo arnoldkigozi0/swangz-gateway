@@ -174,6 +174,16 @@ than a hand-kept list, keeping the list as a fallback. Built:
 - **Not done:** a real workspace server. Nothing here has run against real Docker or Neko yet; the
   first deployment should walk `deploy/WORKSPACE.md` and check each step.
 
+### Oct 5, 2026 — 20 people at once, across many tools
+
+Arnold wants the workspace on a VPS with about 20 people in company browsers at once, across many
+tools (ChatGPT, Claude, Midjourney, Canva and more). Browsers stay fixed per tool, so the agent gained
+**`max_running`**: a server-wide cap on running containers. List a few browsers for every tool; when
+the cap is reached, the free browser unused longest (any tool) stops to make room, a released browser
+is only kept ready if there is room, and with every running browser in use the agent answers 409
+`{"full": "server"}` and staff are told the workspace is full. Sizing for 20: ~64 GB, 16 threads,
+`screen` 1280x720@25 (`deploy/WORKSPACE.md`, `docs/GO-LIVE.md`). Server not chosen yet.
+
 ### How it compares (Oct 2026)
 
 | Need | What established products do | Swangz AI |

@@ -31,9 +31,9 @@ class AgentRig:
 
     def __init__(self, boot=0, **extra):
         self.tmp = tempfile.mkdtemp(prefix="sgw-agent-")
-        self.nekos = {"midjourney-1": FakeNeko(), "midjourney-2": FakeNeko()}
-        self.docker = FakeDocker(self.nekos, boot=boot)
         self.cfg = agent_config(self.tmp, **extra)
+        self.nekos = {slot: FakeNeko() for slot in self.cfg["browsers"]}
+        self.docker = FakeDocker(self.nekos, boot=boot)
         self.start_agent()
 
     def start_agent(self):
@@ -237,11 +237,52 @@ class HousekeepingTests(AgentTestCase):
         self.assertNotIn("swangz-ws-midjourney-1", self.rig.docker.containers)
 
 
+class ServerLimitTests(unittest.TestCase):
+    """max_running: browsers for many tools listed, only so many running at once on the whole server."""
+
+    def setUp(self):
+        self.rig = AgentRig(max_running=2, tools={
+            "midjourney": {"browsers": [1, 2], "start_url": "https://www.midjourney.com/"},
+            "chatgpt": {"browsers": [3], "start_url": "https://chatgpt.com/"}})
+        self.addCleanup(self.rig.close)
+
+    def running(self):
+        return sorted(name[len("swangz-ws-"):] for name in self.rig.docker.containers)
+
+    def test_with_every_running_browser_in_use_the_server_is_full(self):
+        self.rig.ready("t1.1", "swangz-4")
+        self.rig.ready("t2.1", "swangz-5")
+        status, out = self.rig.ready("t3.1", "swangz-6", tool="chatgpt")
+        self.assertEqual((status, out["full"]), (409, "server"))
+        self.assertEqual(self.running(), ["midjourney-1", "midjourney-2"])
+        self.assertIsNone(next(b for b in self.rig.call("GET", "/status")[1]["browsers"] if b["slot"] == "chatgpt-3")["holder"])
+
+    def test_a_free_browser_of_another_tool_stops_to_make_room(self):
+        self.rig.ready("t1.1", "swangz-4")
+        self.rig.ready("t2.1", "swangz-5")
+        self.rig.call("POST", "/release", {"lease": "t1.1"})  # recycled: running, free
+        self.assertEqual(self.running(), ["midjourney-1", "midjourney-2"])
+        status, out = self.rig.ready("t3.1", "swangz-6", tool="chatgpt")
+        self.assertEqual((status, out["slot"]), (200, "chatgpt-3"))
+        self.assertEqual(self.running(), ["chatgpt-3", "midjourney-2"])
+
+    def test_a_released_browser_is_not_kept_ready_when_there_is_no_room(self):
+        self.rig.ready("t1.1", "swangz-4")
+        self.rig.docker.containers.pop("swangz-ws-midjourney-1")  # it died; the sweep notices
+        self.rig.agent.sweep()
+        self.rig.ready("t2.1", "swangz-5")
+        self.rig.ready("t3.1", "swangz-6", tool="chatgpt")
+        self.assertEqual(self.rig.call("POST", "/release", {"lease": "t1.1"})[0], 200)
+        self.assertEqual(self.running(), ["chatgpt-3", "midjourney-2"])
+        self.assertEqual(self.rig.call("GET", "/health")[1]["running"], 2)
+
+
 class ApiTests(AgentTestCase):
     def test_the_token_is_required(self):
         self.assertEqual(self.rig.call("GET", "/status", token="")[0], 401)
         self.assertEqual(self.rig.call("GET", "/status", token="wrong")[0], 401)
-        self.assertEqual(self.rig.call("GET", "/health"), (200, {"ok": True, "docker": True, "running": 0, "browsers": 2}))
+        self.assertEqual(self.rig.call("GET", "/health"),
+                         (200, {"ok": True, "docker": True, "running": 0, "browsers": 2, "max_running": 0}))
 
     def test_bad_requests_are_refused(self):
         self.assertEqual(self.rig.call("POST", "/allocate", {"tool": "midjourney", "lease": "t1.1"})[0], 400)
@@ -264,7 +305,8 @@ class ConfigTests(unittest.TestCase):
                        {"tools": {}}, {"tools": {"ChatGPT!": {"browsers": [1]}}},
                        {"tools": {"chatgpt": {"browsers": [1]}, "claude": {"browsers": [1]}}},
                        {"tools": {"chatgpt": {"browsers": [100]}}},
-                       {"tools": {"chatgpt": {"browsers": [1], "start_url": "javascript:x"}}}):
+                       {"tools": {"chatgpt": {"browsers": [1], "start_url": "javascript:x"}}},
+                       {"max_running": -1}, {"max_running": "20"}):
             with self.subTest(broken=broken), self.assertRaises(ConfigError):
                 check_config({**base, **broken})
 

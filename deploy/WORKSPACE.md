@@ -38,8 +38,11 @@ including its settings page — the log says who it was. When several people use
 vendor's usage history can't be split between them by time.
 
 **What it costs:** each browser running needs about 1.5–2 GB of RAM; Neko is free. An 8 GB server runs
-3–4 at once. Browsers only run while needed, so you can *list* more than fit in RAM, as long as they
-aren't all in use together. Keep this server **separate from the gateway's**: a browser that eats the
+3–4 at once. Browsers only run while needed, so you can *list* more than fit in RAM — a few for every
+tool — and set `max_running` to what the server can carry: when it's reached, a free browser left
+running for another tool stops to make room, and when all of them are in use people are told the
+workspace is full. Around 20 at once needs about 64 GB of RAM and 16 CPU threads (each browser streams
+its screen as video), with `screen` at `1280x720@25`. Keep this server **separate from the gateway's**: a browser that eats the
 RAM must not take the gateway down, and a person driving a browser must not be on the machine that holds
 the provider keys.
 
@@ -143,6 +146,8 @@ Caddy step again, `sudo systemctl restart swangz-workspace-agent`, and sign it i
 | `agent.json` | Default | |
 |---|---|---|
 | `idle_minutes` | 15 | a free browser unused this long is stopped |
+| `max_running` | 0 (no limit) | browsers running at once on the whole server, all tools together. When reached, the free browser unused longest stops to make room; when every one is in use, people are told it's full |
+| `screen` | 1600x900@30 | each browser's screen size and frame rate. `1280x720@25` costs less CPU and less internet per person |
 | `recycle` | true | restart the browser after every turn, so the next person starts fresh |
 | `fresh_start` | false | open `start_url` on every start instead of restoring the last tabs. Test it per tool: a tool that keeps its sign-in in a *session* cookie loses it when tabs aren't restored. Can be set per tool |
 | `memory` / `cpus` / `shm` | 2g / 1.5 / 2g | each browser's limits |

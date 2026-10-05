@@ -48,6 +48,7 @@ DEFAULTS = {
     "memory": "2g", "cpus": "1.5", "shm": "2g", "screen": "1600x900@30",
     "http_port_base": 8100, "webrtc_port_base": 59100,
     "idle_minutes": 15,  # a free browser that stays unused this long is stopped, to give the RAM back
+    "max_running": 0,  # browsers running at once on the whole server, all tools together (0 = no limit)
     "start_timeout": 120,  # seconds a browser may take to start before it counts as failed
     "admin_minutes": 30,  # an admin's sign-in session on a browser ends by itself after this
     "recycle": True,  # restart a browser after every turn, so the next person gets a fresh window
@@ -91,9 +92,10 @@ class ConfigError(Exception):
 
 
 class AgentError(Exception):
-    def __init__(self, status, message):
+    def __init__(self, status, message, **extra):
         super().__init__(message)
         self.status = status
+        self.extra = extra  # sent back alongside the error
 
 
 def load_config(path):
@@ -112,6 +114,8 @@ def check_config(raw):
     if not cfg["public_url"].startswith("https://"):
         raise ConfigError("'public_url' must start with https://")
     cfg["public_url"] = cfg["public_url"].rstrip("/")
+    if type(cfg["max_running"]) is not int or cfg["max_running"] < 0:
+        raise ConfigError("'max_running' is how many browsers may run at once, a whole number (0 = no limit)")
     browsers, numbers = {}, set()
     for tool, spec in (cfg.get("tools") or {}).items():
         if not TOOL_ID.fullmatch(tool):
@@ -282,6 +286,25 @@ class Agent:
         self.docker.remove(container_name(slot))
         self.slots[slot].update(token="", status="stopped")
 
+    def _running_besides(self, slot):
+        return [sl for sl, s in self.slots.items() if sl != slot and s["status"] != "stopped"]
+
+    def _make_room(self, slot):
+        """Before a browser starts on a server already running max_running: the free browsers unused the
+        longest stop, whichever tool they're for. When every running browser is someone's, it's full."""
+        cap = self.cfg["max_running"]
+        up = self._running_besides(slot)
+        if not cap or len(up) < cap:
+            return
+        free = sorted((sl for sl in up if not self.slots[sl]["lease"]),
+                      key=lambda sl: max(self.slots[sl]["last_used"], self.slots[sl]["started"]))
+        need = len(up) - cap + 1
+        if len(free) < need:
+            raise AgentError(409, f"the workspace server is full: all {cap} browsers it runs at once are in use",
+                             full="server")
+        for sl in free[:need]:
+            self._stop(sl)
+
     def _healthy(self, slot):
         try:
             with urllib.request.urlopen(self.neko_base(slot) + "/health", timeout=3) as resp:
@@ -293,6 +316,7 @@ class Agent:
         """True when the browser is up and answering; False while it starts (starting it if need be)."""
         s = self.slots[slot]
         if not s["token"] or not self.docker.running(container_name(slot)):
+            self._make_room(slot)
             self._start(slot)
             return False
         if self._healthy(slot):
@@ -350,7 +374,13 @@ class Agent:
         if not gone:
             self._stop(slot)  # raises DockerError if even that fails: the lease is kept, the caller retries
         s.update(lease=None, kind=None, user="", name="", since=0.0, last_used=time.time())
-        if self.cfg["recycle"]:
+        cap = self.cfg["max_running"]
+        if cap and len(self._running_besides(slot)) >= cap:
+            try:
+                self._stop(slot)  # no room to keep it ready: it starts again when it's next needed
+            except DockerError as exc:
+                log(f"release {slot}: {exc}")  # still free; the idle sweep stops it
+        elif self.cfg["recycle"]:
             try:
                 self._start(slot)  # a fresh window for the next person, still signed in to the tool
             except DockerError:
@@ -383,7 +413,7 @@ class Agent:
                     return 202, {"state": "starting", "slot": slot}
                 return 200, {"state": "ready", "slot": slot, "url": self._sign_in(slot, user, name, STAFF)}
             except AgentError as exc:
-                if exc.status == 503:  # it failed to start: the browser is free again
+                if exc.status in (409, 503):  # it failed to start, or the server had no room: it's free again
                     self.slots[slot].update(lease=None, kind=None, user="", name="", since=0.0)
                 raise
             finally:
@@ -415,7 +445,7 @@ class Agent:
                     return 202, {"state": "starting", "slot": slot}
                 return 200, {"state": "ready", "slot": slot, "url": self._sign_in(slot, s["user"], name, ADMIN)}
             except AgentError as exc:
-                if exc.status == 503:
+                if exc.status in (409, 503):
                     s.update(lease=None, kind=None, user="", name="", since=0.0)
                 raise
             finally:
@@ -442,7 +472,8 @@ class Agent:
         docker = self.docker.ok()
         with self.lock:
             running = sum(1 for s in self.slots.values() if s["status"] != "stopped")
-        return {"ok": docker, "docker": docker, "running": running, "browsers": len(self.slots)}
+        return {"ok": docker, "docker": docker, "running": running, "browsers": len(self.slots),
+                "max_running": self.cfg["max_running"]}
 
     # ------------------------------------------------------------ housekeeping
 
@@ -525,7 +556,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._reply(*agent.admin_close(slot))
             return self._reply(404, {"error": "not found"})
         except AgentError as exc:
-            return self._reply(exc.status, {"error": str(exc)})
+            return self._reply(exc.status, {"error": str(exc), **exc.extra})
         except DockerError as exc:
             log(f"docker: {exc}")
             return self._reply(503, {"error": f"docker: {exc}"})
@@ -595,7 +626,8 @@ def main(argv=None):
         return
     docker = Docker()
     if args.command == "check":
-        print(f"config ok: {len(cfg['browsers'])} browser(s)")
+        cap = cfg["max_running"]
+        print(f"config ok: {len(cfg['browsers'])} browser(s)" + (f", at most {cap} running at once" if cap else ""))
         for slot, b in sorted(cfg["browsers"].items(), key=lambda kv: kv[1]["n"]):
             print(f"  {slot:24} {cfg['public_url']}/{slot}/   webrtc port {cfg['webrtc_port_base'] + b['n']} (udp+tcp)")
         print("docker:", "ok" if docker.ok() else "NOT REACHABLE — is this user in the docker group?")

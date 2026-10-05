@@ -91,6 +91,9 @@ Infrastructure (approximate, before VAT; Hetzner raised prices in mid-2026 — c
 | **Infrastructure total** | **about $14** |
 
 Need more people on shared tools at once? A CX42 (16 GB, 6–8 browsers) is ~$16.50 instead of the CX32.
+**About 20 at once** (many tools, `max_running: 20`) needs ~64 GB and 16 threads: Contabo Cloud VPS 50
+(16 shared vCPU, 64 GB) is ~€37; a Hetzner AX42 dedicated server (8 cores/16 threads, 64 GB) is smoother
+under load and costs more, plus a setup fee. The office internet needs ~2–3 Mbps per person on a browser.
 Cheaper RAM: Contabo's Cloud VPS 10 (8 GB) is ~$5.50, with a slower network port. Pricier: DigitalOcean
 is $6 (1 GB) and $48 (8 GB).
 

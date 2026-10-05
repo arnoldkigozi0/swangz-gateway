@@ -323,8 +323,9 @@ def launch(h, gw, tool_id):
                 target = gw.workspaces.open(tool, {**turn, "workspace": browser or turn["workspace"]}, person)
             except workspace.Starting:
                 return _starting_page(h, tool)  # the turn is theirs; this page asks again until it's ready
-            except workspace.Full:
-                ok, reason = False, full
+            except workspace.Full as exc:
+                ok, reason = False, ("Every one of Swangz's company browsers is in use right now. Try again "
+                                     "shortly." if exc.server else full)
             except workspace.Unavailable as exc:
                 gw.log(f"workspace: {tool['name']} for {person['name']}: {exc}")
                 ok, reason = False, (f"Swangz's shared browser for {tool['name']} isn't answering right now. "

@@ -276,6 +276,13 @@ class AgentModeTests(ThreePeople):
         self.assertIn("All of Swangz&#x27;s browsers for Midjourney are in use", body)
         self.assertEqual(self.turn_of(self.third)["ended_by"], "system")
 
+    def test_when_the_whole_workspace_server_is_full_people_are_told_so(self):
+        self.ws.agent.cfg["max_running"] = 1
+        self.open_until_in(self.go)
+        status, _, body = self.go_as_other("midjourney")
+        self.assertEqual(status, 403)
+        self.assertIn("Every one of Swangz&#x27;s company browsers is in use right now", body)
+
     def test_a_workspace_server_that_does_not_answer_frees_the_seat(self):
         self.rig.gw.settings.workspace_agent_url = "http://127.0.0.1:9"
         status, _, body = self.go("midjourney")

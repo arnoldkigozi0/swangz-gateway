@@ -57,7 +57,12 @@ class Unavailable(Exception):
 
 
 class Full(Exception):
-    """Every browser the workspace server has for this tool is in use."""
+    """Every browser the workspace server has for this tool is in use — or, when `server` is true, the
+    server already runs as many browsers as it may, all of them in use."""
+
+    def __init__(self, server=False):
+        super().__init__("server" if server else "tool")
+        self.server = server
 
 
 class Starting(Exception):
@@ -188,7 +193,7 @@ class Workspaces:
         status, out = self._agent("POST", "/allocate", {"tool": tool["id"], "lease": lease_id(turn), "user": user,
                                                         "name": person["name"]}, ok=(200, 202, 409))
         if status == 409:
-            raise Full()
+            raise Full(server=out.get("full") == "server")
         if status == 202:
             raise Starting(out.get("slot"))
         url = str(out.get("url") or "")
