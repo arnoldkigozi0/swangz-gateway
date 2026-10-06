@@ -197,6 +197,12 @@ def me(ctx):
     day, month = proxy.period_starts(time.time(), ctx.gw.settings.tz_offset_minutes)
     keys = ctx.db.q("SELECT id, label, hint, created, last_used, revoked FROM keys WHERE person_id = ?"
                     " ORDER BY revoked IS NOT NULL, created DESC", (p["id"],))
+    # which app each device is used with (Claude Code, Codex…) — the device's identity, never its activity
+    apps = {r["key_id"]: r["client"] for r in ctx.db.q(
+        "SELECT r.key_id, r.client FROM requests r JOIN (SELECT key_id, MAX(id) AS id FROM requests WHERE person_id = ?"
+        " AND key_id IS NOT NULL GROUP BY key_id) m ON m.id = r.id", (p["id"],))}
+    for k in keys:
+        k["client"] = apps.get(k["id"]) if apps.get(k["id"]) not in (None, "", "unknown") else None
     catalog = entitle.for_person(ctx.db, p)
     enabled_ids = {t["id"] for t in catalog if t["state"] == "enabled"}
     pending = {r["tool_id"] for r in ctx.db.q(
@@ -206,7 +212,14 @@ def me(ctx):
         "SELECT tool_id, MAX(ts) AS last FROM launches WHERE person_id = ? AND outcome = 'opened' GROUP BY tool_id", (p["id"],))}
     ends = entitle.grant_ends(ctx.db, p)
     rows = {r["id"]: r for r in ctx.db.q("SELECT * FROM tools WHERE archived = 0")}
+    direct = {r["tool_id"] for r in ctx.db.q("SELECT tool_id FROM entitlements WHERE person_id = ?", (p["id"],))}
+    opens_30d = {r["tool_id"]: r["n"] for r in ctx.db.q(
+        "SELECT tool_id, COUNT(*) AS n FROM launches WHERE person_id = ? AND outcome = 'opened' AND ts >= ?"
+        " GROUP BY tool_id", (p["id"], time.time() - 30 * 86400))}
     for t in catalog:
+        # why they have it: their own grant, or their team's
+        t["grant"] = "direct" if t["id"] in direct else ("team" if t["assigned"] else None)
+        t["opens_30d"] = opens_30d.get(t["id"], 0)
         t["pending"] = t["id"] in pending
         t["turn"] = turns.state_for(ctx.db, rows[t["id"]], p) if t["id"] in rows else None
         t["icon"] = f"/icons/{t['id']}?v={int(logos[t['id']])}" if t["id"] in logos else None
@@ -232,6 +245,19 @@ def me(ctx):
         "base_url": ctx.gw.public_url(ctx.h),
         "budget_visible": bool(p["budget_visible"]),
         "access_until": p.get("access_until"),
+        # the tools they asked for and what was decided
+        "access_requests": ctx.db.q(
+            "SELECT ar.id, ar.tool_id, t.name AS tool, ar.reason, ar.state, ar.created, ar.decided, ar.decision_note"
+            " FROM access_requests ar JOIN tools t ON t.id = ar.tool_id WHERE ar.person_id = ?"
+            " ORDER BY ar.created DESC LIMIT 30", (p["id"],)),
+        # what the company records, stated plainly on the staff app's privacy page
+        "privacy": {
+            "retention_days": int(ctx.db.get_setting("retention_days", "90") or 0),
+            "store_bodies": ctx.db.get_setting("store_bodies", "1") == "1",
+            "block_secrets": ctx.db.get_setting("block_secrets", "0") == "1",
+            "gate_log_full": ctx.db.get_setting("gate_log_full", "0") == "1",
+            "support_contact": ctx.db.get_setting("support_contact", "") or "",
+        },
     }
     if p["budget_visible"]:
         out["budget"] = {"daily": p["daily_budget"], "monthly": p["monthly_budget"],

@@ -295,6 +295,10 @@ SCHEMA = [
     """
     ALTER TABLE tools ADD COLUMN workspace_mode TEXT NOT NULL DEFAULT '';
     """,
+    # v11: the control room's device pages read a key's requests on their own
+    """
+    CREATE INDEX requests_key_ts ON requests(key_id, ts);
+    """,
 ]
 
 

@@ -221,7 +221,7 @@ def overview(ctx):
         "paused": db.get_setting("paused", "0") == "1",
         "open_requests": db.scalar("SELECT COUNT(*) FROM access_requests WHERE state = 'open'") or 0,
         "today": _totals(db, day), "month": _totals(db, month),
-        "live": ctx.gw.live.snapshot(),
+        "live": live_view(ctx),
         "people_today": people_today, "models_month": models, "clients_month": clients,
         "providers": _providers(ctx),
         "launches_today": db.scalar("SELECT COUNT(*) FROM launches WHERE ts >= ? AND outcome = 'opened'", (day,)) or 0,
@@ -232,13 +232,28 @@ def overview(ctx):
     }
 
 
+def live_view(ctx):
+    """Requests in flight, each with the device (key) and department it came from."""
+    live = ctx.gw.live.snapshot()
+    keys = {t["key_id"] for t in live if t.get("key_id")}
+    people = {t["person_id"] for t in live if t.get("person_id")}
+    labels = {r["id"]: r["label"] for r in ctx.db.q(
+        "SELECT id, label FROM keys WHERE id IN (%s)" % ",".join("?" * len(keys)), tuple(keys))} if keys else {}
+    depts = {r["id"]: r["department"] for r in ctx.db.q(
+        "SELECT id, department FROM people WHERE id IN (%s)" % ",".join("?" * len(people)), tuple(people))} if people else {}
+    for t in live:
+        t["device"] = labels.get(t.get("key_id"))
+        t["department"] = depts.get(t.get("person_id"))
+    return live
+
+
 # ---------------------------------------------------------------- requests
 
 LIST_COLUMNS = ("r.id, r.ts, r.person_id, p.name AS person, r.key_id, r.provider, r.kind, r.client, r.session,"
                 " r.model, r.stream, r.status, r.outcome, r.reason, r.duration_ms, r.ttft_ms, r.in_tok, r.out_tok,"
                 " r.cache_write_tok, r.cache_read_tok, r.reasoning_tok, r.cost, r.prompt, r.actions, r.reply,"
                 " r.flags, r.client_ip, r.request_class, r.agent, r.turn_id, r.media_type, r.units, r.unit, r.result_urls,"
-                " r.resp_ctype")
+                " r.resp_ctype, k.label AS device")
 
 
 def _shape(row, clip=600):
@@ -271,6 +286,12 @@ def list_requests(ctx):
     if ctx.arg("since", cast=float):
         where.append("r.ts >= ?")
         args.append(ctx.arg("since", cast=float))
+    if ctx.arg("until", cast=float):
+        where.append("r.ts < ?")
+        args.append(ctx.arg("until", cast=float))
+    if ctx.arg("dept"):
+        where.append("p.department = ?")
+        args.append(ctx.arg("dept"))
     if ctx.arg("kind") in ("media", "messages", "chat", "responses"):
         where.append("r.kind = ?")
         args.append(ctx.arg("kind"))
@@ -286,7 +307,7 @@ def list_requests(ctx):
     if not ctx.arg("all"):
         where.append("(r.kind NOT IN ('other', 'media-status') OR r.outcome != 'ok')")
     limit = max(1, min(ctx.arg("limit", 50, int), 500))
-    sql = (f"SELECT {LIST_COLUMNS} FROM requests r LEFT JOIN people p ON p.id = r.person_id"
+    sql = (f"SELECT {LIST_COLUMNS} FROM requests r LEFT JOIN people p ON p.id = r.person_id LEFT JOIN keys k ON k.id = r.key_id"
            + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY r.id DESC LIMIT ?")
     rows = ctx.db.q(sql, args + [limit + 1])
     return {"items": [_shape(r) for r in rows[:limit]], "more": len(rows) > limit}
@@ -307,6 +328,15 @@ def get_request(ctx, rid):
     out["request"] = request_body
     out["response"] = response_body
     out["stored"] = request_body is not None or response_body is not None
+    # how sure each fact is: the tool from the catalog, the platform from the user agent, the
+    # network from the address (no location database is consulted)
+    from . import insight
+
+    tool = insight.Tools(ctx.db).for_request(row["client"], row["provider"])
+    out["tool"] = {"id": tool["id"], "name": tool["name"]} if tool else None
+    app = row["client"] if row["client"] not in ("", "unknown") else None
+    out["platform"] = insight.platform(row["user_agent"], app)
+    out["place"] = insight.ip_kind(row["client_ip"]) if row["client_ip"] else None
     ctx.audit("opened the full record", f"request #{rid}", f"person: {row.get('person') or '-'}")
     if ctx.arg("download"):
         data = json.dumps({"record": out}, indent=2, default=str).encode()
@@ -329,7 +359,7 @@ def get_media(ctx, rid):
 
 @route("GET", r"/sessions/(?P<sid>[^/]+)")
 def get_session(ctx, sid):
-    rows = ctx.db.q(f"SELECT {LIST_COLUMNS} FROM requests r LEFT JOIN people p ON p.id = r.person_id"
+    rows = ctx.db.q(f"SELECT {LIST_COLUMNS} FROM requests r LEFT JOIN people p ON p.id = r.person_id LEFT JOIN keys k ON k.id = r.key_id"
                     " WHERE r.session = ? AND (r.kind NOT IN ('other', 'media-status') OR r.outcome != 'ok') ORDER BY r.id ASC LIMIT 2000", (sid,))
     if not rows:
         raise ApiError(404, "no such session")
@@ -458,7 +488,7 @@ def get_person(ctx, pid):
         " MAX(client) AS client, (SELECT prompt FROM requests r2 WHERE r2.session = r.session AND r2.prompt IS NOT NULL"
         " ORDER BY r2.id LIMIT 1) AS first_prompt FROM requests r WHERE person_id = ? AND session IS NOT NULL"
         " AND kind NOT IN ('other', 'media-status') GROUP BY session ORDER BY last DESC LIMIT 40", (pid,))
-    person["live"] = [t for t in ctx.gw.live.snapshot() if t["person_id"] == pid]
+    person["live"] = [t for t in live_view(ctx) if t["person_id"] == pid]
     from . import entitle
 
     tools = entitle.for_person(ctx.db, person)
@@ -622,6 +652,7 @@ def get_settings(ctx):
             "staff_self_keys": db.get_setting("staff_self_keys", "1") == "1",
             "gate_log_full": db.get_setting("gate_log_full", "0") == "1",
             "rate_per_min": int(db.get_setting("rate_per_min", "0") or 0),
+            "support_contact": db.get_setting("support_contact", "") or "",
             "providers": _providers(ctx), "base_url": ctx.gw.public_url(ctx.h),
             "tz_offset_minutes": ctx.gw.settings.tz_offset_minutes,
             "db_bytes": (db.scalar("SELECT page_count * page_size FROM pragma_page_count(), pragma_page_size()") or 0),
@@ -650,6 +681,8 @@ def put_settings(ctx):
         if rpm < 0:
             raise ApiError(400, "rate_per_min cannot be negative")
         changed["rate_per_min"] = rpm
+    if "support_contact" in ctx.body:
+        changed["support_contact"] = str(ctx.body["support_contact"] or "").strip()[:200]
     for k, v in changed.items():
         ctx.db.set_setting(k, v)
     if changed:
@@ -856,12 +889,16 @@ def list_launches(ctx):
 def licences(ctx):
     """What the company pays for, who actually uses it, and where seats are going to waste —
     so the monthly bill can be matched to real use."""
+    return licence_data(ctx.db, ctx.gw.settings)
+
+
+def licence_data(db, settings):
+    """The Licences page's numbers; Needs attention reads its idle and over-assigned seats too."""
     from . import entitle
 
-    db = ctx.db
     now = time.time()
     since = now - 30 * 86400
-    _, month = proxy.period_starts(now, ctx.gw.settings.tz_offset_minutes)
+    _, month = proxy.period_starts(now, settings.tz_offset_minutes)
     subs = entitle.subscriptions(db)
     people = db.q("SELECT * FROM people WHERE status = 'active' ORDER BY name COLLATE NOCASE")
     last_open = {}
@@ -1310,11 +1347,30 @@ def remove_admin(ctx, aid):
 
 @route("GET", r"/audit")
 def list_audit(ctx):
+    """What console users did to the gateway — filterable by who, words, and a time window."""
     limit = max(1, min(ctx.arg("limit", 100, int), 500))
-    before = ctx.arg("before", cast=int)
-    rows = ctx.db.q("SELECT * FROM audit" + (" WHERE id < ?" if before else "") + " ORDER BY id DESC LIMIT ?",
-                    ([before] if before else []) + [limit + 1])
-    return {"items": rows[:limit], "more": len(rows) > limit}
+    where, args = [], []
+    if ctx.arg("before", cast=int):
+        where.append("id < ?")
+        args.append(ctx.arg("before", cast=int))
+    if ctx.arg("actor"):
+        where.append("actor = ?")
+        args.append(ctx.arg("actor"))
+    if ctx.arg("since", cast=float):
+        where.append("ts >= ?")
+        args.append(ctx.arg("since", cast=float))
+    if ctx.arg("until", cast=float):
+        where.append("ts < ?")
+        args.append(ctx.arg("until", cast=float))
+    q = ctx.arg("q")
+    if q:
+        like = "%" + q.replace("%", "").replace("_", "") + "%"
+        where.append("(action LIKE ? OR target LIKE ? OR detail LIKE ? OR actor LIKE ?)")
+        args += [like] * 4
+    rows = ctx.db.q("SELECT * FROM audit" + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY id DESC LIMIT ?",
+                    args + [limit + 1])
+    actors = [r["actor"] for r in ctx.db.q("SELECT DISTINCT actor FROM audit ORDER BY actor COLLATE NOCASE LIMIT 200")]
+    return {"items": rows[:limit], "more": len(rows) > limit, "actors": actors}
 
 
 @route("GET", r"/export\.csv")
@@ -1347,3 +1403,7 @@ def _csv_safe(text):
     """Spreadsheets run cells that start with = + - @ as formulas; prompts are untrusted text."""
     text = text or ""
     return "'" + text if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
+
+
+# the control room's read-only lenses (trends, attention, security, devices, timeline, spend, search)
+from . import insight  # noqa: E402,F401  — importing registers its routes above

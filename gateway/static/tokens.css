@@ -2,7 +2,8 @@
    Near-black neutral surfaces (no blue cast), champagne gold as the brand, and a bright mint,
    sky and coral for states and data, so the dark UI reads rich rather than dull.
    Dark is the default; a light "Porcelain" theme is available on html[data-theme="light"].
-   Shared by the staff app (portal.css) and the admin console (admin.css). */
+   Shared by the staff app (portal.css), the control room (admin.css) and their common
+   components (ui.css). Colour never carries meaning alone: every state has a word or an icon too. */
 
 @font-face {
   font-family: "Archivo";
@@ -21,11 +22,13 @@
   --ink-4: #2B2B31;
   --line: #242428;
   --line-hi: #35353C;
+  --line-soft: rgba(255, 255, 255, .045);
 
   /* Text */
   --tx-1: #F6F6F4;   /* 17.4:1 on ink-1 */
   --tx-2: #A6A6A4;   /*  7.3:1 on ink-1 */
-  --tx-3: #71717A;   /* non-text and large text only */
+  --tx-3: #8A8A92;   /*  5.2:1 on ink-1 — small text allowed */
+  --tx-4: #5E5E66;   /* rules and disabled marks only */
   --tx-inv: #0A0A0B;
 
   /* Brand: champagne gold, bright enough to carry buttons on black */
@@ -37,12 +40,22 @@
   --accent-soft: rgba(245, 179, 43, .13);
   --accent-dim: rgba(245, 179, 43, .38);
 
-  /* States: a fill, a bright text tone, and a soft wash */
+  /* States: a fill, a bright text tone, and a soft wash. Gold = brand and selection, mint = healthy
+     and allowed, sky = information and system, coral = blocked, revoked and failed. */
   --ok: #2FD99A;   --ok-hi: #5CE4B4;   --ok-soft: rgba(47, 217, 154, .14);
   --info: #43B9F5; --info-hi: #78CEF9; --info-soft: rgba(67, 185, 245, .14);
   --warn: #F5B32B; --warn-hi: #F7C45C; --warn-soft: rgba(245, 179, 43, .14);
   --bad: #FF5D52;  --bad-hi: #FF8A82;  --bad-soft: rgba(255, 93, 82, .14);
-  --agent: #B79CFF;
+  --agent: #B79CFF; --agent-soft: rgba(183, 156, 255, .14);
+  --live: var(--ok);
+
+  /* Data — validated for the chart surface in each theme (adjacent ΔE ≥ 23 under colour-blind
+     simulation, ≥ 3:1 against the card). Marks only: labels and values stay in text tokens. */
+  --viz-1: #C08A1C;   /* spend */
+  --viz-2: #2B95D0;   /* activity */
+  --viz-muted: #3A3A42;
+  --viz-grid: #222226;
+  --viz-axis: var(--tx-3);
 
   /* Elevation — on black, light comes from a hairline, not a drop shadow */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, .5);
@@ -52,36 +65,44 @@
   --scrim: rgba(0, 0, 0, .66);
   --grid-line: rgba(245, 179, 43, .055);
   --sheen: linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, 0));
+  --focus-ring: 0 0 0 2px var(--ink-0), 0 0 0 4px var(--accent);
 
-  /* Type */
+  /* Type — Archivo throughout; numbers in proportional figures when big, tabular in columns */
   --font: "Archivo", "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
   --t-display: clamp(2.5rem, 6vw, 4.75rem);
+  --t-hero: clamp(2.4rem, 4.2vw, 3.25rem);   /* the one headline figure on a page */
   --t-h1: clamp(1.9rem, 3.2vw, 2.6rem);
   --t-h2: 1.375rem;
   --t-h3: 1.0625rem;
+  --t-num: 1.75rem;
   --t-body: 0.9375rem;
   --t-small: 0.8125rem;
   --t-micro: 0.6875rem;
+  --track-label: .14em;
 
   /* Space — 4px base */
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px;
   --s6: 32px; --s7: 48px; --s8: 64px; --s9: 96px; --s10: 128px;
 
-  /* Radius */
-  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-xl: 22px; --r-full: 999px;
+  /* Radius — restrained */
+  --r-xs: 6px; --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-xl: 22px; --r-full: 999px;
 
-  /* Motion */
+  /* Motion — fast and explanatory; a live request breathes, nothing flashes */
   --e-out: cubic-bezier(.2, .7, .3, 1);
   --e-in-out: cubic-bezier(.4, 0, .2, 1);
-  --d-fast: 120ms; --d-base: 200ms; --d-slow: 320ms;
+  --d-fast: 120ms; --d-base: 200ms; --d-slow: 320ms; --d-breathe: 2.8s;
+
+  /* Layers */
+  --z-sticky: 10; --z-nav: 30; --z-sheet: 40; --z-cmd: 50; --z-toast: 60; --z-tip: 70;
 
   --shell: 1280px;
   --gutter: clamp(16px, 4.5vw, 56px);
   color-scheme: dark;
 }
 
-/* Porcelain — the light alternative. Warm off-white, ink-black type, the same gold. */
+/* Porcelain — the light alternative. Warm off-white, ink-black type, the same gold. Not an
+   inversion: its own steps, its own chart hues, softer shadows doing what hairlines do on black. */
 :root[data-theme="light"] {
   --ink-0: #F4F2ED;
   --ink-1: #FFFFFF;
@@ -90,10 +111,12 @@
   --ink-4: #E3DED3;
   --line: #E6E1D7;
   --line-hi: #D5CEC0;
+  --line-soft: rgba(20, 20, 25, .05);
 
   --tx-1: #15151A;
   --tx-2: #4D4D55;
-  --tx-3: #85858E;
+  --tx-3: #6E6E78;
+  --tx-4: #A9A9B1;
   --tx-inv: #FFFFFF;
 
   --primary: #1A1A1F;
@@ -108,7 +131,12 @@
   --info: #1E7FC2; --info-hi: #15618F; --info-soft: #E6F1FA;
   --warn: #B5831A; --warn-hi: #8A6514; --warn-soft: #FBF2DD;
   --bad: #CE4136;  --bad-hi: #A93228;  --bad-soft: #FBE9E7;
-  --agent: #6B4FC4;
+  --agent: #6B4FC4; --agent-soft: #EFEAFB;
+
+  --viz-1: #B07D12;
+  --viz-2: #1E7FC2;
+  --viz-muted: #D9D3C7;
+  --viz-grid: #EEEAE2;
 
   --shadow-sm: 0 1px 2px rgba(20, 20, 25, .05);
   --shadow: 0 1px 2px rgba(20, 20, 25, .04), 0 4px 16px rgba(20, 20, 25, .07);
@@ -128,6 +156,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 code, pre, .mono { font-family: var(--mono); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 ::selection { background: var(--accent-dim); color: var(--tx-1); }
+[hidden] { display: none !important; }
 
 /* the theme switch used by both apps */
 .theme-btn { width: 38px; height: 38px; display: inline-grid; place-items: center; border-radius: var(--r-sm); border: 1px solid var(--line);
@@ -140,9 +169,13 @@ code, pre, .mono { font-family: var(--mono); }
   background: #FFFFFF; border: 1px solid var(--line); box-shadow: var(--shadow-sm); }
 .logo img { width: 70%; height: 70%; object-fit: contain; }
 .logo.mono { border: 0; color: #FFFFFF; font-weight: 750; font-stretch: 108%; font-size: 15px; letter-spacing: .01em; }
+.logo.xs { width: 22px; height: 22px; border-radius: 6px; font-size: 9px; }
 .logo.sm { width: 30px; height: 30px; border-radius: 8px; font-size: 11px; }
 .logo.lg { width: 56px; height: 56px; border-radius: 15px; font-size: 18px; }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
+}
+@media (forced-colors: active) {
+  .logo.mono { border: 1px solid CanvasText; }
 }

@@ -1,0 +1,243 @@
+/* Swangz UI — the shared components both apps are built from (ui.js makes them).
+   Status indicators, skeletons, empty and error states, tooltips, charts, tables, the time range
+   control and the command menu. Every class starts with u- so it never collides with an app's own. */
+
+/* ------------------------------------------------------------ text helpers */
+
+.u-sr { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.u-label { font-size: var(--t-micro); font-weight: 700; letter-spacing: var(--track-label); text-transform: uppercase; color: var(--tx-3); }
+.u-num { font-variant-numeric: tabular-nums; }
+.u-mono { font-family: var(--mono); font-size: .92em; }
+.u-kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 5px; border: 1px solid var(--line-hi);
+  background: var(--ink-2); color: var(--tx-2); font: 600 11px/1 var(--font); }
+.u-evidence { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--tx-3); white-space: nowrap; }
+.u-evidence svg { width: 12px; height: 12px; }
+
+/* ------------------------------------------------------------ status: a dot and a word, never colour alone */
+
+.u-status { display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--tx-2); white-space: nowrap; line-height: 1; }
+.u-status i { width: 8px; height: 8px; border-radius: 50%; background: var(--tx-4); flex: none; position: relative; }
+.u-status.plain { text-transform: none; letter-spacing: 0; font-weight: 650; font-size: 12.5px; }
+.u-status.s-ok i, .u-status.s-live i, .u-status.s-active i, .u-status.s-streaming i, .u-status.s-healthy i, .u-status.s-ready i, .u-status.s-allowed i { background: var(--ok); }
+.u-status.s-ok, .u-status.s-live, .u-status.s-active, .u-status.s-streaming, .u-status.s-healthy, .u-status.s-ready, .u-status.s-allowed { color: var(--ok-hi); }
+.u-status.s-waiting i, .u-status.s-idle i, .u-status.s-watch i, .u-status.s-pending i, .u-status.s-medium i { background: var(--warn); }
+.u-status.s-waiting, .u-status.s-watch, .u-status.s-pending, .u-status.s-medium { color: var(--warn-hi); }
+.u-status.s-idle { color: var(--tx-2); }
+.u-status.s-info i, .u-status.s-finished i, .u-status.s-system i, .u-status.s-low i { background: var(--info); }
+.u-status.s-info, .u-status.s-system, .u-status.s-low { color: var(--info-hi); }
+.u-status.s-finished { color: var(--tx-2); }
+.u-status.s-blocked i, .u-status.s-failed i, .u-status.s-revoked i, .u-status.s-elevated i, .u-status.s-high i, .u-status.s-suspended i, .u-status.s-bad i { background: var(--bad); }
+.u-status.s-blocked, .u-status.s-failed, .u-status.s-revoked, .u-status.s-elevated, .u-status.s-high, .u-status.s-suspended, .u-status.s-bad { color: var(--bad-hi); }
+.u-status.s-unused i, .u-status.s-none i, .u-status.s-off i { background: transparent; box-shadow: inset 0 0 0 1.5px var(--tx-3); }
+.u-status.s-unused, .u-status.s-none, .u-status.s-off { color: var(--tx-3); }
+/* a live thing breathes: a slow halo, never a flash */
+.u-status.breathe i::after, .u-breathe::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; background: currentColor; opacity: 0;
+  animation: u-breathe var(--d-breathe) var(--e-in-out) infinite; }
+.u-status.breathe i { color: var(--ok); }
+@keyframes u-breathe { 0% { transform: scale(.6); opacity: .45; } 70% { transform: scale(1.6); opacity: 0; } 100% { opacity: 0; } }
+
+/* soft badge */
+.u-badge { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: var(--r-full); font-size: 11.5px; font-weight: 650;
+  color: var(--tx-2); background: var(--ink-3); white-space: nowrap; }
+.u-badge svg { width: 12px; height: 12px; }
+.u-badge.ok { color: var(--ok-hi); background: var(--ok-soft); }
+.u-badge.info { color: var(--info-hi); background: var(--info-soft); }
+.u-badge.warn { color: var(--warn-hi); background: var(--warn-soft); }
+.u-badge.bad { color: var(--bad-hi); background: var(--bad-soft); }
+.u-badge.gold { color: var(--accent-tx); background: var(--accent-soft); }
+.u-badge.agent { color: var(--agent); background: var(--agent-soft); }
+.u-badge.outline { background: transparent; box-shadow: inset 0 0 0 1px var(--line-hi); }
+
+/* change against a named period: the arrow and the sign carry it, the colour only agrees */
+.u-delta { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--tx-2); white-space: nowrap; }
+.u-delta svg { width: 13px; height: 13px; }
+.u-delta.good { color: var(--ok-hi); }
+.u-delta.bad { color: var(--bad-hi); }
+
+/* ------------------------------------------------------------ avatars */
+
+.u-avatar { width: 34px; height: 34px; border-radius: 50%; flex: none; display: grid; place-items: center; font-weight: 700; font-size: 12px; letter-spacing: .02em;
+  color: var(--accent-tx); background: linear-gradient(140deg, var(--ink-4), var(--ink-2)); border: 1px solid var(--line-hi); }
+.u-avatar.sm { width: 26px; height: 26px; font-size: 10px; }
+.u-avatar.lg { width: 56px; height: 56px; font-size: 18px; }
+.u-avatar.xl { width: 72px; height: 72px; font-size: 22px; }
+
+/* ------------------------------------------------------------ loading, empty, error */
+
+.u-skel { display: block; border-radius: 6px; background: linear-gradient(90deg, var(--ink-3) 0%, var(--ink-4) 45%, var(--ink-3) 90%);
+  background-size: 300% 100%; animation: u-shimmer 1.6s linear infinite; }
+@keyframes u-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.u-skel.line { height: 12px; margin: 6px 0; }
+.u-skel.big { height: 28px; width: 50%; margin: 10px 0 8px; }
+.u-skel-rows { display: grid; gap: 14px; padding: 16px 18px; }
+.u-skel-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) 80px; gap: 12px; align-items: center; }
+.u-skel-row .u-skel.dot { width: 34px; height: 34px; border-radius: 50%; }
+.u-skel-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
+.u-skel-card { border: 1px solid var(--line); border-radius: var(--r-lg); padding: 16px 18px; background: var(--ink-1); }
+
+.u-state { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 40px 24px; color: var(--tx-2); }
+.u-state .ic { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--ink-3); color: var(--tx-2); margin-bottom: 4px; }
+.u-state .ic svg { width: 20px; height: 20px; }
+.u-state h3 { margin: 0; font-size: 12px; font-weight: 750; letter-spacing: var(--track-label); text-transform: uppercase; color: var(--tx-1); }
+.u-state p { margin: 0; max-width: 46ch; font-size: 13.5px; }
+.u-state .act { margin-top: 8px; }
+.u-state.ok .ic { background: var(--ok-soft); color: var(--ok-hi); }
+.u-state.bad .ic { background: var(--bad-soft); color: var(--bad-hi); }
+.u-state.compact { padding: 22px 16px; }
+
+.u-connecting { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--tx-2); }
+
+/* ------------------------------------------------------------ tooltips */
+
+.u-tip { position: fixed; z-index: var(--z-tip); max-width: 280px; padding: 8px 10px; border-radius: var(--r-sm); background: var(--ink-4); color: var(--tx-1);
+  font-size: 12.5px; line-height: 1.45; font-weight: 500; box-shadow: var(--shadow-lg); pointer-events: none; opacity: 0; transform: translateY(2px);
+  transition: opacity var(--d-fast) var(--e-out), transform var(--d-fast) var(--e-out); border: 1px solid var(--line-hi); }
+.u-tip.in { opacity: 1; transform: none; }
+.u-tip b { display: block; font-weight: 700; font-size: 13px; }
+.u-tip .k { display: flex; align-items: center; gap: 6px; color: var(--tx-2); font-size: 11.5px; }
+.u-tip .k i { width: 12px; height: 2px; border-radius: 1px; background: var(--viz-1); }
+[data-tip] { cursor: help; }
+button[data-tip], a[data-tip] { cursor: pointer; }
+.u-info { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; color: var(--tx-3); vertical-align: -3px; border: 0; background: none; padding: 0; }
+.u-info svg { width: 14px; height: 14px; }
+.u-info:hover, .u-info:focus-visible { color: var(--accent-tx); }
+
+/* ------------------------------------------------------------ charts */
+
+.u-chart { position: relative; margin: 0; }
+.u-chart svg { display: block; width: 100%; overflow: visible; }
+.u-chart .grid line { stroke: var(--viz-grid); stroke-width: 1; shape-rendering: crispEdges; }
+.u-chart .axis text { fill: var(--viz-axis); font: 500 10.5px var(--font); font-variant-numeric: tabular-nums; }
+.u-chart .col { fill: var(--viz-1); transition: opacity var(--d-fast); }
+.u-chart.tone-2 .col { fill: var(--viz-2); }
+.u-chart .col.zero { fill: var(--viz-muted); }
+.u-chart .hit { fill: transparent; cursor: default; outline: none; }
+.u-chart .hit:focus-visible + .col, .u-chart .hit:hover + .col { opacity: .78; }
+.u-chart .hit:focus-visible { stroke: var(--accent); stroke-width: 1.5; }
+.u-chart .line { fill: none; stroke: var(--viz-1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.u-chart .area { fill: var(--viz-1); opacity: .1; }
+.u-chart.tone-2 .line { stroke: var(--viz-2); }
+.u-chart.tone-2 .area { fill: var(--viz-2); }
+.u-chart .end { fill: var(--viz-1); stroke: var(--ink-1); stroke-width: 2; }
+.u-chart.tone-2 .end { fill: var(--viz-2); }
+.u-chart .cross { stroke: var(--tx-3); stroke-width: 1; opacity: 0; shape-rendering: crispEdges; }
+.u-chart .cross.on { opacity: .7; }
+.u-chart .end-label { fill: var(--tx-1); font: 650 11px var(--font); font-variant-numeric: tabular-nums; }
+.u-chart .overlay { fill: transparent; }
+.u-chart-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 6px; }
+.u-chart-foot button { background: none; border: 0; padding: 0; color: var(--tx-3); font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.u-chart-foot button:hover { color: var(--tx-1); }
+.u-chart-table { margin-top: 8px; max-height: 260px; overflow: auto; border: 1px solid var(--line); border-radius: var(--r-sm); }
+.u-chart-table table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.u-chart-table th, .u-chart-table td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+.u-chart-table td:last-child, .u-chart-table th:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.u-chart.refreshing { opacity: .55; transition: opacity var(--d-base); }
+
+.u-spark { display: block; width: 100%; height: 28px; overflow: visible; }
+.u-spark .line { fill: none; stroke: var(--viz-muted); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.u-spark .area { fill: var(--viz-1); opacity: .08; }
+.u-spark .end { fill: var(--viz-1); stroke: var(--ink-1); stroke-width: 2; }
+.u-spark.tone-2 .end { fill: var(--viz-2); }
+.u-spark.tone-2 .area { fill: var(--viz-2); }
+
+/* ranked bars: name, value, a thin bar */
+.u-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.u-bars li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 8px 18px; }
+.u-bars li > a, .u-bars li > .nm { display: flex; align-items: center; gap: 10px; min-width: 0; text-decoration: none; font-weight: 600; font-size: 13.5px; }
+.u-bars li > a span, .u-bars li > .nm span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.u-bars li > a:hover span { text-decoration: underline; text-underline-offset: 3px; }
+.u-bars .val { font-variant-numeric: tabular-nums; font-weight: 650; font-size: 13px; text-align: right; }
+.u-bars .val small { display: block; font-weight: 500; color: var(--tx-3); font-size: 11.5px; }
+.u-bars .track { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--ink-3); overflow: hidden; }
+.u-bars .track i { display: block; height: 100%; border-radius: 0 2px 2px 0; background: var(--viz-1); }
+.u-bars.tone-2 .track i { background: var(--viz-2); }
+
+/* ------------------------------------------------------------ tables: sortable, sticky, cards on phones */
+
+.u-table-wrap { overflow-x: auto; }
+.u-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13.5px; }
+.u-table th, .u-table td { text-align: left; padding: 11px 16px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.u-table thead th { position: sticky; top: 0; z-index: 1; background: var(--ink-2); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--tx-3); white-space: nowrap; }
+.u-table th.num, .u-table td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.u-table th button { all: unset; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.u-table th button:hover { color: var(--tx-1); }
+.u-table th button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.u-table th button svg { width: 12px; height: 12px; opacity: 0; }
+.u-table th[aria-sort] button { color: var(--tx-1); }
+.u-table th[aria-sort] button svg { opacity: 1; }
+.u-table th[aria-sort="descending"] button svg { transform: rotate(180deg); }
+.u-table tbody tr:last-child td { border-bottom: 0; }
+.u-table tbody tr.click { cursor: pointer; }
+.u-table tbody tr.click:hover td, .u-table tbody tr.click:focus-within td { background: var(--ink-2); }
+.u-table tbody tr.click:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.u-table .sub { display: block; color: var(--tx-3); font-size: 12px; font-weight: 400; }
+.u-cell { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.u-cell strong { font-weight: 650; }
+.u-table-more { padding: 12px 16px; border-top: 1px solid var(--line); display: flex; justify-content: center; }
+
+@media (max-width: 760px) {
+  .u-table.cards thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .u-table.cards, .u-table.cards tbody, .u-table.cards tr, .u-table.cards td { display: block; width: 100%; }
+  .u-table.cards tr { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .u-table.cards td { border: 0; padding: 3px 0; text-align: left !important; display: flex; justify-content: space-between; gap: 12px; }
+  .u-table.cards td[data-label]::before { content: attr(data-label); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--tx-3); padding-top: 2px; }
+  .u-table.cards td.lead { display: block; padding-bottom: 6px; }
+  .u-table.cards td.lead::before { display: none; }
+  .u-table.cards td.hide-sm { display: none; }
+}
+
+/* ------------------------------------------------------------ the time machine */
+
+.u-range { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.u-seg::-webkit-scrollbar { display: none; }
+.u-seg { scrollbar-width: none; }
+.u-seg { display: inline-flex; min-width: 0; padding: 3px; gap: 2px; background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--r-sm); max-width: 100%; overflow-x: auto; }
+.u-seg button { border: 0; background: none; padding: 5px 11px; border-radius: 6px; font-weight: 600; font-size: 12.5px; color: var(--tx-2); cursor: pointer; white-space: nowrap;
+  transition: background var(--d-fast), color var(--d-fast); }
+.u-seg button:hover { color: var(--tx-1); }
+.u-seg button[aria-pressed="true"] { background: var(--ink-4); color: var(--tx-1); box-shadow: var(--shadow-sm); }
+.u-range .custom { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--tx-2); }
+.u-range .custom input { min-height: 32px; padding: 3px 8px; width: auto; font-size: 12.5px; }
+.u-range .tz { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font-size: 12px; color: var(--tx-3); }
+.u-range .tz svg { width: 14px; height: 14px; }
+.u-range .tz select { min-height: 30px; padding: 2px 26px 2px 8px; font-size: 12px; width: auto; background-color: var(--ink-2); }
+
+/* ------------------------------------------------------------ command menu (Ctrl+K) */
+
+.u-cmd-scrim { position: fixed; inset: 0; z-index: var(--z-cmd); background: var(--scrim); backdrop-filter: blur(3px); display: flex; justify-content: center;
+  align-items: flex-start; padding: min(14vh, 120px) 16px 16px; opacity: 0; transition: opacity var(--d-base) var(--e-out); }
+.u-cmd-scrim.in { opacity: 1; }
+.u-cmd { width: min(640px, 100%); max-height: min(70vh, 620px); display: flex; flex-direction: column; background: var(--ink-1); border: 1px solid var(--line-hi);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-lg); overflow: hidden; transform: translateY(-6px) scale(.985); transition: transform var(--d-base) var(--e-out); }
+.u-cmd-scrim.in .u-cmd { transform: none; }
+.u-cmd-input { display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--line); }
+.u-cmd-input svg { width: 18px; height: 18px; color: var(--tx-3); flex: none; }
+.u-cmd-input input { flex: 1; min-height: 56px; border: 0 !important; background: none !important; box-shadow: none !important; font-size: 16px; padding: 0 !important; outline: none; }
+.u-cmd-list { overflow-y: auto; padding: 6px; }
+.u-cmd-group { padding: 10px 10px 4px; font-size: 10.5px; font-weight: 700; letter-spacing: var(--track-label); text-transform: uppercase; color: var(--tx-3); }
+.u-cmd-item { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: var(--r-sm); cursor: pointer; text-decoration: none; }
+.u-cmd-item .ic { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: var(--ink-3); color: var(--tx-2); }
+.u-cmd-item .ic svg { width: 16px; height: 16px; }
+.u-cmd-item .t { min-width: 0; }
+.u-cmd-item .t b { display: block; font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.u-cmd-item .t span { display: block; color: var(--tx-3); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.u-cmd-item .hint { color: var(--tx-3); font-size: 11.5px; }
+.u-cmd-item[aria-selected="true"] { background: var(--ink-3); }
+.u-cmd-item[aria-selected="true"] .ic { background: var(--accent-soft); color: var(--accent-tx); }
+.u-cmd-foot { display: flex; gap: 14px; padding: 9px 16px; border-top: 1px solid var(--line); color: var(--tx-3); font-size: 11.5px; background: var(--ink-2); }
+.u-cmd-foot span { display: inline-flex; align-items: center; gap: 5px; }
+.u-cmd-empty { padding: 28px 16px; text-align: center; color: var(--tx-3); font-size: 13.5px; }
+
+/* ------------------------------------------------------------ entering things */
+
+.u-enter { animation: u-enter var(--d-slow) var(--e-out) both; }
+@keyframes u-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.u-flash { animation: u-flash 2.4s var(--e-out); }
+@keyframes u-flash { from { background-color: var(--accent-soft); } to { background-color: transparent; } }
+
+@media (forced-colors: active) {
+  .u-status i, .u-chart .col, .u-bars .track i { forced-color-adjust: none; }
+  .u-badge { border: 1px solid CanvasText; }
+}
