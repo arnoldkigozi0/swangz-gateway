@@ -169,6 +169,18 @@ class AttentionTests(LensBase):
         self.assertEqual(sev, sorted(sev, reverse=True))
 
 
+    def test_an_offline_computer_running_the_company_browsers(self):
+        rig = self.rig
+        self.assertNotIn("ws-offline", [i["key"] for i in rig.api("GET", "/attention")[1]["items"]])
+        rig.gw.db.x("UPDATE tools SET signin = 'shared', workspace_mode = 'agent' WHERE id = 'midjourney'")
+        rig.gw.workspaces.new_key("windows")
+        rig.gw.db.set_setting("workspace_host", "windows")
+        items = {i["key"]: i for i in rig.api("GET", "/attention", who="viewer")[1]["items"]}
+        self.assertEqual(items["ws-offline"]["severity"], "high")  # set up, never checked in
+        self.assertIn("Windows PC", items["ws-offline"]["title"])
+        self.assertEqual(items["ws-offline"]["href"], "#/settings?tab=browsers")
+
+
 class SpendTests(LensBase):
     def test_against_the_window_before(self):
         now = time.time()

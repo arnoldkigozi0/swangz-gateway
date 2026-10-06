@@ -21,101 +21,118 @@
 
   // ------------------------------------------------------------------ Overview
 
-  async function pageOverview() {
+  /* The overview leads with one summary strip; the detail sits in tabs, one question each:
+     what's happening now, how use and spend are moving, who and what lead, where licences leak. */
+  async function pageOverview(params) {
     await A.toolIndex().catch(() => null);
-    const ov = S.overview;
-    const kpis = el("div", { class: "kpis five" }, SUI.skeleton("cards", 5));
-    const liveBox = el("div");
-    const charts = el("div", { class: "grid cols-even" }, SUI.skeleton("chart"), SUI.skeleton("chart"));
-    const tops = el("div", { class: "grid cols-even" });
-    const lower = el("div", { class: "grid cols-even" });
-    A.frame({ title: "Overview", lede: `Swangz AI at a glance — ${fmt.weekday(Date.now() / 1000)}. Times in ${SUI.tzLabel()}.`,
-      actions: [el("a", { class: "btn", href: "#/activity" }, icon("activity"), "Activity"), el("a", { class: "btn primary", href: "#/live" }, icon("live"), "Open Live")] },
-    [kpis, liveBox, charts, tops, lower]);
-
-    function drawLive() {
-      const live = (S.overview || ov).live;
-      liveBox.replaceChildren(A.panel("Live activity", el("a", { class: "btn small quiet", href: "#/live" }, "Open Live", icon("chevronRight")),
-        live.length ? el("div", { class: "live-strip" }, live.slice(0, 4).map((t) => el("a", { class: "lv-mini", href: "#/live" },
-          SUI.status(t.streaming ? "streaming" : "waiting", t.streaming ? "Streaming" : "Waiting", { breathe: true }),
-          el("strong", null, t.person || "Unknown key"), el("span", { class: "muted" }, t.client || "a tool"),
-          el("span", { class: "elapsed u-num", "data-started": String(t.started) }, fmt.elapsed(t.started)))),
-        live.length > 4 ? el("a", { class: "lv-more", href: "#/live" }, `+${live.length - 4} more`) : null)
-          : el("div", { class: "live-quiet" }, SUI.status("idle", "Quiet", { plain: true }), el("span", { class: "muted" }, "Nobody is waiting on a model right now."))));
-    }
-    drawLive();
-
     const [trends, attention, security, lic] = await Promise.allSettled([
       api("GET", "/trends?days=30"), A.refreshAttention(), api("GET", "/security?days=7"), api("GET", "/licences")]);
+    const ov = S.overview;
     const tr = trends.status === "fulfilled" ? trends.value : null;
+    const sec = security.status === "fulfilled" ? security.value : null;
+    const att = attention.status === "fulfilled" && attention.value ? attention.value.items : null;
+    const licence = lic.status === "fulfilled" ? lic.value : null;
 
+    let kpis;
     if (tr) {
       const days = tr.days;
       const today = days[days.length - 1];
       const change = tr.previous.cost ? (tr.current.cost - tr.previous.cost) / tr.previous.cost : null;
-      const sec = security.status === "fulfilled" ? security.value : null;
       const secCount = sec ? sec.events.filter((e) => e.severity !== "info").length : null;
-      const subs = lic.status === "fulfilled" ? lic.value.summary.subscriptions_month : 0;
-      kpis.replaceChildren(
+      const subs = licence ? licence.summary.subscriptions_month : 0;
+      kpis = el("div", { class: "kpis five" },
         A.kpi({ label: "AI spend · 30 days", icon: "wallet", value: fmt.money(tr.current.cost), tone: "gold hero",
           tip: "Metered use through the gateway, priced from the model price table when each request ran. Company plans are a fixed monthly cost on top.",
           foot: SUI.delta(change, { vs: "vs the 30 days before" }), note: subs ? `+ ${fmt.moneyShort(subs)}/mo in plans` : "vs the 30 days before",
           spark: SUI.sparkline(days.map((d) => d.cost)), href: "#/licences?tab=spend&range=30d" }),
         A.kpi({ label: "Active today", icon: "people", value: String(today.people), note: `${tr.current.people} in 30 days`,
-          tip: "People who made an AI request, opened a tool from the portal, or visited an approved AI website.",
-          spark: SUI.sparkline(days.map((d) => d.people), 2), href: "#/activity?tab=usage" }),
+          tip: "People who made an AI request, opened a tool from the portal, or visited an approved AI website.", href: "#/activity?tab=usage" }),
         A.kpi({ label: "Live requests", icon: "live", value: String(ov.live.length),
           foot: ov.live.length ? SUI.status("live", "In flight", { breathe: true, plain: true }) : SUI.status("idle", "Quiet", { plain: true }),
           note: `${fmt.num(today.requests)} today`, href: "#/live" }),
         A.kpi({ label: "Tools · 30 days", icon: "tools", value: String(tr.tools_used || 0),
-          note: tr.top_tools.length ? "most used: " + tr.top_tools[0].tool : "none yet", href: "#/activity?tab=usage&range=30d" }),
+          note: tr.top_tools.length ? "most used: " + tr.top_tools[0].tool : "none yet", href: "#/activity?tab=usage&range=30d&by=tool" }),
         A.kpi({ label: "Security · 7 days", icon: "shield", value: secCount === null ? "—" : String(secCount),
           tone: sec && sec.posture !== "healthy" ? "alert" : null,
           foot: sec ? SUI.status(sec.posture, { healthy: "Healthy", watch: "Worth a look", elevated: "Elevated" }[sec.posture], { plain: true }) : null,
           href: "#/security" }));
+    } else kpis = SUI.errorBox(trends.reason, () => A.render(), "The summary couldn't load");
+
+    const liveBox = el("div");
+    function drawLive() {
+      const live = (S.overview || ov).live;
+      liveBox.replaceChildren(live.length ? el("div", { class: "live-strip" }, live.slice(0, 6).map((t) => el("a", { class: "lv-mini", href: "#/live" },
+        SUI.status(t.streaming ? "streaming" : "waiting", t.streaming ? "Streaming" : "Waiting", { breathe: true }),
+        el("strong", null, t.person || "Unknown key"), el("span", { class: "muted" }, (t.client || "a tool") + (t.device ? " · " + t.device : "")),
+        el("span", { class: "elapsed u-num", "data-started": String(t.started) }, fmt.elapsed(t.started)))),
+      live.length > 6 ? el("a", { class: "lv-more", href: "#/live" }, `+${live.length - 6} more`) : null)
+        : el("div", { class: "live-quiet" }, SUI.status("idle", "Quiet", { plain: true }), el("span", { class: "muted" }, "Nobody is waiting on a model right now.")));
+    }
+    drawLive();
+
+    const nowTab = () => el("div", { class: "grid cols-2" },
+      A.panel("Needs attention", el("a", { class: "btn small quiet", href: "#/attention" }, "See all", icon("chevronRight")),
+        att === null ? SUI.errorBox(attention.reason, () => A.render())
+          : att.length ? el("ul", { class: "att-list" }, att.slice(0, 6).map(attentionItem))
+            : SUI.stateBox({ tone: "ok", icon: "checkCircle", title: "Nothing needs attention", text: "Everything looks normal.", compact: true })),
+      A.panel("Live activity", el("a", { class: "btn small quiet", href: "#/live" }, "Open Live", icon("chevronRight")), liveBox));
+
+    const trendsTab = () => {
+      if (!tr) return SUI.errorBox(trends.reason, () => A.render());
       const label = (d) => fmt.weekday(d.start);
-      charts.replaceChildren(
-        A.panel("Usage per day", "AI requests, tools opened and websites visited · 30 days", el("div", { class: "body" },
+      return el("div", { class: "grid cols-even" },
+        A.panel("Usage per day", "requests, opens and visits · 30 days", el("div", { class: "body" },
           SUI.columns({ label: "Uses per day over the last 30 days", tone: 2, yName: "Uses", caption: "Times in " + SUI.tzLabel(true),
-            data: days.map((d) => ({ label: label(d), short: fmt.dayMonth(d.start), value: d.requests + d.opens + d.visits,
+            data: tr.days.map((d) => ({ label: label(d), short: fmt.dayMonth(d.start), value: d.requests + d.opens + d.visits,
               note: `${fmt.num(d.requests)} requests · ${fmt.num(d.opens)} opens · ${fmt.num(d.visits)} visits` })) }))),
         A.panel("Spend per day", "metered API spend · 30 days", el("div", { class: "body" },
           SUI.line({ label: "Metered spend per day over the last 30 days", format: fmt.money, tick: fmt.moneyShort, yName: "Spend",
-            caption: "Estimated from the price table", data: days.map((d) => ({ label: label(d), short: fmt.dayMonth(d.start), value: d.cost })) }))));
-      tops.replaceChildren(
-        A.panel("Top tools", "30 days", tr.top_tools.length ? SUI.barList(tr.top_tools.map((t) => ({
-          label: t.tool, lead: A.toolLogo(t.tool_id, t.tool, "sm"), href: t.tool_id ? `#/tools?open=${t.tool_id}` : null,
-          value: t.requests + t.opens + t.visits, display: fmt.compact(t.requests + t.opens + t.visits) + " uses",
-          note: [t.requests && SUI.plural(t.requests, "request"), t.opens && SUI.plural(t.opens, "open"), t.visits && SUI.plural(t.visits, "visit"), SUI.plural(t.people, "person", "people")].filter(Boolean).join(" · ") })), { tone: 2 })
-          : A.empty("Once staff start using approved tools, they'll be ranked here.", "No AI activity yet", "tools")),
-        A.panel("Top people", "by spend, then use · 30 days", tr.top_people.length ? SUI.barList(tr.top_people.map((p) => ({
-          label: p.person, lead: SUI.avatar(p.person, "sm"), href: "#/people/" + p.person_id,
-          value: p.cost || (p.requests + p.opens + p.visits) / 1000, display: fmt.money(p.cost),
-          note: `${SUI.plural(p.tools, "tool")} · ${fmt.compact(p.requests + p.opens + p.visits)} uses` })))
-          : A.empty("People appear here once they use an approved tool.", "No AI activity yet", "people")));
-    } else {
-      kpis.replaceChildren(SUI.errorBox(trends.reason, () => A.render()));
-      charts.replaceChildren();
-    }
+            caption: "Estimated from the price table", data: tr.days.map((d) => ({ label: label(d), short: fmt.dayMonth(d.start), value: d.cost })) }))));
+    };
 
-    const att = attention.status === "fulfilled" && attention.value ? attention.value.items : null;
-    const licence = lic.status === "fulfilled" ? lic.value : null;
+    const leadersTab = () => {
+      if (!tr) return SUI.errorBox(trends.reason, () => A.render());
+      return el("div", { class: "grid cols-even" },
+        A.panel("Top tools", el("a", { class: "btn small quiet", href: "#/activity?tab=usage&range=30d&by=tool" }, "All tools", icon("chevronRight")),
+          tr.top_tools.length ? SUI.barList(tr.top_tools.map((t) => ({
+            label: t.tool, lead: A.toolLogo(t.tool_id, t.tool, "sm"), href: t.tool_id ? `#/tools?open=${t.tool_id}` : null,
+            value: t.requests + t.opens + t.visits, display: fmt.compact(t.requests + t.opens + t.visits) + " uses",
+            note: [t.requests && SUI.plural(t.requests, "request"), t.opens && SUI.plural(t.opens, "open"), t.visits && SUI.plural(t.visits, "visit"), SUI.plural(t.people, "person", "people")].filter(Boolean).join(" · ") })), { tone: 2 })
+            : A.empty("Once staff start using approved tools, they'll be ranked here.", "No AI activity yet", "tools")),
+        A.panel("Top people", el("a", { class: "btn small quiet", href: "#/activity?tab=usage&range=30d&by=person" }, "Everyone", icon("chevronRight")),
+          tr.top_people.length ? SUI.barList(tr.top_people.map((p) => ({
+            label: p.person, lead: SUI.avatar(p.person, "sm"), href: "#/people/" + p.person_id,
+            value: p.cost || (p.requests + p.opens + p.visits) / 1000, display: fmt.money(p.cost),
+            note: `${SUI.plural(p.tools, "tool")} · ${fmt.compact(p.requests + p.opens + p.visits)} uses` })))
+            : A.empty("People appear here once they use an approved tool.", "No AI activity yet", "people")));
+    };
+
     const opportunities = licence ? [
       ...licence.tools.filter((t) => t.idle.length && t.monthly_cost).map((t) => ({ t, text: `${SUI.plural(t.idle.length, "seat")} unused for 30 days`,
         cost: t.monthly_cost / Math.max(t.assigned, 1) * t.idle.length })),
       ...licence.tools.filter((t) => t.over_seats).map((t) => ({ t, text: `${t.assigned} people on ${SUI.plural(t.seats, "paid seat")}`, cost: null })),
     ].sort((a, b) => (b.cost || 0) - (a.cost || 0)) : null;
-    lower.replaceChildren(
-      A.panel("Needs attention", el("a", { class: "btn small quiet", href: "#/attention" }, "See all", icon("chevronRight")),
-        att === null ? SUI.errorBox(attention.reason, () => A.render())
-          : att.length ? el("ul", { class: "att-list" }, att.slice(0, 5).map(attentionItem))
-            : SUI.stateBox({ tone: "ok", icon: "checkCircle", title: "Nothing needs attention", text: "Everything looks normal.", compact: true })),
+    const licTab = () => el("div", { class: "grid cols-even" },
       A.panel("Licence opportunities", el("a", { class: "btn small quiet", href: "#/licences" }, "Licences", icon("chevronRight")),
         opportunities === null ? SUI.errorBox(lic.reason, () => A.render())
-          : opportunities.length ? el("ul", { class: "mini-list" }, opportunities.slice(0, 6).map((o) => el("li", null, A.toolLogo(o.t.id, o.t.name, "sm"),
+          : opportunities.length ? el("ul", { class: "mini-list" }, opportunities.map((o) => el("li", null, A.toolLogo(o.t.id, o.t.name, "sm"),
             el("div", { class: "grow" }, el("strong", null, o.t.name), el("div", { class: "hint" }, o.text)),
             o.cost ? el("span", { class: "u-num nowrap" }, "≈ " + fmt.money(o.cost) + "/mo") : SUI.badge("over-assigned", "warn"))))
-            : SUI.stateBox({ tone: "ok", icon: "checkCircle", title: "No waste found", text: "Every paid seat was used in the last 30 days.", compact: true })));
+            : SUI.stateBox({ tone: "ok", icon: "checkCircle", title: "No waste found", text: "Every paid seat was used in the last 30 days.", compact: true })),
+      A.panel("Renewing soon", "next 30 days", licence && licence.renewals.length ? el("ul", { class: "mini-list" }, licence.renewals.map((t) => el("li", null,
+        A.toolLogo(t.id, t.name, "sm"), el("div", { class: "grow" }, el("strong", null, t.name), el("div", { class: "hint" }, t.monthly_cost != null ? fmt.money(t.monthly_cost) + " a month" : "cost not set")),
+        SUI.badge(fmt.date(t.renews_on), "warn", "calendar"))))
+        : SUI.stateBox({ icon: "calendar", compact: true, title: "No renewals soon", text: "Nothing renews in the next 30 days." })));
+
+    const urgent = att ? att.filter((i) => i.severity === "high" || i.severity === "medium").length : 0;
+    A.frame({ title: "Overview", lede: `Swangz AI at a glance — ${fmt.weekday(Date.now() / 1000)}. Times in ${SUI.tzLabel()}.`,
+      actions: [el("a", { class: "btn", href: "#/activity" }, icon("activity"), "Activity"), el("a", { class: "btn primary", href: "#/live" }, icon("live"), "Open Live")] },
+    [kpis, A.pageTabs("#/", params, [
+      ["now", "Right now", nowTab, urgent || null],
+      ["trends", "Trends", trendsTab],
+      ["leaders", "Top tools & people", leadersTab],
+      ["licences", "Licences", licTab, opportunities && opportunities.length ? opportunities.length : null],
+    ])]);
 
     A.every(5000, async () => { await A.refreshOverview().catch(() => null); drawLive(); });
     A.every(1000, () => document.querySelectorAll(".elapsed[data-started]").forEach((n) => { n.textContent = fmt.elapsed(Number(n.dataset.started)); }));
@@ -361,28 +378,65 @@
     return box;
   }
   function field(label, control) { return el("label", { class: "field" }, el("span", null, label), control); }
+  const optText = (sel) => (sel.value ? (sel.tagName === "SELECT" ? sel.options[sel.selectedIndex].text : sel.value) : "");
+
+  /* Filters without the clutter: search, the Filters button and the time range share one row; the rest
+     fold away until wanted, and whatever is set shows as a chip you can clear.
+     fields: [{key, label, control}] — clear(keys) resets them and reloads. */
+  let fbSeq = 0;
+  function filterBar(o) {
+    const fields = o.fields || [];
+    const more = el("div", { class: "fb-more", id: "fb-more-" + (++fbSeq), hidden: true }, fields.map((f) => field(f.label, f.control)));
+    const count = el("span", { class: "fb-count", hidden: true });
+    const toggle = el("button", { class: "btn small fb-toggle", type: "button", "aria-expanded": "false", "aria-controls": more.id }, icon("filter"), "Filters", count);
+    toggle.addEventListener("click", () => {
+      const open = more.hidden;
+      more.hidden = !open;
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      toggle.classList.toggle("on", open);
+      if (open) { const first = more.querySelector("select, input"); if (first) first.focus(); }
+    });
+    const chips = el("div", { class: "fb-chips", hidden: true });
+    function draw() {
+      const active = fields.filter((f) => optText(f.control));
+      count.textContent = String(active.length);
+      count.hidden = !active.length;
+      chips.hidden = !active.length;
+      chips.replaceChildren(...active.map((f) => el("button", { class: "fb-chip", type: "button", "aria-label": `Remove filter ${f.label}: ${optText(f.control)}`,
+        onclick: () => o.clear([f.key]) }, el("span", { class: "k" }, f.label), optText(f.control), icon("x"))),
+      active.length > 1 ? el("button", { class: "btn link fb-clear", type: "button", onclick: () => o.clear(active.map((f) => f.key)) }, "Clear all") : null);
+    }
+    draw();
+    const node = el("div", { class: "filterbar" },
+      el("div", { class: "fb-row" },
+        o.search ? el("label", { class: "fb-search" }, icon("search"), el("span", { class: "u-sr" }, "Search"), o.search) : null,
+        fields.length ? toggle : null, o.extra || null, o.range || null),
+      more, chips);
+    return { node, draw };
+  }
 
   /* Who did what, when, where — every record in one stream, grouped by day. */
   async function timelineTab(params) {
     const list = await people();
     const st = { range: A.rangeFrom(params, "7d"), person: params.get("person") || "", tool: params.get("tool") || "", type: params.get("type") || "", q: params.get("q") || "", dept: params.get("dept") || "" };
-    const person = personSelect(list, st.person), dept = deptSelect(list, st.dept), tool = toolSelect(st.tool);
-    const q = el("input", { type: "search", placeholder: "Search prompts, people, tools…", value: st.q, "aria-label": "Search" });
+    const ctl = { person: personSelect(list, st.person), dept: deptSelect(list, st.dept), tool: toolSelect(st.tool),
+      type: el("select", { "aria-label": "Kind of event" }, [["", "Everything"], ["request", "AI requests"], ["launch", "Tools opened"], ["site", "AI websites"]].map(([v, t]) => el("option", { value: v }, t))) };
+    ctl.type.value = st.type;
+    const q = el("input", { type: "search", placeholder: "Search prompts, people, tools…", value: st.q });
     const results = el("div", { class: "results" });
     const summary = el("div", { class: "hint", role: "status" });
     const more = el("button", { class: "btn", hidden: true }, "Load older");
-    let next = null;
+    let next = null, days = null;
     const query = () => {
       const p = A.rangeQuery(st.range);
       ["person", "tool", "type", "q", "dept"].forEach((k) => { if (st[k]) p.set(k, st[k]); });
       return p;
     };
-    let days = null;
     async function load(reset) {
       const p = query();
-      p.set("limit", "60");
+      p.set("limit", "50");
       if (!reset && next) p.set("before", String(next));
-      if (reset) { results.classList.add("refreshing"); }
+      if (reset) results.classList.add("refreshing");
       const data = await api("GET", "/timeline?" + p.toString());
       results.classList.remove("refreshing");
       next = data.next_before;
@@ -395,25 +449,21 @@
       summary.textContent = `${results.querySelectorAll(".ev").length.toLocaleString()} events${data.more ? " so far" : ""} · times in ${SUI.tzLabel()}`;
     }
     const apply = () => {
+      fb.draw();
       A.keepParams("#/activity", { tab: "timeline", range: st.range.preset, from: st.range.preset === "custom" ? st.range.from : null,
         to: st.range.preset === "custom" ? st.range.to : null, person: st.person, tool: st.tool, type: st.type, q: st.q, dept: st.dept });
       load(true).catch((e) => results.replaceChildren(SUI.errorBox(e, apply)));
     };
-    person.addEventListener("change", () => { st.person = person.value; apply(); });
-    dept.addEventListener("change", () => { st.dept = dept.value; apply(); });
-    tool.addEventListener("change", () => { st.tool = tool.value; apply(); });
+    const fb = filterBar({ search: q,
+      range: SUI.rangeControl({ preset: st.range.preset, from: st.range.from, to: st.range.to, presets: ["today", "yesterday", "7d", "30d", "month", "custom"], onChange: (r) => { st.range = r; apply(); } }),
+      fields: [{ key: "person", label: "Person", control: ctl.person }, { key: "dept", label: "Department", control: ctl.dept },
+        { key: "tool", label: "Tool", control: ctl.tool }, { key: "type", label: "Show", control: ctl.type }],
+      clear: (keys) => { keys.forEach((k) => { st[k] = ""; ctl[k].value = ""; }); apply(); } });
+    Object.entries(ctl).forEach(([k, c]) => c.addEventListener("change", () => { st[k] = c.value; apply(); }));
     q.addEventListener("input", SUI.debounce(() => { st.q = q.value.trim(); apply(); }, 300));
     more.addEventListener("click", () => load(false).catch((e) => toast(e.message, true)));
     await load(true);
-    return A.panel(null, null,
-      el("div", { class: "filterbar" },
-        SUI.rangeControl({ preset: st.range.preset, from: st.range.from, to: st.range.to, presets: ["today", "yesterday", "7d", "30d", "month", "custom"],
-          onChange: (r) => { st.range = r; apply(); } }),
-        el("div", { class: "filters" },
-          field("Search", q), field("Person", person), field("Department", dept), field("Tool", tool),
-          el("div", { class: "field" }, el("span", null, "Show"), seg([["", "Everything"], ["request", "AI requests"], ["launch", "Tools opened"], ["site", "Websites"]],
-            st.type, (v) => { st.type = v; apply(); }, "Kind of event")))),
-      el("div", { class: "body tight" }, summary), results, el("div", { class: "body center" }, more));
+    return A.panel(null, null, fb.node, el("div", { class: "body tight" }, summary), results, el("div", { class: "body center" }, more));
   }
 
   /* Who used what: one row per person and tool, across every record. */
@@ -462,10 +512,9 @@
     };
     await load();
     return A.panel(null, null,
-      el("div", { class: "filterbar" },
-        SUI.rangeControl({ preset: st.range.preset, from: st.range.from, to: st.range.to, onChange: (r) => { st.range = r; apply(); } }),
-        el("div", { class: "filters" }, el("div", { class: "field" }, el("span", null, "Group by"),
-          seg([["both", "Person & tool"], ["person", "Person"], ["tool", "Tool"]], st.by, (v) => { st.by = v; apply(); }, "Group by")))),
+      filterBar({ extra: el("span", { class: "fb-group" }, el("span", { class: "u-label" }, "Group by"),
+        seg([["both", "Person & tool"], ["person", "Person"], ["tool", "Tool"]], st.by, (v) => { st.by = v; apply(); }, "Group by")),
+      range: SUI.rangeControl({ preset: st.range.preset, from: st.range.from, to: st.range.to, onChange: (r) => { st.range = r; apply(); } }) }).node,
       el("div", { class: "body tight" }, summary), box);
   }
 
@@ -475,15 +524,13 @@
     const st = { range: A.rangeFrom(params, "30d"), q: params.get("q") || "", person: params.get("person") || "", client: params.get("client") || "",
       outcome: params.get("outcome") || "", show: params.get("kind") === "media" ? "media" : params.get("only") === "prompts" ? "prompts" : params.get("flag") === "secret" ? "secret" : params.get("all") ? "all" : "",
       model: params.get("model") || "", dept: params.get("dept") || "" };
-    const q = el("input", { type: "search", placeholder: "Search prompts, commands, replies…", value: st.q, "aria-label": "Search" });
-    const person = personSelect(list, st.person), dept = deptSelect(list, st.dept);
-    const tool = el("select", { "aria-label": "Application" }, ["", "Claude Code", "Codex", "Swangz AI Studio", "Cursor", "OpenAI SDK", "Anthropic SDK", "curl", "unknown"].map((c) => el("option", { value: c }, c || "Any application")));
-    tool.value = st.client;
-    const outcome = el("select", { "aria-label": "Outcome" }, [["", "Any outcome"], ["ok", "Completed"], ["blocked", "Blocked"], ["denied", "Wrong key"], ["cut", "Stopped"], ["aborted", "Closed by the tool"], ["error", "Failed"]].map(([v, t]) => el("option", { value: v }, t)));
-    outcome.value = st.outcome;
-    const show = el("select", { "aria-label": "Show" }, [["", "All requests"], ["media", "Voice, image & video"], ["prompts", "Only typed prompts"], ["secret", "Credentials flagged"], ["all", "Include token counts & other calls"]].map(([v, t]) => el("option", { value: v }, t)));
-    show.value = st.show;
-    const model = el("input", { type: "text", placeholder: "e.g. claude-sonnet-4-5", value: st.model, "aria-label": "Model" });
+    const q = el("input", { type: "search", placeholder: "Search prompts, commands, replies…", value: st.q });
+    const ctl = { person: personSelect(list, st.person), dept: deptSelect(list, st.dept),
+      client: el("select", { "aria-label": "Application" }, ["", "Claude Code", "Codex", "Swangz AI Studio", "Cursor", "OpenAI SDK", "Anthropic SDK", "curl", "unknown"].map((c) => el("option", { value: c }, c || "Any application"))),
+      model: el("input", { type: "text", placeholder: "e.g. claude-sonnet-4-5", value: st.model, "aria-label": "Model" }),
+      outcome: el("select", { "aria-label": "Outcome" }, [["", "Any outcome"], ["ok", "Completed"], ["blocked", "Blocked"], ["denied", "Wrong key"], ["cut", "Stopped"], ["aborted", "Closed by the tool"], ["error", "Failed"]].map(([v, t]) => el("option", { value: v }, t))),
+      show: el("select", { "aria-label": "Show" }, [["", "All requests"], ["media", "Voice, image & video"], ["prompts", "Only typed prompts"], ["secret", "Credentials flagged"], ["all", "Include token counts & other calls"]].map(([v, t]) => el("option", { value: v }, t))) };
+    ctl.client.value = st.client; ctl.outcome.value = st.outcome; ctl.show.value = st.show;
     const listBox = el("ol", { class: "events flat" });
     const more = el("button", { class: "btn", hidden: true }, "Load older");
     let minId = null;
@@ -515,6 +562,7 @@
     }
     const apply = () => {
       minId = null;
+      fb.draw();
       const keep = query();
       keep.delete("since"); keep.delete("until");
       keep.set("tab", "ai");
@@ -523,17 +571,18 @@
       history.replaceState(null, "", "#/activity?" + keep.toString());
       load(true).catch((e) => listBox.replaceChildren(el("li", { class: "plain" }, SUI.errorBox(e, apply))));
     };
+    const fb = filterBar({ search: q,
+      range: SUI.rangeControl({ preset: st.range.preset, from: st.range.from, to: st.range.to, onChange: (r) => { st.range = r; apply(); } }),
+      fields: [{ key: "person", label: "Person", control: ctl.person }, { key: "dept", label: "Department", control: ctl.dept },
+        { key: "client", label: "Application", control: ctl.client }, { key: "model", label: "Model", control: ctl.model },
+        { key: "outcome", label: "Outcome", control: ctl.outcome }, { key: "show", label: "Show", control: ctl.show }],
+      clear: (keys) => { keys.forEach((k) => { st[k] = ""; ctl[k].value = ""; }); apply(); } });
     q.addEventListener("input", SUI.debounce(() => { st.q = q.value.trim(); apply(); }, 300));
-    model.addEventListener("input", SUI.debounce(() => { st.model = model.value.trim(); apply(); }, 400));
-    [[person, "person"], [dept, "dept"], [tool, "client"], [outcome, "outcome"], [show, "show"]].forEach(([sel, k]) => sel.addEventListener("change", () => { st[k] = sel.value; apply(); }));
+    ctl.model.addEventListener("input", SUI.debounce(() => { st.model = ctl.model.value.trim(); apply(); }, 400));
+    ["person", "dept", "client", "outcome", "show"].forEach((k) => ctl[k].addEventListener("change", () => { st[k] = ctl[k].value; apply(); }));
     more.addEventListener("click", () => load(false).catch((e) => toast(e.message, true)));
     await load(true);
-    return A.panel(null, null,
-      el("div", { class: "filterbar" },
-        SUI.rangeControl({ preset: st.range.preset, from: st.range.from, to: st.range.to, onChange: (r) => { st.range = r; apply(); } }),
-        el("div", { class: "filters" }, field("Search", q), field("Person", person), field("Department", dept), field("Application", tool),
-          field("Model", model), field("Outcome", outcome), field("Show", show))),
-      listBox, el("div", { class: "body center" }, more));
+    return A.panel(null, null, fb.node, listBox, el("div", { class: "body center" }, more));
   }
 
   async function opensTab(params) {
@@ -541,6 +590,7 @@
     const st = { range: A.rangeFrom(params, "30d"), person: params.get("person") || "" };
     const person = personSelect(list, st.person);
     const box = el("div");
+    let fb = null;
     async function load() {
       const p = A.rangeQuery(st.range);
       if (st.person) p.set("person", st.person);
@@ -554,14 +604,15 @@
         : SUI.stateBox({ icon: "open", title: "No tools opened in this period", text: "When staff press Open in Swangz AI, it appears here with the device and address it came from." }));
     }
     const apply = () => {
+      fb.draw();
       A.keepParams("#/activity", { tab: "opens", range: st.range.preset, from: st.range.preset === "custom" ? st.range.from : null, to: st.range.preset === "custom" ? st.range.to : null, person: st.person });
       load().catch((e) => box.replaceChildren(SUI.errorBox(e, apply)));
     };
+    fb = filterBar({ range: SUI.rangeControl({ preset: st.range.preset, from: st.range.from, to: st.range.to, onChange: (r) => { st.range = r; apply(); } }),
+      fields: [{ key: "person", label: "Person", control: person }], clear: () => { st.person = ""; person.value = ""; apply(); } });
     person.addEventListener("change", () => { st.person = person.value; apply(); });
     await load();
-    return A.panel(null, null, el("div", { class: "filterbar" },
-      SUI.rangeControl({ preset: st.range.preset, from: st.range.from, to: st.range.to, onChange: (r) => { st.range = r; apply(); } }),
-      el("div", { class: "filters" }, field("Person", person))), box);
+    return A.panel(null, null, fb.node, box);
   }
 
   async function sitesTab() {
@@ -601,11 +652,12 @@
       watch: ["watch", "Worth a look", "Something here deserves a check — start with the medium items. Nothing is a finding against anyone until you've looked."],
       elevated: ["elevated", "Elevated", "A high-severity signal is open. Look at it first."],
     }[data.posture];
-    const counts = Object.entries(SEC_TYPES).map(([k, [label, ic]]) => {
-      const n = data.counts[k] || 0;
-      return el("a", { class: "sec-count" + (type === k ? " on" : "") + (n ? "" : " zero"), href: `#/security?days=${days}` + (type === k ? "" : "&type=" + k), "aria-pressed": type === k ? "true" : "false" },
-        icon(ic), el("span", { class: "n u-num" }, String(n)), el("span", { class: "l" }, label));
-    });
+    // One row of filter chips instead of a tile per kind: only kinds that happened, plus "All".
+    const total = Object.values(data.counts).reduce((a, n) => a + (n || 0), 0);
+    const chip = (k, label, ic, n) => el("a", { class: "sec-chip" + (type === k ? " on" : ""), href: `#/security?days=${days}` + (k ? "&type=" + k : ""), "aria-current": type === k ? "true" : null },
+      ic ? icon(ic) : null, el("span", null, label), el("span", { class: "n u-num" }, String(n)));
+    const kinds = Object.entries(SEC_TYPES).filter(([k]) => data.counts[k] || type === k);
+    const counts = [chip("", "All", null, total), ...kinds.map(([k, [label, ic]]) => chip(k, label, ic, data.counts[k] || 0))];
     const events = data.events.filter((e) => !type || e.type === type);
     const list = events.length ? el("ul", { class: "sec-list" }, events.map((e) => {
       const [state, label] = SEV[e.severity] || SEV.info;
@@ -618,8 +670,8 @@
           e.tool ? el("span", { class: "obj" }, icon("tools"), e.tool) : null,
           e.device ? el("span", { class: "obj" }, icon("device"), e.device) : null,
           e.ip ? A.where(e.ip, e.place) : null),
-        el("div", { class: "sec-foot" }, e.evidence ? SUI.evidence(e.evidence) : el("span"),
-          e.href ? el("a", { class: "btn small", href: e.href }, "Investigate", icon("chevronRight")) : null));
+        e.evidence ? el("div", { class: "sec-foot" }, SUI.evidence(e.evidence)) : null,
+        e.href ? el("a", { class: "btn small sec-go", href: e.href }, "Investigate", icon("chevronRight")) : null);
     })) : SUI.stateBox({ tone: "ok", icon: "shield", title: type ? "None of these" : "No security events", text: type ? "Nothing of this kind in this period." : "Everything looks normal." });
     A.frame({ title: "Security", lede: "Signals worth a look, each with how sure the evidence is. Severity says what to check first — it isn't a judgement on anyone.",
       status: SUI.status(postureText[0], postureText[1], { plain: true }),
@@ -632,7 +684,8 @@
           el("div", null, el("span", { class: "k" }, "Rate limit"), el("span", { class: "v" }, data.settings.rate_per_min ? data.settings.rate_per_min + " a minute per person" : "Off")),
           el("div", null, el("span", { class: "k" }, "Kill switch"), el("span", { class: "v" }, data.settings.paused ? "AI is paused" : "Ready")),
           el("a", { class: "btn small", href: "#/settings" }, "Change in Settings"))),
-      el("div", { class: "sec-counts" }, counts),
+      el("nav", { class: "sec-chips", "aria-label": "Filter by kind" }, counts,
+        kinds.length ? null : el("span", { class: "hint" }, "Nothing of any kind in this period.")),
       A.panel(type ? SEC_TYPES[type][0] : "Events", SUI.plural(events.length, "event") + ` · last ${days === 1 ? "24 hours" : days + " days"}`, list),
     ]);
   }

@@ -1,7 +1,7 @@
-# The shared workspace — company browsers on your own server
+# The shared workspace — company browsers on your own server or computer
 
 For tools where Swangz has **one account** and no per-person plan, staff can work in company browsers
-that run on Swangz's own server and are signed in to the tool **once**, by an admin. The portal sends
+that run on Swangz's own server — or one of its own computers — and are signed in to the tool **once**, by an admin. The portal sends
 whoever holds a turn into a browser of their own. They arrive signed in, the password never leaves the
 server, and several people can be on one tool at once — one browser each.
 
@@ -45,6 +45,87 @@ workspace is full. Around 20 at once needs about 64 GB of RAM and 16 CPU threads
 its screen as video), with `screen` at `1280x720@25`. Keep this server **separate from the gateway's**: a browser that eats the
 RAM must not take the gateway down, and a person driving a browser must not be on the machine that holds
 the provider keys.
+
+## Where the browsers run: the rented server, the Windows PC or the Mac
+
+The browsers can run on a server Swangz rents (below), or on one of Swangz's own computers — a strong
+Windows PC or a Mac — with nothing rented. **One place at a time:** the console's **Settings → Company
+browsers** shows all three and which one Open uses, and **Use this one** switches. Switching moves anyone
+in a company browser off the old place (their turn ends; Open gives them a browser at the new one), and
+their sign-in there is removed as soon as it answers. Each place has browsers of its own, each signed in to
+its tool once — sign a place's browsers in on that same page *before* switching to it.
+
+| | Rented server | Swangz's own computer |
+|---|---|---|
+| Costs | €37/month for ~20 at once (traffic included) | nothing rented; the computer, its power and internet |
+| Reachable | public IP, ports open | nothing needs to reach it: a Cloudflare tunnel for the pages, a relay for the video |
+| Needs | Ubuntu, set up once by `setup-workspace-server.sh` | Docker Desktop + Python, `computer.py setup` |
+| Stays up | in a data centre | only while the computer is on, awake, signed in and online — a UPS helps |
+| Upload | the data centre's | **its internet's upload**: ~2–3 Mbps per person in a browser (20 people ≈ 40–60 Mbps) |
+| Video for people elsewhere | direct | through the relay (below); people on the computer's own network connect straight to it |
+
+### On a Windows PC or a Mac
+
+1. Install **Docker Desktop** (Windows: `winget install -e --id Docker.DockerDesktop`; Mac: docker.com, the
+   Apple-chip or Intel build), open it once and accept its terms. Install **Python 3** (Windows:
+   `winget install -e --id Python.Python.3.13`; most Macs have `python3`). Copy this repo onto it.
+2. Console → **Settings → Company browsers** → the Windows PC (or the Mac) → **Connect…**. It shows a key —
+   once — inside the exact command, e.g.
+
+   ```
+   python workspace_agent\computer.py setup --host windows --gateway https://swangz-ai.netlify.app --key <key>
+   ```
+
+   Run it in the repo folder on that computer (PowerShell on Windows, Terminal on a Mac). It checks the
+   gateway answers, starts Docker Desktop if needed, works out how many browsers fit in Docker's memory
+   (`max_running`), downloads Cloudflare's tunnel program and the browser image (~1 GB, once), sets itself to
+   start whenever someone signs in to the computer (Windows: the sign-in list in the registry, no window;
+   Mac: a LaunchAgent), starts, and checks in. The console then shows the computer **Online**.
+3. Sign its browsers in (same page, **Signing the browsers in** → that computer), then **Use this one**.
+
+The computer's browser list comes from the console: every shared tool set to *Company browsers = Swangz's
+company browsers* gets one browser per *person on it at a time*, within a minute. A tool keeps the browser
+numbers it was given — and so their sign-ins — for good, even when it needs fewer for a while.
+
+Its files are in `~/swangz-workspace` (`agent.json` holds the key; `logs/workspace.log`). On the computer:
+
+```
+python workspace_agent/computer.py status   # running? checked in? in use? relay?
+python workspace_agent/computer.py stop     # stop it and its browsers (back at the next sign-in, or `start`)
+python workspace_agent/computer.py start
+python workspace_agent/computer.py remove   # stop it, and no longer start it with the computer
+```
+
+**Memory.** Docker Desktop gets only part of the computer's memory: on Windows, half of it by default
+(32 GB of 64 → ~15 browsers). Setup says so and how to give it more — on Windows a `.wslconfig` in your user
+folder with `[wsl2]` / `memory=52GB`, then `wsl --shutdown`; on a Mac Docker Desktop → Settings →
+Resources — then run setup again so `max_running` follows.
+
+**Keep it up.** It keeps the computer from sleeping while it runs, but it can't run while the computer is
+off or nobody is signed in to it, or Docker Desktop is closed. If the computer will be off, switch Open
+back to the rented server first. Its address is a Cloudflare *quick tunnel*, new each time the tunnel
+opens; the computer tells the gateway within seconds. For a fixed address, create a named tunnel in
+Cloudflare (needs swangzavenue.com's DNS on Cloudflare), point its hostname at `http://127.0.0.1:8790`, and
+put `"tunnel_token"` and `"public_url"` in `agent.json`.
+
+### The video relay
+
+Nothing on the internet can reach a computer in an office or a home, so its browsers' video goes through
+a **TURN relay**: both the browser and the person's screen connect *out* to it and meet there. The
+gateway keeps the relay's secret and hands the computer credentials that last 48 hours; the console shows
+whether one is set. Without one, only people on the same network as the computer can use its browsers.
+
+- **Cloudflare's relay** (recommended — nearest to Kampala, nothing to run): Cloudflare dashboard →
+  Realtime → TURN → create a TURN key. In the gateway's `.env`:
+  `GATEWAY_TURN_CLOUDFLARE_KEY_ID=…` and `GATEWAY_TURN_CLOUDFLARE_TOKEN=…`, then restart the gateway.
+  The first 1,000 GB a month are free, then $0.05 per GB — a person in a browser all day is roughly
+  5–10 GB, so ~20 people all day can come to $50–150 a month. At that size the rented server, whose
+  traffic is included, costs less.
+- **Your own coturn** (free traffic, on a server you rent anyway — e.g. the gateway's, though from there
+  the video detours through Germany): run coturn with `use-auth-secret`, and set `GATEWAY_TURN_URLS`
+  (e.g. `turn:turn.swangzavenue.com:3478,turns:turn.swangzavenue.com:5349`) and `GATEWAY_TURN_SECRET`.
+
+The rented server doesn't need the relay: its public address is reachable directly.
 
 ## How it works
 
@@ -130,7 +211,7 @@ GATEWAY_WORKSPACE_AGENT_TOKEN=<the same token as in agent.json>
 ### 6. Set the tool up, and sign each browser in once
 
 Control room → **Tools → the tool → Settings**: *How people sign in* = **Shared company account**,
-*Company browsers* = **From the workspace server**, *People on it at a time* = how many browsers it has
+*Company browsers* = **Swangz's company browsers**, *People on it at a time* = how many browsers it has
 (or fewer).
 
 Then **Who can use it → Browsers on the workspace server**: for each browser press **Sign in to the

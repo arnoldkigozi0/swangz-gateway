@@ -304,6 +304,21 @@ def end_turn(ctx, tid):
     return {"ok": True, "ended": n, "sign_out_hosts": [h for h in (tool["hosts"] or "").split(",") if h]}
 
 
+@route("POST", r"/workspace/hello", signed_in=False)
+def workspace_hello(ctx):
+    """One of Swangz's computers that runs company browsers, checking in with its key (not a person): where
+    its browsers answer now. Under /api/ so it reaches the gateway through the Netlify front door too."""
+    auth = (ctx.h.headers.get("authorization") or "").strip()
+    key = auth[7:].strip() if auth[:7].lower() == "bearer " else ""
+    try:
+        return ctx.gw.workspaces.hello(str(ctx.body.get("host") or ""), key, str(ctx.body.get("url") or ""),
+                                       ctx.body.get("info"))
+    except PermissionError:
+        raise ApiError(401, "that key isn't this computer's — make a new one in the console and run setup again")
+    except ValueError as exc:
+        raise ApiError(400, str(exc))
+
+
 # ---------------------------------------------------------------- opening a tool from the portal
 
 

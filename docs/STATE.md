@@ -4,8 +4,8 @@ Last updated: 2026-10-07. Read `../CLAUDE.md` first for the overview and convent
 
 ## Where it stands
 
-A working platform, built and tested. **199 unit tests pass** (`python3 -m unittest discover -s tests -t .`).
-Schema is **v11**. Nothing real has been called by a provider yet — there are no company API keys, and
+A working platform, built and tested. **220 unit tests pass** (`python3 -m unittest discover -s tests -t .`).
+Schema is **v12**. Nothing real has been called by a provider yet — there are no company API keys, and
 the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
 
 ### Done and verified
@@ -184,6 +184,33 @@ is only kept ready if there is room, and with every running browser in use the a
 `{"full": "server"}` and staff are told the workspace is full. Sizing for 20: ~64 GB, 16 threads,
 `screen` 1280x720@25 (`deploy/WORKSPACE.md`, `docs/GO-LIVE.md`). Server not chosen yet.
 
+### Oct 6, 2026 — the company browsers on Swangz's own computer, as an option
+
+Arnold has a strong computer (64 GB+) — a Windows PC and a Mac — and asked to run the browsers there as
+an option, chosen by the admin, **one place at a time, not both**. Built (schema **v11**):
+
+- **Three places, one switch.** Settings → **Company browsers** lists the rented server (env, as before),
+  the Windows PC and the Mac, with **Use this one**. `workspace.use()` ends every turn whose browser is
+  elsewhere (reason "the company browsers moved to …"); each turn records `ws_host`, so its sign-in is
+  released at the place it was made, retried until that place answers. Each place's browsers can be
+  signed in from that page before switching (`?host=` on the workspace routes).
+- **A computer connects itself.** Connect… gives a key (shown once, inside the setup command).
+  `workspace_agent/computer.py setup` (Windows or Mac, Python 3.9+, stdlib): checks the gateway, starts
+  Docker Desktop, sizes `max_running` from Docker's memory (and says how to give it more), downloads
+  cloudflared and the image, registers itself to start at sign-in (Windows: HKCU Run + pythonw, no
+  window; Mac: a LaunchAgent), keeps the machine awake, runs a quick tunnel and re-opens it if it drops.
+  The agent checks in every minute at `POST /api/workspace/hello` (through the Netlify front door) with
+  its tunnel address; the gateway answers with the browsers it needs (every shared tool in agent mode,
+  `seats_at_once` each — a tool keeps its browser numbers, so its profiles, for good) and relay credentials.
+- **No Caddy on a computer:** the agent passes `/<slot>/…` straight to that browser, WebSocket included.
+- **Video relay** (`workspace.Relay`): Cloudflare TURN (`GATEWAY_TURN_CLOUDFLARE_KEY_ID/_TOKEN`) or your own
+  coturn (`GATEWAY_TURN_URLS/_SECRET`); 48-hour credentials; Neko runs full ICE with them, and `lan_ip`
+  lets people in the office connect straight to the computer.
+- **Tests:** 20 new (check-in, numbering, relay env, pass-through incl. WebSocket, switching both ways,
+  release while the old place is down, Cloudflare/coturn credentials).
+- **Not done:** nothing has run on a real Docker Desktop yet, and no TURN key exists yet. First run:
+  follow WORKSPACE.md → "On a Windows PC or a Mac", then test from outside the office.
+
 ### Oct 6–7, 2026 — mission control: the control room and staff app rebuilt
 
 Arnold briefed a full premium UI/UX pass ("Mission Control for company AI": calm, trustworthy, deep
@@ -198,8 +225,8 @@ visibility for admins, simplicity for staff). Built on real data only:
   tools, devices, requests (`#123`), sessions and the audit log. New pages: **Overview** (spend with
   its trend and change, active people, live, tools, security; usage and spend charts; top tools and
   people; needs attention; licence opportunities), **Needs attention** (one list: security signals,
-  budgets, idle/over-assigned seats, renewals, full shared accounts, waiting tool requests, missing
-  provider keys, unpriced models), **Live** (in-flight requests with elapsed time and state; *Inspect*
+  budgets, idle/over-assigned seats, renewals, full shared accounts, an offline computer running the
+  company browsers, waiting tool requests, missing provider keys, unpriced models), **Live** (in-flight requests with elapsed time and state; *Inspect*
   follows a request until it finishes and opens its record), **Activity → Timeline** (who did what,
   when, where — requests, portal opens and website visits in one stream, grouped by day, filterable,
   paged) and **Who used what**, **Devices** + a page per device (apps, platform, addresses, models,
@@ -213,6 +240,12 @@ visibility for admins, simplicity for staff). Built on real data only:
   the record page became a forensic view (each fact labelled with how it's known, and a request
   timeline: prompt → first word → actions by category → reply → outcome); the audit log is filterable.
   A time range (Today … Custom) and a time zone (gateway / mine / UTC) apply wherever time matters.
+- **Fewer tiles per page (Oct 7, Arnold: "too many tiles").** Headline numbers sit in one joined strip,
+  not separate cards. Overview is tabbed — *Right now* (needs attention + live), *Trends*, *Top tools &
+  people*, *Licences*. Activity rows are two lines (time · who did what with which tool · cost · outcome,
+  then device / address / duration underneath); filters fold behind a **Filters** button and show as
+  removable chips once set. Security's nine count tiles became one row of filter chips, listing only the
+  kinds that happened. On a phone the tab bars scroll sideways with a fade at the edge.
 - **Staff app.** Home with a restrained hero and notifications worked out from the person's own
   account; the full catalogue with filters, sort and a details drawer (what it does, *why you have it*,
   how sign-in works, who manages access, your recent use, what's recorded); device cards; a clearer
@@ -223,7 +256,7 @@ visibility for admins, simplicity for staff). Built on real data only:
   `/devices`, `/devices/<key>`, `/timeline`, `/usage`, `/spend`, `/search`, `/tools/<id>/usage`; audit
   filters; requests by `until` and department; device names on live and listed requests. Staff `/me`
   adds their access requests, each tool's grant source and 30-day opens, each device's app, and the
-  privacy facts. Schema v11 indexes requests by key. Checked in headless Chromium at 1440 and 390,
+  privacy facts. Schema v12 indexes requests by key. Checked in headless Chromium at 1440 and 390,
   dark and light, as owner and viewer, with no console errors.
 - **Not built, and why:** *location* — no IP-geolocation source is bundled (stdlib-only, nothing sent
   out), so addresses show as public/private, never a city; *declared purpose* and *AI-inferred purpose*

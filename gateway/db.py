@@ -295,9 +295,24 @@ SCHEMA = [
     """
     ALTER TABLE tools ADD COLUMN workspace_mode TEXT NOT NULL DEFAULT '';
     """,
-    # v11: the control room's device pages read a key's requests on their own
+    # v11: the company browsers can run on one of Swangz's own computers (a Windows PC, a Mac) instead of
+    # the rented server — one place at a time, chosen in the console (settings: workspace_host). Each
+    # computer has a key, and checks in with the address its tunnel gave it; the gateway has to present
+    # that key to the computer, so it is kept as it is. A turn records where its browser is.
     """
-    CREATE INDEX requests_key_ts ON requests(key_id, ts);
+    CREATE TABLE workspace_hosts (
+        id TEXT PRIMARY KEY CHECK (id IN ('windows', 'mac')),
+        token TEXT NOT NULL,
+        url TEXT NOT NULL DEFAULT '',
+        info TEXT NOT NULL DEFAULT '{}',
+        created REAL NOT NULL,
+        seen REAL
+    );
+    ALTER TABLE tool_turns ADD COLUMN ws_host TEXT NOT NULL DEFAULT '';
+    """,
+    # v12: the control room's device pages read a key's requests on their own
+    """
+    CREATE INDEX IF NOT EXISTS requests_key_ts ON requests(key_id, ts);
     """,
 ]
 

@@ -65,6 +65,18 @@ Code or Codex on company keys.)
 - [ ] **You:** console → each shared tool → **Who can use it** → for every browser: **Sign in to the
       tool**, sign in with the company account, **Done**. Once per browser.
 
+### 4b. Or: the company browsers on Swangz's own computer — nothing rented
+Instead of the workspace server, a strong Windows PC or Mac that stays on can run the browsers. One place
+at a time; switch any time in the console (Settings → Company browsers). See `deploy/WORKSPACE.md` →
+"Where the browsers run".
+- [ ] **You:** on that computer install Docker Desktop and Python 3, copy the repo across.
+- [ ] **You:** console → Settings → Company browsers → the Windows PC (or Mac) → **Connect…**, and run the
+      command it shows there. Then sign its browsers in on the same page, and **Use this one**.
+- [ ] **You (for staff outside the office):** a free Cloudflare account → Realtime → TURN → create a key;
+      put `GATEWAY_TURN_CLOUDFLARE_KEY_ID` and `GATEWAY_TURN_CLOUDFLARE_TOKEN` in the gateway's `.env`.
+      **Claude:** restart the gateway. First 1,000 GB a month free, then $0.05/GB.
+- Needs: the computer on, awake and signed in; ~2–3 Mbps of *upload* per person in a browser.
+
 ### 5. Roll out to staff
 - [ ] **You:** add staff (People → Add; `@swangzavenue.com` emails), assign tools, send each their sign-in
       link — or let them use Continue with Google once step 1's Google work is done.

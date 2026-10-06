@@ -819,6 +819,14 @@ def attention(ctx):
             add(f"full-{t['id']}", "info", "Workspace", f"{t['name']}'s shared account is fully in use",
                 f"{len(held)} of {turns.seats(t)} at once — others are turned away until a turn ends.",
                 f"#/tools?open={t['id']}&tab=access")
+    # company browsers on one of Swangz's own computers: while it is offline, nobody on a shared tool gets one
+    if db.scalar("SELECT COUNT(*) FROM tools WHERE signin = 'shared' AND workspace_mode = 'agent' AND archived = 0"):
+        for h in ctx.gw.workspaces.hosts():
+            if h["active"] and h["kind"] == "computer" and not h.get("online"):
+                add("ws-offline", "high" if h.get("set_up") else "medium", "Workspace",
+                    f"{h['label'][:1].upper() + h['label'][1:]} isn't online",
+                    "The company browsers are set to run there, so Open can't give anyone one until it checks in again — "
+                    "or switch back to the rented server.", "#/settings?tab=browsers")
     opened = db.scalar("SELECT COUNT(*) FROM access_requests WHERE state = 'open'") or 0
     if opened:
         add("requests", "info", "Access", f"{opened} tool request{'s' if opened != 1 else ''} waiting",

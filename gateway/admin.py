@@ -782,7 +782,8 @@ def catalog_list(ctx):
     return {"tools": tools, "removed": removed, "categories": cats, "departments": _departments(ctx.db),
             "summary": {"total": len(tools), "paid": paid, "monthly_cost": monthly or 0},
             "workspace_managed": bool(ctx.gw.settings.workspace_token),
-            "workspace_agent": ctx.gw.workspaces.agent_ready}
+            "workspace_agent": ctx.gw.workspaces.agent_ready,
+            "workspace_host": ctx.gw.workspaces.active}
 
 
 @route("GET", r"/tools/(?P<tid>[a-z0-9-]+)/access")
@@ -820,40 +821,97 @@ def list_turns(ctx):
     return {"now": now, "recent": recent, "tools": shared}
 
 
+def _ws_host(ctx, value=None):
+    """The place a workspace call is about: ?host= (or the body's host), else the one in use."""
+    from .workspace import HOSTS
+
+    host = value or ctx.arg("host") or ctx.body.get("host") or ctx.gw.workspaces.active
+    if host not in HOSTS:
+        raise ApiError(404, "no such place for company browsers")
+    return host
+
+
 @route("GET", r"/workspace")
 def workspace_status(ctx):
-    """The workspace server's browsers: which tool, running or not, who is on each."""
-    from .workspace import Unavailable
+    """Where company browsers can run and which one Open uses; then one place's browsers (the one in use,
+    or ?host=): which tool, running or not, who is on each."""
+    from .workspace import HOSTS, Unavailable
 
     w = ctx.gw.workspaces
-    if not w.agent_ready:
-        return {"configured": False}
-    try:
-        return {"configured": True, **w.agent_status()}
-    except Unavailable as exc:
-        return {"configured": True, "error": str(exc)}
+    host = _ws_host(ctx)
+    out = {"active": w.active, "host": host, "label": HOSTS[host], "hosts": w.hosts(), "relay": w.relay.kind,
+           "configured": w.connection(host) is not None}
+    if out["configured"]:
+        try:
+            out.update(w.agent_status(host))
+        except Unavailable as exc:
+            out["error"] = str(exc)
+    return out
 
 
 @route("POST", r"/workspace/browsers/(?P<slot>[a-z0-9-]{1,80})/(?P<action>open|close)", role="owner")
 def workspace_browser(ctx, slot, action):
     """An admin opens a workspace browser to sign it in to its tool by hand — once per browser — and
-    closes it again. Nobody else can be given that browser meanwhile."""
-    from .workspace import Unavailable
+    closes it again. Nobody else can be given that browser meanwhile. Any place, ?host=, so a computer's
+    browsers can be signed in before Open switches to it."""
+    from .workspace import HOSTS, Unavailable
 
     w = ctx.gw.workspaces
-    if not w.agent_ready:
-        raise ApiError(400, "no workspace server is connected (GATEWAY_WORKSPACE_AGENT)")
+    host = _ws_host(ctx)
+    if w.connection(host) is None:
+        raise ApiError(400, f"{HOSTS[host]} isn't connected yet (Settings → Company browsers)")
     try:
         if action == "close":
-            w.admin_close(slot)
-            ctx.audit("closed a workspace browser after signing it in", slot)
+            w.admin_close(slot, host)
+            ctx.audit("closed a workspace browser after signing it in", f"{slot} · {HOSTS[host]}")
             return {"ok": True}
-        out = w.admin_open(slot, ctx.admin["username"])
+        out = w.admin_open(slot, ctx.admin["username"], host)
     except Unavailable as exc:
         raise ApiError(502, str(exc))
     if out.get("state") == "ready":
-        ctx.audit("opened a workspace browser to sign it in", slot)
+        ctx.audit("opened a workspace browser to sign it in", f"{slot} · {HOSTS[host]}")
     return {"state": out.get("state"), "url": out.get("url") if out.get("state") == "ready" else None}
+
+
+@route("POST", r"/workspace/use", role="owner")
+def workspace_use(ctx):
+    """Where Open gets company browsers from now on: the rented server, the Windows PC or the Mac."""
+    from .workspace import HOSTS
+
+    host = _ws_host(ctx, str(ctx.body.get("host") or "") or "-")
+    try:
+        moved = ctx.gw.workspaces.use(host, ctx.admin["username"])
+    except ValueError as exc:
+        raise ApiError(409, str(exc))
+    ctx.audit("switched the company browsers", HOSTS[host], f"{moved} people moved off" if moved else "")
+    return {"ok": True, "active": host, "moved": moved}
+
+
+@route("POST", r"/workspace/hosts/(?P<host>windows|mac)/key", role="owner")
+def workspace_key(ctx, host):
+    """A key for one of Swangz's computers, and the command that connects it. Shown once; a new key
+    disconnects the computer until it is set up with it."""
+    from .workspace import HOSTS
+
+    key = ctx.gw.workspaces.new_key(host)
+    ctx.audit("made a key for a company-browser computer", HOSTS[host])
+    gateway = ctx.gw.settings.web_url or ctx.gw.public_url(ctx.h)
+    script = "workspace_agent\\computer.py" if host == "windows" else "workspace_agent/computer.py"
+    python = "python" if host == "windows" else "python3"
+    return {"key": key, "gateway": gateway,
+            "command": f"{python} {script} setup --host {host} --gateway {gateway} --key {key}"}
+
+
+@route("DELETE", r"/workspace/hosts/(?P<host>windows|mac)", role="owner")
+def workspace_forget(ctx, host):
+    from .workspace import HOSTS
+
+    try:
+        ctx.gw.workspaces.forget(host)
+    except ValueError as exc:
+        raise ApiError(409, str(exc))
+    ctx.audit("disconnected a company-browser computer", HOSTS[host])
+    return {"ok": True}
 
 
 @route("POST", r"/tools/(?P<tid>[a-z0-9-]+)/turn/end", role="owner")

@@ -389,8 +389,7 @@
         { key: "label", label: "Device", lead: true, render: (d) => el("div", { class: "u-cell" }, el("span", { class: "dev-ic sm" }, icon(d.app === "Claude Code" || d.app === "Codex" ? "terminal" : "device")),
           el("div", null, el("a", { href: "#/devices/" + d.id }, el("strong", null, d.label)), el("span", { class: "sub mono" }, d.hint))) },
         { key: "person", label: "Owner", render: (d) => A.personLink(d.person_id, d.person) },
-        { key: "platform", label: "Platform", render: (d) => platformOf(d) || el("span", { class: "faint" }, "not stated"), hideSm: true },
-        { key: "app", label: "Application", render: (d) => d.app || "—" },
+        { key: "app", label: "Runs", render: (d) => el("span", null, d.app || "—", platformOf(d) ? el("span", { class: "sub" }, platformOf(d)) : null) },
         { key: "last_used", label: "Last seen", num: true, render: (d) => el("span", { title: d.last_used ? fmt.stamp(d.last_used) : null }, d.last_used ? fmt.ago(d.last_used) : "never") },
         { key: "last_ip", label: "From", render: (d) => (d.last_ip ? A.where(d.last_ip, d.place) : "—"), hideSm: true },
         { key: "requests_30d", label: "30 days", num: true, render: (d) => el("span", null, fmt.num(d.requests_30d), el("span", { class: "sub" }, fmt.money(d.cost_30d))) },
@@ -462,10 +461,12 @@
             el("div", { class: "hint" }, `${x.client || "a tool"} · ${SUI.plural(x.requests, "request")} · ${fmt.when(x.last)}`)),
           el("span", { class: "u-num" }, fmt.money(x.cost))))) : A.empty("No sessions yet.")),
         A.panel("Flagged or refused", "from this device", d.flagged.length ? el("ol", { class: "events flat" }, d.flagged.map((r) => el("li", { class: "ev t-request" },
-          el("div", { class: "ev-rail" }, el("time", { class: "ev-time" }, fmt.when(r.ts))),
-          el("div", { class: "ev-body" }, el("div", { class: "ev-head" }, A.outcomeStatus("request", r.outcome, true), A.flagBadges(r.flags), el("span", { class: "faint" }, r.client || "")),
-            r.reason ? el("p", { class: "ev-reason" }, r.reason) : null),
-          el("a", { class: "ev-open", href: "#/records/" + r.id, "aria-label": "Open record " + r.id }, el("span", null, "Record"), icon("chevronRight")))))
+          el("time", { class: "ev-time", title: fmt.stamp(r.ts) }, fmt.when(r.ts)),
+          el("div", { class: "ev-body" }, el("div", { class: "ev-head" }, A.flagBadges(r.flags), el("span", { class: "muted" }, r.client || "a tool"),
+            r.model ? el("span", { class: "ev-model mono" }, r.model) : null),
+          r.reason ? el("div", { class: "ev-sub" }, el("span", { class: "ev-reason" }, r.reason)) : null),
+          el("div", { class: "ev-end" }, A.outcomeStatus("request", r.outcome, true)),
+          el("a", { class: "ev-open", href: "#/records/" + r.id, "aria-label": "Open record " + r.id }, icon("chevronRight")))))
           : SUI.stateBox({ tone: "ok", icon: "shield", title: "Nothing flagged", text: "No credential detections or refusals from this device.", compact: true }))),
       A.panel("Everything done from this device", "latest 20", recent.items.length ? el("ol", { class: "events flat" }, recent.items.map((r) => A.eventItem(A.reqEvent(r), { noPerson: true })))
         : A.empty("No requests yet.")),
@@ -689,50 +690,19 @@
             } }, "Take it back") : null)))
             : el("div", { class: "hint" }, `Nobody is on it. ${pool.length ? Math.min(t.seats_at_once, pool.length) : t.seats_at_once} at a time, ${t.turn_minutes} minutes a turn.`));
       }
+      // company browsers: each must be signed in to the tool once, by an admin, here
       let fromServer = null;
       if (t.signin === "shared" && t.workspace_mode === "agent") {
         const ws = await api("GET", "/workspace");
         const mine = ws.configured && !ws.error ? (ws.browsers || []).filter((b) => b.tool === t.id) : [];
-        const STATE = { running: ["ok", "Running"], starting: ["waiting", "Starting"], stopped: ["none", "Stopped"] };
-        const openBrowser = async (slot, btn) => {
-          btn.disabled = true; btn.textContent = "Starting…";
-          try {
-            for (let i = 0; i < 45; i++) {
-              const out = await api("POST", `/workspace/browsers/${slot}/open`);
-              if (out.state === "ready" && out.url) {
-                btn.replaceWith(el("a", { class: "btn small primary", href: out.url, target: "_blank", rel: "noopener noreferrer" }, "Open it"));
-                toast("Ready. Sign in to the tool inside it, then press Done.");
-                return;
-              }
-              await new Promise((r) => setTimeout(r, 3000));
-            }
-            toast("The browser is taking too long to start. Try again in a minute.", true);
-          } catch (e) { toast(e.message, true); }
-          btn.disabled = false; btn.textContent = "Sign in to the tool";
-        };
-        const closeBrowser = async (slot) => {
-          try { await api("POST", `/workspace/browsers/${slot}/close`); toast("Done — the browser is free again."); refresh("access"); }
-          catch (e) { toast(e.message, true); }
-        };
-        const row = (b) => {
-          const [tone, label] = STATE[b.state] || ["none", b.state];
-          const who = !b.holder ? "Free" : b.holder.kind === "admin" ? `${b.holder.name} is signing it in` : `${b.holder.name} · since ${fmt.clock(b.holder.since)}`;
-          let action = null;
-          if (owner && b.holder && b.holder.kind === "admin") {
-            action = el("span", { class: "row" },
-              el("button", { class: "btn small", onclick: (e) => openBrowser(b.slot, e.currentTarget) }, "Open again"),
-              el("button", { class: "btn small primary", onclick: () => closeBrowser(b.slot) }, "Done"));
-          } else if (owner && !b.holder) {
-            action = el("button", { class: "btn small", onclick: (e) => openBrowser(b.slot, e.currentTarget) }, "Sign in to the tool");
-          }
-          return el("div", { class: "assign-row" }, el("span", { class: "dev-ic sm" }, String(b.n)),
-            el("div", { class: "grow" }, el("strong", null, `Browser ${b.n}`), " ", SUI.status(tone, label, { plain: true }), el("div", { class: "hint" }, who)), action);
-        };
-        fromServer = el("div", { class: "stack" }, el("h3", { class: "section-title" }, "Browsers on the workspace server"),
-          !ws.configured ? el("div", { class: "notice" }, "No workspace server is connected yet (GATEWAY_WORKSPACE_AGENT on the gateway).")
-            : ws.error ? el("div", { class: "notice" }, "The workspace server isn't answering: " + ws.error)
-              : mine.length ? el("div", { class: "assign-list" }, mine.map(row))
-                : el("div", { class: "notice" }, `The workspace server has no browsers for this tool yet — add "${t.id}" to its config.`),
+        const place = ws.label.charAt(0).toUpperCase() + ws.label.slice(1);
+        fromServer = el("div", { class: "stack" }, el("h3", { class: "section-title" }, "Company browsers on " + ws.label),
+          !ws.configured ? el("div", { class: "notice" }, `${place} isn't connected yet — Settings → Company browsers.`)
+            : ws.error ? el("div", { class: "notice" }, `${place} isn't answering: ${ws.error}`)
+              : mine.length ? el("div", { class: "assign-list" }, mine.map((b) => browserRow(b, null, owner, () => refresh("access"))))
+                : el("div", { class: "notice" }, ws.host === "server"
+                  ? `The rented server has no browsers for this tool yet — add "${t.id}" to its config.`
+                  : `${place} gets its browsers from here within a minute of saving this tool — one for each person on it at a time.`),
           el("p", { class: "hint" }, "Each browser keeps its own sign-in to the tool, so sign each one in once: press Sign in to the tool, open it, sign in to the tool inside it with the company account, then press Done. Nobody can be given that browser meanwhile."));
       }
       return [
@@ -796,7 +766,7 @@
         turn_minutes: el("input", { type: "number", min: "5", max: "720", step: "5", value: String(v.turn_minutes || 120) }),
         workspace_url: el("textarea", { rows: "3", spellcheck: "false", placeholder: "https://workspace.swangzavenue.com/chatgpt-1/\nhttps://workspace.swangzavenue.com/chatgpt-2/" }, v.workspace_url || ""),
         workspace_mode: el("select", null,
-          el("option", { value: "agent" }, "From the workspace server — started when needed"),
+          el("option", { value: "agent" }, "Swangz's company browsers — started when needed"),
           el("option", { value: "" }, "The browsers listed below, or none")),
       };
       f.workspace_mode.value = v.workspace_mode === "agent" ? "agent" : "";
@@ -805,8 +775,8 @@
         el("span", { class: "hint" }, S.workspaceManaged ? "The gateway gives each person a sign-in for their turn and removes it the moment the turn ends."
           : "The gateway isn't managing workspace sign-ins yet (GATEWAY_WORKSPACE_TOKEN is not set), so each browser's own login decides who gets in."));
       const agentHint = el("span", { class: "hint" }, S.workspaceAgent
-        ? "The workspace server starts a browser of their own for each person on a turn, signs them in, and recycles it when the turn ends. Sign each of its browsers in to the tool under Who can use it, once."
-        : "No workspace server is connected yet (GATEWAY_WORKSPACE_AGENT is not set). Until it is, Open can't give anyone a browser for this tool. See deploy/WORKSPACE.md.");
+        ? "Each person on a turn gets a browser of their own, already signed in, recycled when the turn ends — on the rented server or one of Swangz's computers (Settings → Company browsers). Its browsers for this tool are listed under Who can use it — sign each one in to the tool there, once."
+        : "The company browsers aren't connected yet: Settings → Company browsers (the rented server, the Windows PC or the Mac). Until they are, Open can't give anyone a browser for this tool.");
       const drawWhere = () => { listField.hidden = f.workspace_mode.value === "agent"; agentHint.hidden = f.workspace_mode.value !== "agent"; };
       f.workspace_mode.addEventListener("change", drawWhere); drawWhere();
       const sharing = el("div", { class: "share-box" },
@@ -895,6 +865,46 @@
     drawTabs();
     show();
   }
+
+  /* One company browser: running or not, who is on it, and — for owners — signing it in to its tool, once.
+     `host` names the place it runs ("server", "windows", "mac"); null = the one Open uses. */
+  function browserRow(b, host, owner, after) {
+    const STATE = { running: ["ok", "Running"], starting: ["waiting", "Starting"], stopped: ["none", "Stopped"] };
+    const q = host ? "?host=" + host : "";
+    const openBrowser = async (btn) => {
+      btn.disabled = true; btn.textContent = "Starting…";
+      try {
+        for (let i = 0; i < 45; i++) {  // a cold start takes a few seconds; give it up to ~2 minutes
+          const out = await api("POST", `/workspace/browsers/${b.slot}/open${q}`);
+          if (out.state === "ready" && out.url) {
+            btn.replaceWith(el("a", { class: "btn small primary", href: out.url, target: "_blank", rel: "noopener noreferrer" }, "Open it", icon("open")));
+            toast("Ready. Sign in to the tool inside it, then press Done.");
+            return;
+          }
+          await new Promise((r) => setTimeout(r, 3000));
+        }
+        toast("The browser is taking too long to start. Try again in a minute.", true);
+      } catch (e) { toast(e.message, true); }
+      btn.disabled = false; btn.textContent = "Sign in to the tool";
+    };
+    const closeBrowser = async () => {
+      try { await api("POST", `/workspace/browsers/${b.slot}/close${q}`); toast("Done — the browser is free again."); after(); }
+      catch (e) { toast(e.message, true); }
+    };
+    const [tone, label] = STATE[b.state] || ["none", b.state];
+    const who = !b.holder ? "Free" : b.holder.kind === "admin" ? `${b.holder.name} is signing it in` : `${b.holder.name} · since ${fmt.clock(b.holder.since)}`;
+    let action = null;
+    if (owner && b.holder && b.holder.kind === "admin") {
+      action = el("span", { class: "row" },
+        el("button", { class: "btn small", onclick: (e) => openBrowser(e.currentTarget) }, "Open again"),
+        el("button", { class: "btn small primary", onclick: closeBrowser }, "Done"));
+    } else if (owner && !b.holder) {
+      action = el("button", { class: "btn small", onclick: (e) => openBrowser(e.currentTarget) }, "Sign in to the tool");
+    }
+    return el("div", { class: "assign-row" }, el("span", { class: "dev-ic sm" }, String(b.n)),
+      el("div", { class: "grow" }, el("strong", null, `Browser ${b.n}`), " ", SUI.status(tone, label, { plain: true }), el("div", { class: "hint" }, who)), action);
+  }
+  A.browserRow = browserRow;
 
   // ------------------------------------------------------------------ Access requests
 

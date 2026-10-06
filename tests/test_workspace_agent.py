@@ -1,8 +1,10 @@
 """The Swangz Workspace Agent: browsers started when a turn needs one, a sign-in per turn, recycled after."""
 
+import http.client
 import json
 import os
 import shutil
+import socket
 import tempfile
 import threading
 import time
@@ -10,7 +12,9 @@ import unittest
 import urllib.error
 import urllib.parse
 import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from workspace_agent import computer
 from workspace_agent.agent import ADMIN, STAFF, Agent, ConfigError, caddy_routes, check_config, make_server
 
 from .fake_docker import FakeDocker
@@ -331,6 +335,241 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual((policy["DeveloperToolsAvailability"], policy["DefaultCookiesSetting"], policy["RestoreOnStartup"]), (2, 1, 1))
         self.assertEqual(policy["NewTabPageLocation"], "https://www.midjourney.com/")
         self.assertIn("file://*", policy["URLBlocklist"])
+
+
+# ---------------------------------------------------------------- on one of Swangz's own computers
+
+RELAY = [{"urls": ["turn:turn.example.test:3478?transport=udp"], "username": "1760000000:swangz", "credential": "c"}]
+
+
+class FakeGateway:
+    """The gateway's /api/workspace/hello: keeps every check-in, answers with `reply` (or refuses)."""
+
+    def __init__(self, reply):
+        self.reply, self.status, self.hellos = reply, 200, []
+        gw = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_POST(self):
+                body = json.loads(self.rfile.read(int(self.headers.get("content-length") or 0)) or b"{}")
+                gw.hellos.append({"path": self.path, "auth": self.headers.get("authorization"),
+                                  "app": self.headers.get("x-swangz-app"), "body": body})
+                data = json.dumps(gw.reply if gw.status == 200 else {"error": "that key isn't this computer's"}).encode()
+                self.send_response(gw.status)
+                self.send_header("content-length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.server.daemon_threads = True
+        self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def close(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+
+class Nekos(dict):
+    """A stand-in browser for whichever slot the gateway's list brings."""
+
+    def __missing__(self, slot):
+        self[slot] = FakeNeko()
+        return self[slot]
+
+
+class ComputerRig(AgentRig):
+    """An agent in computer mode: no browsers of its own; they, and the relay, come from the gateway."""
+
+    def __init__(self, tools):
+        self.gateway = FakeGateway({"ok": True, "active": True, "tools": tools, "ice_servers": RELAY})
+        self.tmp = tempfile.mkdtemp(prefix="sgw-agent-")
+        self.cfg = check_config({"token": TOKEN, "gateway": "https://ai.example.test", "host": "windows",
+                                 "data": self.tmp, "lan_ip": "192.168.1.20"})
+        self.cfg.update(gateway=self.gateway.url, public_url="https://quiet-river.trycloudflare.com")
+        self.nekos = Nekos()
+        self.docker = FakeDocker(self.nekos)
+        self.start_agent()
+
+    def close(self):
+        super().close()
+        self.gateway.close()
+
+    def slots(self):
+        return sorted(self.agent.slots)
+
+
+class ComputerTests(unittest.TestCase):
+    TOOLS = {"midjourney": {"start_url": "https://www.midjourney.com/", "browsers": 2},
+             "chatgpt": {"start_url": "https://chatgpt.com/", "browsers": 1}}
+
+    def setUp(self):
+        self.rig = ComputerRig(self.TOOLS)
+        self.addCleanup(self.rig.close)
+
+    def test_a_computer_needs_no_address_or_browser_list_of_its_own(self):
+        cfg = check_config({"token": TOKEN, "gateway": "https://ai.example.test/", "host": "mac", "data": "/tmp/x"})
+        self.assertEqual((cfg["gateway"], cfg["tools_from_gateway"], cfg["browsers"]), ("https://ai.example.test", True, {}))
+        for broken in ({"gateway": "http://ai.example.test"}, {"host": "linux"}, {"token": "short"}, {"ice_servers": "turn:x"}):
+            with self.subTest(broken=broken), self.assertRaises(ConfigError):
+                check_config({"token": TOKEN, "gateway": "https://ai.example.test", "host": "windows", "data": "/tmp/x", **broken})
+
+    def test_checking_in_brings_the_browsers_and_the_relay(self):
+        self.assertEqual(self.rig.slots(), [])
+        self.assertTrue(self.rig.agent.say_hello())
+        hello = self.rig.gateway.hellos[-1]
+        self.assertEqual((hello["path"], hello["auth"], hello["app"]), ("/api/workspace/hello", "Bearer " + TOKEN, "1"))
+        self.assertEqual((hello["body"]["host"], hello["body"]["url"]), ("windows", "https://quiet-river.trycloudflare.com/agent"))
+        self.assertEqual((hello["body"]["info"]["memory_gb"], hello["body"]["info"]["cpus"]), (31.2, 16))
+        # numbers in tool order, each tool's own from now on
+        self.assertEqual(self.rig.slots(), ["chatgpt-1", "midjourney-2", "midjourney-3"])
+        status, out = self.rig.ready("t1.1", "swangz-4")
+        self.assertEqual((status, out["slot"]), (200, "midjourney-2"))
+        self.assertTrue(out["url"].startswith("https://quiet-river.trycloudflare.com/midjourney-2/?usr=swangz-4"))
+        env = self.rig.docker.containers["swangz-ws-midjourney-2"]["env"]
+        self.assertEqual(env["NEKO_WEBRTC_ICELITE"], "false")  # a relay needs full ICE
+        self.assertEqual(json.loads(env["NEKO_WEBRTC_ICESERVERS_FRONTEND"]), RELAY)
+        self.assertEqual(json.loads(env["NEKO_WEBRTC_ICESERVERS_BACKEND"]), RELAY)
+        self.assertEqual(env["NEKO_WEBRTC_NAT1TO1"], "192.168.1.20")  # people in the office connect straight to it
+        health = self.rig.call("GET", "/agent/health")[1]
+        self.assertEqual((health["relay"], health["gateway"]["ok"], health["gateway"]["active"]), (True, True, True))
+
+    def test_a_tool_keeps_its_browser_numbers_for_good(self):
+        agent = self.rig.agent
+        agent.apply_tools({"midjourney": {"browsers": 2}})
+        self.assertEqual(self.rig.slots(), ["midjourney-1", "midjourney-2"])
+        self.rig.ready("t1.1", "swangz-4")  # Grace is on midjourney-1
+        agent.apply_tools({"chatgpt": {"browsers": 1}})  # Midjourney no longer needs browsers
+        self.assertEqual(self.rig.slots(), ["chatgpt-3", "midjourney-1"])  # hers stays until she's done
+        self.rig.call("POST", "/release", {"lease": "t1.1"})
+        agent.apply_tools({"chatgpt": {"browsers": 1}})
+        self.assertEqual(self.rig.slots(), ["chatgpt-3"])
+        self.assertNotIn("swangz-ws-midjourney-1", self.rig.docker.containers)
+        agent.apply_tools({"chatgpt": {"browsers": 1}, "midjourney": {"browsers": 2}})
+        self.assertEqual(self.rig.slots(), ["chatgpt-3", "midjourney-1", "midjourney-2"])  # the same profiles again
+        # and after a restart, before the gateway has answered
+        self.rig.stop_agent()
+        self.rig.start_agent()
+        self.assertEqual(self.rig.slots(), ["chatgpt-3", "midjourney-1", "midjourney-2"])
+
+    def test_a_refused_check_in_is_reported(self):
+        self.rig.gateway.status = 401
+        self.assertFalse(self.rig.agent.say_hello())
+        health = self.rig.call("GET", "/health")[1]
+        self.assertIn("that key isn't this computer's", health["gateway"]["error"])
+        self.assertEqual(self.rig.slots(), [])
+
+    def test_no_address_yet_means_no_check_in(self):
+        self.rig.agent.cfg["public_url"] = ""
+        self.assertFalse(self.rig.agent.say_hello())
+        self.assertEqual(self.rig.gateway.hellos, [])
+
+
+class PassOnTests(unittest.TestCase):
+    """The agent hands a browser's page — and its WebSocket — on to the browser, as a company computer's
+    tunnel brings everything to the agent."""
+
+    def setUp(self):
+        self.rig = AgentRig()
+        self.addCleanup(self.rig.close)
+        self.neko = self.rig.nekos["midjourney-1"]
+
+    def point_browser_1_at(self, port):
+        self.rig.agent.cfg["http_port_base"] = port - 1
+
+    def raw(self, method, path, body=None, headers=None):
+        conn = http.client.HTTPConnection("127.0.0.1", self.rig.server.server_address[1], timeout=10)
+        conn.request(method, path, body=body, headers=headers or {})
+        resp = conn.getresponse()
+        out = resp.status, resp.read()
+        conn.close()
+        return out
+
+    def test_pages_and_api_calls_reach_the_browser_without_the_agents_token(self):
+        self.point_browser_1_at(self.neko.server.server_address[1])
+        self.assertEqual(self.raw("GET", "/midjourney-1/health"), (200, b"{}"))
+        status, body = self.raw("POST", "/midjourney-1/api/members?x=1", json.dumps({"username": "u"}),
+                                {"Content-Type": "application/json", "Authorization": "Bearer wrong"})
+        self.assertEqual((status, json.loads(body)), (401, {"message": "invalid token"}))  # Neko's own answer
+        self.assertIn(("POST", "/midjourney-1/api/members", {"username": "u"}), self.neko.calls)
+        self.assertEqual(self.raw("GET", "/nobody-7/health")[0], 401)  # not a browser: the agent's API, token needed
+
+    def test_a_browser_that_is_not_running(self):
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            free = s.getsockname()[1]
+        self.point_browser_1_at(free)
+        self.assertEqual(self.raw("GET", "/midjourney-1/")[0], 502)
+
+    def test_the_websocket_goes_both_ways(self):
+        seen = []
+        upstream = socket.socket()
+        upstream.bind(("127.0.0.1", 0))
+        upstream.listen(1)
+        self.addCleanup(upstream.close)
+
+        def echo():
+            conn, _ = upstream.accept()
+            with conn:
+                head = b""
+                while b"\r\n\r\n" not in head:
+                    head += conn.recv(4096)
+                seen.append(head.decode())
+                conn.sendall(b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n")
+                while True:
+                    data = conn.recv(4096)
+                    if not data:
+                        break
+                    conn.sendall(data)
+
+        threading.Thread(target=echo, daemon=True).start()
+        self.point_browser_1_at(upstream.getsockname()[1])
+        with socket.create_connection(("127.0.0.1", self.rig.server.server_address[1]), timeout=10) as c:
+            c.sendall(b"GET /midjourney-1/api/ws?token=t HTTP/1.1\r\nHost: quiet-river.trycloudflare.com\r\n"
+                      b"Connection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\n\r\n")
+            reply = b""
+            while b"\r\n\r\n" not in reply:
+                reply += c.recv(4096)
+            self.assertTrue(reply.startswith(b"HTTP/1.1 101"))
+            for word in (b"ping", b"pong"):
+                c.sendall(word)
+                self.assertEqual(c.recv(4096), word)
+        self.assertIn("GET /midjourney-1/api/ws?token=t HTTP/1.1", seen[0])
+        self.assertIn("Connection: Upgrade", seen[0])
+        self.assertIn("Host: quiet-river.trycloudflare.com", seen[0])
+
+
+class ComputerProgramTests(unittest.TestCase):
+    def test_how_many_browsers_fit(self):
+        self.assertEqual([computer.browsers_that_fit(gb) for gb in (3.8, 7.7, 31.2, 47.0, 62.5)], [1, 2, 14, 20, 20])
+
+    def test_the_settings_keep_what_was_edited_and_hold_the_key(self):
+        tmp = tempfile.mkdtemp(prefix="sgw-computer-")
+        self.addCleanup(shutil.rmtree, tmp, True)
+        p = computer.paths(tmp)
+        cfg = computer.write_config(p, "windows", "https://swangz-ai.netlify.app/", "a" * 64, 14)
+        self.assertEqual((cfg["gateway"], cfg["host"], cfg["max_running"], cfg["screen"]),
+                         ("https://swangz-ai.netlify.app", "windows", 14, "1280x720@25"))
+        with open(p["config"], encoding="utf-8") as f:
+            saved = json.load(f)
+        saved["idle_minutes"] = 30
+        with open(p["config"], "w", encoding="utf-8") as f:
+            json.dump(saved, f)
+        cfg = computer.write_config(p, "windows", "https://swangz-ai.netlify.app", "b" * 64, 20)
+        self.assertEqual((cfg["token"], cfg["idle_minutes"], cfg["max_running"]), ("b" * 64, 30, 20))
+
+    def test_the_tunnel_address_is_read_from_cloudflared(self):
+        line = "2026-10-06T10:00:00Z INF |  https://quiet-river-sky.trycloudflare.com                 |"
+        self.assertEqual(computer.TUNNEL_LINK.search(line).group(0), "https://quiet-river-sky.trycloudflare.com")
+
+    def test_it_starts_without_a_window(self):
+        cmd = computer.background_command(computer.paths("/home/x/swangz-workspace"))
+        self.assertEqual(cmd[1:], [os.path.abspath(computer.__file__), "run", "--dir", "/home/x/swangz-workspace"])
+        if os.name == "nt":
+            self.assertTrue(cmd[0].lower().endswith("pythonw.exe"))
 
 
 if __name__ == "__main__":

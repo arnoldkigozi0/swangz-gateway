@@ -97,6 +97,14 @@
       show(next, true);
     });
     show(current);
+    // On a narrow screen the bar scrolls sideways: fade the edge while more tabs are hidden, and keep the chosen one in view.
+    const edge = () => bar.classList.toggle("more", bar.scrollLeft + bar.clientWidth < bar.scrollWidth - 2);
+    bar.addEventListener("scroll", edge, { passive: true });
+    requestAnimationFrame(() => {
+      const on = bar.querySelector("button.on");
+      if (on && bar.scrollWidth > bar.clientWidth) bar.scrollLeft = Math.max(0, on.offsetLeft - 24);
+      edge();
+    });
     return el("div", { class: "tabs-wrap" }, bar, body);
   }
 
@@ -257,51 +265,48 @@
       agent: r.agent, request_class: r.request_class, units: units(r), result_urls: r.result_urls };
   }
 
-  /* One event: who, what, why (the prompt), when, where from, on which device, and how it ended. */
+  /* One event in two quiet lines: who used what, how it ended and what it cost; then why (the prompt)
+     and where from (device, address). The full story is one click away in the record. */
+  const EVENT_KIND = { request: ["AI request", "spark"], launch: ["Opened from the portal", "open"], site: ["AI website visit", "globe"] };
   function eventItem(e, opts) {
     opts = opts || {};
     const verb = e.type === "launch" ? (e.outcome === "opened" ? "opened" : "tried to open")
       : e.type === "site" ? (e.outcome === "blocked" ? "was blocked from" : "visited")
         : e.kind === "media" ? "generated with" : "used";
+    const [kindLabel, kindIcon] = EVENT_KIND[e.type];
     const toolNode = e.tool ? toolLink(e.tool_id, e.tool) : e.app ? el("span", { class: "obj tool" }, toolLogo(null, e.app, "xs"), el("span", null, e.app)) : el("span", { class: "faint" }, "a tool");
-    const meta = [];
+    const detail = [];
     if (e.type === "request") {
-      if (e.app && e.tool && e.app !== e.tool) meta.push(el("span", { class: "obj" }, icon("terminal"), e.app));
-      if (e.model) meta.push(el("span", { class: "mono faint" }, e.model));
-      if (e.device || e.key_id) meta.push(deviceLink(e.key_id, e.device));
-      if (e.platform && e.platform !== e.app && e.platform !== e.tool) meta.push(el("span", { class: "obj" }, icon("monitor"), e.platform));
-      if (e.ip) meta.push(where(e.ip, e.place));
-      if (e.duration_ms) meta.push(el("span", { class: "obj" }, icon("clock"), fmt.ms(e.duration_ms)));
-      if (e.actions) meta.push(el("span", { class: "obj" }, icon("layers"), SUI.plural(e.actions, "action")));
+      if (e.device || e.key_id) detail.push(deviceLink(e.key_id, e.device));
+      if (e.platform && e.platform !== e.app && e.platform !== e.tool) detail.push(el("span", { class: "obj" }, icon("monitor"), e.platform));
+      if (e.ip) detail.push(where(e.ip, e.place));
+      if (e.duration_ms) detail.push(el("span", { class: "obj" }, icon("clock"), fmt.ms(e.duration_ms)));
+      if (e.actions) detail.push(el("span", { class: "obj" }, icon("layers"), SUI.plural(e.actions, "action")));
     } else if (e.type === "launch") {
-      meta.push(el("span", { class: "obj" }, icon("open"), "from the Swangz AI portal"));
-      if (e.platform) meta.push(el("span", { class: "obj" }, icon("monitor"), e.platform));
-      if (e.ip) meta.push(where(e.ip, e.place));
+      if (e.platform) detail.push(el("span", { class: "obj" }, icon("monitor"), e.platform));
+      if (e.ip) detail.push(where(e.ip, e.place));
     } else {
-      meta.push(el("span", { class: "obj" }, icon("globe"), "browser extension"));
-      if (e.seconds) meta.push(el("span", { class: "obj" }, icon("clock"), fmt.dur(e.seconds)));
-      if (e.host && e.host !== e.tool) meta.push(el("span", { class: "mono faint" }, e.host));
+      if (e.seconds) detail.push(el("span", { class: "obj" }, icon("clock"), fmt.dur(e.seconds)));
+      if (e.host && e.host !== e.tool) detail.push(el("span", { class: "mono faint" }, e.host));
     }
+    const lead = e.type === "request" && e.outcome !== "ok" && e.reason ? el("span", { class: "ev-reason" }, e.reason)
+      : e.prompt ? el("span", { class: "ev-prompt", title: e.prompt }, e.prompt) : null;
     const money = e.type === "request" && e.outcome === "ok" ? (e.kind === "media" && e.cost === null ? (e.units || null) : fmt.money(e.cost)) : null;
     const href = e.type === "request" && e.id ? "#/records/" + e.id : null;
     return el("li", { class: `ev t-${e.type}` + (opts.fresh ? " u-enter" : "") },
-      el("div", { class: "ev-rail" }, el("time", { class: "ev-time", datetime: new Date(e.ts * 1000).toISOString(), title: fmt.stamp(e.ts) }, fmt.clock(e.ts)),
-        el("span", { class: "ev-dot", "aria-hidden": "true" }, icon(e.type === "request" ? (e.kind === "media" ? "image" : "spark") : e.type === "launch" ? "open" : "globe"))),
+      el("time", { class: "ev-time", datetime: new Date(e.ts * 1000).toISOString(), title: fmt.stamp(e.ts) }, fmt.clock(e.ts)),
       el("div", { class: "ev-body" },
         el("div", { class: "ev-head" },
+          el("span", { class: "ev-type", role: "img", "aria-label": kindLabel, "data-tip": kindLabel }, icon(kindIcon)),
           opts.noPerson ? null : personLink(e.person_id, e.person || (e.type === "request" ? "No valid key" : "Someone")),
           opts.noPerson ? null : el("span", { class: "ev-verb" }, verb),
           toolNode,
+          e.type === "request" && e.model ? el("span", { class: "ev-model mono" }, e.model) : null,
           e.type === "request" ? agentBadges(e) : null,
-          e.credential ? el("span", { class: "u-badge bad" }, icon("key"), "Credential") : null,
-          el("span", { class: "ev-grow" }),
-          money ? el("span", { class: "ev-cost u-num" }, money) : null,
-          outcomeStatus(e.type, e.outcome)),
-        e.prompt ? el("p", { class: "ev-prompt" }, e.prompt) : e.type === "request" && e.outcome === "ok" && !opts.compact
-          ? el("p", { class: "ev-prompt none" }, "No typed prompt — the tool was working on its own.") : null,
-        e.type === "request" && e.outcome !== "ok" && e.reason ? el("p", { class: "ev-reason" }, e.reason) : null,
-        opts.compact ? null : el("div", { class: "ev-meta" }, meta)),
-      href ? el("a", { class: "ev-open", href, "aria-label": "Open the full record of request " + e.id }, el("span", null, "Record"), icon("chevronRight")) : el("span"));
+          e.credential ? el("span", { class: "u-badge bad" }, icon("key"), "Credential") : null),
+        !opts.compact && (lead || detail.length) ? el("div", { class: "ev-sub" }, lead, detail) : null),
+      el("div", { class: "ev-end" }, money ? el("span", { class: "ev-cost u-num" }, money) : null, outcomeStatus(e.type, e.outcome, true)),
+      href ? el("a", { class: "ev-open", href, "aria-label": "Open the full record of request " + e.id }, icon("chevronRight")) : el("span", { class: "ev-open none" }));
   }
 
   /* Events grouped under day headings (in the chosen time zone). */

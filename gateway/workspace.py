@@ -29,8 +29,18 @@ gateway also decides who gets into each browser:
 The tool's own password never reaches the gateway. It lives in the browser profile, on that server.
 Without the token, Open still hands out one browser per person, but sends them to the plain address and
 the browser's own login decides who gets in.
+
+Where agent mode's browsers run (`HOSTS`) is the admin's choice, one place at a time: the rented server
+(GATEWAY_WORKSPACE_AGENT, in the environment), or one of Swangz's own computers — the Windows PC or the
+Mac (workspace_agent/computer.py). A computer gets a key in the console and checks in every minute with
+the address its tunnel gave it (`hello`); it is told which tools need browsers, and the video relay to use.
+Switching (`use`) ends the turns of anyone in a browser at the old place — they press Open again — and
+their sign-ins there are removed as soon as it answers, because each turn remembers where its browser is.
 """
 
+import base64
+import hashlib
+import hmac
 import json
 import secrets
 import threading
@@ -44,6 +54,10 @@ AGENT_TIMEOUT = 20  # starting a container takes the agent a second or two; it n
 SWEEP_SECONDS = 15
 MAX_BROWSERS = 20
 COMPLAIN_EVERY = 600  # a workspace that stays down is logged every ten minutes, not every sweep
+HOSTS = {"server": "the rented server", "windows": "the Windows PC", "mac": "the Mac"}
+COMPUTERS = ("windows", "mac")
+ONLINE_SECONDS = 180  # a computer that hasn't checked in for this long counts as offline
+RELAY_TTL = 48 * 3600  # how long relay credentials last; new ones are made when half of that is gone
 
 # What a staff member may do in their browser. Not an admin of it: they can't change Neko's settings,
 # see other sign-ins, or let anyone else in.
@@ -124,15 +138,108 @@ class Workspaces:
         self._locks = {}  # browser -> lock: a sign-in is never made and removed on one browser at once
         self._locks_guard = threading.Lock()
         self._complained = {}
+        self.relay = Relay(gw)
 
     @property
     def managed(self):
         return bool(self.gw.settings.workspace_token)
 
+    # ------------------------------------------------------------ where the browsers run
+
+    @property
+    def active(self):
+        """Where Open gets browsers now: 'server', 'windows' or 'mac'."""
+        host = self.gw.db.get_setting("workspace_host", "server")
+        return host if host in HOSTS else "server"
+
+    def connection(self, host):
+        """-> (the agent's address, its token), or None while that place isn't connected."""
+        if host == "server":
+            s = self.gw.settings
+            return (s.workspace_agent_url, s.workspace_agent_token) if s.workspace_agent_url and s.workspace_agent_token else None
+        row = self.gw.db.one("SELECT url, token FROM workspace_hosts WHERE id = ?", (host,)) if host in COMPUTERS else None
+        return (row["url"], row["token"]) if row and row["url"] else None
+
     @property
     def agent_ready(self):
-        s = self.gw.settings
-        return bool(s.workspace_agent_url and s.workspace_agent_token)
+        return self.connection(self.active) is not None
+
+    def hosts(self):
+        """Each place the browsers can run, for the console: set up, online, what it last reported."""
+        out = []
+        for host, label in HOSTS.items():
+            item = {"id": host, "label": label, "active": host == self.active}
+            if host == "server":
+                item.update(kind="server", set_up=self.connection("server") is not None)
+            else:
+                row = self.gw.db.one("SELECT url, info, created, seen FROM workspace_hosts WHERE id = ?", (host,))
+                info = json.loads(row["info"] or "{}") if row else {}
+                item.update(kind="computer", set_up=bool(row), connected=bool(row and row["url"]),
+                            seen=row["seen"] if row else None, created=row["created"] if row else None,
+                            online=bool(row and row["seen"] and time.time() - row["seen"] < ONLINE_SECONDS),
+                            info=info if isinstance(info, dict) else {})
+            out.append(item)
+        return out
+
+    def new_key(self, host):
+        """A new key for this computer. Its old key stops working, and it is offline until it checks in
+        with this one."""
+        if host not in COMPUTERS:
+            raise ValueError("only a computer gets a key here; the rented server's is in the gateway's settings")
+        key = secrets.token_hex(32)
+        self.gw.db.x("INSERT INTO workspace_hosts(id, token, created) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE"
+                     " SET token = excluded.token, url = '', seen = NULL", (host, key, time.time()))
+        return key
+
+    def forget(self, host):
+        if host == self.active:
+            raise ValueError(f"Open uses {HOSTS[host]} now — switch to another place first")
+        self.gw.db.x("DELETE FROM workspace_hosts WHERE id = ?", (host,))
+
+    def use(self, host, by):
+        """Make `host` where Open gets browsers. One place at a time: anyone in a browser elsewhere is moved
+        off — their turn ends; Open again gives them one here — and their sign-in there is removed as soon
+        as that place answers. -> how many turns ended."""
+        from . import turns
+
+        if host not in HOSTS:
+            raise ValueError("no such place")
+        if self.connection(host) is None:
+            raise ValueError(f"{HOSTS[host]} isn't connected yet")
+        with self.gw.db.tx():
+            self.gw.db.set_setting("workspace_host", host)
+            moved = self.gw.db.q("SELECT tool_id, person_id FROM tool_turns WHERE ended IS NULL AND workspace LIKE 'agent:%'"
+                                 " AND (CASE WHEN ws_host = '' THEN 'server' ELSE ws_host END) != ?", (host,))
+            for t in moved:
+                turns.end(self.gw.db, t["tool_id"], t["person_id"], by, f"the company browsers moved to {HOSTS[host]}")
+        self.soon()
+        return len(moved)
+
+    def hello(self, host, token, url, info):
+        """A workspace machine checking in. -> what it should run: the tools that need browsers and how many,
+        and the video relay. Raises PermissionError for a wrong key, ValueError for a bad address."""
+        if host == "server":
+            known = self.gw.settings.workspace_agent_token
+        else:
+            row = self.gw.db.one("SELECT token FROM workspace_hosts WHERE id = ?", (host,)) if host in COMPUTERS else None
+            known = row["token"] if row else ""
+        if not (known and token and hmac.compare_digest(token.encode(), known.encode())):
+            raise PermissionError(host)
+        if host in COMPUTERS:  # the rented server's address is fixed in the gateway's settings
+            if not (url.startswith("https://") and len(url) <= 300 and " " not in url):
+                raise ValueError("url must be the agent's https address")
+            info = info if isinstance(info, dict) else {}
+            self.gw.db.x("UPDATE workspace_hosts SET url = ?, info = ?, seen = ? WHERE id = ?",
+                         (url.rstrip("/"), json.dumps(info)[:4000], time.time(), host))
+        return {"ok": True, "active": host == self.active, "tools": self.wanted(), "ice_servers": self.relay.ice_servers()}
+
+    def wanted(self):
+        """{tool: {start_url, browsers}}: every shared tool that opens into company browsers, and how many
+        people may be on it at once — one browser each."""
+        rows = self.gw.db.q("SELECT id, url, seats_at_once FROM tools WHERE signin = 'shared' AND workspace_mode = 'agent'"
+                            " AND archived = 0")
+        return {r["id"]: {"start_url": r["url"] if (r["url"] or "").startswith(("https://", "http://")) else "",
+                          "browsers": max(1, min(MAX_BROWSERS, int(r["seats_at_once"] or 1)))} for r in rows}
 
     def has_browser(self, turn_id):
         """Has this turn actually been given a browser (not just asked for one)?"""
@@ -184,14 +291,16 @@ class Workspaces:
         return link(browser, user, password)
 
     def _open_agent(self, tool, turn, person):
+        host = self.active
         if not self.agent_ready:
-            raise Unavailable("no workspace server is connected (GATEWAY_WORKSPACE_AGENT)")
+            raise Unavailable(f"{HOSTS[host]} isn't connected (Settings → Company browsers)")
         user = username(person["id"])
-        # recorded first: whatever happens next, this turn's end will tell the agent to let go
+        # recorded first: whatever happens next, this turn's end will tell that place to let go
         self.gw.db.x("UPDATE tool_turns SET workspace = CASE WHEN workspace LIKE 'agent:_%' THEN workspace"
-                     " ELSE 'agent:' END, ws_member = ?, ws_closed = NULL WHERE id = ?", (user, turn["id"]))
+                     " ELSE 'agent:' END, ws_member = ?, ws_closed = NULL, ws_host = ? WHERE id = ?",
+                     (user, host, turn["id"]))
         status, out = self._agent("POST", "/allocate", {"tool": tool["id"], "lease": lease_id(turn), "user": user,
-                                                        "name": person["name"]}, ok=(200, 202, 409))
+                                                        "name": person["name"]}, ok=(200, 202, 409), host=host)
         if status == 409:
             raise Full(server=out.get("full") == "server")
         if status == 202:
@@ -204,19 +313,20 @@ class Workspaces:
 
     # ------------------------------------------------------------ the workspace server, for the console
 
-    def agent_status(self):
-        """Every browser the workspace server has, and whether it is healthy."""
-        _, health = self._agent("GET", "/health")
-        _, status = self._agent("GET", "/status")
+    def agent_status(self, host=None):
+        """Every browser one place has (the one in use, unless named), and whether it is healthy."""
+        _, health = self._agent("GET", "/health", host=host)
+        _, status = self._agent("GET", "/status", host=host)
         return {"health": health, **status}
 
-    def admin_open(self, slot, name):
-        """An admin signs a browser in to its tool. -> {"state": "ready", "url"} or {"state": "starting"}."""
-        _, out = self._agent("POST", "/admin-open", {"slot": slot, "name": name}, ok=(200, 202))
+    def admin_open(self, slot, name, host=None):
+        """An admin signs a browser in to its tool. -> {"state": "ready", "url"} or {"state": "starting"}.
+        Any place, not only the one in use: a computer's browsers can be signed in before switching to it."""
+        _, out = self._agent("POST", "/admin-open", {"slot": slot, "name": name}, ok=(200, 202), host=host)
         return out
 
-    def admin_close(self, slot):
-        self._agent("POST", "/admin-close", {"slot": slot}, ok=(200, 404))
+    def admin_close(self, slot, host=None):
+        self._agent("POST", "/admin-close", {"slot": slot}, ok=(200, 404), host=host)
 
     # ------------------------------------------------------------ taking them back
 
@@ -225,8 +335,9 @@ class Workspaces:
         in agent mode, the agent does that and recycles the browser."""
         browser, user = turn["workspace"], turn["ws_member"]
         if browser.startswith("agent:"):
-            if self.agent_ready:
-                self._agent("POST", "/release", {"lease": lease_id(turn)}, ok=(200, 404))
+            host = turn.get("ws_host") or "server"  # where its browser is, which may no longer be the place in use
+            if self.connection(host):
+                self._agent("POST", "/release", {"lease": lease_id(turn)}, ok=(200, 404), host=host)
         elif user and browser and self.managed:
             with self._lock(browser):
                 # the same person may already be back on this browser with a newer turn: leave that one be
@@ -274,13 +385,17 @@ class Workspaces:
 
     # ------------------------------------------------------------ the agent's API and Neko's
 
-    def _agent(self, method, path, body=None, ok=(200,)):
-        """One call to the Workspace Agent. -> (status, JSON reply), if the status is one of `ok`."""
-        s = self.gw.settings
-        root = s.workspace_agent_url.rstrip("/")
-        req = urllib.request.Request(root + path, method=method,
+    def _agent(self, method, path, body=None, ok=(200,), host=None):
+        """One call to the Workspace Agent at one place (the one in use, unless named).
+        -> (status, JSON reply), if the status is one of `ok`."""
+        host = host or self.active
+        conn = self.connection(host)
+        if conn is None:
+            raise Unavailable(f"{HOSTS.get(host, host)} isn't connected")
+        root, token = conn
+        req = urllib.request.Request(root.rstrip("/") + path, method=method,
                                      data=json.dumps(body).encode() if body is not None else None,
-                                     headers={"Authorization": "Bearer " + s.workspace_agent_token,
+                                     headers={"Authorization": "Bearer " + token,
                                               "Content-Type": "application/json", "Accept": "application/json"})
         try:
             with urllib.request.urlopen(req, timeout=AGENT_TIMEOUT) as resp:
@@ -289,13 +404,13 @@ class Workspaces:
             status, raw = exc.code, exc.read(64 * 1024)
             exc.close()
         except (urllib.error.URLError, OSError) as exc:
-            raise Unavailable(f"the workspace server did not answer ({getattr(exc, 'reason', exc)})") from None
+            raise Unavailable(f"{HOSTS.get(host, host)} did not answer ({getattr(exc, 'reason', exc)})") from None
         try:
             out = json.loads(raw or b"{}")
         except ValueError:
             out = {}
         if status not in ok:
-            raise Unavailable(f"the workspace server answered {method} {path} with {status}: "
+            raise Unavailable(f"{HOSTS.get(host, host)} answered {method} {path} with {status}: "
                               f"{(out.get('error') if isinstance(out, dict) else '') or 'no reason given'}")
         return status, out if isinstance(out, dict) else {}
 
@@ -318,3 +433,76 @@ class Workspaces:
         if status not in ok:
             raise Unavailable(f"{root} answered {method} {path} with {status}")
         return status
+
+
+class Relay:
+    """The video relay (TURN) for company browsers on Swangz's own computers. Nothing on the internet can
+    reach such a computer, so the browser and the person's screen both connect out to the relay and meet
+    there. The gateway keeps the relay's secret and hands out credentials that run out (RELAY_TTL); the
+    computer passes them to its browsers, and they to the people working in them.
+
+    Cloudflare's relay (GATEWAY_TURN_CLOUDFLARE_KEY_ID / _TOKEN) is asked for credentials; your own coturn
+    (GATEWAY_TURN_URLS / GATEWAY_TURN_SECRET, its use-auth-secret) gets them made here."""
+
+    CLOUDFLARE = "https://rtc.live.cloudflare.com/v1/turn/keys/{}/credentials/generate-ice-servers"
+
+    def __init__(self, gw):
+        self.gw = gw
+        self._lock = threading.Lock()
+        self._cached, self._until = [], 0.0
+
+    @property
+    def kind(self):
+        s = self.gw.settings
+        if s.turn_cloudflare_key_id and s.turn_cloudflare_token:
+            return "cloudflare"
+        return "own" if s.turn_urls and s.turn_secret else ""
+
+    def ice_servers(self):
+        """[{urls, username, credential}, …] like a browser's iceServers, or [] with no relay set up."""
+        kind = self.kind
+        if not kind:
+            return []
+        with self._lock:
+            if self._cached and time.time() < self._until:
+                return self._cached
+            try:
+                servers = self._cloudflare() if kind == "cloudflare" else self._own()
+            except Unavailable as exc:
+                self.gw.log(f"video relay: {exc}")
+                return self._cached  # the last ones, while they last
+            self._cached, self._until = servers, time.time() + RELAY_TTL / 2
+            return servers
+
+    def _own(self):
+        """coturn's REST credentials: the username is when they run out, the password its HMAC."""
+        s = self.gw.settings
+        user = f"{int(time.time()) + RELAY_TTL}:swangz"
+        password = base64.b64encode(hmac.new(s.turn_secret.encode(), user.encode(), hashlib.sha1).digest()).decode()
+        return [{"urls": list(s.turn_urls), "username": user, "credential": password}]
+
+    def _cloudflare(self):
+        s = self.gw.settings
+        req = urllib.request.Request(self.CLOUDFLARE.format(urllib.parse.quote(s.turn_cloudflare_key_id, safe="")),
+                                     method="POST", data=json.dumps({"ttl": RELAY_TTL}).encode(),
+                                     headers={"Authorization": "Bearer " + s.turn_cloudflare_token,
+                                              "Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+                out = json.loads(resp.read(64 * 1024))
+        except urllib.error.HTTPError as exc:
+            exc.close()
+            raise Unavailable(f"Cloudflare refused new relay credentials ({exc.code}) - check the TURN key") from None
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            raise Unavailable(f"Cloudflare didn't answer ({getattr(exc, 'reason', exc)})") from None
+        servers = []
+        for server in out.get("iceServers") or [] if isinstance(out, dict) else []:
+            urls = server.get("urls") if isinstance(server, dict) else None
+            urls = [urls] if isinstance(urls, str) else list(urls or [])
+            # browsers block port 53, and a relay address that times out only slows the connection down
+            urls = [u for u in urls if isinstance(u, str) and not u.split("?")[0].endswith(":53")]
+            if urls:
+                servers.append({**server, "urls": urls})
+        if not servers:
+            raise Unavailable("Cloudflare sent no relay addresses")
+        return servers

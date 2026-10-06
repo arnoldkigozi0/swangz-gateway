@@ -153,6 +153,7 @@
       A.pageTabs("#/settings", params, [
         ["safety", "Access & records", () => safetyTab(owner)],
         ["addresses", "Addresses", () => addressesTab()],
+        ["browsers", "Company browsers", () => workspaceTab(owner)],
         ["prices", "Model prices", () => pricesTab(owner)],
         owner && ["users", "Console users", () => consoleUsersTab()],
         ["account", "Your account", () => accountTab()],
@@ -207,6 +208,118 @@
         el("div", null, el("span", { class: "u-label" }, "Control room "), el("span", { class: "mono" }, st.base_url + "/admin"), el("span", { class: "hint" }, " — this console; don't share it with staff")),
         el("div", null, el("span", { class: "u-label" }, "Time zone "), el("span", { class: "mono" }, SUI.tzLabel()), el("span", { class: "hint" }, " — budgets reset at midnight here (GATEWAY_TZ_OFFSET)"))),
       el("div", { class: "body hint" }, "Provider API keys live only in the server's environment (ANTHROPIC_API_KEY, OPENAI_API_KEY, …). They are never shown here and never leave the server."));
+  }
+
+  /* Company browsers for shared accounts: where they run — the rented server, the Windows PC or the Mac,
+     one place at a time — and signing each place's browsers in to their tools. */
+  async function workspaceTab(owner) {
+    const ws = await api("GET", "/workspace");
+    const cap = (x) => x.charAt(0).toUpperCase() + x.slice(1);
+    const usable = (h) => (h.kind === "server" ? h.set_up : h.connected);
+    const card = (h) => {
+      let tone, state, detail;
+      if (h.kind === "server") {
+        [tone, state] = h.set_up ? ["ok", "Set up"] : ["none", "Not set up"];
+        detail = h.set_up ? "A server Swangz rents (GATEWAY_WORKSPACE_AGENT in the gateway's settings). Its browsers are listed in its own config."
+          : "Set it up with deploy/setup-workspace-server.sh, then put GATEWAY_WORKSPACE_AGENT and its token in the gateway's settings.";
+      } else if (!h.set_up) {
+        [tone, state] = ["none", "Not set up"];
+        detail = `Run the company browsers on ${h.label} instead of a rented server. It needs Docker Desktop and Python, and has to stay on.`;
+      } else if (!h.connected) {
+        [tone, state] = ["waiting", "Waiting for it"];
+        detail = "It has a key but hasn't checked in yet — run the setup command on it.";
+      } else {
+        [tone, state] = h.online ? ["ok", "Online"] : ["blocked", "Offline"];
+        const i = h.info || {};
+        detail = [(h.online ? "checked in " : "last seen ") + fmt.ago(h.seen), i.system, i.memory_gb ? `Docker has ${i.memory_gb} GB` : null,
+          i.browsers != null ? `${SUI.plural(i.browsers, "browser")} (${i.running || 0} running)` : null,
+          i.max_running ? `at most ${i.max_running} at once` : null].filter(Boolean).join(" · ");
+      }
+      const buttons = [];
+      if (owner && !h.active && usable(h)) buttons.push(el("button", { class: "btn small primary", onclick: () => useHost(h) }, "Use this one"));
+      if (owner && h.kind === "computer") {
+        buttons.push(el("button", { class: "btn small", onclick: () => connectComputer(h) }, h.set_up ? "New key" : "Connect…"));
+        if (h.set_up && !h.active) buttons.push(el("button", { class: "btn small danger quiet", onclick: () => forgetComputer(h) }, "Disconnect"));
+      }
+      return el("div", { class: "assign-row" },
+        el("span", { class: "dev-ic sm" }, icon(h.kind === "server" ? "server" : "monitor")),
+        el("div", { class: "grow" }, el("strong", null, cap(h.label)), " ", h.active ? SUI.badge("In use", "gold") : null, " ", SUI.status(tone, state, { plain: true }),
+          el("div", { class: "hint" }, detail)),
+        buttons.length ? el("span", { class: "row" }, buttons) : null);
+    };
+    const places = A.panel("Where the company browsers run", "one place at a time — Open uses the one marked In use",
+      el("div", { class: "body" }, el("div", { class: "assign-list" }, ws.hosts.map(card))),
+      el("div", { class: "body hint" }, "Each place has browsers of its own, and each browser keeps its own sign-in to its tool — so sign a place's browsers in (below) before switching to it. Switching moves anyone in a company browser off the old place: their turn ends, and Open gives them a browser at the new one."));
+    const RELAY = { cloudflare: "Cloudflare's video relay", own: "Swangz's own video relay (coturn)" };
+    const relay = A.panel("Video from Swangz's own computers", null, el("div", { class: "body row" },
+      ws.relay ? [SUI.status("ok", "Relay on", { plain: true }), el("span", null, "Through " + RELAY[ws.relay] + ": staff can work in a computer's browsers from anywhere.")]
+        : [SUI.status("waiting", "No relay", { plain: true }), el("span", null, "Without one, only people on the same network as the computer can use its browsers. Add a Cloudflare TURN key to the gateway's settings (GATEWAY_TURN_CLOUDFLARE_KEY_ID and GATEWAY_TURN_CLOUDFLARE_TOKEN — see deploy/WORKSPACE.md). The rented server doesn't need one.")]));
+    // one place's browsers, to sign them in — before switching to it, too
+    const ready = ws.hosts.filter(usable);
+    let signing = null;
+    if (ready.length) {
+      const list = el("div");
+      let current = ready.some((h) => h.active) ? ws.active : ready[0].id;
+      const pick = el("div", { class: "body" });
+      const drawPick = () => pick.replaceChildren(A.seg(ready.map((h) => [h.id, cap(h.label)]), current, (v) => { current = v; show(v); }, "Place"));
+      const show = (id) => SUI.load(list, async () => {
+        const [one, tools] = await Promise.all([api("GET", "/workspace?host=" + id), A.toolIndex().catch(() => ({}))]);
+        if (one.error) return el("div", { class: "body" }, el("div", { class: "notice" }, `${cap(one.label)} isn't answering: ${one.error}`));
+        const byTool = {};
+        (one.browsers || []).forEach((b) => { (byTool[b.tool] = byTool[b.tool] || []).push(b); });
+        const groups = Object.keys(byTool).sort().map((tid) => el("div", { class: "stack" },
+          el("h3", { class: "section-title" }, (tools[tid] || {}).name || tid),
+          el("div", { class: "assign-list" }, byTool[tid].map((b) => A.browserRow(b, id, owner, () => show(id))))));
+        return el("div", { class: "body stack" }, groups.length ? groups : A.empty(one.host === "server"
+          ? "No browsers in the rented server's config yet."
+          : "No browsers yet. A tool gets them here within a minute once its Settings say Company browsers = Swangz's company browsers — one for each person on it at a time."));
+      });
+      drawPick();
+      signing = A.panel("Signing the browsers in", "once per browser, at each place", pick, list);
+      show(current);
+    }
+    return [places, relay, signing];
+  }
+
+  async function useHost(h) {
+    const ok = await A.confirmAction(`Use ${h.label} for the company browsers?`,
+      `From now on Open gives people browsers on ${h.label}. Anyone in a company browser somewhere else is moved off: their turn ends, and Open gives them one here. Sign this place's browsers in to their tools first.`, "Switch", false);
+    if (!ok) return;
+    try {
+      const out = await api("POST", "/workspace/use", { host: h.id });
+      toast(out.moved ? `Switched — ${SUI.plural(out.moved, "person", "people")} moved off.` : "Switched.");
+      S.tools = null;
+      A.render();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  async function connectComputer(h) {
+    if (h.set_up) {
+      const ok = await A.confirmAction(`New key for ${h.label}?`, "Its current key stops working at once, and it stays offline until it's set up again with the new one.", "Make a new key", true);
+      if (!ok) return;
+    }
+    let out;
+    try { out = await api("POST", `/workspace/hosts/${h.id}/key`); } catch (e) { toast(e.message, true); return; }
+    const win = h.id === "windows";
+    const steps = el("ol", { class: "setup-steps" },
+      el("li", null, el("strong", null, "Docker Desktop: "), win ? "install it (in PowerShell: winget install -e --id Docker.DockerDesktop), open it once and accept its terms."
+        : "install it from docker.com (Apple chip or Intel — pick the matching one), open it once and accept its terms."),
+      el("li", null, el("strong", null, "Python 3: "), win ? "in PowerShell: winget install -e --id Python.Python.3.13" : "most Macs have it (python3 --version); otherwise brew install python."),
+      el("li", null, el("strong", null, "This project: "), "git clone https://github.com/arnoldkigozi0/swangz-gateway.git — or copy the folder across."),
+      el("li", null, el("strong", null, "Then, in that folder " + (win ? "(PowerShell)" : "(Terminal)") + ", run the command below.")));
+    const done = el("button", { class: "btn primary", onclick: () => { d.close(); A.render(); } }, "I've copied it");
+    const d = A.dialog(`Connect ${h.label}`, el("div", { class: "stack" },
+      el("div", { class: "notice" }, icon("alert"), "The key is in this command, and this is the only time it's shown. Run it on that computer only."),
+      steps,
+      el("div", { class: "spread" }, el("strong", null, "The command"), el("button", { class: "btn small", onclick: () => SUI.copy(out.command) }, icon("copy"), "Copy")),
+      el("pre", { class: "code" }, out.command),
+      el("p", { class: "hint" }, "It checks Docker, works out how many browsers fit in its memory, downloads the tunnel program and the browser (about 1 GB, once), sets itself to start with the computer and keeps it awake, then checks in here. Keep the computer on, plugged in and online: while it's off, nobody gets a company browser unless you switch back to the rented server.")), [done]);
+  }
+
+  async function forgetComputer(h) {
+    const ok = await A.confirmAction(`Disconnect ${h.label}?`, "Its key stops working and it no longer shows here. The browsers and their sign-ins stay on that computer; run computer.py remove there to stop it starting with the computer.", "Disconnect", true);
+    if (!ok) return;
+    try { await api("DELETE", `/workspace/hosts/${h.id}`); toast("Disconnected."); A.render(); } catch (e) { toast(e.message, true); }
   }
 
   async function pricesTab(owner) {
