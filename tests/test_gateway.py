@@ -750,6 +750,10 @@ class CatalogTests(unittest.TestCase):
         # granting assigns the tool and closes the request
         self.assertTrue(rig.gw.db.one("SELECT 1 FROM entitlements WHERE tool_id='midjourney' AND person_id=?", (rig.person_id,)))
         self.assertEqual(rig.api("GET", "/access-requests")[1]["open"], 0)
+        # every state's count comes back whichever state is listed, for the page's tabs
+        status, granted = rig.api("GET", "/access-requests?state=granted")
+        self.assertEqual(granted["counts"], {"open": 0, "granted": 1, "declined": 0})
+        self.assertEqual([r["tool"] for r in granted["items"]], ["Midjourney"])
 
 
 class AccessGateTests(StaffBase):

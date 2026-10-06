@@ -280,11 +280,13 @@
     async function detailsTab() {
       if (!owner) return A.panel("Details", null, el("div", { class: "body hint" }, "Only an owner can change someone's details."));
       const form = personForm(p);
-      const err = el("div", { class: "err", role: "alert" });
-      return A.panel("Details and limits", null, el("div", { class: "body stack" }, form.node, err,
-        el("div", null, el("button", { class: "btn primary", onclick: async () => {
-          try { await api("PATCH", "/people/" + p.id, form.values()); toast("Saved."); A.render(); } catch (e) { err.textContent = e.message; }
-        } }, "Save changes"))));
+      const err = el("span", { class: "err", role: "alert" });
+      return A.panel("Details and limits", null, el("div", { class: "body stack" }, form.node),
+        A.panelFoot(el("span", { class: "grow" }, err),
+          el("button", { class: "btn quiet", type: "button", onclick: () => A.render() }, "Discard"),
+          el("button", { class: "btn primary", type: "button", onclick: async () => {
+            try { await api("PATCH", "/people/" + p.id, form.values()); toast("Saved."); A.render(); } catch (e) { err.textContent = e.message; }
+          } }, "Save changes")));
     }
 
     const ended = p.access_until && p.access_until <= Date.now() / 1000;
@@ -795,7 +797,7 @@
         t.plans.length ? el("div", { class: "hint" }, "Published plans: " + t.plans.map((p) => `${p.name}${p.monthlyUSD ? " $" + p.monthlyUSD : ""}`).join(" · "),
           t.pricing_url ? [" · ", el("a", { href: t.pricing_url, target: "_blank", rel: "noopener noreferrer" }, "pricing page")] : null) : null,
         sub.updated_by ? el("div", { class: "hint" }, `Last changed ${fmt.ago(sub.updated)} by ${sub.updated_by}.`) : null,
-        err, el("div", null, save),
+        owner ? el("div", { class: "btn-row end form-actions" }, el("span", { class: "grow" }, err), save) : null,
       ];
     }
 
@@ -895,8 +897,7 @@
           el("label", { class: "field" }, "Domains (for the browser extension)", f.hosts),
           el("label", { class: "field" }, "Pricing page", f.pricing_url),
           el("label", { class: "field" }, "Brand colour", f.color)),
-        err,
-        owner ? el("div", null, save) : null,
+        owner ? el("div", { class: "btn-row end form-actions" }, el("span", { class: "grow" }, err), save) : null,
         t && owner ? el("div", { class: "danger-zone" },
           el("div", null, el("strong", null, t.builtin ? "Remove from the catalog" : "Remove or delete"),
             el("div", { class: "hint" }, t.builtin ? "Hidden from staff and closed to launches. You can restore it any time." : "Remove hides it (restorable). Delete erases it with its grants.")),
@@ -960,29 +961,72 @@
 
   // ------------------------------------------------------------------ Access requests
 
+  /* Access requests: the counts are the tabs, one row per request, and the decision sits at the right
+     edge of its row — Decline first, Grant last. */
   async function pageRequests(params) {
     await A.toolIndex().catch(() => null);
-    const state = params.get("state") || "open";
+    const owner = A.isOwner();
+    const state = ["open", "granted", "declined"].includes(params.get("state")) ? params.get("state") : "open";
     const data = await api("GET", "/access-requests?state=" + encodeURIComponent(state));
-    const rows = data.items.map((r) => el("li", { class: "req" },
-      SUI.avatar(r.person),
-      el("div", { class: "grow" },
-        el("div", { class: "req-line" }, A.personLink(r.person_id, r.person, { avatar: false }), el("span", { class: "muted" }, " asked for "), A.toolLink(r.tool_id, r.tool, "xs")),
-        el("div", { class: "hint" }, (r.department || "No department") + " · " + fmt.ago(r.created) + (r.decided ? ` · ${r.state} by ${r.decided_by} ${fmt.ago(r.decided)}` : "")),
-        r.reason ? el("p", { class: "req-reason" }, r.reason) : null),
-      r.state === "open" && A.isOwner() ? el("div", { class: "row" },
-        el("button", { class: "btn small primary", onclick: () => decide(r.id, "grant") }, icon("check"), "Grant"),
-        el("button", { class: "btn small danger quiet", onclick: () => decide(r.id, "decline") }, "Decline"))
-        : SUI.status(r.state === "granted" ? "ok" : r.state === "open" ? "pending" : "blocked", r.state[0].toUpperCase() + r.state.slice(1), { plain: true })));
-    A.frame({ title: "Access requests", lede: "Staff asking for tools. Granting turns the tool on for them straight away.",
-      actions: A.seg([["open", "Open" + (data.open ? ` (${data.open})` : "")], ["granted", "Granted"], ["declined", "Declined"]], state, (v) => { location.hash = "#/requests?state=" + v; }, "Which requests") },
-    A.panel(null, null, rows.length ? el("ul", { class: "reqlist" }, rows)
-      : SUI.stateBox({ icon: "requests", tone: state === "open" ? "ok" : null, title: state === "open" ? "No open requests" : "Nothing here", text: state === "open" ? "When staff ask for a tool in Swangz AI, it appears here." : "No requests in this state yet." })));
+    const counts = data.counts || { open: data.open };
+    const st = { q: params.get("q") || "" };
+    const q = el("input", { type: "search", placeholder: "Search people, tools, reasons…", value: st.q, "aria-label": "Search requests" });
+    const tabs = [["open", "Open"], ["granted", "Granted"], ["declined", "Declined"]].map(([k, label]) =>
+      [k, el("span", { class: "seg-l" }, label, el("span", { class: "seg-n u-num" }, String(counts[k] || 0)))]);
+    const box = el("div");
+    const meta = el("div", { class: "list-meta" });
+    function row(r) {
+      const decided = r.state !== "open";
+      return el("li", { class: "req s-" + r.state },
+        SUI.avatar(r.person),
+        el("div", { class: "req-main" },
+          el("div", { class: "req-line" }, A.personLink(r.person_id, r.person, { avatar: false }), el("span", { class: "muted" }, decided ? " asked for " : " is asking for "), A.toolLink(r.tool_id, r.tool, "xs")),
+          el("div", { class: "req-meta" }, el("span", null, r.department || "No department"), el("span", { title: fmt.stamp(r.created) }, "asked " + fmt.ago(r.created)),
+            decided ? el("span", { title: r.decided ? fmt.stamp(r.decided) : null }, `${r.state} by ${r.decided_by || "an owner"} ${fmt.ago(r.decided)}`) : null),
+          r.reason ? el("p", { class: "req-reason" }, r.reason) : null,
+          r.decision_note ? el("p", { class: "req-note" }, el("span", { class: "k" }, "Note "), r.decision_note) : null),
+        el("div", { class: "req-act" }, !decided && owner
+          ? [el("button", { class: "btn small quiet", type: "button", onclick: () => declineWithNote(r) }, "Decline"),
+            el("button", { class: "btn small primary", type: "button", onclick: () => decide(r, "grant") }, icon("check"), "Grant")]
+          : decided ? SUI.status(r.state === "granted" ? "ok" : "blocked", r.state === "granted" ? "Granted" : "Declined", { plain: true })
+            : SUI.status("pending", "Waiting for an owner", { plain: true })));
+    }
+    function draw() {
+      const qq = st.q.trim().toLowerCase();
+      const items = data.items.filter((r) => !qq || [r.person, r.tool, r.reason, r.department].join(" ").toLowerCase().includes(qq));
+      const oldest = state === "open" && data.items.length ? Math.min(...data.items.map((r) => r.created)) : null;
+      meta.replaceChildren(...[el("span", null, SUI.plural(items.length, state + " request")),
+        oldest ? el("span", { title: fmt.stamp(oldest) }, "oldest asked " + fmt.ago(oldest)) : null,
+        el("span", null, state === "open" ? "granting turns the tool on for them at once" : "decisions are in the audit log too")].filter(Boolean));
+      box.replaceChildren(items.length ? el("ul", { class: "reqlist" }, items.map(row))
+        : SUI.stateBox({ icon: "requests", tone: state === "open" && !qq ? "ok" : null, title: qq ? "Nothing matches" : state === "open" ? "No open requests" : "Nothing here yet",
+          text: qq ? "Try another search." : state === "open" ? "When staff ask for a tool in Swangz AI, it appears here." : "Decided requests appear here." }));
+    }
+    q.addEventListener("input", SUI.debounce(() => { st.q = q.value; A.keepParams("#/requests", { q: st.q || null }); draw(); }, 150));
+    draw();
+    A.frame({ title: "Access requests", lede: "Staff asking for tools in Swangz AI. Granting turns the tool on for them straight away." },
+      A.panel(null, null,
+        el("div", { class: "filterbar" }, el("div", { class: "fb-row" },
+          A.seg(tabs, state, (v) => { location.hash = "#/requests" + (v === "open" ? "" : "?state=" + v); }, "Which requests"), el("span", { class: "fb-gap" }),
+          el("label", { class: "fb-search" }, icon("search"), el("span", { class: "u-sr" }, "Search"), q))),
+        meta, box));
   }
 
-  async function decide(id, action) {
-    try { await api("POST", `/access-requests/${id}/${action}`); toast(action === "grant" ? "Granted." : "Declined."); A.render(); }
-    catch (e) { toast(e.message, true); }
+  function declineWithNote(r) {
+    const note = el("textarea", { rows: "3", maxlength: "500", placeholder: "Optional — e.g. we're not renewing that tool; try Canva instead." });
+    const go = el("button", { class: "btn danger", type: "button", onclick: async () => { await decide(r, "decline", note.value); d.close(); } }, "Decline request");
+    const d = A.dialog(`Decline ${r.person}'s request?`, el("div", { class: "stack" },
+      el("p", { class: "muted" }, `${r.person} asked for ${r.tool}${r.reason ? ` — “${r.reason}”` : ""}. They'll see it was declined, with your note if you add one.`),
+      el("label", { class: "field" }, "Note for them", note)), [go]);
+    note.focus();
+  }
+
+  async function decide(r, action, note) {
+    try {
+      await api("POST", `/access-requests/${r.id}/${action}`, note ? { note } : undefined);
+      toast(action === "grant" ? `Granted — ${r.tool} is on for ${r.person}.` : "Declined.");
+      A.render();
+    } catch (e) { toast(e.message, true); }
   }
 
   A.page(/^#\/people$/, pagePeople);

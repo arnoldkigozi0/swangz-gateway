@@ -10,28 +10,36 @@ main:focus { outline: none; }
 
 /* ------------------------------------------------------------ buttons & fields */
 
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--s2); min-height: 42px; padding: 0 18px; border-radius: var(--r-sm);
-  border: 1px solid var(--line-hi); background: var(--ink-2); color: var(--tx-1); font-weight: 620; cursor: pointer; text-decoration: none; white-space: nowrap;
-  transition: background var(--d-fast) var(--e-out), border-color var(--d-fast) var(--e-out), transform var(--d-fast); }
-.btn:hover { background: var(--ink-3); border-color: var(--tx-4); }
+/* Buttons — the Swangz Avenue Bookings system, one size up for touch: an outline by default; the one
+   primary action per place is solid off-white and fills with gold from the left on hover. */
+.btn { position: relative; isolation: isolate; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; gap: var(--s2);
+  min-height: 42px; padding: 0 18px; border-radius: var(--r-xs); border: 1px solid var(--ink-4); background: transparent; color: var(--tx-1);
+  font: 600 14px/1 var(--font); letter-spacing: -.002em; cursor: pointer; text-decoration: none; white-space: nowrap;
+  transition: background var(--d-base) var(--e-out), border-color var(--d-base) var(--e-out), color var(--d-base) var(--e-out); }
+.btn:hover { background: var(--ink-3); border-color: var(--line-hi); }
 .btn:active { transform: translateY(1px); }
-.btn:disabled { opacity: .45; cursor: default; transform: none; }
+.btn:disabled { opacity: .4; cursor: default; transform: none; pointer-events: none; }
 .btn svg { width: 16px; height: 16px; flex: none; }
-.btn--solid { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
-.btn--solid:hover { background: var(--primary-hi); border-color: var(--primary-hi); }
+.btn--solid { background: var(--tx-1); border-color: transparent; color: var(--ink-0); }
+.btn--solid::after { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--accent); transform: scaleX(0); transform-origin: left center;
+  transition: transform var(--d-base) var(--e-out); }
+.btn--solid:hover { background: var(--tx-1); border-color: transparent; color: #1A1406; }
+.btn--solid:hover::after, .btn--solid:focus-visible::after { transform: scaleX(1); }
 .btn--quiet { border-color: transparent; background: transparent; color: var(--tx-2); padding: 0 var(--s3); }
-.btn--quiet:hover { color: var(--tx-1); background: var(--ink-3); border-color: transparent; }
+.btn--quiet:hover { color: var(--tx-1); background: var(--ink-2); border-color: transparent; }
 .btn--danger { color: var(--bad-hi); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); background: transparent; }
-.btn--danger:hover { background: var(--bad-soft); border-color: var(--bad); }
-.btn--small { min-height: 36px; padding: 0 14px; font-size: var(--t-small); }
+.btn--danger:hover { background: var(--bad-soft); border-color: color-mix(in srgb, var(--bad) 65%, var(--line)); }
+.btn--small { min-height: 34px; padding: 0 13px; font-size: 13px; border-radius: 2px; }
 .btn--small svg { width: 15px; height: 15px; }
 .btn--block { width: 100%; }
-.btn.icon-only { padding: 0; width: 40px; }
+.btn.icon-only { padding: 0; width: 42px; }
+.btn--small.icon-only { width: 34px; }
+@media (hover: none) { .btn { min-height: 44px; } }
 
 .field { display: flex; flex-direction: column; gap: var(--s2); }
 .field > span { font-size: var(--t-small); color: var(--tx-2); font-weight: 620; }
 .input-wrap { position: relative; display: flex; }
-.input { width: 100%; min-height: 46px; padding: 0 var(--s4); background: var(--ink-2); border: 1px solid var(--line-hi); border-radius: var(--r-sm); font-size: var(--t-body);
+.input { width: 100%; min-height: 44px; padding: 0 var(--s4); background: var(--ink-1); border: 1px solid var(--ink-4); border-radius: var(--r-xs); font-size: var(--t-body);
   transition: border-color var(--d-fast), box-shadow var(--d-fast); }
 .input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent); }
 .input::placeholder { color: var(--tx-3); }
@@ -281,7 +289,7 @@ dl.facts dd { margin: 0; font-weight: 600; min-width: 0; overflow-wrap: anywhere
 .step p { margin: 0 0 var(--s3); color: var(--tx-2); font-size: var(--t-small); overflow-wrap: anywhere; }
 .code { position: relative; }
 .code pre { margin: 0; background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: var(--s4); padding-right: 96px; font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
-.code .btn { position: absolute; top: 8px; right: 8px; min-height: 30px; padding: 0 var(--s3); font-size: 12px; }
+.code .btn { position: absolute; top: 8px; right: 8px; min-height: 30px; padding: 0 var(--s3); font-size: 12px; background: var(--ink-1); }
 .conn-card { border: 1px solid var(--line-hi); border-radius: var(--r-md); overflow: hidden; }
 .conn-row { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; gap: var(--s3); align-items: center; padding: 11px 14px; border-top: 1px solid var(--line); }
 .conn-row:first-child { border-top: 0; }
@@ -396,9 +404,10 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
 /* Sign in with Google */
 .google-box { display: flex; flex-direction: column; gap: var(--s4); }
 .google-box:empty { display: none; }
-.btn--google { background: #FFFFFF; color: #1F1F1F; border-color: #D5D9E0; min-height: 46px; font-weight: 600; gap: 12px; }
-.btn--google:hover { background: #F7F8FA; border-color: #B9C0CC; }
+.btn--google { background: #FFFFFF; color: #1F1F1F; border-color: #D5D9E0; min-height: 46px; gap: 12px; font: 600 15px/1 var(--font); letter-spacing: 0; text-transform: none; }
+.btn--google:hover { background: #F7F8FA; border-color: #B9C0CC; color: #1F1F1F; }
 :root:not([data-theme="light"]) .btn--google { background: #131314; color: #E3E3E3; border-color: #8E918F; }
+:root:not([data-theme="light"]) .btn--google:hover { background: #1E1E20; color: #E3E3E3; border-color: #8E918F; }
 .or { display: flex; align-items: center; gap: var(--s3); color: var(--tx-3); font-size: var(--t-small); }
 .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 

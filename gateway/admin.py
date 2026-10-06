@@ -1342,7 +1342,9 @@ def list_access_requests(ctx):
         " JOIN people p ON p.id = ar.person_id JOIN tools t ON t.id = ar.tool_id"
         + (" WHERE ar.state = ?" if state in ("open", "granted", "declined") else "")
         + " ORDER BY ar.created DESC LIMIT 200", ([state] if state in ("open", "granted", "declined") else []))
-    return {"items": rows, "open": ctx.db.scalar("SELECT COUNT(*) FROM access_requests WHERE state = 'open'") or 0}
+    counts = {r["state"]: r["n"] for r in ctx.db.q("SELECT state, COUNT(*) AS n FROM access_requests GROUP BY state")}
+    counts = {k: counts.get(k, 0) for k in ("open", "granted", "declined")}
+    return {"items": rows, "open": counts["open"], "counts": counts}
 
 
 @route("POST", r"/access-requests/(?P<rid>\d+)/(?P<action>grant|decline)", role="owner")

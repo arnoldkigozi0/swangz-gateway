@@ -102,7 +102,7 @@
           el("div", { class: "hint" }, "At least half again the period before, and $1 more — worth a look, not necessarily a problem."), all);
       }
       const idleSeats = d.idle.reduce((n, x) => n + x.idle, 0);
-      box.replaceChildren(
+      box.replaceChildren(...[
         el("div", { class: "kpis four" },
           A.kpi({ label: "Metered AI spend", icon: "wallet", value: fmt.money(total), tone: "gold hero",
             foot: el("span", { class: "row" }, SUI.delta(d.change), el("span", { class: "note" }, `vs ${fmt.money(d.previous_total)} the period before`)),
@@ -133,7 +133,7 @@
             el("div", null, SUI.status("ok", "Estimated", { plain: true }), el("p", null, "Each request through the gateway is priced from the model price table (Settings → Model prices) the moment it runs, using the tokens the provider reports. Changing a price later doesn't change past requests.")),
             el("div", null, SUI.status("waiting", "Unpriced", { plain: true }), el("p", null, "A model missing from the price table has no cost, so spend is understated until it's priced. Voice, image and video are metered in the service's own units.")),
             el("div", null, SUI.status("info", "Plans", { plain: true }), el("p", null, "Company plans are the fixed monthly cost set on each subscription — not metered here, and not split by person.")),
-            el("div", null, SUI.status("none", "Not here", { plain: true }), el("p", null, "Vendor invoices aren't imported, and a shared account's own credit use is matched by turn, not priced.")))));
+            el("div", null, SUI.status("none", "Not here", { plain: true }), el("p", null, "Vendor invoices aren't imported, and a shared account's own credit use is matched by turn, not priced."))))].filter(Boolean));
     }
     const apply = () => {
       A.keepParams("#/licences", { tab: "spend", range: st.range.preset, from: st.range.preset === "custom" ? st.range.from : null, to: st.range.preset === "custom" ? st.range.to : null, by: st.by === "person" ? null : st.by });
@@ -172,57 +172,78 @@
         ["prices", "Model prices", () => pricesTab(owner)],
         owner && ["users", "Console users", () => consoleUsersTab()],
         ["account", "Your account", () => accountTab()],
-      ]));
+      ], { vertical: true }));
   }
 
+  /* Access & records: grouped settings, one row each, and one save bar that appears only when
+     something has changed — so nothing is saved by accident and nothing is left half-saved. */
   async function safetyTab(owner) {
     const st = await api("GET", "/settings");
-    const switchPanel = A.panel("Kill switch", null, el("div", { class: "body spread" },
-      el("div", null, el("div", { class: "row" }, st.paused ? SUI.status("blocked", "AI access is paused for everyone") : SUI.status("ok", "AI access is on")),
-        el("div", { class: "hint" }, "Stopping cuts every request in flight, refuses new ones, and closes the portal's Open buttons until someone resumes.")),
-      owner ? (st.paused ? el("button", { class: "btn primary", onclick: () => A.setPaused(false) }, "Resume access")
-        : el("button", { class: "btn danger", onclick: () => A.setPaused(true) }, icon("stop"), "Stop all AI")) : null));
-    const retention = el("input", { type: "number", min: "0", step: "1", value: String(st.retention_days), disabled: !owner });
-    const storeBodies = el("input", { type: "checkbox", checked: st.store_bodies, disabled: !owner });
-    const blockSecrets = el("input", { type: "checkbox", checked: st.block_secrets, disabled: !owner });
-    const selfKeys = el("input", { type: "checkbox", checked: st.staff_self_keys, disabled: !owner });
-    const gateFull = el("input", { type: "checkbox", checked: st.gate_log_full, disabled: !owner });
-    const rate = el("input", { type: "number", min: "0", step: "1", value: String(st.rate_per_min || 0), disabled: !owner });
-    const contact = el("input", { type: "text", maxlength: "200", value: st.support_contact || "", placeholder: "e.g. IT desk — it@swangzavenue.com, ext. 204", disabled: !owner });
-    const recErr = el("div", { class: "err", role: "alert" });
-    const records = A.panel("Records and rules", `${st.records.toLocaleString()} requests · ${(st.db_bytes / 1048576).toFixed(1)} MB on disk`, el("div", { class: "body stack" },
-      el("label", { class: "field" }, "Keep records for (days)", retention, el("span", { class: "hint" }, "Older records and their bodies are deleted automatically every hour. 0 keeps everything. Staff see this number on their privacy page.")),
-      el("label", { class: "check" }, storeBodies, el("span", null, el("strong", null, "Keep full request and response bodies"), el("div", { class: "hint" }, "Needed to pull back exactly what was sent. Off = only the summary (who, model, prompt, commands, cost)."))),
-      el("label", { class: "check" }, selfKeys, el("span", null, el("strong", null, "Staff can connect their own devices"), el("div", { class: "hint" }, "In the Swangz AI app they create and disconnect their own keys. Every key still shows up under Devices, and you can revoke any of them."))),
-      el("label", { class: "check" }, blockSecrets, el("span", null, el("strong", null, "Refuse requests that contain credentials"), el("div", { class: "hint" }, "API keys, cloud keys, private keys. Off = let them through but flag them. On can interrupt an agent that reads a .env file."))),
-      el("label", { class: "check" }, gateFull, el("span", null, el("strong", null, "Website gate: full-content logging"), el("div", { class: "hint" }, "Off by default, and the honest choice. The browser extension records only which approved site staff open and for how long. Turn this on only with legal sign-off — staff are told in the extension's policy."))),
-      el("label", { class: "field" }, "Rate limit (requests per person per minute)", rate, el("span", { class: "hint" }, "Catches a runaway tool. 0 = no limit. A busy agent can make several a minute, so keep it generous.")),
-      el("label", { class: "field" }, "Who staff contact for help", contact, el("span", { class: "hint" }, "Shown on the staff app's privacy page and wherever access is refused.")),
-      recErr,
-      owner ? el("div", null, el("button", { class: "btn primary", onclick: async () => {
-        try {
-          await api("PUT", "/settings", { retention_days: retention.value, store_bodies: storeBodies.checked, block_secrets: blockSecrets.checked, staff_self_keys: selfKeys.checked,
-            gate_log_full: gateFull.checked, rate_per_min: rate.value, support_contact: contact.value });
-          recErr.textContent = ""; toast("Saved.");
-        } catch (e) { recErr.textContent = e.message; }
-      } }, "Save")) : null));
-    return [switchPanel, records];
+    const off = !owner;
+    const retention = el("input", { type: "number", min: "0", step: "1", value: String(st.retention_days), disabled: off, "aria-label": "Keep records for, in days" });
+    const storeBodies = A.switchInput(st.store_bodies, off, "Keep full request and response bodies");
+    const blockSecrets = A.switchInput(st.block_secrets, off, "Refuse requests that contain credentials");
+    const selfKeys = A.switchInput(st.staff_self_keys, off, "Staff can connect their own devices");
+    const gateFull = A.switchInput(st.gate_log_full, off, "Website gate: full-content logging");
+    const rate = el("input", { type: "number", min: "0", step: "1", value: String(st.rate_per_min || 0), disabled: off, "aria-label": "Requests per person per minute" });
+    const contact = el("input", { type: "text", maxlength: "200", value: st.support_contact || "", placeholder: "e.g. IT desk — it@swangzavenue.com, ext. 204", disabled: off, "aria-label": "Who staff contact for help" });
+    const values = () => ({ retention_days: retention.value, store_bodies: storeBodies.checked, block_secrets: blockSecrets.checked, staff_self_keys: selfKeys.checked,
+      gate_log_full: gateFull.checked, rate_per_min: rate.value, support_contact: contact.value });
+    let saved = JSON.stringify(values());
+    const err = el("span", { class: "err", role: "alert" });
+    const discard = el("button", { class: "btn quiet", type: "button" }, "Discard");
+    const save = el("button", { class: "btn primary", type: "button" }, "Save changes");
+    const bar = el("div", { class: "savebar", hidden: true, role: "region", "aria-label": "Unsaved changes" },
+      el("span", { class: "msg" }, el("i", { "aria-hidden": "true" }), "You have unsaved changes"), err, discard, save);
+    const check = () => { bar.hidden = JSON.stringify(values()) === saved; };
+    [retention, rate, contact].forEach((x) => x.addEventListener("input", check));
+    [storeBodies, blockSecrets, selfKeys, gateFull].forEach((x) => x.addEventListener("change", check));
+    discard.addEventListener("click", () => A.render());
+    save.addEventListener("click", async () => {
+      save.disabled = true;
+      try { await api("PUT", "/settings", values()); saved = JSON.stringify(values()); err.textContent = ""; check(); toast("Settings saved."); }
+      catch (e) { err.textContent = e.message; }
+      finally { save.disabled = false; }
+    });
+    const unit = (input, text) => el("span", { class: "unit" }, input, text);
+    return [
+      A.panel("Emergency", null,
+        A.settingRow(el("span", { class: "row" }, "Kill switch", st.paused ? SUI.status("blocked", "AI is paused", { plain: true }) : SUI.status("ok", "AI is on", { plain: true })),
+          "Stopping cuts every request in flight, refuses new ones, and closes the portal's Open buttons until someone resumes.",
+          owner ? (st.paused ? el("button", { class: "btn primary", onclick: () => A.setPaused(false) }, "Resume access")
+            : el("button", { class: "btn danger", onclick: () => A.setPaused(true) }, icon("stop"), "Stop all AI")) : null)),
+      A.panel("Records", `${st.records.toLocaleString()} requests · ${(st.db_bytes / 1048576).toFixed(1)} MB on disk`,
+        A.settingRow("Keep records for", "Older records and their bodies are deleted automatically every hour. 0 keeps everything. Staff see this number on their privacy page.", unit(retention, "days")),
+        A.settingRow("Keep full request and response bodies", "Needed to pull back exactly what was sent. Off keeps only the summary: who, model, prompt, commands, cost.", storeBodies)),
+      A.panel("Protection", null,
+        A.settingRow("Refuse requests that contain credentials", "API keys, cloud keys, private keys. Off lets them through but flags them. On can interrupt an agent that reads a .env file.", blockSecrets),
+        A.settingRow("Rate limit", "Catches a runaway tool. 0 means no limit. A busy agent can make several requests a minute, so keep it generous.", unit(rate, "a minute, per person"))),
+      A.panel("Staff", null,
+        A.settingRow("Staff can connect their own devices", "In the Swangz AI app they create and disconnect their own keys. Every key still shows up under Devices, and you can revoke any of them.", selfKeys),
+        A.settingRow("Website gate: full-content logging", "Off by default, and the honest choice: the browser extension records only which approved site staff open and for how long. Staff are told in the extension's policy.", gateFull, { tone: "warn" }),
+        A.settingRow("Who staff contact for help", "Shown on the staff app's privacy page and wherever access is refused.", contact)),
+      owner ? bar : el("div", { class: "notice info" }, icon("info"), "You're a viewer — an owner changes these."),
+    ];
   }
 
   async function addressesTab() {
     const st = await api("GET", "/settings");
+    const copyable = (text) => el("div", { class: "row end" }, el("span", { class: "value-mono", title: text }, text),
+      el("button", { class: "btn small quiet icon-only", type: "button", "aria-label": "Copy " + text, onclick: () => SUI.copy(text) }, icon("copy")));
     const providers = SUI.table({ caption: "Providers", rows: st.providers, cards: true, columns: [
       { key: "label", label: "Provider", lead: true, render: (p) => el("div", null, el("strong", null, p.label || p.name), el("span", { class: "sub" },
         { anthropic: "chat & coding models", openai: "chat & coding models", elevenlabs: "voice & sound", higgsfield: "image & video" }[p.dialect] || "AI service")) },
       { key: "addr", label: "Address for staff tools", sort: false, render: (p) => el("span", { class: "mono" }, `${st.base_url}/${p.name}` + (p.dialect === "openai" ? "/v1" : "")) },
       { key: "upstream", label: "Forwards to", sort: false, render: (p) => el("span", { class: "mono faint" }, p.upstream), hideSm: true },
       { key: "configured", label: "API key", render: (p) => (p.configured ? SUI.status("ok", "Key set", { plain: true }) : el("span", null, SUI.status("blocked", "Off", { plain: true }), el("span", { class: "sub" }, `set ${p.key_env} on the server`))) }] });
-    return A.panel("Addresses and providers", "staff tools point at these", providers,
-      el("div", { class: "body stack" },
-        el("div", null, el("span", { class: "u-label" }, "Staff app "), el("span", { class: "mono" }, st.base_url + "/"), el("span", { class: "hint" }, " — where staff sign in and open their tools")),
-        el("div", null, el("span", { class: "u-label" }, "Control room "), el("span", { class: "mono" }, st.base_url + "/admin"), el("span", { class: "hint" }, " — this console; don't share it with staff")),
-        el("div", null, el("span", { class: "u-label" }, "Time zone "), el("span", { class: "mono" }, SUI.tzLabel()), el("span", { class: "hint" }, " — budgets reset at midnight here (GATEWAY_TZ_OFFSET)"))),
-      el("div", { class: "body hint" }, "Provider API keys live only in the server's environment (ANTHROPIC_API_KEY, OPENAI_API_KEY, …). They are never shown here and never leave the server."));
+    return [
+      A.panel("This gateway", null,
+        A.settingRow("Staff app", "Where staff sign in and open their tools.", copyable(st.base_url + "/")),
+        A.settingRow("Control room", "This console. Don't share it with staff.", copyable(st.base_url + "/admin")),
+        A.settingRow("Time zone", "Budgets reset at midnight here. Set with GATEWAY_TZ_OFFSET on the server.", el("span", { class: "value-mono" }, SUI.tzLabel()))),
+      A.panel("Providers", "staff tools point at these", providers,
+        el("div", { class: "body hint" }, "Provider API keys live only in the server's environment (ANTHROPIC_API_KEY, OPENAI_API_KEY, …). They are never shown here and never leave the server.")),
+    ];
   }
 
   /* Company browsers for shared accounts: where they run — the rented server, the Windows PC or the Mac,
@@ -256,19 +277,17 @@
         buttons.push(el("button", { class: "btn small", onclick: () => connectComputer(h) }, h.set_up ? "New key" : "Connect…"));
         if (h.set_up && !h.active) buttons.push(el("button", { class: "btn small danger quiet", onclick: () => forgetComputer(h) }, "Disconnect"));
       }
-      return el("div", { class: "assign-row" },
-        el("span", { class: "dev-ic sm" }, icon(h.kind === "server" ? "server" : "monitor")),
-        el("div", { class: "grow" }, el("strong", null, cap(h.label)), " ", h.active ? SUI.badge("In use", "gold") : null, " ", SUI.status(tone, state, { plain: true }),
-          el("div", { class: "hint" }, detail)),
-        buttons.length ? el("span", { class: "row" }, buttons) : null);
+      return A.settingRow(el("span", { class: "place-name" }, el("span", { class: "dev-ic sm" }, icon(h.kind === "server" ? "server" : "monitor")),
+        cap(h.label), h.active ? SUI.badge("In use", "gold") : null, SUI.status(tone, state, { plain: true })),
+      detail, buttons.length ? buttons : null);
     };
-    const places = A.panel("Where the company browsers run", "one place at a time — Open uses the one marked In use",
-      el("div", { class: "body" }, el("div", { class: "assign-list" }, ws.hosts.map(card))),
+    const places = A.panel("Where the company browsers run", "one place at a time — Open uses the one marked In use", ws.hosts.map(card),
       el("div", { class: "body hint" }, "Each place has browsers of its own, and each browser keeps its own sign-in to its tool — so sign a place's browsers in (below) before switching to it. Switching moves anyone in a company browser off the old place: their turn ends, and Open gives them a browser at the new one."));
     const RELAY = { cloudflare: "Cloudflare's video relay", own: "Swangz's own video relay (coturn)" };
-    const relay = A.panel("Video from Swangz's own computers", null, el("div", { class: "body row" },
-      ws.relay ? [SUI.status("ok", "Relay on", { plain: true }), el("span", null, "Through " + RELAY[ws.relay] + ": staff can work in a computer's browsers from anywhere.")]
-        : [SUI.status("waiting", "No relay", { plain: true }), el("span", null, "Without one, only people on the same network as the computer can use its browsers. Add a Cloudflare TURN key to the gateway's settings (GATEWAY_TURN_CLOUDFLARE_KEY_ID and GATEWAY_TURN_CLOUDFLARE_TOKEN — see deploy/WORKSPACE.md). The rented server doesn't need one.")]));
+    const relay = A.panel("Video from Swangz's own computers", null, A.settingRow(
+      el("span", { class: "row" }, "Video relay", ws.relay ? SUI.status("ok", "On", { plain: true }) : SUI.status("waiting", "Not set up", { plain: true })),
+      ws.relay ? "Through " + RELAY[ws.relay] + ": staff can work in a computer's browsers from anywhere."
+        : "Without one, only people on the same network as the computer can use its browsers. Add a Cloudflare TURN key to the gateway's settings (GATEWAY_TURN_CLOUDFLARE_KEY_ID and GATEWAY_TURN_CLOUDFLARE_TOKEN — see deploy/WORKSPACE.md). The rented server doesn't need one.", null));
     // one place's browsers, to sign them in — before switching to it, too
     const ready = ws.hosts.filter(usable);
     let signing = null;
@@ -339,16 +358,19 @@
 
   async function pricesTab(owner) {
     const prices = await api("GET", "/prices");
-    const unpriced = prices.unpriced_models.length ? el("div", { class: "body" }, el("div", { class: "notice" }, icon("alert"), "Used but not priced — their cost shows as “unpriced” and spend is understated:"),
-      el("div", { class: "row" }, prices.unpriced_models.map((m) => owner ? el("button", { class: "btn small", onclick: () => editPrice({ model: m }) }, "Price " + m) : SUI.badge(m, "warn")))) : null;
-    return A.panel("Model prices", "US dollars per million tokens", unpriced, SUI.table({ caption: "Model prices", rows: prices.items, sort: ["model", "asc"], columns: [
+    const unpriced = prices.unpriced_models.length ? el("section", { class: "callout warn" },
+      el("div", { class: "callout-row" }, icon("alert"), el("span", { class: "callout-k" }, "Used but not priced"),
+        el("span", { class: "muted" }, "their cost shows as unpriced, so spend is understated")),
+      el("div", { class: "row" }, prices.unpriced_models.map((m) => owner ? el("button", { class: "btn small", onclick: () => editPrice({ model: m }) }, icon("plus"), m) : SUI.badge(m, "warn")))) : null;
+    return [unpriced, A.panel("Model prices", owner ? el("div", { class: "row" }, el("span", { class: "sub" }, "US dollars per million tokens"),
+      el("button", { class: "btn small", onclick: () => editPrice({}) }, icon("plus"), "Add a price")) : "US dollars per million tokens",
+    SUI.table({ caption: "Model prices", rows: prices.items, sort: ["model", "asc"], columns: [
       { key: "model", label: "Model", lead: true, render: (x) => el("span", { class: "mono" }, x.model) },
       { key: "input", label: "Input", num: true, render: (x) => usd(x.input) },
       { key: "output", label: "Output", num: true, render: (x) => usd(x.output) },
       { key: "cache_write", label: "Cache write", num: true, render: (x) => (x.cache_write === null ? "—" : usd(x.cache_write)), hideSm: true },
       { key: "cache_read", label: "Cache read", num: true, render: (x) => (x.cache_read === null ? "—" : usd(x.cache_read)), hideSm: true },
-      { key: "edit", label: "", sort: false, srLabel: "Edit", render: (x) => (owner ? el("button", { class: "btn small", onclick: () => editPrice(x) }, "Edit") : "") }] }),
-    owner ? el("div", { class: "body" }, el("button", { class: "btn", onclick: () => editPrice({}) }, icon("plus"), "Add a model price")) : null);
+      owner ? { key: "edit", label: "", sort: false, srLabel: "Edit", cls: "act", render: (x) => el("button", { class: "btn small quiet", onclick: () => editPrice(x) }, "Edit") } : null].filter(Boolean) }))];
   }
 
   function editPrice(x) {
@@ -378,24 +400,42 @@
 
   async function consoleUsersTab() {
     const admins = await api("GET", "/admins");
-    return A.panel("Console users", "owners change things; viewers only look", SUI.table({ caption: "Console users", rows: admins.items, sort: ["username", "asc"], columns: [
+    return A.panel("Console users", el("div", { class: "row" }, el("span", { class: "sub" }, "owners change things; viewers only look"),
+      el("button", { class: "btn small", onclick: addAdmin }, icon("plus"), "Add a console user")),
+    SUI.table({ caption: "Console users", rows: admins.items, sort: ["username", "asc"], columns: [
       { key: "username", label: "User", lead: true, render: (a) => el("span", { class: "u-cell" }, SUI.avatar(a.username, "sm"), el("strong", null, a.username)) },
       { key: "role", label: "Role", render: (a) => SUI.badge(a.role === "owner" ? "Owner" : "Viewer", a.role === "owner" ? "gold" : "outline") },
       { key: "last_login", label: "Last sign-in", num: true, render: (a) => fmt.ago(a.last_login) },
-      { key: "x", label: "", sort: false, srLabel: "Remove", render: (a) => (a.username === S.me.username ? el("span", { class: "faint" }, "you") : el("button", { class: "btn danger small", onclick: () => removeAdmin(a) }, "Remove")) }] }),
-    el("div", { class: "body" }, el("button", { class: "btn", onclick: addAdmin }, icon("plus"), "Add a console user")),
+      { key: "x", label: "", sort: false, srLabel: "Remove", cls: "act", render: (a) => (a.username === S.me.username ? el("span", { class: "faint" }, "you")
+        : el("button", { class: "btn small quiet danger", onclick: () => removeAdmin(a) }, "Remove")) }] }),
     el("div", { class: "body hint" }, "A console user whose username is their Google email can also sign in with Continue with Google."));
   }
 
   async function accountTab() {
-    const cur = el("input", { type: "password", autocomplete: "current-password" });
-    const nw = el("input", { type: "password", autocomplete: "new-password" });
-    const pwErr = el("div", { class: "err", role: "alert" });
-    return A.panel("Your password", S.me.username, el("div", { class: "body stack" },
-      el("div", { class: "form-grid" }, el("label", { class: "field" }, "Current password", cur), el("label", { class: "field" }, "New password (10+ characters)", nw)), pwErr,
-      el("div", null, el("button", { class: "btn primary", onclick: async () => {
-        try { await api("POST", "/password", { current: cur.value, new: nw.value }); toast("Password changed."); cur.value = nw.value = ""; pwErr.textContent = ""; } catch (e) { pwErr.textContent = e.message; }
-      } }, "Change password"))));
+    const cur = el("input", { type: "password", autocomplete: "current-password", id: "pw-cur" });
+    const nw = el("input", { type: "password", autocomplete: "new-password", id: "pw-new" });
+    const again = el("input", { type: "password", autocomplete: "new-password", id: "pw-again" });
+    const pwErr = el("span", { class: "err", role: "alert" });
+    const go = el("button", { class: "btn primary", type: "submit" }, "Change password");
+    const form = el("form", { class: "panel", onsubmit: async (e) => {
+      e.preventDefault();
+      if (nw.value !== again.value) { pwErr.textContent = "The new passwords don't match."; return; }
+      go.disabled = true;
+      try { await api("POST", "/password", { current: cur.value, new: nw.value }); toast("Password changed."); form.reset(); pwErr.textContent = ""; }
+      catch (err) { pwErr.textContent = err.message; }
+      finally { go.disabled = false; }
+    } },
+      el("header", null, el("h2", null, "Password"), el("div", { class: "sub" }, "10 characters or more")),
+      A.settingRow("Current password", null, cur, { forId: "pw-cur" }),
+      A.settingRow("New password", null, nw, { forId: "pw-new" }),
+      A.settingRow("New password again", null, again, { forId: "pw-again" }),
+      A.panelFoot(el("span", { class: "grow" }, pwErr), go));
+    return [
+      A.panel("Signed in as", null,
+        A.settingRow(S.me.username, S.me.role === "owner" ? "Owner — can change everything." : "Viewer — can see everything, change nothing.",
+          SUI.badge(S.me.role === "owner" ? "Owner" : "Viewer", S.me.role === "owner" ? "gold" : "outline"))),
+      form,
+    ];
   }
 
   function addAdmin() {

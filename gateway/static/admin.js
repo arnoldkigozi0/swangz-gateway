@@ -63,12 +63,13 @@
   }
 
   /* A page split into tabs; each tab builds the first time it is opened. The tab lives in ?tab=. */
-  function pageTabs(base, params, tabs) {
+  function pageTabs(base, params, tabs, opts) {
+    opts = opts || {};
     tabs = tabs.filter(Boolean);
     const body = el("div", { class: "tab-body" });
     const built = new Map();
     let current = tabs.some((t) => t[0] === params.get("tab")) ? params.get("tab") : tabs[0][0];
-    const bar = el("div", { class: "ptabs", role: "tablist" });
+    const bar = el("div", { class: "ptabs" + (opts.vertical ? " vertical" : ""), role: "tablist", "aria-orientation": opts.vertical ? "vertical" : null });
     function show(id, focus) {
       current = id;
       bar.querySelectorAll("button").forEach((b) => {
@@ -91,9 +92,10 @@
       type: "button", role: "tab", "data-tab": id, onclick: () => show(id),
     }, label, badge ? el("span", { class: "tab-count" }, String(badge)) : null)));
     bar.addEventListener("keydown", (e) => {
-      if (!["ArrowLeft", "ArrowRight"].includes(e.key)) return;
+      if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
+      e.preventDefault();
       const i = tabs.findIndex((t) => t[0] === current);
-      const next = tabs[(i + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length][0];
+      const next = tabs[(i + (e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : -1) + tabs.length) % tabs.length][0];
       show(next, true);
     });
     show(current);
@@ -105,15 +107,37 @@
       if (on && bar.scrollWidth > bar.clientWidth) bar.scrollLeft = Math.max(0, on.offsetLeft - 24);
       edge();
     });
-    return el("div", { class: "tabs-wrap" }, bar, body);
+    return el("div", { class: "tabs-wrap" + (opts.vertical ? " vertical" : "") }, bar, body);
   }
 
+  /* Settings-style building blocks. A row says what a setting is on the left and holds its control on
+     the right; a panel's own actions sit in its footer, at the right, the way out before the action. */
+  function settingRow(label, hint, control, o) {
+    o = o || {};
+    return el("div", { class: "setting" + (o.stack ? " stack" : "") + (o.tone ? " " + o.tone : "") },
+      el("div", { class: "setting-text" }, el(o.forId ? "label" : "div", { class: "setting-label", for: o.forId || null }, label), hint ? el("div", { class: "setting-hint" }, hint) : null),
+      control ? el("div", { class: "setting-control" }, control) : null);
+  }
+  function switchInput(checked, disabled, label) {
+    return el("input", { type: "checkbox", class: "switch", role: "switch", checked: !!checked, disabled: !!disabled, "aria-label": label || null });
+  }
+  function panelFoot(...items) { return el("footer", { class: "panel-foot" }, ...items.flat().filter(Boolean)); }
+
+  /* Dialog footers read the same everywhere: the way out on the left of the group, the action last. */
+  function withCancel(buttons, close) {
+    const hasOut = buttons.some((b) => /^(cancel|close|done|not now|i.ve .*)$/i.test((b.textContent || "").trim()));
+    // a destructive side-action (Remove beside Save) stands apart at the far left
+    const aside = buttons.filter((b) => b.classList && b.classList.contains("danger") && buttons.some((x) => x !== b && x.classList.contains("primary")));
+    aside.forEach((b) => b.classList.add("aside"));
+    const rest = buttons.filter((b) => !aside.includes(b));
+    return [...aside, hasOut ? null : el("button", { class: "btn quiet", type: "button", onclick: close }, "Cancel"), ...rest].filter(Boolean);
+  }
   function dialog(title, body, buttons) {
     const id = "dlg-" + Math.random().toString(36).slice(2, 8);
     const d = el("dialog", { "aria-labelledby": id },
       el("header", null, el("h2", { id }, title), el("button", { class: "btn small quiet icon-only", onclick: () => d.close(), "aria-label": "Close" }, icon("x"))),
       el("div", { class: "body" }, body),
-      buttons && buttons.filter(Boolean).length ? el("footer", null, buttons) : null);
+      buttons && buttons.filter(Boolean).length ? el("footer", null, withCancel(buttons.flat().filter(Boolean), () => d.close())) : null);
     d.addEventListener("close", () => d.remove());
     document.body.append(d);
     d.showModal();
@@ -125,7 +149,7 @@
     return new Promise((resolve) => {
       let ok = false;
       const yes = el("button", { class: "btn " + (danger ? "danger solid" : "primary"), onclick: () => { ok = true; d.close(); } }, label);
-      const no = el("button", { class: "btn", onclick: () => d.close() }, "Cancel");
+      const no = el("button", { class: "btn quiet", onclick: () => d.close() }, "Cancel");
       const d = dialog(title, el("p", { class: "confirm-text" }, text), [no, yes]);
       d.addEventListener("close", () => resolve(ok));
       no.focus();
@@ -516,10 +540,10 @@
       el("button", { class: "btn quiet icon-only", type: "button", "aria-label": "Search", onclick: () => openCommand() }, icon("search")));
     const crumbs = o.crumbs ? el("nav", { class: "crumbs", "aria-label": "Breadcrumb" }, [].concat(o.crumbs).map((c, i, all) =>
       [c, i < all.length - 1 ? el("span", { class: "sep", "aria-hidden": "true" }, "/") : null])) : null;
-    const top = el("header", { class: "top" },
-      el("div", { class: "top-id" }, crumbs, el("div", { class: "title-row" }, o.lead || null, el("h1", null, o.title), o.status || null),
-        o.lede ? el("p", { class: "lede" }, o.lede) : null),
-      o.actions ? el("div", { class: "top-actions" }, o.actions) : null);
+    const top = el("header", { class: "top" }, crumbs,
+      el("div", { class: "title-row" }, o.lead || null, el("h1", null, o.title), o.status || null),
+      o.actions ? el("div", { class: "top-actions" }, o.actions) : null,
+      o.lede ? el("p", { class: "lede" }, o.lede) : null);
     app.replaceChildren(el("div", { class: "shell" }, side,
       el("div", { class: "main" }, appbar, banner, el("main", { id: "main", tabindex: "-1" }, top, el("div", { class: "page" + (o.wide ? " wide" : "") }, content)))));
   }
@@ -648,7 +672,7 @@
   setInterval(() => { if (S.me && document.visibilityState === "visible") refreshAttention(); }, 60000);
 
   window.SWA = {
-    S, api, ApiError, gadmin, gurl, GATEWAY, isOwner, every, clearTimers, panel, empty, kpi, pageTabs, dialog, confirmAction, sheet, bar,
+    S, api, ApiError, gadmin, gurl, GATEWAY, isOwner, every, clearTimers, panel, empty, kpi, pageTabs, settingRow, switchInput, panelFoot, dialog, confirmAction, sheet, bar,
     toolIndex, toolFor, toolLogo, toolLink, personLink, deviceLink, where, actionsList, ACTION, outcomeStatus, flagBadges, agentBadges,
     totalTokens, units, reqEvent, eventItem, eventDays, launchList, rangeFrom, rangeQuery, keepParams, frame, render, page,
     setPaused, refreshOverview, refreshAttention, openCommand,

@@ -85,8 +85,9 @@
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px;
   --s6: 32px; --s7: 48px; --s8: 64px; --s9: 96px; --s10: 128px;
 
-  /* Radius — restrained */
-  --r-xs: 6px; --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-xl: 22px; --r-full: 999px;
+  /* Radius — tight, as in the Swangz Avenue Bookings app: controls are nearly square, containers
+     gently rounded, and nothing is a pill except pills (badges, counts, chips). */
+  --r-xs: 3px; --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-xl: 16px; --r-full: 999px;
 
   /* Motion — fast and explanatory; a live request breathes, nothing flashes */
   --e-out: cubic-bezier(.2, .7, .3, 1);

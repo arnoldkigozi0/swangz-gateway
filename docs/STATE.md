@@ -256,6 +256,19 @@ visibility for admins, simplicity for staff). Built on real data only:
   Apps & models · Addresses · Key). *What cost us money?* is a headline strip, one *Rising fast* line
   (the full list on demand), the chart, *Where it went*, and the method folded away; idle seats live on
   the Licences tab only. The audit log's filters share one row.
+- **One finish across both apps (Oct 7), after Swangz Avenue Bookings.** Arnold pointed at starlink.com
+  and at his own bookings app (`arnoldkigozi0/swangz-avenue-bookings-uiux`) as the bar; the bookings
+  app's system is the one adopted, since it is Swangz's own and already shares Archivo and the neutral
+  surfaces. Buttons: tight corners (3px, 2px small), sentence-case 13px labels, an outline by default;
+  the one primary action per place is solid off-white and fills with gold from the left on hover;
+  danger is outlined until it is the confirmation itself. Radii tightened everywhere (controls 3px,
+  containers 12px; only badges and counts are pills). Placement is fixed: page actions sit on the
+  title's line at the right; a panel's actions sit in its header (adding) or its footer (saving),
+  right-aligned; dialogs always offer Cancel before the action. **Settings** has a section list on
+  the left, one row per setting (what it is on the left, a switch or field on the right) and a single
+  *unsaved changes* bar with Discard / Save changes. **Access requests** put Open / Granted / Declined
+  counts in the tabs, one row per request with Decline · Grant at the right edge, search, and an
+  optional note when declining (staff see it). `/access-requests` returns every state's count.
 - **Staff app.** Home with a restrained hero and notifications worked out from the person's own
   account; the full catalogue with filters, sort and a details drawer (what it does, *why you have it*,
   how sign-in works, who manages access, your recent use, what's recorded); device cards; a clearer
