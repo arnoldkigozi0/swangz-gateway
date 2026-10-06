@@ -29,6 +29,9 @@ class FakeDocker:
     def image_present(self, image):
         return True
 
+    def info(self):
+        return {"memory_gb": 31.2, "cpus": 16}
+
     def running(self, name):
         self._check()
         return name in self.containers

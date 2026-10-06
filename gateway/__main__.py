@@ -115,12 +115,18 @@ def serve(settings):
 
     server, gw = make_server(settings)
     gw.start_maintenance()
-    if settings.workspace_token or gw.workspaces.agent_ready:
-        gw.workspaces.start()  # removes each workspace sign-in as soon as its turn ends
-        if gw.workspaces.agent_ready:
-            gw.log(f"shared workspace: browsers come from the workspace server at {settings.workspace_agent_url}")
-        if settings.workspace_token:
-            gw.log("shared workspace: a sign-in per turn on the listed browsers")
+    # removes each workspace sign-in as soon as its turn ends — always on, since a computer that runs company
+    # browsers can be connected from the console at any time
+    gw.workspaces.start()
+    if gw.workspaces.agent_ready:
+        from .workspace import HOSTS
+
+        gw.log(f"shared workspace: company browsers come from {HOSTS[gw.workspaces.active]}"
+               + (f" ({settings.workspace_agent_url})" if gw.workspaces.active == "server" else ""))
+    if settings.workspace_token:
+        gw.log("shared workspace: a sign-in per turn on the listed browsers")
+    if gw.workspaces.relay.kind:
+        gw.log(f"shared workspace: video relay for the company's own computers: {gw.workspaces.relay.kind}")
     from . import icons
 
     icons.start(gw.db, gw.log)  # tool logos for the catalog, fetched once in the background

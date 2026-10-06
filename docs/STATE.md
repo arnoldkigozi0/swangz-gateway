@@ -4,8 +4,8 @@ Last updated: 2026-10-03. Read `../CLAUDE.md` first for the overview and convent
 
 ## Where it stands
 
-A working platform, built and tested. **181 unit tests pass** (`python3 -m unittest discover -s tests -t .`).
-Schema is **v10**. Nothing real has been called by a provider yet — there are no company API keys, and
+A working platform, built and tested. **205 unit tests pass** (`python3 -m unittest discover -s tests -t .`).
+Schema is **v11**. Nothing real has been called by a provider yet — there are no company API keys, and
 the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
 
 ### Done and verified
@@ -183,6 +183,33 @@ the cap is reached, the free browser unused longest (any tool) stops to make roo
 is only kept ready if there is room, and with every running browser in use the agent answers 409
 `{"full": "server"}` and staff are told the workspace is full. Sizing for 20: ~64 GB, 16 threads,
 `screen` 1280x720@25 (`deploy/WORKSPACE.md`, `docs/GO-LIVE.md`). Server not chosen yet.
+
+### Oct 6, 2026 — the company browsers on Swangz's own computer, as an option
+
+Arnold has a strong computer (64 GB+) — a Windows PC and a Mac — and asked to run the browsers there as
+an option, chosen by the admin, **one place at a time, not both**. Built (schema **v11**):
+
+- **Three places, one switch.** Settings → **Company browsers** lists the rented server (env, as before),
+  the Windows PC and the Mac, with **Use this one**. `workspace.use()` ends every turn whose browser is
+  elsewhere (reason "the company browsers moved to …"); each turn records `ws_host`, so its sign-in is
+  released at the place it was made, retried until that place answers. Each place's browsers can be
+  signed in from that page before switching (`?host=` on the workspace routes).
+- **A computer connects itself.** Connect… gives a key (shown once, inside the setup command).
+  `workspace_agent/computer.py setup` (Windows or Mac, Python 3.9+, stdlib): checks the gateway, starts
+  Docker Desktop, sizes `max_running` from Docker's memory (and says how to give it more), downloads
+  cloudflared and the image, registers itself to start at sign-in (Windows: HKCU Run + pythonw, no
+  window; Mac: a LaunchAgent), keeps the machine awake, runs a quick tunnel and re-opens it if it drops.
+  The agent checks in every minute at `POST /api/workspace/hello` (through the Netlify front door) with
+  its tunnel address; the gateway answers with the browsers it needs (every shared tool in agent mode,
+  `seats_at_once` each — a tool keeps its browser numbers, so its profiles, for good) and relay credentials.
+- **No Caddy on a computer:** the agent passes `/<slot>/…` straight to that browser, WebSocket included.
+- **Video relay** (`workspace.Relay`): Cloudflare TURN (`GATEWAY_TURN_CLOUDFLARE_KEY_ID/_TOKEN`) or your own
+  coturn (`GATEWAY_TURN_URLS/_SECRET`); 48-hour credentials; Neko runs full ICE with them, and `lan_ip`
+  lets people in the office connect straight to the computer.
+- **Tests:** 20 new (check-in, numbering, relay env, pass-through incl. WebSocket, switching both ways,
+  release while the old place is down, Cloudflare/coturn credentials).
+- **Not done:** nothing has run on a real Docker Desktop yet, and no TURN key exists yet. First run:
+  follow WORKSPACE.md → "On a Windows PC or a Mac", then test from outside the office.
 
 ### How it compares (Oct 2026)
 

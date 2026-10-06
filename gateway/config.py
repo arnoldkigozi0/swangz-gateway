@@ -112,6 +112,13 @@ class Settings:
     # https://workspace.swangzavenue.com/agent, and its token. Tools in 'agent' mode get browsers from it.
     workspace_agent_url: str = ""
     workspace_agent_token: str = ""
+    # The video relay (TURN) for company browsers on Swangz's own computers, which nothing on the
+    # internet can reach directly. Cloudflare's (a TURN key: its id and API token), or your own coturn
+    # (its turn: addresses and static-auth-secret). The gateway hands out short-lived credentials only.
+    turn_cloudflare_key_id: str = ""
+    turn_cloudflare_token: str = ""
+    turn_urls: tuple = ()
+    turn_secret: str = ""
 
     @property
     def google_enabled(self):
@@ -182,6 +189,10 @@ class Settings:
             workspace_token=env.get("GATEWAY_WORKSPACE_TOKEN", "").strip(),
             workspace_agent_url=env.get("GATEWAY_WORKSPACE_AGENT", "").strip().rstrip("/"),
             workspace_agent_token=env.get("GATEWAY_WORKSPACE_AGENT_TOKEN", "").strip(),
+            turn_cloudflare_key_id=env.get("GATEWAY_TURN_CLOUDFLARE_KEY_ID", "").strip(),
+            turn_cloudflare_token=env.get("GATEWAY_TURN_CLOUDFLARE_TOKEN", "").strip(),
+            turn_urls=tuple(u.strip() for u in env.get("GATEWAY_TURN_URLS", "").split(",") if u.strip()),
+            turn_secret=env.get("GATEWAY_TURN_SECRET", "").strip(),
         )
 
 

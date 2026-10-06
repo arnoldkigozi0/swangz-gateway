@@ -1,9 +1,15 @@
 """The shared workspace: a pool of company browsers, one per person on a turn, each signed in to the tool
 once by an admin. The gateway makes a sign-in for every turn and removes it when the turn ends."""
 
+import base64
+import hashlib
+import hmac
+import json
+import threading
 import time
 import unittest
 import urllib.parse
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from gateway import security, turns, workspace
 
@@ -312,13 +318,204 @@ class AgentModeTests(ThreePeople):
 
     def test_the_console_says_when_there_is_no_workspace_server(self):
         self.rig.gw.settings.workspace_agent_url = ""
-        self.assertEqual(self.rig.api("GET", "/workspace"), (200, {"configured": False}))
+        status, out = self.rig.api("GET", "/workspace")
+        self.assertEqual((status, out["configured"], out["active"], out["relay"]), (200, False, "server", ""))
+        self.assertNotIn("browsers", out)
         self.rig.gw.settings.workspace_agent_url = "http://127.0.0.1:9"
         self.assertIn("did not answer", self.rig.api("GET", "/workspace")[1]["error"])
 
     def test_the_mode_is_checked(self):
         self.assertEqual(self.rig.api("PATCH", "/tools/midjourney", {"workspace_mode": "kasm"})[0], 400)
         self.assertEqual(self.rig.api("GET", "/catalog")[1]["workspace_agent"], True)
+
+
+class PlacesTests(ThreePeople):
+    """The company browsers on the rented server or on one of Swangz's computers — one place at a time."""
+
+    def setUp(self):
+        super().setUp()
+        self.server_ws = AgentRig()
+        self.addCleanup(self.server_ws.close)
+        settings = self.rig.gw.settings
+        settings.workspace_agent_url, settings.workspace_agent_token = self.server_ws.url, TOKEN
+        self.assertEqual(self.rig.api("PATCH", "/tools/midjourney", {"workspace_mode": "agent", "seats_at_once": 3})[0], 200)
+        status, out = self.rig.api("POST", "/workspace/hosts/windows/key")
+        self.assertEqual(status, 200)
+        self.key = out["key"]
+        self.pc = AgentRig(token=self.key)  # the Windows PC's agent, which shares the key
+        self.addCleanup(self.pc.close)
+
+    def hello(self, key=None, host="windows", url="https://quiet-river.trycloudflare.com/agent", headers=None):
+        h = {"x-swangz-app": "1", "authorization": "Bearer " + (key or self.key), **(headers or {})}
+        status, _, payload = self.rig.request("POST", "/api/workspace/hello",
+                                              {"host": host, "url": url, "info": {"system": "Windows", "memory_gb": 31.2}}, h)
+        return status, json.loads(payload)
+
+    def connect_pc(self):
+        self.assertEqual(self.hello()[0], 200)
+        # the tunnel's address stands in for the agent here; in the tests it answers on plain http
+        self.rig.gw.db.x("UPDATE workspace_hosts SET url = ? WHERE id = 'windows'", (self.pc.url,))
+
+    def open_until_in(self):
+        for _ in range(5):
+            status, h, body = self.go("midjourney")
+            if status != 200:
+                return status, h, body
+        raise AssertionError("the browser never became ready")
+
+    def holder(self, ws):
+        browsers = ws.call("GET", "/status", token=ws.cfg["token"])[1]["browsers"]
+        return next(b for b in browsers if b["slot"] == "midjourney-1")["holder"]
+
+    def test_a_computer_gets_a_key_and_checks_in(self):
+        rig = self.rig
+        self.assertRegex(self.key, r"^[0-9a-f]{64}$")
+        command = rig.api("POST", "/workspace/hosts/mac/key")[1]["command"]
+        self.assertIn("python3 workspace_agent/computer.py setup --host mac --gateway https://ai.example.test --key ", command)
+        self.assertEqual(rig.api("POST", "/workspace/hosts/windows/key", who="viewer")[0], 403)
+        self.assertEqual(rig.api("POST", "/workspace/hosts/server/key")[0], 404)
+        self.assertEqual(self.hello(key="f" * 64)[0], 401)
+        self.assertEqual(self.hello(host="mac")[0], 401)  # the PC's key isn't the Mac's
+        self.assertEqual(self.hello(url="http://insecure.example/agent")[0], 400)
+        status, _, _ = rig.request("POST", "/api/workspace/hello", {"host": "windows"}, {"authorization": "Bearer " + self.key})
+        self.assertEqual(status, 403)  # no app header
+        status, out = self.hello()
+        self.assertEqual((status, out["active"], out["ice_servers"]), (200, False, []))
+        self.assertEqual(out["tools"], {"midjourney": {"start_url": "https://www.midjourney.com/", "browsers": 3}})
+        pc = next(h for h in rig.api("GET", "/workspace")[1]["hosts"] if h["id"] == "windows")
+        self.assertEqual((pc["set_up"], pc["connected"], pc["online"], pc["active"], pc["info"]["memory_gb"]),
+                         (True, True, True, False, 31.2))
+        # a new key cuts the old one off
+        rig.api("POST", "/workspace/hosts/windows/key")
+        self.assertEqual(self.hello()[0], 401)
+        self.assertFalse(next(h for h in rig.api("GET", "/workspace")[1]["hosts"] if h["id"] == "windows")["connected"])
+
+    def test_switching_to_the_computer_moves_people_off_the_server(self):
+        rig = self.rig
+        self.connect_pc()
+        self.assertEqual(self.open_until_in()[0], 302)
+        self.assertEqual(self.turn_of(rig.person_id)["ws_host"], "server")
+        status, out = rig.api("POST", "/workspace/use", {"host": "windows"})
+        self.assertEqual((status, out["active"], out["moved"]), (200, "windows", 1))
+        turn = self.turn_of(rig.person_id)
+        self.assertEqual(turn["reason"], "the company browsers moved to the Windows PC")
+        rig.wait_for(lambda: self.turn_of(rig.person_id)["ws_closed"])
+        self.assertIsNone(self.holder(self.server_ws))  # her sign-in there is gone
+        # Open again: a browser on the PC
+        self.assertEqual(self.open_until_in()[0], 302)
+        self.assertEqual(self.turn_of(rig.person_id)["ws_host"], "windows")
+        self.assertEqual(self.holder(self.pc)["name"], "Nansubuga Grace")
+        self.assertIsNone(self.holder(self.server_ws))
+        self.assertTrue(self.hello()[1]["active"])  # the PC is told it's the one in use
+        self.connect_pc()
+        self.assertTrue(rig.gw.db.one("SELECT 1 FROM audit WHERE action = 'switched the company browsers'"))
+        # and back
+        self.assertEqual(rig.api("POST", "/workspace/use", {"host": "server"})[1]["moved"], 1)
+        rig.wait_for(lambda: self.holder(self.pc) is None)
+
+    def test_a_browser_is_let_go_where_it_is_even_while_that_place_is_down(self):
+        rig = self.rig
+        self.connect_pc()
+        rig.api("POST", "/workspace/use", {"host": "windows"})
+        self.open_until_in()
+        self.pc.stop_agent()  # the PC is switched off
+        self.assertEqual(rig.api("POST", "/workspace/use", {"host": "server"})[1]["moved"], 1)
+        rig.gw.workspaces.sweep()
+        self.assertIsNone(self.turn_of(rig.person_id)["ws_closed"])  # not yet: the gateway keeps asking
+        self.pc.start_agent()
+        rig.gw.db.x("UPDATE workspace_hosts SET url = ? WHERE id = 'windows'", (self.pc.url,))
+        rig.gw.workspaces.sweep()
+        self.assertTrue(self.turn_of(rig.person_id)["ws_closed"])
+        self.assertIsNone(self.holder(self.pc))
+
+    def test_switching_needs_a_connected_place_and_an_owner(self):
+        rig = self.rig
+        self.assertEqual(rig.api("POST", "/workspace/use", {"host": "windows"})[0], 409)  # hasn't checked in
+        self.assertEqual(rig.api("POST", "/workspace/use", {"host": "mac"})[0], 409)
+        self.assertEqual(rig.api("POST", "/workspace/use", {"host": "nowhere"})[0], 404)
+        self.connect_pc()
+        self.assertEqual(rig.api("POST", "/workspace/use", {"host": "windows"}, who="viewer")[0], 403)
+        self.assertEqual(rig.api("POST", "/workspace/use", {"host": "windows"})[0], 200)
+        self.assertEqual(rig.api("GET", "/catalog")[1]["workspace_host"], "windows")
+        self.assertEqual(rig.api("DELETE", "/workspace/hosts/windows")[0], 409)  # in use
+        rig.api("POST", "/workspace/use", {"host": "server"})
+        self.assertEqual(rig.api("DELETE", "/workspace/hosts/windows")[0], 200)
+        self.assertFalse(next(h for h in rig.api("GET", "/workspace")[1]["hosts"] if h["id"] == "windows")["set_up"])
+        self.assertEqual(self.hello()[0], 401)
+
+    def test_each_places_browsers_can_be_signed_in_before_switching(self):
+        rig = self.rig
+        self.connect_pc()
+        status, out = rig.api("GET", "/workspace?host=windows")
+        self.assertEqual((status, out["host"], out["active"], out["label"]), (200, "windows", "server", "the Windows PC"))
+        self.assertEqual([b["slot"] for b in out["browsers"]], ["midjourney-1", "midjourney-2"])
+        self.assertEqual(rig.api("POST", "/workspace/browsers/midjourney-1/open?host=windows")[1]["state"], "starting")
+        status, out = rig.api("POST", "/workspace/browsers/midjourney-1/open?host=windows")
+        self.assertEqual(out["state"], "ready")
+        self.assertEqual(self.holder(self.pc)["kind"], "admin")
+        self.assertIsNone(self.holder(self.server_ws))
+        self.assertEqual(rig.api("POST", "/workspace/browsers/midjourney-1/close?host=windows")[0], 200)
+        self.assertEqual(rig.api("GET", "/workspace?host=mac")[1]["configured"], False)
+        self.assertEqual(rig.api("GET", "/workspace?host=elsewhere")[0], 404)
+
+
+class RelayTests(unittest.TestCase):
+    def setUp(self):
+        from .support import Rig
+
+        self.rig = Rig()
+        self.addCleanup(self.rig.close)
+        self.relay = self.rig.gw.workspaces.relay
+
+    def test_none_without_settings(self):
+        self.assertEqual((self.relay.kind, self.relay.ice_servers()), ("", []))
+
+    def test_your_own_coturn_gets_credentials_that_run_out(self):
+        s = self.rig.gw.settings
+        s.turn_urls, s.turn_secret = ("turn:turn.swangzavenue.com:3478", "turns:turn.swangzavenue.com:5349"), "coturn-secret"
+        [server] = self.relay.ice_servers()
+        expires, who = server["username"].split(":")
+        self.assertEqual(who, "swangz")
+        self.assertAlmostEqual(int(expires), time.time() + workspace.RELAY_TTL, delta=5)
+        mac = hmac.new(b"coturn-secret", server["username"].encode(), hashlib.sha1).digest()
+        self.assertEqual(server["credential"], base64.b64encode(mac).decode())
+        self.assertEqual(server["urls"], ["turn:turn.swangzavenue.com:3478", "turns:turn.swangzavenue.com:5349"])
+
+    def test_cloudflare_is_asked_once_and_port_53_is_left_out(self):
+        asked = []
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_POST(self):
+                asked.append((self.path, self.headers.get("authorization"),
+                              json.loads(self.rfile.read(int(self.headers["content-length"])))))
+                data = json.dumps({"iceServers": [
+                    {"urls": ["stun:stun.cloudflare.com:3478", "stun:stun.cloudflare.com:53"]},
+                    {"urls": ["turn:turn.cloudflare.com:3478?transport=udp", "turn:turn.cloudflare.com:53?transport=udp",
+                              "turns:turn.cloudflare.com:443?transport=tcp"], "username": "cf-user", "credential": "cf-pass"}]}).encode()
+                self.send_response(201)
+                self.send_header("content-length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+        fake = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=fake.serve_forever, daemon=True).start()
+        self.addCleanup(fake.server_close)
+        self.addCleanup(fake.shutdown)
+        s = self.rig.gw.settings
+        s.turn_cloudflare_key_id, s.turn_cloudflare_token = "key-id-1", "cf-api-token"
+        self.relay.CLOUDFLARE = f"http://127.0.0.1:{fake.server_address[1]}/v1/turn/keys/{{}}/credentials/generate-ice-servers"
+        servers = self.relay.ice_servers()
+        self.assertEqual(servers, [{"urls": ["stun:stun.cloudflare.com:3478"]},
+                                   {"urls": ["turn:turn.cloudflare.com:3478?transport=udp", "turns:turn.cloudflare.com:443?transport=tcp"],
+                                    "username": "cf-user", "credential": "cf-pass"}])
+        self.assertEqual(asked, [("/v1/turn/keys/key-id-1/credentials/generate-ice-servers", "Bearer cf-api-token",
+                                  {"ttl": workspace.RELAY_TTL})])
+        self.assertEqual(self.relay.ice_servers(), servers)
+        self.assertEqual(len(asked), 1)  # kept until half their life is gone
+        self.assertEqual(self.rig.api("GET", "/workspace")[1]["relay"], "cloudflare")
 
 
 class HelperTests(unittest.TestCase):

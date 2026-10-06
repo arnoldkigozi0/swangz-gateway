@@ -1411,7 +1411,7 @@
           fact("Seats", sub.seats ? `${t.assigned_people} given · ${sub.seats} paid` : `${t.assigned_people} given`),
           fact("Opened in 30 days", `${t.usage_30d.opens} times by ${t.usage_30d.people} ${t.usage_30d.people === 1 ? "person" : "people"}`),
           t.signin === "shared" ? fact("Opens into", t.workspace_mode === "agent"
-            ? "a browser of their own on the workspace server, already signed in"
+            ? "a company browser of their own, already signed in"
             : browserList(t).length
               ? `the shared workspace — ${browserList(t).length} browser${browserList(t).length === 1 ? "" : "s"}, already signed in`
               : "the tool's own site (they sign in)") : null,
@@ -1478,59 +1478,21 @@
         here.forEach(() => {});
         onItNow.querySelectorAll(".logo").forEach((m) => { m.style.background = "linear-gradient(140deg, #2B2B31, #141417)"; m.style.color = "#F0C054"; });
       }
-      // browsers from the workspace server: each must be signed in to the tool once, by an admin, here
+      // company browsers: each must be signed in to the tool once, by an admin, here
       let fromServer = null;
       if (t.signin === "shared" && t.workspace_mode === "agent") {
         const ws = await api("GET", "/workspace");
         const mine = ws.configured && !ws.error ? (ws.browsers || []).filter((b) => b.tool === t.id) : [];
-        const STATE = { running: ["ok", "Running"], starting: ["warn", "Starting"], stopped: ["tool", "Stopped"] };
-        const hhmm = (ts) => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-        const openBrowser = async (slot, btn) => {
-          btn.disabled = true; btn.textContent = "Starting…";
-          try {
-            for (let i = 0; i < 45; i++) {  // a cold start takes a few seconds; give it up to ~2 minutes
-              const out = await api("POST", `/workspace/browsers/${slot}/open`);
-              if (out.state === "ready" && out.url) {
-                btn.replaceWith(el("a", { class: "btn small primary", href: out.url, target: "_blank", rel: "noopener noreferrer" }, "Open it"));
-                toast("Ready. Sign in to the tool inside it, then press Done.");
-                return;
-              }
-              await new Promise((r) => setTimeout(r, 3000));
-            }
-            toast("The browser is taking too long to start. Try again in a minute.", true);
-          } catch (e) { toast(e.message, true); }
-          btn.disabled = false; btn.textContent = "Sign in to the tool";
-        };
-        const closeBrowser = async (slot) => {
-          try { await api("POST", `/workspace/browsers/${slot}/close`); toast("Done — the browser is free again."); refresh("access"); }
-          catch (e) { toast(e.message, true); }
-        };
-        const row = (b) => {
-          const [tone, label] = STATE[b.state] || ["tool", b.state];
-          const who = !b.holder ? "Free"
-            : b.holder.kind === "admin" ? `${b.holder.name} is signing it in`
-            : `${b.holder.name} · since ${hhmm(b.holder.since)}`;
-          let action = null;
-          if (owner && b.holder && b.holder.kind === "admin") {
-            action = el("span", { class: "row" },
-              el("button", { class: "btn small", onclick: (e) => openBrowser(b.slot, e.currentTarget) }, "Open again"),
-              el("button", { class: "btn small primary", onclick: () => closeBrowser(b.slot) }, "Done"));
-          } else if (owner && !b.holder) {
-            action = el("button", { class: "btn small", onclick: (e) => openBrowser(b.slot, e.currentTarget) }, "Sign in to the tool");
-          }
-          return el("div", { class: "assign-row" },
-            el("span", { class: "logo sm mono" }, String(b.n)),
-            el("div", { class: "grow" }, el("strong", null, `Browser ${b.n}`), " ", el("span", { class: "pill " + tone }, label),
-              el("div", { class: "hint" }, who)),
-            action);
-        };
-        fromServer = el("div", { class: "stack" }, el("h3", { class: "section-title" }, "Browsers on the workspace server"),
-          !ws.configured ? el("div", { class: "notice" }, "No workspace server is connected yet (GATEWAY_WORKSPACE_AGENT on the gateway).")
-            : ws.error ? el("div", { class: "notice" }, "The workspace server isn't answering: " + ws.error)
-            : mine.length ? el("div", { class: "assign-list" }, mine.map(row))
-            : el("div", { class: "notice" }, `The workspace server has no browsers for this tool yet — add "${t.id}" to its config.`),
+        const where = ws.label.charAt(0).toUpperCase() + ws.label.slice(1);
+        fromServer = el("div", { class: "stack" }, el("h3", { class: "section-title" }, "Company browsers on " + ws.label),
+          !ws.configured ? el("div", { class: "notice" }, `${where} isn't connected yet — Settings → Company browsers.`)
+            : ws.error ? el("div", { class: "notice" }, `${where} isn't answering: ${ws.error}`)
+            : mine.length ? el("div", { class: "assign-list" }, mine.map((b) => browserRow(b, null, owner, () => refresh("access"))))
+            : el("div", { class: "notice" }, ws.host === "server"
+              ? `The rented server has no browsers for this tool yet — add "${t.id}" to its config.`
+              : `${where} gets its browsers from here within a minute of saving this tool — one for each person on it at a time.`),
           el("p", { class: "hint", style: null }, "Each browser keeps its own sign-in to the tool, so sign each one in once: press Sign in to the tool, open it, sign in to the tool inside it with the company account, then press Done. Nobody can be given that browser meanwhile."));
-        fromServer.querySelectorAll(".logo").forEach((m) => { m.style.background = "linear-gradient(140deg, #2B2B31, #141417)"; m.style.color = "#F0C054"; });
+        darkLogos(fromServer);
       }
       return [
         locked ? el("div", { class: "notice" }, "Staff can't open this until the company subscription is active (Subscription tab).") : null,
@@ -1595,7 +1557,7 @@
         turn_minutes: el("input", { type: "number", min: "5", max: "720", step: "5", value: String(v.turn_minutes || 120) }),
         workspace_url: el("textarea", { rows: "3", spellcheck: "false", placeholder: "https://workspace.swangzavenue.com/chatgpt-1/\nhttps://workspace.swangzavenue.com/chatgpt-2/" }, v.workspace_url || ""),
         workspace_mode: el("select", null,
-          el("option", { value: "agent" }, "From the workspace server — started when needed"),
+          el("option", { value: "agent" }, "Swangz's company browsers — started when needed"),
           el("option", { value: "" }, "The browsers listed below, or none")),
       };
       f.workspace_mode.value = v.workspace_mode === "agent" ? "agent" : "";
@@ -1605,8 +1567,8 @@
           ? "The gateway gives each person a sign-in for their turn and removes it the moment the turn ends."
           : "The gateway isn't managing workspace sign-ins yet (GATEWAY_WORKSPACE_TOKEN is not set), so each browser's own login decides who gets in."));
       const agentHint = el("span", { class: "hint" }, S.workspaceAgent
-        ? "The workspace server starts a browser of their own for each person on a turn, signs them in, and recycles it when the turn ends. Its browsers for this tool are listed under Who can use it — sign each one in to the tool there, once."
-        : "No workspace server is connected yet (GATEWAY_WORKSPACE_AGENT is not set). Until it is, Open can't give anyone a browser for this tool. See deploy/WORKSPACE.md.");
+        ? "Each person on a turn gets a browser of their own, already signed in, recycled when the turn ends — on the rented server or one of Swangz's computers (Settings → Company browsers). Its browsers for this tool are listed under Who can use it — sign each one in to the tool there, once."
+        : "The company browsers aren't connected yet: Settings → Company browsers (the rented server, the Windows PC or the Mac). Until they are, Open can't give anyone a browser for this tool.");
       const drawWhere = () => { listField.hidden = f.workspace_mode.value === "agent"; agentHint.hidden = f.workspace_mode.value !== "agent"; };
       f.workspace_mode.addEventListener("change", drawWhere); drawWhere();
       const sharing = el("div", { class: "share-box" },
@@ -1711,6 +1673,55 @@
 
   function fact(k, v) { return el("div", { class: "fact" }, el("div", { class: "k" }, k), el("div", { class: "v" }, v)); }
 
+  function darkLogos(node) {
+    node.querySelectorAll(".logo").forEach((m) => { m.style.background = "linear-gradient(140deg, #2B2B31, #141417)"; m.style.color = "#F0C054"; });
+  }
+
+  /* One company browser: running or not, who is on it, and — for owners — signing it in to its tool, once.
+     `host` names the place it runs ("server", "windows", "mac"); null = the one Open uses. */
+  function browserRow(b, host, owner, after) {
+    const STATE = { running: ["ok", "Running"], starting: ["warn", "Starting"], stopped: ["tool", "Stopped"] };
+    const q = host ? "?host=" + host : "";
+    const hhmm = (ts) => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const openBrowser = async (btn) => {
+      btn.disabled = true; btn.textContent = "Starting…";
+      try {
+        for (let i = 0; i < 45; i++) {  // a cold start takes a few seconds; give it up to ~2 minutes
+          const out = await api("POST", `/workspace/browsers/${b.slot}/open${q}`);
+          if (out.state === "ready" && out.url) {
+            btn.replaceWith(el("a", { class: "btn small primary", href: out.url, target: "_blank", rel: "noopener noreferrer" }, "Open it"));
+            toast("Ready. Sign in to the tool inside it, then press Done.");
+            return;
+          }
+          await new Promise((r) => setTimeout(r, 3000));
+        }
+        toast("The browser is taking too long to start. Try again in a minute.", true);
+      } catch (e) { toast(e.message, true); }
+      btn.disabled = false; btn.textContent = "Sign in to the tool";
+    };
+    const closeBrowser = async () => {
+      try { await api("POST", `/workspace/browsers/${b.slot}/close${q}`); toast("Done — the browser is free again."); after(); }
+      catch (e) { toast(e.message, true); }
+    };
+    const [tone, label] = STATE[b.state] || ["tool", b.state];
+    const who = !b.holder ? "Free"
+      : b.holder.kind === "admin" ? `${b.holder.name} is signing it in`
+      : `${b.holder.name} · since ${hhmm(b.holder.since)}`;
+    let action = null;
+    if (owner && b.holder && b.holder.kind === "admin") {
+      action = el("span", { class: "row" },
+        el("button", { class: "btn small", onclick: (e) => openBrowser(e.currentTarget) }, "Open again"),
+        el("button", { class: "btn small primary", onclick: closeBrowser }, "Done"));
+    } else if (owner && !b.holder) {
+      action = el("button", { class: "btn small", onclick: (e) => openBrowser(e.currentTarget) }, "Sign in to the tool");
+    }
+    return el("div", { class: "assign-row" },
+      el("span", { class: "logo sm mono" }, String(b.n)),
+      el("div", { class: "grow" }, el("strong", null, `Browser ${b.n}`), " ", el("span", { class: "pill " + tone }, label),
+        el("div", { class: "hint" }, who)),
+      action);
+  }
+
   // ------------------------------------------------------------------ Licences & spend
 
   async function pageLicences() {
@@ -1799,6 +1810,7 @@
     app.replaceChildren(frame("Settings", null, pageTabs("#/settings", params, [
       ["safety", "Access & records", () => safetyTab(owner)],
       ["addresses", "Addresses", () => addressesTab()],
+      ["browsers", "Company browsers", () => workspaceTab(owner)],
       ["prices", "Model prices", () => pricesTab(owner)],
       owner && ["users", "Console users", () => consoleUsersTab()],
       ["account", "Your account", () => accountTab()],
@@ -1853,6 +1865,124 @@
       el("div", null, el("span", { class: "tag" }, "Staff app  "), el("span", { class: "mono" }, st.base_url + "/"), el("span", { class: "hint" }, "  — where staff sign in and open their tools")),
       el("div", null, el("span", { class: "tag" }, "Admin console  "), el("span", { class: "mono" }, st.base_url + "/admin"), el("span", { class: "hint" }, "  — this console; don't share it with staff"))),
     el("div", { class: "body hint" }, "Provider API keys live only in the server's environment (ANTHROPIC_API_KEY, OPENAI_API_KEY, …). They are never shown here and never leave the server."));
+  }
+
+  /* Company browsers for shared accounts: where they run — the rented server, the Windows PC or the Mac,
+     one place at a time — and signing each place's browsers in to their tools. */
+  async function workspaceTab(owner) {
+    const ws = await api("GET", "/workspace");
+    const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+    const usable = (h) => h.kind === "server" ? h.set_up : h.connected;
+    const card = (h) => {
+      let tone, state, detail;
+      if (h.kind === "server") {
+        [tone, state] = h.set_up ? ["ok", "Set up"] : ["tool", "Not set up"];
+        detail = h.set_up ? "A server Swangz rents (GATEWAY_WORKSPACE_AGENT in the gateway's settings). Its browsers are listed in its own config."
+          : "Set it up with deploy/setup-workspace-server.sh, then put GATEWAY_WORKSPACE_AGENT and its token in the gateway's settings.";
+      } else if (!h.set_up) {
+        [tone, state] = ["tool", "Not set up"];
+        detail = `Run the company browsers on ${h.label} instead of a rented server. It needs Docker Desktop and Python, and has to stay on.`;
+      } else if (!h.connected) {
+        [tone, state] = ["warn", "Waiting for it"];
+        detail = "It has a key but hasn't checked in yet — run the setup command on it.";
+      } else {
+        [tone, state] = h.online ? ["ok", "Online"] : ["bad", "Offline"];
+        const i = h.info || {};
+        detail = [(h.online ? "checked in " : "last seen ") + fmt.ago(h.seen), i.system, i.memory_gb ? `Docker has ${i.memory_gb} GB` : null,
+          i.browsers != null ? `${i.browsers} browser${i.browsers === 1 ? "" : "s"} (${i.running || 0} running)` : null,
+          i.max_running ? `at most ${i.max_running} at once` : null].filter(Boolean).join(" · ");
+      }
+      const buttons = [];
+      if (owner && !h.active && usable(h)) buttons.push(el("button", { class: "btn small primary", onclick: () => useHost(h) }, "Use this one"));
+      if (owner && h.kind === "computer") {
+        buttons.push(el("button", { class: "btn small", onclick: () => connectComputer(h) }, h.set_up ? "New key" : "Connect…"));
+        if (h.set_up && !h.active) buttons.push(el("button", { class: "btn small danger", onclick: () => forgetComputer(h) }, "Disconnect"));
+      }
+      return el("div", { class: "assign-row" },
+        el("span", { class: "logo sm mono" }, { server: "S", windows: "W", mac: "M" }[h.id]),
+        el("div", { class: "grow" }, el("strong", null, cap(h.label)), " ",
+          h.active ? el("span", { class: "pill info" }, "In use") : null, " ", el("span", { class: "pill " + tone }, state),
+          el("div", { class: "hint" }, detail)),
+        buttons.length ? el("span", { class: "row" }, buttons) : null);
+    };
+    const places = panel("Where the company browsers run", "one place at a time — Open uses the one marked In use",
+      el("div", { class: "body" }, el("div", { class: "assign-list" }, ws.hosts.map(card))),
+      el("div", { class: "body hint" }, "Each place has browsers of its own, and each browser keeps its own sign-in to its tool — so sign a place's browsers in (below) before switching to it. Switching moves anyone in a company browser off the old place: their turn ends, and Open gives them a browser at the new one."));
+    darkLogos(places);
+    const RELAY = { cloudflare: "Cloudflare's video relay", own: "Swangz's own video relay (coturn)" };
+    const relay = panel("Video from Swangz's own computers", null, el("div", { class: "body" },
+      ws.relay ? [el("span", { class: "pill ok" }, "relay on"), " Through " + RELAY[ws.relay] + ": staff can work in a computer's browsers from anywhere."]
+        : [el("span", { class: "pill warn" }, "no relay"), " Without one, only people on the same network as the computer can use its browsers. Add a Cloudflare TURN key to the gateway's settings (GATEWAY_TURN_CLOUDFLARE_KEY_ID and GATEWAY_TURN_CLOUDFLARE_TOKEN — see deploy/WORKSPACE.md). The rented server doesn't need one."]));
+    // one place's browsers, to sign them in — before switching to it, too
+    const ready = ws.hosts.filter(usable);
+    let signing = null;
+    if (ready.length) {
+      const pick = el("div", { class: "row" });
+      const list = el("div");
+      const show = async (id) => {
+        pick.querySelectorAll("button").forEach((b) => b.classList.toggle("primary", b.dataset.host === id));
+        list.replaceChildren(el("div", { class: "body hint" }, "Loading…"));
+        try {
+          const [one, tools] = await Promise.all([api("GET", "/workspace?host=" + id), toolIndex().catch(() => ({}))]);
+          if (one.error) { list.replaceChildren(el("div", { class: "body" }, el("div", { class: "notice" }, `${cap(one.label)} isn't answering: ${one.error}`))); return; }
+          const byTool = {};
+          (one.browsers || []).forEach((b) => { (byTool[b.tool] = byTool[b.tool] || []).push(b); });
+          const groups = Object.keys(byTool).sort().map((tid) => el("div", { class: "stack" },
+            el("h3", { class: "section-title" }, (tools[tid] || {}).name || tid),
+            el("div", { class: "assign-list" }, byTool[tid].map((b) => browserRow(b, id, owner, () => show(id))))));
+          const node = el("div", { class: "body stack" }, groups.length ? groups : empty(one.host === "server"
+            ? "No browsers in the rented server's config yet."
+            : "No browsers yet. A tool gets them here within a minute once its Settings say Company browsers = Swangz's company browsers — one for each person on it at a time."));
+          darkLogos(node);
+          list.replaceChildren(node);
+        } catch (e) { list.replaceChildren(el("div", { class: "body err" }, e.message)); }
+      };
+      ready.forEach((h) => pick.append(el("button", { class: "btn small", "data-host": h.id, onclick: () => show(h.id) }, cap(h.label))));
+      signing = panel("Signing the browsers in", "once per browser, at each place", el("div", { class: "body" }, pick), list);
+      show(ready.some((h) => h.active) ? ws.active : ready[0].id);
+    }
+    return [places, relay, signing];
+  }
+
+  async function useHost(h) {
+    const ok = await confirmAction(`Use ${h.label} for the company browsers?`,
+      `From now on Open gives people browsers on ${h.label}. Anyone in a company browser somewhere else is moved off: their turn ends, and Open gives them one here. Sign this place's browsers in to their tools first.`, "Switch", false);
+    if (!ok) return;
+    try {
+      const out = await api("POST", "/workspace/use", { host: h.id });
+      toast(out.moved ? `Switched — ${out.moved} ${out.moved === 1 ? "person" : "people"} moved off.` : "Switched.");
+      S.tools = null;
+      render();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  async function connectComputer(h) {
+    if (h.set_up) {
+      const ok = await confirmAction(`New key for ${h.label}?`, "Its current key stops working at once, and it stays offline until it's set up again with the new one.", "Make a new key", true);
+      if (!ok) return;
+    }
+    let out;
+    try { out = await api("POST", `/workspace/hosts/${h.id}/key`); } catch (e) { toast(e.message, true); return; }
+    const win = h.id === "windows";
+    const steps = el("ol", null,
+      el("li", null, el("strong", null, "Docker Desktop: "), win ? "install it (in PowerShell: winget install -e --id Docker.DockerDesktop), open it once and accept its terms."
+        : "install it from docker.com (Apple chip or Intel — pick the matching one), open it once and accept its terms."),
+      el("li", null, el("strong", null, "Python 3: "), win ? "in PowerShell: winget install -e --id Python.Python.3.13" : "most Macs have it (python3 --version); otherwise brew install python."),
+      el("li", null, el("strong", null, "This project: "), "git clone https://github.com/arnoldkigozi0/swangz-gateway.git — or copy the folder across."),
+      el("li", null, el("strong", null, "Then, in that folder " + (win ? "(PowerShell)" : "(Terminal)") + ", run the command below.")));
+    const done = el("button", { class: "btn primary", onclick: () => { d.close(); render(); } }, "I've copied it");
+    const d = dialog(`Connect ${h.label}`, el("div", { class: "stack" },
+      el("p", { class: "err", style: null }, "The key is in this command, and this is the only time it's shown. Run it on that computer only."),
+      steps,
+      el("div", { class: "spread" }, el("strong", null, "The command"), el("button", { class: "btn small", onclick: () => copy(out.command) }, "Copy")),
+      el("pre", { class: "code" }, out.command),
+      el("p", { class: "hint", style: null }, "It checks Docker, works out how many browsers fit in its memory, downloads the tunnel program and the browser (about 1 GB, once), sets itself to start with the computer and keeps it awake, then checks in here. Keep the computer on, plugged in and online: while it's off, nobody gets a company browser unless you switch back to the rented server.")), [done]);
+  }
+
+  async function forgetComputer(h) {
+    const ok = await confirmAction(`Disconnect ${h.label}?`, "Its key stops working and it no longer shows here. The browsers and their sign-ins stay on that computer; run computer.py remove there to stop it starting with the computer.", "Disconnect", true);
+    if (!ok) return;
+    try { await api("DELETE", `/workspace/hosts/${h.id}`); toast("Disconnected."); render(); } catch (e) { toast(e.message, true); }
   }
 
   async function pricesTab(owner) {

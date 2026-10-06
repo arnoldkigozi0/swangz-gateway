@@ -1,7 +1,8 @@
-"""Swangz Workspace Agent: runs on the workspace server, next to Docker, and nowhere else.
+"""Swangz Workspace Agent: runs on the workspace machine, next to Docker, and nowhere else.
 
-The gateway never touches Docker or Neko in this mode. It asks this agent, over one small API with one
-token, for a company browser for someone's turn, and tells it when the turn is over:
+The workspace machine is a rented server, or one of Swangz's own computers (Windows or Mac — see
+computer.py beside this file). The gateway never touches Docker or Neko. It asks this agent, over one
+small API with one token, for a company browser for someone's turn, and tells it when the turn is over:
 
   GET  /health                                  is Docker answering, how many browsers are running
   GET  /status                                  every browser: its tool, state, who holds it, since when
@@ -10,16 +11,24 @@ token, for a company browser for someone's turn, and tells it when the turn is o
   POST /admin-open  {slot, name}                an admin signs this browser in to its tool, by hand, once
   POST /admin-close {slot}
 
+(Each also answers under /agent/…, the address the gateway is given.)
+
 A browser (a "slot") is one Chromium for one tool: its own Neko container, its own profile volume where
-the tool's sign-in lives (swangz-ws-profile-<slot>), its own path and WebRTC port. Browsers are listed in the config, because each
-must be signed in to its tool by an admin once. Containers only run while needed: started for the first
-turn, recycled after every turn (started fresh, still signed in), stopped when idle.
+the tool's sign-in lives (swangz-ws-profile-<slot>), its own path and WebRTC port. Each must be signed in
+to its tool by an admin once, so browsers are fixed: listed in the config on a server, or — on a company
+computer — asked of the gateway, which says how many each tool needs; a tool keeps the browser numbers it
+was given for good. Containers only run while needed: started for the first turn, recycled after every
+turn (started fresh, still signed in), stopped when idle.
 
 Every container start gets a new random Neko API token that only this agent knows; there is no fixed
 Neko password anywhere. A person gets a Neko sign-in made for their turn, deleted when the turn ends —
 and if Neko doesn't answer then, the container is removed instead, so a turn that's over is over.
 
-Standard library only. Linux, Python 3.10+, Docker.
+On a company computer nothing on the internet can reach the machine, so two things change. Its tunnel
+sends every request to this agent, which passes each browser's page on to it (/<slot>/…). And the video
+goes through a relay (TURN) the gateway hands out, instead of straight to a public address.
+
+Standard library only. Python 3.9+, Docker. Linux, or Docker Desktop on Windows or a Mac.
 
   python3 agent.py serve  [--config /etc/swangz-workspace/agent.json]
   python3 agent.py caddy  [--config …]    print the Caddy routes for the agent and every browser
@@ -30,8 +39,10 @@ import argparse
 import hmac
 import json
 import os
+import platform
 import re
 import secrets
+import socket
 import subprocess
 import sys
 import threading
@@ -54,12 +65,23 @@ DEFAULTS = {
     "recycle": True,  # restart a browser after every turn, so the next person gets a fresh window
     "fresh_start": False,  # open the tool's start page instead of restoring the last tabs (see WORKSPACE.md)
     "gateway_ip": "",  # when set, Caddy only lets this address reach the agent
+    "public_url": "",  # where people reach the browsers, e.g. https://workspace.swangzavenue.com
+    "public_ip": "",  # the address browsers stream video from (a server's public IP)
+    # A company computer: the gateway's address (its web address, e.g. https://swangz-ai.netlify.app) and
+    # which computer this is there ("windows" or "mac"). The agent checks in every minute.
+    "gateway": "", "host": "",
+    "lan_ip": "",  # this computer's address on the office network: people there connect straight to it
+    "ice_servers": [],  # a fixed video relay (TURN), instead of the one the gateway hands out
 }
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # Windows: no console window flashing up per docker call
 SWEEP_SECONDS = 15
+HELLO_SECONDS = 60
 NEKO_TIMEOUT = 10
+MAX_PER_TOOL = 20
 TOOL_ID = re.compile(r"[a-z0-9-]{1,60}")
 USER = re.compile(r"[a-z0-9-]{1,40}")
 LEASE = re.compile(r"[A-Za-z0-9:._-]{1,80}")
+SLOT_PATH = re.compile(r"/([a-z0-9-]{1,60}-[0-9]{1,2})(/.*)?")
 
 # Neko's own Chromium policy (apps/chromium/policies.json), with what Swangz needs on top: cookies are
 # kept so the browser stays signed in, and developer tools stay off so nobody can copy the session out.
@@ -106,18 +128,37 @@ def load_config(path):
 
 def check_config(raw):
     cfg = {**DEFAULTS, **raw}
-    for key in ("token", "public_url", "public_ip", "data"):
+    computer = bool(cfg["gateway"])
+    # a company computer learns its address when its tunnel opens, and streams through a relay
+    for key in ("token", "data") if computer else ("token", "public_url", "public_ip", "data"):
         if not cfg.get(key):
             raise ConfigError(f"'{key}' is required")
     if len(cfg["token"]) < 32:
         raise ConfigError("'token' must be at least 32 characters — use: openssl rand -hex 32")
-    if not cfg["public_url"].startswith("https://"):
+    if cfg["public_url"] and not cfg["public_url"].startswith("https://"):
         raise ConfigError("'public_url' must start with https://")
-    cfg["public_url"] = cfg["public_url"].rstrip("/")
+    cfg["public_url"] = (cfg["public_url"] or "").rstrip("/")
+    if computer:
+        if not cfg["gateway"].startswith("https://"):
+            raise ConfigError("'gateway' is the gateway's web address, starting with https://")
+        cfg["gateway"] = cfg["gateway"].rstrip("/")
+        if cfg["host"] not in ("windows", "mac", "server"):
+            raise ConfigError("'host' is which computer this is in the console: \"windows\" or \"mac\"")
     if type(cfg["max_running"]) is not int or cfg["max_running"] < 0:
         raise ConfigError("'max_running' is how many browsers may run at once, a whole number (0 = no limit)")
+    if not isinstance(cfg["ice_servers"], list):
+        raise ConfigError("'ice_servers' is a list of relay servers, like a browser's iceServers")
+    cfg["browsers"] = browsers_for(cfg.get("tools") or {}, cfg["fresh_start"])
+    cfg["tools_from_gateway"] = computer and not cfg.get("tools")
+    if not cfg["browsers"] and not cfg["tools_from_gateway"]:
+        raise ConfigError("no browsers: list them under 'tools', e.g. {\"chatgpt\": {\"browsers\": [1, 2]}}")
+    return cfg
+
+
+def browsers_for(tools, fresh_start=False):
+    """{tool: {start_url, browsers: [numbers]}} -> {slot: browser}. A number fixes the browser's ports."""
     browsers, numbers = {}, set()
-    for tool, spec in (cfg.get("tools") or {}).items():
+    for tool, spec in tools.items():
         if not TOOL_ID.fullmatch(tool):
             raise ConfigError(f"tool id {tool!r}: use the gateway's tool id (lowercase letters, digits, dashes)")
         start_url = str(spec.get("start_url") or "")
@@ -131,11 +172,8 @@ def check_config(raw):
             numbers.add(n)
             slot = f"{tool}-{n}"
             browsers[slot] = {"slot": slot, "tool": tool, "n": n, "start_url": start_url,
-                              "fresh_start": bool(spec.get("fresh_start", cfg["fresh_start"]))}
-    if not browsers:
-        raise ConfigError("no browsers: list them under 'tools', e.g. {\"chatgpt\": {\"browsers\": [1, 2]}}")
-    cfg["browsers"] = browsers
-    return cfg
+                              "fresh_start": bool(spec.get("fresh_start", fresh_start))}
+    return browsers
 
 
 def container_name(slot):
@@ -168,7 +206,8 @@ class Docker:
 
     def _run(self, *args):
         try:
-            return subprocess.run([self.binary, *args], capture_output=True, text=True, timeout=120)
+            return subprocess.run([self.binary, *args], capture_output=True, encoding="utf-8", errors="replace",
+                                  timeout=120, creationflags=NO_WINDOW)
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise DockerError(f"docker {args[0]}: {exc}") from None
 
@@ -196,6 +235,15 @@ class Docker:
         if p.returncode != 0:
             raise DockerError(p.stderr.strip() or "docker run failed")
 
+    def info(self):
+        """-> {"memory_gb", "cpus"} that Docker may use (on Docker Desktop, its share of the computer), or {}."""
+        try:
+            p = self._run("info", "--format", "{{.MemTotal}} {{.NCPU}}")
+            mem, cpus = p.stdout.split()
+            return {"memory_gb": round(int(mem) / 2 ** 30, 1), "cpus": int(cpus)}
+        except (DockerError, ValueError):
+            return {}
+
 
 class Agent:
     def __init__(self, cfg, docker=None, neko_base=None):
@@ -206,6 +254,12 @@ class Agent:
         for sub in ("policies", "env"):
             os.makedirs(os.path.join(cfg["data"], sub), exist_ok=True)
         self.state_path = os.path.join(cfg["data"], "state.json")
+        self.tools_path = os.path.join(cfg["data"], "tools.json")  # what the gateway last asked for, and numbers
+        self.ice_servers = list(cfg["ice_servers"])
+        self.checked_in = {}  # the gateway's last answer: when, whether this is the workspace in use, or why not
+        self._machine = None
+        if cfg.get("tools_from_gateway"):  # until the gateway answers, the browsers it asked for last time
+            cfg["browsers"] = browsers_for(self._read_tools().get("wanted", {}), cfg["fresh_start"])
         self.slots = {slot: self._blank() for slot in cfg["browsers"]}
         self._load()
 
@@ -260,9 +314,17 @@ class Agent:
             json.dump(policy_for(b), f, indent=2)
         http_port, rtc = cfg["http_port_base"] + b["n"], cfg["webrtc_port_base"] + b["n"]
         env = {"NEKO_MEMBER_PROVIDER": "object", "NEKO_SESSION_API_TOKEN": token, "NEKO_SERVER_PROXY": "true",
-               "NEKO_SERVER_PATH_PREFIX": "/" + slot, "NEKO_WEBRTC_ICELITE": "true",
-               "NEKO_WEBRTC_NAT1TO1": cfg["public_ip"], "NEKO_WEBRTC_UDPMUX": str(rtc),
+               "NEKO_SERVER_PATH_PREFIX": "/" + slot, "NEKO_WEBRTC_UDPMUX": str(rtc),
                "NEKO_WEBRTC_TCPMUX": str(rtc), "NEKO_DESKTOP_SCREEN": cfg["screen"]}
+        if cfg["public_ip"] or cfg["lan_ip"]:  # where people reach this machine directly
+            env["NEKO_WEBRTC_NAT1TO1"] = cfg["public_ip"] or cfg["lan_ip"]
+        if self.ice_servers:
+            # through a relay: anyone, anywhere, even when nothing can reach this machine. Neko needs full
+            # ICE for that; the same relay is handed to people's browsers.
+            ice = json.dumps(self.ice_servers, separators=(",", ":"))
+            env.update(NEKO_WEBRTC_ICELITE="false", NEKO_WEBRTC_ICESERVERS_FRONTEND=ice, NEKO_WEBRTC_ICESERVERS_BACKEND=ice)
+        else:
+            env["NEKO_WEBRTC_ICELITE"] = "true"
         env_file = os.path.join(cfg["data"], "env", slot + ".env")  # not on the command line, where ps shows it
         fd = os.open(env_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -472,8 +534,135 @@ class Agent:
         docker = self.docker.ok()
         with self.lock:
             running = sum(1 for s in self.slots.values() if s["status"] != "stopped")
-        return {"ok": docker, "docker": docker, "running": running, "browsers": len(self.slots),
-                "max_running": self.cfg["max_running"]}
+        out = {"ok": docker, "docker": docker, "running": running, "browsers": len(self.slots),
+               "max_running": self.cfg["max_running"]}
+        if self.cfg["gateway"]:
+            out.update(relay=bool(self.ice_servers), gateway=dict(self.checked_in))
+        return out
+
+    # ------------------------------------------------------------ a company computer checks in
+
+    def machine(self):
+        """What the console shows about this machine. Docker's share of it is asked for once."""
+        if self._machine is None:
+            self._machine = {"system": {"Darwin": "macOS"}.get(platform.system(), platform.system()),
+                             **self.docker.info()}
+        return self._machine
+
+    def say_hello(self):
+        """Tell the gateway where this agent answers now; take back which tools need browsers and the
+        video relay to use. Every minute, and at once whenever the address changes."""
+        cfg = self.cfg
+        if not (cfg["gateway"] and cfg["public_url"]):
+            return False
+        with self.lock:
+            running = sum(1 for s in self.slots.values() if s["status"] != "stopped")
+        body = {"host": cfg["host"], "url": cfg["public_url"] + "/agent",
+                "info": {**self.machine(), "browsers": len(self.slots), "running": running,
+                         "max_running": cfg["max_running"], "relay": bool(self.ice_servers)}}
+        req = urllib.request.Request(cfg["gateway"] + "/api/workspace/hello", method="POST",
+                                     data=json.dumps(body).encode(),
+                                     headers={"Authorization": "Bearer " + cfg["token"], "Content-Type": "application/json",
+                                              "X-Swangz-App": "1", "User-Agent": "SwangzWorkspaceAgent/1.0"})
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                reply = json.loads(resp.read(512 * 1024) or b"{}")
+        except urllib.error.HTTPError as exc:
+            try:
+                why = json.loads(exc.read(4096) or b"{}").get("error") or f"answered {exc.code}"
+            except ValueError:
+                why = f"answered {exc.code}"
+            exc.close()
+            return self._checked_in(False, f"the gateway {why}")
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            return self._checked_in(False, f"the gateway didn't answer ({getattr(exc, 'reason', exc)})")
+        if not isinstance(reply, dict):
+            return self._checked_in(False, "the gateway's answer wasn't understood")
+        ice = reply.get("ice_servers")
+        if isinstance(ice, list) and all(isinstance(s, dict) and s.get("urls") for s in ice):
+            self.ice_servers = ice or list(cfg["ice_servers"])
+        if cfg.get("tools_from_gateway") and isinstance(reply.get("tools"), dict):
+            self.apply_tools(reply["tools"])
+        return self._checked_in(True, "", active=bool(reply.get("active")))
+
+    def _checked_in(self, ok, error, active=None):
+        before = self.checked_in.get("error")
+        self.checked_in = {"ok": ok, "at": time.time(), "error": error, "active": active}
+        if error and error != before:
+            log(f"check-in: {error}")
+        elif ok and before:
+            log("check-in: the gateway answers again")
+        return ok
+
+    def start_hello(self, every=HELLO_SECONDS):
+        def loop():
+            while True:
+                try:
+                    self.say_hello()
+                except Exception as exc:  # keep checking in whatever happened
+                    log(f"check-in failed: {exc!r}")
+                time.sleep(every)
+
+        threading.Thread(target=loop, name="hello", daemon=True).start()
+
+    def _read_tools(self):
+        try:
+            with open(self.tools_path, encoding="utf-8") as f:
+                saved = json.load(f)
+            return saved if isinstance(saved, dict) else {}
+        except (FileNotFoundError, ValueError):
+            return {}
+
+    def apply_tools(self, spec):
+        """The gateway's {tool: {start_url, browsers: how many}} -> this machine's browsers. A tool keeps
+        the numbers it was once given — and so each browser keeps its profile and its sign-in — even while
+        it needs fewer; a browser someone is on stays until they're done."""
+        with self.lock:
+            saved = self._read_tools()
+            numbers = {t: [n for n in ns if isinstance(n, int)] for t, ns in (saved.get("numbers") or {}).items()}
+            used = {n for ns in numbers.values() for n in ns}
+            wanted = {}
+            for tool in sorted(spec):
+                item = spec[tool] if isinstance(spec[tool], dict) else {}
+                count = item.get("browsers")
+                if not TOOL_ID.fullmatch(tool) or type(count) is not int or count < 1:
+                    continue
+                mine = sorted(numbers.get(tool, []))
+                while len(mine) < min(count, MAX_PER_TOOL):
+                    free = next((n for n in range(1, 100) if n not in used), None)
+                    if free is None:
+                        break
+                    mine.append(free)
+                    used.add(free)
+                numbers[tool] = mine
+                start_url = str(item.get("start_url") or "")
+                wanted[tool] = {"start_url": start_url if start_url.startswith(("https://", "http://")) else "",
+                                "browsers": mine[:count]}
+            browsers = browsers_for(wanted, self.cfg["fresh_start"])
+            for slot in list(self.slots):
+                if slot in browsers:
+                    continue
+                if self.slots[slot]["lease"]:
+                    browsers[slot] = self.cfg["browsers"][slot]  # until they're done
+                    continue
+                try:
+                    if self.slots[slot]["status"] != "stopped":
+                        self._stop(slot)
+                    del self.slots[slot]
+                except DockerError as exc:
+                    log(f"{slot} is no longer needed but couldn't be stopped: {exc}")
+                    browsers[slot] = self.cfg["browsers"][slot]
+            for slot in browsers:
+                self.slots.setdefault(slot, self._blank())
+            self.cfg["browsers"] = browsers
+            have = {}  # what there is now, kept for the next start — including browsers kept until free
+            for b in sorted(browsers.values(), key=lambda b: b["n"]):
+                have.setdefault(b["tool"], {"start_url": b["start_url"], "browsers": []})["browsers"].append(b["n"])
+            tmp = self.tools_path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump({"numbers": numbers, "wanted": have}, f)
+            os.replace(tmp, self.tools_path)
+            self._save()
 
     # ------------------------------------------------------------ housekeeping
 
@@ -521,11 +710,16 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self._route()
 
-    do_POST = do_GET
+    do_POST = do_PUT = do_PATCH = do_DELETE = do_HEAD = do_OPTIONS = do_GET
 
     def _route(self):
         agent = self.agent
         path = self.path.split("?")[0]
+        page = SLOT_PATH.fullmatch(path)
+        if page and page.group(1) in agent.cfg["browsers"]:
+            return self._pass_on(page.group(1))  # a browser's own page, which has its own sign-in
+        if path == "/agent" or path.startswith("/agent/"):
+            path = path[len("/agent"):] or "/"
         try:
             if not hmac.compare_digest(self.headers.get("authorization") or "", "Bearer " + agent.cfg["token"]):
                 return self._reply(401, {"error": "wrong or missing token"})
@@ -584,6 +778,54 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _pass_on(self, slot):
+        """Hand this request to the browser's own web server and its answer back — byte for byte, so its
+        WebSocket (the browser's controls; the picture itself goes over WebRTC) works too. On a company
+        computer the tunnel brings everything here; on a server Caddy sends browser pages straight on."""
+        port = self.agent.cfg["http_port_base"] + self.agent.cfg["browsers"][slot]["n"]
+        try:
+            upstream = socket.create_connection(("127.0.0.1", port), timeout=10)
+        except OSError:
+            self.close_connection = True
+            return self._reply(502, {"error": f"{slot} isn't running — open it from Swangz AI again"})
+        upgrade = "upgrade" in (self.headers.get("connection") or "").lower()
+        head = [f"{self.command} {self.path} HTTP/1.1"]
+        head += [f"{k}: {v}" for k, v in self.headers.items() if k.lower() not in ("connection", "keep-alive", "proxy-connection")]
+        head.append("Connection: Upgrade" if upgrade else "Connection: close")  # one request per connection
+        self.close_connection = True
+        upstream.settimeout(None)
+
+        def pipe(read, sock):
+            try:
+                while True:
+                    data = read(65536)
+                    if not data:
+                        break
+                    sock.sendall(data)
+            except OSError:
+                pass
+            finally:
+                try:
+                    sock.shutdown(socket.SHUT_WR)
+                except OSError:
+                    pass
+
+        try:
+            upstream.sendall(("\r\n".join(head) + "\r\n\r\n").encode("latin-1"))
+            # whatever the person sends next — a body, WebSocket frames — goes on as it comes
+            sender = threading.Thread(target=pipe, args=(self.rfile.read1, upstream), daemon=True)
+            sender.start()
+            pipe(upstream.recv, self.connection)
+        except OSError:
+            pass
+        finally:
+            for sock, how in ((self.connection, socket.SHUT_RDWR), (upstream, socket.SHUT_RDWR)):
+                try:
+                    sock.shutdown(how)
+                except OSError:
+                    pass
+            upstream.close()
+
 
 def make_server(agent, listen=None):
     host, _, port = (listen or agent.cfg["listen"]).rpartition(":")
@@ -627,7 +869,10 @@ def main(argv=None):
     docker = Docker()
     if args.command == "check":
         cap = cfg["max_running"]
-        print(f"config ok: {len(cfg['browsers'])} browser(s)" + (f", at most {cap} running at once" if cap else ""))
+        if cfg["tools_from_gateway"]:
+            print(f"config ok: browsers come from the gateway at {cfg['gateway']}")
+        else:
+            print(f"config ok: {len(cfg['browsers'])} browser(s)" + (f", at most {cap} running at once" if cap else ""))
         for slot, b in sorted(cfg["browsers"].items(), key=lambda kv: kv[1]["n"]):
             print(f"  {slot:24} {cfg['public_url']}/{slot}/   webrtc port {cfg['webrtc_port_base'] + b['n']} (udp+tcp)")
         print("docker:", "ok" if docker.ok() else "NOT REACHABLE — is this user in the docker group?")
@@ -636,6 +881,8 @@ def main(argv=None):
         return
     agent = Agent(cfg, docker)
     agent.start_sweeping()
+    if cfg["gateway"]:
+        agent.start_hello()
     server = make_server(agent)
     log(f"Swangz Workspace Agent on {cfg['listen']} — {len(cfg['browsers'])} browser(s), image {cfg['image']}")
     try:

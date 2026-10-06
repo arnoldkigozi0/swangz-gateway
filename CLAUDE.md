@@ -34,7 +34,13 @@ A grant can carry an end date, and a person's whole account can (`access_until`)
   can work at once and nobody sees the password. Production: `workspace_mode = 'agent'` — the **Swangz
   Workspace Agent** (`workspace_agent/agent.py`, on the workspace server, next to Docker) starts the
   browser, makes a Neko sign-in for the turn, and on release deletes it and recycles the container; the
-  gateway holds only the agent's URL + token. Fallback: fixed browsers listed in `workspace_url` (with
+  gateway holds only the agent's URL + token. **Where the agent runs is the admin's choice, one place at a
+  time** (Settings → Company browsers; `workspace.HOSTS`): the rented server (env) or one of Swangz's own
+  computers, the Windows PC or the Mac (`workspace_agent/computer.py`: Docker Desktop + a Cloudflare quick
+  tunnel + a TURN relay the gateway hands out; it checks in at `/api/workspace/hello` with its key and gets
+  its browser list from the shared tools). Switching ends turns at the old place; each turn's `ws_host`
+  says where to release it. Arnold asked for this on Oct 6, 2026 ("one at a time, not both").
+  Fallback: fixed browsers listed in `workspace_url` (with
   `GATEWAY_WORKSPACE_TOKEN`, the gateway manages their sign-ins itself) — `deploy/WORKSPACE.md`;
 - `own` — their own account, access still gated and logged;
 - `api` — nothing to sign in to; it runs on the company key through the gateway.
@@ -79,7 +85,7 @@ gateway/
   store.py      request bodies stored once per message by hash; retention clean-up
   pricing.py    model price table and cost per request
   live.py       requests in flight, and cutting them
-  db.py         SQLite + append-only numbered migrations (currently schema v10)
+  db.py         SQLite + append-only numbered migrations (currently schema v11)
   security.py   key/password hashing, sign-in throttle, per-person rate limiter
   admin.py      control-room API
   staff.py      staff-app API, /go/<tool> launches, Studio, and the browser access gate
@@ -88,7 +94,8 @@ gateway/
   config.py     settings from the environment; provider definitions
   static/       index.html + portal.* (staff), admin.html + admin.* (console), tokens.css, fonts/
 extension/      the MV3 browser access gate (its own README)
-workspace_agent/ agent.py — the Swangz Workspace Agent, deployed alone on the workspace server (stdlib)
+workspace_agent/ agent.py — the Swangz Workspace Agent, alone on the workspace machine (stdlib);
+                computer.py — runs it on a Windows PC or Mac: setup, tunnel, start with the computer
 tests/          unittest suite + fake_upstream.py (a stand-in for every provider)
 deploy/         systemd unit, Caddyfile, laptop-demo.sh, NETLIFY.md, WORKSPACE.md
 docs/STATE.md   current status, what's done, what's next  ← read this after this file
@@ -134,7 +141,9 @@ DEMO_MODEL=1 bash deploy/laptop-demo.sh  # starts the gateway + a free https tun
 logo fetching (the tests set it); `GATEWAY_WEB_URL` (the address people open, e.g. a Netlify front door);
 `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (both set = "Continue with Google" appears; admins match by
 username = Google email); `GATEWAY_WORKSPACE_AGENT` / `GATEWAY_WORKSPACE_AGENT_TOKEN` (the Workspace
-Agent); `GATEWAY_WORKSPACE_TOKEN` (fallback: fixed browsers' Neko API token); `GATEWAY_CORS_ORIGINS` to let a Netlify-hosted front-end call the API (see `deploy/NETLIFY.md`); `GATEWAY_TZ_OFFSET`. Runtime
+Agent on the rented server); `GATEWAY_TURN_CLOUDFLARE_KEY_ID` / `_TOKEN` or `GATEWAY_TURN_URLS` /
+`GATEWAY_TURN_SECRET` (the video relay for company browsers on Swangz's own computers);
+`GATEWAY_WORKSPACE_TOKEN` (fallback: fixed browsers' Neko API token); `GATEWAY_CORS_ORIGINS` to let a Netlify-hosted front-end call the API (see `deploy/NETLIFY.md`); `GATEWAY_TZ_OFFSET`. Runtime
 settings (retention, rate limit, kill switch, …) live in the control room under Settings.
 
 ## Picking the project up on a new machine
