@@ -344,6 +344,15 @@
     return t.launchable ? [openLink(t, "Open", true)] : guide && me.can_add_keys ? [el("button", { class: "btn btn--small btn--solid", type: "button", onclick: () => connect(guide) }, "Connect")] : [];
   }
 
+  // one line per tool the person doesn't have: what it is, where it stands, and the one thing to do
+  function toolRow(t) {
+    const act = tileActions(t).map((b) => { if (b.classList.contains("btn")) { b.classList.add("btn--quiet"); if (b.textContent === "Request access") b.textContent = "Request"; } return b; });
+    return el("li", { class: "tool-row s-" + t.state },
+      el("button", { class: "tr-main", type: "button", onclick: () => details(t), "aria-label": `${t.name} — details` },
+        SUI.logo(t, "sm"), el("span", { class: "tr-text" }, el("strong", null, t.name), el("span", { class: "tr-sub" }, t.category, el("span", { class: "dot", "aria-hidden": "true" }),
+          t.state === "locked" && !t.pending ? SUI.status("none", "Not on the plan", { plain: true }) : tileStatus(t)))),
+      act.length ? el("div", { class: "tr-act" }, act) : null);
+  }
   function tile(t) {
     const how = howOf(t);
     const ready = t.state === "enabled";
@@ -487,7 +496,7 @@
     const f = S.filter;
     if (params.get("q")) f.q = params.get("q");
     const cats = ["all", ...Array.from(new Set(catalog.map((t) => t.category))).sort()];
-    const grid = el("div", { class: "grid-tiles" });
+    const grid = el("div", { class: "cat-parts" });
     const count = el("p", { class: "count", role: "status" });
     const search = el("input", { class: "input search", type: "search", placeholder: "Search AI tools…", value: f.q, "aria-label": "Search AI tools" });
     const chips = el("div", { class: "chips-row", role: "group", "aria-label": "Category" });
@@ -511,8 +520,15 @@
       list.sort(f.sort === "az" ? (a, b) => a.name.localeCompare(b.name)
         : f.sort === "recent" ? (a, b) => (b.last_opened || 0) - (a.last_opened || 0) || a.name.localeCompare(b.name)
           : (a, b) => (rank[a.state] - rank[b.state]) || (b.last_opened || 0) - (a.last_opened || 0) || a.name.localeCompare(b.name));
-      grid.replaceChildren(...(list.length ? list.map(tile) : [el("div", { class: "empty" }, el("h3", null, "No tools match"), el("p", null, "Try another search or category."))]));
-      count.textContent = `${SUI.plural(list.length, "tool")}${f.cat !== "all" ? " in " + f.cat : ""}`;
+      // Yours as full cards; everything else as a compact list, so the catalogue isn't a wall of identical cards.
+      const ready = list.filter((t) => t.state === "enabled");
+      const rest = list.filter((t) => t.state !== "enabled");
+      const part = (title, n, sub, body) => el("section", { class: "cat-part" }, el("div", { class: "cat-part-h" }, el("h3", null, title, el("span", { class: "n" }, String(n))), sub ? el("span", { class: "muted small" }, sub) : null), body);
+      grid.replaceChildren(...(list.length ? [
+        ready.length ? part("Yours", ready.length, "Paid for by Swangz and ready to open.", el("div", { class: "grid-tiles" }, ready.map(tile))) : null,
+        rest.length ? part(ready.length ? "Everything else" : "Tools you can ask for", rest.length, "Ask, and an admin can turn it on for you.", el("ul", { class: "tool-rows" }, rest.map(toolRow))) : null,
+      ].filter(Boolean) : [el("div", { class: "empty" }, el("h3", null, "No tools match"), el("p", null, "Try another search or category."))]));
+      count.textContent = `${SUI.plural(list.length, "tool")}${f.cat !== "all" ? " in " + f.cat : ""}` + (ready.length && rest.length ? ` · ${ready.length} yours` : "");
     }
     search.addEventListener("input", () => { f.q = search.value; draw(); });
     sort.addEventListener("change", () => { f.sort = sort.value; draw(); });

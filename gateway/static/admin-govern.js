@@ -7,6 +7,11 @@
   const A = SWA;
   const { S, api } = A;
   const fact = (k, v, how) => el("div", { class: "fact" }, el("div", { class: "k" }, k), el("div", { class: "v" }, v), how ? el("div", { class: "how" }, SUI.evidence(how)) : null);
+  function stat(k, v, note, o) {
+    o = o || {};
+    return el(o.href ? "a" : "div", { class: "stat" + (o.tone ? " " + o.tone : "") + (o.wide ? " wide" : ""), href: o.href || null, title: o.title || null },
+      el("span", { class: "k" }, k), el("span", { class: "v" }, v), note ? el("span", { class: "n" }, note) : null, o.bar || null);
+  }
   const isoDate = (ts) => new Date(ts * 1000).toISOString().slice(0, 10);
   const DEVICE_STATE = { active: ["active", "Active"], idle: ["idle", "Idle"], unused: ["unused", "Never used"], revoked: ["revoked", "Revoked"], suspended: ["suspended", "Owner suspended"] };
   const deviceStatus = (s, plain) => SUI.status(...(DEVICE_STATE[s] || ["info", s]), { plain });
@@ -26,35 +31,55 @@
     return SUI.badge("No app sign-in", "outline");
   }
 
+  // the one line under a person's status: only what needs saying
+  function personNote(p) {
+    const now = Date.now() / 1000;
+    if (p.status === "active" && p.access_until && p.access_until > now) return "until " + fmt.date(p.access_until - 86400);
+    if (p.sign_in === "none") return "no app sign-in yet";
+    if (p.sign_in === "invited") return "sign-in link sent";
+    return null;
+  }
+
   async function pagePeople(params) {
     const data = await api("GET", "/people");
     const items = data.items;
     const st = { q: params.get("q") || "", dept: params.get("dept") || "", status: params.get("status") || "" };
-    const now = Date.now() / 1000;
-    const kpis = el("div", { class: "kpis five" },
-      A.kpi({ label: "People", icon: "people", value: String(items.length), note: `${new Set(items.map((p) => p.department).filter(Boolean)).size} departments` }),
-      A.kpi({ label: "Used AI today", icon: "spark", value: String(items.filter((p) => p.today.requests).length), note: "through the gateway" }),
-      A.kpi({ label: "Working now", icon: "live", value: String(items.filter((p) => p.live).length), foot: items.some((p) => p.live) ? SUI.status("live", "Live", { breathe: true, plain: true }) : null, href: "#/live" }),
-      A.kpi({ label: "Suspended or ended", icon: "lock", value: String(items.filter((p) => p.status !== "active" || (p.access_until && p.access_until <= now)).length) }),
-      A.kpi({ label: "No app sign-in yet", icon: "user", value: String(items.filter((p) => p.sign_in === "none").length), note: "send them a sign-in link" }));
+    // The counts are the filter: one row of tabs instead of a tile per number.
+    const STATUS = [
+      ["", "Everyone", () => true],
+      ["active", "Active", (p) => personState(p)[0] === "active"],
+      ["live", "Working now", (p) => p.live],
+      ["invite", "Not signed in", (p) => p.sign_in !== "active"],
+      ["suspended", "Suspended", (p) => personState(p)[0] === "suspended"],
+      ["revoked", "Ended", (p) => personState(p)[0] === "revoked"],
+    ];
+    if (!STATUS.some(([k]) => k === st.status)) st.status = "";
+    const counts = Object.fromEntries(STATUS.map(([k, , f]) => [k, items.filter(f).length]));
+    const tabs = STATUS.filter(([k]) => !k || k === "active" || counts[k] || k === st.status).map(([k, label]) =>
+      [k, el("span", { class: "seg-l" }, label, el("span", { class: "seg-n u-num" }, String(counts[k])))]);
     const q = el("input", { type: "search", placeholder: "Search name, email, department…", value: st.q, "aria-label": "Search people" });
-    const dept = el("select", { "aria-label": "Department" }, el("option", { value: "" }, "All departments"),
-      [...new Set(items.map((p) => p.department).filter(Boolean))].sort().map((d) => el("option", { value: d }, d)));
+    const depts = [...new Set(items.map((p) => p.department).filter(Boolean))].sort();
+    const dept = el("select", { class: "fb-select", "aria-label": "Department" }, el("option", { value: "" }, "All departments"), depts.map((d) => el("option", { value: d }, d)));
     dept.value = st.dept;
+    const usedToday = items.filter((p) => p.today.requests).length;
+    const meta = el("div", { class: "list-meta" },
+      el("span", null, SUI.plural(items.length, "person", "people") + " · " + SUI.plural(depts.length, "department")),
+      el("span", null, `${usedToday} used AI today`),
+      counts.live ? el("a", { href: "#/live" }, SUI.status("live", `${counts.live} working now`, { breathe: true, plain: true })) : el("span", null, "nobody working right now"));
     const box = el("div");
     function draw() {
       const qq = st.q.toLowerCase();
-      const rows = items.filter((p) => (!st.dept || p.department === st.dept)
-        && (!st.status || personState(p)[0] === st.status || (st.status === "invite" && p.sign_in !== "active"))
+      const want = STATUS.find(([k]) => k === st.status)[2];
+      const rows = items.filter((p) => (!st.dept || p.department === st.dept) && want(p)
         && (!qq || [p.name, p.email, p.department, p.title].join(" ").toLowerCase().includes(qq)));
       box.replaceChildren(rows.length ? SUI.table({ caption: "People", rows, sort: ["last_seen", "desc"], href: (p) => "#/people/" + p.id, columns: [
         { key: "name", label: "Person", lead: true, render: (p) => el("div", { class: "u-cell" }, SUI.avatar(p.name),
           el("div", null, el("a", { href: "#/people/" + p.id }, el("strong", null, p.name)), el("span", { class: "sub" }, [p.title, p.department].filter(Boolean).join(" · ") || "No department"))) },
-        { key: "status", label: "Status", sort: (p) => personState(p)[0], render: (p) => el("div", { class: "row" }, SUI.status(...personState(p), { plain: true }),
-          p.live ? SUI.status("live", "Live", { breathe: true, plain: true }) : null) },
-        { key: "sign_in", label: "App", render: (p) => signInBadge(p.sign_in), hideSm: true },
-        { key: "active_keys", label: "Devices", num: true },
-        { key: "today", label: "Today", num: true, sort: (p) => p.today.cost, render: (p) => el("span", null, fmt.money(p.today.cost), el("span", { class: "sub" }, SUI.plural(p.today.requests, "request")),
+        { key: "status", label: "Status", sort: (p) => personState(p)[0], render: (p) => el("div", null,
+          el("div", { class: "row" }, SUI.status(...personState(p), { plain: true }), p.live ? SUI.status("live", "Live", { breathe: true, plain: true }) : null),
+          personNote(p) ? el("span", { class: "sub" }, personNote(p)) : null) },
+        { key: "active_keys", label: "Devices", num: true, hideSm: true },
+        { key: "today", label: "Today", num: true, hideSm: true, sort: (p) => p.today.cost, render: (p) => el("span", null, fmt.money(p.today.cost), el("span", { class: "sub" }, SUI.plural(p.today.requests, "request")),
           p.daily_budget !== null ? A.bar(p.today.cost, p.daily_budget) : null) },
         { key: "month", label: "This month", num: true, sort: (p) => p.month.cost, render: (p) => el("span", null, fmt.money(p.month.cost),
           el("span", { class: "sub" }, p.monthly_budget !== null ? "of " + fmt.money(p.monthly_budget) : "no limit"), p.monthly_budget !== null ? A.bar(p.month.cost, p.monthly_budget) : null) },
@@ -67,11 +92,13 @@
     draw();
     const add = A.isOwner() ? el("button", { class: "btn primary", onclick: addPerson }, icon("plus"), "Add person") : null;
     A.frame({ title: "People", lede: "Everyone with Swangz AI access — their status, devices, and what they spend.", actions: add }, [
-      kpis,
-      A.panel(null, null, el("div", { class: "filterbar" }, el("div", { class: "filters" },
-        A.field("Search", q), A.field("Department", dept),
-        el("div", { class: "field" }, el("span", null, "Status"), A.seg([["", "Everyone"], ["active", "Active"], ["suspended", "Suspended"], ["revoked", "Ended"], ["invite", "Not signed in"]],
-          st.status, (v) => { st.status = v; apply(); }, "Status")))), box),
+      A.panel(null, null,
+        el("div", { class: "filterbar" }, el("div", { class: "fb-row" },
+          A.seg(tabs, st.status, (v) => { st.status = v; apply(); }, "Show"),
+          el("span", { class: "fb-gap" }),
+          el("label", { class: "fb-search" }, icon("search"), el("span", { class: "u-sr" }, "Search"), q),
+          depts.length > 1 ? dept : null)),
+        meta, box),
     ]);
     if (params.get("add") && A.isOwner()) addPerson();
   }
@@ -154,15 +181,18 @@
       } catch (e) { toast(e.message, true); }
     }
 
-    const kpis = el("div", { class: "kpis six" },
-      A.kpi({ label: "Last seen", icon: "clock", value: last ? fmt.ago(last.ts) : "Never", note: last ? (last.type === "request" ? "AI request" : last.type === "launch" ? "opened " + (last.tool || "a tool") : "visited " + (last.tool || "a site")) : "no activity recorded" }),
-      A.kpi({ label: "Current device", icon: "device", text: true, value: current ? current.label : "—", note: current ? "used " + fmt.ago(current.last_used) : activeKeys.length ? "not used yet" : "no active key", href: current ? "#/devices/" + current.id : null }),
-      A.kpi({ label: "Active sessions", icon: "live", value: String(p.live.length), foot: p.live.length ? SUI.status("live", "In flight", { breathe: true, plain: true }) : SUI.status("idle", "Quiet", { plain: true }) }),
-      A.kpi({ label: "Spend · month", icon: "wallet", value: fmt.money(p.month.cost), note: p.monthly_budget !== null ? "of " + fmt.money(p.monthly_budget) : "no monthly limit",
-        foot: p.monthly_budget !== null ? A.bar(p.month.cost, p.monthly_budget) : null, tone: "gold" }),
-      A.kpi({ label: "Tools · 30 days", icon: "tools", value: used ? String(used.length) : "—", note: `${p.tool_summary.enabled} enabled for them` }),
-      A.kpi({ label: "Alerts · 30 days", icon: "shield", value: myEvents ? String(myEvents.filter((e) => e.severity !== "info").length) : "—",
-        tone: myEvents && myEvents.some((e) => e.severity === "medium" || e.severity === "high") ? "alert" : null, href: `#/people/${p.id}?tab=security` }));
+    // A slim line of facts rather than a tile each: the profile's content lives in the tabs below.
+    const alerts = myEvents ? myEvents.filter((e) => e.severity !== "info").length : null;
+    const lastNote = last ? (last.type === "request" ? "AI request" : last.type === "launch" ? "opened " + (last.tool || "a tool") : "visited " + (last.tool || "a site")) : "no activity recorded";
+    const stats = el("div", { class: "statline" },
+      stat("Last seen", last ? fmt.ago(last.ts) : "Never", lastNote, { title: last ? fmt.stamp(last.ts) : null }),
+      stat("Current device", current ? current.label : "None", current ? "used " + fmt.ago(current.last_used) : activeKeys.length ? "not used yet" : "no active key",
+        { href: current ? "#/devices/" + current.id : null, wide: true }),
+      stat("Spend this month", fmt.money(p.month.cost), p.monthly_budget !== null ? "of " + fmt.money(p.monthly_budget) : "no monthly limit",
+        { bar: p.monthly_budget !== null ? A.bar(p.month.cost, p.monthly_budget) : null }),
+      stat("Tools · 30 days", used ? `${used.length} used` : "—", `${p.tool_summary.enabled} enabled for them`, { href: `#/people/${p.id}?tab=tools` }),
+      stat("Alerts · 30 days", alerts === null ? "—" : alerts ? String(alerts) : "None", alerts ? "worth a look" : "nothing flagged",
+        { href: `#/people/${p.id}?tab=security`, tone: myEvents && myEvents.some((e) => e.severity === "medium" || e.severity === "high") ? "alert" : null }));
 
     async function overviewTab() {
       const live = p.live.length ? A.panel("Working right now", null, el("div", { class: "lv-stream" }, p.live.map((t) => el("article", { class: "lv" },
@@ -170,7 +200,7 @@
           el("span", { class: "elapsed u-num" }, fmt.elapsed(t.started))),
         el("div", { class: "lv-what" }, A.toolLink(null, t.client || "A tool"), el("span", { class: "mono faint" }, t.model || ""), A.deviceLink(t.key_id, t.device)),
         t.prompt ? el("p", { class: "lv-prompt" }, t.prompt) : null)))) : null;
-      const tl = await api("GET", `/timeline?person=${p.id}&limit=15&since=${since30}`);
+      const tl = await api("GET", `/timeline?person=${p.id}&limit=8&since=${since30}`);
       const tools = used && used.length ? SUI.barList(used.slice().sort((a, b) => (b.requests + b.opens + b.visits) - (a.requests + a.opens + a.visits)).slice(0, 8).map((r) => ({
         label: r.tool, lead: A.toolLogo(r.tool_id, r.tool, "sm"), href: r.tool_id ? `#/tools?open=${r.tool_id}` : null, value: r.requests + r.opens + r.visits,
         display: fmt.compact(r.requests + r.opens + r.visits) + " uses", note: r.requests ? fmt.money(r.cost) : r.seconds ? fmt.dur(r.seconds) + " on site" : null })), { tone: 2 })
@@ -221,20 +251,19 @@
       const signInState = { active: "Signs in to the Swangz AI app" + (p.last_login ? ` · last signed in ${fmt.ago(p.last_login)}` : ""),
         invited: `Sign-in link sent — valid until ${fmt.stamp(p.invite_expires)}`, none: "No app sign-in yet" }[p.sign_in];
       return [
-        el("div", { class: "grid cols-2" },
-          A.panel("Devices", SUI.plural(mine.filter((d) => d.state !== "revoked").length, "active key"), mine.length ? el("div", { class: "device-grid" }, mine.map((d) => deviceCard(d, true)))
-            : A.empty("No keys yet. Issue one per laptop or coding tool.", "No devices", "device")),
-          el("div", { class: "grid" },
-            A.panel("Swangz AI app", null, el("div", { class: "body stack" },
-              el("div", { class: "row" }, signInBadge(p.sign_in), el("span", { class: "muted" }, signInState)),
-              el("div", { class: "hint" }, p.email ? `They sign in at ${S.me.base_url}/ with ${p.email}, or with Continue with Google if that email is their Google account.`
-                : "Add their email under Details first — it is what they sign in with."),
-              owner && p.email ? el("div", null, el("button", { class: "btn", onclick: () => inviteLink(p) }, icon("send"), p.sign_in === "active" ? "New sign-in link (reset password)" : "Create sign-in link")) : null)),
-            A.panel("Browsers", "used to open tools · 90 days", browsers.length ? el("ul", { class: "mini-list" }, browsers.map((b) => el("li", null,
-              el("span", { class: "mini-ic" }, icon("monitor")),
-              el("div", { class: "grow" }, el("strong", null, [b.browser, b.os].filter(Boolean).join(" on ") || "Unknown browser"),
-                el("div", { class: "hint" }, `${SUI.plural(b.opens, "open")} · last ${fmt.ago(b.last)}` + (b.last_ip ? " · " + b.last_ip : ""))))))
-              : A.empty("They haven't opened a tool from the portal yet.")))),
+        A.panel("Devices", SUI.plural(mine.filter((d) => d.state !== "revoked").length, "active key"), mine.length ? deviceTable(mine, true)
+          : A.empty("No keys yet. Issue one per laptop or coding tool.", "No devices", "device")),
+        el("div", { class: "grid cols-even" },
+          A.panel("Swangz AI app", null, el("div", { class: "body stack" },
+            el("div", { class: "row" }, signInBadge(p.sign_in), el("span", { class: "muted" }, signInState)),
+            el("div", { class: "hint" }, p.email ? `They sign in at ${S.me.base_url}/ with ${p.email}, or with Continue with Google if that email is their Google account.`
+              : "Add their email under Details first — it is what they sign in with."),
+            owner && p.email ? el("div", null, el("button", { class: "btn", onclick: () => inviteLink(p) }, icon("send"), p.sign_in === "active" ? "New sign-in link (reset password)" : "Create sign-in link")) : null)),
+          A.panel("Browsers", "used to open tools · 90 days", browsers.length ? el("ul", { class: "mini-list" }, browsers.map((b) => el("li", null,
+            el("span", { class: "mini-ic" }, icon("monitor")),
+            el("div", { class: "grow" }, el("strong", null, [b.browser, b.os].filter(Boolean).join(" on ") || "Unknown browser"),
+              el("div", { class: "hint" }, `${SUI.plural(b.opens, "open")} · last ${fmt.ago(b.last)}` + (b.last_ip ? " · " + b.last_ip : ""))))))
+            : A.empty("They haven't opened a tool from the portal yet."))),
       ];
     }
 
@@ -243,7 +272,8 @@
       return A.panel("Signals involving " + p.name, "last 30 days", myEvents.length ? el("ul", { class: "sec-list" }, myEvents.map((e) => el("li", { class: "sec sev-" + e.severity },
         el("div", { class: "sec-head" }, el("strong", null, e.title), SUI.status(e.severity, e.severity[0].toUpperCase() + e.severity.slice(1)), el("span", { class: "grow" }), el("time", { class: "hint" }, fmt.ago(e.ts))),
         el("p", { class: "sec-text" }, e.text),
-        el("div", { class: "sec-foot" }, e.evidence ? SUI.evidence(e.evidence) : el("span"), e.href ? el("a", { class: "btn small", href: e.href }, "Investigate", icon("chevronRight")) : null))))
+        e.evidence ? el("div", { class: "sec-foot" }, SUI.evidence(e.evidence)) : null,
+        e.href ? el("a", { class: "btn small sec-go", href: e.href }, "Investigate", icon("chevronRight")) : null)))
         : SUI.stateBox({ tone: "ok", icon: "shield", title: "No security events", text: "Nothing involving them in the last 30 days." }));
     }
 
@@ -267,46 +297,59 @@
         owner ? el("span", { class: "act-gap" }) : null,
         owner ? (p.status === "active" ? el("button", { class: "btn danger", onclick: () => suspend(true) }, icon("lock"), "Suspend access")
           : el("button", { class: "btn", onclick: () => suspend(false) }, "Restore access")) : null],
-    }, [kpis, A.pageTabs("#/people/" + p.id, params, [
+    }, [stats, A.pageTabs("#/people/" + p.id, params, [
       ["overview", "Overview", overviewTab],
       ["activity", "Activity", activityTab],
-      ["tools", "Tools", async () => personToolsPanel(p, owner), p.tool_summary.enabled],
+      ["tools", "Tools", async () => personToolsPanel(p, owner, used), p.tool_summary.enabled],
       ["devices", "Devices & sign-in", devicesTab, activeKeys.length],
-      ["security", "Security", securityTab, myEvents ? myEvents.filter((e) => e.severity !== "info").length || null : null],
+      ["security", "Security", securityTab, alerts || null],
       ["details", "Details", detailsTab],
     ])]);
   }
 
-  function personToolsPanel(p, owner) {
+  const TOOL_STATE = { enabled: ["ok", "Ready"], past_due: ["waiting", "Payment due"], suspended: ["suspended", "Paused"], locked: ["none", "No subscription"], not_assigned: ["none", "Not given"] };
+  /* What a person has, as a table; giving another tool is one picker rather than a tile per tool. */
+  function personToolsPanel(p, owner, used) {
     const tools = p.tools || [];
-    const grid = el("div", { class: "ptools" });
-    function cell(t) {
-      const can = owner && t.state !== "locked" && t.grant !== "team";
-      const on = t.state === "enabled";
-      const label = t.grant === "team" ? "Team" : t.state === "locked" ? "Locked" : on ? "On" : "Off";
-      const btn = el("button", {
-        class: "btn small" + (on && t.grant !== "team" ? " primary" : ""), disabled: !can, "aria-pressed": on ? "true" : "false",
-        "aria-label": `${t.name}: ${label}`, title: t.grant === "team" ? "Granted to the whole " + (p.department || "team") : t.reason,
-        onclick: can ? async () => {
-          const adding = !btn.classList.contains("primary");
-          try { await api(adding ? "POST" : "DELETE", `/people/${p.id}/tools/${t.id}`); A.render(); }
-          catch (e) { toast(e.message, true); }
-        } : null,
-      }, label);
-      const note = t.state === "locked" ? "not subscribed" : t.ends ? "until " + fmt.date(t.ends - 86400) : t.category;
-      return el("div", { class: "ptool" + (on ? " on" : "") }, SUI.logo(t, "sm"), el("div", { class: "pn" }, el("strong", null, t.name), el("div", { class: "hint" }, note)), btn);
+    const use = Object.fromEntries((used || []).filter((r) => r.tool_id).map((r) => [r.tool_id, r]));
+    const mine = tools.filter((t) => t.assigned);
+    const giveable = tools.filter((t) => !t.assigned && t.state !== "locked");
+    async function change(t, give) {
+      try { await api(give ? "POST" : "DELETE", `/people/${p.id}/tools/${t.id}`); toast(give ? `${t.name} given to ${p.name}.` : `${t.name} taken back.`); A.render(); }
+      catch (e) { toast(e.message, true); }
     }
-    const assigned = tools.filter((t) => t.assigned);
-    const rest = tools.filter((t) => !t.assigned && t.state !== "locked");
-    grid.replaceChildren(...assigned.map(cell), ...rest.map(cell));
-    const removeAll = owner && assigned.some((t) => t.grant === "direct") ? el("button", { class: "btn small danger", onclick: async () => {
+    const table = mine.length ? SUI.table({ caption: "Their tools", rows: mine, sort: ["name", "asc"], columns: [
+      { key: "name", label: "Tool", lead: true, render: (t) => el("a", { class: "u-cell", href: `#/tools?open=${t.id}` }, SUI.logo(t, "sm"),
+        el("div", null, el("strong", null, t.name), el("span", { class: "sub" }, t.category))) },
+      { key: "grant", label: "Access", render: (t) => (t.grant === "team" ? el("span", null, "Through the team", el("span", { class: "sub" }, p.department || "their department")) : "Given directly") },
+      { key: "state", label: "State", render: (t) => SUI.status(...(TOOL_STATE[t.state] || ["info", t.state]), { plain: true, title: t.reason }) },
+      { key: "ends", label: "Until", num: true, sort: (t) => t.ends || Infinity, render: (t) => (t.ends ? fmt.date(t.ends - 86400) : el("span", { class: "faint" }, "no end date")), hideSm: true },
+      { key: "use", label: "Use · 30 days", num: true, sort: (t) => (use[t.id] ? use[t.id].requests + use[t.id].opens + use[t.id].visits : -1), render: (t) => {
+        const u = use[t.id];
+        if (!u) return el("span", { class: "faint" }, "not used");
+        return el("span", null, SUI.plural(u.requests + u.opens + u.visits, "use"), el("span", { class: "sub" }, u.requests ? fmt.money(u.cost) : u.seconds ? fmt.dur(u.seconds) + " on site" : ""));
+      } },
+      owner ? { key: "act", label: "", srLabel: "Actions", render: (t) => (t.grant === "direct"
+        ? el("button", { class: "btn small quiet danger", type: "button", onclick: (e) => { e.preventDefault(); e.stopPropagation(); change(t, false); } }, "Take back")
+        : el("a", { class: "btn small quiet", href: `#/tools?open=${t.id}&tab=access`, title: "Team access is changed on the tool" }, "Team access")) } : null,
+    ].filter(Boolean) }) : SUI.stateBox({ icon: "tools", title: "No tools yet", text: owner ? "Give them a tool below." : "An owner gives tools to people.", compact: true });
+    let give = null;
+    if (owner && giveable.length) {
+      const pick = el("select", { class: "fb-select", "aria-label": "Tool to give" }, el("option", { value: "" }, "Choose a tool…"),
+        giveable.map((t) => el("option", { value: t.id }, `${t.name} · ${t.category}`)));
+      const go = el("button", { class: "btn small primary", type: "button", disabled: true, onclick: () => { const t = giveable.find((x) => x.id === pick.value); if (t) change(t, true); } }, icon("plus"), "Give");
+      pick.addEventListener("change", () => { go.disabled = !pick.value; });
+      give = el("div", { class: "give-row" }, el("span", { class: "u-label" }, "Give another tool"), pick, go,
+        el("span", { class: "hint" }, `${giveable.length} subscribed tool${giveable.length === 1 ? "" : "s"} they don't have yet`));
+    }
+    const removeAll = owner && mine.some((t) => t.grant === "direct") ? el("button", { class: "btn small quiet danger", onclick: async () => {
       const ok = await A.confirmAction(`Remove every tool from ${p.name}?`, "Their direct tool access is removed now. Team access stays with the team, and their account stays open — suspend it too if they're leaving.", "Remove all tools", true);
       if (!ok) return;
       try { const out = await api("DELETE", `/people/${p.id}/tools`); toast(`Removed ${out.removed} tool(s).`); A.render(); } catch (e) { toast(e.message, true); }
-    } }, "Remove all tools") : null;
-    return A.panel("Tools", el("div", { class: "row" }, el("span", { class: "sub" }, `${p.tool_summary.enabled} ready · ${p.tool_summary.assigned} assigned`), removeAll),
-      tools.length ? grid : A.empty("No tools in the catalog."),
-      el("div", { class: "body hint" }, "Locked tools need a company subscription first, and team access is changed — both on the Tools page. To give a tool for a limited time, set an end date there under Who can use it."));
+    } }, "Remove all") : null;
+    return A.panel("Tools", el("div", { class: "row" }, el("span", { class: "sub" }, `${p.tool_summary.enabled} ready · ${p.tool_summary.assigned} given`), removeAll),
+      give, table,
+      el("div", { class: "body hint" }, "A tool the company isn't subscribed to can't be given yet, and team access is changed on the tool itself — both on the Tools page. To give a tool for a limited time, set an end date there under Who can use it."));
   }
 
   async function inviteLink(p) {
@@ -360,64 +403,59 @@
     catch (e) { toast(e.message, true); return false; }
   }
 
-  function deviceCard(d, noOwner) {
-    return el("article", { class: "devcard s-" + d.state },
-      el("div", { class: "devcard-head" }, el("span", { class: "dev-ic" }, icon(d.app === "Claude Code" || d.app === "Codex" ? "terminal" : "device")),
-        el("div", { class: "grow" }, el("a", { href: "#/devices/" + d.id }, el("strong", null, d.label)), el("div", { class: "hint mono" }, d.hint)),
-        deviceStatus(d.state)),
-      el("dl", { class: "devcard-facts" },
-        noOwner ? null : [el("dt", null, "Owner"), el("dd", null, A.personLink(d.person_id, d.person, { avatar: false }))],
-        el("dt", null, "Application"), el("dd", null, d.app || "—"),
-        el("dt", null, "Platform"), el("dd", null, platformOf(d) || el("span", { class: "faint" }, "not stated")),
-        el("dt", null, "Last seen"), el("dd", null, d.last_used ? fmt.ago(d.last_used) : "never"),
-        el("dt", null, "From"), el("dd", null, d.last_ip ? A.where(d.last_ip, d.place) : "—"),
-        el("dt", null, "30 days"), el("dd", null, `${SUI.plural(d.requests_30d, "request")} · ${fmt.money(d.cost_30d)}`)),
-      el("div", { class: "devcard-foot" }, el("a", { class: "btn small", href: "#/devices/" + d.id }, "Manage", icon("chevronRight")),
-        A.isOwner() && d.state !== "revoked" ? el("button", { class: "btn small danger quiet", onclick: () => revokeKey(d) }, "Revoke") : null));
+  const devIcon = (d) => el("span", { class: "dev-ic sm" }, icon(d.app === "Claude Code" || d.app === "Codex" ? "terminal" : "device"));
+  function deviceTable(rows, noOwner) {
+    return SUI.table({ caption: "Devices", rows, sort: ["last_used", "desc"], href: (d) => "#/devices/" + d.id, columns: [
+      { key: "label", label: "Device", lead: true, render: (d) => el("div", { class: "u-cell" }, devIcon(d),
+        el("div", null, el("a", { href: "#/devices/" + d.id }, el("strong", null, d.label)), el("span", { class: "sub mono" }, d.hint))) },
+      noOwner ? null : { key: "person", label: "Owner", render: (d) => A.personLink(d.person_id, d.person) },
+      { key: "app", label: "Runs", render: (d) => el("span", null, d.app || "—", platformOf(d) ? el("span", { class: "sub" }, platformOf(d)) : null) },
+      { key: "last_used", label: "Last seen", num: true, render: (d) => el("span", { title: d.last_used ? fmt.stamp(d.last_used) : null }, d.last_used ? fmt.ago(d.last_used) : "never") },
+      { key: "last_ip", label: "From", render: (d) => (d.last_ip ? A.where(d.last_ip, d.place) : "—"), hideSm: true },
+      { key: "requests_30d", label: "30 days", num: true, render: (d) => el("span", null, fmt.num(d.requests_30d), el("span", { class: "sub" }, fmt.money(d.cost_30d))) },
+      { key: "state", label: "Status", render: (d) => deviceStatus(d.state, true) },
+    ].filter(Boolean) });
   }
 
   async function pageDevices(params) {
     const data = await api("GET", "/devices");
     const st = { q: params.get("q") || "", state: params.get("state") || "" };
-    const c = data.counts;
+    const STATES = [["", "All"], ["active", "Active"], ["idle", "Idle"], ["unused", "Never used"], ["revoked", "Revoked"], ["suspended", "Owner suspended"]];
+    const counts = Object.fromEntries(STATES.map(([k]) => [k, k ? data.items.filter((d) => d.state === k).length : data.items.length]));
+    const tabs = STATES.filter(([k]) => !k || counts[k] || k === st.state).map(([k, label]) => [k, el("span", { class: "seg-l" }, label, el("span", { class: "seg-n u-num" }, String(counts[k])))]);
     const q = el("input", { type: "search", placeholder: "Search device, owner, app, address…", value: st.q, "aria-label": "Search devices" });
     const box = el("div");
     function draw() {
       const qq = st.q.toLowerCase();
       const rows = data.items.filter((d) => (!st.state || d.state === st.state) && (!qq || [d.label, d.person, d.app, d.platform, d.last_ip, d.hint].join(" ").toLowerCase().includes(qq)));
-      box.replaceChildren(rows.length ? SUI.table({ caption: "Devices", rows, sort: ["last_used", "desc"], href: (d) => "#/devices/" + d.id, columns: [
-        { key: "label", label: "Device", lead: true, render: (d) => el("div", { class: "u-cell" }, el("span", { class: "dev-ic sm" }, icon(d.app === "Claude Code" || d.app === "Codex" ? "terminal" : "device")),
-          el("div", null, el("a", { href: "#/devices/" + d.id }, el("strong", null, d.label)), el("span", { class: "sub mono" }, d.hint))) },
-        { key: "person", label: "Owner", render: (d) => A.personLink(d.person_id, d.person) },
-        { key: "app", label: "Runs", render: (d) => el("span", null, d.app || "—", platformOf(d) ? el("span", { class: "sub" }, platformOf(d)) : null) },
-        { key: "last_used", label: "Last seen", num: true, render: (d) => el("span", { title: d.last_used ? fmt.stamp(d.last_used) : null }, d.last_used ? fmt.ago(d.last_used) : "never") },
-        { key: "last_ip", label: "From", render: (d) => (d.last_ip ? A.where(d.last_ip, d.place) : "—"), hideSm: true },
-        { key: "requests_30d", label: "30 days", num: true, render: (d) => el("span", null, fmt.num(d.requests_30d), el("span", { class: "sub" }, fmt.money(d.cost_30d))) },
-        { key: "state", label: "Status", render: (d) => deviceStatus(d.state, true) },
-      ] }) : SUI.stateBox({ icon: "device", title: data.items.length ? "No devices match" : "No devices yet", text: data.items.length ? "Try another search or status." : "A device appears when someone is issued a key, or connects one themselves in the staff app." }));
+      box.replaceChildren(rows.length ? deviceTable(rows) : SUI.stateBox({ icon: "device", title: data.items.length ? "No devices match" : "No devices yet",
+        text: data.items.length ? "Try another search or status." : "A device appears when someone is issued a key, or connects one themselves in the staff app." }));
     }
     const apply = () => { A.keepParams("#/devices", { q: st.q, state: st.state }); draw(); };
     q.addEventListener("input", SUI.debounce(() => { st.q = q.value.trim(); apply(); }, 150));
     draw();
-    A.frame({ title: "Devices", lede: "Every laptop and coding tool holding a gateway key — what it runs, where it connects from, and when it was last used." }, [
-      el("div", { class: "kpis four" },
-        A.kpi({ label: "Active · 7 days", icon: "device", value: String(c.active) }),
-        A.kpi({ label: "Idle", icon: "clock", value: String(c.idle), note: "not used for 7+ days" }),
-        A.kpi({ label: "Never used", icon: "key", value: String(c.unused), note: "issued, no requests yet" }),
-        A.kpi({ label: "Revoked", icon: "lock", value: String(c.revoked + (c.suspended || 0)), note: c.suspended ? `+ ${c.suspended} with a suspended owner` : "keys that no longer work" })),
-      el("div", { class: "notice info" }, icon("info"), "A device is one gateway key — staff use one per laptop or coding tool. Platform comes from the tool's user agent where it says; addresses are shown as recorded, and locations aren't looked up."),
-      A.panel(null, null, el("div", { class: "filterbar" }, el("div", { class: "filters" }, A.field("Search", q),
-        el("div", { class: "field" }, el("span", null, "Status"), A.seg([["", "All"], ["active", "Active"], ["idle", "Idle"], ["unused", "Never used"], ["revoked", "Revoked"]], st.state, (v) => { st.state = v; apply(); }, "Status")))), box),
-      A.panel("Browsers used to open tools", "from the portal's Open button · 90 days", data.browsers.length ? SUI.table({ caption: "Browsers", rows: data.browsers, sort: ["last", "desc"], columns: [
-        { key: "person", label: "Person", lead: true, render: (b) => A.personLink(b.person_id, b.person) },
-        { key: "browser", label: "Browser", render: (b) => b.browser || "Unknown" },
-        { key: "os", label: "System", render: (b) => b.os || "Unknown" },
-        { key: "opens", label: "Opens", num: true },
-        { key: "last", label: "Last", num: true, render: (b) => fmt.ago(b.last) },
-        { key: "last_ip", label: "Last address", render: (b) => (b.last_ip ? el("span", { class: "mono faint" }, b.last_ip) : "—"), hideSm: true }] })
-        : A.empty("Nobody has opened a tool from the portal yet.")),
-    ]);
+    const keysTab = () => A.panel(null, null,
+      el("div", { class: "filterbar" }, el("div", { class: "fb-row" },
+        A.seg(tabs, st.state, (v) => { st.state = v; apply(); }, "Status"), el("span", { class: "fb-gap" }),
+        el("label", { class: "fb-search" }, icon("search"), el("span", { class: "u-sr" }, "Search"), q))),
+      el("div", { class: "list-meta" }, el("span", null, "One gateway key per laptop or coding tool"),
+        el("span", null, "platform from the tool's user agent where it says"), el("span", null, "addresses as recorded, not geolocated")),
+      box);
+    const browsersTab = () => A.panel(null, "from the portal's Open button · 90 days", data.browsers.length ? SUI.table({ caption: "Browsers", rows: data.browsers, sort: ["last", "desc"], columns: [
+      { key: "person", label: "Person", lead: true, render: (b) => A.personLink(b.person_id, b.person) },
+      { key: "browser", label: "Browser", render: (b) => b.browser || "Unknown" },
+      { key: "os", label: "System", render: (b) => b.os || "Unknown" },
+      { key: "opens", label: "Opens", num: true },
+      { key: "last", label: "Last", num: true, render: (b) => fmt.ago(b.last) },
+      { key: "last_ip", label: "Last address", render: (b) => (b.last_ip ? el("span", { class: "mono faint" }, b.last_ip) : "—"), hideSm: true }] })
+      : A.empty("Nobody has opened a tool from the portal yet."));
+    A.frame({ title: "Devices", lede: "Every laptop and coding tool holding a gateway key — what it runs, where it connects from, and when it was last used." },
+      A.pageTabs("#/devices", params, [
+        ["keys", "Gateway keys", keysTab, counts.active || null],
+        ["browsers", "Browsers", browsersTab],
+      ]));
   }
+
 
   async function pageDevice(params, kid) {
     await A.toolIndex().catch(() => null);
@@ -436,40 +474,48 @@
       actions: [el("a", { class: "btn", href: `#/activity?tab=ai&person=${d.person_id}` }, icon("activity"), "Their activity"),
         A.isOwner() && d.state !== "revoked" ? [el("span", { class: "act-gap" }), el("button", { class: "btn danger", onclick: () => revokeKey(d) }, icon("lock"), "Revoke device")] : null],
     }, [
-      A.panel(null, null, el("div", { class: "facts" },
-        fact("Owner", A.personLink(d.person_id, d.person)), fact("Status", deviceStatus(d.state, true)),
-        fact("Key", el("span", { class: "mono" }, d.hint), "Only the key's ends are ever shown"),
-        fact("Issued", fmt.date(d.created) + (d.created_by ? (d.created_by === "self" ? " · by them in the app" : " · by " + d.created_by) : "")),
-        fact("First used", d.first_used ? fmt.stamp(d.first_used) : "never"), fact("Last seen", d.last_used ? fmt.stamp(d.last_used) : "never"),
-        fact("Application", d.app || "—", "From the tool's user agent"), fact("Platform", platformOf(d) || "Not stated by the tool", "From the user agent"),
-        fact("All-time use", `${SUI.plural(d.totals.requests, "request")} · ${fmt.tokens(d.totals.tokens)} tokens`),
-        fact("All-time cost", fmt.money(d.totals.cost), "Estimated from the price table"),
-        d.revoked ? fact("Revoked", fmt.stamp(d.revoked) + (d.revoked_by ? (d.revoked_by === "self" ? " · by them" : " · by " + d.revoked_by) : "")) : null)),
-      el("div", { class: "grid cols-even" },
-        A.panel("Activity", "requests per day · 30 days", el("div", { class: "body" }, SUI.columns({ label: "Requests per day from this device", tone: 2, yName: "Requests",
-          data: d.series.map((x) => ({ label: fmt.weekday(x.start), short: fmt.dayMonth(x.start), value: x.requests, note: fmt.money(x.cost) })) }))),
-        A.panel("Recent addresses", "locations aren't looked up", ips)),
-      el("div", { class: "grid cols-even" },
-        A.panel("Applications", null, d.apps.length ? el("ul", { class: "mini-list" }, d.apps.map((a) => el("li", null, el("span", { class: "mini-ic" }, icon("terminal")),
-          el("div", { class: "grow" }, el("strong", null, a.client || "Not identified"), el("div", { class: "hint" }, (a.platform || "platform not stated") + " · last " + fmt.ago(a.last))),
-          el("span", { class: "u-num" }, fmt.num(a.requests))))) : A.empty("Nothing yet.")),
-        A.panel("Models", null, d.models.length ? SUI.barList(d.models.map((m) => ({ label: m.model, value: m.requests, display: fmt.num(m.requests), note: fmt.money(m.cost) })))
-          : A.empty("Nothing yet."))),
-      el("div", { class: "grid cols-even" },
-        A.panel("Sessions", "one conversation each", d.sessions.length ? el("ul", { class: "mini-list" }, d.sessions.map((x) => el("li", null, el("span", { class: "mini-ic" }, icon("layers")),
-          el("a", { class: "grow", href: "#/sessions/" + encodeURIComponent(x.session) }, el("strong", null, x.first_prompt || "(no typed prompt)"),
-            el("div", { class: "hint" }, `${x.client || "a tool"} · ${SUI.plural(x.requests, "request")} · ${fmt.when(x.last)}`)),
-          el("span", { class: "u-num" }, fmt.money(x.cost))))) : A.empty("No sessions yet.")),
-        A.panel("Flagged or refused", "from this device", d.flagged.length ? el("ol", { class: "events flat" }, d.flagged.map((r) => el("li", { class: "ev t-request" },
+      el("div", { class: "statline" },
+        stat("Last seen", d.last_used ? fmt.ago(d.last_used) : "Never", d.last_used ? fmt.stamp(d.last_used) : "no requests yet"),
+        stat("Runs", d.app || "Not identified", platformOf(d) || "platform not stated", { wide: true }),
+        stat("Last address", d.ips[0] ? d.ips[0].ip : "—", d.ips[0] ? d.ips[0].place + " · not geolocated" : "", { href: `#/devices/${kid}?tab=addresses` }),
+        stat("30 days", SUI.plural(d.series.reduce((n, x) => n + x.requests, 0), "request"), fmt.money(d.series.reduce((n, x) => n + x.cost, 0)) + " estimated"),
+        stat("Flagged or refused", d.flagged.length ? String(d.flagged.length) : "None", d.flagged.length ? "worth a look" : "nothing flagged",
+          { href: `#/devices/${kid}?tab=flagged`, tone: d.flagged.length ? "alert" : null })),
+      A.pageTabs("#/devices/" + kid, params, [
+        ["activity", "Activity", async () => [
+          A.panel("Requests per day", "30 days · " + SUI.tzLabel(true), el("div", { class: "body" }, SUI.columns({ label: "Requests per day from this device", tone: 2, yName: "Requests",
+            data: d.series.map((x) => ({ label: fmt.weekday(x.start), short: fmt.dayMonth(x.start), value: x.requests, note: fmt.money(x.cost) })) }))),
+          A.panel("Everything done from this device", el("a", { class: "btn small quiet", href: `#/activity?tab=ai&person=${d.person_id}` }, "All their requests", icon("chevronRight")),
+            recent.items.length ? A.eventDays(recent.items.map(A.reqEvent), { noPerson: true, noDevice: true }).node : A.empty("No requests yet."))]],
+        ["flagged", "Flagged", async () => A.panel(null, "credential detections and refusals from this device", d.flagged.length ? el("ol", { class: "events flat" }, d.flagged.map((r) => el("li", { class: "ev t-request" },
           el("time", { class: "ev-time", title: fmt.stamp(r.ts) }, fmt.when(r.ts)),
           el("div", { class: "ev-body" }, el("div", { class: "ev-head" }, A.flagBadges(r.flags), el("span", { class: "muted" }, r.client || "a tool"),
             r.model ? el("span", { class: "ev-model mono" }, r.model) : null),
           r.reason ? el("div", { class: "ev-sub" }, el("span", { class: "ev-reason" }, r.reason)) : null),
           el("div", { class: "ev-end" }, A.outcomeStatus("request", r.outcome, true)),
           el("a", { class: "ev-open", href: "#/records/" + r.id, "aria-label": "Open record " + r.id }, icon("chevronRight")))))
-          : SUI.stateBox({ tone: "ok", icon: "shield", title: "Nothing flagged", text: "No credential detections or refusals from this device.", compact: true }))),
-      A.panel("Everything done from this device", "latest 20", recent.items.length ? el("ol", { class: "events flat" }, recent.items.map((r) => A.eventItem(A.reqEvent(r), { noPerson: true })))
-        : A.empty("No requests yet.")),
+          : SUI.stateBox({ tone: "ok", icon: "shield", title: "Nothing flagged", text: "No credential detections or refusals from this device.", compact: true })), d.flagged.length || null],
+        ["sessions", "Sessions", async () => A.panel(null, "one conversation each", d.sessions.length ? el("ul", { class: "mini-list" }, d.sessions.map((x) => el("li", null, el("span", { class: "mini-ic" }, icon("layers")),
+          el("a", { class: "grow", href: "#/sessions/" + encodeURIComponent(x.session) }, el("strong", null, x.first_prompt || "(no typed prompt)"),
+            el("div", { class: "hint" }, `${x.client || "a tool"} · ${SUI.plural(x.requests, "request")} · ${fmt.when(x.last)}`)),
+          el("span", { class: "u-num" }, fmt.money(x.cost))))) : A.empty("No sessions yet.")), d.sessions.length || null],
+        ["apps", "Apps & models", async () => el("div", { class: "grid cols-even" },
+          A.panel("Applications", "from the tool's user agent", d.apps.length ? el("ul", { class: "mini-list" }, d.apps.map((a) => el("li", null, el("span", { class: "mini-ic" }, icon("terminal")),
+            el("div", { class: "grow" }, el("strong", null, a.client || "Not identified"), el("div", { class: "hint" }, (a.platform || "platform not stated") + " · last " + fmt.ago(a.last))),
+            el("span", { class: "u-num" }, fmt.num(a.requests))))) : A.empty("Nothing yet.")),
+          A.panel("Models", "requests · estimated cost", d.models.length ? SUI.barList(d.models.map((m) => ({ label: m.model, value: m.requests, display: fmt.num(m.requests), note: fmt.money(m.cost) })))
+            : A.empty("Nothing yet.")))],
+        ["addresses", "Addresses", async () => A.panel(null, "as recorded — locations aren't looked up", ips), d.ips.length || null],
+        ["key", "Key", async () => A.panel(null, null, el("div", { class: "facts" },
+          fact("Owner", A.personLink(d.person_id, d.person)), fact("Status", deviceStatus(d.state, true)),
+          fact("Key", el("span", { class: "mono" }, d.hint), "Only the key's ends are ever shown"),
+          fact("Issued", fmt.date(d.created) + (d.created_by ? (d.created_by === "self" ? " · by them in the app" : " · by " + d.created_by) : "")),
+          fact("First used", d.first_used ? fmt.stamp(d.first_used) : "never"), fact("Last seen", d.last_used ? fmt.stamp(d.last_used) : "never"),
+          fact("Application", d.app || "—", "From the tool's user agent"), fact("Platform", platformOf(d) || "Not stated by the tool", "From the user agent"),
+          fact("All-time use", `${SUI.plural(d.totals.requests, "request")} · ${fmt.tokens(d.totals.tokens)} tokens`),
+          fact("All-time cost", fmt.money(d.totals.cost), "Estimated from the price table"),
+          d.revoked ? fact("Revoked", fmt.stamp(d.revoked) + (d.revoked_by ? (d.revoked_by === "self" ? " · by them" : " · by " + d.revoked_by) : "")) : null))],
+      ]),
     ]);
   }
 
@@ -496,84 +542,90 @@
   async function pageTools(params) {
     await A.toolIndex(true);
     const data = S.catalog;
-    const state = { q: params.get("q") || "", cat: "all", show: "all" };
+    const held = (t) => t.assigned_people + t.assigned_teams > 0;
+    const onKey = (t) => (t.kind === "dev" || t.kind === "api") && t.subscription.state === "none";
+    // The catalogue is 49 tools; the ones Swangz actually runs come first, the rest are a filter away.
+    const SHOW = [
+      ["used", "In use", (t) => t.subscription.state !== "none" || onKey(t) || held(t)],
+      ["idle", "Given, not opened", (t) => held(t) && !t.usage_30d.opens && t.kind === "site"],
+      ["none", "Not subscribed", (t) => t.subscription.state === "none" && !onKey(t) && !held(t)],
+      ["all", "All", () => true],
+    ];
+    const st = { q: params.get("q") || "", cat: params.get("cat") || "", show: params.get("show") || "used" };
+    if (st.show !== "removed" && !SHOW.some(([k]) => k === st.show)) st.show = "used";
+    const counts = Object.fromEntries(SHOW.map(([k, , f]) => [k, data.tools.filter(f).length]));
+    const tabs = [...SHOW.filter(([k]) => k !== "idle" || counts.idle || st.show === "idle").map(([k, label]) => [k, el("span", { class: "seg-l" }, label, el("span", { class: "seg-n u-num" }, String(counts[k])))]),
+      ...(data.removed.length ? [["removed", el("span", { class: "seg-l" }, "Removed", el("span", { class: "seg-n u-num" }, String(data.removed.length)))]] : [])];
+    const q = el("input", { type: "search", placeholder: "Search by name or category…", value: st.q, "aria-label": "Search tools" });
+    const cat = el("select", { class: "fb-select", "aria-label": "Category" }, el("option", { value: "" }, "All categories"), data.categories.map((c) => el("option", { value: c }, c)));
+    cat.value = st.cat;
     const opens = data.tools.reduce((n, t) => n + t.usage_30d.opens, 0);
-    const users = data.tools.filter((t) => t.usage_30d.opens).length;
-    const q = el("input", { type: "search", placeholder: "Search by name or category…", value: state.q, "aria-label": "Search tools", oninput: (e) => { state.q = e.target.value; draw(); } });
-    const cat = el("select", { "aria-label": "Category" }, el("option", { value: "all" }, "All categories"), data.categories.map((c) => el("option", { value: c }, c)));
-    cat.addEventListener("change", () => { state.cat = cat.value; draw(); });
-    const show = el("select", { "aria-label": "Show" }, [["all", "All tools"], ["active", "Subscribed"], ["none", "Not subscribed"], ["assigned", "Given to someone"], ["unused", "Given, but not opened in 30 days"]]
-      .map(([v, t]) => el("option", { value: v }, t)));
-    show.addEventListener("change", () => { state.show = show.value; draw(); });
-    const grid = el("div", { class: "toolsadmin" });
-    const count = el("div", { class: "hint", role: "status" });
+    const meta = el("div", { class: "list-meta" },
+      el("span", null, `${data.summary.total} in the catalogue · ${SUI.plural(data.categories.length, "category", "categories")}`),
+      el("a", { href: "#/licences" }, `${SUI.plural(data.summary.paid, "paid plan")} · ${fmt.money(data.summary.monthly_cost)} a month`),
+      el("span", null, `${fmt.num(opens)} opens from the portal in 30 days`));
+    const box = el("div");
+    const sheetHref = (t) => { const p = new URLSearchParams(location.hash.split("?")[1] || ""); p.set("open", t.id); p.delete("tab"); return "#/tools?" + p.toString(); };
     function draw() {
-      const qq = state.q.trim().toLowerCase();
-      let list = data.tools.filter((t) => (state.cat === "all" || t.category === state.cat));
-      const held = (t) => t.assigned_people + t.assigned_teams > 0;
-      if (state.show === "active") list = list.filter((t) => t.subscription.state === "active");
-      if (state.show === "none") list = list.filter((t) => t.subscription.state === "none");
-      if (state.show === "assigned") list = list.filter(held);
-      if (state.show === "unused") list = list.filter((t) => held(t) && !t.usage_30d.opens);
-      if (qq) list = list.filter((t) => t.name.toLowerCase().includes(qq) || t.category.toLowerCase().includes(qq));
-      list.sort((a, b) => (held(b) - held(a)) || ((b.subscription.state === "active") - (a.subscription.state === "active")) || a.name.localeCompare(b.name));
-      grid.replaceChildren(...(list.length ? list.map(toolAdminCard) : [SUI.stateBox({ icon: "tools", title: "No tools match", text: "Try another search or filter." })]));
-      count.textContent = `${SUI.plural(list.length, "tool")} shown`;
+      const qq = st.q.trim().toLowerCase();
+      const match = (t) => (!st.cat || t.category === st.cat) && (!qq || t.name.toLowerCase().includes(qq) || t.category.toLowerCase().includes(qq));
+      if (st.show === "removed") {
+        const list = data.removed.filter(match);
+        box.replaceChildren(list.length ? SUI.table({ caption: "Removed tools", rows: list, sort: ["name", "asc"], columns: [
+          { key: "name", label: "Tool", lead: true, render: (t) => el("div", { class: "u-cell" }, SUI.logo(t, "sm"), el("div", null, el("strong", null, t.name), el("span", { class: "sub" }, t.category || ""))) },
+          { key: "builtin", label: "Origin", render: (t) => (t.builtin ? "Built in" : "Added by an admin") },
+          A.isOwner() ? { key: "act", label: "", srLabel: "Actions", render: (t) => el("div", { class: "row end" },
+            el("button", { class: "btn small", onclick: () => toolAction(t, "restore") }, "Restore"),
+            t.builtin ? null : el("button", { class: "btn small quiet danger", onclick: () => deleteTool(t) }, "Delete")) } : null,
+        ].filter(Boolean) }) : SUI.stateBox({ icon: "tools", title: "Nothing removed matches", text: "Try another search." }),
+        el("div", { class: "body hint" }, "Staff can't see or open removed tools. Restoring one brings back its settings and who could use it."));
+        return;
+      }
+      const want = SHOW.find(([k]) => k === st.show)[2];
+      const list = data.tools.filter((t) => want(t) && match(t));
+      box.replaceChildren(list.length ? SUI.table({ caption: "Tools", rows: list, sort: ["opens", "desc"], href: sheetHref, columns: [
+        { key: "name", label: "Tool", lead: true, render: (t) => el("a", { class: "u-cell", href: sheetHref(t) }, SUI.logo(t, "sm"),
+          el("div", null, el("strong", null, t.name), el("span", { class: "sub" }, t.category))) },
+        { key: "state", label: "Subscription", sort: (t) => (onKey(t) ? "api" : t.subscription.state), render: (t) => {
+          const sub = t.subscription;
+          const money = sub.state !== "none" ? [sub.plan, sub.monthly_cost != null ? fmt.money(sub.monthly_cost) + "/mo" : null].filter(Boolean).join(" · ") : "";
+          return el("div", null, subStatus(t), money ? el("span", { class: "sub" }, money) : null);
+        } },
+        { key: "signin", label: "Sign-in", sort: (t) => (SIGNIN[t.kind === "dev" ? "api" : t.signin] || SIGNIN.seat)[0], render: (t) => (SIGNIN[t.kind === "dev" ? "api" : t.signin] || SIGNIN.seat)[0], hideSm: true },
+        { key: "people", label: "Given to", num: true, sort: (t) => t.assigned_people, render: (t) => (held(t)
+          ? el("span", null, SUI.plural(t.assigned_people, "person", "people"), t.assigned_teams ? el("span", { class: "sub" }, SUI.plural(t.assigned_teams, "team")) : null,
+            t.subscription.seats ? el("span", { class: "sub" }, `${t.subscription.seats} seats paid`) : null)
+          : el("span", { class: "faint" }, "no one")) },
+        { key: "opens", label: "Opens · 30 days", num: true, sort: (t) => t.usage_30d.opens, render: (t) => (t.usage_30d.opens ? fmt.num(t.usage_30d.opens) : el("span", { class: "faint" }, "—")) },
+      ] }) : SUI.stateBox({ icon: "tools", title: "No tools match", text: st.show === "used" && !st.q && !st.cat ? "Nothing is subscribed or given yet — look under Not subscribed." : "Try another search or filter." }));
     }
+    const apply = () => { A.keepParams("#/tools", { q: st.q, cat: st.cat, show: st.show === "used" ? null : st.show }); draw(); };
+    q.addEventListener("input", SUI.debounce(() => { st.q = q.value; apply(); }, 150));
+    cat.addEventListener("change", () => { st.cat = cat.value; apply(); });
     draw();
-    const removed = data.removed.length ? A.panel("Removed from the catalog", "staff can't see or open these", el("div", { class: "removed" }, data.removed.map((t) =>
-      el("div", null, SUI.logo(t, "sm"), el("div", { class: "grow" }, el("strong", null, t.name), el("div", { class: "hint" }, t.builtin ? "built-in" : "added by an admin")),
-        A.isOwner() ? el("button", { class: "btn small", onclick: () => toolAction(t, "restore") }, "Restore") : null,
-        A.isOwner() && !t.builtin ? el("button", { class: "btn small danger", onclick: () => deleteTool(t) }, "Delete") : null)))) : null;
     A.frame({ title: "Tools", lede: "What Swangz pays for, how people sign in, and who uses each tool. Open a tool for its full profile.",
       actions: A.isOwner() ? el("button", { class: "btn primary", onclick: () => toolSheet(null) }, icon("plus"), "Add a tool") : null }, [
-      el("div", { class: "kpis four" },
-        A.kpi({ label: "Tools in the catalog", icon: "tools", value: String(data.summary.total), note: data.removed.length ? `${data.removed.length} removed` : "across " + data.categories.length + " categories" }),
-        A.kpi({ label: "Paid subscriptions", icon: "licences", value: String(data.summary.paid), note: "company plans that are active" }),
-        A.kpi({ label: "Subscriptions a month", icon: "wallet", value: fmt.money(data.summary.monthly_cost), tone: "gold", href: "#/licences" }),
-        A.kpi({ label: "Opens · 30 days", icon: "open", value: fmt.num(opens), note: `${SUI.plural(users, "tool")} opened from the portal` })),
-      A.panel(null, null, el("div", { class: "filterbar" }, el("div", { class: "filters" }, A.field("Search", q), A.field("Category", cat), A.field("Show", show))),
-        el("div", { class: "body tight" }, count), grid),
-      removed,
+      A.panel(null, null,
+        el("div", { class: "filterbar" }, el("div", { class: "fb-row" },
+          A.seg(tabs, st.show, (v) => { st.show = v; apply(); }, "Show"), el("span", { class: "fb-gap" }),
+          el("label", { class: "fb-search" }, icon("search"), el("span", { class: "u-sr" }, "Search"), q), cat)),
+        meta, box),
     ]);
     const open = params.get("open");
     if (open && S.tools[open]) toolSheet(S.tools[open], params.get("tab") || "overview");
     if (params.get("add") && A.isOwner()) toolSheet(null);
   }
 
-  function toolAdminCard(t) {
-    const sub = t.subscription;
-    const how = SIGNIN[t.kind === "dev" ? "api" : t.signin] || SIGNIN.seat;
-    const money = sub.state !== "none" ? [sub.plan, sub.monthly_cost != null ? fmt.money(sub.monthly_cost) + "/mo" : null, sub.seats ? sub.seats + " seats" : null].filter(Boolean).join(" · ") : "";
-    return el("button", { class: "tooladmin", type: "button", onclick: () => toolSheet(t), "aria-label": `${t.name}, ${t.category}. Open its profile.` },
-      el("div", { class: "ta-head" }, SUI.logo(t), el("div", { class: "grow" }, el("strong", null, t.name), el("div", { class: "hint" }, t.category))),
-      el("div", { class: "ta-body" },
-        el("div", { class: "row" }, subStatus(t), SUI.badge(how[0], "outline")),
-        money ? el("div", { class: "hint" }, money) : null),
-      el("div", { class: "ta-foot" },
-        el("span", null, t.assigned_people + t.assigned_teams === 0 ? "No one assigned"
-          : [el("b", null, String(t.assigned_people)), t.assigned_people === 1 ? " person" : " people", t.assigned_teams ? [" · ", el("b", null, String(t.assigned_teams)), " team(s)"] : null]),
-        el("span", null, el("b", null, String(t.usage_30d.opens)), " opens · 30d")));
-  }
-
-  async function toolAction(t, action) {
-    if (action === "archive") {
-      const ok = await A.confirmAction(`Remove ${t.name} from the catalog?`, "Staff stop seeing it straight away and can't open it from the portal. Its history stays, and you can restore it from the bottom of the Tools page.", "Remove", true);
-      if (!ok) return false;
-    }
-    try { await api("POST", `/tools/${t.id}/${action}`); toast(action === "archive" ? "Removed from the catalog." : "Restored."); S.tools = null; await A.render(); return true; }
-    catch (e) { toast(e.message, true); return false; }
-  }
-
-  async function deleteTool(t) {
-    const ok = await A.confirmAction(`Delete ${t.name} for good?`, "It's removed from the catalog along with its subscription and every grant. Past launches stay in the log without a tool name. This can't be undone.", "Delete tool", true);
-    if (!ok) return;
-    try { await api("DELETE", `/tools/${t.id}`); toast("Deleted."); S.tools = null; A.render(); } catch (e) { toast(e.message, true); }
-  }
-
   /* A tool's profile: what it is and how it's used (Overview), who holds it, what Swangz pays, and its settings. */
   function toolSheet(t, tab) {
-    const { node, close } = A.sheet(() => { if (location.hash.includes("open=") || location.hash.includes("add=")) history.replaceState(null, "", "#/tools"); }, t ? t.name : "Add a tool");
+    // the sheet's own place in the address, leaving the list's filters as they were
+    const here = (id, tabId) => {
+      const p = new URLSearchParams(location.hash.split("?")[1] || "");
+      ["open", "tab", "add"].forEach((k) => p.delete(k));
+      if (id) { p.set("open", id); p.set("tab", tabId); }
+      return "#/tools" + (p.toString() ? "?" + p.toString() : "");
+    };
+    const { node, close } = A.sheet(() => { if (location.hash.startsWith("#/tools") && (location.hash.includes("open=") || location.hash.includes("add="))) history.replaceState(null, "", here()); }, t ? t.name : "Add a tool");
     const owner = A.isOwner();
     const tabs = t ? [["overview", "Overview"], ["access", "Who can use it"], t.kind === "dev" ? null : ["billing", "Subscription"], ["settings", "Settings"]].filter(Boolean) : [["settings", "New tool"]];
     let current = t ? (tabs.some((x) => x[0] === tab) ? tab : "overview") : "settings";
@@ -581,7 +633,7 @@
     const tabBar = el("div", { class: "tabs", role: "tablist" });
     function drawTabs() {
       tabBar.replaceChildren(...tabs.map(([id, label]) => el("button", { type: "button", role: "tab", "aria-selected": id === current ? "true" : "false", class: id === current ? "on" : null,
-        onclick: () => { current = id; drawTabs(); show(); if (t) history.replaceState(null, "", `#/tools?open=${t.id}&tab=${id}`); } }, label)));
+        onclick: () => { current = id; drawTabs(); show(); if (t) history.replaceState(null, "", here(t.id, id)); } }, label)));
     }
     async function refresh(nextTab) {
       close();

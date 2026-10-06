@@ -47,7 +47,7 @@
     ] }) : SUI.stateBox({ icon: "licences", title: "No licences yet", text: "Subscribe on the Tools page, then give the tool to people. Seats and their use appear here." });
     return [
       el("div", { class: "kpis four" },
-        A.kpi({ label: "AI software spend · this month", icon: "wallet", value: fmt.money(s.total_month), tone: "gold hero",
+        A.kpi({ label: "AI spend · this month", icon: "wallet", value: fmt.money(s.total_month), tone: "gold hero",
           note: `${fmt.money(s.subscriptions_month)} plans + ${fmt.money(s.api_month)} metered API`,
           tip: "Plans are what's set on each subscription. Metered API use is estimated from the price table as each request runs." }),
         A.kpi({ label: "Active seats", icon: "people", value: `${activeSeats}`, note: `of ${assignedSeats} given out · used in 30 days` }),
@@ -83,26 +83,39 @@
         return el("strong", null, r.label);
       };
       const total = d.total || 0;
+      // Sharp rises read as one line, not a panel of tiles; the full list opens on demand.
+      let rising = null;
+      if (d.increases.length) {
+        const chip = (x) => el("span", { class: "rise" }, el("strong", null, x.label), el("span", { class: "faint" }, LABEL[x.dimension].toLowerCase()),
+          x.new ? SUI.badge("new", "warn") : SUI.delta(x.change));
+        const all = el("ul", { class: "mini-list rise-all", hidden: true }, d.increases.map((x) => el("li", null,
+          el("span", { class: "mini-ic warn" }, icon("trendUp")),
+          el("div", { class: "grow" }, el("strong", null, x.label), el("div", { class: "hint" }, `${LABEL[x.dimension]} · ${fmt.money(x.previous)} → ${fmt.money(x.cost)}`)),
+          x.new ? SUI.badge("new", "warn") : SUI.delta(x.change))));
+        const more = d.increases.length > 3 ? el("button", { class: "btn link", type: "button", "aria-expanded": "false", onclick: () => {
+          all.hidden = !all.hidden; more.setAttribute("aria-expanded", all.hidden ? "false" : "true");
+          more.textContent = all.hidden ? `See all ${d.increases.length}` : "Hide the list";
+        } }, `See all ${d.increases.length}`) : null;
+        rising = el("section", { class: "callout warn" },
+          el("div", { class: "callout-row" }, icon("trendUp"), el("span", { class: "callout-k" }, "Rising fast"),
+            el("div", { class: "rises" }, d.increases.slice(0, 3).map(chip)), more),
+          el("div", { class: "hint" }, "At least half again the period before, and $1 more — worth a look, not necessarily a problem."), all);
+      }
+      const idleSeats = d.idle.reduce((n, x) => n + x.idle, 0);
       box.replaceChildren(
-        el("div", { class: "spend-hero" },
-          el("div", null, el("div", { class: "u-label" }, "Metered AI spend"), el("div", { class: "hero-num" }, fmt.money(total)),
-            el("div", { class: "row" }, SUI.delta(d.change, { vs: "vs the period before" }), el("span", { class: "hint" }, `vs ${fmt.money(d.previous_total)} the period before`))),
-          el("div", { class: "spend-facts" },
-            el("div", null, el("span", { class: "k" }, "Requests"), el("span", { class: "v u-num" }, fmt.num(d.requests))),
-            el("div", null, el("span", { class: "k" }, "Unpriced"), el("span", { class: "v u-num" }, fmt.num(d.unpriced)),
-              d.unpriced ? el("a", { class: "hint", href: "#/settings?tab=prices" }, "price them") : null),
-            el("div", null, el("span", { class: "k" }, "Company plans"), el("span", { class: "v u-num" }, fmt.money(d.subscriptions_month) + "/mo")))),
+        el("div", { class: "kpis four" },
+          A.kpi({ label: "Metered AI spend", icon: "wallet", value: fmt.money(total), tone: "gold hero",
+            foot: el("span", { class: "row" }, SUI.delta(d.change), el("span", { class: "note" }, `vs ${fmt.money(d.previous_total)} the period before`)),
+            tip: "Each request is priced from the model price table the moment it runs. Vendor invoices aren't imported." }),
+          A.kpi({ label: "Requests", icon: "spark", value: fmt.num(d.requests), note: total && d.requests ? `≈ ${fmt.money(total / d.requests)} each` : "in this period" }),
+          A.kpi({ label: "Unpriced", icon: "info", value: fmt.num(d.unpriced), href: d.unpriced ? "#/settings?tab=prices" : null,
+            note: d.unpriced ? "requests with no price — price them" : "every model has a price" }),
+          A.kpi({ label: "Company plans", icon: "licences", value: fmt.money(d.subscriptions_month) + "/mo", href: "#/licences?tab=licences",
+            note: idleSeats ? `${SUI.plural(idleSeats, "seat")} idle · ≈ ${fmt.money(d.idle.reduce((n, x) => n + x.idle_cost, 0))}/mo` : "fixed, not metered" })),
+        rising,
         d.series.length > 1 ? A.panel("Spend per day", "estimated from the price table · " + SUI.tzLabel(true), el("div", { class: "body" },
           SUI.line({ label: "Metered spend per day", format: fmt.money, tick: fmt.moneyShort, yName: "Spend",
             data: d.series.map((x) => ({ label: fmt.weekday(x.start), short: fmt.dayMonth(x.start), value: x.cost, note: SUI.plural(x.requests, "request") })) }))) : null,
-        el("div", { class: "grid cols-even" },
-          A.panel("Unexpected increases", "at least half again the period before, and $1 more", d.increases.length ? el("ul", { class: "mini-list" }, d.increases.map((x) => el("li", null,
-            el("span", { class: "mini-ic warn" }, icon("trendUp")),
-            el("div", { class: "grow" }, el("strong", null, x.label), el("div", { class: "hint" }, `${LABEL[x.dimension]} · ${fmt.money(x.previous)} → ${fmt.money(x.cost)}`)),
-            x.new ? SUI.badge("new", "warn") : SUI.delta(x.change)))) : SUI.stateBox({ tone: "ok", icon: "checkCircle", compact: true, title: "No unexpected increases", text: "Nothing grew sharply against the period before." })),
-          A.panel("Idle subscriptions", "paid seats not used in 30 days", d.idle.length ? el("ul", { class: "mini-list" }, d.idle.map((x) => el("li", null,
-            A.toolLogo(x.tool_id, x.tool, "sm"), el("div", { class: "grow" }, el("strong", null, x.tool), el("div", { class: "hint" }, `${x.idle} of ${x.assigned} seats idle`)),
-            el("span", { class: "u-num" }, "≈ " + fmt.money(x.idle_cost) + "/mo")))) : SUI.stateBox({ tone: "ok", icon: "checkCircle", compact: true, title: "No idle subscriptions", text: "Every paid seat was used." }))),
         A.panel("Where it went", A.seg([["person", "Person"], ["tool", "Tool"], ["department", "Department"], ["model", "Model"]], st.by, (v) => { st.by = v; apply(); }, "Break down by"),
           rows.length ? SUI.table({ caption: "Spend by " + LABEL[st.by].toLowerCase(), rows, sort: ["cost", "desc"],
             href: st.by === "person" ? (r) => (r.key ? "#/people/" + r.key : null) : st.by === "tool" ? (r) => (r.tool_id ? `#/tools?open=${r.tool_id}` : null) : null,
@@ -114,11 +127,13 @@
               { key: "requests", label: "Requests", num: true },
               { key: "unpriced", label: "Unpriced", num: true, render: (r) => (r.unpriced ? SUI.status("waiting", String(r.unpriced), { plain: true }) : "—"), hideSm: true }] })
             : SUI.stateBox({ icon: "wallet", title: "No spend in this period", text: "Metered spend appears once requests go through the gateway." })),
-        A.panel("How spend is worked out", null, el("div", { class: "body method" },
-          el("div", null, SUI.status("ok", "Estimated", { plain: true }), el("p", null, "Each request through the gateway is priced from the model price table (Settings → Model prices) the moment it runs, using the tokens the provider reports. Changing a price later doesn't change past requests.")),
-          el("div", null, SUI.status("waiting", "Unpriced", { plain: true }), el("p", null, "A model missing from the price table has no cost, so spend is understated until it's priced. Voice, image and video are metered in the service's own units.")),
-          el("div", null, SUI.status("info", "Plans", { plain: true }), el("p", null, "Company plans are the fixed monthly cost set on each subscription — not metered here, and not split by person.")),
-          el("div", null, SUI.status("none", "Not here", { plain: true }), el("p", null, "Vendor invoices aren't imported, and a shared account's own credit use is matched by turn, not priced.")))));
+        el("details", { class: "explain" },
+          el("summary", null, icon("info"), "How spend is worked out", el("span", { class: "hint" }, "estimated, unpriced, plans, and what isn't here")),
+          el("div", { class: "method" },
+            el("div", null, SUI.status("ok", "Estimated", { plain: true }), el("p", null, "Each request through the gateway is priced from the model price table (Settings → Model prices) the moment it runs, using the tokens the provider reports. Changing a price later doesn't change past requests.")),
+            el("div", null, SUI.status("waiting", "Unpriced", { plain: true }), el("p", null, "A model missing from the price table has no cost, so spend is understated until it's priced. Voice, image and video are metered in the service's own units.")),
+            el("div", null, SUI.status("info", "Plans", { plain: true }), el("p", null, "Company plans are the fixed monthly cost set on each subscription — not metered here, and not split by person.")),
+            el("div", null, SUI.status("none", "Not here", { plain: true }), el("p", null, "Vendor invoices aren't imported, and a shared account's own credit use is matched by turn, not priced.")))));
     }
     const apply = () => {
       A.keepParams("#/licences", { tab: "spend", range: st.range.preset, from: st.range.preset === "custom" ? st.range.from : null, to: st.range.preset === "custom" ? st.range.to : null, by: st.by === "person" ? null : st.by });

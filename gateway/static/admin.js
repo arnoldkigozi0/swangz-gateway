@@ -277,7 +277,7 @@
     const toolNode = e.tool ? toolLink(e.tool_id, e.tool) : e.app ? el("span", { class: "obj tool" }, toolLogo(null, e.app, "xs"), el("span", null, e.app)) : el("span", { class: "faint" }, "a tool");
     const detail = [];
     if (e.type === "request") {
-      if (e.device || e.key_id) detail.push(deviceLink(e.key_id, e.device));
+      if ((e.device || e.key_id) && !opts.noDevice) detail.push(deviceLink(e.key_id, e.device));
       if (e.platform && e.platform !== e.app && e.platform !== e.tool) detail.push(el("span", { class: "obj" }, icon("monitor"), e.platform));
       if (e.ip) detail.push(where(e.ip, e.place));
       if (e.duration_ms) detail.push(el("span", { class: "obj" }, icon("clock"), fmt.ms(e.duration_ms)));

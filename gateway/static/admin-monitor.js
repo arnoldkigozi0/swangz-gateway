@@ -697,7 +697,8 @@
     const body = el("div");
     const more = el("button", { class: "btn", hidden: true }, "Load older");
     const q = el("input", { type: "search", placeholder: "Search actions, targets, details…", value: st.q, "aria-label": "Search the audit log" });
-    const actor = el("select", { "aria-label": "Who" }, el("option", { value: "" }, "Every console user"));
+    const actor = el("select", { class: "fb-select", "aria-label": "Who" }, el("option", { value: "" }, "Every console user"));
+    const summary = el("div", { class: "list-meta", role: "status" });
     let minId = null, rows = [];
     const cols = [
       { key: "ts", label: "When", lead: true, render: (a) => el("time", { title: fmt.stamp(a.ts), class: "u-num nowrap" }, fmt.clock(a.ts, true), el("span", { class: "sub" }, fmt.day(a.ts))) },
@@ -705,7 +706,7 @@
       { key: "action", label: "Action", render: (a) => el("span", { class: "audit-action" + (/failed|revoked|suspended|deleted|removed|paused|stopped/.test(a.action) ? " neg" : "") }, a.action) },
       { key: "target", label: "Target", render: (a) => a.target || "—" },
       { key: "detail", label: "Detail", sort: false, render: (a) => (a.detail ? el("span", { class: "audit-detail", title: a.detail }, a.detail) : "—"), hideSm: true },
-      { key: "ip", label: "From", render: (a) => el("span", { class: "mono faint" }, a.ip || "—") },
+      { key: "ip", label: "From", render: (a) => el("span", { class: "mono faint" }, a.ip || "—"), hideSm: true },
     ];
     async function load(reset) {
       const p = A.rangeQuery(st.range);
@@ -719,6 +720,8 @@
       rows = reset ? data.items : rows.concat(data.items);
       if (data.items.length) minId = Math.min(...data.items.map((a) => a.id));
       more.hidden = !data.more;
+      summary.replaceChildren(el("span", null, SUI.plural(rows.length, "entry", "entries") + (data.more ? " so far" : "")),
+        el("span", null, "can't be edited or cleared from the console"), el("span", null, "times in " + SUI.tzLabel(true)));
       body.replaceChildren(rows.length ? SUI.table({ caption: "Audit log", columns: cols, rows, sort: ["ts", "desc"] })
         : SUI.stateBox({ icon: "audit", title: "No audit entries", text: "Nothing matches in this period." }));
     }
@@ -733,10 +736,9 @@
     await load(true);
     A.frame({ title: "Audit log", lead: el("span", { class: "audit-mark", "aria-hidden": "true" }, icon("audit")),
       lede: "Changes made to Gateway by console users — sign-ins, settings, access changes, revoked keys, and every full record opened. What staff did is under Activity." }, [
-      el("div", { class: "notice info" }, icon("info"), "The audit log watches the watchers: it can't be edited or cleared from the console."),
-      A.panel(null, null, el("div", { class: "filterbar" },
-        SUI.rangeControl({ preset: st.range.preset, from: st.range.from, to: st.range.to, presets: ["today", "7d", "30d", "month", "custom"], onChange: (r) => { st.range = r; apply(); } }),
-        el("div", { class: "filters" }, field("Search", q), field("Who", actor))), body, el("div", { class: "body center" }, more)),
+      A.panel(null, null, filterBar({ search: q, extra: actor,
+        range: SUI.rangeControl({ preset: st.range.preset, from: st.range.from, to: st.range.to, presets: ["today", "7d", "30d", "month", "custom"], onChange: (r) => { st.range = r; apply(); } }) }).node,
+        summary, body, el("div", { class: "body center" }, more)),
     ]);
   }
 
@@ -746,5 +748,5 @@
   A.page(/^#\/activity$/, pageActivity);
   A.page(/^#\/security$/, pageSecurity);
   A.page(/^#\/audit$/, pageAudit);
-  Object.assign(A, { attentionItem, seg, field, fact, people, personSelect, toolSelect });
+  Object.assign(A, { attentionItem, seg, field, fact, people, personSelect, toolSelect, filterBar });
 })();

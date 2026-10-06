@@ -246,6 +246,16 @@ visibility for admins, simplicity for staff). Built on real data only:
   then device / address / duration underneath); filters fold behind a **Filters** button and show as
   removable chips once set. Security's nine count tiles became one row of filter chips, listing only the
   kinds that happened. On a phone the tab bars scroll sideways with a fade at the edge.
+- **The same for People, Licences and the rest (Oct 7).** Lists put their counts in the filter tabs
+  instead of a tile per number: People (Everyone · Active · Working now · Not signed in · Suspended ·
+  Ended), Devices (All · Active · Idle · Never used · Revoked), Tools (In use · Given, not opened · Not
+  subscribed · All · Removed), each with search on the same row and a one-line summary under it. Tools
+  became a table (49 cards before); the staff catalogue keeps cards only for *your* tools and lists the
+  rest compactly. A person's and a device's headline facts are a slim stat line; a person's tools are a
+  table with one *Give another tool* picker; a device page is tabbed (Activity · Flagged · Sessions ·
+  Apps & models · Addresses · Key). *What cost us money?* is a headline strip, one *Rising fast* line
+  (the full list on demand), the chart, *Where it went*, and the method folded away; idle seats live on
+  the Licences tab only. The audit log's filters share one row.
 - **Staff app.** Home with a restrained hero and notifications worked out from the person's own
   account; the full catalogue with filters, sort and a details drawer (what it does, *why you have it*,
   how sign-in works, who manages access, your recent use, what's recorded); device cards; a clearer
