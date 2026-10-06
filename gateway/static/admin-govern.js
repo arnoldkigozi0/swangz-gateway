@@ -10,6 +10,8 @@
   const isoDate = (ts) => new Date(ts * 1000).toISOString().slice(0, 10);
   const DEVICE_STATE = { active: ["active", "Active"], idle: ["idle", "Idle"], unused: ["unused", "Never used"], revoked: ["revoked", "Revoked"], suspended: ["suspended", "Owner suspended"] };
   const deviceStatus = (s, plain) => SUI.status(...(DEVICE_STATE[s] || ["info", s]), { plain });
+  // a coding tool's user agent often names no operating system; then there is no platform to show
+  const platformOf = (d) => (d.platform && d.platform !== d.app ? d.platform : null);
 
   // ------------------------------------------------------------------ People
 
@@ -366,7 +368,7 @@
       el("dl", { class: "devcard-facts" },
         noOwner ? null : [el("dt", null, "Owner"), el("dd", null, A.personLink(d.person_id, d.person, { avatar: false }))],
         el("dt", null, "Application"), el("dd", null, d.app || "—"),
-        el("dt", null, "Platform"), el("dd", null, d.platform || el("span", { class: "faint" }, "not stated")),
+        el("dt", null, "Platform"), el("dd", null, platformOf(d) || el("span", { class: "faint" }, "not stated")),
         el("dt", null, "Last seen"), el("dd", null, d.last_used ? fmt.ago(d.last_used) : "never"),
         el("dt", null, "From"), el("dd", null, d.last_ip ? A.where(d.last_ip, d.place) : "—"),
         el("dt", null, "30 days"), el("dd", null, `${SUI.plural(d.requests_30d, "request")} · ${fmt.money(d.cost_30d)}`)),
@@ -387,7 +389,7 @@
         { key: "label", label: "Device", lead: true, render: (d) => el("div", { class: "u-cell" }, el("span", { class: "dev-ic sm" }, icon(d.app === "Claude Code" || d.app === "Codex" ? "terminal" : "device")),
           el("div", null, el("a", { href: "#/devices/" + d.id }, el("strong", null, d.label)), el("span", { class: "sub mono" }, d.hint))) },
         { key: "person", label: "Owner", render: (d) => A.personLink(d.person_id, d.person) },
-        { key: "platform", label: "Platform", render: (d) => d.platform || el("span", { class: "faint" }, "not stated"), hideSm: true },
+        { key: "platform", label: "Platform", render: (d) => platformOf(d) || el("span", { class: "faint" }, "not stated"), hideSm: true },
         { key: "app", label: "Application", render: (d) => d.app || "—" },
         { key: "last_used", label: "Last seen", num: true, render: (d) => el("span", { title: d.last_used ? fmt.stamp(d.last_used) : null }, d.last_used ? fmt.ago(d.last_used) : "never") },
         { key: "last_ip", label: "From", render: (d) => (d.last_ip ? A.where(d.last_ip, d.place) : "—"), hideSm: true },
@@ -440,7 +442,7 @@
         fact("Key", el("span", { class: "mono" }, d.hint), "Only the key's ends are ever shown"),
         fact("Issued", fmt.date(d.created) + (d.created_by ? (d.created_by === "self" ? " · by them in the app" : " · by " + d.created_by) : "")),
         fact("First used", d.first_used ? fmt.stamp(d.first_used) : "never"), fact("Last seen", d.last_used ? fmt.stamp(d.last_used) : "never"),
-        fact("Application", d.app || "—", "From the tool's user agent"), fact("Platform", d.platform || "Not stated by the tool", "From the user agent"),
+        fact("Application", d.app || "—", "From the tool's user agent"), fact("Platform", platformOf(d) || "Not stated by the tool", "From the user agent"),
         fact("All-time use", `${SUI.plural(d.totals.requests, "request")} · ${fmt.tokens(d.totals.tokens)} tokens`),
         fact("All-time cost", fmt.money(d.totals.cost), "Estimated from the price table"),
         d.revoked ? fact("Revoked", fmt.stamp(d.revoked) + (d.revoked_by ? (d.revoked_by === "self" ? " · by them" : " · by " + d.revoked_by) : "")) : null)),

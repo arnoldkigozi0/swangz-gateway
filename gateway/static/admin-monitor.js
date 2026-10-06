@@ -647,7 +647,7 @@
     const actor = el("select", { "aria-label": "Who" }, el("option", { value: "" }, "Every console user"));
     let minId = null, rows = [];
     const cols = [
-      { key: "ts", label: "When", lead: true, render: (a) => el("time", { title: fmt.stamp(a.ts), class: "u-num" }, fmt.day(a.ts) + " · " + fmt.clock(a.ts, true)) },
+      { key: "ts", label: "When", lead: true, render: (a) => el("time", { title: fmt.stamp(a.ts), class: "u-num nowrap" }, fmt.clock(a.ts, true), el("span", { class: "sub" }, fmt.day(a.ts))) },
       { key: "actor", label: "Who", render: (a) => el("span", { class: "u-cell" }, SUI.avatar(a.actor, "sm"), el("strong", null, a.actor)) },
       { key: "action", label: "Action", render: (a) => el("span", { class: "audit-action" + (/failed|revoked|suspended|deleted|removed|paused|stopped/.test(a.action) ? " neg" : "") }, a.action) },
       { key: "target", label: "Target", render: (a) => a.target || "—" },

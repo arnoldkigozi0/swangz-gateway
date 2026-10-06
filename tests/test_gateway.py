@@ -407,6 +407,21 @@ class ConsoleTests(unittest.TestCase):
         self.assertEqual(rig.request("GET", "/static/nope.js")[0], 404)
         self.assertEqual(rig.request("GET", "/static/fonts/../admin.js")[0], 400)
 
+    def test_every_script_and_stylesheet_a_page_names_is_served(self):
+        import re
+        rig = self.rig
+        for page, must in (("/", ("ui.js", "portal.js", "ui.css")), ("/admin", ("ui.js", "admin.js", "admin-monitor.js", "ui.css"))):
+            html = rig.request("GET", page)[2].decode()
+            refs = re.findall(r'(?:src|href)="(/static/[^"]+)"', html)
+            for name in must:
+                self.assertIn("/static/" + name, refs)
+            for ref in refs:
+                status, headers, body = rig.request("GET", ref)
+                self.assertEqual(status, 200, ref)
+                self.assertTrue(body, ref)
+            # the shared primitives load before the app that uses them
+            self.assertLess(html.index("/static/ui.js"), html.index("/static/" + ("portal.js" if page == "/" else "admin.js")))
+
 
 if __name__ == "__main__":
     unittest.main()

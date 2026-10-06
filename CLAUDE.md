@@ -13,8 +13,8 @@ Two apps on one address, plus a browser extension:
 
 | Where | What |
 |---|---|
-| `/` | **Swangz AI** — the staff app: a launchpad of the company's AI tools. **Open** goes through `/go/<tool>`, which checks access, logs the launch and sends the person to the tool's company sign-in link (SSO) or website. Studio for voice/image/video; connect coding tools; manage own devices |
-| `/admin` | **Control room** — Live (incl. who holds a shared account), Staff activity (AI requests / tools opened / websites visited), People, Tools, Tool requests, Licences & spend, Settings, Audit log. Dense pages are split with `pageTabs()`, which builds each tab on demand and keeps the chosen one in `?tab=`. |
+| `/` | **Swangz AI** — the staff app: Home (a restrained hero, notifications, *Your approved AI tools*), Tools (the whole catalogue: search, categories, sort, a details drawer per tool saying why you have it, how sign-in works and what's recorded), Studio, Devices (device cards + a step-by-step Connect flow), Requests (your access requests + notifications), Privacy (*How Swangz AI works* — what is and isn't recorded, retention, who can see it). **Open** goes through `/go/<tool>`, which checks access, logs the launch and sends the person to the tool's company sign-in link (SSO) or website |
+| `/admin` | **Control room** — Overview, Live (in-flight requests; *Inspect* follows one into its record), Needs attention, Activity (Timeline = who did what, when, where · Who used what · AI requests · Tools opened · Websites visited), People and person profiles, Devices and device pages, Tools (each with its own usage profile), Access requests, Licences & spend (incl. *What cost us money?*), Security, Audit log, Settings. Ctrl+K opens a command menu that searches everything. Dense pages are split with `pageTabs()`, which builds each tab on demand and keeps the chosen one in `?tab=`; time ranges and filters live in the address too. |
 | `extension/` | **Swangz AI Access** — a browser extension that governs AI *websites* (ChatGPT, Midjourney, …): opens the ones a person is entitled to, blocks the rest, logs access-level use only |
 
 The core rule everywhere: **a tool is enabled for a person only when the company subscription is
@@ -65,6 +65,15 @@ rather than reopening this.
   cast), champagne gold as the brand, bright mint/sky/coral for states. **Dark is the default**; a
   light "Porcelain" theme is on `html[data-theme="light"]`, toggled in both apps and remembered per
   browser. Arnold asked for black over navy on Oct 3, 2026.
+- **Both apps are built from shared primitives** in `static/ui.js` + `static/ui.css` (`window.SUI`):
+  icons, theme, time formatting (gateway / your / UTC time, chosen per browser), status dots that always
+  carry a word, skeleton/empty/error states, tooltips, accessible charts (validated colours, a table
+  view, arrow-key reading), sortable tables that turn into cards on phones, the time-range control and
+  the command menu. Build new UI from these rather than one-off markup. The console's core is
+  `admin.js` (frame, nav, routing, shared event renderers, exported as `window.SWA`); its pages live in
+  `admin-monitor.js`, `admin-records.js`, `admin-govern.js` and `admin-money.js` and register routes
+  with `SWA.page()`. Show evidence honestly: a cost is *estimated*, a platform comes *from the user
+  agent*, an address is *not geolocated* — never present an inference as a fact.
 
 ```
 gateway/
@@ -79,14 +88,15 @@ gateway/
   store.py      request bodies stored once per message by hash; retention clean-up
   pricing.py    model price table and cost per request
   live.py       requests in flight, and cutting them
-  db.py         SQLite + append-only numbered migrations (currently schema v10)
+  db.py         SQLite + append-only numbered migrations (currently schema v11)
   security.py   key/password hashing, sign-in throttle, per-person rate limiter
   admin.py      control-room API
+  insight.py    the control room's read-only lenses: trends, attention, security, devices, timeline, usage, spend, search
   staff.py      staff-app API, /go/<tool> launches, Studio, and the browser access gate
   google.py     Sign in with Google (OIDC code flow) for staff and admins: /auth/google/start|callback
   guides.py     per-tool connection steps shown to staff
   config.py     settings from the environment; provider definitions
-  static/       index.html + portal.* (staff), admin.html + admin.* (console), tokens.css, fonts/
+  static/       ui.js + ui.css (shared), index.html + portal.* (staff), admin.html + admin*.js + admin.css (console), tokens.css, fonts/
 extension/      the MV3 browser access gate (its own README)
 workspace_agent/ agent.py — the Swangz Workspace Agent, deployed alone on the workspace server (stdlib)
 tests/          unittest suite + fake_upstream.py (a stand-in for every provider)

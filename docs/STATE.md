@@ -1,11 +1,11 @@
 # Project state and roadmap
 
-Last updated: 2026-10-03. Read `../CLAUDE.md` first for the overview and conventions.
+Last updated: 2026-10-07. Read `../CLAUDE.md` first for the overview and conventions.
 
 ## Where it stands
 
-A working platform, built and tested. **181 unit tests pass** (`python3 -m unittest discover -s tests -t .`).
-Schema is **v10**. Nothing real has been called by a provider yet — there are no company API keys, and
+A working platform, built and tested. **199 unit tests pass** (`python3 -m unittest discover -s tests -t .`).
+Schema is **v11**. Nothing real has been called by a provider yet — there are no company API keys, and
 the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
 
 ### Done and verified
@@ -184,6 +184,55 @@ is only kept ready if there is room, and with every running browser in use the a
 `{"full": "server"}` and staff are told the workspace is full. Sizing for 20: ~64 GB, 16 threads,
 `screen` 1280x720@25 (`deploy/WORKSPACE.md`, `docs/GO-LIVE.md`). Server not chosen yet.
 
+### Oct 6–7, 2026 — mission control: the control room and staff app rebuilt
+
+Arnold briefed a full premium UI/UX pass ("Mission Control for company AI": calm, trustworthy, deep
+visibility for admins, simplicity for staff). Built on real data only:
+
+- **Design system.** Obsidian & Gold evolved (`tokens.css`: chart colours validated for colour-blind
+  separation in both themes, a 5:1 tertiary text, layers, motion), plus `ui.css` / `ui.js` — the shared
+  primitives both apps are now built from (see CLAUDE.md). Live things breathe slowly; nothing flashes;
+  reduced motion and forced colours are respected. Every state is a dot *and* a word.
+- **Control room.** New nav (Monitor · Govern · Money · Trust), an emergency *Stop all AI* in the
+  sidebar instead of on every page, a phone drawer, and **Ctrl+K** — jump to any page or search people,
+  tools, devices, requests (`#123`), sessions and the audit log. New pages: **Overview** (spend with
+  its trend and change, active people, live, tools, security; usage and spend charts; top tools and
+  people; needs attention; licence opportunities), **Needs attention** (one list: security signals,
+  budgets, idle/over-assigned seats, renewals, full shared accounts, waiting tool requests, missing
+  provider keys, unpriced models), **Live** (in-flight requests with elapsed time and state; *Inspect*
+  follows a request until it finishes and opens its record), **Activity → Timeline** (who did what,
+  when, where — requests, portal opens and website visits in one stream, grouped by day, filterable,
+  paged) and **Who used what**, **Devices** + a page per device (apps, platform, addresses, models,
+  sessions, flagged requests, 30-day chart, revoke), **Security** (posture + events with severity and
+  the evidence behind each — credentials, unknown keys, rule refusals, opens without access, blocked
+  sites, failed console sign-ins, revoked keys, and *unusual usage* measured against the person's own
+  last 14 days), **What cost us money?** (spend for any range by person / tool / department / model
+  against the period before, unexpected increases, idle subscriptions, and how spend is worked out).
+  Person pages gained KPIs (last seen, current device, live, spend, tools, alerts) and Activity /
+  Security tabs; tools gained a usage profile (seats vs active, use per day, who, devices, denials);
+  the record page became a forensic view (each fact labelled with how it's known, and a request
+  timeline: prompt → first word → actions by category → reply → outcome); the audit log is filterable.
+  A time range (Today … Custom) and a time zone (gateway / mine / UTC) apply wherever time matters.
+- **Staff app.** Home with a restrained hero and notifications worked out from the person's own
+  account; the full catalogue with filters, sort and a details drawer (what it does, *why you have it*,
+  how sign-in works, who manages access, your recent use, what's recorded); device cards; a clearer
+  Connect flow (device, gateway address, masked key with Show/Copy, then the steps); access requests
+  with decisions; and **How Swangz AI works** — what is recorded, what isn't, retention, who can see it,
+  and the support contact (new Settings field). Bottom tab bar on phones.
+- **API** (`gateway/insight.py`, all read-only, viewers included): `/trends`, `/attention`, `/security`,
+  `/devices`, `/devices/<key>`, `/timeline`, `/usage`, `/spend`, `/search`, `/tools/<id>/usage`; audit
+  filters; requests by `until` and department; device names on live and listed requests. Staff `/me`
+  adds their access requests, each tool's grant source and 30-day opens, each device's app, and the
+  privacy facts. Schema v11 indexes requests by key. Checked in headless Chromium at 1440 and 390,
+  dark and light, as owner and viewer, with no console errors.
+- **Not built, and why:** *location* — no IP-geolocation source is bundled (stdlib-only, nothing sent
+  out), so addresses show as public/private, never a city; *declared purpose* and *AI-inferred purpose*
+  — tools don't send one and nothing classifies prompts; *saved searches, AND/OR filter builder, column
+  chooser, bulk actions, virtualised tables* — lists page instead; *role-specific dashboards* — waits on
+  the billing/security admin roles; side-by-side *comparison* charts (A vs B) beyond period-over-period;
+  staff *notifications* are derived on each visit, not stored or pushed. Coding tools rarely name their
+  operating system, so a device's platform is often just the app.
+
 ### How it compares (Oct 2026)
 
 | Need | What established products do | Swangz AI |
@@ -226,10 +275,13 @@ actions, including opening a record and playing back a generation.
    compute cost, the way `pricing.py` does for tokens.
 5. **Renewal and spend alerts by email** — renewals in the next 30 days and idle seats are now on the
    Licences page; sending them as email/WhatsApp alerts is not built.
-6. **Reports** — spend by person / team / tool over a window, usage trends, exportable CSV.
+6. **Reports** — spend by person / team / tool over a window is built (*What cost us money?*); a
+   scheduled or emailed report, and CSV of the spend breakdown, are not.
 7. **Billing-only admin role** — a third tier beyond owner/viewer (needs a migration to relax the
    `admins.role` CHECK).
-8. **Audit-log filtering** in the admin UI (by actor, action, date).
+8. ~~Audit-log filtering~~ — built Oct 6 (who, words, time range).
+9. **IP location** — an offline GeoIP database (e.g. a monthly country/city file) would let Devices and
+   records say "Kampala · approximate" instead of "public internet".
 
 ## Going live for Swangz (operational)
 
