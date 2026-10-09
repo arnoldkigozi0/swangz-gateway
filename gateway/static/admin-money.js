@@ -164,20 +164,42 @@
 
   async function pageSettings(params) {
     const mine = A.S.me.can || (A.isOwner() ? ["admin"] : []);
-    A.frame({ title: "Settings", lede: mine.length ? `The switches that govern the whole gateway. You can change what your role (${A.roleLabel()}) covers; every change is written to the audit log, with what it was before.`
+    const tab = params.get("tab") || "safety";
+    const tabGroups = [
+      ["security", "Access & privacy", ["safety", "emergency"]],
+      ["governance", "Purpose & location", ["purposes", "locations"]],
+      ["providers", "Providers & pricing", ["addresses", "prices", "rates"]],
+      ["browsers", "Company browsers", ["browsers"]],
+      ...(A.isOwner() ? [["users", "Console users", ["users"]]] : []),
+      ["account", "Your account", ["account"]],
+    ];
+    const tabs = {
+      safety: () => safetyTab(), emergency: () => emergencyTab(),
+      purposes: () => purposesTab(), locations: () => locationsTab(),
+      addresses: () => addressesTab(), browsers: () => workspaceTab(A.can("govern")),
+      prices: () => pricesTab(A.can("money")), rates: () => ratesTab(),
+      users: () => consoleUsersTab(), account: () => accountTab(),
+    };
+    const parent = tabGroups.find((g) => g[2].includes(tab)) || tabGroups[0];
+    const child = parent[2].includes(tab) ? tab : parent[2][0];
+    A.frame({ title: "Settings", lede: mine.length ? `Configure access, privacy and infrastructure. Your role (${A.roleLabel()}) determines which settings you can change; changes are recorded in the audit log.`
       : "You're a viewer: you can see these settings but not change them." },
-    A.pageTabs("#/settings", params, [
-      ["safety", "Access & records", () => safetyTab()],
-      ["emergency", "Emergency", () => emergencyTab()],
-      ["purposes", "Purposes", () => purposesTab()],
-      ["locations", "Locations", () => locationsTab()],
-      ["addresses", "Addresses", () => addressesTab()],
-      ["browsers", "Company browsers", () => workspaceTab(A.can("govern"))],
-      ["prices", "Model prices", () => pricesTab(A.can("money"))],
-      ["rates", "Media rates", () => ratesTab()],
-      A.isOwner() && ["users", "Console users", () => consoleUsersTab()],
-      ["account", "Your account", () => accountTab()],
-    ], { vertical: true }));
+    A.pageTabs("#/settings", params, tabGroups.map(([id, label, children]) => [id, label, () => {
+      const current = children.includes(params.get("section")) ? params.get("section") : children.includes(tab) ? tab : children[0];
+      const links = children.map((key) => [key, ({
+        safety: "Access & records", emergency: "Emergency controls", purposes: "Purposes", locations: "Locations",
+        addresses: "Provider connections", prices: "Model prices", rates: "Media rates",
+        browsers: "Company browsers", users: "Console users", account: "Your account",
+      })[key], () => tabs[key]()]);
+      return A.pageTabs("#/settings", new URLSearchParams({ section: current }), links, { param: "section" });
+    }]), { vertical: true, descriptions: {
+      security: "Access rules, data retention and emergency controls.",
+      governance: "How activity is classified and how network locations are identified.",
+      providers: "Provider connections, model pricing and media service rates.",
+      browsers: "Company-managed browsers, hosts and workspace health.",
+      users: "Control-room accounts and their permissions.",
+      account: "Your own console account.",
+    }}));
   }
 
   /* Access & records: grouped settings, one row each, and one save bar that appears only when something has
