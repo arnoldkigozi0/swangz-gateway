@@ -479,6 +479,7 @@ def device(ctx, kid):
                " WHERE key_id = ? GROUP BY client_ip ORDER BY last DESC LIMIT 12", (kid,))
     for ip in ips:
         ip["place"] = ip_kind(ip["ip"])
+        ip["location"] = geo.describe(ip["ip"], db) if ip["ip"] else None  # with how it is known
     apps = db.q(f"SELECT r.client, MAX(r.ts) AS last, r.user_agent, COUNT(*) AS requests FROM requests r"
                 f" WHERE r.key_id = ? AND {USED} GROUP BY r.client ORDER BY last DESC", (kid,))
     for a in apps:

@@ -266,7 +266,7 @@
       el("a", { class: "wordmark", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz ", el("b", null, "AI")),
       el("nav", { class: "topnav", "aria-label": "Swangz AI" }, nav.map(([href, label]) => el("a", { href, class: href === active ? "on" : null, "aria-current": href === active ? "page" : null }, label))),
       el("div", { class: "top-right" },
-        el("a", { class: "icon-btn", href: "#/requests", "aria-label": count ? `${count} notifications` : "Notifications", "data-tip": count ? `${count} notification${count === 1 ? "" : "s"}` : "No new notifications" },
+        el("a", { class: "icon-btn", href: "#/requests?view=updates", "aria-label": count ? `${count} updates` : "Updates", "data-tip": count ? `${count} notification${count === 1 ? "" : "s"}` : "No new notifications" },
           icon("bell"), count ? el("span", { class: "dot-count" }, String(count)) : null),
         SUI.themeButton(), el("div", { class: "me-menu" }, meBtn, menu))));
     const tabbar = el("nav", { class: "tabbar", "aria-label": "Swangz AI" }, nav.filter(([href]) => href !== "#/studio").map(([href, label, ic]) =>
@@ -282,6 +282,52 @@
 
   function sectionHead(eyebrow, title, text, action) {
     return el("div", { class: "section-head" }, el("div", null, eyebrow ? el("div", { class: "eyebrow" }, eyebrow) : null, el("h2", null, title), text ? el("p", null, text) : null), action || null);
+  }
+
+  /* Views of one page (?view=…): underlined tabs, arrow keys, a history entry per change. Every view is built at
+     once and kept in the page, hidden when not chosen, so anything still working in one (a Studio job) carries on.
+     views: [id, label, build, count?, onShow?] */
+  function viewTabs(base, params, views, label, fallback) {
+    views = views.filter(Boolean);
+    const valid = (id) => views.some((v) => v[0] === id);
+    let current = valid(params.get("view")) ? params.get("view") : valid(fallback) ? fallback : views[0][0];
+    const uid = "vt" + Math.random().toString(36).slice(2, 7);
+    const bar = el("div", { class: "vtabs", role: "tablist", "aria-label": label || "Views" });
+    const body = el("div", { class: "vtab-body" });
+    const panes = new Map();
+    function show(id, push, focus) {
+      current = id;
+      bar.querySelectorAll("[role=tab]").forEach((b) => {
+        const on = b.dataset.view === id;
+        b.setAttribute("aria-selected", on ? "true" : "false");
+        b.tabIndex = on ? 0 : -1;
+        if (on && focus) b.focus();
+      });
+      panes.forEach((pane, key) => { pane.hidden = key !== id; });
+      const view = views.find((v) => v[0] === id);
+      if (view[4]) view[4]();
+      const q = new URLSearchParams(location.hash.split("?")[1] || "");
+      q.set("view", id);
+      const target = base + "?" + q.toString();
+      if (target !== location.hash) history[push ? "pushState" : "replaceState"](null, "", target);
+    }
+    bar.replaceChildren(...views.map(([id, text, , count]) => el("button", { type: "button", role: "tab", id: `${uid}-${id}`, "aria-controls": `${uid}-${id}-panel`, "data-view": id,
+      onclick: () => { if (id !== current) show(id, true); } }, el("span", null, text), count ? el("span", { class: "vt-n" }, String(count)) : null)));
+    bar.addEventListener("keydown", (e) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+      e.preventDefault();
+      const i = views.findIndex((v) => v[0] === current);
+      const next = e.key === "Home" ? 0 : e.key === "End" ? views.length - 1 : (i + (e.key === "ArrowRight" ? 1 : -1) + views.length) % views.length;
+      show(views[next][0], true, true);
+    });
+    views.forEach(([id, , build]) => {
+      const pane = el("div", { class: "vtab-pane", role: "tabpanel", id: `${uid}-${id}-panel`, "aria-labelledby": `${uid}-${id}`, tabindex: "-1" });
+      pane.append(...[].concat(build()).filter(Boolean));
+      panes.set(id, pane);
+      body.append(pane);
+    });
+    show(current, false);
+    return { node: el("div", { class: "vtabs-wrap" }, bar, body), show };
   }
 
   // ------------------------------------------------------------------ tool tiles
@@ -404,8 +450,9 @@
           : t.state === "locked" ? "Swangz isn't subscribed to this tool yet. If you need it, ask — your request tells an admin."
             : t.reason;
     const recorded = t.kind === "site"
-      ? "When you open it from here: the tool, the time, and your browser and address. With the Swangz browser extension: that you visited it and for how long — never what's on the page or what you type."
-      : "Requests go through Swangz AI on the company key, so they're recorded: who, which device and app, the model, what you typed, what the AI did and replied, and the cost.";
+      ? "That you opened or visited it, when, and for how long — never what's on the page or what you type."
+      : "Each request, on the company key: who, which device and app, the model, what you typed and what came back, and the cost.";
+    const manages = "Your Swangz administrators decide who has which tool." + (me.privacy && me.privacy.support_contact ? " For help: " + me.privacy.support_contact + "." : "");
     const section = (title, ...body) => el("section", { class: "d-sec" }, el("h3", null, title), ...body);
     node.append(
       el("header", null,
@@ -413,17 +460,15 @@
         el("button", { class: "btn btn--quiet icon-only", onclick: close, "aria-label": "Close" }, icon("x"))),
       el("div", { class: "body" },
         section("What it does", el("p", null, t.description || "An AI tool in the Swangz catalog.")),
-        section("Why it's available to you", el("p", null, why)),
-        section("How sign-in works", el("p", null, el("strong", null, how[0] + ". "), how[1]),
+        section(t.state === "enabled" ? "Why you have it" : "Why you don't have it yet", el("p", null, why), el("p", { class: "muted" }, manages)),
+        section("How you sign in", el("p", null, el("strong", null, how[0] + ". "), how[1]),
           t.turn ? el("p", { class: "muted" }, `One person at a time${t.turn.seats > 1 ? ` (up to ${t.turn.seats})` : ""}, for up to ${t.turn.minutes} minutes a turn. When your turn ends, the Swangz extension signs your browser out of it.`) : null),
-        section("Your recent use", el("dl", { class: "facts" },
+        t.state === "enabled" ? section("Your use", el("dl", { class: "facts" },
           t.kind === "dev" ? [el("dt", null, "Connected on"), el("dd", null, SUI.plural(t.connected || 0, "device"))]
             : [el("dt", null, "Last opened"), el("dd", null, t.last_opened ? fmt.ago(t.last_opened) : "never"),
               el("dt", null, "Opened · 30 days"), el("dd", null, SUI.plural(t.opens_30d || 0, "time"))],
-          t.ends ? [el("dt", null, "Access ends"), el("dd", null, fmt.date(t.ends - 1))] : null)),
-        section("Who manages access", el("p", null, "Your Swangz administrators decide who has which tool."
-          + (me.privacy && me.privacy.support_contact ? " For help: " + me.privacy.support_contact + "." : " Ask your admin if anything's wrong."))),
-        section("What's recorded", el("p", { class: "muted" }, recorded), el("a", { class: "tlink", href: "#/privacy", onclick: close }, "How Swangz AI works"))),
+          t.ends ? [el("dt", null, "Access ends"), el("dd", null, fmt.date(t.ends - 1))] : null)) : null,
+        section("What's recorded", el("p", { class: "muted" }, recorded, " ", el("a", { class: "tlink", href: "#/privacy", onclick: close }, "How Swangz AI works")))),
       el("footer", null, el("button", { class: "btn btn--quiet", onclick: close }, "Close"), tileActions(t).map((b) => { b.classList.remove("btn--small"); return b; })));
   }
 
@@ -436,7 +481,6 @@
     const weekAgo = Date.now() / 1000 - 7 * 86400;
     const usedWeek = enabled.filter((t) => t.last_opened && t.last_opened >= weekAgo).length;
     const pending = catalog.filter((t) => t.pending).length;
-    const recent = enabled.filter((t) => t.last_opened && t.launchable && t.kind !== "dev").sort((a, b) => b.last_opened - a.last_opened).slice(0, 5);
     const statusLine = me.active ? SUI.status("ready", "Access active", { plain: true })
       : me.suspended ? SUI.status("suspended", "Your access is paused", { plain: true }) : SUI.status("waiting", "AI access is paused for everyone", { plain: true });
     const list = notices();
@@ -446,33 +490,31 @@
       el("p", { class: "hero-meta" }, statusLine,
         el("span", { class: "sep", "aria-hidden": "true" }), el("span", null, el("b", null, String(enabled.length)), enabled.length === 1 ? " tool available" : " tools available"),
         el("span", { class: "sep", "aria-hidden": "true" }), el("span", null, el("b", null, String(usedWeek)), " used this week"),
-        pending ? [el("span", { class: "sep", "aria-hidden": "true" }), el("a", { href: "#/requests" }, el("b", null, String(pending)), pending === 1 ? " request pending" : " requests pending")] : null),
+        pending ? [el("span", { class: "sep", "aria-hidden": "true" }), el("a", { href: "#/requests?view=access" }, el("b", null, String(pending)), pending === 1 ? " request pending" : " requests pending")] : null),
       me.budget ? el("div", { class: "allowance" }, el("span", null, "Allowance this month"), el("strong", null, fmt.money(me.budget.month)),
         el("span", { class: "muted" }, me.budget.monthly !== null ? "of " + fmt.money(me.budget.monthly) : "no limit"),
-        me.budget.monthly !== null ? meter(me.budget.month, me.budget.monthly) : null) : null,
-      recent.length ? el("div", { class: "recent" }, el("span", { class: "recent-label" }, "Recently opened"),
-        recent.map((t) => el("a", { href: gurl("/go/" + t.id), target: "_blank", rel: "noopener", "aria-label": `Open ${t.name} (opens in a new tab)`, onclick: () => opened(t) },
-          SUI.logo(t, "sm"), t.name, el("span", { class: "faint" }, fmt.ago(t.last_opened))))) : null));
+        me.budget.monthly !== null ? meter(me.budget.month, me.budget.monthly) : null) : null));
     const noticeBox = list.length ? el("section", { class: "section tight" }, el("div", { class: "shell" }, el("ul", { class: "notices" }, list.slice(0, 3).map(noticeItem)),
-      list.length > 3 ? el("a", { class: "tlink", href: "#/requests" }, `See all ${list.length} notifications`) : null)) : null;
+      list.length > 3 ? el("a", { class: "tlink", href: "#/requests?view=updates" }, `See all ${list.length} updates`) : null)) : null;
+    // the six used most recently; the rest are a click away in the catalogue
     const mine = enabled.slice().sort((a, b) => (b.last_opened || 0) - (a.last_opened || 0) || a.name.localeCompare(b.name));
+    const shown = mine.slice(0, 6);
     const yours = el("section", { class: "section" }, el("div", { class: "shell" },
       sectionHead("Your tools", enabled.length ? "Your approved AI tools" : "Nothing switched on yet",
-        enabled.length ? "Paid for by Swangz and ready for you. Open opens it in a new tab; select a tool for how it works." : "Browse the catalog and request what you need — an admin turns it on.",
-        el("a", { class: "btn", href: "#/tools" }, "All tools", icon("chevronRight"))),
-      mine.length ? el("div", { class: "grid-tiles" }, mine.map(tile))
+        enabled.length ? (mine.length > shown.length ? `The ${shown.length} you used most recently. ` : "") + "Paid for by Swangz and ready for you; select a tool for how it works." : "Browse the catalog and request what you need — an admin turns it on.",
+        el("a", { class: "btn", href: mine.length > shown.length ? "#/tools?show=mine" : "#/tools" }, mine.length > shown.length ? `All ${mine.length} of yours` : "All tools", icon("chevronRight"))),
+      shown.length ? el("div", { class: "grid-tiles" }, shown.map(tile))
         : el("div", { class: "empty" }, el("h3", null, "No tools yet"), el("p", null, "When an admin turns a tool on for you, it appears here."), el("a", { class: "btn btn--solid", href: "#/tools" }, "Browse tools"))));
     const studio = hasStudio() ? el("section", { class: "section" }, el("div", { class: "shell" },
       el("a", { class: "promo", href: "#/studio" }, el("span", { class: "promo-ic" }, icon("spark")),
         el("div", { class: "grow" }, el("strong", null, "Studio — voice, images and video"), el("span", null, "Make a voice-over or an image right here, on the company's account.")), icon("chevronRight")))) : null;
     const activeKeys = me.keys.filter((k) => !k.revoked);
-    const more = el("section", { class: "section" }, el("div", { class: "shell" }, el("div", { class: "cards-2" },
-      el("a", { class: "info-card", href: "#/devices" }, el("span", { class: "info-ic" }, icon("device")),
-        el("div", null, el("h3", null, "My devices"), el("p", null, activeKeys.length ? `${SUI.plural(activeKeys.length, "device")} connected — ${activeKeys.filter((k) => k.last_used && k.last_used > weekAgo).length} used this week.` : "Connect your laptop or coding tools to use the company's AI from them.")),
-        icon("chevronRight")),
-      el("a", { class: "info-card", href: "#/privacy" }, el("span", { class: "info-ic" }, icon("shield")),
-        el("div", null, el("h3", null, "How Swangz AI works"), el("p", null, "What the company records when you use AI, what it doesn't, and how long it's kept.")),
-        icon("chevronRight")))));
+    const more = el("section", { class: "section tight" }, el("div", { class: "shell" }, el("nav", { class: "quick-links", "aria-label": "More" },
+      el("a", { href: "#/devices" }, icon("device"), el("span", null, el("strong", null, "My devices"),
+        el("span", null, activeKeys.length ? `${SUI.plural(activeKeys.length, "device")} connected` : "Connect your laptop or coding tools"))),
+      el("a", { href: "#/requests?view=access" }, icon("send"), el("span", null, el("strong", null, "Access requests"),
+        el("span", null, pending ? `${pending} waiting for an admin` : "Ask for any tool in the catalogue"))),
+      el("a", { href: "#/privacy" }, icon("shield"), el("span", null, el("strong", null, "How Swangz AI works"), el("span", null, "What's recorded, and what isn't"))))));
     frame("Home", [hero, noticeBox, yours, studio, more]);
   }
 
@@ -495,6 +537,7 @@
     const catalog = me.catalog;
     const f = S.filter;
     if (params.get("q")) f.q = params.get("q");
+    if (["all", "mine", "others"].includes(params.get("show"))) f.show = params.get("show");
     const cats = ["all", ...Array.from(new Set(catalog.map((t) => t.category))).sort()];
     const grid = el("div", { class: "cat-parts" });
     const count = el("p", { class: "count", role: "status" });
@@ -547,14 +590,19 @@
   const TYPE_LABEL = { voice: "Voice-over", image: "Image", video: "Video", sound: "Sound", music: "Music", transcription: "Transcript" };
   const JOBS = new Map();
 
-  function pageStudio() {
+  /* Studio: Create (only what's switched on for them) and Your creations. Something just made shows under the form
+     until they look at Your creations, where it then joins the rest. */
+  function pageStudio(params) {
     if (!hasStudio()) { location.hash = "#/"; return; }
     const st = S.studio;
-    const tabs = [["voice", "Voice", st.voice], ["image", "Image", st.image], ["video", "Video", st.video]].filter((t) => t[2]);
-    const panel = el("div", { class: "studio-panel", role: "tabpanel" });
-    const tabBar = el("div", { class: "tabs", role: "tablist" }, tabs.map(([id, label]) =>
-      el("button", { class: "tab", role: "tab", type: "button", "data-tab": id, onclick: () => show(id) }, label)));
+    const kinds = [["voice", "Voice-over", st.voice], ["image", "Image", st.image], ["video", "Video", st.video]].filter((t) => t[2]);
+    const panel = el("div", { class: "studio-panel" });
+    let kind = kinds[0][0];
+    const kindSeg = el("div", { class: "u-seg", role: "group", "aria-label": "What to make" });
+    const drawKinds = () => kindSeg.replaceChildren(...kinds.map(([id, label]) => el("button", { type: "button", "aria-pressed": id === kind ? "true" : "false",
+      onclick: () => { kind = id; drawKinds(); show(id); } }, label)));
     const creations = el("div", { class: "creations" });
+    const justMade = el("div", { class: "creations just-made" });
     /* What it's for, if they want to say. Optional; it is recorded as their own word (declared), not a guess. */
     function purposeField() {
       const sel = el("select", { class: "input" }, el("option", { value: "" }, "Not saying"), (st.purposes || []).map((p) => el("option", { value: p.id }, p.name)));
@@ -563,7 +611,6 @@
       return { sel, node: el("label", { class: "field" }, el("span", null, "What it's for (optional)"), sel) };
     }
     function show(id) {
-      tabBar.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === id ? "true" : "false"));
       panel.replaceChildren(id === "voice" ? voiceForm() : visualForm(id));
     }
     function voiceForm() {
@@ -609,20 +656,30 @@
     }
     function addCreation(c, fresh) {
       const card = creationCard(c);
-      if (fresh) card.classList.add("fresh");
-      creations.prepend(card);
+      if (fresh) { card.classList.add("fresh"); justMade.prepend(card); justHead.hidden = false; }
+      else creations.prepend(card);
       emptyNote.hidden = true;
       if (c.job && !c.urls.length && c.outcome === "ok") JOBS.set(c.job, card);
       if (fresh) resumeJobs();
     }
-    const emptyNote = el("p", { class: "muted" }, "What you make shows up here, so you can play it again or download it.");
+    // looking at Your creations moves what was just made to the top of the list (the same cards, still updating)
+    function gather() {
+      [...justMade.children].reverse().forEach((card) => { card.classList.remove("fresh"); creations.prepend(card); });
+      justHead.hidden = true;
+    }
+    const emptyNote = el("div", { class: "empty" }, el("h3", null, "Nothing made yet"), el("p", null, "What you make in Create shows up here, so you can play it again or download it."));
+    const justHead = el("div", { class: "spread just-head", hidden: true }, el("h3", { class: "sub-head" }, "Just made"),
+      el("button", { class: "btn btn--small btn--quiet", type: "button", onclick: () => views.show("mine", true) }, "All your creations", icon("chevronRight")));
     st.recent.slice().reverse().forEach((c) => addCreation(c, false));
     emptyNote.hidden = st.recent.length > 0;
+    drawKinds(); show(kind);
+    const views = viewTabs("#/studio", params, [
+      ["create", "Create", () => [kinds.length > 1 ? kindSeg : null, el("div", { class: "studio" }, panel), justHead, justMade]],
+      ["mine", "Your creations", () => [emptyNote, creations], st.recent.length || null, gather],
+    ], "Studio");
     frame("Studio", el("section", { class: "section first" }, el("div", { class: "shell" },
       sectionHead("Create", "Studio", "Voice-overs, images and video in the browser — on the company's account, nothing to install. What you make here is recorded like any request through Swangz AI."),
-      el("div", { class: "studio" }, tabBar, panel),
-      el("h3", { class: "sub-head" }, "Recent creations"), emptyNote, creations)));
-    show(tabs[0][0]);
+      views.node)));
     resumeJobs();
   }
 
@@ -675,7 +732,8 @@
     return k.last_used > Date.now() / 1000 - 7 * 86400 ? ["active", "Active"] : ["idle", "Idle"];
   }
 
-  function pageDevices() {
+  /* Devices: the ones connected now, connecting another, and the ones disconnected before. */
+  function pageDevices(params) {
     const me = S.me;
     const active = me.keys.filter((k) => !k.revoked);
     const old = me.keys.filter((k) => k.revoked);
@@ -691,17 +749,25 @@
         k.revoked ? null : el("div", { class: "dcard-foot" }, el("button", { class: "btn btn--small btn--danger", type: "button", onclick: () => disconnect(k) }, "Disconnect")));
     };
     const guides = me.connect || [];
-    frame("Devices", el("section", { class: "section first" }, el("div", { class: "shell" },
-      sectionHead("My devices", "Connected devices", "Each laptop or coding tool has its own key, so you can disconnect one without stopping the others. Your admin sees the same list."),
-      active.length ? el("div", { class: "grid-devices" }, active.map(card)) : el("div", { class: "empty" }, el("h3", null, "No devices yet"),
-        el("p", null, guides.length ? "Connect a coding tool or app below to use the company's AI from your computer." : "When a coding tool is turned on for you, you can connect it here.")),
-      guides.length ? [sectionHead(null, "Connect a tool", me.can_add_keys ? "Pick the tool, name the device, and follow three short steps." : "Ask your admin for a key — connecting your own devices is switched off."),
-        el("div", { class: "grid-connect" }, guides.map((g) => el("article", { class: "ccard" },
+    const views = viewTabs("#/devices", params, [
+      ["connected", "Connected", () => (active.length ? el("div", { class: "grid-devices" }, active.map(card))
+        : el("div", { class: "empty" }, el("h3", null, "No devices yet"),
+          el("p", null, guides.length ? "Connect a coding tool or app to use the company's AI from your computer." : "When a coding tool is turned on for you, you can connect it here."),
+          guides.length ? el("button", { class: "btn btn--solid", type: "button", onclick: () => views.show("connect", true) }, icon("link"), "Connect a tool") : null)), active.length || null],
+      ["connect", "Connect a tool", () => [
+        el("p", { class: "muted view-lede" }, me.can_add_keys ? "Pick the tool, name the device, and follow three short steps. Its key is shown once." : "Ask your admin for a key — connecting your own devices is switched off."),
+        guides.length ? el("div", { class: "grid-connect" }, guides.map((g) => el("article", { class: "ccard" },
           el("div", { class: "ccard-top" }, el("span", { class: "dcard-ic" }, icon(g.kind === "Coding agent" ? "terminal" : "link")),
             el("div", { class: "grow" }, el("h3", null, g.name), el("div", { class: "faint small" }, g.kind))),
           el("p", null, g.blurb || ""),
-          me.can_add_keys ? el("button", { class: "btn btn--small btn--solid", type: "button", onclick: () => connect(g) }, icon("link"), "Connect") : null)))] : null,
-      old.length ? el("details", { class: "old-devices" }, el("summary", null, `Disconnected devices (${old.length})`), el("div", { class: "grid-devices" }, old.map(card))) : null)));
+          me.can_add_keys ? el("button", { class: "btn btn--small btn--solid", type: "button", onclick: () => connect(g) }, icon("link"), "Connect") : null)))
+          : el("div", { class: "empty" }, el("h3", null, "Nothing to connect yet"), el("p", null, "When a coding tool or app is turned on for you, it appears here."))]],
+      old.length ? ["old", "Disconnected", () => [el("p", { class: "muted view-lede" }, "Their keys no longer work. They stay listed so you can see what was connected and when."),
+        el("div", { class: "grid-devices" }, old.map(card))], old.length] : null,
+    ], "Devices", active.length ? "connected" : "connect");
+    frame("Devices", el("section", { class: "section first" }, el("div", { class: "shell" },
+      sectionHead("My devices", "Devices", "Each laptop or coding tool has its own key, so you can disconnect one without stopping the others. Your admin sees the same list."),
+      views.node)));
   }
 
   /* Connect a tool: name the device, get its own key, follow the steps. The key is shown once. */
@@ -764,65 +830,86 @@
 
   // ------------------------------------------------------------------ Requests & notifications
 
-  function pageRequests() {
+  /* Requests: Updates (what changed for you) and Access requests (what you asked for). The bell opens Updates. */
+  function pageRequests(params) {
     const me = S.me;
     const list = notices();
     const reqs = me.access_requests || [];
+    const open = reqs.filter((r) => r.state === "open").length;
     const STATE = { open: ["pending", "Waiting for an admin"], granted: ["ok", "Granted"], declined: ["blocked", "Declined"] };
     const tools = Object.fromEntries(me.catalog.map((t) => [t.id, t]));
+    const views = viewTabs("#/requests", params, [
+      ["updates", "Updates", () => (list.length ? el("ul", { class: "notices" }, list.map(noticeItem))
+        : el("div", { class: "empty" }, el("h3", null, "You're all caught up"), el("p", null, "Turned-on tools, decisions on your requests, shared turns and access dates appear here."))), list.length || null],
+      ["access", "Access requests", () => [
+        el("div", { class: "spread view-lede" }, el("p", { class: "muted" }, "Ask for any tool in the catalogue — an admin grants or declines it."),
+          el("a", { class: "btn btn--small", href: "#/tools?show=others" }, "Browse tools", icon("chevronRight"))),
+        reqs.length ? el("ul", { class: "req-list" }, reqs.map((r) => el("li", null,
+          SUI.logo(tools[r.tool_id] || { name: r.tool }, "sm"),
+          el("div", { class: "grow" }, el("strong", null, r.tool), el("div", { class: "faint small" }, "Asked " + fmt.ago(r.created) + (r.decided ? " · decided " + fmt.ago(r.decided) : "")),
+            r.reason ? el("p", { class: "req-reason" }, r.reason) : null, r.decision_note ? el("p", { class: "muted small" }, "Note from your admin: " + r.decision_note) : null),
+          SUI.status(...STATE[r.state], { plain: true }))))
+          : el("div", { class: "empty" }, el("h3", null, "No requests yet"), el("p", null, "Find a tool in the catalogue and press Request access."), el("a", { class: "btn btn--solid", href: "#/tools?show=others" }, "Browse tools"))], open || null],
+    ], "Requests");
     frame("Requests", el("section", { class: "section first" }, el("div", { class: "shell narrow" },
-      sectionHead("Notifications", list.length ? "What's new" : "You're all caught up", list.length ? null : "Turned-on tools, decisions on your requests, shared turns and access dates appear here."),
-      list.length ? el("ul", { class: "notices" }, list.map(noticeItem)) : null,
-      sectionHead("Access requests", "Tools you've asked for", "Ask for any tool in the catalog — an admin grants or declines it.", el("a", { class: "btn", href: "#/tools?q=" }, "Browse tools", icon("chevronRight"))),
-      reqs.length ? el("ul", { class: "req-list" }, reqs.map((r) => el("li", null,
-        SUI.logo(tools[r.tool_id] || { name: r.tool }, "sm"),
-        el("div", { class: "grow" }, el("strong", null, r.tool), el("div", { class: "faint small" }, "Asked " + fmt.ago(r.created) + (r.decided ? " · decided " + fmt.ago(r.decided) : "")),
-          r.reason ? el("p", { class: "req-reason" }, r.reason) : null, r.decision_note ? el("p", { class: "muted small" }, "Note from your admin: " + r.decision_note) : null),
-        SUI.status(...STATE[r.state], { plain: true }))))
-        : el("div", { class: "empty" }, el("h3", null, "No requests yet"), el("p", null, "Find a tool in the catalog and press Request access."), el("a", { class: "btn btn--solid", href: "#/tools" }, "Browse tools")))));
+      sectionHead(null, "Requests", "What's changed for you, and the tools you've asked for."), views.node)));
   }
 
   // ------------------------------------------------------------------ Privacy: how Swangz AI works
 
+  /* How Swangz AI works: six short sections with an index. Each says the plain answer first; the detail is one
+     click away rather than in every paragraph. */
   function pagePrivacy() {
     const pv = S.me.privacy || {};
-    const item = (ic, title, text) => el("li", null, el("span", { class: "p-ic" }, icon(ic)), el("div", null, el("strong", null, title), el("p", null, text)));
+    const item = (ic, title, text, more) => el("li", null, el("span", { class: "p-ic" }, icon(ic)),
+      el("div", null, el("strong", null, title), el("p", null, text), more ? el("details", { class: "p-more" }, el("summary", null, "More about this"), el("p", null, more)) : null));
+    const sections = [
+      ["recorded", "What is recorded", icon("eye"), [
+        el("p", { class: "p-lead" }, "Your use of approved AI tools through Swangz AI — for security, support and cost."),
+        el("ul", { class: "p-list" },
+          item("open", "Tools you open from here", "Which tool, when, and the browser and network address you opened it from."),
+          item("globe", "AI websites, with the Swangz browser extension", "Which approved AI site, when and for how long.",
+            pv.gate_log_full ? "Your company has also turned on fuller logging for AI websites — ask your admin what it covers." : null),
+          item("terminal", "AI requests through the gateway", "Who, which device and app, the model, what you typed, what the AI did and replied, and what it cost.",
+            "This covers coding tools, Studio and apps connected with a Swangz key — they run on the company's key, so each request passes through Swangz AI."),
+          item("hand", "Shared company accounts", "Who held the turn and when, so the account's use can be matched to a person."))]],
+      ["not-recorded", "What is not recorded", icon("lock"), [
+        el("ul", { class: "p-list" },
+          pv.gate_log_full ? null : item("globe", "Page contents or keystrokes on AI websites", "The extension records the site and the time — never what's on the page or what you type there."),
+          item("x", "Anything outside approved AI tools", "Other websites and apps aren't watched by Swangz AI."),
+          item("user", "Your personal accounts", "Only access through Swangz AI is recorded."))]],
+      ["purpose", "Purpose and location", icon("target"), [
+        el("ul", { class: "p-list" },
+          item("target", "What a request was for", pv.purpose_inference ? "Your word if you give it (Studio asks); otherwise the tool's, or a labelled guess." : "Only your word (Studio asks) or what the tool itself implies — never a guess from what you type.",
+            pv.purpose_inference ? "If you or your tool say what it's for, that is recorded as your word. Otherwise the gateway may guess from words in the request — a coding tool is software development, \"Instagram caption\" suggests marketing. A guess is always shown to admins as a guess, with the words it was based on, and can be wrong."
+              : "A coding tool counts as software development. Otherwise a request's purpose stays unknown unless you say."),
+          item("pin", "Roughly where from", "A named network (like the office) or, at most, an approximate town — never your exact location.",
+            "The gateway sees the network address of each request. Admins see the network's name if Swangz has named it, or an approximate town from an offline table" + (pv.location_table ? "" : " (not loaded here yet)") + ". Your address is never sent to an outside service."))]],
+      ["who", "Who can see it", icon("shield"), [
+        el("p", null, "Swangz administrators, in the control room. Every time one opens a full record or exports records, that is itself written to an audit log — and only some admin roles can export what you typed."),
+        el("p", { class: "muted" }, pv.block_secrets ? "Requests that contain passwords or API keys are refused, to keep them out of AI tools." : "Requests that look like they contain passwords or API keys are flagged so they can be changed.")]],
+      ["kept", "How long it's kept", icon("clock"), [
+        el("p", null, pv.retention_days ? `AI request records are deleted automatically after ${pv.retention_days} days.` : "AI request records are kept until an administrator removes them."),
+        el("p", { class: "muted" }, !pv.store_bodies ? "Only a summary is kept — not the full contents of requests."
+          : pv.bodies_days ? `Full request contents are kept for ${pv.bodies_days} days, then only the summary stays.` : "Full request contents are kept for that time, so the exact request can be checked if something goes wrong."),
+        pv.site_days || pv.launch_days ? el("p", { class: "muted" }, [pv.site_days ? `AI website visits: ${pv.site_days} days.` : null, pv.launch_days ? `Tools opened from here: ${pv.launch_days} days.` : null].filter(Boolean).join(" ")) : null]],
+      ["help", "Using it well, and help", icon("info"), [
+        el("p", null, "Swangz AI is for your work at Swangz. Don't paste passwords, other people's personal details, or anything you wouldn't put in a work email."),
+        el("p", null, el("strong", null, "Questions? "), pv.support_contact ? pv.support_contact : "Ask your admin."),
+        el("div", null, el("button", { class: "btn", type: "button", onclick: policy }, "Read the usage policy"))]],
+    ];
+    // the index scrolls to a section; it doesn't touch the address, which is the page's route
+    const go = (id) => { const n = document.getElementById("p-" + id); if (n) { n.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }); n.focus({ preventScroll: true }); } };
+    const index = el("nav", { class: "p-index", "aria-label": "On this page" }, el("span", { class: "eyebrow" }, "On this page"),
+      el("ul", null, sections.map(([id, title]) => el("li", null, el("button", { type: "button", onclick: () => go(id) }, title)))));
     frame("How Swangz AI works", [
-      el("section", { class: "hero hero-plain" }, el("div", { class: "shell narrow" },
+      el("section", { class: "hero hero-plain" }, el("div", { class: "shell" },
         el("div", { class: "eyebrow" }, "Privacy & monitoring"),
         el("h1", null, "How Swangz AI works"),
         el("p", { class: "lede" }, "Your company AI access passes through Swangz Gateway. For security, support and cost management, the company records approved AI use. Here is exactly what that means."))),
-      el("section", { class: "section" }, el("div", { class: "shell narrow" },
-        el("div", { class: "trust-grid" },
-          el("section", { class: "trust-card" }, el("h2", null, icon("eye"), "What is recorded"),
-            el("ul", { class: "p-list" },
-              item("open", "Tools you open from here", "Which tool, when, and the browser and network address you opened it from."),
-              item("globe", "AI websites, with the Swangz browser extension", pv.gate_log_full
-                ? "Which approved AI site, when and for how long. Your company has also turned on fuller logging for AI websites — ask your admin what it covers."
-                : "Which approved AI site, when and for how long."),
-              item("terminal", "AI requests through the gateway", "Coding tools, Studio and apps connected with a Swangz key: who, which device and app, the model, what you typed, what the AI did and replied, and what it cost."),
-              item("hand", "Shared company accounts", "Who held the turn and when, so the account's use can be matched to a person."),
-              item("target", "What a request was for", pv.purpose_inference
-                ? "If you or your tool say (Studio asks), that is recorded as your word. Otherwise the gateway may guess from words in the request — a coding tool is software development, \"Instagram caption\" suggests marketing. A guess is always shown to admins as a guess, with the words it was based on, and can be wrong."
-                : "Only if you or your tool say (Studio asks), or the tool itself implies it — a coding tool is software development. The gateway doesn't guess from what you type."),
-              item("pin", "Roughly where from", "The network address of each request. Admins see a named network (like the office) or, at most, an approximate town from an offline table" + (pv.location_table ? "" : " (not loaded here yet)") + " — never your exact location, and your address is never sent to an outside service."))),
-          el("section", { class: "trust-card" }, el("h2", null, icon("lock"), "What is not recorded"),
-            el("ul", { class: "p-list" },
-              pv.gate_log_full ? null : item("globe", "Page contents or keystrokes on AI websites", "The extension records the site and the time — never what's on the page or what you type there."),
-              item("x", "Anything outside approved AI tools", "Other websites and apps aren't watched by Swangz AI."),
-              item("user", "Your personal accounts", "Only access through Swangz AI is recorded."))),
-          el("section", { class: "trust-card" }, el("h2", null, icon("clock"), "How long it's kept"),
-            el("p", null, pv.retention_days ? `AI request records are deleted automatically after ${pv.retention_days} days.` : "AI request records are kept until an administrator removes them."),
-            el("p", { class: "muted" }, !pv.store_bodies ? "Only a summary is kept — not the full contents of requests."
-              : pv.bodies_days ? `Full request contents are kept for ${pv.bodies_days} days, then only the summary stays.` : "Full request contents are kept for that time, so the exact request can be checked if something goes wrong."),
-            pv.site_days || pv.launch_days ? el("p", { class: "muted" }, [pv.site_days ? `AI website visits: ${pv.site_days} days.` : null, pv.launch_days ? `Tools opened from here: ${pv.launch_days} days.` : null].filter(Boolean).join(" ")) : null),
-          el("section", { class: "trust-card" }, el("h2", null, icon("shield"), "Who can see it"),
-            el("p", null, "Swangz administrators, in the control room. Every time one opens a full record or exports records, that is itself written to an audit log — and only some admin roles can export what you typed."),
-            el("p", { class: "muted" }, pv.block_secrets ? "Requests that contain passwords or API keys are refused, to keep them out of AI tools." : "Requests that look like they contain passwords or API keys are flagged so they can be changed.")),
-          el("section", { class: "trust-card wide" }, el("h2", null, icon("info"), "Using it well"),
-            el("p", null, "Swangz AI is for your work at Swangz. Don't paste passwords, other people's personal details, or anything you wouldn't put in a work email."),
-            el("p", null, el("strong", null, "Questions? "), pv.support_contact ? pv.support_contact : "Ask your admin."),
-            el("button", { class: "btn", type: "button", onclick: policy }, "Read the usage policy"))))),
+      el("section", { class: "section" }, el("div", { class: "shell p-layout" }, index,
+        el("div", { class: "p-sections" }, sections.map(([id, title, ic, body]) => el("section", { class: "trust-card", id: "p-" + id, tabindex: "-1", "aria-labelledby": "p-h-" + id },
+          el("h2", { id: "p-h-" + id }, ic, title), ...body.filter(Boolean)))))),
     ]);
   }
 

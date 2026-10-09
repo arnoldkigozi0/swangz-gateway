@@ -173,7 +173,7 @@
         built.set(id, holder);
         SUI.load(holder, () => tabs.find((t) => t[0] === id)[2](), SUI.skeleton("rows", 4));
       }
-      panel.replaceChildren(note ? el("p", { class: "tab-help" }, note) : null, built.get(id));
+      panel.replaceChildren(...[note ? el("p", { class: "tab-help" }, note) : null, built.get(id)].filter(Boolean));
       // a view kept from earlier may hold its own tabs: after a click, put their choice back in the address
       if (how === "user") TABSETS.filter((t) => t.bar !== bar && t.bar.isConnected && (opts.clears || []).includes(t.param)).forEach((t) => t.show(t.current, "init"));
     }
@@ -207,6 +207,8 @@
       if (on && bar.scrollWidth > bar.clientWidth) bar.scrollLeft = Math.max(0, on.getBoundingClientRect().left - bar.getBoundingClientRect().left + bar.scrollLeft - 24);
       edge();
     });
+    // a side sheet keeps the bar in its header and the view in its body
+    if (opts.split) return { bar, body: el("div", { class: "tab-body" }, panel) };
     return el("div", { class: "tabs-wrap" + (opts.vertical ? " vertical" : "") }, bar, el("div", { class: "tab-body" }, panel));
   }
 

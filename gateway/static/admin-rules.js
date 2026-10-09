@@ -169,14 +169,16 @@
         el("span", { class: "hint" }, "Counts the subjects' estimated spend this month on what the policy covers. Only requests through the gateway cost metered money, so a cap governs those.")),
       chans: el("label", { class: "field" }, "Where it applies (none ticked = everywhere)", chans),
     };
+    // called after every change of effect or of who; the groups and the read-back below exist by then
     function sync() {
       rows.depts.hidden = who !== "departments";
       rows.people.hidden = who !== "people";
       rows.hours.hidden = effect !== "hours";
       rows.cap.hidden = effect !== "cap";
       rows.chans.hidden = effect === "cap";
+      limits.hidden = effect === "deny";
+      readBack();
     }
-    sync();
     const picked = (box) => [...box.querySelectorAll("input:checked")].map((b) => b.value);
     const value = () => ({
       name: f.name.value, effect, note: f.note.value,
@@ -186,17 +188,50 @@
         providers: picked(provs), classifications: picked(classes), channels: effect === "cap" ? ["request"] : picked(chans) },
       params: { days: picked(days).map(Number), start: f.start.value, end: f.end.value, limit_usd: f.limit.value === "" ? null : Number(f.limit.value), message: f.message.value },
     });
-    const node = el("div", { class: "stack" },
-      el("label", { class: "field" }, "Name", f.name),
-      el("div", { class: "field", role: "group", "aria-label": "What it does" }, "What it does", effectSeg),
-      el("div", { class: "field", role: "group", "aria-label": "Who it is about" }, "Who it is about", whoSeg), rows.depts, rows.people,
-      el("h3", { class: "section-title" }, "What it covers", el("span", { class: "hint" }, " — leave a list empty to mean any")),
-      el("label", { class: "field" }, "Tools", toolSel),
-      el("label", { class: "field" }, "Models (patterns)", f.models),
-      el("div", { class: "form-grid" }, el("label", { class: "field" }, "Services", provs), el("label", { class: "field" }, "Data class of the tool or model", classes)),
-      rows.chans, rows.hours, rows.cap,
-      el("label", { class: "field" }, "Message", f.message),
-      el("label", { class: "field" }, "Note", f.note));
+    // In order: what it is and does, who, what, the effect's own limits, what people are told, then a sentence that
+    // reads the whole rule back before it's saved. Fields for one effect only appear when that effect is picked.
+    const EFFECT_SAYS = { deny: "Refuses what it covers, for the people it names.", hours: "Allows what it covers only on the days and hours below; refuses it outside them.",
+      cap: "Refuses requests once the people it names have spent the limit below this month." };
+    const effectSays = el("span", { class: "hint" });
+    const review = el("p", { class: "pf-review", role: "status", "aria-live": "polite" });
+    // numbered by CSS, so a group hidden for this effect leaves no gap in the numbers
+    const group = (n, title, hint, ...kids) => el("fieldset", { class: "pf-group" },
+      el("legend", null, el("span", { class: "pf-n", "aria-hidden": "true" }), title), hint ? el("p", { class: "hint pf-hint" }, hint) : null, ...kids);
+    const limits = group(4, "Days, hours and spend", null, rows.hours, rows.cap);
+    const list = (xs, none) => (xs.length ? xs.join(", ") : none);
+    function readBack() {
+      const v = value();
+      const subj = v.subjects.everyone ? "everyone" : v.subjects.departments.length ? "the " + list(v.subjects.departments) + " department" + (v.subjects.departments.length > 1 ? "s" : "")
+        : v.subjects.people.length ? SUI.plural(v.subjects.people.length, "named person", "named people") : "nobody yet (pick who)";
+      const toolNames = v.scope.tools.map((id) => (S.tools && S.tools[id] ? S.tools[id].name : id));
+      const what = [toolNames.length ? list(toolNames) : null, v.scope.models.length ? "models " + list(v.scope.models) : null,
+        v.scope.providers.length ? "services " + list(v.scope.providers) : null, v.scope.classifications.length ? list(v.scope.classifications.map((c) => CLASS[c].toLowerCase())) + " tools" : null]
+        .filter(Boolean).join("; ") || "every tool and model";
+      const where = effect === "cap" ? "requests through the gateway" : v.scope.channels.length ? list(v.scope.channels.map((c) => CHANNEL[c].toLowerCase())) : "everywhere";
+      const days = v.params.days.map((d) => DAYS[d]).join(", ");
+      const how = effect === "deny" ? "Refuses" : effect === "hours" ? `Allows only on ${days || "no days"}, ${v.params.start}–${v.params.end} (gateway time),`
+        : `Stops after ${v.params.limit_usd != null ? fmt.money(v.params.limit_usd) : "a limit not yet set"} of estimated spend this month on`;
+      review.textContent = `${how} ${what}, for ${subj} — ${where}.` + (v.params.message ? ` They are told: “${v.params.message}”` : " They see the standard refusal message.");
+      effectSays.textContent = EFFECT_SAYS[effect] || "";
+    }
+    const node = el("div", { class: "pf" },
+      group(1, "Basics", null,
+        el("label", { class: "field" }, "Name", f.name),
+        el("div", { class: "field", role: "group", "aria-label": "What it does" }, "What it does", effectSeg, effectSays)),
+      group(2, "Who it is about", null, whoSeg, rows.depts, rows.people),
+      group(3, "What it covers", "Leave a list empty to mean any.",
+        el("label", { class: "field" }, "Tools", toolSel),
+        el("label", { class: "field" }, "Models (patterns)", f.models),
+        el("div", { class: "form-grid" }, el("label", { class: "field" }, "Services", provs), el("label", { class: "field" }, "Data class of the tool or model", classes)),
+        rows.chans),
+      limits,
+      group(5, "What people are told, and why", null,
+        el("label", { class: "field" }, "Message to the person refused", f.message),
+        el("label", { class: "field" }, "Reason, for other admins", f.note, el("span", { class: "hint" }, "Kept with the policy and in the audit log; staff don't see it."))),
+      group(6, "Review", null, review));
+    node.addEventListener("input", readBack);
+    node.addEventListener("change", readBack);
+    sync();
     return { node, value };
   }
 

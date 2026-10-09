@@ -71,6 +71,8 @@ code, pre, .mono { font-size: 12.5px; }
 .title-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .top h1 { font-size: clamp(1.5rem, 2.4vw, 1.9rem); margin: 0; font-weight: 740; letter-spacing: -.025em; line-height: 1.1; }
 .lede { margin: 8px 0 0; color: var(--tx-2); max-width: 78ch; }
+.lede a { color: var(--tx-1); text-decoration: underline; text-decoration-color: var(--line-hi); text-underline-offset: 3px; }
+.lede a:hover { text-decoration-color: var(--accent); }
 .top-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .act-gap { width: 14px; }
 .page { padding: 0 40px 80px; max-width: 1520px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-content: start; transition: opacity var(--d-base); }
@@ -556,10 +558,7 @@ dialog h3 { margin: 6px 0 0; font-size: 14px; }
 .sheet .sheet-id { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .sheet .sheet-id h2 { margin: 2px 0 4px; font-size: 1.3rem; font-weight: 720; letter-spacing: -.02em; }
 .sheet > header > .spread:only-child { padding-bottom: 16px; }
-.sheet .tabs { display: flex; gap: 2px; margin-top: 14px; overflow-x: auto; }
-.sheet .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 10px 12px; font-weight: 640; color: var(--tx-2); cursor: pointer; margin-bottom: -1px; white-space: nowrap; }
-.sheet .tabs button:hover { color: var(--tx-1); }
-.sheet .tabs button.on { color: var(--tx-1); border-bottom-color: var(--accent); }
+.sheet > header .ptabs { margin-top: 12px; border-bottom: 0; gap: 20px; }
 .sheet .sheet-body { flex: 1; overflow: auto; padding: 20px 22px 40px; display: flex; flex-direction: column; gap: 20px; }
 .sheet .sheet-body > * { flex-shrink: 0; }
 .seat-meter { padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-md); }
@@ -865,3 +864,21 @@ button.group-toggle:hover .gt-l, button.group-toggle:hover > svg { color: var(--
 .crumbs.area-only { font-size: 10.5px; font-weight: 750; letter-spacing: var(--track-label); text-transform: uppercase; margin-bottom: 8px; }
 .crumbs.area-only .crumb-area { color: var(--accent-tx); }
 @media (prefers-reduced-motion: reduce) { .group-toggle > svg { transition: none; } }
+/* Reports: a catalogue, one row per report saying what it answers */
+.report-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 18px; align-items: start; }
+.report-list { list-style: none; margin: 0; padding: 0; }
+.report-list li + li { border-top: 1px solid var(--line); }
+.report-list a { display: flex; align-items: center; gap: 12px; padding: 13px 18px; color: inherit; text-decoration: none; transition: background var(--d-fast); }
+.report-list a:hover { background: var(--ink-2); }
+.report-list a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.report-list .grow { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.report-list a > svg { width: 15px; height: 15px; color: var(--tx-3); flex: none; }
+/* the policy editor: numbered groups, in the order a rule is thought through, ending with the rule read back */
+.pf { display: grid; gap: 14px; counter-reset: pf; }
+.pf-group { margin: 0; padding: 16px 18px 18px; border: 1px solid var(--line); border-radius: var(--r-md); display: grid; gap: 14px; min-width: 0; counter-increment: pf; }
+.pf-group[hidden] { display: none; }
+.pf-group > legend { display: flex; align-items: center; gap: 10px; padding: 0 6px; margin-left: -6px; font-weight: 680; font-size: 14px; color: var(--tx-1); }
+.pf-n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-hi); font-size: 11.5px; font-weight: 700; color: var(--tx-2); font-variant-numeric: tabular-nums; }
+.pf-n::before { content: counter(pf); }
+.pf-hint { margin: -6px 0 0; }
+.pf-review { margin: 0; padding: 12px 14px; border-left: 2px solid var(--accent); background: var(--ink-2); border-radius: 0 var(--r-sm) var(--r-sm) 0; color: var(--tx-1); line-height: 1.55; }

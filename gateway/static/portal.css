@@ -152,13 +152,6 @@ h1, h2, h3 { text-wrap: balance; }
 .meter { height: 6px; background: var(--ink-3); border-radius: 3px; overflow: hidden; }
 .meter i { display: block; height: 100%; background: var(--viz-1); border-radius: 0 3px 3px 0; }
 .meter.full i { background: var(--bad); }
-.recent { display: flex; gap: var(--s2); flex-wrap: wrap; align-items: center; margin-top: var(--s5); }
-.recent-label { font-size: var(--t-micro); font-weight: 700; letter-spacing: var(--track-label); text-transform: uppercase; color: var(--tx-3); margin-right: var(--s2); }
-.recent a { display: inline-flex; align-items: center; gap: var(--s2); padding: 4px 12px 4px 4px; border-radius: var(--r-full); background: var(--ink-1); border: 1px solid var(--line);
-  text-decoration: none; font-weight: 620; font-size: var(--t-small); transition: border-color var(--d-fast), transform var(--d-fast); }
-.recent a:hover { border-color: var(--line-hi); transform: translateY(-1px); }
-.recent a .faint { font-weight: 500; font-size: 12px; }
-.recent .logo.sm { border-radius: 50%; }
 
 /* notices */
 .notices { list-style: none; margin: 0 0 var(--s3); padding: 0; display: grid; gap: var(--s2); }
@@ -368,10 +361,6 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
 /* ------------------------------------------------------------ Studio */
 
 .studio { background: var(--ink-1); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
-.tabs { display: flex; gap: var(--s1); border-bottom: 1px solid var(--line); padding: var(--s2) var(--s3) 0; background: var(--ink-2); }
-.tab { background: none; border: 0; border-bottom: 2px solid transparent; padding: var(--s3) var(--s4); font-weight: 650; color: var(--tx-2); cursor: pointer; margin-bottom: -1px; }
-.tab:hover { color: var(--tx-1); }
-.tab[aria-selected="true"] { color: var(--tx-1); border-bottom-color: var(--accent); }
 .studio-panel { padding: var(--s5); }
 .studio-form { display: flex; flex-direction: column; gap: var(--s4); }
 .form-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--s4); }
@@ -478,4 +467,58 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
 }
 @media (prefers-reduced-motion: reduce) {
   .hero::after { transition: none; }
+}
+
+/* ------------------------------------------------------------ views of one page (?view=) */
+/* underlined, like the console's page tabs; the boxed segmented control (.u-seg) is a choice inside a view */
+.vtabs-wrap { display: grid; gap: var(--s5); }
+.vtabs { display: flex; gap: 22px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.vtabs::-webkit-scrollbar { display: none; }
+.vtabs [role=tab] { display: inline-flex; align-items: center; gap: 7px; background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  padding: 10px 1px 11px; font: inherit; font-weight: 620; font-size: 14px; color: var(--tx-2); cursor: pointer; white-space: nowrap; transition: color var(--d-fast); }
+.vtabs [role=tab]:hover { color: var(--tx-1); border-bottom-color: var(--line-hi); }
+.vtabs [role=tab][aria-selected="true"] { color: var(--tx-1); border-bottom-color: var(--accent); font-weight: 680; }
+.vtabs [role=tab]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 3px; }
+.vt-n { font-size: 11px; font-weight: 700; padding: 0 7px; line-height: 18px; border-radius: var(--r-full); background: var(--ink-3); color: var(--tx-2); font-variant-numeric: tabular-nums; }
+.vtabs [aria-selected="true"] .vt-n { background: var(--accent-soft); color: var(--accent-tx); }
+.vtab-pane { display: grid; gap: var(--s4); min-width: 0; }
+.vtab-pane:focus { outline: none; }
+.vtab-pane[hidden] { display: none; }
+.view-lede { margin: 0; }
+.view-lede p { margin: 0; }
+.vtab-pane > .u-seg { justify-self: start; }
+.just-head { margin-top: var(--s2); }
+.just-head .sub-head { margin: 0; }
+
+/* Home: quiet links to the rest, so nothing competes with your tools */
+.quick-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s3); }
+.quick-links a { display: flex; align-items: center; gap: var(--s3); padding: var(--s4); border: 1px solid var(--line); border-radius: var(--r-md); text-decoration: none; color: inherit;
+  transition: border-color var(--d-fast), background var(--d-fast); }
+.quick-links a:hover { border-color: var(--line-hi); background: var(--ink-1); }
+.quick-links a > svg { width: 18px; height: 18px; color: var(--tx-3); flex: none; }
+.quick-links a > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.quick-links strong { font-weight: 650; font-size: 14px; }
+.quick-links span span { color: var(--tx-3); font-size: var(--t-small); }
+
+/* Privacy: an index beside six sections */
+.p-layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: var(--s6); align-items: start; }
+.p-index { position: sticky; top: 84px; display: grid; gap: var(--s2); }
+.p-index ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; border-left: 1px solid var(--line); }
+.p-index button { background: none; border: 0; padding: 6px 12px; text-align: left; font: inherit; font-size: 13.5px; color: var(--tx-2); cursor: pointer; border-left: 2px solid transparent; margin-left: -1px; }
+.p-index button:hover { color: var(--tx-1); border-left-color: var(--line-hi); }
+.p-index button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.p-sections { display: grid; gap: var(--s4); min-width: 0; }
+.p-sections .trust-card { scroll-margin-top: 84px; }
+.p-sections .trust-card:focus { outline: none; }
+.p-lead { margin: 0 0 var(--s4); color: var(--tx-2); }
+.p-more { margin-top: 6px; }
+.p-more summary { cursor: pointer; color: var(--tx-2); font-size: var(--t-small); font-weight: 600; width: fit-content; }
+.p-more summary:hover { color: var(--tx-1); }
+.p-more p { margin: 6px 0 0; }
+@media (max-width: 900px) {
+  .quick-links { grid-template-columns: minmax(0, 1fr); }
+  .p-layout { grid-template-columns: minmax(0, 1fr); gap: var(--s4); }
+  .p-index { position: static; }
+  .p-index ul { display: flex; flex-wrap: wrap; gap: 6px; border-left: 0; }
+  .p-index button { border: 1px solid var(--line); border-radius: var(--r-full); margin: 0; padding: 5px 12px; font-size: 13px; }
 }
