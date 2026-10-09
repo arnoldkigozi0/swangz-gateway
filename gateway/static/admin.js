@@ -174,8 +174,10 @@
         SUI.load(holder, () => tabs.find((t) => t[0] === id)[2](), SUI.skeleton("rows", 4));
       }
       panel.replaceChildren(...[note ? el("p", { class: "tab-help" }, note) : null, built.get(id)].filter(Boolean));
-      // a view kept from earlier may hold its own tabs: after a click, put their choice back in the address
-      if (how === "user") TABSETS.filter((t) => t.bar !== bar && t.bar.isConnected && (opts.clears || []).includes(t.param)).forEach((t) => t.show(t.current, "init"));
+      // a view kept from earlier may hold its own tabs: choosing it by hand starts them at their first one again
+      // (the parent cleared their key), so what shows and what the address says never disagree. Back/Forward and links
+      // still land on the exact section in the address.
+      if (how === "user") TABSETS.filter((t) => t.bar !== bar && t.bar.isConnected && (opts.clears || []).includes(t.param)).forEach((t) => t.show(t.first, "init"));
     }
     async function choose(id, focus) {
       if (id === current) return;
@@ -184,17 +186,31 @@
       if (wasDirty) built.delete(current);  // the changes were dropped: that view starts fresh next time
       show(id, "user", focus);
     }
-    bar.replaceChildren(...tabs.map(([id, label, , badge]) => el("button", {
+    // A vertical list may be grouped (opts.groups: [[label|null, [ids]]]), with an icon per tab (opts.icons) and a
+    // small mark after a label (opts.marks: a lock, a state); a group with no label is just a divider.
+    const button = ([id, label, , badge]) => el("button", {
       type: "button", role: "tab", id: uid + "-" + id.replace(/[^a-z0-9-]/gi, ""), "aria-controls": uid + "-panel", "data-tab": id,
       onclick: () => choose(id),
-    }, el("span", { class: "pt-l" }, label), badge ? el("span", { class: "tab-count", "aria-label": `(${badge})` }, String(badge)) : null)));
+    }, opts.icons && opts.icons[id] ? el("span", { class: "pt-ic", "aria-hidden": "true" }, icon(opts.icons[id])) : null,
+    el("span", { class: "pt-l" }, label), badge ? el("span", { class: "tab-count", "aria-label": `(${badge})` }, String(badge)) : null,
+    (opts.marks && opts.marks[id]) || null);
+    if (opts.groups) {
+      const placed = new Set();
+      bar.replaceChildren(...opts.groups.flatMap(([name, ids]) => {
+        const mine = tabs.filter((t) => ids.includes(t[0]) && !placed.has(t[0]));
+        mine.forEach((t) => placed.add(t[0]));
+        return mine.length ? [el("div", { class: "pt-group" + (name ? "" : " rule"), role: "presentation" }, name || ""), ...mine.map(button)] : [];
+      }), ...tabs.filter((t) => !placed.has(t[0])).map(button));
+    } else bar.replaceChildren(...tabs.map(button));
     bar.addEventListener("keydown", (e) => {
-      const keys = opts.vertical ? ["ArrowUp", "ArrowDown", "Home", "End"] : ["ArrowLeft", "ArrowRight", "Home", "End"];
+      // a vertical list folds into a grid on narrow screens, so it answers all four arrows
+      const keys = opts.vertical ? ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"] : ["ArrowLeft", "ArrowRight", "Home", "End"];
       if (!keys.includes(e.key)) return;
       e.preventDefault();
-      const i = tabs.findIndex((t) => t[0] === current);
-      const next = e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : (i + (e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : -1) + tabs.length) % tabs.length;
-      choose(tabs[next][0], true);
+      const order = [...bar.querySelectorAll("[role=tab]")].map((b) => b.dataset.tab);
+      const i = order.indexOf(current);
+      const next = e.key === "Home" ? 0 : e.key === "End" ? order.length - 1 : (i + (e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : -1) + order.length) % order.length;
+      choose(order[next], true);
     });
     show(current, "init");
     TABSETS.push({ param: paramName, clears: opts.clears || [], bar, get current() { return current; }, first: tabs[0][0], valid, show });
@@ -218,10 +234,14 @@
 
   /* Settings-style building blocks. A row says what a setting is on the left and holds its control on
      the right; a panel's own actions sit in its footer, at the right, the way out before the action. */
+  // o.lock names the area a setting belongs to when this role can't change it, so the row says why it's disabled
+  const AREA_NEED = { admin: "admin", trust: "trust", govern: "governance", money: "money", emergency: "emergency" };
   function settingRow(label, hint, control, o) {
     o = o || {};
-    return el("div", { class: "setting" + (o.stack ? " stack" : "") + (o.tone ? " " + o.tone : "") },
-      el("div", { class: "setting-text" }, el(o.forId ? "label" : "div", { class: "setting-label", for: o.forId || null }, label), hint ? el("div", { class: "setting-hint" }, hint) : null),
+    const lock = o.lock ? el("span", { class: "set-lock", title: `Your role (${roleLabel()}) can't change this — it needs the ${AREA_NEED[o.lock] || o.lock} area.` },
+      icon("lock"), `Needs ${AREA_NEED[o.lock] || o.lock} access`) : null;
+    return el("div", { class: "setting" + (o.stack ? " stack" : "") + (o.tone ? " " + o.tone : "") + (o.lock ? " locked" : "") },
+      el("div", { class: "setting-text" }, el(o.forId ? "label" : "div", { class: "setting-label", for: o.forId || null }, label, lock), hint ? el("div", { class: "setting-hint" }, hint) : null),
       control ? el("div", { class: "setting-control" }, control) : null);
   }
   function switchInput(checked, disabled, label) {

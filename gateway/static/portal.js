@@ -228,8 +228,9 @@
     const me = S.me;
     const out = [];
     const now = Date.now() / 1000;
-    if (me.suspended) out.push({ tone: "bad", icon: "lock", title: "Your access is paused", text: "Talk to your admin to have it restored." });
-    else if (me.paused) out.push({ tone: "warn", icon: "stop", title: "AI access is paused for everyone", text: "An admin has paused Swangz AI for now. Tools will open again when it's resumed." });
+    // `state` marks the notices that only restate where you stand — Home's hero says that already
+    if (me.suspended) out.push({ tone: "bad", icon: "lock", title: "Your access is paused", text: "Talk to your admin to have it restored.", state: true });
+    else if (me.paused) out.push({ tone: "warn", icon: "stop", title: "AI access is paused for everyone", text: "An admin has paused Swangz AI for now. Tools will open again when it's resumed.", state: true });
     if (me.access_until && me.access_until - now < 14 * 86400) out.push({ tone: "warn", icon: "calendar", title: "Your access ends " + fmt.date(me.access_until - 1),
       text: "Every tool and key stops working after that day. Ask your admin if you need longer." });
     me.catalog.filter((t) => t.turn && t.turn.mine).forEach((t) => out.push({ tone: "ok", icon: "hand", title: `You have ${t.name} until ${fmt.clock(t.turn.mine.expires)}`,
@@ -474,48 +475,125 @@
 
   // ------------------------------------------------------------------ Home
 
+  /* Home: a personal launchpad. The hero says where you stand and holds the one thing to do next — usually going
+     back to the tool you opened last, through the same /go/ launch as everywhere else. Below it, your other tools;
+     beside them, what has changed and the places you need now and then. Every value is real: nothing is guessed or
+     padded out, and a tool never appears twice. */
   function pageHome() {
     const me = S.me;
     const catalog = me.catalog;
     const enabled = catalog.filter((t) => t.state === "enabled");
-    const weekAgo = Date.now() / 1000 - 7 * 86400;
-    const usedWeek = enabled.filter((t) => t.last_opened && t.last_opened >= weekAgo).length;
     const pending = catalog.filter((t) => t.pending).length;
-    const statusLine = me.active ? SUI.status("ready", "Access active", { plain: true })
-      : me.suspended ? SUI.status("suspended", "Your access is paused", { plain: true }) : SUI.status("waiting", "AI access is paused for everyone", { plain: true });
-    const list = notices();
-    const hero = el("section", { class: "hero art" }, el("div", { class: "shell" },
-      el("div", { class: "eyebrow" }, `${greeting()}, ${firstName(me.name)}`),
-      el("h1", null, me.active ? "Your AI workspace is ready." : me.suspended ? "Your access is paused." : "AI is paused for now."),
-      el("p", { class: "hero-meta" }, statusLine,
-        el("span", { class: "sep", "aria-hidden": "true" }), el("span", null, el("b", null, String(enabled.length)), enabled.length === 1 ? " tool available" : " tools available"),
-        el("span", { class: "sep", "aria-hidden": "true" }), el("span", null, el("b", null, String(usedWeek)), " used this week"),
-        pending ? [el("span", { class: "sep", "aria-hidden": "true" }), el("a", { href: "#/requests?view=access" }, el("b", null, String(pending)), pending === 1 ? " request pending" : " requests pending")] : null),
-      me.budget ? el("div", { class: "allowance" }, el("span", null, "Allowance this month"), el("strong", null, fmt.money(me.budget.month)),
-        el("span", { class: "muted" }, me.budget.monthly !== null ? "of " + fmt.money(me.budget.monthly) : "no limit"),
-        me.budget.monthly !== null ? meter(me.budget.month, me.budget.monthly) : null) : null));
-    const noticeBox = list.length ? el("section", { class: "section tight" }, el("div", { class: "shell" }, el("ul", { class: "notices" }, list.slice(0, 3).map(noticeItem)),
-      list.length > 3 ? el("a", { class: "tlink", href: "#/requests?view=updates" }, `See all ${list.length} updates`) : null)) : null;
-    // the six used most recently; the rest are a click away in the catalogue
-    const mine = enabled.slice().sort((a, b) => (b.last_opened || 0) - (a.last_opened || 0) || a.name.localeCompare(b.name));
-    const shown = mine.slice(0, 6);
-    const yours = el("section", { class: "section" }, el("div", { class: "shell" },
-      sectionHead("Your tools", enabled.length ? "Your approved AI tools" : "Nothing switched on yet",
-        enabled.length ? (mine.length > shown.length ? `The ${shown.length} you used most recently. ` : "") + "Paid for by Swangz and ready for you; select a tool for how it works." : "Browse the catalog and request what you need — an admin turns it on.",
-        el("a", { class: "btn", href: mine.length > shown.length ? "#/tools?show=mine" : "#/tools" }, mine.length > shown.length ? `All ${mine.length} of yours` : "All tools", icon("chevronRight"))),
-      shown.length ? el("div", { class: "grid-tiles" }, shown.map(tile))
-        : el("div", { class: "empty" }, el("h3", null, "No tools yet"), el("p", null, "When an admin turns a tool on for you, it appears here."), el("a", { class: "btn btn--solid", href: "#/tools" }, "Browse tools"))));
-    const studio = hasStudio() ? el("section", { class: "section" }, el("div", { class: "shell" },
-      el("a", { class: "promo", href: "#/studio" }, el("span", { class: "promo-ic" }, icon("spark")),
-        el("div", { class: "grow" }, el("strong", null, "Studio — voice, images and video"), el("span", null, "Make a voice-over or an image right here, on the company's account.")), icon("chevronRight")))) : null;
+    const byRecent = enabled.slice().sort((a, b) => (b.last_opened || 0) - (a.last_opened || 0) || a.name.localeCompare(b.name));
+    // the tool to go back to: the one opened most recently from here — or, when it is the only one, that one
+    const lead = me.active ? byRecent.find((t) => t.last_opened) || (enabled.length === 1 ? enabled[0] : null) : null;
+    const others = byRecent.filter((t) => t !== lead);
+    const shown = others.slice(0, lead ? 5 : 6);
+    const updates = notices().filter((n) => !n.state);
     const activeKeys = me.keys.filter((k) => !k.revoked);
-    const more = el("section", { class: "section tight" }, el("div", { class: "shell" }, el("nav", { class: "quick-links", "aria-label": "More" },
+    const contact = me.privacy && me.privacy.support_contact;
+    const toolsBox = el("section", { class: "home-tools", id: "home-tools", tabindex: "-1", "aria-labelledby": "home-tools-h" });
+
+    // --- the hero: where you stand, and the one thing to do next
+    let headline, text = null, action = null, extra = null;
+    if (me.suspended) {
+      headline = "Your access is paused.";
+      text = "Your tools and devices can't be used until an admin restores your access. " + (contact ? "For help: " + contact + "." : "Talk to your admin.");
+    } else if (me.paused) {
+      headline = "AI is paused for now.";
+      text = "An admin has paused Swangz AI for everyone. Your tools open again as soon as it's resumed — there's nothing you need to do.";
+    } else if (lead) {
+      headline = lead.last_opened ? "Pick up where you left off." : "Your AI workspace is ready.";
+      const how = howOf(lead);
+      action = el("div", { class: "resume" + (lead.turn && lead.turn.mine ? " holding" : "") },
+        el("button", { class: "resume-id", type: "button", onclick: () => details(lead), "aria-label": `${lead.name} — details` }, SUI.logo(lead, "lg"),
+          el("span", { class: "resume-text" },
+            el("span", { class: "resume-k" }, lead.last_opened ? "Opened " + fmt.ago(lead.last_opened) : enabled.length === 1 ? "Your approved tool" : "Ready for you"),
+            el("strong", null, lead.name),
+            el("span", { class: "resume-sub" }, tileStatus(lead), el("span", { class: "dot", "aria-hidden": "true" }), how[0]))),
+        el("div", { class: "resume-act" }, tileActions(lead)));
+      if (enabled.length > 1) extra = el("a", { class: "hero-link", href: "#/tools?show=mine" }, "All your tools", icon("chevronRight"));
+    } else if (enabled.length) {
+      headline = "Your AI workspace is ready.";
+      text = "Paid for by Swangz and ready when you are — choose one to start.";
+      action = el("button", { class: "btn btn--solid", type: "button", onclick: () => { toolsBox.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); toolsBox.focus({ preventScroll: true }); } },
+        "Choose a tool", icon("arrowDown"));
+    } else {
+      headline = "Nothing is switched on for you yet.";
+      text = "Find what you need in the catalogue and ask for it. An admin decides, and the tool appears here when it's on.";
+      action = el("a", { class: "btn btn--solid", href: "#/tools" }, "Browse the catalogue", icon("chevronRight"));
+      if (pending) extra = el("a", { class: "hero-link", href: "#/requests?view=access" }, SUI.plural(pending, "request") + " waiting for an admin", icon("chevronRight"));
+    }
+    const standing = me.active ? SUI.status("ready", "Access active", { plain: true })
+      : me.suspended ? SUI.status("suspended", "Access paused", { plain: true }) : SUI.status("waiting", "Paused for everyone", { plain: true });
+    const hero = el("section", { class: "hero art home-hero" + (me.active ? "" : " blocked") }, el("div", { class: "shell" },
+      el("div", { class: "eyebrow" }, `${greeting()}, ${firstName(me.name)}`),
+      el("h1", null, headline),
+      el("p", { class: "hero-meta" }, standing, me.active && enabled.length ? [el("span", { class: "sep", "aria-hidden": "true" }),
+        el("span", null, el("b", null, String(enabled.length)), enabled.length === 1 ? " tool ready" : " tools ready")] : null),
+      text ? el("p", { class: "home-lede" }, text) : null,
+      action || extra ? el("div", { class: "home-act" }, action, extra) : null));
+
+    // --- your tools: the rest of what is switched on, a bounded few; the catalogue holds everything
+    if (me.suspended) toolsBox.remove();
+    else if (enabled.length) {
+      const more = enabled.length - (lead ? 1 : 0) - shown.length;
+      toolsBox.append(...(shown.length ? [
+        el("div", { class: "home-h" }, el("h2", { id: "home-tools-h" }, lead ? "Your other tools" : "Your tools"),
+          el("a", { class: "tlink", href: more > 0 ? "#/tools?show=mine" : "#/tools" }, more > 0 ? `${more} more in Tools` : "Browse the catalogue", icon("chevronRight"))),
+        el("div", { class: "tcards" }, shown.map(toolCard))]
+        // only one tool is on: say so once, with the way to ask for another
+        : [el("div", { class: "home-h" }, el("h2", { id: "home-tools-h" }, "Need another tool?")),
+          el("div", { class: "home-note" }, icon("info"), el("span", null, `${lead.name} is the only tool switched on for you. Everything else Swangz offers is in the catalogue — `,
+            el("a", { href: "#/tools?show=others" }, "ask for what you need"), "."))]));
+    } else {
+      toolsBox.append(el("div", { class: "home-h" }, el("h2", { id: "home-tools-h" }, "How you get a tool")),
+        el("ol", { class: "home-steps" },
+          el("li", null, el("strong", null, "Find it"), el("span", null, "Everything Swangz offers is in the catalogue, with what each tool is for.")),
+          el("li", null, el("strong", null, "Ask for it"), el("span", null, "Say what you need it for — an admin sees your request.")),
+          el("li", null, el("strong", null, "Open it here"), el("span", null, "Once it's turned on, it appears on this page, ready to open."))));
+    }
+
+    // --- beside the tools: what has changed, your allowance, Studio, and the places you need now and then
+    const updatesBox = el("section", { class: "home-card", "aria-labelledby": "home-up-h" },
+      el("div", { class: "home-h small" }, el("h2", { id: "home-up-h" }, "Updates"),
+        updates.length ? el("a", { class: "tlink", href: "#/requests?view=updates" }, updates.length > 3 ? `All ${updates.length}` : "All updates", icon("chevronRight")) : null),
+      updates.length ? el("ul", { class: "home-updates" }, updates.slice(0, 3).map(updateItem))
+        : el("div", { class: "home-quiet" }, el("span", { class: "n-ic ok", "aria-hidden": "true" }, icon("check")),
+          el("div", null, el("strong", null, "You're all caught up"), el("p", null, "Tools turned on for you, decisions on your requests and access dates appear here."))));
+    const allowance = me.budget && me.budget.monthly !== null && me.budget.monthly !== undefined ? el("section", { class: "home-card", "aria-labelledby": "home-al-h" },
+      el("div", { class: "home-h small" }, el("h2", { id: "home-al-h" }, "Your allowance")),
+      el("div", { class: "home-allow" }, el("strong", null, fmt.money(me.budget.month)), el("span", null, "of " + fmt.money(me.budget.monthly) + " this month")),
+      meter(me.budget.month, me.budget.monthly), el("p", { class: "home-fine" }, "AI used through Swangz AI on the company's account. It resets on the 1st.")) : null;
+    const studio = hasStudio() ? el("a", { class: "home-studio", href: "#/studio" }, el("span", { class: "home-studio-ic", "aria-hidden": "true" }, icon("spark")),
+      el("span", { class: "grow" }, el("strong", null, "Studio"), el("span", null, "Make voice-overs, images and video here, on the company's account.")), icon("chevronRight")) : null;
+    const links = el("nav", { class: "home-links", "aria-label": "More in Swangz AI" },
       el("a", { href: "#/devices" }, icon("device"), el("span", null, el("strong", null, "My devices"),
-        el("span", null, activeKeys.length ? `${SUI.plural(activeKeys.length, "device")} connected` : "Connect your laptop or coding tools"))),
+        el("span", null, activeKeys.length ? SUI.plural(activeKeys.length, "device") + " connected" : me.active ? "Connect your laptop or coding tools" : "None connected")), icon("chevronRight")),
       el("a", { href: "#/requests?view=access" }, icon("send"), el("span", null, el("strong", null, "Access requests"),
-        el("span", null, pending ? `${pending} waiting for an admin` : "Ask for any tool in the catalogue"))),
-      el("a", { href: "#/privacy" }, icon("shield"), el("span", null, el("strong", null, "How Swangz AI works"), el("span", null, "What's recorded, and what isn't"))))));
-    frame("Home", [hero, noticeBox, yours, studio, more]);
+        el("span", null, pending ? SUI.plural(pending, "request") + " waiting for an admin" : me.active ? "Ask for any tool in the catalogue" : "What you've asked for")), icon("chevronRight")),
+      el("a", { href: "#/privacy" }, icon("shield"), el("span", null, el("strong", null, "How Swangz AI works"), el("span", null, "What's recorded, and what isn't")), icon("chevronRight")));
+    const aside = el("aside", { class: "home-aside", "aria-label": "Updates and more" }, updatesBox, allowance, studio, links);
+    frame("Home", [hero, el("section", { class: "section home-body" }, el("div", { class: "shell home-grid" + (me.suspended ? " solo" : "") }, me.suspended ? null : toolsBox, aside))]);
+  }
+
+  /* One of your tools, compact: who it is, where it stands, and its one action. Select it for the details. */
+  function toolCard(t) {
+    const act = tileActions(t);
+    return el("article", { class: "tcard s-" + t.state + (t.turn && t.turn.mine ? " holding" : "") },
+      el("button", { class: "tcard-main", type: "button", onclick: () => details(t), "aria-label": `${t.name} — details` },
+        SUI.logo(t), el("span", { class: "tcard-text" }, el("strong", null, t.name), el("span", null, t.category))),
+      el("p", { class: "tcard-desc" }, t.description || tileNote(t)),
+      el("div", { class: "tcard-foot" }, el("span", { class: "tcard-state" }, tileStatus(t), el("span", { class: "tcard-note" }, tileNote(t))),
+        act.length ? el("div", { class: "tcard-act" }, act) : null));
+  }
+
+  /* An update on Home: short, with its own action when it has one (hand a shared account back). */
+  function updateItem(n) {
+    return el("li", { class: "home-update n-" + n.tone }, el("span", { class: "n-ic", "aria-hidden": "true" }, icon(n.icon)),
+      el("div", { class: "grow" }, el("strong", null, n.title), el("p", null, n.text),
+        n.tool && n.tool.turn && n.tool.turn.mine ? el("button", { class: "btn btn--small", type: "button", onclick: () => handBack(n.tool) }, "Hand back") : null),
+      n.when ? el("span", { class: "faint small nowrap" }, fmt.ago(n.when)) : null);
   }
 
   function noticeItem(n) {

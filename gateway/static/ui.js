@@ -609,7 +609,7 @@
     let sortKey = o.sort ? o.sort[0] : null, dir = o.sort ? o.sort[1] : "desc";
     const tbody = el("tbody");
     const head = el("tr", null, cols.map((c) => {
-      const th = el("th", { scope: "col", class: c.num ? "num" : null });
+      const th = el("th", { scope: "col", class: [c.num ? "num" : "", c.hideSm ? "hide-sm" : ""].join(" ").trim() || null });
       if (c.sort === false || !c.label) th.append(c.label || el("span", { class: "u-sr" }, c.srLabel || ""));
       else th.append(el("button", { type: "button", onclick: () => { dir = sortKey === c.key && dir === "desc" ? "asc" : "desc"; sortKey = c.key; draw(); } },
         c.label, icon("sortUp")));
