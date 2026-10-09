@@ -461,3 +461,12 @@ The implementation, audit and optional local browser-test commands are documente
   writes and all cache rates on phones, with explicit units and fallback-rate explanations.
 - WebP assets are served with the correct MIME type. Existing provider forwarding, authentication,
   permissions, database and policy behavior are unchanged.
+
+### October 9 — automatic Linux laptop hosting and Netlify recovery
+
+Netlify's production gateway variable pointed at a dead quick tunnel. Updated and verified its
+front-door health. Added `deploy/laptop-service.py` and the user service `swangz-laptop.service`:
+boot startup with lingering, independent child recovery, local/public health checks and automatic
+Netlify repoint/build/verification on tunnel changes. Uses the existing demo configuration/database
+and saved Netlify CLI login; credentials remain local. Continuous availability still needs an
+always-on host. Installation and maintenance are documented in `deploy/LAPTOP-AUTO.md`.

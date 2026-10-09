@@ -1,0 +1,16 @@
+[Unit]
+Description=Swangz gateway, tunnel and Netlify recovery
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=%h/swangz-gateway
+ExecStart=/usr/bin/python3 %h/swangz-gateway/deploy/laptop-service.py
+Restart=always
+RestartSec=10
+TimeoutStopSec=45
+UMask=0077
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

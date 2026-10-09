@@ -32,6 +32,10 @@ Environment variables → edit `SWANGZ_GATEWAY` → **Deploys → Trigger deploy
 is read **at build time**: changing it does nothing until a deploy has run with it. To check, open the
 deploy's log and find `Built … → gateway <address>`.
 
+On Linux, `deploy/laptop-service.py` runs under the user service described in
+[`LAPTOP-AUTO.md`](LAPTOP-AUTO.md): it starts at boot/wake, recovers failed processes and updates Netlify
+using the saved CLI login or `NETLIFY_AUTH_TOKEN`.
+
 On Windows, `deploy/windows-demo.ps1` does this itself when `NETLIFY_AUTH_TOKEN` (a Netlify access
 token) is in the demo's `.env`: every new tunnel link is set as `SWANGZ_GATEWAY` and the site redeployed
 and checked. `-Netlify` re-points the site at the running tunnel. On a server with a fixed address
