@@ -833,3 +833,31 @@ h1, h2, h3 { text-wrap: balance; }
 .mini-list li > svg { width: 18px; height: 18px; flex: none; color: var(--tx-3); }
 .mini-list li > .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .verdict > svg { width: 22px; height: 22px; flex: none; }
+
+
+/* V2 clarity pass — calmer orientation and collapsible navigation */
+.nav-group { gap: 2px; }
+.group-toggle { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 12px 12px 5px; border: 0; background: transparent; color: var(--tx-3); cursor: pointer; text-align: left; font: inherit; }
+.group-toggle > span { font-size: 10.5px; font-weight: 750; letter-spacing: var(--track-label); text-transform: uppercase; }
+.group-toggle > svg { width: 13px; height: 13px; opacity: .65; transition: transform var(--d-fast); }
+.nav-group.collapsed .group-toggle > svg { transform: rotate(-90deg); }
+.group-toggle:hover { color: var(--tx-1); }
+.nav-links { display: flex; flex-direction: column; gap: 1px; }
+.nav-links[hidden] { display: none; }
+.crumb-area { color: var(--tx-3); }
+.crumb-current { color: var(--tx-2); font-weight: 650; }
+.tab-help { margin: 0; max-width: 78ch; color: var(--tx-2); font-size: 13px; line-height: 1.55; }
+.tabs-wrap > .tab-body { min-width: 0; }
+.tabs-wrap.vertical > .tab-body { min-width: 0; }
+.tab-pane { min-width: 0; }
+.route-overview .top { position: relative; isolation: isolate; }
+.route-overview .top::after { content: ""; position: absolute; z-index: -1; inset: 0 0 0 34%; pointer-events: none; opacity: .7;
+  background: radial-gradient(ellipse at 85% 12%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 55%),
+              linear-gradient(115deg, transparent 20%, color-mix(in srgb, var(--ink-3) 32%, transparent) 100%); }
+.route-settings .page { max-width: 1360px; }
+.route-settings .top .lede { max-width: 66ch; }
+@media (max-width: 900px) {
+  .group-toggle { padding: 12px 12px 6px; }
+  .tab-help { font-size: 12.5px; }
+  .route-overview .top::after { inset-inline-start: 8%; opacity: .45; }
+}
