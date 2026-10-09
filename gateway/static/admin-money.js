@@ -108,7 +108,7 @@
             foot: el("span", { class: "row" }, SUI.delta(d.change), el("span", { class: "note" }, `vs ${fmt.money(d.previous_total)} the period before`)),
             tip: "Each request is priced from the model price table the moment it runs. Vendor invoices aren't imported." }),
           A.kpi({ label: "Requests", icon: "spark", value: fmt.num(d.requests), note: total && d.requests ? `≈ ${fmt.money(total / d.requests)} each` : "in this period" }),
-          A.kpi({ label: "Unpriced", icon: "info", value: fmt.num(d.unpriced), href: d.unpriced ? "#/settings?tab=prices" : null,
+          A.kpi({ label: "Unpriced", icon: "info", value: fmt.num(d.unpriced), href: d.unpriced ? "#/settings?tab=providers&section=prices" : null,
             note: d.unpriced ? "requests with no price — price them" : "every model has a price" }),
           A.kpi({ label: "Company plans", icon: "licences", value: fmt.money(d.subscriptions_month) + "/mo", href: "#/licences?tab=licences",
             note: idleSeats ? `${SUI.plural(idleSeats, "seat")} idle · ≈ ${fmt.money(d.idle.reduce((n, x) => n + x.idle_cost, 0))}/mo` : "fixed, not metered" })),
@@ -162,47 +162,40 @@
 
   // ------------------------------------------------------------------ Settings
 
+  /* Settings: a category list beside the category. Two categories hold a few sections of their own — one level
+     only, kept in ?section= so a refresh or a shared link lands on the same place. Links from before the
+     categories (?tab=purposes, ?tab=prices, …) still land where they used to point. */
+  const SETTINGS_OLD = { safety: ["access"], security: ["access"], governance: ["purpose"], purposes: ["purpose", "purposes"], locations: ["purpose", "locations"],
+    addresses: ["providers", "addresses"], prices: ["providers", "prices"], rates: ["providers", "rates"] };
   async function pageSettings(params) {
+    const old = SETTINGS_OLD[params.get("tab")];
+    if (old) {
+      params.set("tab", old[0]);
+      if (old[1]) params.set("section", old[1]);
+      A.S.route = "#/settings?" + params.toString();
+      history.replaceState(null, "", A.S.route);
+    }
     const mine = A.S.me.can || (A.isOwner() ? ["admin"] : []);
-    const selectedGroup = params.get("tab") || "security";
-    const selectedSection = params.get("section") || "";
-    const tabGroups = [
-      ["security", "Access & privacy", ["safety", "emergency"]],
-      ["governance", "Purpose & location", ["purposes", "locations"]],
-      ["providers", "Providers & pricing", ["addresses", "prices", "rates"]],
-      ["browsers", "Company browsers", ["browsers"]],
-      ...(A.isOwner() ? [["users", "Console users", ["users"]]] : []),
-      ["account", "Your account", ["account"]],
-    ];
-    const tabs = {
-      safety: () => safetyTab(), emergency: () => emergencyTab(),
-      purposes: () => purposesTab(), locations: () => locationsTab(),
-      addresses: () => addressesTab(), browsers: () => workspaceTab(A.can("govern")),
-      prices: () => pricesTab(A.can("money")), rates: () => ratesTab(),
-      users: () => consoleUsersTab(), account: () => accountTab(),
-    };
-    const parent = tabGroups.find((g) => g[0] === selectedGroup) || tabGroups.find((g) => g[2].includes(selectedSection)) || tabGroups[0];
-    const child = parent[2].includes(selectedSection) ? selectedSection : parent[2][0];
-    A.frame({ title: "Settings", lede: mine.length ? `Configure access, privacy and infrastructure. Your role (${A.roleLabel()}) determines which settings you can change; changes are recorded in the audit log.`
+    // a category's sections read the address when they are first shown, not when the page was
+    const sections = (list) => () => A.pageTabs("#/settings", new URLSearchParams(location.hash.split("?")[1] || ""), list, { param: "section", label: "Sections", help: false });
+    A.frame({ title: "Settings", lede: mine.length ? `The switches that govern the whole gateway. You can change what your role (${A.roleLabel()}) covers; every change is written to the audit log, with what it was before.`
       : "You're a viewer: you can see these settings but not change them." },
-    A.pageTabs("#/settings", params, tabGroups.map(([id, label, children]) => [id, label, () => {
-      const current = parent[0] === selectedGroup && children.includes(selectedSection) ? selectedSection : children[0];
-      const links = children.map((key) => [key, ({
-        safety: "Access & records", emergency: "Emergency controls", purposes: "Purposes", locations: "Locations",
-        addresses: "Provider connections", prices: "Model prices", rates: "Media rates",
-        browsers: "Company browsers", users: "Console users", account: "Your account",
-      })[key], () => tabs[key]()]);
-      const nestedParams = new URLSearchParams(location.hash.split("?")[1] || "");
-      nestedParams.set("section", current);
-      return A.pageTabs("#/settings", nestedParams, links, { param: "section" });
-    }]), { vertical: true, descriptions: {
-      security: "Access rules, data retention and emergency controls.",
-      governance: "How activity is classified and how network locations are identified.",
-      providers: "Provider connections, model pricing and media service rates.",
-      browsers: "Company-managed browsers, hosts and workspace health.",
-      users: "Control-room accounts and their permissions.",
-      account: "Your own console account.",
-    }}));
+    A.pageTabs("#/settings", params, [
+      ["access", "Access & privacy", () => safetyTab(), null, "How long records are kept, what is kept, the protections on every request, and what staff can do for themselves."],
+      ["emergency", "Emergency", () => emergencyTab(), null, "The stops: everything at once, one provider, or the company browsers. Each acts immediately and is written to the audit log."],
+      ["purpose", "Purpose & location", sections([
+        ["purposes", "Purposes", () => purposesTab()],
+        ["locations", "Locations", () => locationsTab()],
+      ]), null, "What requests can be for, and how a place is named — named networks first, then the offline location table."],
+      ["providers", "Providers & pricing", sections([
+        ["addresses", "Connections", () => addressesTab()],
+        ["prices", "Model prices", () => pricesTab(A.can("money"))],
+        ["rates", "Media rates", () => ratesTab()],
+      ]), null, "Where each provider is reached, and the prices and rates every cost estimate is worked out from."],
+      ["browsers", "Company browsers", () => workspaceTab(A.can("govern")), null, "Where shared accounts' company browsers run, and their health."],
+      A.can("admin") && ["users", "Console users", () => consoleUsersTab(), null, "Who can sign in to the control room, and which areas each role can change."],
+      ["account", "Your account", () => accountTab()],
+    ], { vertical: true, clears: ["section"], label: "Settings categories" }));
   }
 
   /* Access & records: grouped settings, one row each, and one save bar that appears only when something has
@@ -235,29 +228,77 @@
     const bar = el("div", { class: "savebar", hidden: true, role: "region", "aria-label": "Unsaved changes" },
       el("span", { class: "msg" }, el("i", { "aria-hidden": "true" }), "You have unsaved changes"), err, reason, discard, save);
     const check = () => { bar.hidden = JSON.stringify(all()) === saved; };
-    [retention, rate, contact, ...Object.values(ret)].forEach((x) => x.addEventListener("input", check));
+    A.setDirty(() => bar.isConnected && !bar.hidden);
+    // a number's problem is said beside the number, before anything is sent
+    const days = { retention_days: retention, rate_per_min: rate, ...ret };
+    const fieldErr = {};
+    Object.entries(days).forEach(([k, x]) => { fieldErr[k] = el("span", { class: "field-err", role: "alert", id: "err-" + k }); x.setAttribute("aria-describedby", "err-" + k); });
+    const problems = () => {
+      const out = {};
+      Object.entries(days).forEach(([k, x]) => {
+        const v = x.value.trim();
+        if (!/^\d+$/.test(v)) out[k] = "A whole number, 0 or more.";
+        else if (k === "retention_audit_days" && Number(v) > 0 && Number(v) < 365) out[k] = "At least 365 days, or 0 to keep it forever.";
+      });
+      return out;
+    };
+    const showProblems = (found) => Object.entries(fieldErr).forEach(([k, node]) => {
+      node.textContent = found[k] || "";
+      days[k].setAttribute("aria-invalid", found[k] ? "true" : "false");
+    });
+    [retention, rate, contact, ...Object.values(ret)].forEach((x) => x.addEventListener("input", () => { check(); if (x.getAttribute("aria-invalid") === "true") showProblems(problems()); }));
+    Object.values(days).forEach((x) => x.addEventListener("blur", () => showProblems(problems())));
     [storeBodies, blockSecrets, selfKeys, gateFull].forEach((x) => x.addEventListener("change", check));
-    discard.addEventListener("click", () => A.render());
+    discard.addEventListener("click", () => { A.setDirty(null); A.render(); });
+    // what deserves a second look before it's saved: shorter keeping (older records go within the hour),
+    // fewer bodies kept, wider logging of staff
+    function consequences(v) {
+      const out = [];
+      const shorter = (k) => k in v && Number(v[k]) > 0 && (Number(first[k]) === 0 || Number(v[k]) < Number(first[k]));
+      if (shorter("retention_days")) out.push(`Request records older than ${v.retention_days} days are deleted within the hour.`);
+      [["retention_bodies_days", "Stored bodies"], ["retention_site_days", "Website visits"], ["retention_launch_days", "Tools-opened records"], ["retention_audit_days", "Audit entries"]]
+        .forEach(([k, l]) => { if (shorter(k)) out.push(`${l} older than ${v[k]} days are deleted within the hour.`); });
+      if (v.store_bodies === false) out.push("New requests keep only their summary; full bodies are no longer stored.");
+      if (v.gate_log_full === true) out.push("The website gate starts recording page content. Staff must be told before this is on.");
+      if (v.block_secrets === false) out.push("Requests containing credentials are let through (and flagged) instead of refused.");
+      return out;
+    }
     save.addEventListener("click", async () => {
+      err.textContent = "";
+      const found = problems();
+      showProblems(found);
+      if (Object.keys(found).length) { err.textContent = "Fix the highlighted values first."; days[Object.keys(found)[0]].focus(); return; }
+      const v = values();
+      const warn = consequences(v);
+      if (warn.length && !(await A.confirmAction("Save these changes?", warn.join(" "), "Save changes", true))) return;
       save.disabled = true;
-      try { await api("PUT", "/settings", { ...values(), reason: reason.value }); toast("Settings saved."); A.render(); }
-      catch (e) { err.textContent = e.message; }
+      try { await api("PUT", "/settings", { ...v, reason: reason.value }); A.setDirty(null); toast("Settings saved."); A.render(); }
+      catch (e) {
+        // the server names the setting it refused: show it beside that control too
+        const k = Object.keys(days).find((key) => e.message.startsWith(key)) || (/audit log/.test(e.message) ? "retention_audit_days" : null);
+        if (k) {
+          const said = e.message.startsWith(k) ? e.message.slice(k.length + 1) : e.message;
+          fieldErr[k].textContent = said.charAt(0).toUpperCase() + said.slice(1) + ".";
+          days[k].setAttribute("aria-invalid", "true"); days[k].focus();
+          err.textContent = "Fix the highlighted value.";
+        } else err.textContent = e.message;
+      }
       finally { save.disabled = false; }
     });
-    const unit = (input, text) => el("span", { class: "unit" }, input, text);
+    const unit = (input, text, key) => el("span", { class: "unit-wrap" }, el("span", { class: "unit" }, input, text), key ? fieldErr[key] : null);
     const anyEditable = st.areas ? Object.values(st.areas).some((a) => A.can(a)) : A.isOwner();
     return [
       A.panel("Records", `${st.records.toLocaleString()} requests · ${(st.db_bytes / 1048576).toFixed(1)} MB on disk`,
-        A.settingRow("Keep records for", "Older request records are deleted automatically every hour. 0 keeps everything. Staff see this number on their privacy page.", unit(retention, "days")),
+        A.settingRow("Keep records for", "Older request records are deleted automatically every hour. 0 keeps everything. Staff see this number on their privacy page.", unit(retention, "days", "retention_days")),
         A.settingRow("Keep full request and response bodies", "Needed to pull back exactly what was sent. Off keeps only the summary: who, model, prompt, commands, cost.", storeBodies),
-        A.settingRow("Full bodies", "Drop the stored bodies sooner than the record itself; the summary stays. 0 = as long as the record.", unit(ret.retention_bodies_days, "days")),
-        A.settingRow("Website visits", "The browser gate's log: which tool, when, how long. 0 = forever.", unit(ret.retention_site_days, "days")),
-        A.settingRow("Tools opened from Swangz AI", "0 = forever.", unit(ret.retention_launch_days, "days")),
+        A.settingRow("Full bodies", "Drop the stored bodies sooner than the record itself; the summary stays. 0 = as long as the record.", unit(ret.retention_bodies_days, "days", "retention_bodies_days")),
+        A.settingRow("Website visits", "The browser gate's log: which tool, when, how long. 0 = forever.", unit(ret.retention_site_days, "days", "retention_site_days")),
+        A.settingRow("Tools opened from Swangz AI", "0 = forever.", unit(ret.retention_launch_days, "days", "retention_launch_days")),
         A.settingRow("Audit log", "At least 365 days, or 0 for forever: the record of what admins did should outlive what it watches. Every purge is itself written to the audit log.",
-          unit(ret.retention_audit_days, "days"))),
+          unit(ret.retention_audit_days, "days", "retention_audit_days"))),
       A.panel("Protection", null,
         A.settingRow("Refuse requests that contain credentials", "API keys, cloud keys, private keys. Off lets them through but flags them. On can interrupt an agent that reads a .env file.", blockSecrets),
-        A.settingRow("Rate limit", "Catches a runaway tool. 0 means no limit. A busy agent can make several requests a minute, so keep it generous.", unit(rate, "a minute, per person"))),
+        A.settingRow("Rate limit", "Catches a runaway tool. 0 means no limit. A busy agent can make several requests a minute, so keep it generous.", unit(rate, "a minute, per person", "rate_per_min"))),
       A.panel("Staff", null,
         A.settingRow("Staff can connect their own devices", "In the Swangz AI app they create and disconnect their own keys. Every key still shows up under Devices, and you can revoke any of them.", selfKeys),
         A.settingRow("Website gate: full-content logging", "Off by default, and the honest choice: the browser extension records only which approved site staff open and for how long. Staff are told in the extension's policy.", gateFull, { tone: "warn" }),

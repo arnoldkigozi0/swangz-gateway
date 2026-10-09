@@ -689,7 +689,7 @@
           el("div", null, el("span", { class: "k" }, "Credentials in requests"), el("span", { class: "v" }, data.settings.block_secrets ? "Refused" : "Let through, flagged")),
           el("div", null, el("span", { class: "k" }, "Rate limit"), el("span", { class: "v" }, data.settings.rate_per_min ? data.settings.rate_per_min + " a minute per person" : "Off")),
           el("div", null, el("span", { class: "k" }, "Kill switch"), el("span", { class: "v" }, data.settings.paused ? "AI is paused" : "Ready")),
-          el("a", { class: "btn small", href: "#/settings" }, "Change in Settings"))),
+          el("a", { class: "btn small", href: "#/settings?tab=access" }, "Change in Settings"))),
       el("nav", { class: "sec-chips", "aria-label": "Filter by kind" }, counts,
         kinds.length ? null : el("span", { class: "hint" }, "Nothing of any kind in this period.")),
       A.panel(type ? SEC_TYPES[type][0] : "Events", SUI.plural(events.length, "event") + ` · last ${days === 1 ? "24 hours" : days + " days"}`, list),
