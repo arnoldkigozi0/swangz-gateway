@@ -759,7 +759,7 @@ def get_settings(ctx):
             "records": db.scalar("SELECT COUNT(*) FROM requests") or 0}
 
 
-@route("PUT", r"/settings", area=("admin", "trust", "govern"))
+@route("PUT", r"/settings", area=("admin", "trust", "govern", "emergency"))
 def put_settings(ctx):
     changed = {}
     if "retention_days" in ctx.body:

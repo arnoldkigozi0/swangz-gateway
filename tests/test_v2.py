@@ -385,6 +385,18 @@ class PolicyTests(V2Base):
         self.assertEqual(self.db.one("SELECT rule FROM site_usage ORDER BY id DESC LIMIT 1")["rule"], f"policy:{pid}")
         self.assertEqual(rig.api("GET", "/policies")[1]["items"][0]["refused_30d"], 2)
 
+    def test_a_policy_that_cannot_be_checked_refuses_and_says_so(self):
+        from unittest import mock
+
+        rig = self.rig
+        self.policy({"name": "Anything", "effect": "deny", "subjects": {"departments": ["Nobody"]}})
+        with mock.patch("gateway.policy.evaluate", side_effect=RuntimeError("broken")):
+            status, _, body = rig.anthropic(CHAT)
+        self.assertEqual(status, 503)
+        r = rig.last_record()
+        self.assertEqual((r["outcome"], r["reason"], r["rule"]), ("blocked", "policy check failed", "policy:error"))
+        self.assertEqual(rig.anthropic(CHAT)[0], 200)
+
     def test_bad_policies_are_refused_with_what_to_fix(self):
         rig = self.rig
         for body, words in (({"effect": "deny", "subjects": {"everyone": True}}, "name"),
@@ -461,11 +473,17 @@ class SimulatorTests(V2Base):
         self.assertEqual(status, 200, ex)
         self.assertTrue(ex["allowed"])
         self.assertEqual([s["check"] for s in ex["steps"]],
-                         ["Everyone's AI access", "Their account", "Service", "Their services", "Their model rules", "Model registry",
-                          "Developer tool", "Their budget", "Company policies"])
+                         ["Everyone's AI access", "Service", "Their account", "Their services", "Their model rules", "Their budget",
+                          "Developer tool", "Model registry", "Company policies", "Company key for the service"])
         rig.api("PUT", "/models/claude-sonnet-4", {"status": "disabled"})
         ex = rig.api("GET", f"/policies/explain?person={rig.person_id}&tool=claude-code&model=claude-sonnet-4-6")[1]
         self.assertEqual((ex["allowed"], ex["decided_by"]), (False, "Model registry"))
+        # the first failure in the gateway's own order decides: without Claude Code assigned, that comes before the registry
+        rig.api("DELETE", f"/people/{rig.person_id}/tools/claude-code")
+        ex = rig.api("GET", f"/policies/explain?person={rig.person_id}&tool=claude-code&model=claude-sonnet-4-6")[1]
+        self.assertEqual(ex["decided_by"], "Developer tool")
+        status, _, body = rig.anthropic(ask("hi"))
+        self.assertIn("isn't switched on for you", json.loads(body)["error"]["message"])  # the gateway agrees
         ex = rig.api("GET", f"/policies/explain?person={rig.person_id}&tool=midjourney")[1]
         self.assertEqual((ex["channel"], ex["allowed"], ex["decided_by"]), ("launch", False, "Assignment and subscription"))
         self.assertEqual(rig.api("GET", "/policies/explain?tool=midjourney")[0], 400)
@@ -597,6 +615,10 @@ class NotificationTests(V2Base):
         self.assertIn("AI access is paused for everyone", sent[0]["Subject"])
         self.assertIn("https://ai.example.test/admin#/settings", sent[0].get_content())
         self.assertEqual(notify.email_new(rig.gw, send=lambda cfg, msg: sent.append(msg)), 0)
+        # a name with a line break in it can't break the email's headers
+        self.db.x("UPDATE notifications SET emailed = NULL, title = 'Two\nlines\r\nBcc: x@example.com' WHERE key = 'att:paused'")
+        self.assertEqual(notify.email_new(rig.gw, send=lambda cfg, msg: sent.append(msg)), 1)
+        self.assertEqual(sent[-1]["Subject"], "Swangz AI: Two lines Bcc: x@example.com")
 
 
 class RetentionTests(V2Base):

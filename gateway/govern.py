@@ -9,7 +9,7 @@ change is audited with what it was before and after. The simulators and explain 
 import re
 import time
 
-from . import entitle, insight, policy, proxy, purpose, turns
+from . import entitle, insight, policy, pricing, proxy, purpose, turns
 from .admin import ApiError, route
 
 DAY = 86400
@@ -174,7 +174,7 @@ def list_models(ctx):
             "classification": governing["classification"] if governing else None,
             "allowed_departments": [d for d in ((governing or {}).get("allowed_departments") or "").split(",") if d],
             "note": (reg or {}).get("note") or "", "updated": (reg or {}).get("updated"), "updated_by": (reg or {}).get("updated_by"),
-            "priced": price is not None or bool(policy.find_model(prices, mid)),
+            "priced": pricing.find_price(prices, mid) is not None,
             "requests": u.get("requests") or 0, "people": u.get("people") or 0, "cost": u.get("cost") or 0.0,
             "unpriced": u.get("unpriced") or 0, "refused": u.get("refused") or 0, "last": u.get("last"),
         })
@@ -680,26 +680,32 @@ def _step(steps, check, result, detail):
 
 
 def explain_access(gw, person, tool, model, channel, provider_name):
+    """Every check, in the order the gateway makes it (server.gate, then dev_tool_gate, then policy_gate, then the
+    company key for requests; the portal's own order for opens and visits). The first failure is what decides."""
     db, now = gw.db, time.time()
     steps = []
     registry, _ = gw.governance()
     paused = db.get_setting("paused", "0") == "1"
     _step(steps, "Everyone's AI access", "fail" if paused else "pass",
           "Paused for everyone by an administrator (the kill switch)." if paused else "Not paused.")
-    active = person["status"] == "active"
-    ended = bool(person.get("access_until")) and person["access_until"] <= now
-    _step(steps, "Their account", "pass" if active and not ended else "fail",
-          "Suspended." if not active else "Their access period ended." if ended else
-          "Active" + (f", until {_clock(gw.settings, person['access_until'])}." if person.get("access_until") else "."))
+
+    def account():
+        active = person["status"] == "active"
+        ended = bool(person.get("access_until")) and person["access_until"] <= now
+        _step(steps, "Their account", "pass" if active and not ended else "fail",
+              "Suspended." if not active else "Their access period ended." if ended else
+              "Active" + (f", until {_clock(gw.settings, person['access_until'])}." if person.get("access_until") else "."))
+
     if channel == "request":
         provider = gw.settings.providers.get(provider_name)
         if not provider:
             _step(steps, "Service", "fail", f"'{provider_name}' isn't one of the gateway's services.")
         else:
             off = provider.name in (db.get_setting("disabled_providers", "") or "").split(",")
-            _step(steps, "Service", "fail" if off or not provider.api_key() else "pass",
-                  f"{provider.label} is switched off by an administrator." if off else
-                  f"{provider.label} has no API key on the gateway yet." if not provider.api_key() else f"{provider.label} is on.")
+            _step(steps, "Service", "fail" if off else "pass",
+                  f"{provider.label} is switched off by an administrator." if off else f"{provider.label} is on.")
+        account()
+        if provider:
             services = [s.strip().lower() for s in (person.get("allowed_services") or "").split(",") if s.strip()]
             _step(steps, "Their services", "pass" if not services or provider.name.lower() in services else "fail",
                   "No limit on services." if not services else f"Limited to: {', '.join(services)}.")
@@ -711,16 +717,6 @@ def explain_access(gw, person, tool, model, channel, provider_name):
                     _step(steps, "Their model rules", "pass" if allowed else "fail",
                           "No model limit." if not (person.get("allowed_models") or "").strip() else
                           f"Allowed models: {person['allowed_models']}.")
-                    reg = policy.find_model(registry, model)
-                    blocked = policy.model_gate(registry, model, person.get("department"))
-                    _step(steps, "Model registry", "fail" if blocked else "pass",
-                          blocked[0][:1].upper() + blocked[0][1:] if blocked else
-                          f"{reg['id']} is {reg['status']} ({reg['classification']})." if reg else
-                          "Not in the registry, so allowed as before.")
-        if tool and tool["kind"] == "dev":
-            granted = tool["id"] in entitle.person_grants(db, person)
-            _step(steps, "Developer tool", "pass" if granted else "fail",
-                  f"{tool['name']} is assigned to them." if granted else f"{tool['name']} isn't assigned to them.")
         if person.get("daily_budget") is not None or person.get("monthly_budget") is not None:
             day, month = proxy.period_starts(now, gw.settings.tz_offset_minutes)
             msgs, over = [], False
@@ -732,9 +728,21 @@ def explain_access(gw, person, tool, model, channel, provider_name):
             _step(steps, "Their budget", "fail" if over else "pass", "; ".join(msgs) + ".")
         else:
             _step(steps, "Their budget", "pass", "No budget set.")
+        if tool and tool["kind"] == "dev":
+            granted = tool["id"] in entitle.person_grants(db, person)
+            _step(steps, "Developer tool", "pass" if granted else "fail",
+                  f"{tool['name']} is assigned to them." if granted else f"{tool['name']} isn't assigned to them.")
+        if provider and provider.is_chat and model:
+            reg = policy.find_model(registry, model)
+            blocked = policy.model_gate(registry, model, person.get("department"))
+            _step(steps, "Model registry", "fail" if blocked else "pass",
+                  blocked[0][:1].upper() + blocked[0][1:] if blocked else
+                  f"{reg['id']} is {reg['status']} ({reg['classification']})." if reg else
+                  "Not in the registry, so allowed as before.")
         what = policy.request_scope(db, registry, {"claude-code": "Claude Code", "codex": "Codex"}.get((tool or {}).get("id")),
                                     provider_name, model)
     else:
+        account()
         ok, state, reason = entitle.is_enabled(db, person, tool)
         _step(steps, "Assignment and subscription", "pass" if ok else "fail", reason)
         what = policy.tool_scope(tool, channel)
@@ -744,6 +752,10 @@ def explain_access(gw, person, tool, model, channel, provider_name):
           decision.message[:1].upper() + decision.message[1:] if not decision.allowed else
           ("; ".join(f"{t['name']}: {t['why']}" for t in applied) if applied else
            "None apply." if decision.trace else "There are no policies."))
+    if channel == "request" and gw.settings.providers.get(provider_name):
+        provider = gw.settings.providers[provider_name]
+        _step(steps, "Company key for the service", "pass" if provider.api_key() else "fail",
+              "Set on the server." if provider.api_key() else f"{provider.label} has no API key on the gateway yet.")
     if tool and turns.is_shared(tool) and channel != "request":
         holders = turns.holders(db, tool["id"])
         mine = any(t["person_id"] == person["id"] for t in holders)

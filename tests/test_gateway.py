@@ -604,6 +604,12 @@ class StudioTests(StaffBase):
         r = rig.gw.db.one("SELECT * FROM requests WHERE id = ?", (made["id"],))
         self.assertEqual((r["client"], r["person_id"], r["key_id"], r["prompt"]),
                          ("Swangz AI Studio", rig.person_id, None, "Welcome to the showcase."))
+        # without a stated purpose, a voice-over is derived from the tool; with one, it is the person's word
+        self.assertEqual((r["purpose"], r["purpose_source"]), ("audio-production", "derived"))
+        self.assertIn({"id": "marketing", "name": "Marketing"}, studio["purposes"])
+        status, made = self.staff("POST", "/studio/voice", {"text": "Showcase promo.", "voice_id": "JBFqnCBsd6RMkjVDRZzb", "purpose": "marketing"})
+        r = rig.gw.db.one("SELECT * FROM requests WHERE id = ?", (made["id"],))
+        self.assertEqual((r["purpose"], r["purpose_source"], r["purpose_confidence"]), ("marketing", "declared", 1.0))
         self.assertEqual(self.staff("GET", "/studio")[1]["recent"][0]["id"], made["id"])
         self.assertEqual(self.staff("POST", "/studio/voice", {"text": "please fail", "voice_id": "JBFqnCBsd6RMkjVDRZzb"})[1]["error"],
                          "This request exceeds your quota.")

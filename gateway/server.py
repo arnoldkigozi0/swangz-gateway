@@ -98,8 +98,12 @@ class Gateway:
                 return 403, "permission_error", blocked[0], blocked[1], "model:" + policy.find_model(registry, model)["id"]
         if not policies:
             return None
-        decision = policy.evaluate(self.db, self.settings, {"person_id": key["person_id"], "department": key.get("department")},
-                                   policy.request_scope(self.db, registry, client, provider.name, model), policies=policies)
+        try:
+            decision = policy.evaluate(self.db, self.settings, {"person_id": key["person_id"], "department": key.get("department")},
+                                       policy.request_scope(self.db, registry, client, provider.name, model), policies=policies)
+        except Exception as exc:  # noqa: BLE001 — policies only take access away, so an unreadable one refuses
+            self.log(f"policy check failed: {exc!r}")
+            return 503, "api_error", "the company's rules couldn't be checked just now. Try again in a moment.", "policy check failed", "policy:error"
         if decision.allowed:
             return None
         return (403, "permission_error", decision.message, f"policy: {decision.policy['name']}"[:120],
@@ -110,8 +114,12 @@ class Gateway:
         _, policies = self.governance()
         if not policies:
             return None
-        decision = policy.evaluate(self.db, self.settings, {"person_id": person["id"], "department": person.get("department")},
-                                   policy.tool_scope(tool, channel), policies=policies)
+        try:
+            decision = policy.evaluate(self.db, self.settings, {"person_id": person["id"], "department": person.get("department")},
+                                       policy.tool_scope(tool, channel), policies=policies)
+        except Exception as exc:  # noqa: BLE001 — fail closed, as for requests
+            self.log(f"policy check failed: {exc!r}")
+            return "the company's rules couldn't be checked just now. Try again in a moment.", "policy:error"
         return None if decision.allowed else (decision.message, f"policy:{decision.policy['id']}")
 
     def identify(self, token):

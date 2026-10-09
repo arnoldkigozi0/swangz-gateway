@@ -90,7 +90,7 @@
     q.addEventListener("input", SUI.debounce(() => { st.q = q.value.trim(); apply(); }, 150));
     dept.addEventListener("change", () => { st.dept = dept.value; apply(); });
     draw();
-    const add = A.isOwner() ? el("button", { class: "btn primary", onclick: addPerson }, icon("plus"), "Add person") : null;
+    const add = A.can("govern") ? el("button", { class: "btn primary", onclick: addPerson }, icon("plus"), "Add person") : null;
     A.frame({ title: "People", lede: "Everyone with Swangz AI access — their status, devices, and what they spend.", actions: add }, [
       A.panel(null, null,
         el("div", { class: "filterbar" }, el("div", { class: "fb-row" },
@@ -100,7 +100,7 @@
           depts.length > 1 ? dept : null)),
         meta, box),
     ]);
-    if (params.get("add") && A.isOwner()) addPerson();
+    if (params.get("add") && A.can("govern")) addPerson();
   }
 
   function personForm(p) {
@@ -158,7 +158,8 @@
   async function pagePerson(params, id) {
     await A.toolIndex().catch(() => null);
     const p = await api("GET", "/people/" + id);
-    const owner = A.isOwner();
+    const owner = A.can("govern");
+    const stopper = p.status === "active" ? A.can("emergency") : A.can("emergency") || owner;
     const [state, stateLabel] = personState(p);
     const since30 = Date.now() / 1000 - 30 * 86400;
     const [usage, security, recent] = await Promise.allSettled([
@@ -278,7 +279,7 @@
     }
 
     async function detailsTab() {
-      if (!owner) return A.panel("Details", null, el("div", { class: "body hint" }, "Only an owner can change someone's details."));
+      if (!owner && !A.can("money")) return A.panel("Details", null, el("div", { class: "body hint" }, `Your role (${A.roleLabel()}) can see these but not change them.`));
       const form = personForm(p);
       const err = el("span", { class: "err", role: "alert" });
       return A.panel("Details and limits", null, el("div", { class: "body stack" }, form.node),
@@ -296,8 +297,8 @@
       lede: [[p.title, p.department].filter(Boolean).join(" · ") || "No department", p.email].filter(Boolean).join(" — ") +
         (p.access_until ? ` · access ${ended ? "ended" : "until"} ${fmt.date(p.access_until - 86400)}` : ""),
       actions: [owner && p.status === "active" ? el("button", { class: "btn primary", onclick: () => issueKey(p) }, icon("key"), "Issue a key") : null,
-        owner ? el("span", { class: "act-gap" }) : null,
-        owner ? (p.status === "active" ? el("button", { class: "btn danger", onclick: () => suspend(true) }, icon("lock"), "Suspend access")
+        stopper ? el("span", { class: "act-gap" }) : null,
+        stopper ? (p.status === "active" ? el("button", { class: "btn danger", onclick: () => suspend(true) }, icon("lock"), "Suspend access")
           : el("button", { class: "btn", onclick: () => suspend(false) }, "Restore access")) : null],
     }, [stats, A.pageTabs("#/people/" + p.id, params, [
       ["overview", "Overview", overviewTab],
@@ -474,7 +475,7 @@
       crumbs: [el("a", { href: "#/devices" }, "Devices"), el("a", { href: "#/people/" + d.person_id }, d.person)],
       lede: `${d.person}'s device` + (d.app ? ` · ${d.app}` : "") + (d.platform && d.platform !== d.app ? ` · ${d.platform}` : ""),
       actions: [el("a", { class: "btn", href: `#/activity?tab=ai&person=${d.person_id}` }, icon("activity"), "Their activity"),
-        A.isOwner() && d.state !== "revoked" ? [el("span", { class: "act-gap" }), el("button", { class: "btn danger", onclick: () => revokeKey(d) }, icon("lock"), "Revoke device")] : null],
+        (A.can("emergency") || A.can("govern")) && d.state !== "revoked" ? [el("span", { class: "act-gap" }), el("button", { class: "btn danger", onclick: () => revokeKey(d) }, icon("lock"), "Revoke device")] : null],
     }, [
       el("div", { class: "statline" },
         stat("Last seen", d.last_used ? fmt.ago(d.last_used) : "Never", d.last_used ? fmt.stamp(d.last_used) : "no requests yet"),
@@ -576,7 +577,7 @@
         box.replaceChildren(list.length ? SUI.table({ caption: "Removed tools", rows: list, sort: ["name", "asc"], columns: [
           { key: "name", label: "Tool", lead: true, render: (t) => el("div", { class: "u-cell" }, SUI.logo(t, "sm"), el("div", null, el("strong", null, t.name), el("span", { class: "sub" }, t.category || ""))) },
           { key: "builtin", label: "Origin", render: (t) => (t.builtin ? "Built in" : "Added by an admin") },
-          A.isOwner() ? { key: "act", label: "", srLabel: "Actions", render: (t) => el("div", { class: "row end" },
+          A.can("govern") ? { key: "act", label: "", srLabel: "Actions", render: (t) => el("div", { class: "row end" },
             el("button", { class: "btn small", onclick: () => toolAction(t, "restore") }, "Restore"),
             t.builtin ? null : el("button", { class: "btn small quiet danger", onclick: () => deleteTool(t) }, "Delete")) } : null,
         ].filter(Boolean) }) : SUI.stateBox({ icon: "tools", title: "Nothing removed matches", text: "Try another search." }),
@@ -606,7 +607,7 @@
     cat.addEventListener("change", () => { st.cat = cat.value; apply(); });
     draw();
     A.frame({ title: "Tools", lede: "What Swangz pays for, how people sign in, and who uses each tool. Open a tool for its full profile.",
-      actions: A.isOwner() ? el("button", { class: "btn primary", onclick: () => toolSheet(null) }, icon("plus"), "Add a tool") : null }, [
+      actions: A.can("govern") ? el("button", { class: "btn primary", onclick: () => toolSheet(null) }, icon("plus"), "Add a tool") : null }, [
       A.panel(null, null,
         el("div", { class: "filterbar" }, el("div", { class: "fb-row" },
           A.seg(tabs, st.show, (v) => { st.show = v; apply(); }, "Show"), el("span", { class: "fb-gap" }),
@@ -615,7 +616,7 @@
     ]);
     const open = params.get("open");
     if (open && S.tools[open]) toolSheet(S.tools[open], params.get("tab") || "overview");
-    if (params.get("add") && A.isOwner()) toolSheet(null);
+    if (params.get("add") && A.can("govern")) toolSheet(null);
   }
 
   /* A tool's profile: what it is and how it's used (Overview), who holds it, what Swangz pays, and its settings. */
@@ -628,7 +629,7 @@
       return "#/tools" + (p.toString() ? "?" + p.toString() : "");
     };
     const { node, close } = A.sheet(() => { if (location.hash.startsWith("#/tools") && (location.hash.includes("open=") || location.hash.includes("add="))) history.replaceState(null, "", here()); }, t ? t.name : "Add a tool");
-    const owner = A.isOwner();
+    const owner = A.can("govern");
     const tabs = t ? [["overview", "Overview"], ["access", "Who can use it"], t.kind === "dev" ? null : ["billing", "Subscription"], ["settings", "Settings"]].filter(Boolean) : [["settings", "New tool"]];
     let current = t ? (tabs.some((x) => x[0] === tab) ? tab : "overview") : "settings";
     const body = el("div", { class: "sheet-body" });
@@ -771,6 +772,7 @@
 
     async function billingTab() {
       const sub = t.subscription;
+      const owner = A.can("money");  // subscriptions are money, not access
       const f = {
         state: el("select", { disabled: !owner }, Object.entries(SUB_LABEL).map(([v, l]) => el("option", { value: v }, l))),
         plan: el("input", { type: "text", value: sub.plan || "", placeholder: (t.plans[0] && t.plans[0].name) || "Plan name", disabled: !owner }),
@@ -812,6 +814,8 @@
         description: el("input", { type: "text", value: v.description || "", maxlength: "200", placeholder: "One line staff will read on the tile" }),
         url: el("input", { type: "url", value: v.url || "", placeholder: "https://…" }),
         signin: el("select", null, Object.entries(SIGNIN).map(([k, [l]]) => el("option", { value: k }, l))),
+        classification: el("select", { "aria-label": "Data class" }, Object.entries({ public: "Public", internal: "Internal", confidential: "Confidential", restricted: "Restricted" })
+          .map(([k, l]) => el("option", { value: k }, l))),
         launch_url: el("input", { type: "url", value: v.launch_url || "", placeholder: "https://… (optional)" }),
         hosts: el("input", { type: "text", value: (v.hosts || []).join(", "), placeholder: "Filled from the website if left empty" }),
         color: el("input", { type: "color", value: /^#[0-9a-f]{6}$/i.test(v.color || "") ? v.color : "#3F3F46" }),
@@ -841,13 +845,15 @@
         el("label", { class: "field" }, "Company browsers", f.workspace_mode, agentHint),
         listField);
       f.kind.value = v.kind; f.signin.value = v.kind === "dev" ? "api" : (v.signin || "seat");
+      f.classification.value = v.classification || "internal";
       const howHint = el("span", { class: "hint" });
       const drawHow = () => { howHint.textContent = (SIGNIN[f.signin.value] || SIGNIN.seat)[1]; sharing.hidden = f.signin.value !== "shared"; };
       f.signin.addEventListener("change", drawHow); drawHow();
       const err = el("div", { class: "err", role: "alert" });
       const values = () => ({ name: f.name.value, category: f.category.value, kind: f.kind.value, description: f.description.value, url: f.url.value,
         signin: f.signin.value, launch_url: f.launch_url.value, hosts: f.hosts.value, color: f.color.value, pricing_url: f.pricing_url.value,
-        seats_at_once: f.seats_at_once.value, turn_minutes: f.turn_minutes.value, workspace_url: f.workspace_url.value, workspace_mode: f.workspace_mode.value });
+        seats_at_once: f.seats_at_once.value, turn_minutes: f.turn_minutes.value, workspace_url: f.workspace_url.value, workspace_mode: f.workspace_mode.value,
+        ...(t ? { classification: f.classification.value } : {}) });
       const save = el("button", { class: "btn primary", onclick: async () => {
         err.textContent = "";
         try {
@@ -890,6 +896,8 @@
         el("div", { class: "form-grid" }, el("label", { class: "field" }, "Name", f.name), el("label", { class: "field" }, "Category", f.category), el("label", { class: "field" }, "Type", f.kind)),
         el("label", { class: "field" }, "Description", f.description),
         el("div", { class: "form-grid" }, el("label", { class: "field" }, "Website", f.url), el("label", { class: "field" }, "How people sign in", f.signin, howHint)),
+        t ? el("label", { class: "field" }, "Data class", f.classification,
+          el("span", { class: "hint" }, "What kind of company information may go into it. Policies can refuse tools by class (Govern → Policies).")) : null,
         sharing,
         el("label", { class: "field" }, "Company sign-in link", f.launch_url,
           el("span", { class: "hint" }, "Where Open sends people. For single sign-on, paste the tool's SSO link — or the app's link from Google Admin → Apps → Web and mobile apps. Empty = the website.")),
@@ -965,7 +973,7 @@
      edge of its row — Decline first, Grant last. */
   async function pageRequests(params) {
     await A.toolIndex().catch(() => null);
-    const owner = A.isOwner();
+    const owner = A.can("govern");
     const state = ["open", "granted", "declined"].includes(params.get("state")) ? params.get("state") : "open";
     const data = await api("GET", "/access-requests?state=" + encodeURIComponent(state));
     const counts = data.counts || { open: data.open };

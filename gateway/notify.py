@@ -99,8 +99,13 @@ def refresh(gw, now=None):
 
 
 def refresh_if_stale(gw):
+    """For the console's bell: a failure here shows the last stored list rather than an error."""
     if time.time() - _last.get(id(gw.db), 0) >= REFRESH_SECONDS:
-        refresh(gw)
+        try:
+            refresh(gw)
+        except Exception as exc:  # noqa: BLE001
+            _last[id(gw.db)] = time.time()
+            gw.log(f"notifications: refresh failed: {exc!r}")
 
 
 def smtp_settings():
@@ -124,14 +129,15 @@ def email_new(gw, send=None):
         return 0
     base = gw.public_url().rstrip("/") + "/admin"
     msg = EmailMessage()
-    msg["Subject"] = f"Swangz AI: {rows[0]['title']}" + (f" (+{len(rows) - 1} more)" if len(rows) > 1 else "")
+    # titles carry names people typed; a header must never carry a line break
+    msg["Subject"] = " ".join(f"Swangz AI: {rows[0]['title']}".split())[:180] + (f" (+{len(rows) - 1} more)" if len(rows) > 1 else "")
     msg["From"] = (cfg or {}).get("sender", "swangz-ai@localhost")
     msg["To"] = ", ".join((cfg or {}).get("to", []))
     msg.set_content("\n\n".join(f"[{r['severity'].upper()}] {r['title']}\n{r['text']}\n{base}{r['href']}" for r in rows)
                     + "\n\n— Swangz AI control room. Manage notifications in the console.")
     try:
         (send or _smtp_send)(cfg, msg)
-    except (OSError, smtplib.SMTPException) as exc:
+    except (OSError, smtplib.SMTPException, ValueError) as exc:
         gw.log(f"notifications: email failed: {exc!r}")
         return 0
     now = time.time()

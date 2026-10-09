@@ -89,6 +89,25 @@ at a time; switch any time in the console (Settings → Company browsers). See `
 - [ ] **You:** change the shared demo password, and revoke the Netlify token in Netlify → User settings →
       Applications if this PC is ever handed on.
 
+### 7. The V2 control plane — free, a morning's work
+- [ ] **You:** Settings → Console users — give each admin the narrowest role that fits (operations,
+      security, billing or viewer); keep owners to one or two.
+- [ ] **You:** Settings → Locations — name the office network (and any VPN), so requests from it say so exactly.
+- [ ] **Claude (or whoever runs the server):** download a free offline location table (DB-IP Lite city, CSV)
+      and run `python3 -m gateway geoip-import FILE --source "DB-IP Lite <month>"`; repeat monthly.
+- [ ] **You:** Govern → Models — register the models Swangz pays for: approve the everyday ones, restrict the
+      most expensive to the teams that need them, disable anything retired.
+- [ ] **You:** Settings → Media rates — enter ElevenLabs' per-character and Higgsfield's per-credit price, so
+      voice, image and video stop showing as unpriced.
+- [ ] **You:** Govern → Policies — write the company's rules only after trying each on **Simulate**; start with
+      none, and add them as needs appear.
+- [ ] **You:** Settings → Access & records — set retention per category (records, bodies, website visits, opens;
+      the audit log at least a year) and tell staff (it shows on their privacy page automatically).
+- [ ] **Optional:** an SMTP account for alerts (`GATEWAY_SMTP_HOST`, `GATEWAY_NOTIFY_TO`, … in `.env`) so
+      high and critical notifications reach someone when nobody has the console open.
+- [ ] **Read** `docs/SECURITY.md` → *Limits*: back up `data/gateway.db` off the server, and keep shell access
+      to the server to as few people as possible — the audit log is only as safe as the box it lives on.
+
 ## What it costs a month
 
 Infrastructure (approximate, before VAT; Hetzner raised prices in mid-2026 — check when ordering):

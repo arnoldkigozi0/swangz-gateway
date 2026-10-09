@@ -25,6 +25,8 @@ extension, the tests, the deploy guides, and these docs.
 | `.env` | provider keys, the Google client secret, addresses | copy by hand, see below |
 | `data/gateway.db` | **the record** — people, tools, turns, launches, every request | copy only if this machine becomes the main one |
 | `CREDENTIALS.txt` | the demo sign-ins | re-create, or copy by hand |
+| the location table CSV | the offline GeoIP file loaded with `geoip-import` (V2) | download a fresh one (DB-IP Lite or IP2Location LITE) and import it again — or copy `data/gateway.db`, which already holds it |
+| `GATEWAY_SMTP_*`, `GATEWAY_NOTIFY_TO` | optional email for notifications (V2) | in `.env`, like the other secrets |
 
 ## Moving the secrets safely
 

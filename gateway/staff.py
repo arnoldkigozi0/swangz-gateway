@@ -258,6 +258,11 @@ def me(ctx):
             "block_secrets": ctx.db.get_setting("block_secrets", "0") == "1",
             "gate_log_full": ctx.db.get_setting("gate_log_full", "0") == "1",
             "support_contact": ctx.db.get_setting("support_contact", "") or "",
+            "purpose_inference": ctx.db.get_setting("purpose_inference", "1") == "1",
+            "location_table": bool(ctx.db.get_setting("geoip_source", "")),
+            "bodies_days": int(ctx.db.get_setting("retention_bodies_days", "0") or 0),
+            "site_days": int(ctx.db.get_setting("retention_site_days", "0") or 0),
+            "launch_days": int(ctx.db.get_setting("retention_launch_days", "0") or 0),
         },
     }
     if p["budget_visible"]:
@@ -596,7 +601,7 @@ def _service(ctx, dialect):
     return None
 
 
-def _through_gateway(ctx, provider, method, path, body=None, ref=None):
+def _through_gateway(ctx, provider, method, path, body=None, ref=None, purpose=None):
     """Call a provider the way any tool would — through this gateway — so the request is checked
     (paused, suspended, allowed services, budgets) and recorded like everything else."""
     gw = ctx.gw
@@ -609,6 +614,8 @@ def _through_gateway(ctx, provider, method, path, body=None, ref=None):
                "x-session-id": f"studio-{ctx.person['id']}-{day}"}
     if ref:
         headers["x-sgw-ref"] = ref
+    if purpose:  # what the person picked in Studio: a declared purpose, checked against the taxonomy by the gateway
+        headers["x-swangz-purpose"] = re.sub(r"[^a-z0-9-]", "", str(purpose).lower())[:40]
     data = None
     if body is not None:
         data = json.dumps(body).encode()
@@ -686,6 +693,8 @@ def studio(ctx):
     return {"voice": bool(voice), "image": bool(visual), "video": bool(visual),
             "voices": _voices(ctx, voice) if voice else [],
             "voice_models": [{"id": m, "name": n} for m, n in VOICE_MODELS],
+            "purposes": [{"id": r["id"], "name": r["name"]} for r in ctx.db.q(
+                "SELECT id, name FROM purposes WHERE archived = 0 AND id NOT IN ('other') ORDER BY sort, name")],
             "recent": [_creation(r) for r in recent]}
 
 
@@ -705,7 +714,7 @@ def studio_voice(ctx):
         raise ApiError(400, "Pick a voice.")
     ref = secrets.token_hex(8)
     status, ctype, payload = _through_gateway(ctx, provider, "POST", f"/v1/text-to-speech/{quote(voice)}?output_format=mp3_44100_128",
-                                              {"text": text, "model_id": model}, ref)
+                                              {"text": text, "model_id": model}, ref, purpose=ctx.body.get("purpose"))
     if status != 200 or not ctype.startswith("audio/"):
         raise ApiError(status if status >= 400 else 502, _error_from(payload, "The voice service didn't return audio."))
     return _creation(_await_record(ctx, "SELECT * FROM requests WHERE turn_id = ? AND person_id = ? AND resp_blob IS NOT NULL",
@@ -733,7 +742,7 @@ def studio_generate(ctx):
     else:
         raise ApiError(400, "Choose image or video.")
     ref = secrets.token_hex(8)
-    status, _, payload = _through_gateway(ctx, provider, "POST", path, body, ref)
+    status, _, payload = _through_gateway(ctx, provider, "POST", path, body, ref, purpose=ctx.body.get("purpose"))
     if status >= 400:
         raise ApiError(status, _error_from(payload, "The service didn't accept that."))
     try:

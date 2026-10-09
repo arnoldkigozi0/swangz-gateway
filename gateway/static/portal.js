@@ -555,6 +555,13 @@
     const tabBar = el("div", { class: "tabs", role: "tablist" }, tabs.map(([id, label]) =>
       el("button", { class: "tab", role: "tab", type: "button", "data-tab": id, onclick: () => show(id) }, label)));
     const creations = el("div", { class: "creations" });
+    /* What it's for, if they want to say. Optional; it is recorded as their own word (declared), not a guess. */
+    function purposeField() {
+      const sel = el("select", { class: "input" }, el("option", { value: "" }, "Not saying"), (st.purposes || []).map((p) => el("option", { value: p.id }, p.name)));
+      try { sel.value = localStorage.getItem("swangz-studio-purpose") || ""; } catch (e) { /* no storage */ }
+      sel.addEventListener("change", () => { try { localStorage.setItem("swangz-studio-purpose", sel.value); } catch (e) { /* no storage */ } });
+      return { sel, node: el("label", { class: "field" }, el("span", null, "What it's for (optional)"), sel) };
+    }
     function show(id) {
       tabBar.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === id ? "true" : "false"));
       panel.replaceChildren(id === "voice" ? voiceForm() : visualForm(id));
@@ -566,17 +573,18 @@
       const count = el("span", { class: "muted small" }, "0 / 5,000");
       text.addEventListener("input", () => { count.textContent = `${text.value.length.toLocaleString()} / 5,000`; });
       const err = el("div", { class: "form-error", role: "alert" });
+      const purpose = purposeField();
       const go = el("button", { class: "btn btn--solid", type: "submit" }, "Make the voice-over");
       return el("form", { class: "studio-form", onsubmit: async (e) => {
         e.preventDefault();
         err.textContent = ""; go.disabled = true; go.textContent = "Making it…";
-        try { const made = await api("POST", "/studio/voice", { text: text.value, voice_id: voice.value, model_id: model.value }); addCreation(made, true); text.value = ""; count.textContent = "0 / 5,000"; }
+        try { const made = await api("POST", "/studio/voice", { text: text.value, voice_id: voice.value, model_id: model.value, purpose: purpose.sel.value }); addCreation(made, true); text.value = ""; count.textContent = "0 / 5,000"; }
         catch (x) { err.textContent = x.message; }
         go.disabled = false; go.textContent = "Make the voice-over";
       } },
       st.voices.length ? null : el("div", { class: "notice" }, "No voices are available yet — ask your admin."),
       el("div", { class: "form-row" }, el("label", { class: "field" }, el("span", null, "Voice"), voice), el("label", { class: "field" }, el("span", null, "Quality"), model)),
-      el("label", { class: "field" }, el("span", null, "Script"), text), el("div", { class: "spread" }, count, go), err);
+      el("label", { class: "field" }, el("span", null, "Script"), text), purpose.node, el("div", { class: "spread" }, count, go), err);
     }
     function visualForm(kind) {
       const prompt = el("textarea", { class: "input area", rows: "4", placeholder: kind === "image"
@@ -586,16 +594,17 @@
       const image = el("input", { class: "input", type: "url", placeholder: "https://… link to the starting picture" });
       const err = el("div", { class: "form-error", role: "alert" });
       const label = kind === "image" ? "Make the image" : "Make the video";
+      const purpose = purposeField();
       const go = el("button", { class: "btn btn--solid", type: "submit" }, label);
       return el("form", { class: "studio-form", onsubmit: async (e) => {
         e.preventDefault();
         err.textContent = ""; go.disabled = true; go.textContent = "Starting…";
-        try { const made = await api("POST", "/studio/generate", { kind, prompt: prompt.value, aspect_ratio: aspect.value, image_url: image.value }); addCreation(made, true); prompt.value = ""; }
+        try { const made = await api("POST", "/studio/generate", { kind, prompt: prompt.value, aspect_ratio: aspect.value, image_url: image.value, purpose: purpose.sel.value }); addCreation(made, true); prompt.value = ""; }
         catch (x) { err.textContent = x.message; }
         go.disabled = false; go.textContent = label;
       } },
       kind === "video" ? el("label", { class: "field" }, el("span", null, "Starting picture"), image, el("span", { class: "muted small" }, "Make an image first and copy its link, or use any picture that's online.")) : null,
-      el("label", { class: "field" }, el("span", null, kind === "image" ? "What should it show?" : "What should happen?"), prompt),
+      el("label", { class: "field" }, el("span", null, kind === "image" ? "What should it show?" : "What should happen?"), prompt), purpose.node,
       el("div", { class: "spread" }, kind === "image" ? el("label", { class: "field inline" }, el("span", null, "Shape"), aspect) : el("span"), go), err);
     }
     function addCreation(c, fresh) {
@@ -792,17 +801,23 @@
                 ? "Which approved AI site, when and for how long. Your company has also turned on fuller logging for AI websites — ask your admin what it covers."
                 : "Which approved AI site, when and for how long."),
               item("terminal", "AI requests through the gateway", "Coding tools, Studio and apps connected with a Swangz key: who, which device and app, the model, what you typed, what the AI did and replied, and what it cost."),
-              item("hand", "Shared company accounts", "Who held the turn and when, so the account's use can be matched to a person."))),
+              item("hand", "Shared company accounts", "Who held the turn and when, so the account's use can be matched to a person."),
+              item("target", "What a request was for", pv.purpose_inference
+                ? "If you or your tool say (Studio asks), that is recorded as your word. Otherwise the gateway may guess from words in the request — a coding tool is software development, \"Instagram caption\" suggests marketing. A guess is always shown to admins as a guess, with the words it was based on, and can be wrong."
+                : "Only if you or your tool say (Studio asks), or the tool itself implies it — a coding tool is software development. The gateway doesn't guess from what you type."),
+              item("pin", "Roughly where from", "The network address of each request. Admins see a named network (like the office) or, at most, an approximate town from an offline table" + (pv.location_table ? "" : " (not loaded here yet)") + " — never your exact location, and your address is never sent to an outside service."))),
           el("section", { class: "trust-card" }, el("h2", null, icon("lock"), "What is not recorded"),
             el("ul", { class: "p-list" },
               pv.gate_log_full ? null : item("globe", "Page contents or keystrokes on AI websites", "The extension records the site and the time — never what's on the page or what you type there."),
               item("x", "Anything outside approved AI tools", "Other websites and apps aren't watched by Swangz AI."),
               item("user", "Your personal accounts", "Only access through Swangz AI is recorded."))),
           el("section", { class: "trust-card" }, el("h2", null, icon("clock"), "How long it's kept"),
-            el("p", null, pv.retention_days ? `Records are deleted automatically after ${pv.retention_days} days.` : "Records are kept until an administrator removes them."),
-            el("p", { class: "muted" }, pv.store_bodies ? "Full request contents are kept for that time, so the exact request can be checked if something goes wrong." : "Only a summary is kept — not the full contents of requests.")),
+            el("p", null, pv.retention_days ? `AI request records are deleted automatically after ${pv.retention_days} days.` : "AI request records are kept until an administrator removes them."),
+            el("p", { class: "muted" }, !pv.store_bodies ? "Only a summary is kept — not the full contents of requests."
+              : pv.bodies_days ? `Full request contents are kept for ${pv.bodies_days} days, then only the summary stays.` : "Full request contents are kept for that time, so the exact request can be checked if something goes wrong."),
+            pv.site_days || pv.launch_days ? el("p", { class: "muted" }, [pv.site_days ? `AI website visits: ${pv.site_days} days.` : null, pv.launch_days ? `Tools opened from here: ${pv.launch_days} days.` : null].filter(Boolean).join(" ")) : null),
           el("section", { class: "trust-card" }, el("h2", null, icon("shield"), "Who can see it"),
-            el("p", null, "Swangz administrators, in the control room. Every time one opens a full record, that is itself written to an audit log."),
+            el("p", null, "Swangz administrators, in the control room. Every time one opens a full record or exports records, that is itself written to an audit log — and only some admin roles can export what you typed."),
             el("p", { class: "muted" }, pv.block_secrets ? "Requests that contain passwords or API keys are refused, to keep them out of AI tools." : "Requests that look like they contain passwords or API keys are flagged so they can be changed.")),
           el("section", { class: "trust-card wide" }, el("h2", null, icon("info"), "Using it well"),
             el("p", null, "Swangz AI is for your work at Swangz. Don't paste passwords, other people's personal details, or anything you wouldn't put in a work email."),

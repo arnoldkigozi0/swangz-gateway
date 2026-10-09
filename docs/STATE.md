@@ -1,11 +1,12 @@
 # Project state and roadmap
 
-Last updated: 2026-10-07. Read `../CLAUDE.md` first for the overview and conventions.
+Last updated: 2026-10-09. Read `../CLAUDE.md` first for the overview and conventions; `V2.md` for the
+control plane added on Oct 9, and `SECURITY.md` for the threat model.
 
 ## Where it stands
 
-A working platform, built and tested. **220 unit tests pass** (`python3 -m unittest discover -s tests -t .`).
-Schema is **v12**. Nothing real has been called by a provider yet — there are no company API keys, and
+A working platform, built and tested. **258 unit tests** (`python3 -m unittest discover -s tests -t .`).
+Schema is **v18**. Nothing real has been called by a provider yet — there are no company API keys, and
 the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
 
 ### Done and verified
@@ -281,13 +282,42 @@ visibility for admins, simplicity for staff). Built on real data only:
   adds their access requests, each tool's grant source and 30-day opens, each device's app, and the
   privacy facts. Schema v12 indexes requests by key. Checked in headless Chromium at 1440 and 390,
   dark and light, as owner and viewer, with no console errors.
-- **Not built, and why:** *location* — no IP-geolocation source is bundled (stdlib-only, nothing sent
+- **Not built then, and why** (location and purpose were built in V2, Oct 9): *location* — no IP-geolocation source is bundled (stdlib-only, nothing sent
   out), so addresses show as public/private, never a city; *declared purpose* and *AI-inferred purpose*
   — tools don't send one and nothing classifies prompts; *saved searches, AND/OR filter builder, column
   chooser, bulk actions, virtualised tables* — lists page instead; *role-specific dashboards* — waits on
   the billing/security admin roles; side-by-side *comparison* charts (A vs B) beyond period-over-period;
   staff *notifications* are derived on each visit, not stored or pushed. Coding tools rarely name their
   operating system, so a device's platform is often just the app.
+
+### Oct 9, 2026 — V2: the AI control plane
+
+Arnold's V2 brief: make every AI action attributable (who, what, for what, when, where, which machine,
+under which authority, which account, at what cost, with what outcome) and give admins the means to
+govern, investigate, restrict, revoke and respond — without rebuilding what works. Full map, migrations
+(v13–v18) and what's still open: `docs/V2.md`. Threat model: `docs/SECURITY.md`. In short:
+
+- **Authority.** Console roles are areas (owner, operations, security, billing, viewer, custom); the
+  server checks the area on every change and audits refusals. The console hides what a role can't use.
+- **Audit fabric.** Reason, before/after, outcome, correlation and area on every significant change;
+  the audit page shows what changed. Staff sign-ins and self-service changes are recorded too.
+- **Where.** Named networks (exact) and an offline GeoIP table imported on the server (approximate, with
+  its source). No address is ever sent to an outside service.
+- **For what.** Declared (header, or Studio's new picker), derived from the tool, or inferred from keywords
+  with confidence and the matched words — or unknown. Editable taxonomy; inference can be switched off;
+  staff are told on the privacy page.
+- **Model registry and policies.** Approved / experimental / restricted / deprecated / disabled models with a
+  data class; deny, permitted-hours and monthly-cap policies for people, departments or everyone, on
+  gateway requests, portal opens and website visits. Each refusal names its rule. A read-only simulator
+  replays real history against a draft; *Explain* walks every check in the gateway's own order.
+- **Money.** Media rates by effective date (voice/image/video costs in dollars at last, never recalculated),
+  the price or rate behind every cost, nine reports with audited CSV.
+- **Trust.** Incidents (evidence, notes, transitions, resolution), persisted notifications with a bell and
+  optional email, risk signals against each person's own history (new place, new device, unusual hours,
+  new model, repeated refusals), sign-ins/access changes/turns on the timeline, per-category retention with
+  audited purges, switch one provider off, pause company browsers, per-provider latency and errors on Health.
+- Checked in headless Chromium at 1440 / 1280 / 1024 / 768 / 390, dark and light, owner and viewer; a v12
+  demo database with 825 records upgraded to v18 on start-up with nothing lost.
 
 ### How it compares (Oct 2026)
 
@@ -315,7 +345,9 @@ Staff keys are `sgw_<id>_<secret>`, stored as a SHA-256 only, shown once. Provid
 the environment. Passwords use PBKDF2-SHA256; sign-in is throttled. Separate HttpOnly cookies for
 staff and admin, a required header on every change, strict CSP, formula-injection-safe CSV. Only
 model endpoints are forwarded (account-wide endpoints are refused). The audit log records admin
-actions, including opening a record and playing back a generation.
+actions, including opening a record, exporting and playing back a generation, with before/after.
+Console roles are checked per area on the server; policies fail closed. Full threat model:
+`docs/SECURITY.md`.
 
 ## Not built yet (likely next, in rough priority)
 
@@ -326,18 +358,17 @@ actions, including opening a record and playing back a generation.
 3. **SCIM / vendor seat sync** — when a person is removed here, remove their seat at the vendor too
    (ChatGPT Enterprise, Claude for Work, Canva, Figma, Notion… each has an admin API). Today that last
    step is manual.
-4. **Media costs in dollars.** Voice/image/video are currently metered in characters/images, not
-   dollars. Add per-tool media rates (ElevenLabs per 1k characters, Higgsfield per credit/image) and
-   compute cost, the way `pricing.py` does for tokens.
-5. **Renewal and spend alerts by email** — renewals in the next 30 days and idle seats are now on the
-   Licences page; sending them as email/WhatsApp alerts is not built.
-6. **Reports** — spend by person / team / tool over a window is built (*What cost us money?*); a
-   scheduled or emailed report, and CSV of the spend breakdown, are not.
-7. **Billing-only admin role** — a third tier beyond owner/viewer (needs a migration to relax the
-   `admins.role` CHECK).
-8. ~~Audit-log filtering~~ — built Oct 6 (who, words, time range).
-9. **IP location** — an offline GeoIP database (e.g. a monthly country/city file) would let Devices and
-   records say "Kampala · approximate" instead of "public internet".
+4. ~~Media costs in dollars~~ — built Oct 9 (media rates by effective date, Settings → Media rates).
+5. **Alerts beyond the console** — notifications are persisted and high/critical ones can be emailed
+   (SMTP, Oct 9); WhatsApp and a daily digest are not built.
+6. **Reports** — nine reports with CSV built Oct 9; scheduled or emailed reports are not.
+7. ~~Billing-only admin role~~ — built Oct 9 as roles-as-areas (billing, security, operations, custom).
+8. ~~Audit-log filtering~~ — built Oct 6; before/after, reason and outcome added Oct 9.
+9. ~~IP location~~ — built Oct 9 as an offline table an admin imports (`geoip-import`); none ships with
+   the code, so someone has to load and refresh it monthly.
+10. **Audit log off the box** — ship it to a collector or a signed export, so a shell on the server can't
+    quietly rewrite it.
+11. **Vendor usage and invoice import** — so costs can be *actual*, not only estimated or allocated.
 
 ## Going live for Swangz (operational)
 

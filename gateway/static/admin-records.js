@@ -40,8 +40,14 @@
       (r.reasoning_tok ? ` · ${fmt.tokens(r.reasoning_tok)} reasoning` : "");
     const refused = r.outcome === "blocked" || r.outcome === "denied";
     const costText = r.kind === "media" && r.cost === null ? (A.units(r) || "—") : refused ? "Nothing — it was refused" : fmt.money(r.cost);
-    const costHow = refused ? "Refused requests cost nothing" : r.cost === null ? (r.kind === "media" ? "Metered in the service's own units" : "Unpriced: the model isn't in the price table")
-      : "Estimated from the price table when it ran";
+    const cb = r.cost_basis || {};
+    const costHow = refused ? "Refused requests cost nothing" : r.cost === null ? (r.kind === "media" ? "Unpriced: no media rate for this service yet (Settings → Media rates)" : "Unpriced: the model isn't in the price table")
+      : cb.from === "media rate" ? `Estimated from the media rate in force then${cb.rate ? ` ($${cb.rate.usd_per_unit} per ${cb.rate.unit})` : ""}${cb.as_of ? ", effective " + fmt.date(cb.as_of) : ""}`
+        : `Estimated from the price for ${cb.ref || "this model"}${cb.as_of ? " as of " + fmt.date(cb.as_of) : ""}; never recalculated`;
+    const loc = r.location;
+    const placeHow = !loc ? null : loc.kind === "known" ? "A network Swangz named — exact" : loc.approximate ? `Approximate — ${loc.source || "location table"}; not GPS`
+      : loc.evidence || "Only the kind of address is known";
+    const PURPOSE_HOW = { declared: "Declared by the person or their tool", derived: "Derived from the tool itself", inferred: "Inferred from keywords — a guess" };
     const facts = el("div", { class: "facts identity" },
       fact("Person", r.person_id ? A.personLink(r.person_id, r.person) : el("span", { class: "muted" }, "No valid key"), r.person_id ? "Owner of the key used" : "The key wasn't recognised"),
       fact("Device", A.deviceLink(r.key_id, r.key_label) || "—", r.key_id ? "Registered device (its own gateway key)" : null),
@@ -50,10 +56,15 @@
       fact("Model", el("span", { class: "mono" }, r.model || "—"), r.model ? "As requested by the tool" : null),
       fact("Time", fmt.stamp(r.ts), SUI.tzLabel()),
       fact("Took", fmt.ms(r.duration_ms) + (r.ttft_ms ? ` · first word after ${fmt.ms(r.ttft_ms)}` : ""), "Measured by the gateway"),
-      fact("From", r.client_ip ? el("span", null, el("span", { class: "mono" }, r.client_ip), r.place ? el("span", { class: "faint" }, " · " + r.place) : null) : "—",
-        "Approximate — IP address only; location isn't looked up"),
+      fact("From", r.client_ip ? el("span", null, el("span", { class: "mono" }, r.client_ip), r.place ? el("span", { class: "faint" }, " · " + r.place) : null) : "—", placeHow),
+      fact("For", r.purpose ? el("span", { class: "row" }, A.purposeChip(r.purpose_name || A.purposeName(r.purpose), r.purpose_source, r.purpose_confidence, r.purpose_evidence),
+        r.project ? el("span", { class: "faint" }, "· " + r.project) : null) : el("span", { class: "muted" }, "Unknown"),
+      r.purpose ? `${PURPOSE_HOW[r.purpose_source] || ""}${r.purpose_confidence != null && r.purpose_source === "inferred" ? ` (${Math.round(r.purpose_confidence * 100)}% sure)` : ""}${r.purpose_evidence ? " · " + r.purpose_evidence : ""}`
+        : "Nothing declared, and no rule was sure enough"),
+      r.rule ? fact("Refused by", r.rule.startsWith("policy:") ? el("a", { href: "#/policies" }, r.rule_name || "a policy") : el("a", { href: "#/models" }, "The model registry: " + r.rule.slice(6)),
+        "The company rule that refused it") : null,
       fact("Platform", r.platform || "Not stated by the tool", "From the user agent"),
-      fact("Cost", costText, costHow),
+      fact("Cost", el("span", { class: "row" }, costText, !refused && r.cost !== null ? el("span", { class: "basis estimated" }, "estimated") : null), costHow),
       fact(r.kind === "media" ? "Size" : "Tokens", r.kind === "media" ? (A.units(r) || "—") : tokens, r.kind === "media" ? null : "Reported by the provider"),
       fact("Session", r.session ? el("a", { class: "mono", href: "#/sessions/" + encodeURIComponent(r.session) }, r.session.slice(0, 18) + (r.session.length > 18 ? "…" : "")) : "—",
         r.session ? "Sent by the tool" : null));

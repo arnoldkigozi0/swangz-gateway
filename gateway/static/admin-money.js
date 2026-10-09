@@ -23,7 +23,7 @@
   async function licencesTab() {
     const lic = await api("GET", "/licences");
     const s = lic.summary;
-    const owner = A.isOwner();
+    const owner = A.can("money");
     const paid = lic.tools.filter((t) => t.monthly_cost);
     const activeSeats = lic.tools.reduce((n, t) => n + t.active, 0);
     const assignedSeats = lic.tools.reduce((n, t) => n + t.assigned, 0);
@@ -163,58 +163,73 @@
   // ------------------------------------------------------------------ Settings
 
   async function pageSettings(params) {
-    const owner = A.isOwner();
-    A.frame({ title: "Settings", lede: owner ? "The switches that govern the whole gateway. Every change is written to the audit log." : "You're a viewer: you can see these settings but not change them." },
-      A.pageTabs("#/settings", params, [
-        ["safety", "Access & records", () => safetyTab(owner)],
-        ["addresses", "Addresses", () => addressesTab()],
-        ["browsers", "Company browsers", () => workspaceTab(owner)],
-        ["prices", "Model prices", () => pricesTab(owner)],
-        owner && ["users", "Console users", () => consoleUsersTab()],
-        ["account", "Your account", () => accountTab()],
-      ], { vertical: true }));
+    const mine = A.S.me.can || [];
+    A.frame({ title: "Settings", lede: mine.length ? `The switches that govern the whole gateway. You can change what your role (${A.roleLabel()}) covers; every change is written to the audit log, with what it was before.`
+      : "You're a viewer: you can see these settings but not change them." },
+    A.pageTabs("#/settings", params, [
+      ["safety", "Access & records", () => safetyTab()],
+      ["emergency", "Emergency", () => emergencyTab()],
+      ["purposes", "Purposes", () => purposesTab()],
+      ["locations", "Locations", () => locationsTab()],
+      ["addresses", "Addresses", () => addressesTab()],
+      ["browsers", "Company browsers", () => workspaceTab(A.can("govern"))],
+      ["prices", "Model prices", () => pricesTab(A.can("money"))],
+      ["rates", "Media rates", () => ratesTab()],
+      A.isOwner() && ["users", "Console users", () => consoleUsersTab()],
+      ["account", "Your account", () => accountTab()],
+    ], { vertical: true }));
   }
 
-  /* Access & records: grouped settings, one row each, and one save bar that appears only when
-     something has changed — so nothing is saved by accident and nothing is left half-saved. */
-  async function safetyTab(owner) {
+  /* Access & records: grouped settings, one row each, and one save bar that appears only when something has
+     changed. Each control is open only to the role that owns it (Settings areas come from the server). */
+  async function safetyTab() {
     const st = await api("GET", "/settings");
-    const off = !owner;
-    const retention = el("input", { type: "number", min: "0", step: "1", value: String(st.retention_days), disabled: off, "aria-label": "Keep records for, in days" });
-    const storeBodies = A.switchInput(st.store_bodies, off, "Keep full request and response bodies");
-    const blockSecrets = A.switchInput(st.block_secrets, off, "Refuse requests that contain credentials");
-    const selfKeys = A.switchInput(st.staff_self_keys, off, "Staff can connect their own devices");
-    const gateFull = A.switchInput(st.gate_log_full, off, "Website gate: full-content logging");
-    const rate = el("input", { type: "number", min: "0", step: "1", value: String(st.rate_per_min || 0), disabled: off, "aria-label": "Requests per person per minute" });
-    const contact = el("input", { type: "text", maxlength: "200", value: st.support_contact || "", placeholder: "e.g. IT desk — it@swangzavenue.com, ext. 204", disabled: off, "aria-label": "Who staff contact for help" });
-    const values = () => ({ retention_days: retention.value, store_bodies: storeBodies.checked, block_secrets: blockSecrets.checked, staff_self_keys: selfKeys.checked,
+    const off = (k) => !A.can(st.areas[k]);
+    const retention = el("input", { type: "number", min: "0", step: "1", value: String(st.retention_days), disabled: off("retention_days"), "aria-label": "Keep records for, in days" });
+    const ret = {};
+    [["retention_bodies_days", "Full bodies"], ["retention_site_days", "Website visits"], ["retention_launch_days", "Tools opened"], ["retention_audit_days", "Audit log"]].forEach(([k, l]) => {
+      ret[k] = el("input", { type: "number", min: "0", step: "1", value: String(st[k] || 0), disabled: off(k), "aria-label": l + ", days" });
+    });
+    const storeBodies = A.switchInput(st.store_bodies, off("store_bodies"), "Keep full request and response bodies");
+    const blockSecrets = A.switchInput(st.block_secrets, off("block_secrets"), "Refuse requests that contain credentials");
+    const selfKeys = A.switchInput(st.staff_self_keys, off("staff_self_keys"), "Staff can connect their own devices");
+    const gateFull = A.switchInput(st.gate_log_full, off("gate_log_full"), "Website gate: full-content logging");
+    const rate = el("input", { type: "number", min: "0", step: "1", value: String(st.rate_per_min || 0), disabled: off("rate_per_min"), "aria-label": "Requests per person per minute" });
+    const contact = el("input", { type: "text", maxlength: "200", value: st.support_contact || "", placeholder: "e.g. IT desk — it@swangzavenue.com, ext. 204", disabled: off("support_contact"), "aria-label": "Who staff contact for help" });
+    const all = () => ({ retention_days: retention.value, ...Object.fromEntries(Object.entries(ret).map(([k, x]) => [k, x.value])),
+      store_bodies: storeBodies.checked, block_secrets: blockSecrets.checked, staff_self_keys: selfKeys.checked,
       gate_log_full: gateFull.checked, rate_per_min: rate.value, support_contact: contact.value });
-    let saved = JSON.stringify(values());
+    const first = all();
+    // send only what changed, so a role is never refused for a setting it didn't touch
+    const values = () => Object.fromEntries(Object.entries(all()).filter(([k, v]) => String(v) !== String(first[k])));
+    let saved = JSON.stringify(all());
     const err = el("span", { class: "err", role: "alert" });
+    const reason = el("input", { type: "text", maxlength: "200", placeholder: "Why (optional, kept in the audit log)", "aria-label": "Reason for the change" });
     const discard = el("button", { class: "btn quiet", type: "button" }, "Discard");
     const save = el("button", { class: "btn primary", type: "button" }, "Save changes");
     const bar = el("div", { class: "savebar", hidden: true, role: "region", "aria-label": "Unsaved changes" },
-      el("span", { class: "msg" }, el("i", { "aria-hidden": "true" }), "You have unsaved changes"), err, discard, save);
-    const check = () => { bar.hidden = JSON.stringify(values()) === saved; };
-    [retention, rate, contact].forEach((x) => x.addEventListener("input", check));
+      el("span", { class: "msg" }, el("i", { "aria-hidden": "true" }), "You have unsaved changes"), err, reason, discard, save);
+    const check = () => { bar.hidden = JSON.stringify(all()) === saved; };
+    [retention, rate, contact, ...Object.values(ret)].forEach((x) => x.addEventListener("input", check));
     [storeBodies, blockSecrets, selfKeys, gateFull].forEach((x) => x.addEventListener("change", check));
     discard.addEventListener("click", () => A.render());
     save.addEventListener("click", async () => {
       save.disabled = true;
-      try { await api("PUT", "/settings", values()); saved = JSON.stringify(values()); err.textContent = ""; check(); toast("Settings saved."); }
+      try { await api("PUT", "/settings", { ...values(), reason: reason.value }); toast("Settings saved."); A.render(); }
       catch (e) { err.textContent = e.message; }
       finally { save.disabled = false; }
     });
     const unit = (input, text) => el("span", { class: "unit" }, input, text);
+    const anyEditable = Object.values(st.areas).some((a) => A.can(a));
     return [
-      A.panel("Emergency", null,
-        A.settingRow(el("span", { class: "row" }, "Kill switch", st.paused ? SUI.status("blocked", "AI is paused", { plain: true }) : SUI.status("ok", "AI is on", { plain: true })),
-          "Stopping cuts every request in flight, refuses new ones, and closes the portal's Open buttons until someone resumes.",
-          owner ? (st.paused ? el("button", { class: "btn primary", onclick: () => A.setPaused(false) }, "Resume access")
-            : el("button", { class: "btn danger", onclick: () => A.setPaused(true) }, icon("stop"), "Stop all AI")) : null)),
       A.panel("Records", `${st.records.toLocaleString()} requests · ${(st.db_bytes / 1048576).toFixed(1)} MB on disk`,
-        A.settingRow("Keep records for", "Older records and their bodies are deleted automatically every hour. 0 keeps everything. Staff see this number on their privacy page.", unit(retention, "days")),
-        A.settingRow("Keep full request and response bodies", "Needed to pull back exactly what was sent. Off keeps only the summary: who, model, prompt, commands, cost.", storeBodies)),
+        A.settingRow("Keep records for", "Older request records are deleted automatically every hour. 0 keeps everything. Staff see this number on their privacy page.", unit(retention, "days")),
+        A.settingRow("Keep full request and response bodies", "Needed to pull back exactly what was sent. Off keeps only the summary: who, model, prompt, commands, cost.", storeBodies),
+        A.settingRow("Full bodies", "Drop the stored bodies sooner than the record itself; the summary stays. 0 = as long as the record.", unit(ret.retention_bodies_days, "days")),
+        A.settingRow("Website visits", "The browser gate's log: which tool, when, how long. 0 = forever.", unit(ret.retention_site_days, "days")),
+        A.settingRow("Tools opened from Swangz AI", "0 = forever.", unit(ret.retention_launch_days, "days")),
+        A.settingRow("Audit log", "At least 365 days, or 0 for forever: the record of what admins did should outlive what it watches. Every purge is itself written to the audit log.",
+          unit(ret.retention_audit_days, "days"))),
       A.panel("Protection", null,
         A.settingRow("Refuse requests that contain credentials", "API keys, cloud keys, private keys. Off lets them through but flags them. On can interrupt an agent that reads a .env file.", blockSecrets),
         A.settingRow("Rate limit", "Catches a runaway tool. 0 means no limit. A busy agent can make several requests a minute, so keep it generous.", unit(rate, "a minute, per person"))),
@@ -222,8 +237,192 @@
         A.settingRow("Staff can connect their own devices", "In the Swangz AI app they create and disconnect their own keys. Every key still shows up under Devices, and you can revoke any of them.", selfKeys),
         A.settingRow("Website gate: full-content logging", "Off by default, and the honest choice: the browser extension records only which approved site staff open and for how long. Staff are told in the extension's policy.", gateFull, { tone: "warn" }),
         A.settingRow("Who staff contact for help", "Shown on the staff app's privacy page and wherever access is refused.", contact)),
-      owner ? bar : el("div", { class: "notice info" }, icon("info"), "You're a viewer — an owner changes these."),
+      anyEditable ? bar : el("div", { class: "notice info" }, icon("info"), "Your role can see these but not change them."),
     ];
+  }
+
+  /* The stops. Each acts at once — after a deliberate yes — and is written to the audit log. */
+  async function emergencyTab() {
+    const st = await api("GET", "/settings");
+    const can = A.can("emergency");
+    const put = async (body, msg) => {
+      try { await api("PUT", "/settings", body); toast(msg); A.render(); } catch (e) { toast(e.message, true); A.render(); }
+    };
+    const off = new Set(st.disabled_providers);
+    const providerRows = st.providers.map((p) => {
+      const sw = A.switchInput(!off.has(p.name), !can, `${p.label || p.name} on`);
+      sw.addEventListener("change", async () => {
+        const turningOff = !sw.checked;
+        if (turningOff && !(await A.confirmAction(`Switch ${p.label || p.name} off?`, "Every new request to it is refused until it is switched back on. Requests already running finish.", "Switch off", true))) { sw.checked = true; return; }
+        const next = new Set(off);
+        if (turningOff) next.add(p.name); else next.delete(p.name);
+        put({ disabled_providers: [...next] }, turningOff ? `${p.label || p.name} is off.` : `${p.label || p.name} is back on.`);
+      });
+      return A.settingRow(el("span", { class: "row" }, p.label || p.name, off.has(p.name) ? SUI.status("blocked", "Off", { plain: true }) : null),
+        p.configured ? "Requests to it go through as usual." : "No company key on the server yet, so its requests are refused anyway.", sw);
+    });
+    const ws = A.switchInput(!st.workspace_paused, !can, "Company browsers on");
+    ws.addEventListener("change", async () => {
+      if (!ws.checked && !(await A.confirmAction("Pause the company browsers?", "Nobody can open a shared tool in a company browser until they are resumed. Turns already running keep their browser until they end.", "Pause", true))) { ws.checked = true; return; }
+      put({ workspace_paused: !ws.checked }, ws.checked ? "Company browsers resumed." : "Company browsers paused.");
+    });
+    return [
+      A.panel("Stop everything", null,
+        A.settingRow(el("span", { class: "row" }, "Kill switch", st.paused ? SUI.status("blocked", "AI is paused", { plain: true }) : SUI.status("ok", "AI is on", { plain: true })),
+          "Cuts every request in flight, refuses new ones, and closes the portal's Open buttons until someone resumes.",
+          can ? (st.paused ? el("button", { class: "btn primary", onclick: () => A.setPaused(false) }, "Resume access")
+            : el("button", { class: "btn danger", onclick: () => A.setPaused(true) }, icon("stop"), "Stop all AI")) : null)),
+      A.panel("One service at a time", "switch a provider off without stopping everything", providerRows),
+      A.panel("Company browsers", null, A.settingRow("Company browsers for shared accounts", "Pause if a workspace server misbehaves; the tools' own sites are unaffected.", ws)),
+      el("p", { class: "hint" }, "Also here, one at a time: stop a single request (Live), suspend a person or revoke a device (their page), take back a shared turn (the tool), switch a model off (Models). ",
+        can ? "" : "Your role can see these but not use them."),
+    ];
+  }
+
+  /* The purpose taxonomy: what requests can be for, and the keywords that suggest each. */
+  async function purposesTab() {
+    const [data, st] = await Promise.all([api("GET", "/purposes"), api("GET", "/settings")]);
+    const edit = A.can("govern");
+    const inference = A.switchInput(data.inference, !A.can("admin"), "Infer purpose from the prompt");
+    inference.addEventListener("change", async () => {
+      try { await api("PUT", "/settings", { purpose_inference: inference.checked }); toast(inference.checked ? "Inference on, from the next request." : "Inference off — only declared and derived purposes from now."); }
+      catch (e) { inference.checked = !inference.checked; toast(e.message, true); }
+    });
+    const sample = el("input", { type: "text", placeholder: "Type a sample prompt to see what the rules say — nothing is stored", "aria-label": "Sample prompt" });
+    const verdict = el("div", { class: "hint", role: "status" });
+    sample.addEventListener("input", SUI.debounce(async () => {
+      if (!sample.value.trim()) { verdict.textContent = ""; return; }
+      const r = await api("POST", "/purposes/test", { text: sample.value });
+      verdict.replaceChildren(r.purpose ? el("span", null, el("strong", null, r.name), ` — ${Math.round(r.confidence * 100)}% sure (${r.strong ? "beats what the tool suggests" : "used only when the tool suggests nothing"}), matched: ${r.evidence.join(", ")}`)
+        : r.candidate ? `Too weak to say (${Math.round(r.confidence * 100)}%): would be Unknown.` : "No rule matches: Unknown.", r.note ? " " + r.note : "");
+    }, 250));
+    const rows = data.items;
+    const table = SUI.table({ caption: "Purposes", rows, sort: ["sort", "asc"], columns: [
+      { key: "name", label: "Purpose", lead: true, render: (x) => el("div", null, el("strong", null, x.name), x.archived ? SUI.badge("archived", "outline") : null,
+        el("span", { class: "sub" }, x.description || "")) },
+      { key: "keywords", label: "Keywords", sort: false, render: (x) => el("span", { class: "hint kw-line", title: x.keywords.join(", ") },
+        x.keywords.length ? x.keywords.slice(0, 6).join(", ") + (x.keywords.length > 6 ? ` +${x.keywords.length - 6}` : "") : "—"), hideSm: true },
+      { key: "requests", label: "Requests · 30 d", num: true },
+      { key: "declared", label: "Declared", num: true, hideSm: true }, { key: "derived", label: "From the tool", num: true, hideSm: true },
+      { key: "inferred", label: "Inferred", num: true, hideSm: true },
+      edit ? { key: "act", label: "", sort: false, srLabel: "Edit", cls: "act", render: (x) => el("button", { class: "btn small quiet", onclick: () => editPurpose(x) }, "Edit") } : null,
+    ].filter(Boolean) });
+    return [
+      A.panel("How purposes are worked out", null,
+        A.settingRow("Infer purpose from the prompt", "Keyword rules over what was typed — no model is asked and nothing leaves the gateway. Off: only purposes the person or tool declares (X-Swangz-Purpose, or Studio) and those the tool implies.", inference),
+        el("div", { class: "body stack" }, sample, verdict,
+          el("p", { class: "hint" }, `Declared beats everything. An inference ${Math.round(data.thresholds.strong * 100)}%+ sure beats what the tool suggests; below ${Math.round(data.thresholds.shown * 100)}% the answer is Unknown. ${fmt.num(data.unknown_30d)} requests in the last 30 days were Unknown.`))),
+      A.panel("Purposes", edit ? el("button", { class: "btn small", onclick: () => editPurpose(null) }, icon("plus"), "Add a purpose") : "what a request can be for", table),
+    ];
+  }
+
+  function editPurpose(x) {
+    const name = el("input", { type: "text", maxlength: "60", value: x ? x.name : "" });
+    const desc = el("input", { type: "text", maxlength: "200", value: x ? x.description : "" });
+    const kw = el("textarea", { rows: "4", placeholder: "comma-separated words or phrases, e.g. venue, guest list, rsvp" }, x ? x.keywords.join(", ") : "");
+    const archived = A.switchInput(x ? x.archived : false, false, "Archived");
+    const err = el("div", { class: "err", role: "alert" });
+    const save = el("button", { class: "btn primary", onclick: async () => {
+      const body = { name: name.value, description: desc.value, keywords: kw.value, archived: archived.checked };
+      try {
+        if (x) await api("PUT", "/purposes/" + x.id, body); else await api("POST", "/purposes", body);
+        d.close(); toast("Saved. New requests use it."); A.render();
+      } catch (e) { err.textContent = e.message; }
+    } }, x ? "Save" : "Add purpose");
+    const d = A.dialog(x ? "Edit " + x.name : "Add a purpose", el("div", { class: "stack" },
+      el("label", { class: "field" }, "Name", name), el("label", { class: "field" }, "Description", desc),
+      el("label", { class: "field" }, "Keywords", kw, el("span", { class: "hint" }, "Whole words only. The purpose with clearly more distinct matches wins; a tie is Unknown.")),
+      x ? A.settingRow("Archived", "Hidden from new requests; past records keep it.", archived) : null, err), [save]);
+  }
+
+  /* Where requests come from: networks Swangz names (exact), and the offline location table (approximate). */
+  async function locationsTab() {
+    const g = await api("GET", "/geo");
+    const edit = A.can("trust");
+    const t = g.table;
+    const lookup = el("input", { type: "text", placeholder: "Try an address, e.g. 41.210.145.3", "aria-label": "Address" });
+    const said = el("div", { class: "hint", role: "status" });
+    lookup.addEventListener("change", async () => {
+      try {
+        const d = await api("GET", "/geo/lookup?ip=" + encodeURIComponent(lookup.value.trim()));
+        said.replaceChildren(el("strong", null, d.label), " — " + d.evidence);
+      } catch (e) { said.textContent = e.message; }
+    });
+    const nets = g.networks.length ? SUI.table({ caption: "Named networks", rows: g.networks, sort: ["label", "asc"], columns: [
+      { key: "label", label: "Name", lead: true, render: (n) => el("div", null, el("strong", null, n.label), n.place ? el("span", { class: "sub" }, n.place) : null) },
+      { key: "cidr", label: "Addresses", render: (n) => el("span", { class: "mono" }, n.cidr) },
+      { key: "kind", label: "Kind", render: (n) => n.kind },
+      { key: "created_by", label: "Added by", render: (n) => n.created_by || "—", hideSm: true },
+      edit ? { key: "act", label: "", sort: false, srLabel: "Edit", cls: "act", render: (n) => el("button", { class: "btn small quiet", onclick: () => editNetwork(n) }, "Edit") } : null,
+    ].filter(Boolean) }) : A.empty("Name the office's address (and any VPN) and requests from it say so exactly, instead of an approximate city.", "No named networks", "pin");
+    return [
+      A.panel("Named networks", edit ? el("button", { class: "btn small", onclick: () => editNetwork(null) }, icon("plus"), "Name a network") : "exact — Swangz said so", nets),
+      A.panel("Location table", t.rows ? `${fmt.num(t.rows)} address ranges` : "not loaded",
+        A.settingRow(t.rows ? el("span", { class: "row" }, t.source, SUI.status("ok", "Loaded", { plain: true })) : el("span", { class: "row" }, "None", SUI.status("none", "Not loaded", { plain: true })),
+          t.rows ? `Imported ${fmt.date(t.imported)}. Places from it are labelled approximate everywhere — a city from an address, never a GPS position.`
+            : "Without one, a public address shows only as \"public internet\". Load a free offline table (DB-IP Lite or IP2Location LITE, CSV) on the server: python3 -m gateway geoip-import FILE --source \"DB-IP Lite 2026-10\". Addresses are never sent to an outside service.", null),
+        el("div", { class: "body stack" }, lookup, said)),
+    ];
+  }
+
+  function editNetwork(n) {
+    const cidr = el("input", { type: "text", value: n ? n.cidr : "", placeholder: "e.g. 41.210.145.0/24 or a single address" });
+    const label = el("input", { type: "text", maxlength: "80", value: n ? n.label : "", placeholder: "e.g. Swangz office" });
+    const place = el("input", { type: "text", maxlength: "80", value: n ? n.place : "", placeholder: "e.g. Kampala, Ntinda" });
+    const kind = el("select", null, ["office", "vpn", "home", "cloud", "other"].map((k) => el("option", { value: k }, k)));
+    kind.value = n ? n.kind : "office";
+    const err = el("div", { class: "err", role: "alert" });
+    const save = el("button", { class: "btn primary", onclick: async () => {
+      const body = { cidr: cidr.value, label: label.value, place: place.value, kind: kind.value };
+      try { if (n) await api("PATCH", "/networks/" + n.id, body); else await api("POST", "/networks", body); d.close(); toast("Saved."); A.render(); }
+      catch (e) { err.textContent = e.message; }
+    } }, n ? "Save" : "Name it");
+    const remove = n ? el("button", { class: "btn danger", onclick: async () => {
+      try { await api("DELETE", "/networks/" + n.id); d.close(); toast("Removed."); A.render(); } catch (e) { err.textContent = e.message; }
+    } }, "Remove") : null;
+    const d = A.dialog(n ? "Edit " + n.label : "Name a network", el("div", { class: "stack" },
+      el("label", { class: "field" }, "Addresses", cidr), el("label", { class: "field" }, "Name", label),
+      el("div", { class: "form-grid" }, el("label", { class: "field" }, "Place", place), el("label", { class: "field" }, "Kind", kind)), err), [remove, save]);
+  }
+
+  /* What voice, image and video work costs, by the date each rate takes effect. */
+  async function ratesTab() {
+    const data = await api("GET", "/media-rates");
+    const edit = A.can("money");
+    const table = data.items.length ? SUI.table({ caption: "Media rates", rows: data.items, sort: ["effective", "desc"], columns: [
+      { key: "provider", label: "Service", lead: true, render: (r) => el("div", null, el("strong", null, r.provider), r.service !== "*" ? el("span", { class: "sub mono" }, r.service) : null) },
+      { key: "usd_per_unit", label: "Rate", num: true, render: (r) => `$${r.usd_per_unit} per ${r.unit}` },
+      { key: "effective", label: "From", num: true, render: (r) => fmt.date(r.effective) },
+      { key: "current", label: "", sort: false, render: (r) => (r.current ? SUI.badge("In force", "ok") : r.scheduled ? SUI.badge("Scheduled", "info") : SUI.badge("Earlier", "outline")) },
+      { key: "created_by", label: "Set by", render: (r) => r.created_by || "—", hideSm: true },
+      edit ? { key: "act", label: "", sort: false, srLabel: "Remove", cls: "act", render: (r) => el("button", { class: "btn small quiet danger", onclick: async () => {
+        try { await api("DELETE", "/media-rates/" + r.id); toast("Removed."); A.render(); } catch (e) { toast(e.message, true); }
+      } }, "Remove") } : null,
+    ].filter(Boolean) }) : A.empty("Voice, image and video requests stay unpriced until a rate is set.", "No media rates", "wallet");
+    const unpriced = data.unpriced.length ? el("section", { class: "callout warn" },
+      el("div", { class: "callout-row" }, icon("alert"), el("span", { class: "callout-k" }, "Unpriced in the last 30 days"),
+        el("span", { class: "muted" }, data.unpriced.map((u) => `${u.provider} ${u.media_type || ""}: ${fmt.num(u.requests)} requests, ${fmt.num(u.units)} ${u.unit || "units"}`).join(" · ")))) : null;
+    return [unpriced, A.panel("Media rates", edit ? el("button", { class: "btn small", onclick: () => addRate(data) }, icon("plus"), "Add a rate") : "estimated costs for voice, image and video", table,
+      el("div", { class: "body hint" }, "A new rate applies from its date on. Costs already recorded keep the rate they were priced with, and a rate that priced anything can't be removed — add a newer one."))];
+  }
+
+  function addRate(data) {
+    const provider = el("select", null, data.providers.map((p) => el("option", { value: p.name }, p.label || p.name)));
+    const unit = el("select", null, data.units.map((u) => el("option", { value: u }, u)));
+    const usd = el("input", { type: "number", min: "0", step: "0.000001", placeholder: "e.g. 0.0003" });
+    const service = el("input", { type: "text", value: "*", placeholder: "* or a model / kind, e.g. eleven_multilingual_v2" });
+    const effective = el("input", { type: "date", value: new Date().toISOString().slice(0, 10) });
+    const err = el("div", { class: "err", role: "alert" });
+    const save = el("button", { class: "btn primary", onclick: async () => {
+      try {
+        await api("POST", "/media-rates", { provider: provider.value, unit: unit.value, usd_per_unit: usd.value, service: service.value, effective: effective.value });
+        d.close(); toast("Rate added."); A.render();
+      } catch (e) { err.textContent = e.message; }
+    } }, "Add rate");
+    const d = A.dialog("Add a media rate", el("div", { class: "stack" },
+      el("div", { class: "form-grid" }, el("label", { class: "field" }, "Service", provider), el("label", { class: "field" }, "Per", unit)),
+      el("div", { class: "form-grid" }, el("label", { class: "field" }, "US dollars per unit", usd), el("label", { class: "field" }, "From", effective)),
+      el("label", { class: "field" }, "Which models or kinds", service, el("span", { class: "hint" }, "* for all; the most specific match wins.")), err), [save]);
   }
 
   async function addressesTab() {
@@ -400,15 +599,20 @@
 
   async function consoleUsersTab() {
     const admins = await api("GET", "/admins");
-    return A.panel("Console users", el("div", { class: "row" }, el("span", { class: "sub" }, "owners change things; viewers only look"),
-      el("button", { class: "btn small", onclick: addAdmin }, icon("plus"), "Add a console user")),
-    SUI.table({ caption: "Console users", rows: admins.items, sort: ["username", "asc"], columns: [
-      { key: "username", label: "User", lead: true, render: (a) => el("span", { class: "u-cell" }, SUI.avatar(a.username, "sm"), el("strong", null, a.username)) },
-      { key: "role", label: "Role", render: (a) => SUI.badge(a.role === "owner" ? "Owner" : "Viewer", a.role === "owner" ? "gold" : "outline") },
-      { key: "last_login", label: "Last sign-in", num: true, render: (a) => fmt.ago(a.last_login) },
-      { key: "x", label: "", sort: false, srLabel: "Remove", cls: "act", render: (a) => (a.username === S.me.username ? el("span", { class: "faint" }, "you")
-        : el("button", { class: "btn small quiet danger", onclick: () => removeAdmin(a) }, "Remove")) }] }),
-    el("div", { class: "body hint" }, "A console user whose username is their Google email can also sign in with Continue with Google."));
+    const roles = A.S.me.roles || {};
+    return [A.panel("Console users", el("button", { class: "btn small", onclick: () => adminDialog(null) }, icon("plus"), "Add a console user"),
+      SUI.table({ caption: "Console users", rows: admins.items, sort: ["username", "asc"], columns: [
+        { key: "username", label: "User", lead: true, render: (a) => el("span", { class: "u-cell" }, SUI.avatar(a.username, "sm"), el("strong", null, a.username)) },
+        { key: "role", label: "Role", render: (a) => el("div", null, SUI.badge(a.role_label, a.owner ? "gold" : "outline"),
+          el("span", { class: "sub" }, a.owner ? "everything" : a.can.length ? a.can.join(", ") : "read-only")) },
+        { key: "last_login", label: "Last sign-in", num: true, render: (a) => fmt.ago(a.last_login) },
+        { key: "x", label: "", sort: false, srLabel: "Change", cls: "act", render: (a) => (a.username === S.me.username ? el("span", { class: "faint" }, "you")
+          : el("div", { class: "row end" }, el("button", { class: "btn small quiet", onclick: () => adminDialog(a) }, "Change role"),
+            el("button", { class: "btn small quiet danger", onclick: () => removeAdmin(a) }, "Remove"))) }] }),
+      el("div", { class: "body hint" }, "A console user whose username is their Google email can also sign in with Continue with Google.")),
+    A.panel("What each role can change", "everyone can see everything", el("ul", { class: "mini-list" }, Object.entries(roles).map(([k, r]) => el("li", null,
+      el("strong", null, r.label), el("span", { class: "grow hint" }, r.about))),
+    el("li", null, el("strong", null, "Custom"), el("span", { class: "grow hint" }, "Pick the areas yourself."))))];
   }
 
   async function accountTab() {
@@ -432,24 +636,38 @@
       A.panelFoot(el("span", { class: "grow" }, pwErr), go));
     return [
       A.panel("Signed in as", null,
-        A.settingRow(S.me.username, S.me.role === "owner" ? "Owner — can change everything." : "Viewer — can see everything, change nothing.",
-          SUI.badge(S.me.role === "owner" ? "Owner" : "Viewer", S.me.role === "owner" ? "gold" : "outline"))),
+        A.settingRow(S.me.username, ((S.me.roles || {})[S.me.role] || {}).about || (S.me.can.length ? "Can change: " + S.me.can.join(", ") + "." : "Can see everything, change nothing."),
+          SUI.badge(A.roleLabel(), S.me.owner ? "gold" : "outline"))),
       form,
     ];
   }
 
-  function addAdmin() {
+  function adminDialog(a) {
+    const roles = A.S.me.roles || {};
+    const areas = A.S.me.areas || {};
     const user = el("input", { type: "text", autocomplete: "off" });
     const pw = el("input", { type: "password", autocomplete: "new-password" });
-    const role = el("select", null, el("option", { value: "viewer" }, "Viewer — can see everything, change nothing"), el("option", { value: "owner" }, "Owner — can change everything"));
+    const role = el("select", null, Object.entries(roles).map(([k, r]) => el("option", { value: k }, `${r.label} — ${r.about}`)), el("option", { value: "custom" }, "Custom — pick the areas"));
+    role.value = a ? (a.owner ? "owner" : Object.keys(roles).find((k) => roles[k].label === a.role_label) || "custom") : "viewer";
+    const picks = el("div", { class: "chk-grid" }, Object.entries(areas).map(([k, about]) => el("label", { "data-tip": about }, el("input", { type: "checkbox", value: k, checked: a ? a.can.includes(k) : false }), k)));
+    const pickRow = el("label", { class: "field" }, "Areas", picks);
+    const sync = () => { pickRow.hidden = role.value !== "custom"; };
+    role.addEventListener("change", sync);
+    sync();
     const err = el("div", { class: "err", role: "alert" });
+    const body = () => ({ role: role.value, areas: role.value === "custom" ? [...picks.querySelectorAll("input:checked")].map((b) => b.value) : undefined });
     const save = el("button", { class: "btn primary", onclick: async () => {
-      try { await api("POST", "/admins", { username: user.value, password: pw.value, role: role.value }); d.close(); toast("Added."); A.render(); } catch (e) { err.textContent = e.message; }
-    } }, "Add");
-    const d = A.dialog("Add a console user", el("div", { class: "stack" },
-      el("label", { class: "field" }, "Username", user, el("span", { class: "hint" }, "Use their Google email (e.g. name@swangzavenue.com) and they can also sign in with Google.")),
-      el("label", { class: "field" }, "Password (10+ characters)", pw), el("label", { class: "field" }, "Role", role), err), [save]);
-    user.focus();
+      try {
+        if (a) await api("PATCH", "/admins/" + a.id, body()); else await api("POST", "/admins", { username: user.value, password: pw.value, ...body() });
+        d.close(); toast(a ? "Role changed. It applies from their next click." : "Added."); A.render();
+      } catch (e) { err.textContent = e.message; }
+    } }, a ? "Change role" : "Add");
+    const d = A.dialog(a ? "Change " + a.username + "'s role" : "Add a console user", el("div", { class: "stack" },
+      a ? null : el("label", { class: "field" }, "Username", user, el("span", { class: "hint" }, "Use their Google email (e.g. name@swangzavenue.com) and they can also sign in with Google.")),
+      a ? null : el("label", { class: "field" }, "Password (10+ characters)", pw),
+      el("label", { class: "field" }, "Role", role), pickRow,
+      el("p", { class: "hint" }, "Everyone in the console can see everything. A role decides what they can change; what it refuses is written to the audit log."), err), [save]);
+    if (!a) user.focus();
   }
 
   async function removeAdmin(a) {
@@ -458,6 +676,46 @@
     try { await api("DELETE", "/admins/" + a.id); toast("Removed."); A.render(); } catch (e) { toast(e.message, true); }
   }
 
+  // ------------------------------------------------------------------ Reports
+
+  async function pageReports(params) {
+    const list = await api("GET", "/reports");
+    A.frame({ title: "Reports", lede: "The standard questions, answered for any period, ready to download. Every amount says what it rests on: estimated from prices and rates, allocated from a plan, or unpriced. Downloads are written to the audit log." },
+      A.pageTabs("#/reports", params, list.items.map((r) => [r.kind, r.title, () => reportTab(r.kind, params)]), { vertical: true }));
+  }
+
+  async function reportTab(kind, params) {
+    const range = A.rangeFrom(params, "month");
+    const holder = el("div");
+    const dl = el("a", { class: "btn" }, icon("download"), "Download CSV");
+    const draw = (r) => {
+      const q = A.rangeQuery(r);
+      dl.href = A.gadmin(`/reports/${kind}?${q.toString()}&format=csv`);
+      SUI.load(holder, async () => {
+        const data = await api("GET", `/reports/${kind}?${q.toString()}`);
+        const money = (k) => /cost|monthly|per_active/.test(k);
+        const when = (k) => k === "time" || k === "last";
+        const cols = data.columns.map((c, i) => ({ key: c.key, label: c.label, lead: i === 0, num: typeof (data.rows[0] || {})[c.key] === "number" && !when(c.key),
+          render: (x) => {
+            const v = x[c.key];
+            if (when(c.key)) return v ? el("span", { title: fmt.stamp(v) }, fmt.when(v)) : "—";
+            if (money(c.key)) return v === null || v === undefined ? el("span", { class: "basis unpriced" }, "not set") : fmt.money(v);
+            return v === null || v === undefined || v === "" ? "—" : typeof v === "number" ? fmt.num(v) : String(v);
+          } }));
+        return [data.rows.length ? SUI.table({ caption: data.title, rows: data.rows, columns: cols })
+          : SUI.stateBox({ icon: "report", title: "Nothing in this period", text: "Try a wider range." }),
+        el("div", { class: "body hint" }, data.notes.join(" "))];
+      }, SUI.skeleton("rows", 5));
+    };
+    const ctl = SUI.rangeControl({ preset: range.preset, from: range.from, to: range.to, presets: ["7d", "30d", "month", "custom"], onChange: (r) => {
+      A.keepParams("#/reports", { tab: kind, range: r.preset, from: r.preset === "custom" ? r.from : null, to: r.preset === "custom" ? r.to : null });
+      draw(r);
+    } });
+    draw(range);
+    return A.panel(null, el("div", { class: "row" }, ctl, dl), holder);
+  }
+
+  A.page(/^#\/reports$/, pageReports);
   A.page(/^#\/licences$/, pageLicences);
   A.page(/^#\/settings$/, pageSettings);
 })();

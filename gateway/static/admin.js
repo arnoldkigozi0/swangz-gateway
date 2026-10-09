@@ -36,7 +36,12 @@
     if (!res.ok) throw new ApiError(res.status, (data && data.error) || res.statusText || "Something went wrong");
     return data;
   }
-  const isOwner = () => S.me && S.me.role === "owner";
+  const isOwner = () => !!(S.me && S.me.owner);
+  /* What this console user may change (gateway/authz.py decides; this only hides buttons they couldn't use):
+     govern (people, tools, access, models, policies), money (prices, budgets, subscriptions, rates),
+     trust (security settings, networks, incidents), emergency (the stops), admin (console users, retention). */
+  const can = (area) => !!(S.me && (S.me.can || []).includes(area));
+  const roleLabel = () => (S.me ? S.me.role_label || (S.me.owner ? "Owner" : "Viewer") : "");
 
   function every(ms, fn) {
     const id = setInterval(() => { if (document.visibilityState === "visible") fn(); }, ms);
@@ -104,7 +109,8 @@
     bar.addEventListener("scroll", edge, { passive: true });
     requestAnimationFrame(() => {
       const on = bar.querySelector("button.on");
-      if (on && bar.scrollWidth > bar.clientWidth) bar.scrollLeft = Math.max(0, on.offsetLeft - 24);
+      // measured against the bar itself: offsetLeft would count from the page and scroll past the first tabs
+      if (on && bar.scrollWidth > bar.clientWidth) bar.scrollLeft = Math.max(0, on.getBoundingClientRect().left - bar.getBoundingClientRect().left + bar.scrollLeft - 24);
       edge();
     });
     return el("div", { class: "tabs-wrap" + (opts.vertical ? " vertical" : "") }, bar, body);
@@ -222,11 +228,37 @@
     const inner = [icon("device"), el("span", null, label || "a device")];
     return keyId ? el("a", { class: "obj device", href: "#/devices/" + keyId }, inner) : el("span", { class: "obj device" }, inner);
   }
+  /* Where a request came from, and how that is known: a network Swangz named (exact), an approximate city from the
+     offline location table, or only the kind of address. Never GPS, and never sent to an outside service. */
   function where(ip, place) {
     if (!ip) return null;
-    return el("span", { class: "obj where", "data-tip": "The address it came from. Location isn't looked up — no IP location database is used.", tabindex: "0" },
+    const approx = place && / · approximate$/.test(place);
+    const tip = approx ? "Approximate: from the offline location table (Settings → Locations). A city from an address can be wrong, especially on mobile data or a VPN."
+      : place && /·/.test(place) ? "A network Swangz named in Settings → Locations."
+        : "The address it came from. No location is known for it: name the network in Settings → Locations, or load a location table.";
+    return el("span", { class: "obj where", "data-tip": tip, tabindex: "0" },
       icon("pin"), el("span", { class: "mono" }, ip), place && place !== "unknown" ? el("span", { class: "faint" }, " · " + place) : null);
   }
+
+  /* For what: a purpose and how it is known. Declared is the person's word; derived comes from the tool; inferred is a
+     guess from keywords, with its confidence — never shown as fact. */
+  const PURPOSE_SOURCE = { declared: "Declared", derived: "From the tool", inferred: "Inferred" };
+  function purposeChip(name, source, confidence, evidence) {
+    if (!name) return null;
+    const how = PURPOSE_SOURCE[source] || "";
+    const pct = source === "inferred" && confidence != null ? ` · ${Math.round(confidence * 100)}%` : "";
+    return el("span", { class: "u-badge purpose p-" + (source || "unknown"), tabindex: "0",
+      "data-tip": `${how}${pct}${evidence ? " — " + evidence : ""}` + (source === "inferred" ? ". A guess from keywords, not a fact." : "") },
+    icon("target"), name, source === "inferred" ? el("span", { class: "faint" }, "?") : null);
+  }
+  let purposeNames = null;
+  async function purposeIndex() {
+    if (!purposeNames) {
+      try { purposeNames = Object.fromEntries((await api("GET", "/purposes")).items.map((p) => [p.id, p.name])); } catch (e) { purposeNames = {}; }
+    }
+    return purposeNames;
+  }
+  const purposeName = (id) => (id ? (purposeNames && purposeNames[id]) || id.replace(/-/g, " ") : null);
 
   // ------------------------------------------------------------------ requests and events
 
@@ -291,12 +323,15 @@
 
   /* One event in two quiet lines: who used what, how it ended and what it cost; then why (the prompt)
      and where from (device, address). The full story is one click away in the record. */
-  const EVENT_KIND = { request: ["AI request", "spark"], launch: ["Opened from the portal", "open"], site: ["AI website visit", "globe"] };
+  const EVENT_KIND = { request: ["AI request", "spark"], launch: ["Opened from the portal", "open"], site: ["AI website visit", "globe"],
+    turn: ["Shared account turn", "users"], access: ["Sign-in or access change", "key"] };
   function eventItem(e, opts) {
     opts = opts || {};
+    if (e.type === "access") return accessItem(e, opts);
     const verb = e.type === "launch" ? (e.outcome === "opened" ? "opened" : "tried to open")
       : e.type === "site" ? (e.outcome === "blocked" ? "was blocked from" : "visited")
-        : e.kind === "media" ? "generated with" : "used";
+        : e.type === "turn" ? "took a turn on"
+          : e.kind === "media" ? "generated with" : "used";
     const [kindLabel, kindIcon] = EVENT_KIND[e.type];
     const toolNode = e.tool ? toolLink(e.tool_id, e.tool) : e.app ? el("span", { class: "obj tool" }, toolLogo(null, e.app, "xs"), el("span", null, e.app)) : el("span", { class: "faint" }, "a tool");
     const detail = [];
@@ -309,11 +344,17 @@
     } else if (e.type === "launch") {
       if (e.platform) detail.push(el("span", { class: "obj" }, icon("monitor"), e.platform));
       if (e.ip) detail.push(where(e.ip, e.place));
+    } else if (e.type === "turn") {
+      const end = e.ended || e.expires;
+      detail.push(el("span", { class: "obj" }, icon("clock"), (e.ended ? "held until " : "until ") + fmt.clock(end)));
+      if (e.ended_by && e.ended_by !== "system") detail.push(el("span", { class: "faint" }, e.ended_by === "self" ? "handed back" : "ended by " + e.ended_by));
+      else if (e.reason) detail.push(el("span", { class: "faint" }, e.reason));
+      if (e.where) detail.push(el("span", { class: "obj" }, icon("server"), e.where));
     } else {
       if (e.seconds) detail.push(el("span", { class: "obj" }, icon("clock"), fmt.dur(e.seconds)));
       if (e.host && e.host !== e.tool) detail.push(el("span", { class: "mono faint" }, e.host));
     }
-    const lead = e.type === "request" && e.outcome !== "ok" && e.reason ? el("span", { class: "ev-reason" }, e.reason)
+    const lead = e.type !== "turn" && e.outcome && !["ok", "opened", "allowed"].includes(e.outcome) && e.reason ? el("span", { class: "ev-reason" }, e.reason)
       : e.prompt ? el("span", { class: "ev-prompt", title: e.prompt }, e.prompt) : null;
     const money = e.type === "request" && e.outcome === "ok" ? (e.kind === "media" && e.cost === null ? (e.units || null) : fmt.money(e.cost)) : null;
     const href = e.type === "request" && e.id ? "#/records/" + e.id : null;
@@ -327,10 +368,31 @@
           toolNode,
           e.type === "request" && e.model ? el("span", { class: "ev-model mono" }, e.model) : null,
           e.type === "request" ? agentBadges(e) : null,
+          e.type === "request" && e.purpose ? purposeChip(purposeName(e.purpose), e.purpose_source, e.purpose_confidence) : null,
           e.credential ? el("span", { class: "u-badge bad" }, icon("key"), "Credential") : null),
         !opts.compact && (lead || detail.length) ? el("div", { class: "ev-sub" }, lead, detail) : null),
-      el("div", { class: "ev-end" }, money ? el("span", { class: "ev-cost u-num" }, money) : null, outcomeStatus(e.type, e.outcome, true)),
+      el("div", { class: "ev-end" }, money ? el("span", { class: "ev-cost u-num" }, money) : null,
+        e.type === "turn" ? SUI.status(e.ended ? "idle" : "ok", e.ended ? "Ended" : "Holding", { plain: true }) : outcomeStatus(e.type, e.outcome, true)),
       href ? el("a", { class: "ev-open", href, "aria-label": "Open the full record of request " + e.id }, icon("chevronRight")) : el("span", { class: "ev-open none" }));
+  }
+
+  /* A sign-in or an access change, from the audit log: who did it (the person themselves, or an admin) and to whom. */
+  function accessItem(e, opts) {
+    const negative = /refused|failed|suspended|revoked|turned a tool off|ended/.test(e.action);
+    return el("li", { class: "ev t-access" + (opts.fresh ? " u-enter" : "") },
+      el("time", { class: "ev-time", datetime: new Date(e.ts * 1000).toISOString(), title: fmt.stamp(e.ts) }, fmt.clock(e.ts)),
+      el("div", { class: "ev-body" },
+        el("div", { class: "ev-head" },
+          el("span", { class: "ev-type", role: "img", "aria-label": EVENT_KIND.access[0], "data-tip": EVENT_KIND.access[0] }, icon("key")),
+          e.self ? personLink(e.person_id, e.person) : el("span", { class: "obj" }, SUI.avatar(e.actor, "sm"), el("strong", null, e.actor)),
+          el("span", { class: "ev-verb" }, e.action),
+          !e.self && !opts.noPerson ? personLink(e.person_id, e.person, { avatar: false }) : null,
+          e.target && e.target !== e.person ? el("span", { class: "faint" }, e.target) : null),
+        e.detail || e.audit_reason || e.ip ? el("div", { class: "ev-sub" },
+          e.audit_reason ? el("span", { class: "ev-prompt" }, "Reason: " + e.audit_reason) : e.detail ? el("span", { class: "faint" }, e.detail) : null,
+          e.ip ? where(e.ip, e.place) : null) : null),
+      el("div", { class: "ev-end" }, SUI.status(e.outcome === "denied" ? "blocked" : negative ? "waiting" : "info", e.outcome === "denied" ? "Refused" : e.self ? "By them" : "By an admin", { plain: true })),
+      el("a", { class: "ev-open", href: "#/audit?q=" + encodeURIComponent(e.action), "aria-label": "Find in the audit log" }, icon("chevronRight")));
   }
 
   /* Events grouped under day headings (in the chosen time zone). */
@@ -480,10 +542,13 @@
   // ------------------------------------------------------------------ the frame
 
   const NAV = [
-    ["Monitor", [["#/", "Overview", "overview"], ["#/live", "Live", "live"], ["#/attention", "Needs attention", "attention"], ["#/activity", "Activity", "activity"]]],
-    ["Govern", [["#/people", "People", "people"], ["#/devices", "Devices", "device"], ["#/tools", "Tools", "tools"], ["#/requests", "Access requests", "requests"]]],
-    ["Money", [["#/licences", "Licences & spend", "licences"]]],
-    ["Trust", [["#/security", "Security", "shield"], ["#/audit", "Audit log", "audit"], ["#/settings", "Settings", "settings"]]],
+    ["Monitor", [["#/", "Overview", "overview"], ["#/live", "Live", "live"], ["#/attention", "Needs attention", "attention"], ["#/activity", "Activity", "activity"],
+      ["#/health", "Health", "pulse"]]],
+    ["Govern", [["#/people", "People", "people"], ["#/requests", "Access requests", "requests"], ["#/tools", "Tools", "tools"], ["#/models", "Models", "chip"],
+      ["#/policies", "Policies", "rule"]]],
+    ["Money", [["#/licences", "Licences & spend", "licences"], ["#/reports", "Reports", "report"]]],
+    ["Trust", [["#/security", "Security", "shield"], ["#/incidents", "Incidents", "flag"], ["#/devices", "Devices", "device"], ["#/audit", "Audit log", "audit"],
+      ["#/settings", "Settings", "settings"]]],
   ];
   const SECTION_OF = { "#/records": "#/activity", "#/sessions": "#/activity" };
 
@@ -495,7 +560,53 @@
       const n = (S.attention.counts.high || 0) + (S.attention.counts.medium || 0);
       if (n) return el("span", { class: "count bad", "aria-label": n + " need attention" }, String(n));
     }
+    if (href === "#/incidents" && S.notes) {
+      const n = S.notes.items.filter((x) => !x.resolved && x.key.startsWith("incident:")).length;
+      if (n) return el("span", { class: "count bad", "aria-label": n + " serious incidents open" }, String(n));
+    }
     return null;
+  }
+
+  // ------------------------------------------------------------------ notifications
+
+  const NOTE_SEV = { critical: ["blocked", "Critical"], high: ["blocked", "High"], warning: ["waiting", "Warning"], notice: ["info", "Notice"], info: ["idle", "Info"] };
+  async function refreshNotes() {
+    try { S.notes = await api("GET", "/notifications"); } catch (e) { /* the bell just waits */ }
+    document.querySelectorAll(".bell").forEach((b) => b.replaceWith(bell()));
+    return S.notes;
+  }
+  function bell() {
+    const n = S.notes ? S.notes.unread : 0;
+    return el("button", { class: "bell theme-btn" + (n ? " on" : ""), type: "button", onclick: openNotes,
+      "aria-label": n ? `Notifications, ${n} unread` : "Notifications", "data-tip": "Notifications" },
+    icon("bell"), n ? el("span", { class: "bell-n u-num" }, n > 99 ? "99+" : String(n)) : null);
+  }
+  async function openNotes() {
+    const { node, close } = sheet(null, "Notifications");
+    const list = el("div", { class: "sheet-body" });
+    let showAll = false;
+    const build = async () => {
+      const data = await api("GET", "/notifications" + (showAll ? "?all=1" : ""));
+      if (!showAll) S.notes = data;
+      return data.items.length ? el("ul", { class: "note-list" }, data.items.map((x) => {
+        const [state, label] = NOTE_SEV[x.severity] || NOTE_SEV.info;
+        return el("li", { class: "note sev-" + x.severity + (x.read || x.resolved ? " read" : "") },
+          el("div", { class: "note-head" }, SUI.status(state, label, { plain: true }), el("span", { class: "u-label" }, x.area),
+            el("span", { class: "grow" }), el("time", { class: "hint", title: fmt.stamp(x.first_seen) }, x.resolved ? "resolved " + fmt.ago(x.resolved) : "since " + fmt.ago(x.first_seen))),
+          el("a", { class: "note-title", href: x.href || "#/attention", onclick: () => close() }, x.title),
+          x.text ? el("p", { class: "note-text" }, x.text) : null);
+      })) : SUI.stateBox({ tone: "ok", icon: "bell", title: "Nothing new", text: "Conditions that need someone appear here, and clear by themselves once they're dealt with." });
+    };
+    const reload = () => SUI.load(list, build, SUI.skeleton("rows", 4));
+    const markAll = el("button", { class: "btn small", onclick: async () => { await api("POST", "/notifications/read", { all: true }); await refreshNotes(); reload(); } }, "Mark all read");
+    const scope = el("button", { class: "btn small quiet", onclick: () => { showAll = !showAll; scope.textContent = showAll ? "Open only" : "Include resolved"; reload(); } }, "Include resolved");
+    node.append(el("header", null, el("div", { class: "spread" },
+      el("div", { class: "sheet-id" }, el("div", null, el("div", { class: "u-label" }, "Control room"), el("h2", null, "Notifications"))),
+      el("button", { class: "btn small quiet icon-only", onclick: close, "aria-label": "Close" }, icon("x"))),
+    el("div", { class: "sheet-tools" }, scope, el("span", { class: "grow" }),
+      S.notes && S.notes.email ? null : el("span", { class: "hint", "data-tip": "Set GATEWAY_SMTP_HOST and GATEWAY_NOTIFY_TO on the server to email high and critical ones.", tabindex: "0" }, "Email off"),
+      markAll)), list);
+    reload();
   }
 
   function sidebar(active, onNavigate) {
@@ -507,17 +618,19 @@
     return el("aside", { class: "side" },
       el("a", { class: "brand", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }),
         el("div", null, el("span", { class: "bn" }, "Swangz ", el("b", null, "Gateway")), el("small", null, "Control room"))),
-      el("button", { class: "side-search", type: "button", onclick: () => openCommand() }, icon("search"), el("span", null, "Search or jump to…"),
-        el("span", { class: "u-kbd" }, navigator.platform && /Mac/.test(navigator.platform) ? "⌘K" : "Ctrl K")),
+      el("div", { class: "side-tools" },
+        el("button", { class: "side-search", type: "button", onclick: () => openCommand(), "aria-label": "Search or jump to a page" }, icon("search"), el("span", null, "Search…"),
+          el("span", { class: "u-kbd" }, navigator.platform && /Mac/.test(navigator.platform) ? "⌘K" : "Ctrl K")),
+        bell()),
       nav,
       el("div", { class: "side-grow" }),
-      isOwner() ? el("div", { class: "estop" + (paused ? " on" : "") },
+      can("emergency") ? el("div", { class: "estop" + (paused ? " on" : "") },
         paused ? [el("div", { class: "estop-t" }, SUI.status("blocked", "AI paused"), el("span", null, "for everyone")),
           el("button", { class: "btn small primary", onclick: () => setPaused(false) }, "Resume")]
           : [el("div", { class: "estop-t" }, el("span", { class: "u-label" }, "Emergency"), el("span", null, "Cut every request now")),
             el("button", { class: "btn small danger", onclick: () => setPaused(true) }, icon("stop"), "Stop all AI")]) : null,
       el("div", { class: "who" }, SUI.avatar(S.me.username),
-        el("div", { class: "id" }, el("strong", null, S.me.username), el("span", null, S.me.role === "owner" ? "Owner · can change things" : "Viewer · read-only")),
+        el("div", { class: "id" }, el("strong", null, S.me.username), el("span", null, roleLabel() + (S.me.can && S.me.can.length ? "" : " · read-only"))),
         SUI.themeButton(),
         el("button", { class: "theme-btn", type: "button", onclick: signOut, "aria-label": "Sign out", "data-tip": "Sign out" }, icon("logout"))));
   }
@@ -533,11 +646,11 @@
     const paused = S.overview && S.overview.paused;
     const banner = paused ? el("div", { class: "banner", role: "alert" }, icon("stop"),
       el("span", null, el("strong", null, "AI access is paused for everyone. "), "Requests and tool launches are refused until an owner resumes."),
-      isOwner() ? el("button", { class: "btn small primary", onclick: () => setPaused(false) }, "Resume access") : null) : null;
+      can("emergency") ? el("button", { class: "btn small primary", onclick: () => setPaused(false) }, "Resume access") : null) : null;
     const appbar = el("div", { class: "appbar" },
       el("button", { class: "btn quiet icon-only", type: "button", "aria-label": "Open navigation", onclick: () => openDrawer(active) }, icon("menu")),
       el("a", { class: "brand mini", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }), "Gateway"),
-      el("button", { class: "btn quiet icon-only", type: "button", "aria-label": "Search", onclick: () => openCommand() }, icon("search")));
+      el("button", { class: "btn quiet icon-only", type: "button", "aria-label": "Search", onclick: () => openCommand() }, icon("search")), bell());
     const crumbs = o.crumbs ? el("nav", { class: "crumbs", "aria-label": "Breadcrumb" }, [].concat(o.crumbs).map((c, i, all) =>
       [c, i < all.length - 1 ? el("span", { class: "sep", "aria-hidden": "true" }, "/") : null])) : null;
     const top = el("header", { class: "top" }, crumbs,
@@ -585,11 +698,16 @@
       go("Actions", "Search AI requests", "#/activity?tab=ai", "search", "prompt find"),
       go("Actions", "Review security", "#/security", "shield", "alerts"),
       { group: "Actions", title: "Export activity (CSV)", icon: "download", keywords: "report download", run: () => { location.href = gadmin("/export.csv"); } },
-      isOwner() ? go("Actions", "Add a person", "#/people?add=1", "plus", "new staff user") : null,
-      isOwner() ? go("Actions", "Add a tool", "#/tools?add=1", "plus", "new catalog") : null,
-      isOwner() ? go("Actions", "Grant or revoke tool access", "#/tools", "tools", "assign entitlement") : null,
+      go("Go to", "Why was this allowed or refused?", "#/policies?tab=explain", "rule", "explain trace decision"),
+      go("Go to", "What would a policy change?", "#/policies?tab=simulate", "rule", "simulate what-if dry run"),
+      go("Go to", "Notifications", "#/attention", "bell", "alerts"),
+      can("govern") ? go("Actions", "Add a person", "#/people?add=1", "plus", "new staff user") : null,
+      can("govern") ? go("Actions", "Add a tool", "#/tools?add=1", "plus", "new catalog") : null,
+      can("govern") ? go("Actions", "Grant or revoke tool access", "#/tools", "tools", "assign entitlement") : null,
+      can("govern") ? go("Actions", "Add a policy", "#/policies?add=1", "plus", "rule deny hours cap") : null,
+      can("trust") ? go("Actions", "Open an incident", "#/incidents?add=1", "flag", "case investigate") : null,
       { group: "Actions", title: "Switch theme", icon: "sun", keywords: "dark light porcelain obsidian", run: () => { SUI.applyTheme(SUI.theme() === "dark" ? "light" : "dark", true); render(); } },
-      isOwner() && !(S.overview && S.overview.paused) ? { group: "Actions", title: "Stop all AI", sub: "Cuts every request — asks first", icon: "stop", keywords: "pause kill switch emergency", run: () => setPaused(true) } : null,
+      can("emergency") && !(S.overview && S.overview.paused) ? { group: "Actions", title: "Stop all AI", sub: "Cuts every request — asks first", icon: "stop", keywords: "pause kill switch emergency", run: () => setPaused(true) } : null,
     ].filter(Boolean);
     commandOpen = SUI.commandMenu({
       actions, placeholder: "Search people, tools, devices, requests — or type a page",
@@ -646,7 +764,8 @@
   function start() {
     SUI.setGatewayOffset(S.me ? S.me.tz_offset_minutes : 180);
     setupCommand();
-    render().then(() => refreshAttention().then(() => { const n = document.querySelector(".side"); if (n && S.me) n.replaceWith(sidebar(n.querySelector("a.on")?.getAttribute("href") || "#/")); }));
+    purposeIndex();
+    render().then(() => Promise.all([refreshAttention(), refreshNotes()]).then(() => { const n = document.querySelector(".side"); if (n && S.me) n.replaceWith(sidebar(n.querySelector("a.on")?.getAttribute("href") || "#/")); }));
   }
 
   window.addEventListener("hashchange", render);
@@ -669,10 +788,11 @@
       side.replaceWith(sidebar(active ? active.getAttribute("href") : "#/"));
     }
   }, 15000);
-  setInterval(() => { if (S.me && document.visibilityState === "visible") refreshAttention(); }, 60000);
+  setInterval(() => { if (S.me && document.visibilityState === "visible") { refreshAttention(); refreshNotes(); } }, 60000);
 
   window.SWA = {
-    S, api, ApiError, gadmin, gurl, GATEWAY, isOwner, every, clearTimers, panel, empty, kpi, pageTabs, settingRow, switchInput, panelFoot, dialog, confirmAction, sheet, bar,
+    S, api, ApiError, gadmin, gurl, GATEWAY, isOwner, can, roleLabel, every, clearTimers, panel, empty, kpi, pageTabs, settingRow, switchInput, panelFoot, dialog, confirmAction, sheet, bar,
+    purposeChip, purposeIndex, purposeName, PURPOSE_SOURCE, refreshNotes, NOTE_SEV,
     toolIndex, toolFor, toolLogo, toolLink, personLink, deviceLink, where, actionsList, ACTION, outcomeStatus, flagBadges, agentBadges,
     totalTokens, units, reqEvent, eventItem, eventDays, launchList, rangeFrom, rangeQuery, keepParams, frame, render, page,
     setPaused, refreshOverview, refreshAttention, openCommand,

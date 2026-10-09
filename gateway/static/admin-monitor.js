@@ -183,7 +183,7 @@
         A.kpi({ label: "Shared accounts in use", icon: "hand", value: turnsNow === null ? "—" : String(turnsNow), note: "turns held now" }));
     }
     function liveCard(t) {
-      const stop = A.isOwner() ? el("button", { class: "btn small danger", onclick: () => cut(t) }, icon("stop"), "Stop") : null;
+      const stop = A.can("emergency") ? el("button", { class: "btn small danger", onclick: () => cut(t) }, icon("stop"), "Stop") : null;
       const node = el("article", { class: "lv u-enter", "data-id": String(t.id) },
         el("div", { class: "lv-head" }, el("span", { class: "lv-state" }), el("span", { class: "grow" }),
           el("span", { class: "elapsed u-num", "data-started": String(t.started) }, fmt.elapsed(t.started))),
@@ -337,7 +337,7 @@
   async function pageActivity(params) {
     await A.toolIndex().catch(() => null);
     const exportLink = el("a", { class: "btn", href: A.gadmin("/export.csv") }, icon("download"), "Export CSV");
-    A.frame({ title: "Activity", lede: "What staff did through Gateway: AI requests, tools opened from the portal, and AI websites visited. Changes admins made are in the Audit log.",
+    A.frame({ title: "Activity", lede: "What staff did through Gateway: AI requests, tools opened from the portal, AI websites visited and shared-account turns — and, on the timeline, each person's sign-ins and the access changes made to them. Every other change admins made is in the Audit log.",
       actions: exportLink },
     A.pageTabs("#/activity", params, [
       ["timeline", "Timeline", () => timelineTab(params)],
@@ -420,7 +420,8 @@
     const list = await people();
     const st = { range: A.rangeFrom(params, "7d"), person: params.get("person") || "", tool: params.get("tool") || "", type: params.get("type") || "", q: params.get("q") || "", dept: params.get("dept") || "" };
     const ctl = { person: personSelect(list, st.person), dept: deptSelect(list, st.dept), tool: toolSelect(st.tool),
-      type: el("select", { "aria-label": "Kind of event" }, [["", "Everything"], ["request", "AI requests"], ["launch", "Tools opened"], ["site", "AI websites"]].map(([v, t]) => el("option", { value: v }, t))) };
+      type: el("select", { "aria-label": "Kind of event" }, [["", "Everything"], ["request", "AI requests"], ["launch", "Tools opened"], ["site", "AI websites"],
+        ["turn", "Shared account turns"], ["access", "Sign-ins and access changes"]].map(([v, t]) => el("option", { value: v }, t))) };
     ctl.type.value = st.type;
     const q = el("input", { type: "search", placeholder: "Search prompts, people, tools…", value: st.q });
     const results = el("div", { class: "results" });
@@ -641,7 +642,8 @@
   const SEC_TYPES = {
     credential: ["Credential detections", "key"], unusual: ["Unusual usage", "activity"], wrong_key: ["Unknown keys", "lock"], signin: ["Failed sign-ins", "user"],
     blocked: ["Rule refusals", "stop"], denied_open: ["Opened without access", "open"], site_blocked: ["Websites blocked", "globe"], revoked: ["Keys revoked", "key"],
-    suspended: ["Access suspended", "user"],
+    suspended: ["Access suspended", "user"], denials: ["Repeated refusals", "stop"], new_place: ["New places", "pin"], new_device: ["New devices", "device"],
+    off_hours: ["Unusual hours", "clock"], new_model: ["New models", "chip"],
   };
   async function pageSecurity(params) {
     const days = Number(params.get("days")) || 7;
@@ -671,7 +673,11 @@
           e.device ? el("span", { class: "obj" }, icon("device"), e.device) : null,
           e.ip ? A.where(e.ip, e.place) : null),
         e.evidence ? el("div", { class: "sec-foot" }, SUI.evidence(e.evidence)) : null,
-        e.href ? el("a", { class: "btn small sec-go", href: e.href }, "Investigate", icon("chevronRight")) : null);
+        el("div", { class: "row sec-go" },
+          A.can("trust") && ["high", "medium", "low"].includes(e.severity) ? el("button", { class: "btn small quiet", onclick: () => A.openIncident({
+            title: e.title + (e.person ? " — " + e.person : ""), severity: e.severity === "high" ? "high" : "medium", source: "security:" + e.type,
+            person: e.person_id, request: (e.href || "").startsWith("#/records/") ? e.href.slice(10) : null }) }, icon("flag"), "Open incident") : null,
+          e.href ? el("a", { class: "btn small", href: e.href }, "Investigate", icon("chevronRight")) : null));
     })) : SUI.stateBox({ tone: "ok", icon: "shield", title: type ? "None of these" : "No security events", text: type ? "Nothing of this kind in this period." : "Everything looks normal." });
     A.frame({ title: "Security", lede: "Signals worth a look, each with how sure the evidence is. Severity says what to check first — it isn't a judgement on anyone.",
       status: SUI.status(postureText[0], postureText[1], { plain: true }),
@@ -693,7 +699,8 @@
   // ------------------------------------------------------------------ Audit
 
   async function pageAudit(params) {
-    const st = { range: A.rangeFrom(params, "30d"), actor: params.get("actor") || "", q: params.get("q") || "" };
+    const st = { range: A.rangeFrom(params, "30d"), actor: params.get("actor") || "", q: params.get("q") || "", outcome: params.get("outcome") || "",
+      area: params.get("area") || "", correlation: params.get("correlation") || "" };
     const body = el("div");
     const more = el("button", { class: "btn", hidden: true }, "Load older");
     const q = el("input", { type: "search", placeholder: "Search actions, targets, details…", value: st.q, "aria-label": "Search the audit log" });
@@ -703,16 +710,27 @@
     const cols = [
       { key: "ts", label: "When", lead: true, render: (a) => el("time", { title: fmt.stamp(a.ts), class: "u-num nowrap" }, fmt.clock(a.ts, true), el("span", { class: "sub" }, fmt.day(a.ts))) },
       { key: "actor", label: "Who", render: (a) => el("span", { class: "u-cell" }, SUI.avatar(a.actor, "sm"), el("strong", null, a.actor)) },
-      { key: "action", label: "Action", render: (a) => el("span", { class: "audit-action" + (/failed|revoked|suspended|deleted|removed|paused|stopped/.test(a.action) ? " neg" : "") }, a.action) },
+      { key: "action", label: "Action", render: (a) => el("div", null,
+        el("span", { class: "audit-action" + (a.outcome === "denied" || /failed|revoked|suspended|deleted|removed|paused|stopped/.test(a.action) ? " neg" : "") }, a.action),
+        a.outcome && a.outcome !== "ok" ? el("span", { class: "sub" }, a.outcome === "denied" ? "refused: outside their role" : a.outcome === "no-op" ? "changed nothing" : a.outcome) : null) },
       { key: "target", label: "Target", render: (a) => a.target || "—" },
-      { key: "detail", label: "Detail", sort: false, render: (a) => (a.detail ? el("span", { class: "audit-detail", title: a.detail }, a.detail) : "—"), hideSm: true },
-      { key: "ip", label: "From", render: (a) => el("span", { class: "mono faint" }, a.ip || "—"), hideSm: true },
+      { key: "detail", label: "Detail", sort: false, render: (a) => auditDetail(a), hideSm: true },
+      { key: "ip", label: "From", render: (a) => (a.ip ? A.where(a.ip, a.place) : el("span", { class: "faint" }, "—")), hideSm: true },
     ];
+    function auditDetail(a) {
+      const show = (v) => JSON.stringify(v, null, 1).replace(/^\{\n|\n\}$/g, "").replace(/"([^"]+)":/g, "$1:");
+      const changed = a.before || a.after;
+      return el("div", { class: "audit-detail-box" },
+        a.detail ? el("span", { class: "audit-detail", title: a.detail }, a.detail) : null,
+        a.reason ? el("div", { class: "hint" }, "Reason: " + a.reason) : null,
+        changed ? el("details", null, el("summary", null, "What changed"),
+          el("div", { class: "json-diff" }, el("pre", { class: "was" }, a.before ? show(a.before) : "—"), el("pre", { class: "now" }, a.after ? show(a.after) : "—"))) : null,
+        !a.detail && !a.reason && !changed ? "—" : null);
+    }
     async function load(reset) {
       const p = A.rangeQuery(st.range);
       p.set("limit", "100");
-      if (st.actor) p.set("actor", st.actor);
-      if (st.q) p.set("q", st.q);
+      ["actor", "q", "outcome", "area", "correlation"].forEach((k) => { if (st[k]) p.set(k, st[k]); });
       if (!reset && minId) p.set("before", minId);
       const data = await api("GET", "/audit?" + p.toString());
       if (actor.options.length === 1) data.actors.forEach((a) => actor.append(el("option", { value: a }, a)));
@@ -727,17 +745,32 @@
     }
     const apply = () => {
       minId = null;
-      A.keepParams("#/audit", { range: st.range.preset, from: st.range.preset === "custom" ? st.range.from : null, to: st.range.preset === "custom" ? st.range.to : null, actor: st.actor, q: st.q });
+      A.keepParams("#/audit", { range: st.range.preset, from: st.range.preset === "custom" ? st.range.from : null, to: st.range.preset === "custom" ? st.range.to : null,
+        actor: st.actor, q: st.q, outcome: st.outcome, area: st.area, correlation: st.correlation });
       load(true).catch((e) => body.replaceChildren(SUI.errorBox(e, apply)));
     };
     actor.addEventListener("change", () => { st.actor = actor.value; apply(); });
+    const outcome = el("select", { "aria-label": "Outcome" }, [["", "Any outcome"], ["ok", "Done"], ["denied", "Refused"], ["no-op", "Changed nothing"]].map(([v, t]) => el("option", { value: v }, t)));
+    outcome.value = st.outcome;
+    const area = el("select", { "aria-label": "Area" }, [["", "Every area"], ["govern", "Govern"], ["money", "Money"], ["trust", "Trust"], ["emergency", "Emergency"], ["admin", "Administration"]].map(([v, t]) => el("option", { value: v }, t)));
+    area.value = st.area;
+    const corr = el("input", { type: "text", value: st.correlation, placeholder: "e.g. person:7, policy:2, incident:4", "aria-label": "About" });
+    outcome.addEventListener("change", () => { st.outcome = outcome.value; apply(); });
+    area.addEventListener("change", () => { st.area = area.value; apply(); });
+    corr.addEventListener("change", () => { st.correlation = corr.value.trim(); apply(); });
     q.addEventListener("input", SUI.debounce(() => { st.q = q.value.trim(); apply(); }, 300));
     more.addEventListener("click", () => load(false).catch((e) => toast(e.message, true)));
     await load(true);
     A.frame({ title: "Audit log", lead: el("span", { class: "audit-mark", "aria-hidden": "true" }, icon("audit")),
-      lede: "Changes made to Gateway by console users — sign-ins, settings, access changes, revoked keys, and every full record opened. What staff did is under Activity." }, [
-      A.panel(null, null, filterBar({ search: q, extra: actor,
-        range: SUI.rangeControl({ preset: st.range.preset, from: st.range.from, to: st.range.to, presets: ["today", "7d", "30d", "month", "custom"], onChange: (r) => { st.range = r; apply(); } }) }).node,
+      lede: "Changes made to Gateway by console users — sign-ins, settings, access changes, revoked keys, every full record opened, and every change someone's role refused — with what it was before and after, and why when they said. What staff did is under Activity." }, [
+      A.panel(null, null, (() => {
+        const fb = filterBar({ search: q, extra: actor,
+          fields: [{ key: "outcome", label: "Outcome", control: outcome }, { key: "area", label: "Area", control: area }, { key: "correlation", label: "About", control: corr }],
+          clear: (keys) => { keys.forEach((k) => { st[k] = ""; ({ outcome, area, correlation: corr })[k].value = ""; }); fb.draw(); apply(); },
+          range: SUI.rangeControl({ preset: st.range.preset, from: st.range.from, to: st.range.to, presets: ["today", "7d", "30d", "month", "custom"], onChange: (r) => { st.range = r; apply(); } }) });
+        [outcome, area, corr].forEach((c) => c.addEventListener("change", () => fb.draw()));
+        return fb.node;
+      })(),
         summary, body, el("div", { class: "body center" }, more)),
     ]);
   }

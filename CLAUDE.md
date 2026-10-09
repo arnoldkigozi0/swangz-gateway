@@ -14,7 +14,7 @@ Two apps on one address, plus a browser extension:
 | Where | What |
 |---|---|
 | `/` | **Swangz AI** — the staff app: Home (a restrained hero, notifications, *Your approved AI tools*), Tools (the whole catalogue: search, categories, sort, a details drawer per tool saying why you have it, how sign-in works and what's recorded), Studio, Devices (device cards + a step-by-step Connect flow), Requests (your access requests + notifications), Privacy (*How Swangz AI works* — what is and isn't recorded, retention, who can see it). **Open** goes through `/go/<tool>`, which checks access, logs the launch and sends the person to the tool's company sign-in link (SSO) or website |
-| `/admin` | **Control room** — Overview, Live (in-flight requests; *Inspect* follows one into its record), Needs attention, Activity (Timeline = who did what, when, where · Who used what · AI requests · Tools opened · Websites visited), People and person profiles, Devices and device pages, Tools (each with its own usage profile), Access requests, Licences & spend (incl. *What cost us money?*), Security, Audit log, Settings. Ctrl+K opens a command menu that searches everything. Dense pages are split with `pageTabs()`, which builds each tab on demand and keeps the chosen one in `?tab=`; time ranges and filters live in the address too. Arnold asked for fewer tiles (Oct 7, 2026): lists put their counts in the filter tabs, headline numbers sit in one `.kpis` strip or a slim `.statline`, and long catalogues are tables, not cards. Settings-style pages use `A.settingRow()` / `A.switchInput()` and `pageTabs(…, { vertical: true })`; a panel's save actions go in `A.panelFoot()`. |
+| `/admin` | **Control room** — MONITOR: Overview, Live (in-flight requests; *Inspect* follows one into its record), Needs attention, Activity (Timeline = who did what, when, where — requests, opens, visits, shared turns, sign-ins and access changes · Who used what · AI requests · Tools opened · Websites visited), Health. GOVERN: People, Access requests, Tools, **Models** (the registry), **Policies** (rules + Simulate + Explain a decision). MONEY: Licences & spend (incl. *What cost us money?*), **Reports**. TRUST: Security, **Incidents**, Devices, Audit log (before/after, reason, outcome), Settings (incl. Emergency, Purposes, Locations, Media rates, Console users with roles). A **notifications bell** sits by the search. Ctrl+K opens a command menu that searches everything. Dense pages are split with `pageTabs()`, which builds each tab on demand and keeps the chosen one in `?tab=`; time ranges and filters live in the address too. Arnold asked for fewer tiles (Oct 7, 2026): lists put their counts in the filter tabs, headline numbers sit in one `.kpis` strip or a slim `.statline`, and long catalogues are tables, not cards. Settings-style pages use `A.settingRow()` / `A.switchInput()` and `pageTabs(…, { vertical: true })`; a panel's save actions go in `A.panelFoot()`. |
 | `extension/` | **Swangz AI Access** — a browser extension that governs AI *websites* (ChatGPT, Midjourney, …): opens the ones a person is entitled to, blocks the rest, logs access-level use only |
 
 The core rule everywhere: **a tool is enabled for a person only when the company subscription is
@@ -66,6 +66,15 @@ rather than reopening this.
 ## Stack and layout
 
 - **Python 3.10+, standard library only.** Nothing to install. One SQLite file (`data/gateway.db`).
+- **V2 (Oct 9, 2026) — the control plane.** Every AI action should be attributable: who, what, for what,
+  when, where, which machine, under which authority, which account, at what cost, with what outcome.
+  The map of what V2 built, the migrations and what is still open is `docs/V2.md`; the threat model is
+  `docs/SECURITY.md`. Three rules that run through it: **the server decides** (roles, policies, model
+  rules — the UI only hides buttons); **no LLM is ever the authority** for access (policies are data,
+  evaluated deterministically; purpose inference is keyword rules that only label); **never present an
+  inference as a fact** (a purpose says declared / derived / inferred with its confidence and evidence;
+  a cost says estimated / unpriced / allocated and which price or rate; a place says named network /
+  approximate / address type).
 - Front ends are plain JS/CSS on a self-hosted Archivo design system; strict Content-Security-Policy.
   Design tokens ("Obsidian & Gold") live in `static/tokens.css`: near-black neutral surfaces (no blue
   cast), champagne gold as the brand, bright mint/sky/coral for states. **Dark is the default**; a
@@ -77,14 +86,21 @@ rather than reopening this.
   view, arrow-key reading), sortable tables that turn into cards on phones, the time-range control and
   the command menu. Build new UI from these rather than one-off markup. The console's core is
   `admin.js` (frame, nav, routing, shared event renderers, exported as `window.SWA`); its pages live in
-  `admin-monitor.js`, `admin-records.js`, `admin-govern.js` and `admin-money.js` and register routes
-  with `SWA.page()`. Show evidence honestly: a cost is *estimated*, a platform comes *from the user
-  agent*, an address is *not geolocated* — never present an inference as a fact.
+  `admin-monitor.js`, `admin-records.js`, `admin-govern.js`, `admin-money.js`, `admin-rules.js` and
+  `admin-trust.js` and register routes with `SWA.page()`. Show evidence honestly: a cost is *estimated*
+  (from which price or rate) or *unpriced*, a platform comes *from the user agent*, a place is a *named
+  network*, *approximate* (offline table) or just the address type, a purpose is *declared*, *from the
+  tool* or *inferred* with its confidence — never present an inference as a fact.
 - **The finish follows Swangz Avenue Bookings** (`arnoldkigozi0/swangz-avenue-bookings-uiux`, Arnold's
   reference, Oct 7, 2026): tight radii, sentence-case buttons that are outlines by default, one primary
   per place (off-white, gold sweeps in on hover), danger outlined. Page actions sit on the title's line
   at the right; panel actions in the header (add) or footer (save), right-aligned; Cancel before the
   action in every dialog.
+- **Console roles are areas** (`gateway/authz.py`): govern (people, tools, access, models, policies,
+  purposes, company browsers), money (prices, rates, subscriptions, budgets), trust (incidents, networks,
+  security settings), emergency (the stops), admin (console users, retention, privacy). Owner = all;
+  operations = govern + emergency; security = trust + emergency; billing = money; viewer = none; or custom.
+  Everyone in the console can *see* everything. In the console use `A.can(area)`, not `isOwner()`.
 
 ```
 gateway/
@@ -99,15 +115,24 @@ gateway/
   store.py      request bodies stored once per message by hash; retention clean-up
   pricing.py    model price table and cost per request
   live.py       requests in flight, and cutting them
-  db.py         SQLite + append-only numbered migrations (currently schema v12)
+  db.py         SQLite + append-only numbered migrations (currently schema v18)
   security.py   key/password hashing, sign-in throttle, per-person rate limiter
-  admin.py      control-room API
+  admin.py      control-room API: the route decorator (role + area), people, keys, tools, settings, audit
+  authz.py      roles as areas, and the one place that says who may change what
+  geo.py        WHERE: named networks, an offline GeoIP table (approximate), address types — no outside lookups
+  purpose.py    FOR WHAT: declared / derived / inferred (keyword rules) / unknown, with confidence and evidence
+  policy.py     the deterministic policy engine (deny, permitted hours, monthly cap) and the model registry rules
+  govern.py     API: purposes, models, policies, the read-only simulators, explain
+  money.py      API: media rates by effective date (cost provenance), reports and CSV
+  trust.py      API: named networks, the location table, incidents, notifications
+  notify.py     notifications from conditions (attention, switches, failing providers, incidents); optional SMTP
   insight.py    the control room's read-only lenses: trends, attention, security, devices, timeline, usage, spend, search
   staff.py      staff-app API, /go/<tool> launches, Studio, and the browser access gate
   google.py     Sign in with Google (OIDC code flow) for staff and admins: /auth/google/start|callback
   guides.py     per-tool connection steps shown to staff
   config.py     settings from the environment; provider definitions
   static/       ui.js + ui.css (shared), index.html + portal.* (staff), admin.html + admin*.js + admin.css (console), tokens.css, fonts/
+                (admin-rules.js = Models + Policies; admin-trust.js = Incidents + Health)
 extension/      the MV3 browser access gate (its own README)
 workspace_agent/ agent.py — the Swangz Workspace Agent, alone on the workspace machine (stdlib);
                 computer.py — runs it on a Windows PC or Mac: setup, tunnel, start with the computer
@@ -116,6 +141,8 @@ deploy/         systemd unit, Caddyfile, laptop-demo.sh, NETLIFY.md, WORKSPACE.m
 docs/STATE.md   current status, what's done, what's next  ← read this after this file
 docs/HANDOFF.md moving to another machine: what is NOT in git, and how to carry it across
 docs/GO-LIVE.md the rollout checklist (who does what) and the monthly cost — Swangz uses paid accounts, not API keys
+docs/V2.md      the V2 control plane: what existed, what V2 built (with tests), migrations v13–v18, what is open
+docs/SECURITY.md threat model: assets, actors, boundaries, threats → controls → tests, privacy, limits
 ```
 
 ## Working conventions (follow these)
@@ -124,7 +151,12 @@ docs/GO-LIVE.md the rollout checklist (who does what) and the monthly cost — S
   test for each change; the suite runs against `tests/fake_upstream.py`, never a real provider.
 - **Migrations are append-only.** Add a new entry to `SCHEMA` in `db.py`; never edit an old one.
   Existing databases upgrade themselves on start-up.
-- **Routes** use the `@route` decorator (owner/viewer and signed-in/not), and get a permissions test.
+- **Routes** use the `@route` decorator (signed-in or not, and `area=` for anything that changes state —
+  a string, a tuple meaning any of them, or a function of the request), and get a permissions test
+  (`tests/test_v2.V2PermissionTests` sweeps the V2 ones). Significant changes call `ctx.audit(...)` with
+  `before=`/`after=` and a `correlation=` like `person:7`; refusals are audited by the dispatcher.
+- **Policies only take access away**, and an unreadable one **fails closed** (refused, recorded as
+  `policy check failed`). With no policies, behaviour is exactly as before V2.
 - **Secrets never get committed.** `.gitignore` covers `.env`, `data/`, `*.db`. Provider keys live
   only in the environment; staff keys are stored as a SHA-256 only.
 - **No AI attribution** in commits, docs, READMEs, or anything that could be shared — it is Arnold's
@@ -142,7 +174,7 @@ python3 -m gateway add-admin <name>      # first owner (asks for a password)
 python3 -m gateway serve                 # http://localhost:8787
 ```
 
-Command line: `serve | add-admin | add-person | issue-key | revoke-key | people | pause | resume | purge`.
+Command line: `serve | add-admin [--role owner|operations|security|billing|viewer] | add-person | issue-key | revoke-key | people | pause | resume | purge | geoip-import FILE --source "DB-IP Lite 2026-10"`.
 
 **Demo online from a laptop** (a stand-in model answers, so nothing is spent):
 
@@ -158,7 +190,8 @@ logo fetching (the tests set it); `GATEWAY_WEB_URL` (the address people open, e.
 username = Google email); `GATEWAY_WORKSPACE_AGENT` / `GATEWAY_WORKSPACE_AGENT_TOKEN` (the Workspace
 Agent on the rented server); `GATEWAY_TURN_CLOUDFLARE_KEY_ID` / `_TOKEN` or `GATEWAY_TURN_URLS` /
 `GATEWAY_TURN_SECRET` (the video relay for company browsers on Swangz's own computers);
-`GATEWAY_WORKSPACE_TOKEN` (fallback: fixed browsers' Neko API token); `GATEWAY_CORS_ORIGINS` to let a Netlify-hosted front-end call the API (see `deploy/NETLIFY.md`); `GATEWAY_TZ_OFFSET`. Runtime
+`GATEWAY_WORKSPACE_TOKEN` (fallback: fixed browsers' Neko API token); `GATEWAY_CORS_ORIGINS` to let a Netlify-hosted front-end call the API (see `deploy/NETLIFY.md`); `GATEWAY_TZ_OFFSET`;
+`GATEWAY_SMTP_HOST` / `_PORT` / `_USER` / `_PASSWORD` / `_FROM` and `GATEWAY_NOTIFY_TO` (optional: email high and critical notifications). Runtime
 settings (retention, rate limit, kill switch, …) live in the control room under Settings.
 
 ## Picking the project up on a new machine

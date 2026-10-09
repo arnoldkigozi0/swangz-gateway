@@ -18,8 +18,9 @@ sub-agents) is unchanged — it is simply on the record.
 - One SQLite file holds everything.
 - **Two apps on one address.** `/` is **Swangz AI**, the staff app: sign in, connect a tool in about a
   minute, manage your own devices, see your allowance. It is simply how staff reach AI at work and
-  says nothing about monitoring. `/admin` is the **control room** for owners and viewers, with an
-  audit log of what the watchers themselves did.
+  says nothing about monitoring. `/admin` is the **control room**, with roles (owner, operations,
+  security, billing, viewer) and an audit log of what the watchers themselves did — what changed,
+  from what to what, and why.
 
 ## Voice, image and video services
 
@@ -69,7 +70,9 @@ For every request:
 | Asked | what the person actually typed, with the context their tool injects stripped off |
 | Did | each action in plain words: `$ npm test`, `edited src/login.ts`, `fetched https://…`, `started a sub-agent` |
 | Said | the model's reply |
-| Cost | input, output, cache and reasoning tokens, and dollars |
+| For | its purpose: declared by the person or tool, derived from the tool, or inferred from keywords (with confidence and the words matched) — or unknown |
+| Where | the address, and what is known about it: a network Swangz named, an approximate town from an offline table, or just the address type |
+| Cost | input, output, cache and reasoning tokens, and dollars — estimated from the price or media rate in force, which is stored with it, or *unpriced* |
 | Flags | credentials (API keys, cloud keys, private keys) seen in what was sent; attachments |
 | Full record | the whole request and response, rebuilt on demand, downloadable as JSON |
 
@@ -83,10 +86,18 @@ hash), so a long agent session costs about one copy of the conversation, not one
   Each of these cuts requests that are already streaming; the tool gets a clear
   "revoked by an administrator" error in its own format, marked as not worth retrying.
 - **Set limits** per person: a daily and monthly dollar budget, and which models they may use.
-- **Search** everything by text, person, tool or outcome; **export** CSV.
+- **Search** everything by text, person, tool or outcome; **export** CSV; run **reports**.
 - **Refuse requests that contain credentials** (off by default — when off, they are flagged).
-- **Two roles**: owners change things, viewers only look. Opening a full record, every change, and
-  every sign-in is written to the audit log.
+- **Govern** with a **model registry** (approved / experimental / restricted / deprecated / disabled) and
+  **policies** — refuse, permitted hours, a monthly cap — for everyone, departments or people, on gateway
+  requests, portal opens and website visits. **Simulate** a policy against real history before saving it,
+  and **explain** any decision check by check. Policies are data the gateway evaluates the same way every
+  time; no AI model decides access.
+- **Investigate**: risk signals against each person's own history, **incidents** with evidence and notes,
+  **notifications** (optionally by email), and switch one provider off or pause the company browsers.
+- **Roles**: owner (everything), operations (people, tools, policies + emergency), security (incidents,
+  networks, security settings + emergency), billing (prices, rates, budgets), viewer (look only), or custom.
+  Every change and every refused change is written to the audit log with before/after.
 
 ## Quick start (on any machine)
 
@@ -164,9 +175,15 @@ Environment variables (or a `.env` file next to where you run it):
 | `GATEWAY_EXTRA_ENDPOINTS` | — | endpoints to allow beyond the model calls, e.g. `POST /v1/images/generations` |
 | `GATEWAY_TLS_CERT`, `GATEWAY_TLS_KEY` | — | serve https directly instead of behind a proxy |
 | `GATEWAY_BOOTSTRAP_ADMIN`, `GATEWAY_BOOTSTRAP_PASSWORD` | — | create the first owner on hosts with no shell |
+| `GATEWAY_SMTP_HOST`, `_PORT`, `_USER`, `_PASSWORD`, `_FROM`; `GATEWAY_NOTIFY_TO` | — | optional: email high and critical notifications (STARTTLS on 587) |
 
-Settings that change while running — retention, storing full bodies, refusing credentials, model
-prices, console users — live in the console under **Settings**.
+Settings that change while running — retention per category, storing full bodies, refusing credentials,
+model prices, media rates, purposes, named networks, emergency switches, console users and roles — live
+in the console under **Settings**.
+
+**Location.** No address is sent anywhere to be located. To show approximate towns, load a free offline
+table on the server (DB-IP Lite or IP2Location LITE, CSV) and refresh it monthly:
+`python3 -m gateway geoip-import dbip-city-lite-2026-10.csv --source "DB-IP Lite 2026-10"`.
 
 **More providers.** Any service that speaks the Anthropic or OpenAI format can sit behind the
 gateway. `providers.json`:
@@ -227,6 +244,8 @@ Back up `data/gateway.db` regularly — it is the record.
   allowance and devices.
 - The staff app and control room can live on separate subdomains if you prefer (point both at the
   same gateway); it keeps browsers from offering admin passwords on the staff sign-in page.
+- Console roles are checked on the server for every change; policies that can't be evaluated refuse
+  rather than allow. The full threat model, and its limits, is [`docs/SECURITY.md`](docs/SECURITY.md).
 
 ## What it can't see
 
@@ -250,8 +269,9 @@ and Privacy Act expects people to be told, and that note covers it without makin
 ## Command line
 
 ```
-python3 -m gateway serve | add-admin USER [--viewer] | add-person NAME [--department D]
+python3 -m gateway serve | add-admin USER [--role owner|operations|security|billing|viewer] | add-person NAME [--department D]
                    issue-key PERSON_ID [--label L] | revoke-key KEY_ID | people | pause | resume | purge
+                   geoip-import FILE --source "DB-IP Lite 2026-10"
 ```
 
 A revoke or pause from the command line applies from the next request; only the console can also
@@ -265,4 +285,6 @@ python3 -m unittest discover -s tests -t .
 
 The suite runs the gateway against a stand-in provider that speaks both formats, streamed and not:
 key handling, every refusal, budgets, cutting live streams, record rebuilding, retention, the
-console API and its permissions.
+console API and its permissions, and (`tests/test_v2.py`) roles, the audit fabric, location, purpose,
+the model registry, policies and their simulator, media costs, reports, incidents, notifications, risk
+signals and migrations from v12.
