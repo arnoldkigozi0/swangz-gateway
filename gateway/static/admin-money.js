@@ -164,7 +164,8 @@
 
   async function pageSettings(params) {
     const mine = A.S.me.can || (A.isOwner() ? ["admin"] : []);
-    const tab = params.get("tab") || "safety";
+    const selectedGroup = params.get("tab") || "security";
+    const selectedSection = params.get("section") || "";
     const tabGroups = [
       ["security", "Access & privacy", ["safety", "emergency"]],
       ["governance", "Purpose & location", ["purposes", "locations"]],
@@ -180,18 +181,20 @@
       prices: () => pricesTab(A.can("money")), rates: () => ratesTab(),
       users: () => consoleUsersTab(), account: () => accountTab(),
     };
-    const parent = tabGroups.find((g) => g[2].includes(tab)) || tabGroups[0];
-    const child = parent[2].includes(tab) ? tab : parent[2][0];
+    const parent = tabGroups.find((g) => g[0] === selectedGroup) || tabGroups.find((g) => g[2].includes(selectedSection)) || tabGroups[0];
+    const child = parent[2].includes(selectedSection) ? selectedSection : parent[2][0];
     A.frame({ title: "Settings", lede: mine.length ? `Configure access, privacy and infrastructure. Your role (${A.roleLabel()}) determines which settings you can change; changes are recorded in the audit log.`
       : "You're a viewer: you can see these settings but not change them." },
     A.pageTabs("#/settings", params, tabGroups.map(([id, label, children]) => [id, label, () => {
-      const current = children.includes(params.get("section")) ? params.get("section") : children.includes(tab) ? tab : children[0];
+      const current = parent[0] === selectedGroup && children.includes(selectedSection) ? selectedSection : children[0];
       const links = children.map((key) => [key, ({
         safety: "Access & records", emergency: "Emergency controls", purposes: "Purposes", locations: "Locations",
         addresses: "Provider connections", prices: "Model prices", rates: "Media rates",
         browsers: "Company browsers", users: "Console users", account: "Your account",
       })[key], () => tabs[key]()]);
-      return A.pageTabs("#/settings", new URLSearchParams({ section: current }), links, { param: "section" });
+      const nestedParams = new URLSearchParams(location.hash.split("?")[1] || "");
+      nestedParams.set("section", current);
+      return A.pageTabs("#/settings", nestedParams, links, { param: "section" });
     }]), { vertical: true, descriptions: {
       security: "Access rules, data retention and emergency controls.",
       governance: "How activity is classified and how network locations are identified.",
