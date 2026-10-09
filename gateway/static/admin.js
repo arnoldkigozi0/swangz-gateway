@@ -69,14 +69,73 @@
       o.spark ? el("div", { class: "spark" }, o.spark) : null);
   }
 
-  /* A page split into tabs; each tab builds the first time it is opened. The tab lives in ?tab=. */
+  /* A page split into tabs; the selected tab is shareable in the URL. A short explanation beneath
+     the tabs makes each view's job clear. Nested tab sets use their own query parameter. */
+  const TAB_HELP = {
+    "#/": {
+      now: "The current situation and the three highest-priority conditions. Open Needs attention for the full queue.",
+      trends: "How total use and estimated API spend are changing over the last 30 days.",
+      leaders: "A ranked summary of tools and people. Open Activity for the full breakdown.",
+      licences: "Unused seats, oversubscribed plans and upcoming renewals. Manage licences for the full detail.",
+    },
+    "#/activity": {
+      timeline: "One chronological stream of requests, launches, website visits, sign-ins and access changes.",
+      usage: "Compare use by person or tool for the selected period. This is a summary, not a request transcript.",
+      ai: "Individual AI gateway requests, with filters and links to the forensic record.",
+      opens: "Tools opened from the Swangz AI portal, including the source device and address when known.",
+      sites: "Access-level visits captured by the browser extension; page contents and keystrokes are not recorded.",
+    },
+    "#/licences": {
+      licences: "Company plans, assigned seats, active use and possible licence waste.",
+      spend: "Metered AI spend and company plan costs, with the basis for each amount.",
+      renewals: "Plans renewing soon and their recorded renewal dates.",
+    },
+    "#/settings": {
+      safety: "Retention, request protection, staff-device settings and the privacy contact.",
+      emergency: "Emergency switches that stop AI, disable a provider or pause company browsers.",
+      governance: "The purpose labels and location sources used to explain activity.",
+      providers: "Provider connection addresses and the model/media price tables.",
+      browsers: "Where company browsers run, their health and how they are connected.",
+      users: "Who can enter the control room and which areas their role can change.",
+      account: "Your own console account and sign-in details.",
+    },
+    "#/policies": {
+      list: "Rules currently enforced by the gateway. Changing a rule affects new activity.",
+      simulate: "Replay a proposed rule against real history without saving it or changing access.",
+      explain: "Trace each access check for a person and tool, in the same order the gateway evaluates it.",
+    },
+    "#/people": {
+      overview: "Account state, recent activity and the tools currently assigned to this person.",
+      activity: "The person's combined activity history for the selected period.",
+      devices: "Keys and devices associated with this person.",
+      security: "Signals that may need review, with supporting evidence.",
+      details: "Account identity and administrative details.",
+    },
+    "#/devices": {
+      all: "Devices and gateway keys seen by Swangz AI.",
+      keys: "Gateway keys, including revoked and active credentials.",
+      browsers: "Browser sessions that use the website access gate.",
+      activity: "Requests, sign-ins and access activity associated with this device.",
+      flagged: "Credential detections, policy refusals and other events worth reviewing.",
+      sessions: "Known sessions correlated with this device.",
+      apps: "Applications and models observed using this device's keys.",
+      addresses: "Network addresses and approximate location evidence.",
+      key: "The device's gateway key and its current revocation state.",
+    },
+  };
   function pageTabs(base, params, tabs, opts) {
     opts = opts || {};
     tabs = tabs.filter(Boolean);
+    const paramName = opts.param || "tab";
     const body = el("div", { class: "tab-body" });
     const built = new Map();
-    let current = tabs.some((t) => t[0] === params.get("tab")) ? params.get("tab") : tabs[0][0];
+    const routeKey = base.replace(/\\/\\d+$/, "");
+    let current = tabs.some((t) => t[0] === params.get(paramName)) ? params.get(paramName) : tabs[0][0];
     const bar = el("div", { class: "ptabs" + (opts.vertical ? " vertical" : ""), role: "tablist", "aria-orientation": opts.vertical ? "vertical" : null });
+    function description(id) {
+      const tab = tabs.find((t) => t[0] === id);
+      return (tab && tab[4]) || (opts.descriptions && opts.descriptions[id]) || ((TAB_HELP[routeKey] || {})[id]) || "";
+    }
     function show(id, focus) {
       current = id;
       bar.querySelectorAll("button").forEach((b) => {
@@ -87,16 +146,21 @@
         if (on && focus) b.focus();
       });
       const keep = new URLSearchParams(location.hash.split("?")[1] || "");
-      keep.set("tab", id);
+      keep.set(paramName, id);
       history.replaceState(null, "", base + "?" + keep.toString());
-      if (built.has(id)) { body.replaceChildren(built.get(id)); return; }
+      body.replaceChildren();
+      const note = description(id);
+      if (note) body.append(el("p", { class: "tab-help", "aria-live": "polite" }, note));
+      if (built.has(id)) { body.append(built.get(id)); return; }
       const holder = el("div", { class: "tab-pane", role: "tabpanel" });
       built.set(id, holder);
-      body.replaceChildren(holder);
+      body.append(holder);
       SUI.load(holder, () => tabs.find((t) => t[0] === id)[2](), SUI.skeleton("rows", 4));
     }
+    const prefix = "tab-" + base.replace(/[^a-z0-9]+/gi, "-").replace(/-+$/g, "");
     bar.replaceChildren(...tabs.map(([id, label, , badge]) => el("button", {
-      type: "button", role: "tab", "data-tab": id, onclick: () => show(id),
+      type: "button", role: "tab", id: prefix + "-" + id, "aria-controls": prefix + "-panel", "data-tab": id,
+      onclick: () => show(id),
     }, label, badge ? el("span", { class: "tab-count" }, String(badge)) : null)));
     bar.addEventListener("keydown", (e) => {
       if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
@@ -106,12 +170,11 @@
       show(next, true);
     });
     show(current);
-    // On a narrow screen the bar scrolls sideways: fade the edge while more tabs are hidden, and keep the chosen one in view.
+    // On narrow screens, keep the chosen tab in view without scrolling past the first tab.
     const edge = () => bar.classList.toggle("more", bar.scrollLeft + bar.clientWidth < bar.scrollWidth - 2);
     bar.addEventListener("scroll", edge, { passive: true });
     requestAnimationFrame(() => {
       const on = bar.querySelector("button.on");
-      // measured against the bar itself: offsetLeft would count from the page and scroll past the first tabs
       if (on && bar.scrollWidth > bar.clientWidth) bar.scrollLeft = Math.max(0, on.getBoundingClientRect().left - bar.getBoundingClientRect().left + bar.scrollLeft - 24);
       edge();
     });
@@ -612,10 +675,25 @@
   }
 
   function sidebar(active, onNavigate) {
-    const nav = el("nav", { class: "nav", "aria-label": "Control room" }, NAV.map(([group, links]) => el("div", { class: "nav-group" },
-      el("div", { class: "group", "aria-hidden": "true" }, group),
-      links.map(([href, label, ic]) => el("a", { href, class: href === active ? "on" : null, "aria-current": href === active ? "page" : null, onclick: onNavigate || null },
-        icon(ic), el("span", { class: "nl" }, label), navCounts(href))))));
+    const nav = el("nav", { class: "nav", "aria-label": "Control room" }, NAV.map(([group, links]) => {
+      const key = "swangz-gateway-nav-" + group.toLowerCase();
+      let saved = null;
+      try { saved = localStorage.getItem(key); } catch (e) { /* preference storage may be unavailable */ }
+      const open = saved === null ? links.some(([href]) => href === active) : saved === "1";
+      const items = el("div", { class: "nav-links", hidden: !open },
+        links.map(([href, label, ic]) => el("a", { href, class: href === active ? "on" : null, "aria-current": href === active ? "page" : null, onclick: onNavigate || null },
+          icon(ic), el("span", { class: "nl" }, label), navCounts(href))));
+      const heading = el("button", { class: "group-toggle", type: "button", "aria-expanded": open ? "true" : "false",
+        onclick: () => {
+          const next = items.hidden;
+          items.hidden = !next;
+          groupNode.classList.toggle("collapsed", !next);
+          heading.setAttribute("aria-expanded", next ? "true" : "false");
+          try { localStorage.setItem(key, next ? "1" : "0"); } catch (e) { /* preference is optional */ }
+        } }, el("span", null, group), icon("chevronDown"));
+      const groupNode = el("div", { class: "nav-group" + (open ? "" : " collapsed") }, heading, items);
+      return groupNode;
+    }));
     const paused = S.overview && S.overview.paused;
     return el("aside", { class: "side" },
       el("a", { class: "brand", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }),
@@ -653,13 +731,19 @@
       el("button", { class: "btn quiet icon-only", type: "button", "aria-label": "Open navigation", onclick: () => openDrawer(active) }, icon("menu")),
       el("a", { class: "brand mini", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }), "Gateway"),
       el("button", { class: "btn quiet icon-only", type: "button", "aria-label": "Search", onclick: () => openCommand() }, icon("search")), bell());
+    const place = NAV.map(([group, links]) => ({ group, item: links.find(([href]) => href === active) })).find((x) => x.item);
     const crumbs = o.crumbs ? el("nav", { class: "crumbs", "aria-label": "Breadcrumb" }, [].concat(o.crumbs).map((c, i, all) =>
-      [c, i < all.length - 1 ? el("span", { class: "sep", "aria-hidden": "true" }, "/") : null])) : null;
+      [c, i < all.length - 1 ? el("span", { class: "sep", "aria-hidden": "true" }, "/") : null]))
+      : el("nav", { class: "crumbs", "aria-label": "Breadcrumb" },
+        el("span", { class: "crumb-area" }, place ? place.group : "Control room"),
+        el("span", { class: "sep", "aria-hidden": "true" }, "/"),
+        el("span", { class: "crumb-current" }, place ? place.item[1] : (o.title || "Overview")));
     const top = el("header", { class: "top" }, crumbs,
       el("div", { class: "title-row" }, o.lead || null, el("h1", null, o.title), o.status || null),
       o.actions ? el("div", { class: "top-actions" }, o.actions) : null,
       o.lede ? el("p", { class: "lede" }, o.lede) : null);
-    app.replaceChildren(el("div", { class: "shell" }, side,
+    const routeSlug = (section === "#/" ? "overview" : section.slice(2)).replace(/[^a-z0-9-]/gi, "-");
+    app.replaceChildren(el("div", { class: "shell route-" + routeSlug }, side,
       el("div", { class: "main" }, appbar, banner, el("main", { id: "main", tabindex: "-1" }, top, el("div", { class: "page" + (o.wide ? " wide" : "") }, content)))));
   }
 
