@@ -645,7 +645,7 @@
       }));
     }
     draw();
-    return el("div", { class: "u-table-wrap" }, t);
+    return el("div", { class: "u-table-wrap", tabindex: "0", role: "region", "aria-label": o.caption || "Data table" }, t);
   }
 
   // ------------------------------------------------------------------ the time machine

@@ -119,3 +119,12 @@ Headless Chromium against the demo gateway (`tests/fake_upstream.py --demo`):
 - **Home.** Only real values: the lead tool is the one opened most recently from here (or the only one), never a guess;
   no figure appears that doesn't help (no "0 used this week"); a tool is never shown twice; the allowance appears only
   when the person's budget is visible to them; Studio only when their services include it and they're active.
+
+## Interface elevation after V2.2
+
+The existing information architecture now has stronger page headings, calmer selection accents,
+readable sentence-case panels/tables and aligned phone table fields. Staff catalogue filters
+(`q`, `cat`, `show`, `sort`) live in the URL and have a reset action. Studio keeps separate media
+forms while switching kinds/views, announces submission states and offers a read-only retry when
+progress cannot be checked. The staff mobile bar includes Studio when it is available. Review notes,
+limitations and repeatable optional browser checks are in [UI-ELEVATION.md](UI-ELEVATION.md).

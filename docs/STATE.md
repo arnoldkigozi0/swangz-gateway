@@ -436,3 +436,13 @@ Console roles are checked per area on the server; policies fail closed. Full thr
 - The public address is derived per request (or from `GATEWAY_PUBLIC_URL`), so setup instructions
   always match the link the person actually used. localhost.run free links rotate; the demo prefers a
   Cloudflare quick tunnel (stable while it runs).
+
+### Interface elevation after V2.2
+
+The staff and console frontends gained clearer headings, champagne selection accents, readable
+supporting text, consistent tables/empty states, quieter secondary launch actions and bounded dialogs.
+Staff catalogue filters now survive deep links and refresh; mobile navigation includes Studio when
+available. Studio retains drafts across media/view switches, announces submission outcomes and offers
+progress-read recovery. Overview's summary-note CSS collision and measured contrast issues were fixed.
+The implementation, audit and optional local browser-test commands are documented in
+[UI-ELEVATION.md](UI-ELEVATION.md). No server route, authentication, database or enforcement code changed.
