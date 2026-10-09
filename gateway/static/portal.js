@@ -484,7 +484,7 @@
     const statusLine = me.active ? SUI.status("ready", "Access active", { plain: true })
       : me.suspended ? SUI.status("suspended", "Your access is paused", { plain: true }) : SUI.status("waiting", "AI access is paused for everyone", { plain: true });
     const list = notices();
-    const hero = el("section", { class: "hero" }, el("div", { class: "shell" },
+    const hero = el("section", { class: "hero art" }, el("div", { class: "shell" },
       el("div", { class: "eyebrow" }, `${greeting()}, ${firstName(me.name)}`),
       el("h1", null, me.active ? "Your AI workspace is ready." : me.suspended ? "Your access is paused." : "AI is paused for now."),
       el("p", { class: "hero-meta" }, statusLine,

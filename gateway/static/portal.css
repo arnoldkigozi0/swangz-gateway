@@ -66,8 +66,7 @@ h1, h2, h3 { text-wrap: balance; }
 
 .gate { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(400px, .9fr); background: var(--ink-1); }
 .gate-art { position: relative; overflow: hidden; padding: var(--s7) var(--gutter); display: flex; flex-direction: column; justify-content: space-between; gap: var(--s6); color: #F6F6F4;
-  background: radial-gradient(880px 520px at 0% 100%, rgba(245, 179, 43, .26), transparent 62%), radial-gradient(680px 460px at 100% 0%, rgba(47, 217, 154, .10), transparent 60%),
-    linear-gradient(160deg, #18181B 0%, #09090A 100%); }
+  background: radial-gradient(880px 520px at 0% 100%, rgba(245, 179, 43, .18), transparent 62%), linear-gradient(160deg, #18181B 0%, #09090A 100%); }
 .gate-art::before { content: ""; position: absolute; inset: 0; pointer-events: none;
   background-image: linear-gradient(rgba(255, 255, 255, .045) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .045) 1px, transparent 1px);
   background-size: 56px 56px; mask-image: radial-gradient(ellipse at 30% 60%, #000 20%, transparent 75%); }
@@ -451,22 +450,28 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
 }
 
 
-/* Swangz Avenue Bookings-inspired restraint: atmospheric, never decorative noise. */
+/* Art direction (after Swangz Avenue Bookings): one drawn image — the doorway, "every AI tool, one door" — used only
+   where there is nothing to read behind it: the sign-in panel, the welcome page, and the Home hero. Self-hosted SVG,
+   no motion beyond a fade, gold as light rather than paint. Never behind lists, tables or numbers. */
 .hero { isolation: isolate; }
-.hero::after { content: ""; position: absolute; z-index: 0; pointer-events: none; inset: 0 0 0 38%;
-  background:
-    radial-gradient(ellipse at 72% 24%, color-mix(in srgb, var(--accent) 17%, transparent), transparent 52%),
-    radial-gradient(ellipse at 96% 90%, rgba(255,255,255,.045), transparent 42%),
-    linear-gradient(112deg, transparent 5%, rgba(255,255,255,.018) 100%);
-  opacity: .9; }
 .hero .shell { z-index: 1; }
 .hero .shell > * { position: relative; }
 .hero .shell > .eyebrow { color: var(--accent-tx); }
-@media (max-width: 640px) {
-  .hero::after { inset-inline-start: 0; opacity: .55; }
+.hero.art::after { content: ""; position: absolute; z-index: 0; pointer-events: none; top: 0; bottom: 0; right: 0; width: min(560px, 46%);
+  background: url(/static/door.svg) no-repeat center bottom -12px / auto 165%;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 38%); mask-image: linear-gradient(90deg, transparent, #000 38%); opacity: .9; }
+:root[data-theme="light"] .hero.art::after { opacity: .55; }
+.gate-art::after { content: ""; position: absolute; pointer-events: none; right: -12%; bottom: -9%; width: min(560px, 66%); aspect-ratio: 1;
+  background: url(/static/door.svg) no-repeat center / contain; opacity: .85; z-index: 0;
+  -webkit-mask-image: linear-gradient(180deg, transparent 18%, #000 62%); mask-image: linear-gradient(180deg, transparent 18%, #000 62%); }
+.gate-art > * { z-index: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .hero.art::after, .gate-art::after { animation: art-in 900ms var(--e-out) both; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .hero::after { transition: none; }
+@keyframes art-in { from { opacity: 0; } }
+@media (max-width: 640px) {
+  .hero.art::after { width: 56%; opacity: .38; }
+  .gate-art::after { width: 70%; opacity: .5; }
 }
 
 /* ------------------------------------------------------------ views of one page (?view=) */

@@ -198,13 +198,17 @@
     });
     show(current, "init");
     TABSETS.push({ param: paramName, clears: opts.clears || [], bar, get current() { return current; }, first: tabs[0][0], valid, show });
-    // On a narrow screen the bar scrolls sideways: fade the edge while more tabs are hidden, and keep the chosen
-    // one in view — measured against the bar itself, so it never starts scrolled past the first tab.
+    // On a narrow screen the bar scrolls sideways: fade the edge while more tabs are hidden. The bar starts at its
+    // first tab and moves only if the chosen one would otherwise be out of sight — and then just far enough.
     const edge = () => bar.classList.toggle("more", bar.scrollLeft + bar.clientWidth < bar.scrollWidth - 2);
     bar.addEventListener("scroll", edge, { passive: true });
     requestAnimationFrame(() => {
       const on = bar.querySelector("[role=tab].on");
-      if (on && bar.scrollWidth > bar.clientWidth) bar.scrollLeft = Math.max(0, on.getBoundingClientRect().left - bar.getBoundingClientRect().left + bar.scrollLeft - 24);
+      if (on && bar.scrollWidth > bar.clientWidth) {
+        const b = bar.getBoundingClientRect(), r = on.getBoundingClientRect();
+        if (r.right > b.right - 24) bar.scrollLeft += r.right - b.right + 40;
+        else if (r.left < b.left) bar.scrollLeft -= b.left - r.left + 16;
+      }
       edge();
     });
     // a side sheet keeps the bar in its header and the view in its body

@@ -230,6 +230,7 @@ a.obj:hover > span { text-decoration: underline; text-underline-offset: 3px; }
 .ptabs button.on .tab-count { background: var(--accent-soft); color: var(--accent-tx); }
 .tab-body, .tab-pane, .tab-pane-wrap { display: grid; gap: 18px; align-content: start; min-width: 0; }
 .tab-pane-wrap:focus { outline: none; }
+.tab-pane > *, .tab-pane-wrap > * { min-width: 0; }  /* a wide chart or table scrolls inside its box, never widens the view */
 .tab-help { margin: -4px 0 0; max-width: 78ch; color: var(--tx-2); font-size: 13px; line-height: 1.55; }
 /* vertical tabs: a quiet category list beside the content (Settings, Reports) */
 .tabs-wrap.vertical { grid-template-columns: 228px minmax(0, 1fr); gap: 32px; align-items: start; }
@@ -575,6 +576,13 @@ dialog h3 { margin: 6px 0 0; font-size: 14px; }
 .signin { min-height: 100vh; display: grid; place-items: center; padding: 16px; position: relative;
   background: radial-gradient(900px 480px at 50% -10%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%),
     radial-gradient(700px 400px at 100% 110%, color-mix(in srgb, var(--info) 9%, transparent), transparent 60%), var(--ink-0); }
+/* the doorway behind the sign-in card: the console's one piece of art, on a page with nothing else to read */
+.signin { isolation: isolate; overflow: hidden; }
+.signin::before { content: ""; position: absolute; z-index: -1; pointer-events: none; left: 50%; bottom: -6vh; width: min(980px, 140vw); aspect-ratio: 1; transform: translateX(-50%);
+  background: url(/static/door.svg) no-repeat center bottom / contain; opacity: .7; }
+:root[data-theme="light"] .signin::before { opacity: .45; }
+@media (prefers-reduced-motion: no-preference) { .signin::before { animation: art-in 900ms var(--e-out) both; } }
+@keyframes art-in { from { opacity: 0; } }
 .signin-card { width: min(420px, 100%); background: var(--ink-1); border: 1px solid var(--line-hi); border-radius: var(--r-xl); padding: 32px; box-shadow: var(--shadow-lg); }
 .signin-card form { display: flex; flex-direction: column; gap: 16px; }
 .signin-brand { display: flex; align-items: center; gap: 14px; }

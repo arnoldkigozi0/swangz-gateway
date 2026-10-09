@@ -31,7 +31,7 @@ Written for the V2.1 clarity pass (Oct 9, 2026). Keep it current: when a page ga
 | Audit log | What admins and the system changed or tried to | — | Activity | Actor, action, target, outcome, reason, before/after |
 | People | Find a person | — | — | Table with status filters and search |
 | Person profile | Everything about one person | Overview stacked activity, tools, sessions and notes; "Tools" and "Details" were vague | Activity, devices | Overview (facts, live now, a short recent-activity and tools preview) · Access (tools and why, other limits) · Activity (timeline + sessions) · Devices (keys, app sign-in, browsers) · Security · Account (details, budgets, notes) |
-| Devices / device profile | Keys and what each device did | "not geolocated" text out of date since V2 | — | Index (keys, browsers); profile tabs Activity · Flagged · Sessions · Apps & models · Addresses (with how each place is known) · Key |
+| Devices / device profile | Keys and what each device did | "not geolocated" text out of date since V2 | — | Index (keys, browsers); profile tabs Activity · Flagged · Sessions · Apps & models · Addresses & location (each place with how it is known: named network, approximate, or address type only) · Gateway key |
 | Tools / tool profile | The catalogue and each tool | Tool Overview held usage facts, a chart, people, devices, refusals, sign-in and domains in one scroll | Usage, access, settings | Overview (what it is, status, key facts, links) · Usage (chart, people, devices, refusals) · Access (teams, people, end dates, turns now) · Subscription (site tools) · Configuration · Workspace (shared accounts only: turn rules and the company browsers) |
 | Models | The registry | — | — | Table with status filters; edit in a dialog |
 | Policies | Rules, trying them, explaining a decision | Editor showed every field at once | — | Policies · Simulate · Explain; the editor is grouped (basics, who, what, limits, message) with conditional fields shown only for their effect |
@@ -62,3 +62,41 @@ Written for the V2.1 clarity pass (Oct 9, 2026). Keep it current: when a page ga
 | Configuration | Settings | Operational pages show the resulting state and link to the setting |
 | Staff notices | Staff → Requests → Updates | Staff Home (top three) |
 | What is recorded about staff | Staff → Privacy | One line and a link in the tool drawer and Connect flow |
+
+## Tabs, views and the address
+
+- **Console:** `A.pageTabs(base, params, tabs, opts)`. `tabs` are `[id, label, build, count?, description?]`. Each tab
+  builds once, on first view. `opts.param` names the query key (default `tab`); a nested set uses its own key and the
+  parent lists it in `opts.clears`, so choosing another category starts its sections over. `opts.vertical` is the
+  Settings-style category list (an underlined row on narrow screens); `opts.split` returns `{ bar, body }` for a
+  side sheet. Every click is a history entry; Back and Forward switch the view in place. A form with unsaved changes
+  calls `A.setDirty(() => changed)` so switching tabs, leaving the page or closing the window asks first; clear it
+  with `A.setDirty(null)` after a save. Links from before a rename keep working: Settings maps old `?tab=` values,
+  people map `tools → access` and `details → account`, and Reports maps `?tab=<kind>` to `#/reports/<kind>`.
+- **Staff app:** `viewTabs(base, params, views, label, fallback)` in `portal.js`. `views` are
+  `[id, label, build, count?, onShow?]` and live in `?view=`. Every view is built at once and kept, hidden, so work
+  in progress (a Studio job) carries on.
+- **Not tabs:** segmented filters (`A.seg`, `.u-seg`) are boxed and carry counts; filter chips are rounded and
+  removable; the sidebar is navigation. None of them look like page tabs.
+
+## Visual direction
+
+Obsidian & Gold, finished after Swangz Avenue Bookings: near-black neutral surfaces, champagne gold as light and
+accent (never a fill behind text), tight radii, sentence-case outline buttons with one primary per place. The only
+artwork is `static/door.svg` — the doorway, for "every AI tool, one door" — drawn as SVG with presentation attributes
+(no inline styles, so the CSP holds), about 2 KB. It appears on the admin sign-in, the staff sign-in panel (and the
+welcome page that shares it) and the staff Home hero. Nothing sits behind tables, lists, charts or numbers. It fades
+in once, and not at all with reduced motion.
+
+## How this pass was checked
+
+Headless Chromium against the demo gateway (`tests/fake_upstream.py --demo`):
+
+- **Owner and staff:** every page at 1440, 1280, 1024, 768, 430 and 390 px, dark and light.
+- **Viewer, operations, security and billing:** the role-sensitive pages at 1440, 768 and 390 px, both themes.
+- **On every page:** horizontal overflow, buttons past the window edge or with clipped text, tab bars scrolled past
+  the chosen tab, console errors, failed requests.
+- **Navigation, scripted:** deep links, refresh, Back/Forward through tabs, sheets and views, arrow/Home/End keys,
+  the unsaved-changes guard, and old links.
+- **Roles, asserted page by page:** what each role is offered.
+- **Unit tests:** the Python suite.
