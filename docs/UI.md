@@ -82,11 +82,12 @@ Written for the V2.1 clarity pass (Oct 9, 2026). Keep it current: when a page ga
 ## Visual direction
 
 Obsidian & Gold, finished after Swangz Avenue Bookings: near-black neutral surfaces, champagne gold as light and
-accent (never a fill behind text), tight radii, sentence-case outline buttons with one primary per place. The only
-artwork is `static/door.svg` — the doorway, for "every AI tool, one door" — drawn as SVG with presentation attributes
-(no inline styles, so the CSP holds), about 2 KB. It appears on the admin sign-in, the staff sign-in panel (and the
-welcome page that shares it) and the staff Home hero. Nothing sits behind tables, lists, charts or numbers. It fades
-in once, and not at all with reduced motion.
+accent, tight radii, sentence-case outline buttons with one primary per place. Owner-supplied artwork from
+`Oct 09 - 13_57.zip` replaces the decorative SVG: `static/home-welcome.webp` is the circular portal sculpture on
+staff Home; `static/login-welcome.webp` is the architectural doorway on staff/admin sign-in and welcome pages.
+Both are self-hosted and optimized (about 124 KB combined). Home keeps the image in a separate matte panel;
+sign-in uses a shaded image plane away from the form. No artwork sits behind tables, lists, charts or numbers.
+The optional entrance fade respects reduced motion. Interface and tool icons remain vectors.
 
 ## How this pass was checked
 
@@ -128,3 +129,11 @@ readable sentence-case panels/tables and aligned phone table fields. Staff catal
 forms while switching kinds/views, announces submission states and offers a read-only retry when
 progress cannot be checked. The staff mobile bar includes Studio when it is available. Review notes,
 limitations and repeatable optional browser checks are in [UI-ELEVATION.md](UI-ELEVATION.md).
+
+## October 9 artwork and Settings refinement
+
+Settings' Access & privacy category uses `?section=records|safeguards|staff`; older access links open
+Records. Purpose & location and Providers & pricing retain their existing section URLs. Every section
+begins with an explanation of its task and a compact saved-state summary. Forms still enforce role
+permissions and guard unsaved changes before switching. See `docs/ART-SETTINGS.md` for supplied-art
+selection and verification.

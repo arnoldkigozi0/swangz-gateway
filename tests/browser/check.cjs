@@ -69,17 +69,39 @@ async function layout(p, name, axe = false) {
   p.on('pageerror', e => results.errors.push(e.message));
   p.on('response', r => { if (r.status() >= 400 && /\/(?:admin\/)?api\//.test(r.url())) results.failedApi.push({ url: r.url(), status: r.status() }); });
   if (process.env.UI_SETTINGS_ONLY === '1') {
+    const settingsViews = [['access', 'records'], ['access', 'safeguards'], ['access', 'staff'],
+      ['purpose', 'purposes'], ['purpose', 'locations'], ['providers', 'addresses'], ['providers', 'prices'], ['providers', 'rates'],
+      ['browsers'], ['emergency'], ['users'], ['account']];
     for (const theme of themes) for (const [width, height] of [sizes[0], sizes[3], sizes[5]]) {
       await p.setViewportSize({ width, height });
-      for (const category of ['access', 'purpose', 'providers', 'browsers', 'emergency', 'users', 'account']) {
-        await go(p, url, '/admin#/settings?tab=' + category);
+      for (const [category, section] of settingsViews) {
+        await go(p, url, '/admin#/settings?tab=' + category + (section ? '&section=' + section : ''));
         await p.locator('.ptabs.vertical [data-tab="' + category + '"][aria-selected="true"]').waitFor();
         await p.waitForFunction(() => !document.querySelector('main .u-skel-rows, main .u-skel-cards'));
         await p.evaluate(t => { document.documentElement.dataset.theme = t; }, theme);
-        await layout(p, `owner-${theme}-${width}-settings-${category}`);
-        if (width === 390) await screenshot(p, `owner-${theme}-${width}-settings-${category}`);
+        const name = `owner-${theme}-${width}-settings-${category}${section ? '-' + section : ''}`;
+        await layout(p, name, (width === 1440 || width === 390) && ['records', 'prices'].includes(section));
+        if (width === 1440 || width === 390) await screenshot(p, name);
       }
     }
+    await go(p, url, '/admin#/settings?tab=access&section=safeguards');
+    check('Safeguards has credential and rate controls, no retention fields', await p.locator('input[aria-label="Requests per person per minute"]').count() === 1 && await p.locator('input[aria-label="Keep records for, in days"]').count() === 0);
+    const rate = p.locator('input[aria-label="Requests per person per minute"]');
+    await rate.fill('17');
+    await p.locator('.set-sections [data-tab="staff"]').click();
+    await p.getByRole('button', { name: 'Cancel', exact: true }).click();
+    check('Section switch respects unsaved safeguard changes', await rate.inputValue() === '17');
+    await p.getByRole('button', { name: 'Discard', exact: true }).click();
+    await go(p, url, '/admin#/settings?tab=providers&section=prices');
+    check('Pricing includes one-hour cache rate', await p.getByRole('columnheader', { name: /Cache write · 1 hour/ }).count() === 1);
+    await p.getByRole('searchbox', { name: 'Search model prices' }).fill('haiku');
+    check('Price search keeps the matching model and all its rate fields', await p.locator('.u-table tbody tr').count() === 1 && (await p.locator('.u-table tbody').innerText()).includes('claude-haiku'));
+    await p.getByRole('searchbox', { name: 'Search model prices' }).fill('no-such-model');
+    check('Price search explains an empty result', await p.getByText('No matching prices', { exact: true }).count() === 1);
+    await go(p, url, '/admin#/settings?tab=providers&section=addresses');
+    const saved = await (await c.request.get(url + '/admin/api/settings')).json();
+    const enabled = saved.providers.filter(x => x.configured && !saved.disabled_providers.includes(x.name)).length;
+    check('Connection summary counts only configured enabled providers', await p.locator('.set-summary > div').nth(1).locator('.summary-value').innerText() === String(enabled));
     assert.deepEqual(results.errors, [], 'Owner Settings browser exceptions');
     assert.deepEqual(results.failedApi, [], 'Owner Settings unexpected API failures');
     console.log('PASS owner Settings', results.screens.length, 'screen checks');
@@ -302,7 +324,7 @@ async function layout(p, name, axe = false) {
     }
   }
   // Role restrictions: role-specific pages and every Settings category in two themes/three sizes.
-  const categories = ['access', 'purpose', 'providers', 'browsers', 'emergency', 'users', 'account'];
+  const categories = ['access', 'access&section=safeguards', 'access&section=staff', 'purpose', 'providers', 'providers&section=prices', 'providers&section=rates', 'browsers', 'emergency', 'users', 'account'];
   if (process.env.UI_PAGES_ONLY === '1') {
     assert.deepEqual(results.errors, [], 'Browser exceptions');
     assert.deepEqual(results.failedApi.filter(r => !r.url.endsWith('/studio/voice')), [], 'Unexpected API failures');
@@ -316,7 +338,7 @@ async function layout(p, name, axe = false) {
       await rp.setViewportSize({ width, height });
       for (const category of categories) {
         await go(rp, url, '/admin#/settings?tab=' + category);
-        const selected = category === 'users' ? 'access' : category; // Console users is restricted to admin.
+        const selected = category === 'users' ? 'access' : category.split('&')[0]; // Console users is restricted to admin.
         await rp.locator('.ptabs.vertical [data-tab="' + selected + '"][aria-selected="true"]').waitFor();
         await rp.waitForFunction(() => !document.querySelector('main .u-skel-rows, main .u-skel-cards'));
         await rp.evaluate(t => { document.documentElement.dataset.theme = t; }, theme);

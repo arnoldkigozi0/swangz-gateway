@@ -439,28 +439,35 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
 }
 
 
-/* Art direction (after Swangz Avenue Bookings): one drawn image — the doorway, "every AI tool, one door" — used only
-   where there is nothing to read behind it: the sign-in panel, the welcome page, and the Home hero. Self-hosted SVG,
-   no motion beyond a fade, gold as light rather than paint. Never behind lists, tables or numbers. */
+/* Owner-supplied Oct 9 artwork: quiet matte surfaces, with text on a separate readable plane. */
 .hero { isolation: isolate; }
 .hero .shell { z-index: 1; }
 .hero .shell > * { position: relative; }
 .hero .shell > .eyebrow { color: var(--accent-tx); }
-.hero.art::after { content: ""; position: absolute; z-index: 0; pointer-events: none; top: 0; bottom: 0; right: 0; width: min(560px, 46%);
-  background: url(/static/door.svg) no-repeat center bottom -12px / auto 135%;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 38%); mask-image: linear-gradient(90deg, transparent, #000 38%); opacity: .9; }
-:root[data-theme="light"] .hero.art::after { opacity: .55; }
-.gate-art::after { content: ""; position: absolute; pointer-events: none; right: -12%; bottom: -9%; width: min(560px, 66%); aspect-ratio: 1;
-  background: url(/static/door.svg) no-repeat center / contain; opacity: .85; z-index: 0;
-  -webkit-mask-image: linear-gradient(180deg, transparent 18%, #000 62%); mask-image: linear-gradient(180deg, transparent 18%, #000 62%); }
-.gate-art > * { z-index: 1; }
-@media (prefers-reduced-motion: no-preference) {
-  .hero.art::after, .gate-art::after { animation: art-in 900ms var(--e-out) both; }
-}
+.hero.art::after { content: ""; position: absolute; z-index: 0; pointer-events: none; top: 24px; bottom: 24px;
+  right: max(var(--gutter), calc((100vw - var(--shell)) / 2 + var(--gutter))); width: min(480px, 36%);
+  background: #101416 url(/static/home-welcome.webp) no-repeat center / cover; border-radius: var(--r-lg);
+  border: 1px solid rgba(212, 185, 132, .18); }
+.home-hero .shell > h1, .home-hero .shell > .home-lede, .home-hero .shell > .home-act { max-width: 58%; }
+.home-hero .resume { width: min(580px, 58%); }
+.gate-art { background: #101416; }
+.gate-art::before { background: linear-gradient(90deg, rgba(8, 10, 11, .88), rgba(8, 10, 11, .38) 70%, rgba(8, 10, 11, .08)); mask-image: none; z-index: 1; }
+.gate-art::after { content: ""; position: absolute; pointer-events: none; inset: 0;
+  background: url(/static/login-welcome.webp) no-repeat 68% center / cover; z-index: 0; }
+.gate-art > * { z-index: 2; }
+@media (prefers-reduced-motion: no-preference) { .hero.art::after, .gate-art::after { animation: art-in 600ms var(--e-out) both; } }
 @keyframes art-in { from { opacity: 0; } }
+@media (max-width: 900px) {
+  .hero.art::after { width: 33%; background-size: auto 100%; }
+  .home-hero .shell > h1, .home-hero .shell > .home-lede, .home-hero .shell > .home-act { max-width: 63%; }
+  .home-hero .resume { width: 63%; }
+}
 @media (max-width: 640px) {
-  .hero.art::after { width: 56%; opacity: .38; }
-  .gate-art::after { width: 70%; opacity: .5; }
+  .home-hero .shell > h1, .home-hero .shell > .home-lede, .home-hero .shell > .home-act { max-width: 100%; }
+  .home-hero .resume { width: 100%; }
+  .hero.art::after { position: relative; display: block; inset: auto; width: auto; height: 180px; margin: 0 var(--gutter) 24px; background-size: cover; background-position: center 48%; }
+  .gate-art::after { background-position: 65% center; }
+  .gate-art::before { background: rgba(8, 10, 11, .66); }
 }
 
 /* ------------------------------------------------------------ views of one page (?view=) */

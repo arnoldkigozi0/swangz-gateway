@@ -595,11 +595,18 @@ dialog h3 { margin: 6px 0 0; font-size: 14px; }
     radial-gradient(700px 400px at 100% 110%, color-mix(in srgb, var(--info) 9%, transparent), transparent 60%), var(--ink-0); }
 /* the doorway behind the sign-in card: the console's one piece of art, on a page with nothing else to read */
 .signin { isolation: isolate; overflow: hidden; }
-.signin::before { content: ""; position: absolute; z-index: -1; pointer-events: none; left: 50%; bottom: -6vh; width: min(980px, 140vw); aspect-ratio: 1; transform: translateX(-50%);
-  background: url(/static/door.svg) no-repeat center bottom / contain; opacity: .7; }
-:root[data-theme="light"] .signin::before { opacity: .45; }
-@media (prefers-reduced-motion: no-preference) { .signin::before { animation: art-in 900ms var(--e-out) both; } }
+.signin::before { content: ""; position: absolute; z-index: -1; pointer-events: none; inset: 0 0 0 38%;
+  background: #101416 url(/static/login-welcome.webp) no-repeat 65% center / cover;
+  mask-image: linear-gradient(90deg, transparent, #000 28%); }
+.signin { place-items: center start; padding-left: max(7vw, calc((100vw - 1220px) / 2)); }
+:root[data-theme="light"] .signin::before { mask-image: linear-gradient(90deg, transparent, #000 38%); }
+@media (prefers-reduced-motion: no-preference) { .signin::before { animation: art-in 600ms var(--e-out) both; } }
 @keyframes art-in { from { opacity: 0; } }
+@media (max-width: 760px) {
+  .signin { place-items: center; padding: 72px 16px 32px; }
+  .signin::before { inset: 0; mask-image: none; opacity: .3; }
+  :root[data-theme="light"] .signin::before { mask-image: none; opacity: .14; }
+}
 .signin-card { width: min(420px, 100%); background: var(--ink-1); border: 1px solid var(--line-hi); border-radius: var(--r-xl); padding: 32px; box-shadow: var(--shadow-lg); }
 .signin-card form { display: flex; flex-direction: column; gap: 16px; }
 .signin-brand { display: flex; align-items: center; gap: 14px; }
@@ -991,4 +998,51 @@ button.group-toggle:hover .gt-l, button.group-toggle:hover > svg { color: var(--
 @media (max-width: 640px) {
   /* a plain table keeps its essential columns on a phone; the rest are on the larger screen */
   .settings-ws .u-table:not(.cards) .hide-sm { display: none; }
+}
+
+/* Settings: navigation explains its destination; saved facts lead, editable detail follows. */
+.settings-ws .tabs-wrap.vertical { grid-template-columns: 244px minmax(0, 1fr); gap: 28px; }
+.settings-ws .ptabs.vertical { padding: 12px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--ink-1); }
+.settings-ws .ptabs.vertical button { min-height: 62px; align-items: flex-start; padding: 12px 10px; }
+.settings-ws .pt-ic { margin-top: 2px; }
+.pt-description { display: block; font-size: 11.5px; font-weight: 450; color: var(--tx-2); margin-top: 4px; line-height: 1.4; white-space: normal; }
+.settings-ws .pt-mark { align-self: center; }
+.set-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; border: 1px solid var(--line-hi); border-radius: var(--r-md); background: var(--ink-1); }
+.set-summary > div { min-width: 0; padding: 17px 20px; }
+.set-summary > div + div { border-left: 1px solid var(--line); }
+.set-summary dt { color: var(--tx-2); font-size: 12px; font-weight: 550; }
+.set-summary dd { margin: 7px 0 0; color: var(--tx-1); font-size: 19px; font-weight: 700; letter-spacing: -.02em; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.set-summary .summary-detail { color: var(--tx-2); font-size: 12px; font-weight: 400; letter-spacing: normal; line-height: 1.5; margin: 5px 0 0; }
+.set-intro h3 { margin: 0 0 6px; font-size: 16px; font-weight: 680; letter-spacing: -.01em; }
+.set-intro p { margin: 0; max-width: 76ch; color: var(--tx-2); font-size: 13px; line-height: 1.65; }
+.settings-ws .set-sections { padding-top: 4px; }
+.settings-ws .set-sections .ptabs { gap: 6px; padding-bottom: 10px; flex-wrap: wrap; overflow: visible; }
+.settings-ws .set-sections .ptabs button { border: 1px solid var(--line); border-radius: var(--r-sm); margin: 0; padding: 9px 13px; background: var(--ink-1); }
+.settings-ws .set-sections .ptabs button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-tx); }
+.settings-ws .set-sections .ptabs button::after { display: none; }
+.settings-ws .panel > header { align-items: center; flex-wrap: wrap; gap: 8px 16px; background: var(--ink-2); }
+.settings-ws .panel > header .sub { white-space: normal; line-height: 1.5; }
+.settings-ws .setting-label { line-height: 1.5; }
+.settings-ws .setting-hint { line-height: 1.65; margin-top: 5px; }
+.settings-ws .setting-control .unit { flex-wrap: wrap; justify-content: flex-end; }
+.settings-ws .value-mono { overflow-wrap: anywhere; }
+.set-price-search { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.set-price-search input { width: min(100%, 380px); }
+@media (max-width: 1100px) {
+  .settings-ws .tabs-wrap.vertical { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .settings-ws .ptabs.vertical { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); position: static; }
+  .settings-ws .ptabs.vertical .pt-group { grid-column: 1 / -1; }
+  .settings-ws .setting { grid-template-columns: minmax(0, 1fr) minmax(160px, 280px); gap: 16px; }
+}
+@media (max-width: 640px) {
+  .settings-ws .ptabs.vertical { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 8px; }
+  .settings-ws .ptabs.vertical button { min-height: 68px; gap: 8px; }
+  .settings-ws .pt-description { font-size: 11px; }
+  .set-summary { grid-template-columns: minmax(0, 1fr); }
+  .set-summary > div { padding: 13px 16px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 12px; align-items: baseline; }
+  .set-summary > div + div { border-left: 0; border-top: 1px solid var(--line); }
+  .set-summary dd { font-size: 17px; margin: 0; text-align: right; max-width: 180px; }
+  .set-summary .summary-detail { grid-column: 1 / -1; margin: 0; max-width: none; text-align: left; }
+  .settings-ws .setting { grid-template-columns: minmax(0, 1fr); }
+  .settings-ws .setting-control .unit { justify-content: flex-start; }
 }

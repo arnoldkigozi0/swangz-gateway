@@ -188,6 +188,24 @@
     users: ["Console users", "users", "Who can sign in to the control room, and what each role can change. Everyone here can see everything."],
     account: ["Your account", "user", "The console account you're signed in with."],
   };
+  // A compact, factual reading of the saved configuration, before its editable controls.
+  function settingSummary(items) {
+    return el("dl", { class: "set-summary", "aria-label": "Current configuration" }, items.map(([label, value, detail]) =>
+      el("div", null, el("dt", null, label), el("dd", { class: "summary-value" }, value), detail ? el("dd", { class: "summary-detail" }, detail) : null)));
+  }
+  function settingIntro(title, text) {
+    return el("div", { class: "set-intro" }, el("h3", null, title), el("p", null, text));
+  }
+  const SET_SECTIONS = {
+    records: ["Keep the records you need", "Set request retention and shorter limits for individual record types. Changes apply when saved; reducing a retention period can delete older records during the next hourly cleanup."],
+    safeguards: ["Protect every API request", "Choose how the gateway handles credentials and repeated requests. These controls apply to traffic that passes through the gateway."],
+    staff: ["Staff devices, privacy and support", "Control self-service device connections, website-gate logging and the help contact shown to staff."],
+    purposes: ["Classify the work", "Manage purpose labels and test the rules that suggest them. Labels describe a request; they do not grant access."],
+    locations: ["Understand where requests come from", "Name known networks and review the offline location data. A named network is exact; an address-based city is always approximate."],
+    addresses: ["Connect tools to the gateway", "Copy the gateway addresses and check which providers have a company key. Configuration is separate from a provider's live health."],
+    prices: ["Price chat and coding requests", "Rates are in US dollars per million tokens. New requests use the saved price; historical records keep their original estimate."],
+    rates: ["Price voice, images and video", "Each service uses its own billing unit. Effective dates preserve the rate used for every estimate; these rates are separate from subscription costs."],
+  };
   async function pageSettings(params) {
     const old = SETTINGS_OLD[params.get("tab")];
     if (old) {
@@ -223,13 +241,18 @@
     const category = (id, build) => async () => [head(id), ...[].concat(await build()).filter(Boolean)];
     // a category with sections: one level only, read from the address when it is first shown
     const sectioned = (id, list) => () => {
-      const t = A.pageTabs("#/settings", new URLSearchParams(location.hash.split("?")[1] || ""), list, { param: "section", label: SETTINGS_CATS[id][0] + " sections", help: false, split: true });
+      const explained = list.map(([key, label, build]) => [key, label, async () => [settingIntro(...SET_SECTIONS[key]), ...[].concat(await build()).filter(Boolean)]]);
+      const t = A.pageTabs("#/settings", new URLSearchParams(location.hash.split("?")[1] || ""), explained, { param: "section", label: SETTINGS_CATS[id][0] + " sections", help: false, split: true });
       return [head(id, el("div", { class: "set-sections" }, t.bar)), t.body];
     };
-    A.frame({ title: "Settings", lede: mine.length ? `The switches that govern the whole gateway. Your role (${A.roleLabel()}) decides which ones you can change; every change is written to the audit log, with what it was before.`
+    A.frame({ title: "Settings", actions: el("a", { class: "btn", href: "#/audit" }, icon("audit"), "Review changes"), lede: mine.length ? `Configure access, records and company services. Signed in as ${A.roleLabel()}; changes are recorded in the audit log.`
       : "You're a viewer: you can see every setting, but not change them." },
     el("div", { class: "settings-ws" }, A.pageTabs("#/settings", params, [
-      ["access", SETTINGS_CATS.access[0], category("access", safetyTab)],
+      ["access", SETTINGS_CATS.access[0], sectioned("access", [
+        ["records", "Records", () => safetyTab("records")],
+        ["safeguards", "Safeguards", () => safetyTab("safeguards")],
+        ["staff", "Staff controls", () => safetyTab("staff")],
+      ])],
       ["purpose", SETTINGS_CATS.purpose[0], sectioned("purpose", [
         ["purposes", "Purposes", () => purposesTab()],
         ["locations", "Locations", () => locationsTab()],
@@ -244,13 +267,14 @@
       A.can("admin") && ["users", SETTINGS_CATS.users[0], category("users", consoleUsersTab)],
       ["account", SETTINGS_CATS.account[0], category("account", accountTab)],
     ], { vertical: true, clears: ["section"], label: "Settings categories", help: false,
+      railDescriptions: { access: "Records, privacy and safeguards", purpose: "Labels, networks and location", providers: "Connections and cost estimates", browsers: "Hosts and shared workspaces", emergency: "Pause access and services", users: "Console access and roles", account: "Profile and password" },
       icons: Object.fromEntries(Object.entries(SETTINGS_CATS).map(([id, c]) => [id, c[1]])), marks,
       groups: [["Gateway", ["access", "purpose", "providers", "browsers"]], [null, ["emergency"]], ["Console access", ["users", "account"]]] })));
   }
 
   /* Access & records: grouped settings, one row each, and one save bar that appears only when something has
      changed. Each control is open only to the role that owns it (Settings areas come from the server). */
-  async function safetyTab() {
+  async function safetyTab(section = "records") {
     const st = await api("GET", "/settings");
     const off = (k) => !(st.areas ? A.can(st.areas[k]) : A.isOwner());
     const retention = el("input", { type: "number", min: "0", step: "1", value: String(st.retention_days), disabled: off("retention_days"), "aria-label": "Keep records for, in days" });
@@ -277,7 +301,7 @@
     const save = el("button", { class: "btn primary", type: "button" }, "Save changes");
     const bar = el("div", { class: "savebar", hidden: true, role: "region", "aria-label": "Unsaved changes" },
       el("span", { class: "msg" }, el("i", { "aria-hidden": "true" }), "You have unsaved changes"), err, reason, discard, save);
-    const check = () => { bar.hidden = JSON.stringify(all()) === saved; };
+    const check = () => { bar.hidden = JSON.stringify(all()) === saved; A.setDirty(() => bar.isConnected && !bar.hidden); };
     A.setDirty(() => bar.isConnected && !bar.hidden);
     // a number's problem is said beside the number, before anything is sent
     const days = { retention_days: retention, rate_per_min: rate, ...ret };
@@ -340,14 +364,17 @@
     // a row this role can't change says which area it needs — unless nothing here is theirs (the header says so once)
     const lock = (k) => (anyEditable && off(k) ? { lock: (st.areas || {})[k] || "admin" } : {});
     const row = (k, label, hint, control, o) => A.settingRow(label, hint, control, { ...lock(k), ...(o || {}) });
-    return [
+    const panels = [
+      settingSummary([["Request records", fmt.num(st.records), `${(st.db_bytes / 1048576).toFixed(1)} MB on disk`],
+        ["Default retention", st.retention_days ? `${st.retention_days} days` : "Keep forever", "Older records are removed hourly"],
+        ["Full API bodies", st.store_bodies ? "Stored" : "Summary only", "Applies to new gateway requests"]]),
       A.panel("Request records", `${st.records.toLocaleString()} requests · ${(st.db_bytes / 1048576).toFixed(1)} MB on disk`,
         row("retention_days", "Keep records for", "Older request records are deleted automatically every hour. 0 keeps everything. Staff see this number on their privacy page.", unit(retention, "days", "retention_days")),
         row("store_bodies", "Keep full request and response bodies", "Needed to pull back exactly what was sent. Off keeps only the summary: who, model, prompt, commands, cost.", storeBodies)),
-      A.panel("Retention by kind", "keep some records for less time · 0 = as long as the record, or forever",
-        row("retention_bodies_days", "Full bodies", "Drop stored bodies sooner than the record itself; the summary stays.", unit(ret.retention_bodies_days, "days", "retention_bodies_days")),
-        row("retention_site_days", "Website visits", "The browser gate's log: which tool, when, how long.", unit(ret.retention_site_days, "days", "retention_site_days")),
-        row("retention_launch_days", "Tools opened from Swangz AI", "Each Open from the staff app, with its browser and address.", unit(ret.retention_launch_days, "days", "retention_launch_days")),
+      A.panel("Retention by kind", "days · each row explains what 0 means",
+        row("retention_bodies_days", "Full bodies", "Drop bodies sooner; the summary stays. 0 follows request retention. Bodies cannot outlive their request record.", unit(ret.retention_bodies_days, "days", "retention_bodies_days")),
+        row("retention_site_days", "Website visits", "Which tool, when and how long, from the browser gate. 0 keeps these records indefinitely.", unit(ret.retention_site_days, "days", "retention_site_days")),
+        row("retention_launch_days", "Tools opened from Swangz AI", "Each portal launch, with its browser and address. 0 keeps these records indefinitely.", unit(ret.retention_launch_days, "days", "retention_launch_days")),
         row("retention_audit_days", "Audit log", "At least 365 days, or 0 for forever: the record of what admins did should outlive what it watches. Every purge is itself written to the audit log.",
           unit(ret.retention_audit_days, "days", "retention_audit_days"))),
       A.panel("Protection on every request", null,
@@ -359,6 +386,18 @@
         row("support_contact", "Who staff contact for help", "Shown on the staff app's privacy page and wherever access is refused.", contact, { stack: true })),
       anyEditable ? bar : null,
     ];
+    const summaries = {
+      safeguards: [["Credential handling", st.block_secrets ? "Refuse & flag" : "Flag only", "Detected secrets in API requests"],
+        ["Rate limit", st.rate_per_min ? `${st.rate_per_min} / min` : "No limit", "Per person, across their devices"],
+        ["Scope", "Gateway requests", "Direct vendor websites are separate"]],
+      staff: [["Device connections", st.staff_self_keys ? "Self-service" : "Admin only", "Personal gateway keys per device"],
+        ["Website logging", st.gate_log_full ? "Full content" : "Access only", "Browser-extension privacy setting"],
+        ["Support contact", st.support_contact ? "Set" : "Not set", "Shown when staff need help"]],
+    };
+    // Build each section from a fresh server snapshot; only visible controls can contribute edits.
+    return section === "safeguards" ? [settingSummary(summaries.safeguards), panels[3], panels[5]]
+      : section === "staff" ? [settingSummary(summaries.staff), panels[4], panels[5]]
+      : [panels[0], panels[1], panels[2], panels[5]];
   }
 
   /* The stops. A status board says what is running now and holds the one big stop; below it, one provider at a time
@@ -388,15 +427,15 @@
       if (!ws.checked && !(await A.confirmAction("Pause the company browsers?", "Nobody can open a shared tool in a company browser until they are resumed. Turns already running keep their browser until they end.", "Pause", true))) { ws.checked = true; return; }
       put({ workspace_paused: !ws.checked }, ws.checked ? "Company browsers resumed." : "Company browsers paused.");
     });
-    const onCount = st.providers.filter((p) => !off.has(p.name)).length;
+    const onCount = st.providers.filter((p) => p.configured && !off.has(p.name)).length;
     const board = el("section", { class: "em-board" + (st.paused ? " stopped" : ""), "aria-labelledby": "em-state" },
       el("div", { class: "em-state" },
         el("span", { class: "em-dot", "aria-hidden": "true" }),
         el("div", null,
           el("div", { class: "em-k" }, "Right now"),
-          el("h3", { id: "em-state" }, st.paused ? "AI is paused for everyone" : "AI is running for everyone"),
+          el("h3", { id: "em-state" }, st.paused ? "AI is paused for everyone" : "AI access is enabled"),
           el("p", null, st.paused ? "Every request is refused and the staff app's Open buttons are closed until someone resumes access."
-            : `${onCount} of ${SUI.plural(st.providers.length, "provider")} taking requests · company browsers ${st.workspace_paused ? "paused" : "running"}.`))),
+            : `${onCount} of ${SUI.plural(st.providers.length, "provider")} configured and enabled · company-browser access ${st.workspace_paused ? "paused" : "enabled"}. Check Health for live availability.`))),
       el("div", { class: "em-act" },
         can ? (st.paused ? el("button", { class: "btn primary", onclick: () => A.setPaused(false) }, "Resume access")
           : el("button", { class: "btn danger solid", onclick: () => A.setPaused(true) }, icon("stop"), "Stop all AI")) : null,
@@ -442,6 +481,9 @@
       edit ? { key: "act", label: "", sort: false, srLabel: "Edit", cls: "act", render: (x) => el("button", { class: "btn small quiet", onclick: () => editPurpose(x) }, "Edit") } : null,
     ].filter(Boolean) });
     return [
+      settingSummary([["Purpose labels", String(rows.filter((x) => !x.archived).length), "Active labels for new requests"],
+        ["Inference", data.inference ? "Enabled" : "Off", "Deterministic keyword rules"],
+        ["Unknown · 30 days", fmt.num(data.unknown_30d), "Requests without a reliable purpose"]]),
       A.panel("How purposes are worked out", null,
         A.settingRow("Infer purpose from the prompt", "Keyword rules over what was typed — no model is asked and nothing leaves the gateway. Off: only purposes the person or tool declares (X-Swangz-Purpose, or Studio) and those the tool implies.", inference),
         el("div", { class: "body stack" }, sample, verdict,
@@ -490,6 +532,9 @@
       edit ? { key: "act", label: "", sort: false, srLabel: "Edit", cls: "act", render: (n) => el("button", { class: "btn small quiet", onclick: () => editNetwork(n) }, "Edit") } : null,
     ].filter(Boolean) }) : A.empty("Name the office's address (and any VPN) and requests from it say so exactly, instead of an approximate city.", "No named networks", "pin");
     return [
+      settingSummary([["Named networks", String(g.networks.length), "Known office, VPN and other addresses"],
+        ["Offline table", t.rows ? "Loaded" : "Not loaded", t.rows ? `${fmt.num(t.rows)} address ranges` : "Public addresses have no city estimate"],
+        ["Location evidence", "Approximate", "Named network matches are shown separately"]]),
       A.panel("Named networks", edit ? el("button", { class: "btn small", onclick: () => editNetwork(null) }, icon("plus"), "Name a network") : "exact — Swangz said so", nets),
       A.panel("Location table", t.rows ? `${fmt.num(t.rows)} address ranges` : "not loaded",
         A.settingRow(t.rows ? el("span", { class: "row" }, t.source, SUI.status("ok", "Loaded", { plain: true })) : el("span", { class: "row" }, "None", SUI.status("none", "Not loaded", { plain: true })),
@@ -536,7 +581,9 @@
     const unpriced = data.unpriced.length ? el("section", { class: "callout warn" },
       el("div", { class: "callout-row" }, icon("alert"), el("span", { class: "callout-k" }, "Unpriced in the last 30 days"),
         el("span", { class: "muted" }, data.unpriced.map((u) => `${u.provider} ${u.media_type || ""}: ${fmt.num(u.requests)} requests, ${fmt.num(u.units)} ${u.unit || "units"}`).join(" · ")))) : null;
-    return [unpriced, A.panel("Media rates", edit ? el("button", { class: "btn small", onclick: () => addRate(data) }, icon("plus"), "Add a rate") : "estimated costs for voice, image and video", table,
+    return [settingSummary([["Current rates", String(data.items.filter((r) => r.current).length), "In force by service and billing unit"],
+      ["Scheduled", String(data.items.filter((r) => r.scheduled).length), "Rates with a future effective date"],
+      ["Unpriced · 30 days", fmt.num(data.unpriced.reduce((n, r) => n + r.requests, 0)), "Requests missing a matching rate"]]), unpriced, A.panel("Media rates", edit ? el("button", { class: "btn small", onclick: () => addRate(data) }, icon("plus"), "Add a rate") : "estimated costs for voice, image and video", table,
       el("div", { class: "body hint" }, "A new rate applies from its date on. Costs already recorded keep the rate they were priced with, and a rate that priced anything can't be removed — add a newer one."))];
   }
 
@@ -561,6 +608,8 @@
 
   async function addressesTab() {
     const st = await api("GET", "/settings");
+    const disabled = new Set(st.disabled_providers);
+    const available = st.providers.filter((p) => p.configured && !disabled.has(p.name));
     const copyable = (text) => el("div", { class: "row end" }, el("span", { class: "value-mono", title: text }, text),
       el("button", { class: "btn small quiet icon-only", type: "button", "aria-label": "Copy " + text, onclick: () => SUI.copy(text) }, icon("copy")));
     const providers = SUI.table({ caption: "Providers", rows: st.providers, cards: true, columns: [
@@ -568,8 +617,14 @@
         { anthropic: "chat & coding models", openai: "chat & coding models", elevenlabs: "voice & sound", higgsfield: "image & video" }[p.dialect] || "AI service")) },
       { key: "addr", label: "Address for staff tools", sort: false, render: (p) => el("span", { class: "mono" }, `${st.base_url}/${p.name}` + (p.dialect === "openai" ? "/v1" : "")) },
       { key: "upstream", label: "Forwards to", sort: false, render: (p) => el("span", { class: "mono faint" }, p.upstream), hideSm: true },
-      { key: "configured", label: "API key", render: (p) => (p.configured ? SUI.status("ok", "Key set", { plain: true }) : el("span", null, SUI.status("blocked", "Off", { plain: true }), el("span", { class: "sub" }, `set ${p.key_env} on the server`))) }] });
+      { key: "configured", label: "Configuration", render: (p) => el("div", null,
+        p.configured ? SUI.status("ok", "Key set", { plain: true }) : SUI.status("waiting", "Key missing", { plain: true }),
+        disabled.has(p.name) ? el("a", { class: "sub", href: "#/settings?tab=emergency" }, "Switched off in Emergency")
+          : !p.configured ? el("span", { class: "sub" }, `Set ${p.key_env} on the server`) : el("span", { class: "sub" }, "Enabled in configuration")) }] });
     return [
+      settingSummary([["Providers", String(st.providers.length), "Services registered on the gateway"],
+        ["Configured & enabled", String(available.length), "Has a key; no provider stop in force"],
+        ["Global access", st.paused ? "Paused" : "Enabled", "Live availability is on Health"]]),
       A.panel("This gateway", null,
         A.settingRow("Staff app", "Where staff sign in and open their tools.", copyable(st.base_url + "/")),
         A.settingRow("Control room", "This console. Don't share it with staff.", copyable(st.base_url + "/admin")),
@@ -645,7 +700,10 @@
       signing = A.panel("Signing the browsers in", "once per browser, at each place", pick, list);
       show(current);
     }
-    return [places, relay, signing];
+    const active = ws.hosts.find((h) => h.active);
+    return [settingSummary([["Selected host", active ? cap(active.label) : "None", "Only one host serves shared tools at a time"],
+      ["Connected hosts", String(ws.hosts.filter(usable).length), "Configured server or connected computer"],
+      ["Computer video relay", ws.relay ? "Configured" : "Not set up", "Needed for remote access to office computers"]]), places, relay, signing];
   }
 
   async function useHost(h) {
@@ -695,15 +753,30 @@
       el("div", { class: "callout-row" }, icon("alert"), el("span", { class: "callout-k" }, "Used but not priced"),
         el("span", { class: "muted" }, "their cost shows as unpriced, so spend is understated")),
       el("div", { class: "row" }, prices.unpriced_models.map((m) => owner ? el("button", { class: "btn small", onclick: () => editPrice({ model: m }) }, icon("plus"), m) : SUI.badge(m, "warn")))) : null;
-    return [unpriced, A.panel("Model prices", owner ? el("div", { class: "row" }, el("span", { class: "sub" }, "US dollars per million tokens"),
-      el("button", { class: "btn small", onclick: () => editPrice({}) }, icon("plus"), "Add a price")) : "US dollars per million tokens",
-    SUI.table({ caption: "Model prices", rows: prices.items, sort: ["model", "asc"], cards: false, columns: [
+    const search = el("input", { type: "search", placeholder: "Find a model or provider…", "aria-label": "Search model prices" });
+    const count = el("span", { class: "hint", role: "status", "aria-live": "polite" });
+    const tableBox = el("div");
+    const draw = () => {
+      const term = search.value.trim().toLowerCase();
+      const rows = prices.items.filter((x) => `${x.model} ${x.provider || ""}`.toLowerCase().includes(term));
+      count.textContent = `${rows.length} of ${prices.items.length} prices`;
+      tableBox.replaceChildren(rows.length ? SUI.table({ caption: "Model prices · US dollars per million tokens", rows, sort: ["model", "asc"], cards: true, columns: [
       { key: "model", label: "Model", lead: true, render: (x) => el("span", { class: "mono nowrap" }, x.model) },
       { key: "input", label: "Input", num: true, render: (x) => usd(x.input) },
       { key: "output", label: "Output", num: true, render: (x) => usd(x.output) },
-      { key: "cache_write", label: "Cache write", num: true, render: (x) => (x.cache_write === null ? "—" : usd(x.cache_write)), hideSm: true },
-      { key: "cache_read", label: "Cache read", num: true, render: (x) => (x.cache_read === null ? "—" : usd(x.cache_read)), hideSm: true },
-      owner ? { key: "edit", label: "", sort: false, srLabel: "Edit", cls: "act", render: (x) => el("button", { class: "btn small quiet", onclick: () => editPrice(x) }, "Edit") } : null].filter(Boolean) }))];
+      { key: "cache_write", label: "Cache write · 5 min", num: true, render: (x) => (x.cache_write == null ? "Default" : usd(x.cache_write)) },
+      { key: "cache_write_1h", label: "Cache write · 1 hour", num: true, render: (x) => (x.cache_write_1h == null ? "Default" : usd(x.cache_write_1h)) },
+      { key: "cache_read", label: "Cache read", num: true, render: (x) => (x.cache_read == null ? "Default" : usd(x.cache_read)) },
+      owner ? { key: "edit", label: "", sort: false, srLabel: "Edit", cls: "act", render: (x) => el("button", { class: "btn small quiet", onclick: () => editPrice(x) }, "Edit") } : null].filter(Boolean) }) : SUI.stateBox({ icon: "search", compact: true, title: "No matching prices", text: "Try another model or provider name." }));
+    };
+    search.addEventListener("input", draw);
+    draw();
+    return [settingSummary([["Price entries", String(prices.items.length), "Model IDs or matching prefixes"],
+      ["Used but unpriced", String(prices.unpriced_models.length), "Models with recorded use and no price"],
+      ["Billing basis", "USD / 1M tokens", "Estimates, separate from vendor invoices"]]), unpriced, A.panel("Model prices", owner ? el("div", { class: "row" }, el("span", { class: "sub" }, "US dollars per million tokens"),
+      el("button", { class: "btn small", onclick: () => editPrice({}) }, icon("plus"), "Add a price")) : "US dollars per million tokens",
+    el("div", { class: "body set-price-search" }, search, count), tableBox,
+      el("div", { class: "body hint" }, "Default cache rates: 5-minute writes are 1.25× input, 1-hour writes are 2× input, and reads use the input rate. Exact model IDs take precedence over matching snapshot prefixes."))];
   }
 
   function editPrice(x) {
@@ -734,11 +807,14 @@
   async function consoleUsersTab() {
     const admins = await api("GET", "/admins");
     const roles = A.S.me.roles || {};
-    return [A.panel("Console users", el("button", { class: "btn small", onclick: () => adminDialog(null) }, icon("plus"), "Add a console user"),
+    const areaNames = { govern: "Access & tools", money: "Billing & pricing", trust: "Security", emergency: "Emergency controls", admin: "Console administration" };
+    return [settingSummary([["Console users", String(admins.items.length), "Accounts with control-room access"],
+      ["Owners", String(admins.items.filter((a) => a.owner).length), "Full administrative authority"],
+      ["Your role", A.roleLabel(), "Permissions are enforced by the server"]]), A.panel("Console users", el("button", { class: "btn small", onclick: () => adminDialog(null) }, icon("plus"), "Add a console user"),
       SUI.table({ caption: "Console users", rows: admins.items, sort: ["username", "asc"], columns: [
         { key: "username", label: "User", lead: true, render: (a) => el("span", { class: "u-cell" }, SUI.avatar(a.username, "sm"), el("strong", null, a.username)) },
         { key: "role", label: "Role", render: (a) => el("div", null, SUI.badge(a.role_label, a.owner ? "gold" : "outline"),
-          el("span", { class: "sub" }, a.owner ? "everything" : a.can.length ? a.can.join(", ") : "read-only")) },
+          el("span", { class: "sub" }, a.owner ? "All areas" : a.can.length ? a.can.map((x) => areaNames[x] || x).join(" · ") : "View only")) },
         { key: "last_login", label: "Last sign-in", num: true, render: (a) => fmt.ago(a.last_login) },
         { key: "x", label: "", sort: false, srLabel: "Change", cls: "act", render: (a) => (a.username === S.me.username ? el("span", { class: "faint" }, "you")
           : el("div", { class: "row end" }, el("button", { class: "btn small quiet", onclick: () => adminDialog(a) }, "Change role"),

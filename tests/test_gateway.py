@@ -405,6 +405,11 @@ class ConsoleTests(unittest.TestCase):
         self.assertIn(b"admin.js", rig.request("GET", "/admin/people/3")[2])
         status, headers, _ = rig.request("GET", "/static/fonts/Archivo-latin.woff2")
         self.assertEqual((status, headers["content-type"]), (200, "font/woff2"))
+        for asset in ("home-welcome.webp", "login-welcome.webp"):
+            status, headers, payload = rig.request("GET", "/static/" + asset)
+            self.assertEqual((status, headers["content-type"]), (200, "image/webp"))
+            self.assertEqual(payload[:4], b"RIFF")
+            self.assertEqual(payload[8:12], b"WEBP")
         self.assertEqual(rig.request("GET", "/static/../gateway.db")[0], 400)
         self.assertEqual(rig.request("GET", "/static/nope.js")[0], 404)
         self.assertEqual(rig.request("GET", "/static/fonts/../admin.js")[0], 400)

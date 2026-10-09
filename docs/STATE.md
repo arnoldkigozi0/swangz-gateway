@@ -446,3 +446,18 @@ available. Studio retains drafts across media/view switches, announces submissio
 progress-read recovery. Overview's summary-note CSS collision and measured contrast issues were fixed.
 The implementation, audit and optional local browser-test commands are documented in
 [UI-ELEVATION.md](UI-ELEVATION.md). No server route, authentication, database or enforcement code changed.
+
+### October 9 — supplied artwork and Settings information design
+
+- Selected two clean images from `Oct 09 - 13_57.zip`: the circular portal sculpture for staff Home,
+  and the architectural doorway for staff/admin sign-in. Optimized to self-hosted WebP (about 124 KB
+  combined); checkerboard-background JPEGs were excluded. Replaces the decorative doorway SVG
+  references; interface and tool icons retain their existing vector assets.
+- Settings navigation now explains each destination. Access & privacy has Records, Safeguards and
+  Staff controls, each with its own save/dirty guard. Saved configuration summaries lead each section;
+  nested sections have task headings and explanations. Retention copy distinguishes category limits.
+- Provider connections distinguish a missing key from an emergency stop. Emergency counts configured,
+  enabled providers and directs users to Health for live availability. Pricing exposes one-hour cache
+  writes and all cache rates on phones, with explicit units and fallback-rate explanations.
+- WebP assets are served with the correct MIME type. Existing provider forwarding, authentication,
+  permissions, database and policy behavior are unchanged.

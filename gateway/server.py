@@ -19,7 +19,7 @@ from .workspace import Workspaces
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 STATIC_TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".woff2": "font/woff2",
                 ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png",
-                ".ico": "image/x-icon"}
+                ".ico": "image/x-icon", ".webp": "image/webp"}
 CONSOLE_HEADERS = {
     "Content-Security-Policy": "default-src 'self'; img-src 'self' data: https:; media-src 'self' https: blob:; style-src 'self'; "
                                "script-src 'self'; font-src 'self'; "

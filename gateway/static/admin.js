@@ -190,9 +190,10 @@
     // small mark after a label (opts.marks: a lock, a state); a group with no label is just a divider.
     const button = ([id, label, , badge]) => el("button", {
       type: "button", role: "tab", id: uid + "-" + id.replace(/[^a-z0-9-]/gi, ""), "aria-controls": uid + "-panel", "data-tab": id,
+      "aria-describedby": opts.railDescriptions && opts.railDescriptions[id] ? `${uid}-${id}-help` : null,
       onclick: () => choose(id),
     }, opts.icons && opts.icons[id] ? el("span", { class: "pt-ic", "aria-hidden": "true" }, icon(opts.icons[id])) : null,
-    el("span", { class: "pt-l" }, label), badge ? el("span", { class: "tab-count", "aria-label": `(${badge})` }, String(badge)) : null,
+    el("span", { class: "pt-l" }, label, opts.railDescriptions && opts.railDescriptions[id] ? el("span", { class: "pt-description", id: `${uid}-${id}-help`, "aria-hidden": "true" }, opts.railDescriptions[id]) : null), badge ? el("span", { class: "tab-count", "aria-label": `(${badge})` }, String(badge)) : null,
     (opts.marks && opts.marks[id]) || null);
     if (opts.groups) {
       const placed = new Set();
