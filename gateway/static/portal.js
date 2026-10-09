@@ -261,8 +261,23 @@
       el("a", { href: "#/privacy", role: "menuitem" }, icon("shield"), "How Swangz AI works"),
       el("button", { onclick: signOut, role: "menuitem" }, icon("logout"), "Sign out"));
     const meBtn = el("button", { class: "me-btn", "aria-haspopup": "menu", "aria-expanded": "false", "aria-label": "Your account",
-      onclick: (e) => { e.stopPropagation(); const open = !menu.classList.contains("open"); menu.classList.toggle("open", open); meBtn.setAttribute("aria-expanded", open ? "true" : "false"); } },
+      onclick: (e) => { e.stopPropagation(); toggleMenu(!menu.classList.contains("open")); } },
     SUI.avatar(me.name, "sm"), el("span", { class: "me-name" }, firstName(me.name)), icon("chevronDown"));
+    function toggleMenu(open, last = false) {
+      menu.classList.toggle("open", open); meBtn.setAttribute("aria-expanded", String(open));
+      if (open) { const items = menu.querySelectorAll('[role="menuitem"]'); items[last ? items.length - 1 : 0].focus(); }
+      else meBtn.focus();
+    }
+    meBtn.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); toggleMenu(true, e.key === "ArrowUp"); }
+    });
+    menu.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); toggleMenu(false); }
+      else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
+        e.preventDefault(); const items = [...menu.querySelectorAll('[role="menuitem"]')]; const i = items.indexOf(document.activeElement);
+        items[e.key === "Home" ? 0 : e.key === "End" ? items.length - 1 : (i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus();
+      } else if (e.key === "Tab") { toggleMenu(false); }
+    });
     const topbar = el("header", { class: "topbar" }, el("div", { class: "inner" },
       el("a", { class: "wordmark", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz ", el("b", null, "AI")),
       el("nav", { class: "topnav", "aria-label": "Swangz AI" }, nav.map(([href, label]) => el("a", { href, class: href === active ? "on" : null, "aria-current": href === active ? "page" : null }, label))),
@@ -270,7 +285,7 @@
         el("a", { class: "icon-btn", href: "#/requests?view=updates", "aria-label": count ? `${count} updates` : "Updates", "data-tip": count ? `${count} notification${count === 1 ? "" : "s"}` : "No new notifications" },
           icon("bell"), count ? el("span", { class: "dot-count" }, String(count)) : null),
         SUI.themeButton(), el("div", { class: "me-menu" }, meBtn, menu))));
-    const tabbar = el("nav", { class: "tabbar", "aria-label": "Swangz AI" }, nav.filter(([href]) => href !== "#/studio").map(([href, label, ic]) =>
+    const tabbar = el("nav", { class: "tabbar", "aria-label": "Swangz AI" }, nav.map(([href, label, ic]) =>
       el("a", { href, class: href === active ? "on" : null, "aria-current": href === active ? "page" : null }, icon(ic), el("span", null, label),
         href === "#/requests" && count ? el("i", { class: "dot-count" }, String(count)) : null)));
     const foot = el("footer", { class: "foot" }, el("div", { class: "inner" },
@@ -282,7 +297,7 @@
   document.addEventListener("click", () => { const m = document.querySelector(".menu.open"); if (m) { m.classList.remove("open"); document.querySelector(".me-btn")?.setAttribute("aria-expanded", "false"); } });
 
   function sectionHead(eyebrow, title, text, action) {
-    return el("div", { class: "section-head" }, el("div", null, eyebrow ? el("div", { class: "eyebrow" }, eyebrow) : null, el("h2", null, title), text ? el("p", null, text) : null), action || null);
+    return el("div", { class: "section-head" }, el("div", null, eyebrow ? el("div", { class: "eyebrow" }, eyebrow) : null, el("h1", null, title), text ? el("p", null, text) : null), action || null);
   }
 
   /* Views of one page (?view=…): underlined tabs, arrow keys, a history entry per change. Every view is built at
@@ -373,7 +388,8 @@
       "aria-label": `${label} ${t.name} (opens in a new tab)`, onclick: () => opened(t) }, label, icon("open"));
   }
 
-  function tileActions(t) {
+  function tileActions(t, primary = false) {
+    const emphasis = primary ? " btn--solid" : "";
     const me = S.me;
     if (!me.active || t.state === "suspended") return [];
     if (t.state !== "enabled") {
@@ -381,14 +397,14 @@
       return [el("button", { class: "btn btn--small", type: "button", onclick: () => requestAccess(t) }, t.state === "past_due" ? "Ask to renew" : "Request access")];
     }
     const guide = guideFor(t);
-    if (t.id in STUDIO_TOOLS && S.studio && S.studio[STUDIO_TOOLS[t.id]]) return [el("a", { class: "btn btn--small btn--solid", href: "#/studio" }, icon("spark"), "Open Studio")];
-    if (t.kind === "dev") return guide && me.can_add_keys ? [el("button", { class: "btn btn--small btn--solid", type: "button", onclick: () => connect(guide) }, icon("link"), "Connect")] : [];
+    if (t.id in STUDIO_TOOLS && S.studio && S.studio[STUDIO_TOOLS[t.id]]) return [el("a", { class: "btn btn--small" + emphasis, href: "#/studio" }, icon("spark"), "Open Studio")];
+    if (t.kind === "dev") return guide && me.can_add_keys ? [el("button", { class: "btn btn--small" + emphasis, type: "button", onclick: () => connect(guide) }, icon("link"), "Connect")] : [];
     if (t.turn) {
-      if (t.turn.mine) return [el("button", { class: "btn btn--small btn--quiet", type: "button", onclick: () => handBack(t) }, "Hand back"), openLink(t, "Open", true)];
+      if (t.turn.mine) return [el("button", { class: "btn btn--small btn--quiet", type: "button", onclick: () => handBack(t) }, "Hand back"), openLink(t, "Open", primary)];
       if (!t.turn.free) return [el("button", { class: "btn btn--small", disabled: true }, "In use")];
-      return [openLink(t, "Take your turn", true)];
+      return [openLink(t, "Take your turn", primary)];
     }
-    return t.launchable ? [openLink(t, "Open", true)] : guide && me.can_add_keys ? [el("button", { class: "btn btn--small btn--solid", type: "button", onclick: () => connect(guide) }, "Connect")] : [];
+    return t.launchable ? [openLink(t, "Open", primary)] : guide && me.can_add_keys ? [el("button", { class: "btn btn--small" + emphasis, type: "button", onclick: () => connect(guide) }, "Connect")] : [];
   }
 
   // one line per tool the person doesn't have: what it is, where it stands, and the one thing to do
@@ -511,7 +527,7 @@
             el("span", { class: "resume-k" }, lead.last_opened ? "Opened " + fmt.ago(lead.last_opened) : enabled.length === 1 ? "Your approved tool" : "Ready for you"),
             el("strong", null, lead.name),
             el("span", { class: "resume-sub" }, tileStatus(lead), el("span", { class: "dot", "aria-hidden": "true" }), how[0]))),
-        el("div", { class: "resume-act" }, tileActions(lead)));
+        el("div", { class: "resume-act" }, tileActions(lead, true)));
       if (enabled.length > 1) extra = el("a", { class: "hero-link", href: "#/tools?show=mine" }, "All your tools", icon("chevronRight"));
     } else if (enabled.length) {
       headline = "Your AI workspace is ready.";
@@ -614,9 +630,26 @@
     const me = S.me;
     const catalog = me.catalog;
     const f = S.filter;
-    if (params.get("q")) f.q = params.get("q");
-    if (["all", "mine", "others"].includes(params.get("show"))) f.show = params.get("show");
     const cats = ["all", ...Array.from(new Set(catalog.map((t) => t.category))).sort()];
+    f.q = params.get("q") || "";
+    f.show = ["mine", "others"].includes(params.get("show")) ? params.get("show") : "all";
+    f.cat = cats.includes(params.get("cat")) ? params.get("cat") : "all";
+    f.sort = ["recent", "az"].includes(params.get("sort")) ? params.get("sort") : "recommended";
+    function remember(push = false) {
+      const query = new URLSearchParams();
+      if (f.q) query.set("q", f.q);
+      if (f.show !== "all") query.set("show", f.show);
+      if (f.cat !== "all") query.set("cat", f.cat);
+      if (f.sort !== "recommended") query.set("sort", f.sort);
+      const next = "#/tools" + (query.size ? "?" + query : "");
+      if (next !== location.hash) history[push ? "pushState" : "replaceState"](null, "", next);
+    }
+    function resetFilters() {
+      Object.assign(f, { q: "", cat: "all", show: "all", sort: "recommended" });
+      search.value = ""; sort.value = "recommended";
+      remember(true); drawChips(); drawShow(); draw(); search.focus();
+    }
+    const reset = el("button", { class: "btn btn--small btn--quiet", type: "button", onclick: resetFilters }, "Reset filters");
     const grid = el("div", { class: "cat-parts" });
     const count = el("p", { class: "count", role: "status" });
     const search = el("input", { class: "input search", type: "search", placeholder: "Search AI tools…", value: f.q, "aria-label": "Search AI tools" });
@@ -625,12 +658,20 @@
     sort.value = f.sort;
     const show = el("div", { class: "u-seg", role: "group", "aria-label": "Show" });
     function drawChips() {
-      chips.replaceChildren(...cats.map((c) => el("button", { class: "chip" + (f.cat === c ? " on" : ""), type: "button", "aria-pressed": f.cat === c ? "true" : "false",
-        onclick: () => { f.cat = c; drawChips(); draw(); } }, c === "all" ? "All" : c)));
+      if (chips.children.length) {
+        [...chips.children].forEach((b) => { const on = b.dataset.category === f.cat; b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on)); });
+        return;
+      }
+      chips.replaceChildren(...cats.map((c) => el("button", { class: "chip" + (f.cat === c ? " on" : ""), "data-category": c, type: "button", "aria-pressed": f.cat === c ? "true" : "false",
+        onclick: () => { f.cat = c; remember(true); drawChips(); draw(); } }, c === "all" ? "All" : c)));
     }
     function drawShow() {
-      show.replaceChildren(...[["all", "Everything"], ["mine", "Available to me"], ["others", "Others"]].map(([v, label]) => el("button", { type: "button", "aria-pressed": f.show === v ? "true" : "false",
-        onclick: () => { f.show = v; drawShow(); draw(); } }, label)));
+      if (show.children.length) {
+        [...show.children].forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.filter === f.show)));
+        return;
+      }
+      show.replaceChildren(...[["all", "Everything"], ["mine", "Available to me"], ["others", "Others"]].map(([v, label]) => el("button", { type: "button", "data-filter": v, "aria-pressed": f.show === v ? "true" : "false",
+        onclick: () => { f.show = v; remember(true); drawShow(); draw(); } }, label)));
     }
     const rank = { enabled: 0, not_assigned: 1, past_due: 2, locked: 3, suspended: 4 };
     function draw() {
@@ -644,20 +685,21 @@
       // Yours as full cards; everything else as a compact list, so the catalogue isn't a wall of identical cards.
       const ready = list.filter((t) => t.state === "enabled");
       const rest = list.filter((t) => t.state !== "enabled");
-      const part = (title, n, sub, body) => el("section", { class: "cat-part" }, el("div", { class: "cat-part-h" }, el("h3", null, title, el("span", { class: "n" }, String(n))), sub ? el("span", { class: "muted small" }, sub) : null), body);
+      const part = (title, n, sub, body) => el("section", { class: "cat-part" }, el("div", { class: "cat-part-h" }, el("h2", null, title, el("span", { class: "n" }, String(n))), sub ? el("span", { class: "muted small" }, sub) : null), body);
       grid.replaceChildren(...(list.length ? [
         ready.length ? part("Yours", ready.length, "Paid for by Swangz and ready to open.", el("div", { class: "grid-tiles" }, ready.map(tile))) : null,
         rest.length ? part(ready.length ? "Everything else" : "Tools you can ask for", rest.length, "Ask, and an admin can turn it on for you.", el("ul", { class: "tool-rows" }, rest.map(toolRow))) : null,
-      ].filter(Boolean) : [el("div", { class: "empty" }, el("h3", null, "No tools match"), el("p", null, "Try another search or category."))]));
+      ].filter(Boolean) : [el("div", { class: "empty" }, el("h3", null, "No tools match"), el("p", null, "Try another search or clear your filters to see the catalogue."), el("button", { class: "btn", type: "button", onclick: resetFilters }, "Clear filters"))]));
+      reset.hidden = !f.q && f.cat === "all" && f.show === "all" && f.sort === "recommended";
       count.textContent = `${SUI.plural(list.length, "tool")}${f.cat !== "all" ? " in " + f.cat : ""}` + (ready.length && rest.length ? ` · ${ready.length} yours` : "");
     }
-    search.addEventListener("input", () => { f.q = search.value; draw(); });
-    sort.addEventListener("change", () => { f.sort = sort.value; draw(); });
+    search.addEventListener("input", () => { f.q = search.value; remember(); draw(); });
+    sort.addEventListener("change", () => { f.sort = sort.value; remember(true); draw(); });
     drawChips(); drawShow(); draw();
     frame("Tools", el("section", { class: "section first" }, el("div", { class: "shell" },
       sectionHead("The catalog", "AI tools at Swangz", "Everything the company offers. Open what's yours; ask for anything else and an admin can turn it on."),
       el("div", { class: "toolbar" }, el("div", { class: "search-wrap" }, icon("search"), search, el("kbd", null, "/")), show, el("label", { class: "sort" }, el("span", { class: "u-sr" }, "Sort"), sort)),
-      chips, count, grid)));
+      chips, el("div", { class: "spread catalog-count" }, count, reset), grid)));
     const open = params.get("open");
     const t = open && catalog.find((x) => x.id === open);
     if (t) details(t);
@@ -683,54 +725,71 @@
     const justMade = el("div", { class: "creations just-made" });
     /* What it's for, if they want to say. Optional; it is recorded as their own word (declared), not a guess. */
     function purposeField() {
-      const sel = el("select", { class: "input" }, el("option", { value: "" }, "Not saying"), (st.purposes || []).map((p) => el("option", { value: p.id }, p.name)));
+      const sel = el("select", { class: "input" }, el("option", { value: "" }, "Choose a purpose (optional)"), (st.purposes || []).map((p) => el("option", { value: p.id }, p.name)));
       try { sel.value = localStorage.getItem("swangz-studio-purpose") || ""; } catch (e) { /* no storage */ }
       sel.addEventListener("change", () => { try { localStorage.setItem("swangz-studio-purpose", sel.value); } catch (e) { /* no storage */ } });
       return { sel, node: el("label", { class: "field" }, el("span", null, "What it's for (optional)"), sel) };
     }
+    const forms = new Map();
     function show(id) {
-      panel.replaceChildren(id === "voice" ? voiceForm() : visualForm(id));
+      if (!forms.has(id)) {
+        const form = id === "voice" ? voiceForm() : visualForm(id);
+        forms.set(id, form); panel.append(form);
+      }
+      forms.forEach((form, key) => { form.hidden = key !== id; });
+    }
+    function studioHead(title, text) {
+      return el("div", { class: "studio-head" }, el("h2", null, title), el("p", null, text));
     }
     function voiceForm() {
       const voice = el("select", { class: "input" }, st.voices.map((v) => el("option", { value: v.id }, v.name + (v.about ? ` — ${v.about}` : ""))));
       const model = el("select", { class: "input" }, st.voice_models.map((m) => el("option", { value: m.id }, m.name)));
-      const text = el("textarea", { class: "input area", rows: "5", maxlength: "5000", placeholder: "Type the script — for example: Swangz Avenue presents the December Showcase, live at Serena Kampala." });
-      const count = el("span", { class: "muted small" }, "0 / 5,000");
+      const text = el("textarea", { class: "input area", rows: "5", required: true, maxlength: "5000", placeholder: "Type the script — for example: Swangz Avenue presents the December Showcase, live at Serena Kampala." });
+      const count = el("span", { class: "muted small", id: "studio-script-count" }, "0 / 5,000");
+      text.setAttribute("aria-describedby", "studio-script-count");
       text.addEventListener("input", () => { count.textContent = `${text.value.length.toLocaleString()} / 5,000`; });
       const err = el("div", { class: "form-error", role: "alert" });
       const purpose = purposeField();
-      const go = el("button", { class: "btn btn--solid", type: "submit" }, "Make the voice-over");
+      const status = el("p", { class: "studio-status", role: "status" });
+      const go = el("button", { class: "btn btn--solid", type: "submit", disabled: !st.voices.length }, "Make the voice-over");
       return el("form", { class: "studio-form", onsubmit: async (e) => {
         e.preventDefault();
         err.textContent = ""; go.disabled = true; go.textContent = "Making it…";
-        try { const made = await api("POST", "/studio/voice", { text: text.value, voice_id: voice.value, model_id: model.value, purpose: purpose.sel.value }); addCreation(made, true); text.value = ""; count.textContent = "0 / 5,000"; }
-        catch (x) { err.textContent = x.message; }
-        go.disabled = false; go.textContent = "Make the voice-over";
+        e.currentTarget.setAttribute("aria-busy", "true"); status.textContent = "Making your voice-over. You can keep working in another Studio view.";
+        try { const made = await api("POST", "/studio/voice", { text: text.value, voice_id: voice.value, model_id: model.value, purpose: purpose.sel.value }); addCreation(made, true); text.value = ""; count.textContent = "0 / 5,000"; status.textContent = "Voice-over ready below. Play it or download it."; }
+        catch (x) { err.textContent = x.message; status.textContent = "Your script is kept so you can try again."; }
+        forms.get("voice").removeAttribute("aria-busy");
+        go.disabled = !st.voices.length; go.textContent = "Make the voice-over";
       } },
+      studioHead("Make a voice-over", "Choose a voice and model, then add your script."),
       st.voices.length ? null : el("div", { class: "notice" }, "No voices are available yet — ask your admin."),
-      el("div", { class: "form-row" }, el("label", { class: "field" }, el("span", null, "Voice"), voice), el("label", { class: "field" }, el("span", null, "Quality"), model)),
-      el("label", { class: "field" }, el("span", null, "Script"), text), purpose.node, el("div", { class: "spread" }, count, go), err);
+      el("div", { class: "form-row" }, el("label", { class: "field" }, el("span", null, "Voice"), voice), el("label", { class: "field" }, el("span", null, "Voice model"), model)),
+      el("label", { class: "field" }, el("span", null, "Script"), text), purpose.node, el("div", { class: "studio-submit" }, count, go), status, err);
     }
     function visualForm(kind) {
-      const prompt = el("textarea", { class: "input area", rows: "4", placeholder: kind === "image"
+      const prompt = el("textarea", { class: "input area", rows: "4", required: true, placeholder: kind === "image"
         ? "Describe the picture — for example: a moody poster of a live band on stage at night, Kampala skyline behind, warm amber lights."
         : "Describe the motion — for example: slow push-in on the singer, haze drifting, lights flicker." });
       const aspect = el("select", { class: "input" }, ["16:9", "9:16", "1:1", "4:5"].map((a) => el("option", { value: a }, a)));
-      const image = el("input", { class: "input", type: "url", placeholder: "https://… link to the starting picture" });
+      const image = el("input", { class: "input", type: "url", required: true, placeholder: "https://… link to the starting picture" });
       const err = el("div", { class: "form-error", role: "alert" });
       const label = kind === "image" ? "Make the image" : "Make the video";
       const purpose = purposeField();
+      const status = el("p", { class: "studio-status", role: "status" });
       const go = el("button", { class: "btn btn--solid", type: "submit" }, label);
       return el("form", { class: "studio-form", onsubmit: async (e) => {
         e.preventDefault();
         err.textContent = ""; go.disabled = true; go.textContent = "Starting…";
-        try { const made = await api("POST", "/studio/generate", { kind, prompt: prompt.value, aspect_ratio: aspect.value, image_url: image.value, purpose: purpose.sel.value }); addCreation(made, true); prompt.value = ""; }
-        catch (x) { err.textContent = x.message; }
+        e.currentTarget.setAttribute("aria-busy", "true"); status.textContent = "Sending your prompt. Your creation will appear below.";
+        try { const made = await api("POST", "/studio/generate", { kind, prompt: prompt.value, aspect_ratio: aspect.value, image_url: image.value, purpose: purpose.sel.value }); addCreation(made, true); prompt.value = ""; status.textContent = "Request accepted. Follow its progress below or in Your creations."; }
+        catch (x) { err.textContent = x.message; status.textContent = "Your prompt is kept so you can try again."; }
+        forms.get(kind).removeAttribute("aria-busy");
         go.disabled = false; go.textContent = label;
       } },
+      studioHead(kind === "image" ? "Make an image" : "Make a video", kind === "image" ? "Describe the scene, then choose its shape." : "Start from a picture and describe how it should move."),
       kind === "video" ? el("label", { class: "field" }, el("span", null, "Starting picture"), image, el("span", { class: "muted small" }, "Make an image first and copy its link, or use any picture that's online.")) : null,
       el("label", { class: "field" }, el("span", null, kind === "image" ? "What should it show?" : "What should happen?"), prompt), purpose.node,
-      el("div", { class: "spread" }, kind === "image" ? el("label", { class: "field inline" }, el("span", null, "Shape"), aspect) : el("span"), go), err);
+      el("div", { class: "studio-submit" }, kind === "image" ? el("label", { class: "field inline" }, el("span", null, "Shape"), aspect) : el("span"), go), status, err);
     }
     function addCreation(c, fresh) {
       const card = creationCard(c);
@@ -756,7 +815,7 @@
       ["mine", "Your creations", () => [emptyNote, creations], st.recent.length || null, gather],
     ], "Studio");
     frame("Studio", el("section", { class: "section first" }, el("div", { class: "shell" },
-      sectionHead("Create", "Studio", "Voice-overs, images and video in the browser — on the company's account, nothing to install. What you make here is recorded like any request through Swangz AI."),
+      sectionHead("Create", "Studio", "Create on the company's account. Your prompts and results are recorded under the gateway's privacy settings."),
       views.node)));
     resumeJobs();
   }
@@ -796,7 +855,16 @@
             fillCreation(card.querySelector(".creation-media"), c);
             JOBS.delete(job);
           }
-        } catch (e) { JOBS.delete(job); }
+        } catch (e) {
+          JOBS.delete(job);
+          const body = card.querySelector(".creation-media");
+          body.replaceChildren(el("div", { class: "creation-state bad", role: "alert" }, "Couldn't check progress. Your request may still be running."),
+            el("button", { class: "btn btn--small", type: "button", onclick: () => {
+              JOBS.set(job, card);
+              body.replaceChildren(el("div", { class: "creation-state", role: "status" }, "Checking progress…"));
+              resumeJobs();
+            } }, "Check again"));
+        }
       }
     }
     polling = false;

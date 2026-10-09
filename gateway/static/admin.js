@@ -69,7 +69,7 @@
       o.href ? el("a", { class: "kpi-link", href: o.href, "aria-label": o.label + ": " + o.value }) : null,
       el("div", { class: "label" }, o.icon ? icon(o.icon) : null, o.label, o.tip ? SUI.infoTip(o.tip) : null),
       el("div", { class: "value" + (o.text ? " text" : "") }, o.value),
-      o.foot || o.note ? el("div", { class: "foot" }, o.foot || null, o.note ? el("span", { class: "note" }, o.note) : null) : null,
+      o.foot || o.note ? el("div", { class: "foot" }, o.foot || null, o.note ? el("span", { class: "kpi-note" }, o.note) : null) : null,
       o.spark ? el("div", { class: "spark" }, o.spark) : null);
   }
 
