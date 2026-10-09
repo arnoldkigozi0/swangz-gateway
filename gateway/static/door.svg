@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" fill="none" stroke-width="1.2" stroke-linecap="round">
+<defs>
+<linearGradient id="s" x1="0" y1="150" x2="0" y2="720" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#E8B33C" stop-opacity="0"/><stop offset="1" stop-color="#F0C054"/></linearGradient>
+<linearGradient id="d" x1="0" y1="350" x2="0" y2="720" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#F0C054" stop-opacity=".05"/><stop offset="1" stop-color="#F5C863" stop-opacity=".55"/></linearGradient>
+<linearGradient id="f" x1="0" y1="720" x2="0" y2="800" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#F0C054" stop-opacity=".32"/><stop offset="1" stop-color="#F0C054" stop-opacity="0"/></linearGradient>
+<linearGradient id="h" x1="0" y1="0" x2="800" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#E8B33C" stop-opacity="0"/><stop offset=".5" stop-color="#E8B33C" stop-opacity=".6"/><stop offset="1" stop-color="#E8B33C" stop-opacity="0"/></linearGradient>
+<radialGradient id="g" cx="400" cy="720" r="300" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#F0C054" stop-opacity=".22"/><stop offset="1" stop-color="#F0C054" stop-opacity="0"/></radialGradient>
+</defs>
+<rect width="800" height="800" fill="url(#g)"/>
+<path d="M320 720V430A80 80 0 0 1 480 430V720Z" fill="url(#d)" stroke="none"/>
+<path d="M320 720L140 800H660L480 720Z" fill="url(#f)"/>
+<path d="M320 720V430A80 80 0 0 1 480 430V720" stroke="url(#s)" stroke-opacity="0.75"/><path d="M270 720V400A130 130 0 0 1 530 400V720" stroke="url(#s)" stroke-opacity="0.55"/><path d="M215 720V370A185 185 0 0 1 585 370V720" stroke="url(#s)" stroke-opacity="0.42"/><path d="M155 720V340A245 245 0 0 1 645 340V720" stroke="url(#s)" stroke-opacity="0.32"/><path d="M90 720V310A310 310 0 0 1 710 310V720" stroke="url(#s)" stroke-opacity="0.24"/><path d="M20 720V280A380 380 0 0 1 780 280V720" stroke="url(#s)" stroke-opacity="0.18"/>
+<path d="M0 720H800" stroke="url(#h)"/>
+<g fill="#F0C054" fill-opacity=".7"><circle cx="226.2" cy="306.7" r="2.6"/><circle cx="286.1" cy="224.2" r="2.6"/><circle cx="380.7" cy="186.0" r="2.6"/><circle cx="481.1" cy="203.7" r="2.6"/><circle cx="556.9" cy="272.0" r="2.6"/></g>
+</svg>

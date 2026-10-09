@@ -70,10 +70,13 @@
     }
     drawLive();
 
+    // a preview of the queue — its three most urgent items; the whole queue is Needs attention
+    const SEV_ORDER = { high: 0, medium: 1, low: 2, info: 3 };
+    const top = att ? att.slice().sort((a, b) => (SEV_ORDER[a.severity] ?? 4) - (SEV_ORDER[b.severity] ?? 4)).slice(0, 3) : [];
     const nowTab = () => el("div", { class: "grid cols-2" },
-      A.panel("Needs attention", el("a", { class: "btn small quiet", href: "#/attention" }, "See all", icon("chevronRight")),
+      A.panel("Most urgent", el("a", { class: "btn small quiet", href: "#/attention" }, att && att.length > top.length ? `All ${att.length}` : "Needs attention", icon("chevronRight")),
         att === null ? SUI.errorBox(attention.reason, () => A.render())
-          : att.length ? el("ul", { class: "att-list" }, att.slice(0, 6).map(attentionItem))
+          : att.length ? el("ul", { class: "att-list" }, top.map(attentionItem))
             : SUI.stateBox({ tone: "ok", icon: "checkCircle", title: "Nothing needs attention", text: "Everything looks normal.", compact: true })),
       A.panel("Live activity", el("a", { class: "btn small quiet", href: "#/live" }, "Open Live", icon("chevronRight")), liveBox));
 
@@ -337,7 +340,8 @@
   async function pageActivity(params) {
     await A.toolIndex().catch(() => null);
     const exportLink = el("a", { class: "btn", href: A.gadmin("/export.csv") }, icon("download"), "Export CSV");
-    A.frame({ title: "Activity", lede: "What staff did through Gateway: AI requests, tools opened from the portal, AI websites visited and shared-account turns — and, on the timeline, each person's sign-ins and the access changes made to them. Every other change admins made is in the Audit log.",
+    A.frame({ title: "Activity", lede: ["What staff did through Gateway — AI requests, tools opened, AI websites visited, shared-account turns, and each person's sign-ins and access changes. Signals worth investigating are under ",
+      el("a", { href: "#/security" }, "Security"), "; what admins changed is in the ", el("a", { href: "#/audit" }, "Audit log"), "."],
       actions: exportLink },
     A.pageTabs("#/activity", params, [
       ["timeline", "Timeline", () => timelineTab(params)],
@@ -679,7 +683,8 @@
             person: e.person_id, request: (e.href || "").startsWith("#/records/") ? e.href.slice(10) : null }) }, icon("flag"), "Open incident") : null,
           e.href ? el("a", { class: "btn small", href: e.href }, "Investigate", icon("chevronRight")) : null));
     })) : SUI.stateBox({ tone: "ok", icon: "shield", title: type ? "None of these" : "No security events", text: type ? "Nothing of this kind in this period." : "Everything looks normal." });
-    A.frame({ title: "Security", lede: "Signals worth a look, each with how sure the evidence is. Severity says what to check first — it isn't a judgement on anyone.",
+    A.frame({ title: "Security", lede: ["Signals that may need investigating, each with its evidence and how sure it is. Severity says what to check first — it isn't a judgement on anyone. Not a history: what people did is under ",
+      el("a", { href: "#/activity" }, "Activity"), "."],
       status: SUI.status(postureText[0], postureText[1], { plain: true }),
       actions: seg([["1", "24 hours"], ["7", "7 days"], ["30", "30 days"]], String(days), (v) => { location.hash = `#/security?days=${v}` + (type ? "&type=" + type : ""); }, "Period") }, [
       el("section", { class: "posture p-" + data.posture },
@@ -689,7 +694,7 @@
           el("div", null, el("span", { class: "k" }, "Credentials in requests"), el("span", { class: "v" }, data.settings.block_secrets ? "Refused" : "Let through, flagged")),
           el("div", null, el("span", { class: "k" }, "Rate limit"), el("span", { class: "v" }, data.settings.rate_per_min ? data.settings.rate_per_min + " a minute per person" : "Off")),
           el("div", null, el("span", { class: "k" }, "Kill switch"), el("span", { class: "v" }, data.settings.paused ? "AI is paused" : "Ready")),
-          el("a", { class: "btn small", href: "#/settings" }, "Change in Settings"))),
+          el("a", { class: "btn small", href: "#/settings?tab=access" }, "Change in Settings"))),
       el("nav", { class: "sec-chips", "aria-label": "Filter by kind" }, counts,
         kinds.length ? null : el("span", { class: "hint" }, "Nothing of any kind in this period.")),
       A.panel(type ? SEC_TYPES[type][0] : "Events", SUI.plural(events.length, "event") + ` · last ${days === 1 ? "24 hours" : days + " days"}`, list),
@@ -762,7 +767,8 @@
     more.addEventListener("click", () => load(false).catch((e) => toast(e.message, true)));
     await load(true);
     A.frame({ title: "Audit log", lead: el("span", { class: "audit-mark", "aria-hidden": "true" }, icon("audit")),
-      lede: "Changes made to Gateway by console users — sign-ins, settings, access changes, revoked keys, every full record opened, and every change someone's role refused — with what it was before and after, and why when they said. What staff did is under Activity." }, [
+      lede: ["What console users and the system changed, or tried to — sign-ins, settings, access, keys, every full record opened, every change a role refused — with before and after, the reason given, and the outcome. What staff did is under ",
+        el("a", { href: "#/activity" }, "Activity"), "."] }, [
       A.panel(null, null, (() => {
         const fb = filterBar({ search: q, extra: actor,
           fields: [{ key: "outcome", label: "Outcome", control: outcome }, { key: "area", label: "Area", control: area }, { key: "correlation", label: "About", control: corr }],

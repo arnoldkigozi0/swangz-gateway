@@ -16,7 +16,7 @@
     A.pageTabs("#/licences", params, [
       ["licences", "Licences", () => licencesTab()],
       ["spend", "What cost us money?", () => spendTab(params)],
-      ["renewals", "Renewals & budgets", () => renewalsTab()],
+      ["renewals", "Renewals", () => renewalsTab()],
     ]));
   }
 
@@ -47,9 +47,9 @@
     ] }) : SUI.stateBox({ icon: "licences", title: "No licences yet", text: "Subscribe on the Tools page, then give the tool to people. Seats and their use appear here." });
     return [
       el("div", { class: "kpis four" },
-        A.kpi({ label: "AI spend · this month", icon: "wallet", value: fmt.money(s.total_month), tone: "gold hero",
-          note: `${fmt.money(s.subscriptions_month)} plans + ${fmt.money(s.api_month)} metered API`,
-          tip: "Plans are what's set on each subscription. Metered API use is estimated from the price table as each request runs." }),
+        A.kpi({ label: "Company plans", icon: "licences", value: fmt.money(s.subscriptions_month) + "/mo", tone: "gold hero",
+          note: `${SUI.plural(paid.length, "paid plan")} · metered spend is under What cost us money?`,
+          tip: "The monthly cost set on each subscription (Tools → a tool → Subscription). Metered API use is separate: What cost us money?" }),
         A.kpi({ label: "Active seats", icon: "people", value: `${activeSeats}`, note: `of ${assignedSeats} given out · used in 30 days` }),
         A.kpi({ label: "Idle seats", icon: "clock", value: String(s.idle_seats), tone: s.idle_seats ? "alert" : null, note: s.idle_seats ? "given, not used in 30 days" : "everyone given a tool is using it" }),
         A.kpi({ label: "Estimated waste", icon: "trendDown", value: fmt.money(s.idle_cost) + "/mo", note: paid.length ? "idle seats × cost per seat" : "set plan costs to estimate",
@@ -101,17 +101,16 @@
             el("div", { class: "rises" }, d.increases.slice(0, 3).map(chip)), more),
           el("div", { class: "hint" }, "At least half again the period before, and $1 more — worth a look, not necessarily a problem."), all);
       }
-      const idleSeats = d.idle.reduce((n, x) => n + x.idle, 0);
       box.replaceChildren(...[
         el("div", { class: "kpis four" },
           A.kpi({ label: "Metered AI spend", icon: "wallet", value: fmt.money(total), tone: "gold hero",
             foot: el("span", { class: "row" }, SUI.delta(d.change), el("span", { class: "note" }, `vs ${fmt.money(d.previous_total)} the period before`)),
             tip: "Each request is priced from the model price table the moment it runs. Vendor invoices aren't imported." }),
           A.kpi({ label: "Requests", icon: "spark", value: fmt.num(d.requests), note: total && d.requests ? `≈ ${fmt.money(total / d.requests)} each` : "in this period" }),
-          A.kpi({ label: "Unpriced", icon: "info", value: fmt.num(d.unpriced), href: d.unpriced ? "#/settings?tab=prices" : null,
+          A.kpi({ label: "Unpriced", icon: "info", value: fmt.num(d.unpriced), href: d.unpriced ? "#/settings?tab=providers&section=prices" : null,
             note: d.unpriced ? "requests with no price — price them" : "every model has a price" }),
           A.kpi({ label: "Company plans", icon: "licences", value: fmt.money(d.subscriptions_month) + "/mo", href: "#/licences?tab=licences",
-            note: idleSeats ? `${SUI.plural(idleSeats, "seat")} idle · ≈ ${fmt.money(d.idle.reduce((n, x) => n + x.idle_cost, 0))}/mo` : "fixed, not metered" })),
+            note: "fixed monthly, not metered — seats and idle ones under Licences" })),
         rising,
         d.series.length > 1 ? A.panel("Spend per day", "estimated from the price table · " + SUI.tzLabel(true), el("div", { class: "body" },
           SUI.line({ label: "Metered spend per day", format: fmt.money, tick: fmt.moneyShort, yName: "Spend",
@@ -144,40 +143,69 @@
       onChange: (r) => { st.range = r; apply(); } })), box];
   }
 
+  /* Renewals: the commitments coming up. Spend lives under What cost us money?, and each person's budget on their profile. */
   async function renewalsTab() {
     const lic = await api("GET", "/licences");
-    const renewals = lic.renewals.length ? el("ul", { class: "mini-list" }, lic.renewals.map((t) => el("li", null, A.toolLogo(t.id, t.name, "sm"),
+    const soon = lic.renewals.length ? el("ul", { class: "mini-list" }, lic.renewals.map((t) => el("li", null, A.toolLogo(t.id, t.name, "sm"),
       el("div", { class: "grow" }, el("strong", null, t.name), el("div", { class: "hint" }, t.monthly_cost != null ? fmt.money(t.monthly_cost) + " a month" : "cost not set")),
       SUI.badge("renews " + fmt.date(t.renews_on), "warn", "calendar")))) : SUI.stateBox({ icon: "calendar", compact: true, title: "No renewals soon", text: "Nothing renews in the next 30 days." });
-    const people = lic.people.filter((p) => p.cost > 0 || p.monthly_budget !== null);
-    const top = Math.max(...people.map((x) => x.cost), 0.01);
-    const spend = people.length ? el("ul", { class: "u-bars" }, people.map((p) => el("li", null,
-      el("a", { href: "#/people/" + p.id }, SUI.avatar(p.name, "sm"), el("span", null, p.name)),
-      el("div", { class: "val" }, fmt.money(p.cost), el("small", null, p.monthly_budget !== null ? "of " + fmt.money(p.monthly_budget) : (p.department || "no budget"))),
-      el("div", { class: "track-wrap" }, p.monthly_budget !== null ? A.bar(p.cost, p.monthly_budget) : A.bar(p.cost, top))))) : SUI.stateBox({ icon: "wallet", compact: true, title: "No API spend this month", text: "" });
-    return el("div", { class: "grid cols-even" },
-      A.panel("Renewing in the next 30 days", null, renewals),
-      A.panel("API spend by person", "this month, against their budget", spend));
+    const plans = lic.tools.filter((t) => t.state !== "none" && t.state !== "cancelled");
+    const all = plans.length ? SUI.table({ caption: "Every plan and when it renews", rows: plans, sort: ["renews_on", "asc"], href: (t) => `#/tools?open=${t.id}&tab=billing`, columns: [
+      { key: "name", label: "Tool", lead: true, render: (t) => el("a", { class: "u-cell", href: `#/tools?open=${t.id}&tab=billing` }, A.toolLogo(t.id, t.name, "sm"),
+        el("div", null, el("strong", null, t.name), el("span", { class: "sub" }, t.plan || "plan not named"))) },
+      { key: "seats", label: "Seats", num: true, render: (t) => (t.seats ? String(t.seats) : "—"), hideSm: true },
+      { key: "monthly_cost", label: "Cost / month", num: true, render: (t) => (t.monthly_cost != null ? fmt.money(t.monthly_cost) : "—") },
+      { key: "renews_on", label: "Renews", num: true, sort: (t) => t.renews_on || Infinity,
+        render: (t) => (t.renews_on ? fmt.date(t.renews_on) : el("span", { class: "faint" }, "no date set")) },
+    ] }) : SUI.stateBox({ icon: "licences", compact: true, title: "No plans yet", text: "Set a subscription on a tool (Tools → a tool → Subscription) and its renewal shows here." });
+    const undated = plans.filter((t) => !t.renews_on).length;
+    return [
+      el("div", { class: "grid cols-even" },
+        A.panel("Renewing in the next 30 days", null, soon),
+        A.panel("Before a renewal", null, el("div", { class: "body stack" },
+          el("p", { class: "hint" }, "Check the plan is still used: idle seats and what reclaiming them saves are under ", el("a", { href: "#/licences?tab=licences" }, "Licences"), "."),
+          el("p", { class: "hint" }, "Metered spend by person, tool and model is under ", el("a", { href: "#/licences?tab=spend" }, "What cost us money?"), "; each person's budget is on their profile."),
+          undated ? el("p", { class: "hint" }, SUI.status("waiting", `${SUI.plural(undated, "plan")} with no renewal date`, { plain: true }), " — set it on the tool's Subscription tab so it shows up here in time.") : null))),
+      A.panel("Every plan", "soonest first", all),
+    ];
   }
 
   // ------------------------------------------------------------------ Settings
 
+  /* Settings: a category list beside the category. Two categories hold a few sections of their own — one level
+     only, kept in ?section= so a refresh or a shared link lands on the same place. Links from before the
+     categories (?tab=purposes, ?tab=prices, …) still land where they used to point. */
+  const SETTINGS_OLD = { safety: ["access"], security: ["access"], governance: ["purpose"], purposes: ["purpose", "purposes"], locations: ["purpose", "locations"],
+    addresses: ["providers", "addresses"], prices: ["providers", "prices"], rates: ["providers", "rates"] };
   async function pageSettings(params) {
+    const old = SETTINGS_OLD[params.get("tab")];
+    if (old) {
+      params.set("tab", old[0]);
+      if (old[1]) params.set("section", old[1]);
+      A.S.route = "#/settings?" + params.toString();
+      history.replaceState(null, "", A.S.route);
+    }
     const mine = A.S.me.can || (A.isOwner() ? ["admin"] : []);
+    // a category's sections read the address when they are first shown, not when the page was
+    const sections = (list) => () => A.pageTabs("#/settings", new URLSearchParams(location.hash.split("?")[1] || ""), list, { param: "section", label: "Sections", help: false });
     A.frame({ title: "Settings", lede: mine.length ? `The switches that govern the whole gateway. You can change what your role (${A.roleLabel()}) covers; every change is written to the audit log, with what it was before.`
       : "You're a viewer: you can see these settings but not change them." },
     A.pageTabs("#/settings", params, [
-      ["safety", "Access & records", () => safetyTab()],
-      ["emergency", "Emergency", () => emergencyTab()],
-      ["purposes", "Purposes", () => purposesTab()],
-      ["locations", "Locations", () => locationsTab()],
-      ["addresses", "Addresses", () => addressesTab()],
-      ["browsers", "Company browsers", () => workspaceTab(A.can("govern"))],
-      ["prices", "Model prices", () => pricesTab(A.can("money"))],
-      ["rates", "Media rates", () => ratesTab()],
-      A.isOwner() && ["users", "Console users", () => consoleUsersTab()],
+      ["access", "Access & privacy", () => safetyTab(), null, "How long records are kept, what is kept, the protections on every request, and what staff can do for themselves."],
+      ["emergency", "Emergency", () => emergencyTab(), null, "The stops: everything at once, one provider, or the company browsers. Each acts immediately and is written to the audit log."],
+      ["purpose", "Purpose & location", sections([
+        ["purposes", "Purposes", () => purposesTab()],
+        ["locations", "Locations", () => locationsTab()],
+      ]), null, "What requests can be for, and how a place is named — named networks first, then the offline location table."],
+      ["providers", "Providers & pricing", sections([
+        ["addresses", "Connections", () => addressesTab()],
+        ["prices", "Model prices", () => pricesTab(A.can("money"))],
+        ["rates", "Media rates", () => ratesTab()],
+      ]), null, "Where each provider is reached, and the prices and rates every cost estimate is worked out from."],
+      ["browsers", "Company browsers", () => workspaceTab(A.can("govern")), null, "Where shared accounts' company browsers run, and their health."],
+      A.can("admin") && ["users", "Console users", () => consoleUsersTab(), null, "Who can sign in to the control room, and which areas each role can change."],
       ["account", "Your account", () => accountTab()],
-    ], { vertical: true }));
+    ], { vertical: true, clears: ["section"], label: "Settings categories" }));
   }
 
   /* Access & records: grouped settings, one row each, and one save bar that appears only when something has
@@ -210,29 +238,77 @@
     const bar = el("div", { class: "savebar", hidden: true, role: "region", "aria-label": "Unsaved changes" },
       el("span", { class: "msg" }, el("i", { "aria-hidden": "true" }), "You have unsaved changes"), err, reason, discard, save);
     const check = () => { bar.hidden = JSON.stringify(all()) === saved; };
-    [retention, rate, contact, ...Object.values(ret)].forEach((x) => x.addEventListener("input", check));
+    A.setDirty(() => bar.isConnected && !bar.hidden);
+    // a number's problem is said beside the number, before anything is sent
+    const days = { retention_days: retention, rate_per_min: rate, ...ret };
+    const fieldErr = {};
+    Object.entries(days).forEach(([k, x]) => { fieldErr[k] = el("span", { class: "field-err", role: "alert", id: "err-" + k }); x.setAttribute("aria-describedby", "err-" + k); });
+    const problems = () => {
+      const out = {};
+      Object.entries(days).forEach(([k, x]) => {
+        const v = x.value.trim();
+        if (!/^\d+$/.test(v)) out[k] = "A whole number, 0 or more.";
+        else if (k === "retention_audit_days" && Number(v) > 0 && Number(v) < 365) out[k] = "At least 365 days, or 0 to keep it forever.";
+      });
+      return out;
+    };
+    const showProblems = (found) => Object.entries(fieldErr).forEach(([k, node]) => {
+      node.textContent = found[k] || "";
+      days[k].setAttribute("aria-invalid", found[k] ? "true" : "false");
+    });
+    [retention, rate, contact, ...Object.values(ret)].forEach((x) => x.addEventListener("input", () => { check(); if (x.getAttribute("aria-invalid") === "true") showProblems(problems()); }));
+    Object.values(days).forEach((x) => x.addEventListener("blur", () => showProblems(problems())));
     [storeBodies, blockSecrets, selfKeys, gateFull].forEach((x) => x.addEventListener("change", check));
-    discard.addEventListener("click", () => A.render());
+    discard.addEventListener("click", () => { A.setDirty(null); A.render(); });
+    // what deserves a second look before it's saved: shorter keeping (older records go within the hour),
+    // fewer bodies kept, wider logging of staff
+    function consequences(v) {
+      const out = [];
+      const shorter = (k) => k in v && Number(v[k]) > 0 && (Number(first[k]) === 0 || Number(v[k]) < Number(first[k]));
+      if (shorter("retention_days")) out.push(`Request records older than ${v.retention_days} days are deleted within the hour.`);
+      [["retention_bodies_days", "Stored bodies"], ["retention_site_days", "Website visits"], ["retention_launch_days", "Tools-opened records"], ["retention_audit_days", "Audit entries"]]
+        .forEach(([k, l]) => { if (shorter(k)) out.push(`${l} older than ${v[k]} days are deleted within the hour.`); });
+      if (v.store_bodies === false) out.push("New requests keep only their summary; full bodies are no longer stored.");
+      if (v.gate_log_full === true) out.push("The website gate starts recording page content. Staff must be told before this is on.");
+      if (v.block_secrets === false) out.push("Requests containing credentials are let through (and flagged) instead of refused.");
+      return out;
+    }
     save.addEventListener("click", async () => {
+      err.textContent = "";
+      const found = problems();
+      showProblems(found);
+      if (Object.keys(found).length) { err.textContent = "Fix the highlighted values first."; days[Object.keys(found)[0]].focus(); return; }
+      const v = values();
+      const warn = consequences(v);
+      if (warn.length && !(await A.confirmAction("Save these changes?", warn.join(" "), "Save changes", true))) return;
       save.disabled = true;
-      try { await api("PUT", "/settings", { ...values(), reason: reason.value }); toast("Settings saved."); A.render(); }
-      catch (e) { err.textContent = e.message; }
+      try { await api("PUT", "/settings", { ...v, reason: reason.value }); A.setDirty(null); toast("Settings saved."); A.render(); }
+      catch (e) {
+        // the server names the setting it refused: show it beside that control too
+        const k = Object.keys(days).find((key) => e.message.startsWith(key)) || (/audit log/.test(e.message) ? "retention_audit_days" : null);
+        if (k) {
+          const said = e.message.startsWith(k) ? e.message.slice(k.length + 1) : e.message;
+          fieldErr[k].textContent = said.charAt(0).toUpperCase() + said.slice(1) + ".";
+          days[k].setAttribute("aria-invalid", "true"); days[k].focus();
+          err.textContent = "Fix the highlighted value.";
+        } else err.textContent = e.message;
+      }
       finally { save.disabled = false; }
     });
-    const unit = (input, text) => el("span", { class: "unit" }, input, text);
+    const unit = (input, text, key) => el("span", { class: "unit-wrap" }, el("span", { class: "unit" }, input, text), key ? fieldErr[key] : null);
     const anyEditable = st.areas ? Object.values(st.areas).some((a) => A.can(a)) : A.isOwner();
     return [
       A.panel("Records", `${st.records.toLocaleString()} requests · ${(st.db_bytes / 1048576).toFixed(1)} MB on disk`,
-        A.settingRow("Keep records for", "Older request records are deleted automatically every hour. 0 keeps everything. Staff see this number on their privacy page.", unit(retention, "days")),
+        A.settingRow("Keep records for", "Older request records are deleted automatically every hour. 0 keeps everything. Staff see this number on their privacy page.", unit(retention, "days", "retention_days")),
         A.settingRow("Keep full request and response bodies", "Needed to pull back exactly what was sent. Off keeps only the summary: who, model, prompt, commands, cost.", storeBodies),
-        A.settingRow("Full bodies", "Drop the stored bodies sooner than the record itself; the summary stays. 0 = as long as the record.", unit(ret.retention_bodies_days, "days")),
-        A.settingRow("Website visits", "The browser gate's log: which tool, when, how long. 0 = forever.", unit(ret.retention_site_days, "days")),
-        A.settingRow("Tools opened from Swangz AI", "0 = forever.", unit(ret.retention_launch_days, "days")),
+        A.settingRow("Full bodies", "Drop the stored bodies sooner than the record itself; the summary stays. 0 = as long as the record.", unit(ret.retention_bodies_days, "days", "retention_bodies_days")),
+        A.settingRow("Website visits", "The browser gate's log: which tool, when, how long. 0 = forever.", unit(ret.retention_site_days, "days", "retention_site_days")),
+        A.settingRow("Tools opened from Swangz AI", "0 = forever.", unit(ret.retention_launch_days, "days", "retention_launch_days")),
         A.settingRow("Audit log", "At least 365 days, or 0 for forever: the record of what admins did should outlive what it watches. Every purge is itself written to the audit log.",
-          unit(ret.retention_audit_days, "days"))),
+          unit(ret.retention_audit_days, "days", "retention_audit_days"))),
       A.panel("Protection", null,
         A.settingRow("Refuse requests that contain credentials", "API keys, cloud keys, private keys. Off lets them through but flags them. On can interrupt an agent that reads a .env file.", blockSecrets),
-        A.settingRow("Rate limit", "Catches a runaway tool. 0 means no limit. A busy agent can make several requests a minute, so keep it generous.", unit(rate, "a minute, per person"))),
+        A.settingRow("Rate limit", "Catches a runaway tool. 0 means no limit. A busy agent can make several requests a minute, so keep it generous.", unit(rate, "a minute, per person", "rate_per_min"))),
       A.panel("Staff", null,
         A.settingRow("Staff can connect their own devices", "In the Swangz AI app they create and disconnect their own keys. Every key still shows up under Devices, and you can revoke any of them.", selfKeys),
         A.settingRow("Website gate: full-content logging", "Off by default, and the honest choice: the browser extension records only which approved site staff open and for how long. Staff are told in the extension's policy.", gateFull, { tone: "warn" }),
@@ -678,16 +754,49 @@
 
   // ------------------------------------------------------------------ Reports
 
+  /* Reports: a catalogue that says what each one answers, and each report on its own page with its period and
+     download. The list of reports comes from the server; the questions are how this page explains them. */
+  const REPORT_ABOUT = {
+    usage: ["People", "Who used AI, how much, and through which tools?"],
+    spend: ["People", "What did each person's use cost, and how sure is each amount?"],
+    departments: ["People", "Which departments use AI most, and what does it cost them?"],
+    tools: ["Tools and models", "Which tools are used, by how many people, and how often?"],
+    models: ["Tools and models", "Which models do requests go to, and what do they cost?"],
+    purposes: ["Tools and models", "What is AI being used for — declared, from the tool, or inferred?"],
+    licences: ["Licences", "Which seats are paid for, used, or idle?"],
+    security: ["Trust", "Which signals came up, with the evidence behind each?"],
+    shared: ["Trust", "Who held each shared company account, and for how long?"],
+  };
   async function pageReports(params) {
+    // links from when each report was a tab of this page
+    if (params.get("tab")) {
+      const kind = params.get("tab");
+      params.delete("tab");
+      location.replace(`#/reports/${encodeURIComponent(kind)}` + (params.toString() ? "?" + params.toString() : ""));
+      return;
+    }
     const list = await api("GET", "/reports");
-    A.frame({ title: "Reports", lede: "The standard questions, answered for any period, ready to download. Every amount says what it rests on: estimated from prices and rates, allocated from a plan, or unpriced. Downloads are written to the audit log." },
-      A.pageTabs("#/reports", params, list.items.map((r) => [r.kind, r.title, () => reportTab(r.kind, params)]), { vertical: true }));
+    const groups = [];
+    list.items.forEach((r) => {
+      const group = (REPORT_ABOUT[r.kind] || ["Other"])[0];
+      let g = groups.find((x) => x[0] === group);
+      if (!g) groups.push(g = [group, []]);
+      g[1].push(r);
+    });
+    A.frame({ title: "Reports", lede: "The standard questions, answered for any period and ready to download. Every amount says what it rests on — estimated from prices and rates, allocated from a plan, or unpriced. Downloads are written to the audit log." },
+      el("div", { class: "report-groups" }, groups.map(([name, items]) => A.panel(name, null, el("ul", { class: "report-list" }, items.map((r) => el("li", null,
+        el("a", { href: "#/reports/" + r.kind }, el("span", { class: "mini-ic" }, icon("report")),
+          el("span", { class: "grow" }, el("strong", null, r.title), el("span", { class: "hint" }, (REPORT_ABOUT[r.kind] || [, ""])[1])),
+          icon("chevronRight")))))))));
   }
 
-  async function reportTab(kind, params) {
+  async function pageReport(params, kind) {
+    const list = await api("GET", "/reports");
+    const meta = list.items.find((r) => r.kind === kind);
+    if (!meta) throw new A.ApiError(404, "There's no report called that.");
     const range = A.rangeFrom(params, "month");
     const holder = el("div");
-    const dl = el("a", { class: "btn" }, icon("download"), "Download CSV");
+    const dl = el("a", { class: "btn primary" }, icon("download"), "Download CSV");
     const draw = (r) => {
       const q = A.rangeQuery(r);
       dl.href = A.gadmin(`/reports/${kind}?${q.toString()}&format=csv`);
@@ -708,14 +817,16 @@
       }, SUI.skeleton("rows", 5));
     };
     const ctl = SUI.rangeControl({ preset: range.preset, from: range.from, to: range.to, presets: ["7d", "30d", "month", "custom"], onChange: (r) => {
-      A.keepParams("#/reports", { tab: kind, range: r.preset, from: r.preset === "custom" ? r.from : null, to: r.preset === "custom" ? r.to : null });
+      A.keepParams("#/reports/" + kind, { range: r.preset, from: r.preset === "custom" ? r.from : null, to: r.preset === "custom" ? r.to : null });
       draw(r);
     } });
+    A.frame({ title: meta.title, crumbs: [el("a", { href: "#/reports" }, "Reports")], lede: (REPORT_ABOUT[kind] || [, ""])[1], actions: dl },
+      A.panel(null, null, el("div", { class: "filterbar" }, ctl), holder));
     draw(range);
-    return A.panel(null, el("div", { class: "row" }, ctl, dl), holder);
   }
 
   A.page(/^#\/reports$/, pageReports);
+  A.page(/^#\/reports\/([a-z]+)$/, pageReport);
   A.page(/^#\/licences$/, pageLicences);
   A.page(/^#\/settings$/, pageSettings);
 })();

@@ -23,6 +23,7 @@
       opts.headers["content-type"] = "application/json";
       opts.body = JSON.stringify(body);
     }
+    const epoch = rendering;
     let res;
     try { res = await fetch(GATEWAY + "/admin/api" + path, opts); }
     catch (e) { throw new ApiError(0, "The gateway can't be reached"); }
@@ -33,6 +34,9 @@
       showSignIn();
       throw new ApiError(401, "Please sign in again.");
     }
+    // A read for a page that has since been left never answers: that page stops where it is instead of
+    // drawing itself over the one now showing. Changes (POST, PUT, DELETE) always finish.
+    if (method === "GET" && epoch !== rendering) return new Promise(() => {});
     if (!res.ok) throw new ApiError(res.status, (data && data.error) || res.statusText || "Something went wrong");
     return data;
   }
@@ -69,53 +73,147 @@
       o.spark ? el("div", { class: "spark" }, o.spark) : null);
   }
 
-  /* A page split into tabs; each tab builds the first time it is opened. The tab lives in ?tab=. */
+  /* Unsaved changes. A form registers a check while it has edits; switching tabs, following a link or closing
+     the window asks first instead of dropping them. */
+  let dirtyCheck = null;
+  function setDirty(fn) { dirtyCheck = fn || null; }
+  const isDirty = () => !!(dirtyCheck && dirtyCheck());
+  async function confirmLeave() {
+    if (!isDirty()) return true;
+    const ok = await confirmAction("Leave without saving?", "You have changes on this page that haven't been saved. Leave and they are lost.", "Leave without saving", true);
+    if (ok) dirtyCheck = null;
+    return ok;
+  }
+  window.addEventListener("beforeunload", (e) => { if (isDirty()) { e.preventDefault(); e.returnValue = ""; } });
+
+  /* One line under a page's tabs, where the view's job isn't obvious from its name. Keyed by page and tab. */
+  const TAB_HELP = {
+    "#/": {
+      now: "The most urgent conditions and who is working right now. The full queue is under Needs attention.",
+      trends: "How use and estimated metered spend moved over the last 30 days.",
+      leaders: "The tools and people with the most use in 30 days. The full breakdown is Activity → Who used what.",
+      licences: "The biggest licence savings and what renews soon. Everything else is under Licences & spend.",
+    },
+    "#/activity": {
+      timeline: "Everything in order of time: AI requests, tools opened, website visits, shared-account turns, sign-ins and access changes.",
+      usage: "Totals per person and tool for the period — for comparing, not for reading individual requests.",
+      ai: "One row per AI request through the gateway; open one for its full record.",
+      opens: "Tools opened from the Swangz AI portal, with the browser and address they were opened from.",
+      sites: "Visits to AI websites seen by the browser extension: which site, when and how long — never what was on the page.",
+    },
+    "#/licences": {
+      licences: "Seats paid for against real use, and the idle ones you can reclaim.",
+      spend: "Metered AI spend for any period, where it went, and how each amount is worked out.",
+      renewals: "Plans that renew soon, so nothing renews by surprise.",
+    },
+    "#/policies": {
+      list: "The rules the gateway enforces now. A change applies to the next request.",
+      simulate: "Try a rule against what really happened. Nothing is saved and nobody is affected.",
+      explain: "Every check for one person and one tool, in the order the gateway makes them.",
+    },
+    "#/devices": {
+      keys: "One gateway key per laptop or coding tool.",
+      browsers: "Browsers staff opened tools from in the portal.",
+    },
+  };
+
+  /* Tab sets on the page that is showing, so Back and Forward between tabs of the same page switch the view
+     instead of rebuilding the page and fetching everything again. */
+  let TABSETS = [];
+
+  /* A page split into tabs; each tab builds the first time it is opened and is kept. The chosen tab lives in
+     the address under its own parameter (`tab`, or opts.param for a second level such as Settings sections),
+     so it can be linked, refreshed, and stepped through with Back and Forward.
+       tabs: [id, label, build(), badge?, description?]
+       opts: { vertical, param, clears: [params a change here resets], descriptions, help: false } */
   function pageTabs(base, params, tabs, opts) {
     opts = opts || {};
     tabs = tabs.filter(Boolean);
-    const body = el("div", { class: "tab-body" });
+    const paramName = opts.param || "tab";
     const built = new Map();
-    let current = tabs.some((t) => t[0] === params.get("tab")) ? params.get("tab") : tabs[0][0];
-    const bar = el("div", { class: "ptabs" + (opts.vertical ? " vertical" : ""), role: "tablist", "aria-orientation": opts.vertical ? "vertical" : null });
-    function show(id, focus) {
+    const routeKey = base.replace(/\/[^/]+$/, (m) => (/^\/(\d+|[0-9a-f]{12})$/.test(m) ? "" : m));
+    const valid = (id) => tabs.some((t) => t[0] === id);
+    let current = valid(params.get(paramName)) ? params.get(paramName) : tabs[0][0];
+    const uid = "pt" + Math.random().toString(36).slice(2, 7);
+    const bar = el("div", { class: "ptabs" + (opts.vertical ? " vertical" : ""), role: "tablist", "aria-orientation": opts.vertical ? "vertical" : "horizontal",
+      "aria-label": opts.label || "Views" });
+    const panel = el("div", { class: "tab-pane-wrap", role: "tabpanel", id: uid + "-panel", tabindex: "-1" });
+    function description(id) {
+      if (opts.help === false) return "";
+      const tab = tabs.find((t) => t[0] === id);
+      return (tab && tab[4]) || (opts.descriptions && opts.descriptions[id]) || ((TAB_HELP[routeKey] || {})[id]) || "";
+    }
+    const showing = () => ((location.hash || "#/").split("?")[0] || "#/") === base;
+    function address(id, how) {
+      const keep = new URLSearchParams(location.hash.split("?")[1] || "");
+      if (how === "user") (opts.clears || []).forEach((k) => keep.delete(k));  // a different view: its own sections start over
+      if (id === tabs[0][0] && opts.defaultless) keep.delete(paramName); else keep.set(paramName, id);
+      const q = keep.toString();
+      return base + (q ? "?" + q : "");
+    }
+    // how: "init" (first draw: normalise the address), "user" (a click or key: a new history entry),
+    // "history" (Back/Forward already moved the address)
+    function show(id, how, focus) {
       current = id;
-      bar.querySelectorAll("button").forEach((b) => {
+      bar.querySelectorAll("[role=tab]").forEach((b) => {
         const on = b.dataset.tab === id;
         b.classList.toggle("on", on);
         b.setAttribute("aria-selected", on ? "true" : "false");
         b.tabIndex = on ? 0 : -1;
+        if (on) panel.setAttribute("aria-labelledby", b.id);
         if (on && focus) b.focus();
       });
-      const keep = new URLSearchParams(location.hash.split("?")[1] || "");
-      keep.set("tab", id);
-      history.replaceState(null, "", base + "?" + keep.toString());
-      if (built.has(id)) { body.replaceChildren(built.get(id)); return; }
-      const holder = el("div", { class: "tab-pane", role: "tabpanel" });
-      built.set(id, holder);
-      body.replaceChildren(holder);
-      SUI.load(holder, () => tabs.find((t) => t[0] === id)[2](), SUI.skeleton("rows", 4));
+      // the address is only ever written for the page that is showing
+      const target = showing() ? address(id, how) : location.hash;
+      if (how === "user" && target !== location.hash) { history.pushState(null, "", target); S.route = target; }
+      else if (how !== "history" && target !== location.hash) { history.replaceState(null, "", target); S.route = target; }
+      const note = description(id);
+      if (!built.has(id)) {
+        const holder = el("div", { class: "tab-pane" });
+        built.set(id, holder);
+        SUI.load(holder, () => tabs.find((t) => t[0] === id)[2](), SUI.skeleton("rows", 4));
+      }
+      panel.replaceChildren(...[note ? el("p", { class: "tab-help" }, note) : null, built.get(id)].filter(Boolean));
+      // a view kept from earlier may hold its own tabs: after a click, put their choice back in the address
+      if (how === "user") TABSETS.filter((t) => t.bar !== bar && t.bar.isConnected && (opts.clears || []).includes(t.param)).forEach((t) => t.show(t.current, "init"));
+    }
+    async function choose(id, focus) {
+      if (id === current) return;
+      const wasDirty = isDirty();
+      if (!(await confirmLeave())) { bar.querySelector(`[data-tab="${CSS.escape(current)}"]`)?.focus(); return; }
+      if (wasDirty) built.delete(current);  // the changes were dropped: that view starts fresh next time
+      show(id, "user", focus);
     }
     bar.replaceChildren(...tabs.map(([id, label, , badge]) => el("button", {
-      type: "button", role: "tab", "data-tab": id, onclick: () => show(id),
-    }, label, badge ? el("span", { class: "tab-count" }, String(badge)) : null)));
+      type: "button", role: "tab", id: uid + "-" + id.replace(/[^a-z0-9-]/gi, ""), "aria-controls": uid + "-panel", "data-tab": id,
+      onclick: () => choose(id),
+    }, el("span", { class: "pt-l" }, label), badge ? el("span", { class: "tab-count", "aria-label": `(${badge})` }, String(badge)) : null)));
     bar.addEventListener("keydown", (e) => {
-      if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
+      const keys = opts.vertical ? ["ArrowUp", "ArrowDown", "Home", "End"] : ["ArrowLeft", "ArrowRight", "Home", "End"];
+      if (!keys.includes(e.key)) return;
       e.preventDefault();
       const i = tabs.findIndex((t) => t[0] === current);
-      const next = tabs[(i + (e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : -1) + tabs.length) % tabs.length][0];
-      show(next, true);
+      const next = e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : (i + (e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : -1) + tabs.length) % tabs.length;
+      choose(tabs[next][0], true);
     });
-    show(current);
-    // On a narrow screen the bar scrolls sideways: fade the edge while more tabs are hidden, and keep the chosen one in view.
+    show(current, "init");
+    TABSETS.push({ param: paramName, clears: opts.clears || [], bar, get current() { return current; }, first: tabs[0][0], valid, show });
+    // On a narrow screen the bar scrolls sideways: fade the edge while more tabs are hidden. The bar starts at its
+    // first tab and moves only if the chosen one would otherwise be out of sight — and then just far enough.
     const edge = () => bar.classList.toggle("more", bar.scrollLeft + bar.clientWidth < bar.scrollWidth - 2);
     bar.addEventListener("scroll", edge, { passive: true });
     requestAnimationFrame(() => {
-      const on = bar.querySelector("button.on");
-      // measured against the bar itself: offsetLeft would count from the page and scroll past the first tabs
-      if (on && bar.scrollWidth > bar.clientWidth) bar.scrollLeft = Math.max(0, on.getBoundingClientRect().left - bar.getBoundingClientRect().left + bar.scrollLeft - 24);
+      const on = bar.querySelector("[role=tab].on");
+      if (on && bar.scrollWidth > bar.clientWidth) {
+        const b = bar.getBoundingClientRect(), r = on.getBoundingClientRect();
+        if (r.right > b.right - 24) bar.scrollLeft += r.right - b.right + 40;
+        else if (r.left < b.left) bar.scrollLeft -= b.left - r.left + 16;
+      }
       edge();
     });
-    return el("div", { class: "tabs-wrap" + (opts.vertical ? " vertical" : "") }, bar, body);
+    // a side sheet keeps the bar in its header and the view in its body
+    if (opts.split) return { bar, body: el("div", { class: "tab-body" }, panel) };
+    return el("div", { class: "tabs-wrap" + (opts.vertical ? " vertical" : "") }, bar, el("div", { class: "tab-body" }, panel));
   }
 
   /* Settings-style building blocks. A row says what a setting is on the left and holds its control on
@@ -545,12 +643,12 @@
 
   const NAV = [
     ["Monitor", [["#/", "Overview", "overview"], ["#/live", "Live", "live"], ["#/attention", "Needs attention", "attention"], ["#/activity", "Activity", "activity"],
-      ["#/health", "Health", "pulse"]]],
+      ["#/health", "Health", "pulse"]], "What's happening"],
     ["Govern", [["#/people", "People", "people"], ["#/requests", "Access requests", "requests"], ["#/tools", "Tools", "tools"], ["#/models", "Models", "chip"],
-      ["#/policies", "Policies", "rule"]]],
-    ["Money", [["#/licences", "Licences & spend", "licences"], ["#/reports", "Reports", "report"]]],
+      ["#/policies", "Policies", "rule"]], "Access and rules"],
+    ["Money", [["#/licences", "Licences & spend", "licences"], ["#/reports", "Reports", "report"]], "Spend and licences"],
     ["Trust", [["#/security", "Security", "shield"], ["#/incidents", "Incidents", "flag"], ["#/devices", "Devices", "device"], ["#/audit", "Audit log", "audit"],
-      ["#/settings", "Settings", "settings"]]],
+      ["#/settings", "Settings", "settings"]], "Risks, records, settings"],
   ];
   const SECTION_OF = { "#/records": "#/activity", "#/sessions": "#/activity" };
 
@@ -611,11 +709,37 @@
     reload();
   }
 
+  /* The four areas, each a group that can be folded away. Every group starts open; what someone folds is
+     remembered in this browser, but the group holding the page you're on always shows. */
+  const NAV_KEY = "swangz-gateway-nav-folded";
+  function foldedGroups() {
+    try { return new Set(JSON.parse(localStorage.getItem(NAV_KEY) || "[]")); } catch (e) { return new Set(); }
+  }
   function sidebar(active, onNavigate) {
-    const nav = el("nav", { class: "nav", "aria-label": "Control room" }, NAV.map(([group, links]) => el("div", { class: "nav-group" },
-      el("div", { class: "group", "aria-hidden": "true" }, group),
-      links.map(([href, label, ic]) => el("a", { href, class: href === active ? "on" : null, "aria-current": href === active ? "page" : null, onclick: onNavigate || null },
-        icon(ic), el("span", { class: "nl" }, label), navCounts(href))))));
+    const folded = foldedGroups();
+    const nav = el("nav", { class: "nav", "aria-label": "Control room" }, NAV.map(([group, links, about]) => {
+      const holdsActive = links.some(([href]) => href === active);
+      const open = holdsActive || !folded.has(group);
+      const listId = "nav-" + group.toLowerCase();
+      const items = el("div", { class: "nav-links", id: listId, hidden: !open },
+        links.map(([href, label, ic]) => el("a", { href, class: href === active ? "on" : null, "aria-current": href === active ? "page" : null, onclick: onNavigate || null },
+          icon(ic), el("span", { class: "nl" }, label), navCounts(href))));
+      const label = [el("span", { class: "gt-l" }, group), el("span", { class: "gt-about" }, about)];
+      // the group holding the page you're on stays open, so its heading is a plain label
+      const heading = holdsActive ? el("div", { class: "group-toggle static" }, label) : el("button", { class: "group-toggle", type: "button", "aria-expanded": open ? "true" : "false", "aria-controls": listId,
+        onclick: () => {
+          const opening = items.hidden;
+          items.hidden = !opening;
+          groupNode.classList.toggle("collapsed", !opening);
+          heading.setAttribute("aria-expanded", opening ? "true" : "false");
+          const set = foldedGroups();
+          if (opening) set.delete(group); else set.add(group);
+          try { localStorage.setItem(NAV_KEY, JSON.stringify([...set])); } catch (e) { /* the preference is optional */ }
+        } },
+      label, icon("chevronDown"));
+      const groupNode = el("div", { class: "nav-group" + (open ? "" : " collapsed") + (holdsActive ? " here" : "") }, heading, items);
+      return groupNode;
+    }));
     const paused = S.overview && S.overview.paused;
     return el("aside", { class: "side" },
       el("a", { class: "brand", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }),
@@ -653,13 +777,17 @@
       el("button", { class: "btn quiet icon-only", type: "button", "aria-label": "Open navigation", onclick: () => openDrawer(active) }, icon("menu")),
       el("a", { class: "brand mini", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }), "Gateway"),
       el("button", { class: "btn quiet icon-only", type: "button", "aria-label": "Search", onclick: () => openCommand() }, icon("search")), bell());
-    const crumbs = o.crumbs ? el("nav", { class: "crumbs", "aria-label": "Breadcrumb" }, [].concat(o.crumbs).map((c, i, all) =>
-      [c, i < all.length - 1 ? el("span", { class: "sep", "aria-hidden": "true" }, "/") : null])) : null;
+    // Where you are: the area, then the pages above this one — never the page's own title again.
+    const place = NAV.map(([group, links]) => ({ group, item: links.find(([href]) => href === active) })).find((x) => x.item);
+    const trail = [place ? el("span", { class: "crumb-area" }, place.group) : null, ...[].concat(o.crumbs || []).filter(Boolean)].filter(Boolean);
+    const crumbs = trail.length ? el("nav", { class: "crumbs" + (o.crumbs ? "" : " area-only"), "aria-label": "You are here" },
+      trail.map((c, i) => [c, i < trail.length - 1 ? el("span", { class: "sep", "aria-hidden": "true" }, "/") : null])) : null;
     const top = el("header", { class: "top" }, crumbs,
       el("div", { class: "title-row" }, o.lead || null, el("h1", null, o.title), o.status || null),
       o.actions ? el("div", { class: "top-actions" }, o.actions) : null,
       o.lede ? el("p", { class: "lede" }, o.lede) : null);
-    app.replaceChildren(el("div", { class: "shell" }, side,
+    const routeSlug = (section === "#/" ? "overview" : section.slice(2)).replace(/[^a-z0-9-]/gi, "-");
+    app.replaceChildren(el("div", { class: "shell route-" + routeSlug }, side,
       el("div", { class: "main" }, appbar, banner, el("main", { id: "main", tabindex: "-1" }, top, el("div", { class: "page" + (o.wide ? " wide" : "") }, content)))));
   }
 
@@ -733,6 +861,8 @@
   async function render() {
     const mine = ++rendering;
     clearTimers();
+    TABSETS = [];
+    setDirty(null);
     SUI.hideTip();
     document.querySelectorAll(".sheet, .scrim, .side.drawer").forEach((n) => n.remove());
     if (!S.me) {
@@ -770,7 +900,42 @@
     render().then(() => Promise.all([refreshAttention(), refreshNotes()]).then(() => { const n = document.querySelector(".side"); if (n && S.me) n.replaceWith(sidebar(n.querySelector("a.on")?.getAttribute("href") || "#/")); }));
   }
 
-  window.addEventListener("hashchange", render);
+  /* Moving between tabs of the page that is already showing (Back, Forward, or a link that only changes the
+     tab) switches the view in place. Anything else builds the page again. */
+  function switchInPlace(from, to) {
+    const [fp, fq] = (from || "#/").split("?");
+    const [tp, tq] = (to || "#/").split("?");
+    if (fp !== tp) return false;
+    const a = new URLSearchParams(fq || ""), b = new URLSearchParams(tq || "");
+    const changed = new Set([...a.keys(), ...b.keys()].filter((k) => a.get(k) !== b.get(k)));
+    if (!changed.size) return true;
+    for (const k of changed) {
+      const sets = TABSETS.filter((t) => t.param === k);
+      // a value no tab set knows (an old link, say) goes to the page itself, which may know what it meant
+      if (sets.length) { if (b.get(k) && !sets.some((t) => t.valid(b.get(k)))) return false; continue; }
+      if (!TABSETS.some((t) => t.clears.includes(k))) return false;
+    }
+    // in registration order, so an outer set switches first and a nested set it brings back is then in place
+    for (const set of TABSETS.slice()) {
+      if (!set.bar.isConnected) continue;
+      const want = set.valid(b.get(set.param)) ? b.get(set.param) : set.first;
+      if (want !== set.current) set.show(want, "history");
+    }
+    return true;
+  }
+  window.addEventListener("hashchange", async () => {
+    const to = location.hash;
+    if (isDirty()) {
+      // put the address back while we ask; go on only if they choose to drop their changes
+      const from = S.route || "#/";
+      history.replaceState(null, "", from);
+      if (!(await confirmLeave())) return;
+      location.hash = to;
+      return;
+    }
+    if (S.me && document.querySelector(".shell") && switchInPlace(S.route, to)) { S.route = to; return; }
+    render();
+  });
   // the skip link focuses the page without touching the address (the address is the route)
   document.addEventListener("click", (e) => {
     const skip = e.target.closest && e.target.closest("a.skip");
@@ -796,7 +961,7 @@
     S, api, ApiError, gadmin, gurl, GATEWAY, isOwner, can, roleLabel, every, clearTimers, panel, empty, kpi, pageTabs, settingRow, switchInput, panelFoot, dialog, confirmAction, sheet, bar,
     purposeChip, purposeIndex, purposeName, PURPOSE_SOURCE, refreshNotes, NOTE_SEV,
     toolIndex, toolFor, toolLogo, toolLink, personLink, deviceLink, where, actionsList, ACTION, outcomeStatus, flagBadges, agentBadges,
-    totalTokens, units, reqEvent, eventItem, eventDays, launchList, rangeFrom, rangeQuery, keepParams, frame, render, page,
+    totalTokens, units, reqEvent, eventItem, eventDays, launchList, rangeFrom, rangeQuery, keepParams, frame, render, page, setDirty, confirmLeave, isDirty,
     setPaused, refreshOverview, refreshAttention, openCommand,
   };
 

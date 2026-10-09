@@ -71,6 +71,8 @@ code, pre, .mono { font-size: 12.5px; }
 .title-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .top h1 { font-size: clamp(1.5rem, 2.4vw, 1.9rem); margin: 0; font-weight: 740; letter-spacing: -.025em; line-height: 1.1; }
 .lede { margin: 8px 0 0; color: var(--tx-2); max-width: 78ch; }
+.lede a { color: var(--tx-1); text-decoration: underline; text-decoration-color: var(--line-hi); text-underline-offset: 3px; }
+.lede a:hover { text-decoration-color: var(--accent); }
 .top-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .act-gap { width: 14px; }
 .page { padding: 0 40px 80px; max-width: 1520px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-content: start; transition: opacity var(--d-base); }
@@ -213,24 +215,33 @@ a.obj:hover > span { text-decoration: underline; text-underline-offset: 3px; }
 .mini-ic.bad { background: var(--bad-soft); color: var(--bad-hi); }
 .mini-ic.warn { background: var(--warn-soft); color: var(--warn-hi); }
 
-/* page tabs */
-.tabs-wrap { display: grid; gap: 18px; min-width: 0; }
-.ptabs { display: flex; gap: 2px; flex-wrap: nowrap; overflow-x: auto; padding: 3px; background: var(--ink-1); border: 1px solid var(--line); border-radius: var(--r-md); width: fit-content; max-width: 100%; scrollbar-width: none; }
-.ptabs button { display: inline-flex; align-items: center; gap: 7px; border: 0; background: none; cursor: pointer; padding: 7px 14px; border-radius: var(--r-sm); font-weight: 620; font-size: 13.5px;
-  color: var(--tx-2); transition: background var(--d-fast), color var(--d-fast); white-space: nowrap; }
-.ptabs button:hover { color: var(--tx-1); }
+/* page tabs: views of one subject, underlined — unlike the boxed segmented filters (.u-seg) and the
+   rounded filter chips, so a view and a filter never look like the same control */
+.tabs-wrap { display: grid; gap: 20px; min-width: 0; }
+.ptabs { display: flex; gap: 22px; flex-wrap: nowrap; overflow-x: auto; border-bottom: 1px solid var(--line); max-width: 100%; scrollbar-width: none; }
+.ptabs::-webkit-scrollbar { display: none; }
+.ptabs button { position: relative; display: inline-flex; align-items: center; gap: 7px; border: 0; background: none; cursor: pointer; padding: 10px 1px 11px; margin-bottom: -1px;
+  font-weight: 600; font-size: 13.5px; color: var(--tx-2); transition: color var(--d-fast); white-space: nowrap; border-bottom: 2px solid transparent; border-radius: 0; }
+.ptabs button:hover { color: var(--tx-1); border-bottom-color: var(--line-hi); }
+.ptabs button.on { color: var(--tx-1); border-bottom-color: var(--accent); font-weight: 680; }
+.ptabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 3px; }
 .ptabs.more { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); }
-.ptabs button.on { background: var(--ink-3); color: var(--tx-1); box-shadow: inset 0 -2px 0 var(--accent); }
-.tab-count { font-size: 11px; font-weight: 700; padding: 0 7px; line-height: 18px; border-radius: var(--r-full); background: var(--ink-3); color: var(--tx-2); }
+.tab-count { font-size: 11px; font-weight: 700; padding: 0 7px; line-height: 18px; border-radius: var(--r-full); background: var(--ink-3); color: var(--tx-2); font-variant-numeric: tabular-nums; }
 .ptabs button.on .tab-count { background: var(--accent-soft); color: var(--accent-tx); }
-.ptabs button.on .tab-count { background: var(--accent); color: #1A1406; }
-.tab-body, .tab-pane { display: grid; gap: 18px; align-content: start; min-width: 0; }
-/* vertical tabs: a quiet section list beside the content (Settings) */
-.tabs-wrap.vertical { grid-template-columns: 220px minmax(0, 1fr); gap: 28px; align-items: start; }
-.ptabs.vertical { flex-direction: column; width: auto; padding: 0; background: none; border: 0; gap: 2px; position: sticky; top: 16px; overflow: visible; }
-.ptabs.vertical button { justify-content: flex-start; padding: 9px 12px; border-radius: var(--r-md); font-size: 13.5px; font-weight: 560; width: 100%; text-align: left; }
+.tab-body, .tab-pane, .tab-pane-wrap { display: grid; gap: 18px; align-content: start; min-width: 0; }
+.tab-pane-wrap:focus { outline: none; }
+.tab-pane > *, .tab-pane-wrap > * { min-width: 0; }  /* a wide chart or table scrolls inside its box, never widens the view */
+.tab-help { margin: -4px 0 0; max-width: 78ch; color: var(--tx-2); font-size: 13px; line-height: 1.55; }
+/* vertical tabs: a quiet category list beside the content (Settings, Reports) */
+.tabs-wrap.vertical { grid-template-columns: 228px minmax(0, 1fr); gap: 32px; align-items: start; }
+.ptabs.vertical { flex-direction: column; gap: 1px; border-bottom: 0; border-right: 1px solid var(--line); padding-right: 12px; position: sticky; top: 16px; overflow: visible; }
+.ptabs.vertical button { justify-content: flex-start; padding: 8px 12px; margin: 0; border-bottom: 0; border-radius: var(--r-sm); font-size: 13.5px; font-weight: 560; width: 100%; text-align: left; white-space: normal; }
+.ptabs.vertical button .pt-l { flex: 1; }
 .ptabs.vertical button:hover { background: var(--ink-2); }
-.ptabs.vertical button.on { background: var(--ink-3); box-shadow: inset 2px 0 0 var(--accent); font-weight: 650; }
+.ptabs.vertical button.on { background: var(--ink-3); font-weight: 680; box-shadow: inset 2px 0 0 var(--accent); }
+/* a section list inside a category: smaller, still underlined */
+.tab-pane .tabs-wrap:not(.vertical) .ptabs { gap: 18px; }
+.tab-pane .tabs-wrap:not(.vertical) .ptabs button { font-size: 13px; padding: 7px 1px 8px; }
 
 /* settings: what a setting is on the left, its control on the right */
 .setting { display: grid; grid-template-columns: minmax(0, 1fr) minmax(200px, 340px); gap: 8px 32px; align-items: center; padding: 16px 18px; border-top: 1px solid var(--line); }
@@ -246,6 +257,10 @@ a.obj:hover > span { text-decoration: underline; text-underline-offset: 3px; }
 .place-name .dev-ic.sm { width: 28px; height: 28px; }
 .unit { display: inline-flex; align-items: center; gap: 8px; color: var(--tx-2); font-size: 13px; white-space: nowrap; }
 .unit > input[type=number] { width: 96px; text-align: right; font-variant-numeric: tabular-nums; }
+.unit-wrap { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+.field-err { color: var(--bad-hi); font-size: 12.5px; line-height: 1.4; white-space: normal; }
+.field-err:empty { display: none; }
+input[aria-invalid="true"] { border-color: var(--bad); }
 .value-mono { font-family: var(--mono); font-size: 12.5px; color: var(--tx-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
 /* a switch is a checkbox that looks like one */
@@ -544,10 +559,7 @@ dialog h3 { margin: 6px 0 0; font-size: 14px; }
 .sheet .sheet-id { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .sheet .sheet-id h2 { margin: 2px 0 4px; font-size: 1.3rem; font-weight: 720; letter-spacing: -.02em; }
 .sheet > header > .spread:only-child { padding-bottom: 16px; }
-.sheet .tabs { display: flex; gap: 2px; margin-top: 14px; overflow-x: auto; }
-.sheet .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 10px 12px; font-weight: 640; color: var(--tx-2); cursor: pointer; margin-bottom: -1px; white-space: nowrap; }
-.sheet .tabs button:hover { color: var(--tx-1); }
-.sheet .tabs button.on { color: var(--tx-1); border-bottom-color: var(--accent); }
+.sheet > header .ptabs { margin-top: 12px; border-bottom: 0; gap: 20px; }
 .sheet .sheet-body { flex: 1; overflow: auto; padding: 20px 22px 40px; display: flex; flex-direction: column; gap: 20px; }
 .sheet .sheet-body > * { flex-shrink: 0; }
 .seat-meter { padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-md); }
@@ -564,6 +576,13 @@ dialog h3 { margin: 6px 0 0; font-size: 14px; }
 .signin { min-height: 100vh; display: grid; place-items: center; padding: 16px; position: relative;
   background: radial-gradient(900px 480px at 50% -10%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%),
     radial-gradient(700px 400px at 100% 110%, color-mix(in srgb, var(--info) 9%, transparent), transparent 60%), var(--ink-0); }
+/* the doorway behind the sign-in card: the console's one piece of art, on a page with nothing else to read */
+.signin { isolation: isolate; overflow: hidden; }
+.signin::before { content: ""; position: absolute; z-index: -1; pointer-events: none; left: 50%; bottom: -6vh; width: min(980px, 140vw); aspect-ratio: 1; transform: translateX(-50%);
+  background: url(/static/door.svg) no-repeat center bottom / contain; opacity: .7; }
+:root[data-theme="light"] .signin::before { opacity: .45; }
+@media (prefers-reduced-motion: no-preference) { .signin::before { animation: art-in 900ms var(--e-out) both; } }
+@keyframes art-in { from { opacity: 0; } }
 .signin-card { width: min(420px, 100%); background: var(--ink-1); border: 1px solid var(--line-hi); border-radius: var(--r-xl); padding: 32px; box-shadow: var(--shadow-lg); }
 .signin-card form { display: flex; flex-direction: column; gap: 16px; }
 .signin-brand { display: flex; align-items: center; gap: 14px; }
@@ -662,9 +681,10 @@ details.explain .method { padding: 6px 18px 18px; border-top: 1px solid var(--li
 }
 @media (max-width: 1100px) {
   .tabs-wrap.vertical { grid-template-columns: minmax(0, 1fr); gap: 18px; }
-  .ptabs.vertical { flex-direction: row; position: static; overflow-x: auto; width: fit-content; max-width: 100%; padding: 3px; background: var(--ink-1); border: 1px solid var(--line); border-radius: var(--r-md); }
-  .ptabs.vertical button { width: auto; white-space: nowrap; padding: 7px 14px; }
-  .ptabs.vertical button.on { box-shadow: inset 0 -2px 0 var(--accent); }
+  .ptabs.vertical { flex-direction: row; gap: 22px; position: static; overflow-x: auto; max-width: 100%; padding: 0; border-right: 0; border-bottom: 1px solid var(--line); }
+  .ptabs.vertical button { width: auto; white-space: nowrap; padding: 10px 1px 11px; margin-bottom: -1px; border-radius: 0; border-bottom: 2px solid transparent; }
+  .ptabs.vertical button:hover { background: none; }
+  .ptabs.vertical button.on { background: none; box-shadow: none; border-bottom-color: var(--accent); }
   .cols-2, .cols-even { grid-template-columns: minmax(0, 1fr); }
   .kpis.four, .kpis.five { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .kpis.five .kpi.hero { grid-column: 1 / -1; }
@@ -722,7 +742,6 @@ details.explain .method { padding: 6px 18px 18px; border-top: 1px solid var(--li
   .lv-gap { flex: 1; min-width: 24px; }
   .u-range .tz { margin-left: 0; }
   dialog .body { padding: 16px; }
-  .ptabs { width: 100%; }
   .setting { grid-template-columns: minmax(0, 1fr); padding: 14px; }
   .setting-control { justify-content: flex-start; }
   .savebar { bottom: 76px; }
@@ -833,3 +852,41 @@ h1, h2, h3 { text-wrap: balance; }
 .mini-list li > svg { width: 18px; height: 18px; flex: none; color: var(--tx-3); }
 .mini-list li > .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .verdict > svg { width: 22px; height: 22px; flex: none; }
+
+
+/* Sidebar groups: the area's name and what it's for; a group folds away except the one you're in */
+.nav-group { gap: 1px; }
+.nav-group + .nav-group { margin-top: 4px; }
+.group-toggle { display: flex; align-items: baseline; gap: 8px; width: 100%; padding: 13px 10px 6px; border: 0; background: transparent; color: var(--tx-3); text-align: left; font: inherit; border-radius: var(--r-sm); }
+button.group-toggle { cursor: pointer; }
+.group-toggle .gt-l { font-size: 10.5px; font-weight: 750; letter-spacing: var(--track-label); text-transform: uppercase; color: var(--tx-3); }
+.group-toggle .gt-about { flex: 1; min-width: 0; font-size: 11.5px; color: var(--tx-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.group-toggle > svg { align-self: center; width: 13px; height: 13px; flex: none; color: var(--tx-3); opacity: .7; transition: transform var(--d-fast); }
+.nav-group.collapsed .group-toggle > svg { transform: rotate(-90deg); }
+button.group-toggle:hover .gt-l, button.group-toggle:hover > svg { color: var(--tx-1); opacity: 1; }
+.nav-group.here .gt-l { color: var(--accent-tx); }
+.nav-links { display: flex; flex-direction: column; gap: 1px; }
+.nav-links[hidden] { display: none; }
+/* breadcrumbs: the area as a small eyebrow, parent pages as links */
+.crumb-area { color: var(--tx-3); }
+.crumbs.area-only { font-size: 10.5px; font-weight: 750; letter-spacing: var(--track-label); text-transform: uppercase; margin-bottom: 8px; }
+.crumbs.area-only .crumb-area { color: var(--accent-tx); }
+@media (prefers-reduced-motion: reduce) { .group-toggle > svg { transition: none; } }
+/* Reports: a catalogue, one row per report saying what it answers */
+.report-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 18px; align-items: start; }
+.report-list { list-style: none; margin: 0; padding: 0; }
+.report-list li + li { border-top: 1px solid var(--line); }
+.report-list a { display: flex; align-items: center; gap: 12px; padding: 13px 18px; color: inherit; text-decoration: none; transition: background var(--d-fast); }
+.report-list a:hover { background: var(--ink-2); }
+.report-list a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.report-list .grow { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.report-list a > svg { width: 15px; height: 15px; color: var(--tx-3); flex: none; }
+/* the policy editor: numbered groups, in the order a rule is thought through, ending with the rule read back */
+.pf { display: grid; gap: 14px; counter-reset: pf; }
+.pf-group { margin: 0; padding: 16px 18px 18px; border: 1px solid var(--line); border-radius: var(--r-md); display: grid; gap: 14px; min-width: 0; counter-increment: pf; }
+.pf-group[hidden] { display: none; }
+.pf-group > legend { display: flex; align-items: center; gap: 10px; padding: 0 6px; margin-left: -6px; font-weight: 680; font-size: 14px; color: var(--tx-1); }
+.pf-n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-hi); font-size: 11.5px; font-weight: 700; color: var(--tx-2); font-variant-numeric: tabular-nums; }
+.pf-n::before { content: counter(pf); }
+.pf-hint { margin: -6px 0 0; }
+.pf-review { margin: 0; padding: 12px 14px; border-left: 2px solid var(--accent); background: var(--ink-2); border-radius: 0 var(--r-sm) var(--r-sm) 0; color: var(--tx-1); line-height: 1.55; }

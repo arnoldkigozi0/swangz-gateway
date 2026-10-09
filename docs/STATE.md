@@ -319,6 +319,37 @@ govern, investigate, restrict, revoke and respond — without rebuilding what wo
 - Checked in headless Chromium at 1440 / 1280 / 1024 / 768 / 390, dark and light, owner and viewer; a v12
   demo database with 825 records upgraded to v18 on start-up with nothing lost.
 
+### Oct 9, 2026 (later) — V2.1: the clarity pass (branch `ui/v2-clarity-navigation`)
+
+No new backend, no schema change: the same features, each in one place, with navigation that holds its state.
+The page-by-page map — what each page is for, what moved, and the one home of each kind of information — is
+`docs/UI.md`.
+
+- **Foundations.** `pageTabs()` has real ARIA wiring, arrow/Home/End keys, its own query parameter (nested sets
+  don't overwrite each other; `clears` resets a child's), a history entry per tab, Back/Forward switching views
+  in place without refetching, and an unsaved-changes guard (`A.setDirty(fn)`) on tab switches, page changes and
+  unload. A page that has been left can no longer draw over the one now showing (its reads never answer).
+  Sidebar groups fold, all open by default, the current one always open; breadcrumbs say the area and parents,
+  never the title. Page tabs are underlined so they don't look like segmented filters.
+- **Control room.** Settings is a category list (Access & privacy · Emergency · Purpose & location · Providers &
+  pricing · Company browsers · Console users · Your account) with `?section=` inside two of them; old `?tab=`
+  links land in the right place; number errors show beside the control; changes that delete records or widen
+  logging ask first. Tool profile: Overview · Usage · Access · Subscription · Configuration · Workspace (shared
+  accounts). Person profile: Overview · Access · Activity · Devices · Security · Account. Overview's *Right now*
+  previews the three most urgent items. Activity, Security and the Audit log state their own jobs. Device
+  addresses show the place and how it is known (`/devices/<id>` now carries `geo.describe` per address).
+  Licences no longer leads with spend; Renewals is commitments only. Reports is a catalogue with a page per
+  report (`#/reports/<kind>`). The policy editor is six numbered steps ending with the rule read back.
+- **Staff app.** Home: up to three updates and six tools, Studio, quick links. The tool drawer is five
+  sections. Studio: Create · Your creations. Devices: Connected · Connect a tool · Disconnected. Requests:
+  Updates · Access requests (the bell opens Updates). Privacy: six sections with an index and details on demand.
+  Views live in `?view=` with the same keyboard and history behaviour as the console's tabs.
+- **Art.** One self-hosted SVG (`static/door.svg`, the doorway — "every AI tool, one door"), on the two sign-in
+  pages and the staff Home hero only; nothing behind data. No motion beyond a fade, skipped for reduced motion.
+- Checked in headless Chromium: owner and staff on every page at 1440 / 1280 / 1024 / 768 / 430 / 390, dark and
+  light; viewer, operations, security and billing on the role-sensitive pages at 1440 / 768 / 390 in both
+  themes; deep links, refresh and Back/Forward scripted; what each role is offered asserted page by page.
+
 ### How it compares (Oct 2026)
 
 | Need | What established products do | Swangz AI |

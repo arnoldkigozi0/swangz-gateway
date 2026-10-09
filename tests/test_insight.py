@@ -97,6 +97,10 @@ class DeviceTests(LensBase):
         self.assertEqual(d["state"], "unused")  # last_used is only set by the proxy; these rows were written directly
         one = self.rig.api("GET", f"/devices/{self.kid}")[1]
         self.assertEqual([ip["place"] for ip in one["ips"]], ["public internet", "private network"])
+        # each address says where it is and how that is known — never more than the evidence allows
+        self.assertEqual([(ip["location"]["kind"], ip["location"]["approximate"]) for ip in one["ips"]],
+                         [("public", False), ("private", False)])
+        self.assertTrue(all(ip["location"]["evidence"] for ip in one["ips"]))
         self.assertEqual(one["sessions"][0]["first_prompt"], "first")
         self.assertEqual(len(one["flagged"]), 1)
         self.assertEqual(len(one["series"]), 30)
