@@ -460,3 +460,22 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
   .chips-row .chip { flex: none; }
   .tool-rows { padding: 2px 14px; }
 }
+
+
+/* Swangz Avenue Bookings-inspired restraint: atmospheric, never decorative noise. */
+.hero { isolation: isolate; }
+.hero::after { content: ""; position: absolute; z-index: 0; pointer-events: none; inset: 0 0 0 38%;
+  background:
+    radial-gradient(ellipse at 72% 24%, color-mix(in srgb, var(--accent) 17%, transparent), transparent 52%),
+    radial-gradient(ellipse at 96% 90%, rgba(255,255,255,.045), transparent 42%),
+    linear-gradient(112deg, transparent 5%, rgba(255,255,255,.018) 100%);
+  opacity: .9; }
+.hero .shell { z-index: 1; }
+.hero .shell > * { position: relative; }
+.hero .shell > .eyebrow { color: var(--accent-tx); }
+@media (max-width: 640px) {
+  .hero::after { inset-inline-start: 0; opacity: .55; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero::after { transition: none; }
+}
