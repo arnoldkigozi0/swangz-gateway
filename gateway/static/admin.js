@@ -36,11 +36,13 @@
     if (!res.ok) throw new ApiError(res.status, (data && data.error) || res.statusText || "Something went wrong");
     return data;
   }
-  const isOwner = () => !!(S.me && S.me.owner);
+  // `owner` and `can` come from a V2 gateway; an older one only says role, so fall back to it rather than
+  // hiding every button while the pages (on Netlify) are newer than the gateway behind them
+  const isOwner = () => !!(S.me && (S.me.owner !== undefined ? S.me.owner : S.me.role === "owner"));
   /* What this console user may change (gateway/authz.py decides; this only hides buttons they couldn't use):
      govern (people, tools, access, models, policies), money (prices, budgets, subscriptions, rates),
      trust (security settings, networks, incidents), emergency (the stops), admin (console users, retention). */
-  const can = (area) => !!(S.me && (S.me.can || []).includes(area));
+  const can = (area) => !!(S.me && (Array.isArray(S.me.can) ? S.me.can.includes(area) : isOwner()));
   const roleLabel = () => (S.me ? S.me.role_label || (S.me.owner ? "Owner" : "Viewer") : "");
 
   function every(ms, fn) {
@@ -630,7 +632,7 @@
           : [el("div", { class: "estop-t" }, el("span", { class: "u-label" }, "Emergency"), el("span", null, "Cut every request now")),
             el("button", { class: "btn small danger", onclick: () => setPaused(true) }, icon("stop"), "Stop all AI")]) : null,
       el("div", { class: "who" }, SUI.avatar(S.me.username),
-        el("div", { class: "id" }, el("strong", null, S.me.username), el("span", null, roleLabel() + (S.me.can && S.me.can.length ? "" : " · read-only"))),
+        el("div", { class: "id" }, el("strong", null, S.me.username), el("span", null, roleLabel() + (isOwner() || (S.me.can || []).length ? "" : " · read-only"))),
         SUI.themeButton(),
         el("button", { class: "theme-btn", type: "button", onclick: signOut, "aria-label": "Sign out", "data-tip": "Sign out" }, icon("logout"))));
   }

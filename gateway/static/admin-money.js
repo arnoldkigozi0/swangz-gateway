@@ -163,7 +163,7 @@
   // ------------------------------------------------------------------ Settings
 
   async function pageSettings(params) {
-    const mine = A.S.me.can || [];
+    const mine = A.S.me.can || (A.isOwner() ? ["admin"] : []);
     A.frame({ title: "Settings", lede: mine.length ? `The switches that govern the whole gateway. You can change what your role (${A.roleLabel()}) covers; every change is written to the audit log, with what it was before.`
       : "You're a viewer: you can see these settings but not change them." },
     A.pageTabs("#/settings", params, [
@@ -184,7 +184,7 @@
      changed. Each control is open only to the role that owns it (Settings areas come from the server). */
   async function safetyTab() {
     const st = await api("GET", "/settings");
-    const off = (k) => !A.can(st.areas[k]);
+    const off = (k) => !(st.areas ? A.can(st.areas[k]) : A.isOwner());
     const retention = el("input", { type: "number", min: "0", step: "1", value: String(st.retention_days), disabled: off("retention_days"), "aria-label": "Keep records for, in days" });
     const ret = {};
     [["retention_bodies_days", "Full bodies"], ["retention_site_days", "Website visits"], ["retention_launch_days", "Tools opened"], ["retention_audit_days", "Audit log"]].forEach(([k, l]) => {
@@ -220,7 +220,7 @@
       finally { save.disabled = false; }
     });
     const unit = (input, text) => el("span", { class: "unit" }, input, text);
-    const anyEditable = Object.values(st.areas).some((a) => A.can(a));
+    const anyEditable = st.areas ? Object.values(st.areas).some((a) => A.can(a)) : A.isOwner();
     return [
       A.panel("Records", `${st.records.toLocaleString()} requests · ${(st.db_bytes / 1048576).toFixed(1)} MB on disk`,
         A.settingRow("Keep records for", "Older request records are deleted automatically every hour. 0 keeps everything. Staff see this number on their privacy page.", unit(retention, "days")),
@@ -636,7 +636,7 @@
       A.panelFoot(el("span", { class: "grow" }, pwErr), go));
     return [
       A.panel("Signed in as", null,
-        A.settingRow(S.me.username, ((S.me.roles || {})[S.me.role] || {}).about || (S.me.can.length ? "Can change: " + S.me.can.join(", ") + "." : "Can see everything, change nothing."),
+        A.settingRow(S.me.username, ((S.me.roles || {})[S.me.role] || {}).about || ((S.me.can || []).length ? "Can change: " + S.me.can.join(", ") + "." : A.isOwner() ? "Can change everything." : "Can see everything, change nothing."),
           SUI.badge(A.roleLabel(), S.me.owner ? "gold" : "outline"))),
       form,
     ];
