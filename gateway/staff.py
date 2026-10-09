@@ -135,6 +135,7 @@ def login(ctx):
         ctx.gw.throttle.fail("staff:" + ctx.ip)
         raise ApiError(401, "That email and password don't match.")
     ctx.gw.throttle.clear("staff:" + ctx.ip)
+    ctx.gw.audit(person["name"], "signed in to Swangz AI", "", "", ctx.ip, correlation=f"person:{person['id']}")
     return 200, {"ok": True}, _start_session(ctx, person["id"])
 
 
@@ -165,7 +166,7 @@ def welcome(ctx):
     ctx.db.x("UPDATE people SET pw_hash = ?, invite_hash = NULL, invite_expires = NULL WHERE id = ?",
              (security.hash_password(password, ctx.gw.settings.pbkdf2_iterations), person["id"]))
     ctx.db.x("DELETE FROM staff_sessions WHERE person_id = ?", (person["id"],))
-    ctx.gw.audit(person["name"], "set their Swangz AI password", "", "", ctx.ip)
+    ctx.gw.audit(person["name"], "set their Swangz AI password", "", "", ctx.ip, correlation=f"person:{person['id']}")
     return 200, {"ok": True}, _start_session(ctx, person["id"])
 
 
@@ -285,7 +286,7 @@ def request_access(ctx, tid):
     reason = str(ctx.body.get("reason") or "").strip()[:500]
     ctx.db.x("INSERT INTO access_requests(tool_id, person_id, reason, created) VALUES(?,?,?,?)",
              (tid, ctx.person["id"], reason, time.time()))
-    ctx.gw.audit(ctx.person["name"], "asked for a tool", tool["name"], reason, ctx.ip)
+    ctx.gw.audit(ctx.person["name"], "asked for a tool", tool["name"], reason, ctx.ip, correlation=f"person:{ctx.person['id']}")
     return {"ok": True}
 
 
@@ -299,7 +300,7 @@ def end_turn(ctx, tid):
         raise ApiError(404, "No such tool.")
     n = turns.end(ctx.db, tid, ctx.person["id"], "self", "handed back")
     if n:
-        ctx.gw.audit(ctx.person["name"], "handed back a shared account", tool["name"], "", ctx.ip)
+        ctx.gw.audit(ctx.person["name"], "handed back a shared account", tool["name"], "", ctx.ip, correlation=f"person:{ctx.person['id']}")
         ctx.gw.workspaces.soon()  # their workspace sign-in goes now, not at the next sweep
     return {"ok": True, "ended": n, "sign_out_hosts": [h for h in (tool["hosts"] or "").split(",") if h]}
 
@@ -337,8 +338,14 @@ def launch(h, gw, tool_id):
     if not tool:
         return _launch_page(h, 404, "That tool isn't in the catalog any more.", "Your admin may have removed it.")
     ok, state, reason = entitle.is_enabled(gw.db, person, tool)
+    rule = None
     if gw.db.get_setting("paused", "0") == "1":
         ok, reason = False, "AI access is paused for everyone right now."
+    if ok:
+        ruled = gw.tool_policy(person, tool, "launch")
+        if ruled:
+            ok, (reason, rule) = False, ruled
+            reason = reason[:1].upper() + reason[1:]
     target = catalog.launch_target(tool)
     if ok and not target:
         ok, reason = False, "This tool has no web address yet. Ask your admin."
@@ -359,6 +366,9 @@ def launch(h, gw, tool_id):
                                  f"{_clock(gw, until)}. You'll get it next — try again then.")
         elif pool and not browser:
             ok, reason = False, full
+        elif where and gw.db.get_setting("workspace_paused", "0") == "1":
+            ok, reason = False, (f"Swangz's company browsers are paused by an administrator, so {tool['name']} can't be "
+                                 "opened in one right now. Try again later.")
         elif where:
             try:
                 target = gw.workspaces.open(tool, {**turn, "workspace": browser or turn["workspace"]}, person)
@@ -378,9 +388,9 @@ def launch(h, gw, tool_id):
             # nobody got in on this turn: don't hold the seat (or a browser) for them
             turns.end(gw.db, tool["id"], person["id"], "system", reason[:200])
             gw.workspaces.soon()
-    gw.db.x("INSERT INTO launches(tool_id, person_id, ts, outcome, ip, user_agent) VALUES(?,?,?,?,?,?)",
+    gw.db.x("INSERT INTO launches(tool_id, person_id, ts, outcome, ip, user_agent, reason, rule) VALUES(?,?,?,?,?,?,?,?)",
             (tool["id"], person["id"], time.time(), "opened" if ok else "refused", ctx.ip,
-             (h.headers.get("user-agent") or "")[:200]))
+             (h.headers.get("user-agent") or "")[:200], "" if ok else (reason or "")[:300], rule))
     if not ok:
         return _launch_page(h, 403, f"{tool['name']} isn't open to you right now", reason)
     return h.send_bytes(302, b"", "text/plain", {"Location": target, "Cache-Control": "no-store",
@@ -444,7 +454,7 @@ def extension_login(ctx):
     now = time.time()
     ctx.db.x("INSERT INTO staff_sessions(token_hash, person_id, created, expires, ip) VALUES(?,?,?,?,?)",
              (security.sha256(token), person["id"], now, now + EXTENSION_SECONDS, ctx.ip))
-    ctx.gw.audit(person["name"], "connected the access extension", "", "", ctx.ip)
+    ctx.gw.audit(person["name"], "connected the access extension", "", "", ctx.ip, correlation=f"person:{person['id']}")
     return {"token": token, "name": person["name"], "policy": _gate_policy(ctx)}
 
 
@@ -494,6 +504,7 @@ def gate_open(ctx):
 
     host = str(ctx.body.get("host") or "").strip().lower()[:200]  # noqa: E501
     tool = catalog.match_host(catalog.host_index(ctx.db), host)
+    rule = None
     paused = ctx.db.get_setting("paused", "0") == "1"
     if ctx.person["status"] != "active" or paused:
         allowed, reason, state = False, ("AI access is paused." if paused else "Your access is paused."), "suspended"
@@ -503,6 +514,11 @@ def gate_open(ctx):
         from . import turns
 
         ok, state, reason = entitle.is_enabled(ctx.db, ctx.person, tool)
+        if ok:
+            ruled = ctx.gw.tool_policy(ctx.person, tool, "site")
+            if ruled:
+                ok, state, (reason, rule) = False, "policy", ruled
+                reason = reason[:1].upper() + reason[1:]
         if ok and turns.is_shared(tool):
             ok, why = turns.may_open(ctx.db, tool, ctx.person)
             if not why:
@@ -510,8 +526,9 @@ def gate_open(ctx):
             state, reason = ("no_turn" if not ok else state), (why if not ok else reason)
         allowed = ok
     outcome = "allowed" if allowed else "blocked"
-    rid = ctx.db.x("INSERT INTO site_usage(tool_id, person_id, host, outcome, started) VALUES(?,?,?,?,?)",
-                   (tool["id"] if tool else None, ctx.person["id"], host, outcome, time.time())).lastrowid
+    rid = ctx.db.x("INSERT INTO site_usage(tool_id, person_id, host, outcome, started, reason, rule) VALUES(?,?,?,?,?,?,?)",
+                   (tool["id"] if tool else None, ctx.person["id"], host, outcome, time.time(),
+                    "" if allowed else (reason or "")[:300], rule)).lastrowid
     pending = bool(tool and ctx.db.one("SELECT 1 FROM access_requests WHERE tool_id = ? AND person_id = ? AND state = 'open'",
                                        (tool["id"], ctx.person["id"])))
     return {"known": True, "allowed": allowed, "id": rid, "tool_id": tool["id"] if tool else None,

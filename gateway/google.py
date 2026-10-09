@@ -162,5 +162,5 @@ def callback(h, gw, query):
         return _back(h, app, "no_account")
     if person["status"] != "active" or entitle.access_ended(person):
         return _back(h, app, "paused")
-    gw.audit(person["name"], "signed in with Google", "", "", ctx.ip)
+    gw.audit(person["name"], "signed in with Google", "", "", ctx.ip, correlation=f"person:{person['id']}")
     return _back(h, app, headers=staff._start_session(ctx, person["id"]))

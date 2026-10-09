@@ -106,6 +106,34 @@ def load_response(db, row):
     return data.decode("utf-8", "replace")
 
 
+CATEGORIES = {
+    # setting: (what it removes, the SQL that removes it)
+    "retention_bodies_days": ("stored request and response bodies (the record itself stays)",
+                              "UPDATE requests SET req_head = NULL, req_items = NULL, resp_blob = NULL, resp_format = NULL"
+                              " WHERE ts < ? AND (req_head IS NOT NULL OR resp_blob IS NOT NULL)"),
+    "retention_site_days": ("website visits", "DELETE FROM site_usage WHERE started < ?"),
+    "retention_launch_days": ("tools opened from the portal", "DELETE FROM launches WHERE ts < ?"),
+    "retention_audit_days": ("audit log entries", "DELETE FROM audit WHERE ts < ?"),
+}
+AUDIT_MIN_DAYS = 365
+
+
+def purge_categories(db, days_by_setting, now=None):
+    """Apply each category's own retention (0 = keep forever). -> {setting: rows affected}. The audit log is
+    never trimmed to less than a year, whatever the setting says."""
+    now = now or time.time()
+    out = {}
+    for key, (_, sql) in CATEGORIES.items():
+        days = int(days_by_setting.get(key) or 0)
+        if key == "retention_audit_days" and days:
+            days = max(days, AUDIT_MIN_DAYS)
+        if days > 0:
+            n = db.x(sql, (now - days * 86400,)).rowcount
+            if n:
+                out[key] = n
+    return out
+
+
 def purge(db, retention_days, now=None):
     """Delete request records older than the retention window, then any bodies nothing points at."""
     now = now or time.time()

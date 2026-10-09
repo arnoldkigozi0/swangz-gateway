@@ -50,15 +50,18 @@ class TimelineTests(LensBase):
                   ("canva", self.pid, "canva.com", "allowed", now - 120, 600))
         status, out = rig.api("GET", "/timeline", who="viewer")
         self.assertEqual(status, 200)
-        self.assertEqual([e["type"] for e in out["items"]], ["launch", "site", "request"])
-        req = out["items"][2]
+        work = [e for e in out["items"] if e["type"] != "access"]
+        self.assertEqual([e["type"] for e in work], ["launch", "site", "request"])
+        # sign-ins and access changes about the person join the stream too (V2)
+        self.assertIn("signed in to Swangz AI", [e["action"] for e in out["items"] if e["type"] == "access"])
+        req = work[2]
         self.assertEqual((req["person"], req["tool"], req["device"], req["platform"], req["place"]),
                          ("Nansubuga Grace", "Codex", "laptop", "Codex on macOS", "public internet"))
         # paging, and narrowing by kind, person, tool and words
-        page = rig.api("GET", "/timeline?limit=1")[1]
+        page = rig.api("GET", "/timeline?limit=1&type=")[1]
         self.assertTrue(page["more"])
-        rest = rig.api("GET", f"/timeline?limit=5&before={page['next_before']}")[1]["items"]
-        self.assertEqual([e["type"] for e in rest], ["site", "request"])
+        rest = rig.api("GET", f"/timeline?limit=10&before={page['next_before']}")[1]["items"]
+        self.assertEqual([e["type"] for e in rest if e["type"] != "access"], ["site", "request"])
         self.assertEqual(len(rig.api("GET", "/timeline?type=site")[1]["items"]), 1)
         self.assertEqual(len(rig.api("GET", "/timeline?tool=canva")[1]["items"]), 2)
         self.assertEqual(len(rig.api("GET", "/timeline?q=deploy")[1]["items"]), 1)

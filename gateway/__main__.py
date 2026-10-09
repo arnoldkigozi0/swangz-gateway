@@ -1,13 +1,15 @@
 """python3 -m gateway <command>
 
   serve                         run the gateway and the console
-  add-admin USER [--viewer]     create a console user (asks for the password)
+  add-admin USER [--role R]     create a console user (asks for the password); R = owner (default),
+                                viewer, billing, security or operations (--viewer still works)
   add-person NAME [--department D] [--email E]
   issue-key PERSON_ID [--label L]
   revoke-key KEY_ID
   people                        list people and their keys
   pause | resume                stop / restart AI access for everyone
-  purge                         apply the retention window now
+  purge                         apply the retention windows now
+  geoip-import FILE --source S  load an offline location table (DB-IP Lite / IP2Location LITE CSV)
 
 The command line works on the same database as a running gateway. One difference: a revoke or
 pause made here is enforced from the next request on; only the console can also cut requests
@@ -20,7 +22,7 @@ import os
 import sys
 import time
 
-from . import pricing, security, store
+from . import authz, geo, pricing, security, store
 from .config import Settings, load_dotenv
 from .db import DB
 
@@ -33,6 +35,7 @@ def main(argv=None):
     p = sub.add_parser("add-admin")
     p.add_argument("username")
     p.add_argument("--viewer", action="store_true", help="can see everything, change nothing")
+    p.add_argument("--role", choices=sorted(authz.ROLES), help="what they may change (default owner)")
     p = sub.add_parser("add-person")
     p.add_argument("name")
     p.add_argument("--department", default="")
@@ -46,6 +49,9 @@ def main(argv=None):
     sub.add_parser("pause")
     sub.add_parser("resume")
     sub.add_parser("purge")
+    p = sub.add_parser("geoip-import")
+    p.add_argument("file")
+    p.add_argument("--source", required=True, help="where the table came from, e.g. 'DB-IP Lite 2026-10'")
     args = parser.parse_args(argv)
     settings = Settings.from_env()
 
@@ -65,11 +71,12 @@ def main(argv=None):
         pw = getpass.getpass("Password (10+ characters): ")
         if len(pw) < 10 or pw != getpass.getpass("Again: "):
             sys.exit("passwords must match and be at least 10 characters")
-        role = "viewer" if args.viewer else "owner"
-        db.x("INSERT INTO admins(username, pw_hash, role, created) VALUES(?,?,?,?)",
-             (args.username, security.hash_password(pw, settings.pbkdf2_iterations), role, time.time()))
-        audit("added a console user", args.username, role)
-        print(f"{role} {args.username} created")
+        name = args.role or ("viewer" if args.viewer else "owner")
+        role, areas = authz.stored(name)
+        db.x("INSERT INTO admins(username, pw_hash, role, areas, created) VALUES(?,?,?,?,?)",
+             (args.username, security.hash_password(pw, settings.pbkdf2_iterations), role, areas, time.time()))
+        audit("added a console user", args.username, authz.ROLES[name][0])
+        print(f"{authz.ROLES[name][0]} {args.username} created")
     elif args.cmd == "add-person":
         cur = db.x("INSERT INTO people(name, department, email, created) VALUES(?,?,?,?)",
                    (args.name, args.department, args.email, time.time()))
@@ -106,8 +113,20 @@ def main(argv=None):
         print("paused" if args.cmd == "pause" else "resumed")
     elif args.cmd == "purge":
         days = int(db.get_setting("retention_days", "90") or 0)
+        other = store.purge_categories(db, {k: db.get_setting(k, "0") for k in store.CATEGORIES})
         removed, orphans = store.purge(db, days)
-        print(f"removed {removed} records older than {days} days and {orphans} unreferenced bodies")
+        parts = [f"{removed} records older than {days} days", *(f"{n} {store.CATEGORIES[k][0]}" for k, n in other.items()),
+                 f"{orphans} unreferenced bodies"]
+        if removed or orphans or other:
+            audit("purged old records", "retention", "; ".join(parts))
+        print("removed " + ", ".join(parts))
+    elif args.cmd == "geoip-import":
+        try:
+            n = geo.import_csv(db, args.file, args.source)
+        except (OSError, ValueError) as exc:
+            sys.exit(f"could not import: {exc}")
+        audit("imported a location table", args.source, f"{n} address ranges")
+        print(f"imported {n} address ranges from {args.source}")
 
 
 def serve(settings):

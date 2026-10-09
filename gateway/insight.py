@@ -9,12 +9,11 @@ The routes register on the console API (admin.ROUTES), so they share its sign-in
 lens here is read-only and open to viewers as well as owners.
 """
 
-import ipaddress
 import json
 import re
 import time
 
-from . import proxy, turns
+from . import geo, proxy, turns
 from .admin import ApiError, licence_data, route
 
 DAY = 86400
@@ -66,16 +65,11 @@ def platform(ua, app=None):
 
 
 def ip_kind(ip):
-    """What can honestly be said about an address without a location database."""
-    try:
-        addr = ipaddress.ip_address((ip or "").strip())
-    except ValueError:
-        return "unknown"
-    if addr.is_loopback:
-        return "this computer"
-    if addr.is_private or addr.is_link_local:
-        return "private network"
-    return "public internet"
+    """What can honestly be said about an address: a known network's name, an approximate city and country
+    from the offline location table, or just its type (gateway/geo.py)."""
+    from . import geo
+
+    return geo.label(ip)
 
 
 class Tools:
@@ -314,7 +308,8 @@ def timeline(ctx):
         args = [since, until]
         sql = (f"SELECT r.id, r.ts, r.person_id, p.name AS person, p.department, r.client, r.provider, r.model, r.kind,"
                f" r.media_type, r.outcome, r.reason, r.cost, {TOKENS} AS tokens, r.duration_ms, r.session, r.prompt,"
-               " r.actions, r.flags, r.client_ip, r.key_id, k.label AS device, r.user_agent, r.agent"
+               " r.actions, r.flags, r.client_ip, r.key_id, k.label AS device, r.user_agent, r.agent, r.purpose, r.purpose_source,"
+               " r.purpose_confidence, r.project, r.rule"
                " FROM requests r LEFT JOIN people p ON p.id = r.person_id LEFT JOIN keys k ON k.id = r.key_id"
                f" WHERE r.ts >= ? AND r.ts < ? AND {COUNTED}") + scope("r.person_id", args)
         where = tool_requests_where(tool) if tool else ("", [])
@@ -343,11 +338,13 @@ def timeline(ctx):
                     "credential": "secret:" in (r["flags"] or ""), "device": r["device"], "key_id": r["key_id"],
                     "platform": platform(r["user_agent"], r["client"] if r["client"] not in ("", "unknown") else None),
                     "ip": r["client_ip"] or None, "place": ip_kind(r["client_ip"]),
+                    "purpose": r["purpose"], "purpose_source": r["purpose_source"], "purpose_confidence": r["purpose_confidence"],
+                    "project": r["project"], "rule": r["rule"],
                 })
     if kind in (None, "launch"):
         args = [since, until]
         sql = ("SELECT l.id, l.ts, l.person_id, p.name AS person, p.department, l.tool_id, t.name AS tool, l.outcome,"
-               " l.ip, l.user_agent FROM launches l LEFT JOIN people p ON p.id = l.person_id"
+               " l.ip, l.user_agent, l.reason, l.rule FROM launches l LEFT JOIN people p ON p.id = l.person_id"
                " LEFT JOIN tools t ON t.id = l.tool_id WHERE l.ts >= ? AND l.ts < ?") + scope("l.person_id", args)
         if tool:
             sql += " AND l.tool_id = ?"
@@ -358,11 +355,12 @@ def timeline(ctx):
         for r in db.q(sql + " ORDER BY l.ts DESC LIMIT ?", args + [limit + 1]):
             events.append({"type": "launch", "id": r["id"], "ts": r["ts"], "person_id": r["person_id"], "person": r["person"],
                            "department": r["department"], "tool_id": r["tool_id"], "tool": r["tool"], "outcome": r["outcome"],
-                           "platform": platform(r["user_agent"]), "ip": r["ip"] or None, "place": ip_kind(r["ip"])})
+                           "platform": platform(r["user_agent"]), "ip": r["ip"] or None, "place": ip_kind(r["ip"]),
+                           "reason": r["reason"] or None, "rule": r["rule"]})
     if kind in (None, "site"):
         args = [since, until]
         sql = ("SELECT su.id, su.started AS ts, su.person_id, p.name AS person, p.department, su.tool_id, t.name AS tool,"
-               " su.host, su.outcome, su.seconds FROM site_usage su LEFT JOIN people p ON p.id = su.person_id"
+               " su.host, su.outcome, su.seconds, su.reason, su.rule FROM site_usage su LEFT JOIN people p ON p.id = su.person_id"
                " LEFT JOIN tools t ON t.id = su.tool_id WHERE su.started >= ? AND su.started < ?") + scope("su.person_id", args)
         if tool:
             sql += " AND su.tool_id = ?"
@@ -373,7 +371,39 @@ def timeline(ctx):
         for r in db.q(sql + " ORDER BY su.started DESC LIMIT ?", args + [limit + 1]):
             events.append({"type": "site", "id": r["id"], "ts": r["ts"], "person_id": r["person_id"], "person": r["person"],
                            "department": r["department"], "tool_id": r["tool_id"], "tool": r["tool"] or r["host"],
-                           "host": r["host"], "outcome": r["outcome"], "seconds": r["seconds"]})
+                           "host": r["host"], "outcome": r["outcome"], "seconds": r["seconds"], "reason": r["reason"] or None,
+                           "rule": r["rule"]})
+    if kind in (None, "turn"):
+        args = [since, until]
+        sql = ("SELECT tt.id, tt.started AS ts, tt.person_id, p.name AS person, p.department, tt.tool_id, t.name AS tool,"
+               " tt.expires, tt.ended, tt.ended_by, tt.reason, tt.ws_host FROM tool_turns tt LEFT JOIN people p ON p.id = tt.person_id"
+               " LEFT JOIN tools t ON t.id = tt.tool_id WHERE tt.started >= ? AND tt.started < ?") + scope("tt.person_id", args)
+        if tool:
+            sql += " AND tt.tool_id = ?"
+            args.append(tool["id"])
+        if like:
+            sql += " AND (p.name LIKE ? OR t.name LIKE ?)"
+            args += [like, like]
+        for r in db.q(sql + " ORDER BY tt.started DESC LIMIT ?", args + [limit + 1]):
+            events.append({"type": "turn", "id": r["id"], "ts": r["ts"], "person_id": r["person_id"], "person": r["person"],
+                           "department": r["department"], "tool_id": r["tool_id"], "tool": r["tool"], "expires": r["expires"],
+                           "ended": r["ended"], "ended_by": r["ended_by"] or None, "reason": r["reason"] or None,
+                           "where": r["ws_host"] or None})
+    if kind in (None, "access") and not tool:
+        # sign-ins and access changes about a person, from the audit log (entries that name the person they concern)
+        args = [since, until]
+        sql = ("SELECT a.id, a.ts, a.actor, a.action, a.target, a.detail, a.ip, a.outcome, a.reason, a.correlation, p.id AS person_id,"
+               " p.name AS person, p.department FROM audit a JOIN people p ON a.correlation = 'person:' || p.id"
+               " WHERE a.ts >= ? AND a.ts < ? AND a.correlation LIKE 'person:%'") + scope("p.id", args)
+        if like:
+            sql += " AND (p.name LIKE ? OR a.action LIKE ? OR a.actor LIKE ?)"
+            args += [like] * 3
+        for r in db.q(sql + " ORDER BY a.ts DESC LIMIT ?", args + [limit + 1]):
+            events.append({"type": "access", "id": r["id"], "ts": r["ts"], "person_id": r["person_id"], "person": r["person"],
+                           "department": r["department"], "actor": r["actor"], "action": r["action"], "target": r["target"],
+                           "detail": r["detail"] or None, "outcome": r["outcome"], "audit_reason": r["reason"] or None,
+                           "ip": r["ip"] or None, "place": ip_kind(r["ip"]) if r["ip"] else None,
+                           "self": r["actor"] == r["person"]})
     events.sort(key=lambda e: -e["ts"])
     more = len(events) > limit
     events = events[:limit]
@@ -655,6 +685,103 @@ def _unusual(db, now):
     return out
 
 
+def _personal(db, now, since, offset_minutes):
+    """Signals against each person's own normal: a new place, a new device, unusual hours, a model new to
+    the company, and repeated refusals. Each says what it was compared with. Unusual is not wrong."""
+    out = []
+    names = {r["id"]: r["name"] for r in db.q("SELECT id, name FROM people")}
+    # a new place: where requests came from, against the 30 days before the window
+    places, label = {}, {}
+    for r in db.q("SELECT person_id, client_ip, MIN(ts) AS first, MAX(id) AS last_id FROM requests WHERE ts >= ? AND ts < ?"
+                  " AND person_id IS NOT NULL AND client_ip IS NOT NULL AND client_ip != '' AND outcome = 'ok'"
+                  " GROUP BY person_id, client_ip", (since - 30 * DAY, now)):
+        key = geo.place_key(r["client_ip"], db)
+        label.setdefault(key, geo.label(r["client_ip"], db))
+        seen = places.setdefault(r["person_id"], {})
+        if key not in seen or r["first"] < seen[key][0]:
+            seen[key] = (r["first"], r["client_ip"], r["last_id"])
+    for pid, seen in places.items():
+        before = {k for k, v in seen.items() if v[0] < since}
+        if not before:
+            continue  # no history to compare with: everything would look new
+        for key, (first, ip, rid) in seen.items():
+            if first >= since:
+                usual = ", ".join(sorted(label[k] for k in before))[:200]
+                out.append({"type": "new_place", "severity": "low", "ts": first, "person_id": pid, "person": names.get(pid),
+                            "title": "Used from a new place",
+                            "text": f"{names.get(pid) or 'Someone'} sent AI requests from {label[key]} for the first time in 30 days; "
+                                    f"before that, from {usual}.",
+                            "ip": ip, "place": label[key], "href": f"#/records/{rid}",
+                            "evidence": "Places come from named networks, else the location table (approximate), else the address "
+                                        "type. Mobile data and VPNs change places often."})
+    # a new device: a key's first request, for someone who already used another
+    for r in db.q("SELECT k.id, k.label, k.person_id, MIN(r.ts) AS first FROM requests r JOIN keys k ON k.id = r.key_id"
+                  " WHERE r.ts >= ? GROUP BY k.id HAVING first >= ?", (since - 30 * DAY, since)):
+        others = db.scalar("SELECT COUNT(DISTINCT key_id) FROM requests WHERE person_id = ? AND key_id IS NOT NULL AND key_id != ?"
+                           " AND ts < ?", (r["person_id"], r["id"], r["first"])) or 0
+        if others:
+            out.append({"type": "new_device", "severity": "info", "ts": r["first"], "person_id": r["person_id"],
+                        "person": names.get(r["person_id"]), "title": "A new device started using AI",
+                        "text": f"{r['label']} made its first request; {names.get(r['person_id']) or 'they'} already used "
+                                f"{others} other device{'s' if others != 1 else ''}.",
+                        "device": r["label"], "href": f"#/devices/{r['id']}", "evidence": "From the key's first recorded request."})
+    # unusual hours: against the hours this person usually works, in gateway time
+    shift = offset_minutes * 60
+    window = {}
+    for r in db.q("SELECT person_id, CAST(((ts + ?) % 86400) / 3600 AS INTEGER) AS hour, COUNT(*) AS n, MAX(id) AS last_id"
+                  " FROM requests WHERE ts >= ? AND person_id IS NOT NULL AND outcome = 'ok' AND kind NOT IN ('other', 'media-status')"
+                  " GROUP BY person_id, hour", (shift, since)):
+        window.setdefault(r["person_id"], []).append(r)
+    for pid, hours in window.items():
+        base = {r["hour"]: r["n"] for r in db.q(
+            "SELECT CAST(((ts + ?) % 86400) / 3600 AS INTEGER) AS hour, COUNT(*) AS n FROM requests WHERE person_id = ? AND ts >= ?"
+            " AND ts < ? AND outcome = 'ok' AND kind NOT IN ('other', 'media-status') GROUP BY hour", (shift, pid, since - 30 * DAY, since))}
+        total = sum(base.values())
+        days_seen = db.scalar("SELECT COUNT(DISTINCT CAST((ts + ?) / 86400 AS INTEGER)) FROM requests WHERE person_id = ? AND ts >= ?"
+                              " AND ts < ?", (shift, pid, since - 30 * DAY, since)) or 0
+        if total < 50 or days_seen < 5:
+            continue
+        odd = [h for h in hours if base.get(h["hour"], 0) / total < 0.01]
+        n = sum(h["n"] for h in odd)
+        if n >= 5:
+            usual = sorted(h for h, c in base.items() if c / total >= 0.02)
+            span = f"{usual[0]:02d}:00–{usual[-1] + 1:02d}:00" if usual else "no clear pattern"
+            out.append({"type": "off_hours", "severity": "low", "ts": now, "person_id": pid, "person": names.get(pid),
+                        "title": "Used at unusual hours",
+                        "text": f"{names.get(pid) or 'Someone'} made {n} requests at " + ", ".join(f"{h['hour']:02d}:00" for h in sorted(odd, key=lambda h: h["hour"]))
+                                + f", hours they rarely use; they usually work {span}.",
+                        "href": f"#/records/{max(h['last_id'] for h in odd)}",
+                        "evidence": f"Compared with their own previous 30 days ({total} requests on {days_seen} days), in gateway time."})
+    # a model new to the company
+    for r in db.q("SELECT model, MIN(ts) AS first, MIN(id) AS id, COUNT(DISTINCT person_id) AS people FROM requests WHERE ts >= ?"
+                  " AND outcome = 'ok' AND model IS NOT NULL AND model != '' AND kind IN ('messages', 'chat', 'responses', 'completions')"
+                  " GROUP BY model", (since,)):
+        if not db.one("SELECT 1 FROM requests WHERE model = ? AND ts < ? AND ts >= ? LIMIT 1", (r["model"], since, since - 90 * DAY)) \
+                and db.one("SELECT 1 FROM requests WHERE ts < ? LIMIT 1", (since,)):
+            out.append({"type": "new_model", "severity": "info", "ts": r["first"], "title": "A model new to Swangz",
+                        "text": f"{r['model']} was used for the first time in 90 days, by {r['people']} "
+                                f"{'person' if r['people'] == 1 else 'people'}. Check it is approved in the model registry.",
+                        "href": f"#/records/{r['id']}", "evidence": "No earlier request named this model in the last 90 days."})
+    # repeated refusals in the last day, across every channel
+    since_day = now - DAY
+    refused = {}
+    for table, ts, cond in (("requests", "ts", "outcome = 'blocked' AND (reason IS NULL OR reason != 'secret in prompt')"),
+                            ("launches", "ts", "outcome != 'opened'"), ("site_usage", "started", "outcome = 'blocked'")):
+        for r in db.q(f"SELECT person_id, COUNT(*) AS n FROM {table} WHERE {ts} >= ? AND person_id IS NOT NULL AND {cond}"
+                      " GROUP BY person_id", (since_day,)):
+            refused.setdefault(r["person_id"], {})[table] = r["n"]
+    for pid, by in refused.items():
+        n = sum(by.values())
+        if n >= 10:
+            out.append({"type": "denials", "severity": "medium" if n >= 30 else "low", "ts": now, "person_id": pid, "person": names.get(pid),
+                        "title": "Refused again and again",
+                        "text": f"{names.get(pid) or 'Someone'} was refused {n} times in 24 hours ({by.get('requests', 0)} requests, "
+                                f"{by.get('launches', 0)} opens, {by.get('site_usage', 0)} website visits).",
+                        "href": f"#/activity?tab=timeline&person={pid}",
+                        "evidence": "Often a tool retrying by itself, or a grant that ended. Worth a word, not a conclusion."})
+    return out
+
+
 def security_events(ctx, days):
     db = ctx.db
     now = time.time()
@@ -730,6 +857,10 @@ def security_events(ctx, days):
                        "title": "Access suspended", "text": f"{r['actor']} suspended {r['target']}.",
                        "href": "#/audit", "evidence": "From the audit log."})
     events += _unusual(db, now)
+    events += _personal(db, now, since, ctx.gw.settings.tz_offset_minutes)
+    for e in events:
+        if e.get("ip") and "place" in e:
+            e["location"] = geo.describe(e["ip"], db)
     events.sort(key=lambda e: (-e["ts"]))
     return events
 
@@ -773,7 +904,10 @@ def attention(ctx):
     for kind, title, href in (("credential", "Credentials detected in requests", "#/security"),
                               ("unusual", "Unusual usage", "#/security"),
                               ("wrong_key", "Requests with unknown keys", "#/security"),
-                              ("signin", "Failed console sign-ins", "#/security")):
+                              ("signin", "Failed console sign-ins", "#/security"),
+                              ("denials", "Repeated refusals", "#/security"),
+                              ("new_place", "Used from a new place", "#/security"),
+                              ("off_hours", "Used at unusual hours", "#/security")):
         hits = [e for e in sec if e["type"] == kind]
         if hits:
             worst = max(hits, key=lambda e: SEVERITY[e["severity"]])

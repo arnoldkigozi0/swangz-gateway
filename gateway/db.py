@@ -314,6 +314,186 @@ SCHEMA = [
     """
     CREATE INDEX IF NOT EXISTS requests_key_ts ON requests(key_id, ts);
     """,
+    # ---- V2 (Oct 2026) ------------------------------------------------------------------------------
+    # v13: authority and the audit fabric. A console user's role stays owner or viewer; `areas` grants a
+    # viewer write access to whole areas (money, govern, trust, emergency), which is how the billing,
+    # security and operations roles are made (gateway/authz.py). Audit entries can now say why, what it
+    # was before and after, whether it worked, and what it relates to.
+    """
+    ALTER TABLE admins ADD COLUMN areas TEXT NOT NULL DEFAULT '';
+    ALTER TABLE audit ADD COLUMN reason TEXT NOT NULL DEFAULT '';
+    ALTER TABLE audit ADD COLUMN before_json TEXT;
+    ALTER TABLE audit ADD COLUMN after_json TEXT;
+    ALTER TABLE audit ADD COLUMN outcome TEXT NOT NULL DEFAULT 'ok';
+    ALTER TABLE audit ADD COLUMN correlation TEXT;
+    ALTER TABLE audit ADD COLUMN area TEXT NOT NULL DEFAULT '';
+    CREATE INDEX audit_actor_ts ON audit(actor, ts);
+    CREATE INDEX audit_correlation ON audit(correlation);
+    """,
+    # v14: where. Networks the company knows by name (the office line, a VPN) and an optional offline
+    # GeoIP table imported from a CSV, keyed by a sortable address string (gateway/geo.py). Nothing is
+    # looked up over the internet.
+    """
+    CREATE TABLE networks (
+        id INTEGER PRIMARY KEY,
+        cidr TEXT NOT NULL UNIQUE,
+        label TEXT NOT NULL,
+        place TEXT NOT NULL DEFAULT '',
+        kind TEXT NOT NULL DEFAULT 'office' CHECK (kind IN ('office', 'vpn', 'home', 'cloud', 'other')),
+        created REAL NOT NULL,
+        created_by TEXT NOT NULL DEFAULT ''
+    );
+    CREATE TABLE geoip_ranges (
+        start TEXT NOT NULL,
+        stop TEXT NOT NULL,
+        country TEXT NOT NULL DEFAULT '',
+        region TEXT NOT NULL DEFAULT '',
+        city TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX geoip_start ON geoip_ranges(start);
+    """,
+    # v15: for what, and how sure. Each request can carry a purpose — declared by the person or their
+    # tool, derived from the tool itself, or inferred by explainable rules — with its confidence and the
+    # evidence. A cost now records where it came from (which price row or media rate, effective when).
+    # Tools carry a data classification.
+    """
+    CREATE TABLE purposes (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        keywords TEXT NOT NULL DEFAULT '',
+        sort INTEGER NOT NULL DEFAULT 0,
+        archived INTEGER NOT NULL DEFAULT 0,
+        builtin INTEGER NOT NULL DEFAULT 0,
+        updated REAL NOT NULL
+    );
+    ALTER TABLE requests ADD COLUMN purpose TEXT;
+    ALTER TABLE requests ADD COLUMN purpose_source TEXT;
+    ALTER TABLE requests ADD COLUMN purpose_confidence REAL;
+    ALTER TABLE requests ADD COLUMN purpose_evidence TEXT;
+    ALTER TABLE requests ADD COLUMN project TEXT;
+    ALTER TABLE requests ADD COLUMN cost_source TEXT;
+    ALTER TABLE requests ADD COLUMN rule TEXT;
+    CREATE INDEX requests_purpose_ts ON requests(purpose, ts);
+    ALTER TABLE tools ADD COLUMN classification TEXT NOT NULL DEFAULT 'internal';
+    ALTER TABLE launches ADD COLUMN reason TEXT NOT NULL DEFAULT '';
+    ALTER TABLE site_usage ADD COLUMN reason TEXT NOT NULL DEFAULT '';
+    """,
+    # v16: governance. A model registry (status, classification, who may use a restricted model),
+    # deterministic policies (deny, permitted hours, a department's monthly cap) and media rates with
+    # the date they take effect, so old costs are never silently recalculated.
+    """
+    CREATE TABLE models (
+        id TEXT PRIMARY KEY,
+        provider TEXT NOT NULL DEFAULT '',
+        label TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'approved'
+            CHECK (status IN ('approved', 'experimental', 'restricted', 'deprecated', 'disabled')),
+        classification TEXT NOT NULL DEFAULT 'internal'
+            CHECK (classification IN ('public', 'internal', 'confidential', 'restricted')),
+        allowed_departments TEXT NOT NULL DEFAULT '',
+        modality TEXT NOT NULL DEFAULT '',
+        context_window INTEGER,
+        note TEXT NOT NULL DEFAULT '',
+        updated REAL NOT NULL,
+        updated_by TEXT NOT NULL DEFAULT ''
+    );
+    CREATE TABLE policies (
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        effect TEXT NOT NULL CHECK (effect IN ('deny', 'hours', 'cap')),
+        enabled INTEGER NOT NULL DEFAULT 1,
+        subjects TEXT NOT NULL DEFAULT '{}',
+        scope TEXT NOT NULL DEFAULT '{}',
+        params TEXT NOT NULL DEFAULT '{}',
+        note TEXT NOT NULL DEFAULT '',
+        created REAL NOT NULL,
+        created_by TEXT NOT NULL DEFAULT '',
+        updated REAL NOT NULL,
+        updated_by TEXT NOT NULL DEFAULT ''
+    );
+    CREATE TABLE media_rates (
+        id INTEGER PRIMARY KEY,
+        provider TEXT NOT NULL,
+        service TEXT NOT NULL DEFAULT '*',
+        unit TEXT NOT NULL,
+        usd_per_unit REAL NOT NULL,
+        effective REAL NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        created REAL NOT NULL,
+        created_by TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX media_rates_lookup ON media_rates(provider, effective);
+    """,
+    # v17: trust. Incidents (a security event turned into a tracked case with owner, evidence, notes and
+    # a resolution), persisted notifications with per-admin read state, and indexes for the unified
+    # timeline (sign-ins, access changes, turns and launches by time).
+    """
+    CREATE TABLE incidents (
+        id INTEGER PRIMARY KEY,
+        title TEXT NOT NULL,
+        severity TEXT NOT NULL CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+        status TEXT NOT NULL DEFAULT 'open'
+            CHECK (status IN ('open', 'investigating', 'contained', 'resolved', 'dismissed')),
+        owner TEXT NOT NULL DEFAULT '',
+        summary TEXT NOT NULL DEFAULT '',
+        resolution TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL DEFAULT '',
+        created REAL NOT NULL,
+        created_by TEXT NOT NULL,
+        updated REAL NOT NULL,
+        closed REAL,
+        closed_by TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX incidents_status ON incidents(status, updated);
+    CREATE TABLE incident_links (
+        id INTEGER PRIMARY KEY,
+        incident_id INTEGER NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL CHECK (kind IN ('person', 'device', 'request', 'tool', 'session', 'event')),
+        ref TEXT NOT NULL,
+        label TEXT NOT NULL DEFAULT '',
+        added REAL NOT NULL,
+        added_by TEXT NOT NULL DEFAULT ''
+    );
+    CREATE UNIQUE INDEX incident_links_unique ON incident_links(incident_id, kind, ref);
+    CREATE TABLE incident_notes (
+        id INTEGER PRIMARY KEY,
+        incident_id INTEGER NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+        ts REAL NOT NULL,
+        author TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'note',
+        text TEXT NOT NULL
+    );
+    CREATE TABLE notifications (
+        id INTEGER PRIMARY KEY,
+        key TEXT NOT NULL UNIQUE,
+        severity TEXT NOT NULL CHECK (severity IN ('info', 'notice', 'warning', 'high', 'critical')),
+        area TEXT NOT NULL DEFAULT '',
+        title TEXT NOT NULL,
+        text TEXT NOT NULL DEFAULT '',
+        href TEXT NOT NULL DEFAULT '',
+        first_seen REAL NOT NULL,
+        last_seen REAL NOT NULL,
+        resolved REAL,
+        emailed REAL
+    );
+    CREATE TABLE notification_reads (
+        notification_id INTEGER NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+        admin_id INTEGER NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
+        read REAL NOT NULL,
+        PRIMARY KEY (notification_id, admin_id)
+    );
+    CREATE INDEX IF NOT EXISTS launches_ts ON launches(ts);
+    CREATE INDEX IF NOT EXISTS site_usage_started ON site_usage(started);
+    CREATE INDEX IF NOT EXISTS tool_turns_started ON tool_turns(started);
+    """,
+    # v18: which company rule refused an Open or a website visit ("policy:<id>"), as requests.rule does
+    # for gateway requests — so each policy can say how often it stopped something, on every channel.
+    """
+    ALTER TABLE launches ADD COLUMN rule TEXT;
+    ALTER TABLE site_usage ADD COLUMN rule TEXT;
+    CREATE INDEX requests_rule ON requests(rule) WHERE rule IS NOT NULL;
+    """,
 ]
 
 

@@ -11,7 +11,7 @@ import re
 import time
 from urllib.parse import parse_qs, unquote
 
-from . import guides, proxy, security, store
+from . import authz, geo, guides, proxy, security, store
 
 SESSION_COOKIE = "sgw_admin"
 SESSION_SECONDS = 12 * 3600
@@ -25,9 +25,15 @@ class ApiError(Exception):
         self.message = message
 
 
-def route(method, pattern, role="viewer"):
+def route(method, pattern, role="viewer", area=None):
+    """Register a console API route. role=None: no sign-in needed. Otherwise any console user may call
+    it, unless `area` names what it changes (gateway/authz.py) — an area, a tuple of areas (any of them
+    will do), or a function of the request that returns one, for handlers whose fields span areas."""
+    if role == "owner" and area is None:
+        area = "admin"
+
     def wrap(fn):
-        ROUTES.append((method, re.compile(pattern), fn, role))
+        ROUTES.append((method, re.compile(pattern), fn, role, area))
         return fn
 
     return wrap
@@ -40,6 +46,7 @@ class Ctx:
         self.ip = gw.client_ip(h)
         self.admin = None
         self.body = {}
+        self.area = ""
 
     def arg(self, name, default=None, cast=str):
         if name not in self.query or self.query[name] == "":
@@ -49,13 +56,30 @@ class Ctx:
         except ValueError:
             raise ApiError(400, f"bad value for {name}")
 
-    def audit(self, action, target="", detail=""):
-        self.gw.audit(self.admin["username"] if self.admin else "anonymous", action, target, detail, self.ip)
+    def can(self, area):
+        return authz.can(self.admin, area)
+
+    def require(self, area):
+        """For a handler whose fields span areas: refuse (and audit) unless this user may change `area`."""
+        if not self.can(area):
+            self.audit("was refused a change", self.h.path.split("?")[0], f"needs {area}", outcome="denied", area=area)
+            raise ApiError(403, f"your role can't change that ({authz.AREAS.get(area, area).split(',')[0].lower()} is outside it)")
+
+    @property
+    def reason(self):
+        """Why the admin is doing this, when they said: a `reason` in the body or an X-Audit-Reason header."""
+        return str(self.body.get("reason") or self.h.headers.get("x-audit-reason") or "").strip()[:500]
+
+    def audit(self, action, target="", detail="", *, reason=None, before=None, after=None, outcome="ok",
+              correlation=None, area=None):
+        self.gw.audit(self.admin["username"] if self.admin else "anonymous", action, target, detail, self.ip,
+                      reason=self.reason if reason is None else reason, before=before, after=after, outcome=outcome,
+                      correlation=correlation, area=self.area if area is None else area)
 
 
 def dispatch(h, gw, path, query):
     sub = path[len("/admin/api"):]
-    for method, rx, fn, role in ROUTES:
+    for method, rx, fn, role, area in ROUTES:
         m = rx.fullmatch(sub)
         if not m or method != h.command:
             continue
@@ -67,8 +91,6 @@ def dispatch(h, gw, path, query):
                 ctx.admin = current_admin(ctx)
                 if not ctx.admin:
                     raise ApiError(401, "sign in first")
-                if role == "owner" and ctx.admin["role"] != "owner":
-                    raise ApiError(403, "only an owner can do that")
             if h.command in ("POST", "PUT", "PATCH", "DELETE"):
                 raw = h.read_body(1024 * 1024)
                 if raw:
@@ -78,6 +100,13 @@ def dispatch(h, gw, path, query):
                         raise ApiError(400, "body must be JSON")
                     if not isinstance(ctx.body, dict):
                         raise ApiError(400, "body must be a JSON object")
+            if role and area is not None:
+                needed = area(ctx) if callable(area) else area
+                ctx.area = needed if isinstance(needed, str) else (needed[0] if needed else "")
+                if needed and not ctx.can(needed):
+                    ctx.audit("was refused a change", f"{h.command} {sub}", "needs " + (needed if isinstance(needed, str) else " or ".join(needed)),
+                              outcome="denied")
+                    raise ApiError(403, "your role can't do that" + (" — only an owner can" if needed == "admin" else ""))
             result = fn(ctx, **{k: unquote(v) for k, v in m.groupdict().items()})
         except ApiError as err:
             return h.send_json(err.status, {"error": err.message})
@@ -97,7 +126,7 @@ def current_admin(ctx):
     if not token:
         return None
     row = ctx.db.one(
-        "SELECT a.id, a.username, a.role FROM admin_sessions s JOIN admins a ON a.id = s.admin_id"
+        "SELECT a.id, a.username, a.role, a.areas FROM admin_sessions s JOIN admins a ON a.id = s.admin_id"
         " WHERE s.token_hash = ? AND s.expires > ?", (security.sha256(token), time.time()))
     return row
 
@@ -132,7 +161,7 @@ def login(ctx):
         ctx.gw.audit(username or "?", "failed sign-in", "", "", ctx.ip)
         raise ApiError(401, "wrong username or password")
     ctx.gw.throttle.clear(ctx.ip)
-    return 200, {"username": row["username"], "role": row["role"]}, start_session(ctx, row)
+    return 200, {"username": row["username"], **authz.describe(row)}, start_session(ctx, row)
 
 
 def start_session(ctx, row, how="signed in"):
@@ -151,14 +180,18 @@ def start_session(ctx, row, how="signed in"):
 def logout(ctx):
     token = _cookie(ctx.h.headers.get("cookie") or "", SESSION_COOKIE)
     if token:
+        ctx.admin = current_admin(ctx)
         ctx.db.x("DELETE FROM admin_sessions WHERE token_hash = ?", (security.sha256(token),))
+        if ctx.admin:
+            ctx.audit("signed out")
     return 200, {"ok": True}, {"Set-Cookie": _session_cookie(ctx, "", 0)}
 
 
 @route("GET", r"/me")
 def me(ctx):
-    return {"username": ctx.admin["username"], "role": ctx.admin["role"], "base_url": ctx.gw.public_url(ctx.h),
-            "providers": _providers(ctx), "tz_offset_minutes": ctx.gw.settings.tz_offset_minutes}
+    return {"username": ctx.admin["username"], **authz.describe(ctx.admin), "base_url": ctx.gw.public_url(ctx.h),
+            "providers": _providers(ctx), "tz_offset_minutes": ctx.gw.settings.tz_offset_minutes,
+            "areas": authz.AREAS, "roles": {k: {"label": v[0], "can": sorted(v[1]), "about": v[2]} for k, v in authz.ROLES.items()}}
 
 
 @route("POST", r"/password")
@@ -253,7 +286,8 @@ LIST_COLUMNS = ("r.id, r.ts, r.person_id, p.name AS person, r.key_id, r.provider
                 " r.model, r.stream, r.status, r.outcome, r.reason, r.duration_ms, r.ttft_ms, r.in_tok, r.out_tok,"
                 " r.cache_write_tok, r.cache_read_tok, r.reasoning_tok, r.cost, r.prompt, r.actions, r.reply,"
                 " r.flags, r.client_ip, r.request_class, r.agent, r.turn_id, r.media_type, r.units, r.unit, r.result_urls,"
-                " r.resp_ctype, k.label AS device")
+                " r.resp_ctype, k.label AS device, r.purpose, r.purpose_source, r.purpose_confidence, r.purpose_evidence,"
+                " r.project, r.cost_source, r.rule")
 
 
 def _shape(row, clip=600):
@@ -337,6 +371,18 @@ def get_request(ctx, rid):
     app = row["client"] if row["client"] not in ("", "unknown") else None
     out["platform"] = insight.platform(row["user_agent"], app)
     out["place"] = insight.ip_kind(row["client_ip"]) if row["client_ip"] else None
+    # V2 evidence: where (and how that is known), what it was for (and on what basis), what the cost rests on
+    out["location"] = geo.describe(row["client_ip"], ctx.db) if row["client_ip"] else None
+    if row["purpose"]:
+        p = ctx.db.one("SELECT name FROM purposes WHERE id = ?", (row["purpose"],))
+        out["purpose_name"] = p["name"] if p else row["purpose"]
+    from . import money
+
+    out["cost_basis"] = money.describe_source(ctx.db, row["cost_source"]) if row["cost"] is not None else \
+        ({"basis": "unpriced"} if row["outcome"] == "ok" and row["kind"] not in ("other", "media-status") else None)
+    if row["rule"] and row["rule"].startswith("policy:"):
+        pol = ctx.db.one("SELECT id, name FROM policies WHERE id = ?", (int(row["rule"][7:]) if row["rule"][7:].isdigit() else -1,))
+        out["rule_name"] = pol["name"] if pol else "a policy since removed"
     ctx.audit("opened the full record", f"request #{rid}", f"person: {row.get('person') or '-'}")
     if ctx.arg("download"):
         data = json.dumps({"record": out}, indent=2, default=str).encode()
@@ -369,10 +415,10 @@ def get_session(ctx, sid):
             "cost": sum(r["cost"] or 0 for r in rows), "started": rows[0]["ts"], "last": rows[-1]["ts"]}
 
 
-@route("POST", r"/live/(?P<tid>\d+)/cut", role="owner")
+@route("POST", r"/live/(?P<tid>\d+)/cut", area="emergency")
 def cut_live(ctx, tid):
     n = ctx.gw.live.cut("an administrator stopped this request.", ticket_id=int(tid))
-    ctx.audit("stopped a request in flight", f"live #{tid}")
+    ctx.audit("stopped a request in flight", f"live #{tid}", "" if n else "it had already finished", outcome="ok" if n else "no-op")
     return {"cut": n}
 
 
@@ -436,6 +482,16 @@ def _spend_map(db, since):
         " WHERE ts >= ? AND kind NOT IN ('other', 'media-status') GROUP BY person_id", (since,))}
 
 
+def _person_area(ctx):
+    """Budgets alone are money; anything else about a person is governing them."""
+    budget_only = set(ctx.body) <= {"daily_budget", "monthly_budget", "budget_visible", "reason"}
+    return ("money", "govern") if budget_only else "govern"
+
+
+def _suspend_area(ctx):
+    return "emergency" if ctx.h.path.rstrip("/").endswith("/suspend") else ("emergency", "govern")
+
+
 @route("GET", r"/people")
 def list_people(ctx):
     day, month = proxy.period_starts(time.time(), ctx.gw.settings.tz_offset_minutes)
@@ -458,7 +514,7 @@ def list_people(ctx):
     return {"items": people}
 
 
-@route("POST", r"/people", role="owner")
+@route("POST", r"/people", area="govern")
 def create_person(ctx):
     values = _person_values(ctx.body, partial=False)
     _email_free(ctx, values.get("email"))
@@ -505,20 +561,24 @@ def get_person(ctx, pid):
     return person
 
 
-@route("PATCH", r"/people/(?P<pid>\d+)", role="owner")
+@route("PATCH", r"/people/(?P<pid>\d+)", area=_person_area)
 def update_person(ctx, pid):
     values = _person_values(ctx.body, partial=True)
     if not values:
         return {"ok": True}
-    if not ctx.db.one("SELECT id FROM people WHERE id = ?", (int(pid),)):
+    old = ctx.db.one("SELECT * FROM people WHERE id = ?", (int(pid),))
+    if not old:
         raise ApiError(404, "no such person")
     _email_free(ctx, values.get("email"), int(pid))
     ctx.db.x(f"UPDATE people SET {', '.join(f'{c} = ?' for c in values)} WHERE id = ?", [*values.values(), int(pid)])
-    ctx.audit("changed a person", f"person #{pid}", json.dumps(values, default=str))
+    changed = {c: v for c, v in values.items() if old.get(c) != v}
+    if changed:
+        ctx.audit("changed a person", old["name"], ", ".join(sorted(changed)), before={c: old.get(c) for c in changed},
+                  after=changed, correlation=f"person:{pid}")
     return {"ok": True}
 
 
-@route("POST", r"/people/(?P<pid>\d+)/(?P<action>suspend|resume)", role="owner")
+@route("POST", r"/people/(?P<pid>\d+)/(?P<action>suspend|resume)", area=_suspend_area)
 def suspend_person(ctx, pid, action):
     pid = int(pid)
     person = ctx.db.one("SELECT name FROM people WHERE id = ?", (pid,))
@@ -534,11 +594,12 @@ def suspend_person(ctx, pid, action):
         turns.end_all_for(ctx.db, pid, ctx.admin["username"], "their access was suspended")
         ctx.gw.workspaces.soon()
     ctx.audit("suspended a person" if action == "suspend" else "restored a person", person["name"],
-              f"{cut} request(s) cut" if cut else "")
+              f"{cut} request(s) cut" if cut else "", correlation=f"person:{pid}",
+              after={"status": "suspended" if action == "suspend" else "active"})
     return {"ok": True, "cut": cut}
 
 
-@route("POST", r"/people/(?P<pid>\d+)/keys", role="owner")
+@route("POST", r"/people/(?P<pid>\d+)/keys", area="govern")
 def issue_key(ctx, pid):
     pid = int(pid)
     person = ctx.db.one("SELECT name FROM people WHERE id = ?", (pid,))
@@ -548,11 +609,11 @@ def issue_key(ctx, pid):
     key_id, full, secret_hash, hint = security.new_key()
     ctx.db.x("INSERT INTO keys(id, person_id, label, secret_hash, hint, created, created_by) VALUES(?,?,?,?,?,?,?)",
              (key_id, pid, label, secret_hash, hint, time.time(), ctx.admin["username"]))
-    ctx.audit("issued a key", person["name"], f"{label} ({hint})")
+    ctx.audit("issued a key", person["name"], f"{label} ({hint})", correlation=f"device:{key_id}")
     return {"id": key_id, "key": full, "hint": hint, "label": label, "tools": guides.guides(ctx.gw, full, ctx.gw.public_url(ctx.h))}
 
 
-@route("POST", r"/people/(?P<pid>\d+)/invite", role="owner")
+@route("POST", r"/people/(?P<pid>\d+)/invite", area="govern")
 def invite_person(ctx, pid):
     person = ctx.db.one("SELECT name, email FROM people WHERE id = ?", (int(pid),))
     if not person:
@@ -569,7 +630,7 @@ def invite_person(ctx, pid):
     return {"link": link, "expires_days": 7, "email": person["email"]}
 
 
-@route("POST", r"/keys/(?P<kid>[0-9a-f]{12})/revoke", role="owner")
+@route("POST", r"/keys/(?P<kid>[0-9a-f]{12})/revoke", area=("emergency", "govern"))
 def revoke_key(ctx, kid):
     row = ctx.db.one("SELECT k.*, p.name FROM keys k JOIN people p ON p.id = k.person_id WHERE k.id = ?", (kid,))
     if not row:
@@ -577,7 +638,8 @@ def revoke_key(ctx, kid):
     if not row["revoked"]:
         ctx.db.x("UPDATE keys SET revoked = ?, revoked_by = ? WHERE id = ?", (time.time(), ctx.admin["username"], kid))
     cut = ctx.gw.live.cut("this key was revoked by an administrator.", key_id=kid)
-    ctx.audit("revoked a key", row["name"], f"{row['label']} ({row['hint']})" + (f", {cut} request(s) cut" if cut else ""))
+    ctx.audit("revoked a key", row["name"], f"{row['label']} ({row['hint']})" + (f", {cut} request(s) cut" if cut else ""),
+              correlation=f"device:{kid}")
     return {"ok": True, "cut": cut}
 
 
@@ -600,10 +662,43 @@ def health(ctx):
         "people": db.scalar("SELECT COUNT(*) FROM people") or 0,
         "paused": db.get_setting("paused", "0") == "1",
         "live": len(gw.live.snapshot()),
-        "providers": [{"name": p.name, "label": p.label, "configured": bool(p.api_key())}
-                      for p in gw.settings.providers.values()],
+        "providers": _provider_health(db, gw),
         "rate_per_min": int(db.get_setting("rate_per_min", "0") or 0),
+        "maintenance_last": float(db.get_setting("maintenance_last", "0") or 0) or None,
+        "notifications_open": db.scalar("SELECT COUNT(*) FROM notifications WHERE resolved IS NULL") or 0,
+        "policies_enabled": db.scalar("SELECT COUNT(*) FROM policies WHERE enabled = 1") or 0,
+        "models_registered": db.scalar("SELECT COUNT(*) FROM models") or 0,
+        "location_table": geo.status(db),
+        "workspace_paused": db.get_setting("workspace_paused", "0") == "1",
     }
+
+
+def _pct(values, q):
+    if not values:
+        return None
+    values = sorted(values)
+    return values[min(len(values) - 1, int(round(q * (len(values) - 1))))]
+
+
+def _provider_health(db, gw):
+    """Each provider's last hour: how many requests, how many failed at the provider, and how long they
+    took (p50/p95 total, p50 to the first byte). Measured at the gateway, so it includes the network."""
+    since = time.time() - 3600
+    rows = {}
+    for r in db.q("SELECT provider, outcome, duration_ms, ttft_ms FROM requests WHERE ts >= ? AND kind NOT IN ('other')"
+                  " AND outcome IN ('ok', 'error') ORDER BY id DESC LIMIT 20000", (since,)):
+        rows.setdefault(r["provider"], []).append(r)
+    off = set((db.get_setting("disabled_providers", "") or "").split(","))
+    out = []
+    for p in gw.settings.providers.values():
+        rs = rows.get(p.name, [])
+        ok = [r["duration_ms"] for r in rs if r["outcome"] == "ok" and r["duration_ms"] is not None]
+        ttft = [r["ttft_ms"] for r in rs if r["outcome"] == "ok" and r["ttft_ms"] is not None]
+        errors = sum(1 for r in rs if r["outcome"] == "error")
+        out.append({"name": p.name, "label": p.label, "configured": bool(p.api_key()), "switched_off": p.name in off,
+                    "last_hour": {"requests": len(rs), "errors": errors, "error_rate": round(errors / len(rs), 3) if rs else None,
+                                  "p50_ms": _pct(ok, 0.5), "p95_ms": _pct(ok, 0.95), "ttft_p50_ms": _pct(ttft, 0.5)}})
+    return out
 
 
 def _version():
@@ -633,7 +728,7 @@ def site_usage(ctx):
 # ---------------------------------------------------------------- the switch, settings, prices
 
 
-@route("POST", r"/pause", role="owner")
+@route("POST", r"/pause", area="emergency")
 def pause(ctx):
     paused = bool(ctx.body.get("paused"))
     ctx.db.set_setting("paused", "1" if paused else "0")
@@ -647,6 +742,11 @@ def get_settings(ctx):
     db = ctx.db
     return {"paused": db.get_setting("paused", "0") == "1",
             "retention_days": int(db.get_setting("retention_days", "90") or 0),
+            **{k: int(db.get_setting(k, "0") or 0) for k in RETENTION_KEYS},
+            "purpose_inference": db.get_setting("purpose_inference", "1") == "1",
+            "workspace_paused": db.get_setting("workspace_paused", "0") == "1",
+            "disabled_providers": [p for p in (db.get_setting("disabled_providers", "") or "").split(",") if p],
+            "areas": SETTING_AREAS,
             "block_secrets": db.get_setting("block_secrets", "0") == "1",
             "store_bodies": db.get_setting("store_bodies", "1") == "1",
             "staff_self_keys": db.get_setting("staff_self_keys", "1") == "1",
@@ -659,7 +759,7 @@ def get_settings(ctx):
             "records": db.scalar("SELECT COUNT(*) FROM requests") or 0}
 
 
-@route("PUT", r"/settings", role="owner")
+@route("PUT", r"/settings", area=("admin", "trust", "govern"))
 def put_settings(ctx):
     changed = {}
     if "retention_days" in ctx.body:
@@ -683,11 +783,63 @@ def put_settings(ctx):
         changed["rate_per_min"] = rpm
     if "support_contact" in ctx.body:
         changed["support_contact"] = str(ctx.body["support_contact"] or "").strip()[:200]
+    for k in ("disabled_providers",):
+        if k in ctx.body:
+            names = ctx.body[k] if isinstance(ctx.body[k], list) else str(ctx.body[k] or "").split(",")
+            known = set(ctx.gw.settings.providers)
+            picked = sorted({str(n).strip() for n in names if str(n).strip()})
+            unknown = [n for n in picked if n not in known]
+            if unknown:
+                raise ApiError(400, "no such provider: " + ", ".join(unknown))
+            changed[k] = ",".join(picked)
+    changed.update(_retention_changes(ctx.body))
+    for flag in ("purpose_inference", "workspace_paused"):
+        if flag in ctx.body:
+            changed[flag] = "1" if ctx.body[flag] else "0"
+    # each setting belongs to an area; a mixed save needs every area it touches
+    for k in changed:
+        ctx.require(SETTING_AREAS.get(k, "admin"))
+    before = {k: ctx.db.get_setting(k) for k in changed}
     for k, v in changed.items():
         ctx.db.set_setting(k, v)
-    if changed:
-        ctx.audit("changed settings", "", json.dumps(changed))
+    real = {k: v for k, v in changed.items() if str(before.get(k)) != str(v)}
+    if real:
+        ctx.audit("changed settings", ", ".join(sorted(real)), "", before={k: before[k] for k in real},
+                  after={k: str(v) for k, v in real.items()}, area=",".join(sorted({SETTING_AREAS.get(k, "admin") for k in real})))
     return {"ok": True}
+
+
+# which area each setting belongs to (gateway/authz.py)
+SETTING_AREAS = {
+    "retention_days": "admin", "store_bodies": "admin", "gate_log_full": "admin", "purpose_inference": "admin",
+    "retention_bodies_days": "admin", "retention_site_days": "admin", "retention_launch_days": "admin",
+    "retention_audit_days": "admin",
+    "block_secrets": "trust", "rate_per_min": "trust",
+    "staff_self_keys": "govern", "support_contact": "govern", "workspace_paused": "emergency", "disabled_providers": "emergency",
+}
+
+RETENTION_KEYS = {
+    "retention_bodies_days": "full request and response bodies",
+    "retention_site_days": "website visits",
+    "retention_launch_days": "tools opened from the portal",
+    "retention_audit_days": "the audit log",
+}
+
+
+def _retention_changes(body):
+    out = {}
+    for k in RETENTION_KEYS:
+        if k in body:
+            try:
+                days = int(body[k] or 0)
+            except (TypeError, ValueError):
+                raise ApiError(400, f"{k} must be a whole number of days (0 = keep forever)")
+            if days < 0:
+                raise ApiError(400, f"{k} cannot be negative")
+            if k == "retention_audit_days" and 0 < days < 365:
+                raise ApiError(400, "keep the audit log for at least 365 days (or 0 = forever)")
+            out[k] = days
+    return out
 
 
 @route("GET", r"/prices")
@@ -701,7 +853,7 @@ def list_prices(ctx):
     return {"items": rows, "unpriced_models": sorted(missing)}
 
 
-@route("PUT", r"/prices/(?P<model>[^/]+)", role="owner")
+@route("PUT", r"/prices/(?P<model>[^/]+)", area="money")
 def put_price(ctx, model):
     fields = {}
     for k in ("input", "output", "cache_write", "cache_write_1h", "cache_read"):
@@ -717,19 +869,22 @@ def put_price(ctx, model):
             raise ApiError(400, f"{k} must be dollars per million tokens")
         if fields[k] < 0:
             raise ApiError(400, "prices cannot be negative")
+    before = ctx.db.one("SELECT input, output, cache_write, cache_write_1h, cache_read FROM prices WHERE model = ?", (model,))
     ctx.db.x("INSERT OR REPLACE INTO prices(model, provider, input, output, cache_write, cache_write_1h, cache_read, updated)"
              " VALUES(?,?,?,?,?,?,?,?)", (model, str(ctx.body.get("provider") or ""), fields["input"], fields["output"],
                                           fields["cache_write"], fields["cache_write_1h"], fields["cache_read"], time.time()))
     ctx.gw.reload_prices()
-    ctx.audit("set a model price", model, json.dumps(fields))
+    ctx.audit("set a model price", model, "new requests use it; past costs stay as they were", before=before, after=fields,
+              correlation=f"model:{model}")
     return {"ok": True}
 
 
-@route("DELETE", r"/prices/(?P<model>[^/]+)", role="owner")
+@route("DELETE", r"/prices/(?P<model>[^/]+)", area="money")
 def delete_price(ctx, model):
+    before = ctx.db.one("SELECT input, output, cache_write, cache_write_1h, cache_read FROM prices WHERE model = ?", (model,))
     ctx.db.x("DELETE FROM prices WHERE model = ?", (model,))
     ctx.gw.reload_prices()
-    ctx.audit("removed a model price", model)
+    ctx.audit("removed a model price", model, before=before, correlation=f"model:{model}")
     return {"ok": True}
 
 
@@ -849,7 +1004,7 @@ def workspace_status(ctx):
     return out
 
 
-@route("POST", r"/workspace/browsers/(?P<slot>[a-z0-9-]{1,80})/(?P<action>open|close)", role="owner")
+@route("POST", r"/workspace/browsers/(?P<slot>[a-z0-9-]{1,80})/(?P<action>open|close)", area="govern")
 def workspace_browser(ctx, slot, action):
     """An admin opens a workspace browser to sign it in to its tool by hand — once per browser — and
     closes it again. Nobody else can be given that browser meanwhile. Any place, ?host=, so a computer's
@@ -873,7 +1028,7 @@ def workspace_browser(ctx, slot, action):
     return {"state": out.get("state"), "url": out.get("url") if out.get("state") == "ready" else None}
 
 
-@route("POST", r"/workspace/use", role="owner")
+@route("POST", r"/workspace/use", area="govern")
 def workspace_use(ctx):
     """Where Open gets company browsers from now on: the rented server, the Windows PC or the Mac."""
     from .workspace import HOSTS
@@ -887,7 +1042,7 @@ def workspace_use(ctx):
     return {"ok": True, "active": host, "moved": moved}
 
 
-@route("POST", r"/workspace/hosts/(?P<host>windows|mac)/key", role="owner")
+@route("POST", r"/workspace/hosts/(?P<host>windows|mac)/key", area="govern")
 def workspace_key(ctx, host):
     """A key for one of Swangz's computers, and the command that connects it. Shown once; a new key
     disconnects the computer until it is set up with it."""
@@ -902,7 +1057,7 @@ def workspace_key(ctx, host):
             "command": f"{python} {script} setup --host {host} --gateway {gateway} --key {key}"}
 
 
-@route("DELETE", r"/workspace/hosts/(?P<host>windows|mac)", role="owner")
+@route("DELETE", r"/workspace/hosts/(?P<host>windows|mac)", area="govern")
 def workspace_forget(ctx, host):
     from .workspace import HOSTS
 
@@ -914,7 +1069,7 @@ def workspace_forget(ctx, host):
     return {"ok": True}
 
 
-@route("POST", r"/tools/(?P<tid>[a-z0-9-]+)/turn/end", role="owner")
+@route("POST", r"/tools/(?P<tid>[a-z0-9-]+)/turn/end", area=("emergency", "govern"))
 def force_end_turn(ctx, tid):
     """Take a shared account back from whoever is holding it."""
     from . import turns
@@ -1073,7 +1228,7 @@ def _signin(value, kind):
     return "api" if kind == "dev" else "seat"
 
 
-@route("POST", r"/tools", role="owner")
+@route("POST", r"/tools", area="govern")
 def add_tool(ctx):
     from . import catalog, icons
 
@@ -1120,7 +1275,7 @@ def _clean_hosts(value):
     return out
 
 
-@route("PATCH", r"/tools/(?P<tid>[a-z0-9-]+)", role="owner")
+@route("PATCH", r"/tools/(?P<tid>[a-z0-9-]+)", area="govern")
 def edit_tool(ctx, tid):
     tool = ctx.db.one("SELECT * FROM tools WHERE id = ?", (tid,))
     if not tool:
@@ -1151,9 +1306,14 @@ def edit_tool(ctx, tid):
         fields["plans"] = json.dumps(ctx.body["plans"])
     if "kind" in ctx.body and ctx.body["kind"] in ("site", "api", "dev") and not tool["builtin"]:
         fields["kind"] = ctx.body["kind"]
+    if "classification" in ctx.body:
+        if ctx.body["classification"] not in ("public", "internal", "confidential", "restricted"):
+            raise ApiError(400, "classification must be public, internal, confidential or restricted")
+        fields["classification"] = ctx.body["classification"]
     if fields:
         ctx.db.x(f"UPDATE tools SET {', '.join(f'{k}=?' for k in fields)} WHERE id = ?", [*fields.values(), tid])
-        ctx.audit("edited a tool", tool["name"], json.dumps(fields, default=str))
+        ctx.audit("edited a tool", tool["name"], ", ".join(sorted(fields)), before={k: tool.get(k) for k in fields},
+                  after=fields, correlation=f"tool:{tid}")
         if fields.get("url") and fields["url"] != tool["url"]:
             from . import icons
 
@@ -1162,7 +1322,7 @@ def edit_tool(ctx, tid):
     return {"ok": True}
 
 
-@route("DELETE", r"/tools/(?P<tid>[a-z0-9-]+)", role="owner")
+@route("DELETE", r"/tools/(?P<tid>[a-z0-9-]+)", area="govern")
 def delete_tool(ctx, tid):
     """Delete a tool an admin added. Built-ins can only be removed (archived) and restored."""
     tool = ctx.db.one("SELECT * FROM tools WHERE id = ?", (tid,))
@@ -1186,7 +1346,7 @@ def delete_tool(ctx, tid):
     return {"ok": True}
 
 
-@route("PUT", r"/tools/(?P<tid>[a-z0-9-]+)/logo", role="owner")
+@route("PUT", r"/tools/(?P<tid>[a-z0-9-]+)/logo", area="govern")
 def upload_logo(ctx, tid):
     from . import icons
 
@@ -1202,7 +1362,7 @@ def upload_logo(ctx, tid):
     return {"ok": True}
 
 
-@route("POST", r"/tools/(?P<tid>[a-z0-9-]+)/logo/refresh", role="owner")
+@route("POST", r"/tools/(?P<tid>[a-z0-9-]+)/logo/refresh", area="govern")
 def refresh_logo(ctx, tid):
     from . import icons
 
@@ -1214,7 +1374,7 @@ def refresh_logo(ctx, tid):
     return {"ok": bool(found)}
 
 
-@route("POST", r"/tools/(?P<tid>[a-z0-9-]+)/(?P<action>archive|restore)", role="owner")
+@route("POST", r"/tools/(?P<tid>[a-z0-9-]+)/(?P<action>archive|restore)", area="govern")
 def archive_tool(ctx, tid, action):
     tool = ctx.db.one("SELECT * FROM tools WHERE id = ?", (tid,))
     if not tool:
@@ -1224,7 +1384,7 @@ def archive_tool(ctx, tid, action):
     return {"ok": True}
 
 
-@route("PUT", r"/subscriptions/(?P<tid>[a-z0-9-]+)", role="owner")
+@route("PUT", r"/subscriptions/(?P<tid>[a-z0-9-]+)", area="money")
 def set_subscription(ctx, tid):
     tool = ctx.db.one("SELECT * FROM tools WHERE id = ?", (tid,))
     if not tool:
@@ -1236,13 +1396,16 @@ def set_subscription(ctx, tid):
     seats = int(seats) if str(seats or "").strip().isdigit() else None
     renews = ctx.body.get("renews_on")
     renews = _date_to_ts(renews) if renews else None
+    before = ctx.db.one("SELECT state, plan, seats, monthly_cost, renews_on FROM subscriptions WHERE tool_id = ?", (tid,))
     ctx.db.x("INSERT INTO subscriptions(tool_id, state, plan, seats, monthly_cost, renews_on, note, updated, updated_by)"
              " VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(tool_id) DO UPDATE SET state=excluded.state, plan=excluded.plan,"
              " seats=excluded.seats, monthly_cost=excluded.monthly_cost, renews_on=excluded.renews_on,"
              " note=excluded.note, updated=excluded.updated, updated_by=excluded.updated_by",
              (tid, state, str(ctx.body.get("plan") or "")[:80], seats, _money(ctx.body.get("monthly_cost")),
               renews, str(ctx.body.get("note") or "")[:500], time.time(), ctx.admin["username"]))
-    ctx.audit("set a subscription", tool["name"], f"{state}" + (f", {ctx.body.get('plan')}" if ctx.body.get("plan") else ""))
+    after = ctx.db.one("SELECT state, plan, seats, monthly_cost, renews_on FROM subscriptions WHERE tool_id = ?", (tid,))
+    ctx.audit("set a subscription", tool["name"], f"{state}" + (f", {ctx.body.get('plan')}" if ctx.body.get("plan") else ""),
+              before=before, after=after, correlation=f"tool:{tid}")
     return {"ok": True}
 
 
@@ -1270,7 +1433,7 @@ def _money(v):
 # ---------------------------------------------------------------- entitlements (who may use what)
 
 
-@route("POST", r"/people/(?P<pid>\d+)/tools/(?P<tid>[a-z0-9-]+)", role="owner")
+@route("POST", r"/people/(?P<pid>\d+)/tools/(?P<tid>[a-z0-9-]+)", area="govern")
 def grant_person(ctx, pid, tid):
     person = ctx.db.one("SELECT name FROM people WHERE id = ?", (int(pid),))
     tool = ctx.db.one("SELECT name FROM tools WHERE id = ?", (tid,))
@@ -1286,11 +1449,12 @@ def grant_person(ctx, pid, tid):
              (tid, int(pid), time.time(), ctx.admin["username"], expires))
     _mark_requests(ctx, tid, int(pid), "granted")
     ctx.audit("turned a tool on for a person", f"{person['name']} · {tool['name']}",
-              f"until {str(until)[:10]}" if expires else "")
+              f"until {str(until)[:10]}" if expires else "", correlation=f"person:{pid}",
+              after={"tool": tid, "expires": expires})
     return {"ok": True}
 
 
-@route("DELETE", r"/people/(?P<pid>\d+)/tools", role="owner")
+@route("DELETE", r"/people/(?P<pid>\d+)/tools", area=("govern", "emergency"))
 def revoke_all(ctx, pid):
     """Remove every tool this person was given directly (team grants stay with the team)."""
     person = ctx.db.one("SELECT name FROM people WHERE id = ?", (int(pid),))
@@ -1301,16 +1465,18 @@ def revoke_all(ctx, pid):
     return {"ok": True, "removed": n}
 
 
-@route("DELETE", r"/people/(?P<pid>\d+)/tools/(?P<tid>[a-z0-9-]+)", role="owner")
+@route("DELETE", r"/people/(?P<pid>\d+)/tools/(?P<tid>[a-z0-9-]+)", area=("govern", "emergency"))
 def revoke_person(ctx, pid, tid):
+    had = ctx.db.one("SELECT granted_by, expires FROM entitlements WHERE tool_id = ? AND person_id = ?", (tid, int(pid)))
     ctx.db.x("DELETE FROM entitlements WHERE tool_id = ? AND person_id = ?", (tid, int(pid)))
     tool = ctx.db.one("SELECT name FROM tools WHERE id = ?", (tid,))
     person = ctx.db.one("SELECT name FROM people WHERE id = ?", (int(pid),))
-    ctx.audit("turned a tool off for a person", f"{(person or {}).get('name','?')} · {(tool or {}).get('name', tid)}")
+    ctx.audit("turned a tool off for a person", f"{(person or {}).get('name','?')} · {(tool or {}).get('name', tid)}",
+              "" if had else "they didn't have it directly", before=had, correlation=f"person:{pid}", outcome="ok" if had else "no-op")
     return {"ok": True}
 
 
-@route("POST", r"/teams/(?P<dept>[^/]+)/tools/(?P<tid>[a-z0-9-]+)", role="owner")
+@route("POST", r"/teams/(?P<dept>[^/]+)/tools/(?P<tid>[a-z0-9-]+)", area="govern")
 def grant_team(ctx, dept, tid):
     tool = ctx.db.one("SELECT name FROM tools WHERE id = ?", (tid,))
     if not tool:
@@ -1321,7 +1487,7 @@ def grant_team(ctx, dept, tid):
     return {"ok": True}
 
 
-@route("DELETE", r"/teams/(?P<dept>[^/]+)/tools/(?P<tid>[a-z0-9-]+)", role="owner")
+@route("DELETE", r"/teams/(?P<dept>[^/]+)/tools/(?P<tid>[a-z0-9-]+)", area="govern")
 def revoke_team(ctx, dept, tid):
     ctx.db.x("DELETE FROM entitlements WHERE tool_id = ? AND department = ?", (tid, dept))
     tool = ctx.db.one("SELECT name FROM tools WHERE id = ?", (tid,))
@@ -1347,7 +1513,7 @@ def list_access_requests(ctx):
     return {"items": rows, "open": counts["open"], "counts": counts}
 
 
-@route("POST", r"/access-requests/(?P<rid>\d+)/(?P<action>grant|decline)", role="owner")
+@route("POST", r"/access-requests/(?P<rid>\d+)/(?P<action>grant|decline)", area="govern")
 def decide_access_request(ctx, rid, action):
     req = ctx.db.one("SELECT ar.*, p.name AS person, t.name AS tool FROM access_requests ar"
                      " JOIN people p ON p.id = ar.person_id JOIN tools t ON t.id = ar.tool_id WHERE ar.id = ?", (int(rid),))
@@ -1367,30 +1533,58 @@ def decide_access_request(ctx, rid, action):
 # ---------------------------------------------------------------- admins and the audit log
 
 
-@route("GET", r"/admins", role="owner")
+@route("GET", r"/admins", area="admin")
 def list_admins(ctx):
-    return {"items": ctx.db.q("SELECT id, username, role, created, last_login FROM admins ORDER BY username")}
+    rows = ctx.db.q("SELECT id, username, role, areas, created, last_login FROM admins ORDER BY username")
+    for r in rows:
+        r.update(authz.describe(r))
+        r.pop("areas", None)
+    return {"items": rows}
 
 
-@route("POST", r"/admins", role="owner")
+def _role_from_body(ctx):
+    role = ctx.body.get("role") or "viewer"
+    try:
+        return authz.stored(role, ctx.body.get("areas") if isinstance(ctx.body.get("areas"), list) else None)
+    except ValueError:
+        raise ApiError(400, "role must be one of: " + ", ".join(authz.ROLES) + ", custom")
+
+
+@route("POST", r"/admins", area="admin")
 def add_admin(ctx):
     username = str(ctx.body.get("username") or "").strip()
-    role = ctx.body.get("role") or "viewer"
     if not re.fullmatch(r"[A-Za-z0-9._@-]{2,64}", username):
         raise ApiError(400, "username: 2-64 letters, digits, . _ @ -")
-    if role not in ("owner", "viewer"):
-        raise ApiError(400, "role must be owner or viewer")
+    role, areas = _role_from_body(ctx)
     password = str(ctx.body.get("password") or "")
     _check_password_strength(password)
     if ctx.db.one("SELECT id FROM admins WHERE username = ?", (username,)):
         raise ApiError(400, "that username is taken")
-    ctx.db.x("INSERT INTO admins(username, pw_hash, role, created) VALUES(?,?,?,?)",
-             (username, security.hash_password(password, ctx.gw.settings.pbkdf2_iterations), role, time.time()))
-    ctx.audit("added a console user", username, role)
+    ctx.db.x("INSERT INTO admins(username, pw_hash, role, areas, created) VALUES(?,?,?,?,?)",
+             (username, security.hash_password(password, ctx.gw.settings.pbkdf2_iterations), role, areas, time.time()))
+    label = authz.label_of({"role": role, "areas": areas})
+    ctx.audit("added a console user", username, label, after={"role": label, "can": areas or ("everything" if role == "owner" else "")})
     return {"ok": True}
 
 
-@route("DELETE", r"/admins/(?P<aid>\d+)", role="owner")
+@route("PATCH", r"/admins/(?P<aid>\d+)", area="admin")
+def change_admin_role(ctx, aid):
+    """Change what a console user may do. Their open sessions pick it up on the next request."""
+    row = ctx.db.one("SELECT id, username, role, areas FROM admins WHERE id = ?", (int(aid),))
+    if not row:
+        raise ApiError(404, "no such console user")
+    role, areas = _role_from_body(ctx)
+    if row["role"] == "owner" and role != "owner" and ctx.db.scalar("SELECT COUNT(*) FROM admins WHERE role = 'owner'") <= 1:
+        raise ApiError(400, "keep at least one owner")
+    before = authz.label_of(row)
+    ctx.db.x("UPDATE admins SET role = ?, areas = ? WHERE id = ?", (role, areas, row["id"]))
+    after = authz.label_of({"role": role, "areas": areas})
+    ctx.audit("changed a console user's role", row["username"], f"{before} → {after}",
+              before={"role": before, "areas": row["areas"]}, after={"role": after, "areas": areas})
+    return {"ok": True, "role_label": after}
+
+
+@route("DELETE", r"/admins/(?P<aid>\d+)", area="admin")
 def remove_admin(ctx, aid):
     aid = int(aid)
     if aid == ctx.admin["id"]:
@@ -1401,7 +1595,7 @@ def remove_admin(ctx, aid):
     if row["role"] == "owner" and ctx.db.scalar("SELECT COUNT(*) FROM admins WHERE role = 'owner'") <= 1:
         raise ApiError(400, "keep at least one owner")
     ctx.db.x("DELETE FROM admins WHERE id = ?", (aid,))
-    ctx.audit("removed a console user", row["username"])
+    ctx.audit("removed a console user", row["username"], before={"role": row["role"]})
     return {"ok": True}
 
 
@@ -1425,19 +1619,43 @@ def list_audit(ctx):
     q = ctx.arg("q")
     if q:
         like = "%" + q.replace("%", "").replace("_", "") + "%"
-        where.append("(action LIKE ? OR target LIKE ? OR detail LIKE ? OR actor LIKE ?)")
-        args += [like] * 4
+        where.append("(action LIKE ? OR target LIKE ? OR detail LIKE ? OR actor LIKE ? OR reason LIKE ?)")
+        args += [like] * 5
+    for col in ("outcome", "area", "correlation"):
+        if ctx.arg(col):
+            where.append(f"{col} = ?")
+            args.append(ctx.arg(col))
     rows = ctx.db.q("SELECT * FROM audit" + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY id DESC LIMIT ?",
                     args + [limit + 1])
     actors = [r["actor"] for r in ctx.db.q("SELECT DISTINCT actor FROM audit ORDER BY actor COLLATE NOCASE LIMIT 200")]
-    return {"items": rows[:limit], "more": len(rows) > limit, "actors": actors}
+    return {"items": [_audit_row(r) for r in rows[:limit]], "more": len(rows) > limit, "actors": actors}
+
+
+def _audit_row(r):
+    """An audit entry for the console: what changed comes back as data, and where it came from is labelled
+    honestly (an approximate place for a public address, never more)."""
+    from . import geo
+
+    r = dict(r)
+    for k in ("before_json", "after_json"):
+        raw = r.pop(k, None)
+        try:
+            r[k[:-5]] = json.loads(raw) if raw else None
+        except ValueError:
+            r[k[:-5]] = raw
+    r["place"] = geo.label(r.get("ip")) if r.get("ip") else None
+    return r
 
 
 @route("GET", r"/export\.csv")
 def export_csv(ctx):
+    """Every request in a window as a spreadsheet. Anyone in the console may export the facts; the prompt and
+    actions (what people typed and what the AI did) are included only for roles with the trust area, and every
+    export is audited with its range and who it covered."""
     since = ctx.arg("since", 0.0, float)
     until = ctx.arg("until", time.time() + 1, float)
     person = ctx.arg("person", cast=int)
+    content = ctx.can("trust")
     sql = ("SELECT r.*, p.name AS person, p.department FROM requests r LEFT JOIN people p ON p.id = r.person_id"
            " WHERE r.ts >= ? AND r.ts < ?" + (" AND r.person_id = ?" if person else "") + " ORDER BY r.id")
     rows = ctx.db.q(sql, [since, until] + ([person] if person else []))
@@ -1446,15 +1664,26 @@ def export_csv(ctx):
     w = csv.writer(buf)
     w.writerow(["id", "time", "person", "department", "tool", "provider", "model", "session", "outcome", "reason",
                 "input_tokens", "output_tokens", "cache_write_tokens", "cache_read_tokens", "cost_usd", "prompt",
-                "actions", "flags", "ip"])
+                "actions", "flags", "ip", "place", "purpose", "purpose_source", "purpose_confidence", "project",
+                "cost_basis", "cost_source", "rule"])
+    places = {}
     for r in rows:
-        actions = " | ".join(a["text"] for a in json.loads(r["actions"])) if r["actions"] else ""
+        actions = " | ".join(a["text"] for a in json.loads(r["actions"])) if r["actions"] and content else ""
+        ip = r["client_ip"] or ""
+        if ip and ip not in places:
+            places[ip] = geo.label(ip, ctx.db)
+        basis = "estimated" if r["cost"] is not None else ("unpriced" if r["outcome"] == "ok" and r["kind"] not in ("other", "media-status") else "")
         w.writerow([r["id"], time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(r["ts"] + offset)), r["person"] or "",
                     r["department"] or "", r["client"], r["provider"], r["model"] or "", r["session"] or "",
                     r["outcome"], r["reason"] or "", r["in_tok"], r["out_tok"], r["cache_write_tok"], r["cache_read_tok"],
-                    "" if r["cost"] is None else f"{r['cost']:.6f}", _csv_safe(r["prompt"]), _csv_safe(actions),
-                    r["flags"], r["client_ip"]])
-    ctx.audit("exported records", f"{len(rows)} rows")
+                    "" if r["cost"] is None else f"{r['cost']:.6f}", _csv_safe(r["prompt"]) if content else "", _csv_safe(actions),
+                    r["flags"], ip, places.get(ip, ""), r["purpose"] or "", r["purpose_source"] or "",
+                    "" if r["purpose_confidence"] is None else r["purpose_confidence"], _csv_safe(r["project"]),
+                    basis, r["cost_source"] or "", r["rule"] or ""])
+    when = lambda ts: time.strftime("%Y-%m-%d %H:%M", time.gmtime(ts + offset))  # noqa: E731
+    ctx.audit("exported records", f"{len(rows)} rows",
+              f"{when(since) if since else 'the beginning'} to {when(min(until, time.time()))}" + (f", person #{person}" if person else "")
+              + ("" if content else ", without prompts"), correlation=f"person:{person}" if person else None)
     return (buf.getvalue().encode("utf-8-sig"), "text/csv; charset=utf-8",
             {"Content-Disposition": 'attachment; filename="swangz-ai-activity.csv"', "Cache-Control": "no-store"})
 
@@ -1465,5 +1694,7 @@ def _csv_safe(text):
     return "'" + text if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
 
 
-# the control room's read-only lenses (trends, attention, security, devices, timeline, spend, search)
-from . import insight  # noqa: E402,F401  — importing registers its routes above
+# the control room's read-only lenses (trends, attention, security, devices, timeline, spend, search) and
+# the V2 areas: govern (purposes, models, policies, simulators), money (media rates, reports) and trust
+# (networks, incidents, notifications)
+from . import govern, insight, money, trust  # noqa: E402,F401  — importing registers their routes above

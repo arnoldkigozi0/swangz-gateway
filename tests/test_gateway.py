@@ -5,6 +5,8 @@ import threading
 import time
 import unittest
 
+from gateway.db import SCHEMA
+
 from .support import Rig, sse_events
 
 
@@ -803,9 +805,12 @@ class AccessGateTests(StaffBase):
         self.assertEqual(self.gate("POST", "/gate/close", {"id": r["id"], "seconds": 142}, token)[0], 200)
         row = rig.gw.db.one("SELECT * FROM site_usage WHERE id = ?", (r["id"],))
         self.assertEqual((row["outcome"], row["seconds"], row["host"]), ("allowed", 142, "app.midjourney.com"))
-        # the only columns are access-level: no prompt/content columns exist on site_usage
+        # the only columns are access-level: no prompt/content columns exist on site_usage. reason and rule are
+        # the gate's own decision (why it blocked a visit, and which company rule did), not anything from the page.
         cols = {c[1] for c in rig.gw.db.conn.execute("pragma table_info(site_usage)")}
-        self.assertEqual(cols, {"id", "tool_id", "person_id", "host", "outcome", "started", "ended", "seconds"})
+        self.assertEqual(cols, {"id", "tool_id", "person_id", "host", "outcome", "started", "ended", "seconds", "reason", "rule"})
+        self.assertEqual(rig.gw.db.one("SELECT reason FROM site_usage WHERE id = ?", (blocked_id,))["reason"],
+                         "The company isn't subscribed to this yet.")
         # admin sees the access log
         s, report = rig.api("GET", "/site-usage")
         self.assertGreaterEqual(report["blocked"], 1)
@@ -840,7 +845,9 @@ class HardeningTests(unittest.TestCase):
         status, health = self.rig.api("GET", "/health", who="viewer")
         self.assertEqual(status, 200)
         self.assertTrue(health["ok"])
-        self.assertEqual(health["schema"], 12)
+        self.assertEqual(health["schema"], len(SCHEMA))
+        anthropic = next(p for p in health["providers"] if p["name"] == "anthropic")
+        self.assertEqual(set(anthropic["last_hour"]), {"requests", "errors", "error_rate", "p50_ms", "p95_ms", "ttft_p50_ms"})
         self.assertGreaterEqual(health["uptime_seconds"], 0)
         self.assertTrue(any(p["name"] == "anthropic" for p in health["providers"]))
 

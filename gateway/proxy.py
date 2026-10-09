@@ -14,14 +14,14 @@ import ssl
 import threading
 import time
 
-from . import parse, pricing, security, store
+from . import parse, pricing, purpose, security, store
 
 STRIP_REQUEST = {
     "connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "proxy-connection", "te",
     "trailer", "trailers", "transfer-encoding", "upgrade", "host", "content-length", "authorization",
     "x-api-key", "x-goog-api-key", "accept-encoding", "cookie", "forwarded", "x-forwarded-for",
     "x-forwarded-proto", "x-forwarded-host", "x-real-ip", "xi-api-key", "hf-api-key", "hf-secret",
-    "x-sgw-internal", "x-sgw-person",
+    "x-sgw-internal", "x-sgw-person", "x-swangz-purpose", "x-swangz-project",
 }
 STRIP_RESPONSE = {
     "connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "trailers",
@@ -157,6 +157,7 @@ class Call:
             "resp_blob": None, "resp_format": None, "resp_bytes": 0,
             "request_class": None, "agent": None, "turn_id": None,
             "media_type": None, "units": None, "unit": None, "result_urls": None, "resp_ctype": None,
+            "rule": None,
         }
 
     # ------------------------------------------------------------ steps
@@ -193,6 +194,10 @@ class Call:
             or self.gw.dev_tool_gate(row, self.rec["client"])
         if gate:
             status, etype, message, why = gate
+            return self.refuse(status, etype, message, "blocked", why)
+        ruled = self.gw.policy_gate(row, self.rec["model"], self.kind, self.provider, self.rec["client"])
+        if ruled:
+            status, etype, message, why, self.rec["rule"] = ruled
             return self.refuse(status, etype, message, "blocked", why)
         if self.flags and self.gw.db.get_setting("block_secrets", "0") == "1":
             return self.refuse(403, "permission_error",
@@ -409,7 +414,16 @@ class Call:
             rec["model"] = rec["model"] or summary["model"]
             rec["reply"] = summary["reply"] or None
             rec["actions"] = json.dumps(summary["actions"]) if summary["actions"] else None
-            rec["cost"] = pricing.cost(pricing.find_price(gw.prices(), summary["model"] or rec["model"]), usage)
+            price = pricing.find_price(gw.prices(), summary["model"] or rec["model"])
+            rec["cost"] = pricing.cost(price, usage)
+            # which price row made this cost, and as of when — the cost is never recalculated later
+            rec["cost_source"] = f"price:{price['model']}@{int(price['updated'])}" if price else None
+        elif rec["kind"] == "media" and rec["outcome"] == "ok" and rec.get("units"):
+            from . import money
+
+            rec["cost"], rec["cost_source"] = money.media_cost(gw.db, rec)
+        if rec["kind"] not in ("other", "media-status"):
+            rec.update(purpose.classify(gw.db, rec, self.h.headers, enabled=gw.db.get_setting("purpose_inference", "1") == "1"))
         keep_bodies = gw.db.get_setting("store_bodies", "1") == "1"
         try:
             with gw.db.tx():

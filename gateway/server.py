@@ -11,7 +11,7 @@ import time
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import admin, catalog, google, icons, pricing, proxy, security, staff, store
+from . import admin, catalog, geo, google, icons, notify, policy, pricing, proxy, purpose, security, staff, store
 from .db import DB
 from .live import Live
 from .workspace import Workspaces
@@ -34,7 +34,9 @@ class Gateway:
     def __init__(self, settings):
         self.settings = settings
         self.db = DB(settings.db_path)
+        geo.bind(self.db)
         pricing.seed(self.db)
+        purpose.seed(self.db)
         catalog.seed(self.db)
         catalog.refine(self.db)
         self.live = Live()
@@ -45,6 +47,8 @@ class Gateway:
         self.started_at = time.time()
         self._prices = None
         self._prices_lock = threading.Lock()
+        self._gov = None
+        self._gov_lock = threading.Lock()
         self.trust_proxy = os.environ.get("GATEWAY_TRUST_PROXY", "") in ("1", "true", "yes")
         self.extra_endpoints = os.environ.get("GATEWAY_EXTRA_ENDPOINTS", "")
         # tunnels that terminate https without saying so (localhost.run): treat every request as https
@@ -69,6 +73,46 @@ class Gateway:
     def reload_prices(self):
         with self._prices_lock:
             self._prices = None
+
+    def governance(self):
+        """(model registry, enabled policies), cached until the console changes either."""
+        with self._gov_lock:
+            if self._gov is None:
+                self._gov = (policy.registry(self.db), policy.load(self.db))
+            return self._gov
+
+    def reload_governance(self):
+        with self._gov_lock:
+            self._gov = None
+
+    def policy_gate(self, key, model, kind, provider, client):
+        """The model registry and the company's policies, checked after the person's own rules.
+        -> None, or (status, error type, message, short reason, rule). Following a job already started
+        (media-status) and housekeeping calls (other) are not new use, so they are not refused here."""
+        if kind in ("other", "media-status"):
+            return None
+        registry, policies = self.governance()
+        if provider.is_chat and registry:
+            blocked = policy.model_gate(registry, model, key.get("department"))
+            if blocked:
+                return 403, "permission_error", blocked[0], blocked[1], "model:" + policy.find_model(registry, model)["id"]
+        if not policies:
+            return None
+        decision = policy.evaluate(self.db, self.settings, {"person_id": key["person_id"], "department": key.get("department")},
+                                   policy.request_scope(self.db, registry, client, provider.name, model), policies=policies)
+        if decision.allowed:
+            return None
+        return (403, "permission_error", decision.message, f"policy: {decision.policy['name']}"[:120],
+                f"policy:{decision.policy['id']}")
+
+    def tool_policy(self, person, tool, channel):
+        """Company policies for opening a tool (launch) or visiting its site -> None, or (message, rule)."""
+        _, policies = self.governance()
+        if not policies:
+            return None
+        decision = policy.evaluate(self.db, self.settings, {"person_id": person["id"], "department": person.get("department")},
+                                   policy.tool_scope(tool, channel), policies=policies)
+        return None if decision.allowed else (decision.message, f"policy:{decision.policy['id']}")
 
     def identify(self, token):
         """-> (key row joined with its person, key_id) — row is None when the key is wrong."""
@@ -120,6 +164,8 @@ class Gateway:
         """None when the request may go ahead, else (status, error type, message, short reason)."""
         if self.db.get_setting("paused", "0") == "1":
             return 403, "permission_error", "AI access is paused for everyone by an administrator.", "paused"
+        if provider is not None and provider.name in (self.db.get_setting("disabled_providers", "") or "").split(","):
+            return 403, "permission_error", f"{provider.label} is switched off by an administrator for now.", "provider switched off"
         if key["revoked"]:
             return 403, "permission_error", "this key was revoked by an administrator.", "key revoked"
         if key["person_status"] != "active":
@@ -194,9 +240,16 @@ class Gateway:
                 return forwarded.split(",")[0].strip()[:64]
         return h.client_address[0] if h.client_address else ""
 
-    def audit(self, actor, action, target="", detail="", ip=""):
-        self.db.x("INSERT INTO audit(ts, actor, action, target, detail, ip) VALUES(?,?,?,?,?,?)",
-                  (time.time(), actor, action, str(target), str(detail)[:2000], ip))
+    def audit(self, actor, action, target="", detail="", ip="", *, reason="", before=None, after=None, outcome="ok",
+              correlation=None, area=""):
+        """One entry in the append-only audit log. `before`/`after` are what changed (stored as JSON, with
+        secrets never passed in); `correlation` ties it to what it concerns, e.g. "request:812"."""
+        def js(v):
+            return None if v is None else json.dumps(v, default=str, sort_keys=True)[:8000]
+        self.db.x("INSERT INTO audit(ts, actor, action, target, detail, ip, reason, before_json, after_json, outcome, correlation, area)"
+                  " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                  (time.time(), actor, action, str(target), str(detail)[:2000], ip, (reason or "")[:500], js(before), js(after),
+                   outcome or "ok", correlation, area or ""))
 
     def log(self, message):
         sys.stderr.write(time.strftime("%Y-%m-%d %H:%M:%S ") + message + "\n")
@@ -213,19 +266,37 @@ class Gateway:
             self.audit("system", "created the first owner from the environment", s.bootstrap_admin)
 
     def maintain(self):
+        """Retention, then notifications. Every purge that removed something is written to the audit log
+        (after the audit log's own trim, so the entry itself survives)."""
         days = int(self.db.get_setting("retention_days", "90") or 0)
+        other = store.purge_categories(self.db, {k: self.db.get_setting(k, "0") for k in store.CATEGORIES})
         removed, orphans = store.purge(self.db, days)
-        if removed or orphans:
-            self.log(f"retention: removed {removed} old records and {orphans} unreferenced bodies")
+        if removed or orphans or other:
+            parts = ([f"{removed} request records older than {days} days"] if removed else []) \
+                + [f"{n} {store.CATEGORIES[k][0]}" for k, n in other.items()] \
+                + ([f"{orphans} unreferenced bodies"] if orphans else [])
+            self.log("retention: removed " + ", ".join(parts))
+            self.audit("system", "purged old records", "retention", "; ".join(parts),
+                       after={"requests": removed, "bodies_unreferenced": orphans, **other}, area="admin")
+        self.db.set_setting("maintenance_last", str(time.time()))
+        try:
+            notify.refresh(self)
+        except Exception as exc:  # noqa: BLE001 — a notification failure must not stop retention
+            self.log(f"notifications: refresh failed: {exc!r}")
 
-    def start_maintenance(self, every=3600):
+    def start_maintenance(self, every=3600, notify_every=300):
         def loop():
+            last = 0
             while True:
                 try:
-                    self.maintain()
+                    if time.time() - last >= every:
+                        last = time.time()
+                        self.maintain()
+                    else:
+                        notify.refresh(self)  # new notifications (and their email) between the hourly runs
                 except Exception as exc:
                     self.log(f"maintenance failed: {exc!r}")
-                time.sleep(every)
+                time.sleep(min(every, notify_every))
 
         threading.Thread(target=loop, name="maintenance", daemon=True).start()
 
