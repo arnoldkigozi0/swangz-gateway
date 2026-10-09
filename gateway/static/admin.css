@@ -140,8 +140,8 @@ code, pre, .mono { font-size: 12.5px; }
 .btn.primary:hover::after, .btn.primary:focus-visible::after, .btn.gold:hover::after, .btn.gold:focus-visible::after { transform: scaleX(1); }
 .btn.danger { border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); color: var(--bad-hi); background: transparent; }
 .btn.danger:hover { background: var(--bad-soft); border-color: color-mix(in srgb, var(--bad) 65%, var(--line)); color: var(--bad-hi); }
-.btn.danger.solid { background: var(--bad); color: #fff; border-color: var(--bad); }
-.btn.danger.solid:hover { background: color-mix(in srgb, var(--bad) 85%, #000); color: #fff; }
+.btn.danger.solid { background: var(--bad); color: var(--on-bad); border-color: var(--bad); }
+.btn.danger.solid:hover { background: color-mix(in srgb, var(--bad) 88%, var(--tx-1)); color: var(--on-bad); }
 .btn.danger.quiet { border-color: transparent; }
 .btn.quiet { border-color: transparent; background: transparent; color: var(--tx-2); padding: 0 10px; }
 .btn.quiet:hover { background: var(--ink-2); color: var(--tx-1); border-color: transparent; }
@@ -232,13 +232,29 @@ a.obj:hover > span { text-decoration: underline; text-underline-offset: 3px; }
 .tab-pane-wrap:focus { outline: none; }
 .tab-pane > *, .tab-pane-wrap > * { min-width: 0; }  /* a wide chart or table scrolls inside its box, never widens the view */
 .tab-help { margin: -4px 0 0; max-width: 78ch; color: var(--tx-2); font-size: 13px; line-height: 1.55; }
-/* vertical tabs: a quiet category list beside the content (Settings, Reports) */
-.tabs-wrap.vertical { grid-template-columns: 228px minmax(0, 1fr); gap: 32px; align-items: start; }
-.ptabs.vertical { flex-direction: column; gap: 1px; border-bottom: 0; border-right: 1px solid var(--line); padding-right: 12px; position: sticky; top: 16px; overflow: visible; }
-.ptabs.vertical button { justify-content: flex-start; padding: 8px 12px; margin: 0; border-bottom: 0; border-radius: var(--r-sm); font-size: 13.5px; font-weight: 560; width: 100%; text-align: left; white-space: normal; }
-.ptabs.vertical button .pt-l { flex: 1; }
-.ptabs.vertical button:hover { background: var(--ink-2); }
-.ptabs.vertical button.on { background: var(--ink-3); font-weight: 680; box-shadow: inset 2px 0 0 var(--accent); }
+/* vertical tabs: a grouped rail of categories beside the content (Settings). Grouped lists carry small uppercase group
+   labels and dividers; each tab can have an icon and a mark (a lock, a state). The chosen one has its own surface, a
+   ring, a bar and a heavier label — never colour alone. Below 1100px the rail folds into a grid of tiles. */
+.tabs-wrap.vertical { grid-template-columns: 236px minmax(0, 1fr); gap: 36px; align-items: start; }
+.ptabs.vertical { flex-direction: column; gap: 2px; border-bottom: 0; padding: 0; position: sticky; top: 20px; overflow: visible; }
+.ptabs.vertical .pt-group { padding: 18px 12px 7px; font-size: 10.5px; font-weight: 750; letter-spacing: var(--track-label); text-transform: uppercase; color: var(--tx-3); }
+.ptabs.vertical .pt-group:first-child { padding-top: 2px; }
+.ptabs.vertical .pt-group.rule { height: 1px; padding: 0; margin: 12px 12px 10px; background: var(--line); }
+.ptabs.vertical button { position: relative; justify-content: flex-start; gap: 11px; min-height: 38px; padding: 8px 12px 8px 14px; margin: 0; border: 0; border-radius: var(--r-sm);
+  font-size: 13.5px; font-weight: 580; color: var(--tx-2); width: 100%; text-align: left; white-space: normal; line-height: 1.3; transition: background var(--d-fast), color var(--d-fast); }
+.ptabs.vertical button .pt-l { flex: 1; min-width: 0; }
+.ptabs.vertical .pt-ic { display: grid; place-items: center; width: 18px; height: 18px; flex: none; color: var(--tx-3); transition: color var(--d-fast); }
+.ptabs.vertical .pt-ic svg { width: 16px; height: 16px; }
+.ptabs.vertical button:hover { background: var(--ink-2); color: var(--tx-1); border-bottom-color: transparent; }
+.ptabs.vertical button:hover .pt-ic { color: var(--tx-2); }
+.ptabs.vertical button.on { background: var(--ink-3); color: var(--tx-1); font-weight: 680; box-shadow: inset 0 0 0 1px var(--line-hi); }
+.ptabs.vertical button.on::before { content: ""; position: absolute; left: 0; top: 9px; bottom: 9px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
+.ptabs.vertical button.on .pt-ic { color: var(--accent-tx); }
+.ptabs.vertical button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: var(--r-sm); }
+.pt-mark { flex: none; display: inline-flex; align-items: center; }
+.pt-mark.bad { padding: 0 7px; line-height: 18px; border-radius: var(--r-full); background: var(--bad-soft); color: var(--bad-hi); font-size: 11px; font-weight: 700; white-space: nowrap; }
+.pt-mark.lock svg { width: 13px; height: 13px; color: var(--tx-3); }
+
 /* a section list inside a category: smaller, still underlined */
 .tab-pane .tabs-wrap:not(.vertical) .ptabs { gap: 18px; }
 .tab-pane .tabs-wrap:not(.vertical) .ptabs button { font-size: 13px; padding: 7px 1px 8px; }
@@ -569,7 +585,7 @@ dialog h3 { margin: 6px 0 0; font-size: 14px; }
 
 .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--ink-4); color: var(--tx-1); border: 1px solid var(--line-hi); padding: 11px 18px; border-radius: var(--r-md);
   box-shadow: var(--shadow-lg); z-index: var(--z-toast); max-width: calc(100vw - 32px); font-weight: 600; animation: u-enter var(--d-base) var(--e-out); }
-.toast.bad { background: var(--bad); color: #fff; border-color: var(--bad); }
+.toast.bad { background: var(--bad); color: var(--on-bad); border-color: var(--bad); }
 
 /* ------------------------------------------------------------ sign-in */
 
@@ -680,11 +696,14 @@ details.explain .method { padding: 6px 18px 18px; border-top: 1px solid var(--li
 @media (max-width: 1280px) {
 }
 @media (max-width: 1100px) {
-  .tabs-wrap.vertical { grid-template-columns: minmax(0, 1fr); gap: 18px; }
-  .ptabs.vertical { flex-direction: row; gap: 22px; position: static; overflow-x: auto; max-width: 100%; padding: 0; border-right: 0; border-bottom: 1px solid var(--line); }
-  .ptabs.vertical button { width: auto; white-space: nowrap; padding: 10px 1px 11px; margin-bottom: -1px; border-radius: 0; border-bottom: 2px solid transparent; }
-  .ptabs.vertical button:hover { background: none; }
-  .ptabs.vertical button.on { background: none; box-shadow: none; border-bottom-color: var(--accent); }
+  /* the rail folds into tiles: every category readable at once, nothing scrolled out of sight */
+  .tabs-wrap.vertical { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  .ptabs.vertical { position: static; display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 8px; }
+  .ptabs.vertical .pt-group { display: none; }
+  .ptabs.vertical button { min-height: 46px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--ink-1); }
+  .ptabs.vertical button:hover { background: var(--ink-2); }
+  .ptabs.vertical button.on { background: var(--ink-3); border-color: var(--line-hi); box-shadow: inset 0 -2px 0 var(--accent); }
+  .ptabs.vertical button.on::before { display: none; }
   .cols-2, .cols-even { grid-template-columns: minmax(0, 1fr); }
   .kpis.four, .kpis.five { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .kpis.five .kpi.hero { grid-column: 1 / -1; }
@@ -890,3 +909,84 @@ button.group-toggle:hover .gt-l, button.group-toggle:hover > svg { color: var(--
 .pf-n::before { content: counter(pf); }
 .pf-hint { margin: -6px 0 0; }
 .pf-review { margin: 0; padding: 12px 14px; border-left: 2px solid var(--accent); background: var(--ink-2); border-radius: 0 var(--r-sm) var(--r-sm) 0; color: var(--tx-1); line-height: 1.55; }
+
+/* ---------------------------------------------------------------- Settings: a workspace, not a list of tabs */
+/* Each category opens with its own header (where you are, what it covers, what your role can do), then its sections.
+   Sections read like a configuration product: sentence-case headings, roomy rows, the control on the right. */
+.settings-ws .tab-body { max-width: 960px; }
+.settings-ws .tab-pane { gap: 20px; }
+.set-head { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 16px; align-items: start; padding: 2px 0 22px; border-bottom: 1px solid var(--line); }
+.set-head-ic { display: grid; place-items: center; width: 42px; height: 42px; border-radius: var(--r-md); background: var(--ink-2); border: 1px solid var(--line); color: var(--accent-tx); }
+.set-head-ic svg { width: 20px; height: 20px; }
+.set-head.danger .set-head-ic { background: var(--bad-soft); border-color: color-mix(in srgb, var(--bad) 32%, var(--line)); color: var(--bad-hi); }
+.set-head-title { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; min-height: 26px; }
+.set-head h2 { margin: 0; font-size: 1.3rem; font-weight: 720; letter-spacing: -.018em; line-height: 1.2; }
+.set-head p { margin: 5px 0 0; color: var(--tx-2); font-size: 13.5px; line-height: 1.55; max-width: 72ch; }
+.set-chip { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: var(--r-full); border: 1px solid var(--line-hi); color: var(--tx-2);
+  font-size: 11.5px; font-weight: 650; white-space: nowrap; }
+.set-chip svg { width: 12px; height: 12px; }
+/* a category's sections: a quieter row inside its header — smaller than the rail, clearly beneath it */
+.set-head.has-sections { padding-bottom: 0; }
+.set-sections { grid-column: 1 / -1; margin-top: 18px; }
+.set-sections .ptabs { border-bottom: 0; gap: 2px; }
+.set-sections .ptabs button { padding: 8px 12px 10px; font-size: 13px; font-weight: 600; margin-bottom: -1px; }
+.set-sections .ptabs button.on { font-weight: 700; }
+.set-sections .ptabs button:first-child { padding-left: 2px; }
+/* sections and rows */
+.settings-ws .panel > header { padding: 15px 20px; }
+.settings-ws .panel > header h2 { font-size: 14.5px; font-weight: 700; letter-spacing: -.005em; text-transform: none; }
+.settings-ws .setting { grid-template-columns: minmax(0, 1fr) minmax(220px, 340px); gap: 10px 40px; padding: 18px 20px; }
+.settings-ws .setting.stack { grid-template-columns: minmax(0, 1fr); }
+.settings-ws .setting.stack .setting-control { justify-content: stretch; }
+.settings-ws .setting.stack .setting-control > input { max-width: 560px; }
+.settings-ws .setting-hint { max-width: 62ch; }
+.set-lock { display: inline-flex; align-items: center; gap: 5px; margin-left: 10px; vertical-align: 1px; font-size: 11.5px; font-weight: 600; color: var(--tx-3); white-space: nowrap; }
+.set-lock svg { width: 12px; height: 12px; }
+.setting.locked .setting-control { opacity: .8; }
+.settings-ws .savebar { bottom: 20px; border-color: color-mix(in srgb, var(--accent) 40%, var(--line-hi)); }
+.savebar input[type=text] { flex: 1 1 220px; min-width: 0; max-width: 320px; }
+/* Emergency: a status board with the one big stop, set apart from ordinary preferences */
+.settings-ws .ptabs.vertical button[data-tab="emergency"] .pt-ic { color: var(--bad-hi); }
+.em-board { position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px 32px; align-items: center; padding: 22px 24px 22px 27px;
+  border: 1px solid var(--line-hi); border-radius: var(--r-lg); background: var(--ink-1); }
+.em-board::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--ok); }
+.em-board.stopped { border-color: color-mix(in srgb, var(--bad) 60%, var(--line)); background: var(--bad-soft); }
+.em-board.stopped::before { background: var(--bad); }
+.em-state { display: flex; gap: 14px; align-items: flex-start; min-width: 0; }
+.em-dot { flex: none; width: 10px; height: 10px; margin-top: 27px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 4px var(--ok-soft); }
+.em-board.stopped .em-dot { background: var(--bad); box-shadow: 0 0 0 4px color-mix(in srgb, var(--bad) 25%, transparent); }
+.em-k { font-size: 10.5px; font-weight: 750; letter-spacing: var(--track-label); text-transform: uppercase; color: var(--tx-3); }
+.em-state h3 { margin: 5px 0 4px; font-size: 1.15rem; font-weight: 720; letter-spacing: -.012em; }
+.em-state p { margin: 0; color: var(--tx-2); font-size: 13.5px; line-height: 1.5; max-width: 60ch; }
+.em-act { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; text-align: right; }
+.em-hint { max-width: 32ch; color: var(--tx-3); font-size: 12px; line-height: 1.45; }
+.em-more { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+.em-more .em-k { grid-column: 1 / -1; padding: 4px 2px 2px; }
+.em-more a { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--r-md);
+  color: var(--tx-1); text-decoration: none; font-size: 13px; font-weight: 600; transition: border-color var(--d-fast), background var(--d-fast); }
+.em-more a span { color: var(--tx-3); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.em-more a:hover { border-color: var(--line-hi); background: var(--ink-2); }
+@media (max-width: 900px) {
+  .set-head { gap: 0 12px; padding-bottom: 18px; }
+  .set-head-ic { width: 36px; height: 36px; }
+  .set-head-ic svg { width: 18px; height: 18px; }
+  .set-head h2 { font-size: 1.15rem; }
+  .settings-ws .setting { grid-template-columns: minmax(0, 1fr); padding: 16px; }
+  /* a switch stays beside what it switches; a number or text field takes the line below */
+  .settings-ws .setting:has(> .setting-control > input.switch:only-child) { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; }
+  .settings-ws .setting:has(> .setting-control > input.switch:only-child) .setting-control { align-self: start; padding-top: 2px; }
+  .settings-ws .panel > header { padding: 14px 16px; }
+  .em-board { grid-template-columns: minmax(0, 1fr); padding: 18px 18px 18px 21px; }
+  .em-act { align-items: stretch; text-align: left; }
+  .em-act .btn { justify-content: center; }
+  .em-hint { max-width: none; }
+  .em-more { grid-template-columns: minmax(0, 1fr); }
+  .settings-ws .savebar { flex-wrap: wrap; bottom: 12px; }
+  .settings-ws .savebar .msg { flex-basis: 100%; }
+  .settings-ws .savebar input[type=text] { flex-basis: 100%; max-width: none; }
+  .settings-ws .savebar .btn { flex: 1 1 0; justify-content: center; }
+}
+@media (max-width: 640px) {
+  /* a plain table keeps its essential columns on a phone; the rest are on the larger screen */
+  .settings-ws .u-table:not(.cards) .hide-sm { display: none; }
+}

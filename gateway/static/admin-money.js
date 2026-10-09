@@ -172,11 +172,22 @@
 
   // ------------------------------------------------------------------ Settings
 
-  /* Settings: a category list beside the category. Two categories hold a few sections of their own — one level
-     only, kept in ?section= so a refresh or a shared link lands on the same place. Links from before the
-     categories (?tab=purposes, ?tab=prices, …) still land where they used to point. */
+  /* Settings: a grouped rail of categories beside the category. Each category opens with a header — what it is,
+     whether this role can change it, and (for the two that have them) its sections, kept in ?section= so a refresh
+     or a shared link lands in the same place. Choosing a category by hand opens its first section. Links from before
+     the categories (?tab=purposes, ?tab=prices, …) still land where they used to point. */
   const SETTINGS_OLD = { safety: ["access"], security: ["access"], governance: ["purpose"], purposes: ["purpose", "purposes"], locations: ["purpose", "locations"],
     addresses: ["providers", "addresses"], prices: ["providers", "prices"], rates: ["providers", "rates"] };
+  // id → label, icon, what it covers, and the areas its controls belong to (for "view only"; null = your own account)
+  const SETTINGS_CATS = {
+    access: ["Access & privacy", "shield", "How long records are kept, what is kept, the protections on every request, and what staff can do for themselves."],
+    purpose: ["Purpose & location", "target", "What requests can be for, and how a place is named — networks Swangz names first, then the offline location table."],
+    providers: ["Providers & pricing", "wallet", "Where each provider is reached, and the prices and rates every cost estimate is worked out from."],
+    browsers: ["Company browsers", "monitor", "Where shared accounts' company browsers run, and signing each one in to its tool."],
+    emergency: ["Emergency", "stop", "The stops: everything at once, one provider, or the company browsers. Each acts the moment it's confirmed, and is written to the audit log."],
+    users: ["Console users", "users", "Who can sign in to the control room, and what each role can change. Everyone here can see everything."],
+    account: ["Your account", "user", "The console account you're signed in with."],
+  };
   async function pageSettings(params) {
     const old = SETTINGS_OLD[params.get("tab")];
     if (old) {
@@ -185,27 +196,56 @@
       A.S.route = "#/settings?" + params.toString();
       history.replaceState(null, "", A.S.route);
     }
+    const st = await api("GET", "/settings");
     const mine = A.S.me.can || (A.isOwner() ? ["admin"] : []);
-    // a category's sections read the address when they are first shown, not when the page was
-    const sections = (list) => () => A.pageTabs("#/settings", new URLSearchParams(location.hash.split("?")[1] || ""), list, { param: "section", label: "Sections", help: false });
-    A.frame({ title: "Settings", lede: mine.length ? `The switches that govern the whole gateway. You can change what your role (${A.roleLabel()}) covers; every change is written to the audit log, with what it was before.`
-      : "You're a viewer: you can see these settings but not change them." },
-    A.pageTabs("#/settings", params, [
-      ["access", "Access & privacy", () => safetyTab(), null, "How long records are kept, what is kept, the protections on every request, and what staff can do for themselves."],
-      ["emergency", "Emergency", () => emergencyTab(), null, "The stops: everything at once, one provider, or the company browsers. Each acts immediately and is written to the audit log."],
-      ["purpose", "Purpose & location", sections([
+    const access = [...new Set(["retention_days", "store_bodies", "block_secrets", "rate_per_min", "staff_self_keys", "gate_log_full", "support_contact"]
+      .map((k) => (st.areas || {})[k] || "admin"))];
+    const areas = { access, purpose: ["govern", "trust", "admin"], providers: ["money"], browsers: ["govern"], emergency: ["emergency"], users: ["admin"], account: null };
+    const editable = (id) => !areas[id] || areas[id].some((a) => A.can(a));
+    const partly = (id) => areas[id] && editable(id) && !areas[id].every((a) => A.can(a));
+    // what the rail can honestly say about a category: a stop in force, or that this role can only look
+    const stopped = st.paused ? "AI paused" : st.disabled_providers.length ? `${st.disabled_providers.length} off` : st.workspace_paused ? "Browsers paused" : null;
+    const marks = {};
+    Object.keys(SETTINGS_CATS).forEach((id) => {
+      if (id === "emergency" && stopped) marks[id] = el("span", { class: "pt-mark bad" }, stopped);
+      else if (!editable(id)) marks[id] = el("span", { class: "pt-mark lock", title: "View only for your role" }, icon("lock"), el("span", { class: "u-sr" }, "(view only)"));
+    });
+    // a category's header: where you are, what it covers, what your role can do here, and its sections
+    const head = (id, sections) => {
+      const [label, ic, about] = SETTINGS_CATS[id];
+      const note = !editable(id) ? el("span", { class: "set-chip" }, icon("lock"), "View only")
+        : partly(id) ? el("span", { class: "set-chip" }, icon("lock"), "Some of these need another role") : null;
+      return el("header", { class: "set-head" + (id === "emergency" ? " danger" : "") + (sections ? " has-sections" : "") },
+        el("span", { class: "set-head-ic", "aria-hidden": "true" }, icon(ic)),
+        el("div", { class: "set-head-text" }, el("div", { class: "set-head-title" }, el("h2", null, label), note), el("p", null, about)),
+        sections || null);
+    };
+    const category = (id, build) => async () => [head(id), ...[].concat(await build()).filter(Boolean)];
+    // a category with sections: one level only, read from the address when it is first shown
+    const sectioned = (id, list) => () => {
+      const t = A.pageTabs("#/settings", new URLSearchParams(location.hash.split("?")[1] || ""), list, { param: "section", label: SETTINGS_CATS[id][0] + " sections", help: false, split: true });
+      return [head(id, el("div", { class: "set-sections" }, t.bar)), t.body];
+    };
+    A.frame({ title: "Settings", lede: mine.length ? `The switches that govern the whole gateway. Your role (${A.roleLabel()}) decides which ones you can change; every change is written to the audit log, with what it was before.`
+      : "You're a viewer: you can see every setting, but not change them." },
+    el("div", { class: "settings-ws" }, A.pageTabs("#/settings", params, [
+      ["access", SETTINGS_CATS.access[0], category("access", safetyTab)],
+      ["purpose", SETTINGS_CATS.purpose[0], sectioned("purpose", [
         ["purposes", "Purposes", () => purposesTab()],
         ["locations", "Locations", () => locationsTab()],
-      ]), null, "What requests can be for, and how a place is named — named networks first, then the offline location table."],
-      ["providers", "Providers & pricing", sections([
+      ])],
+      ["providers", SETTINGS_CATS.providers[0], sectioned("providers", [
         ["addresses", "Connections", () => addressesTab()],
         ["prices", "Model prices", () => pricesTab(A.can("money"))],
         ["rates", "Media rates", () => ratesTab()],
-      ]), null, "Where each provider is reached, and the prices and rates every cost estimate is worked out from."],
-      ["browsers", "Company browsers", () => workspaceTab(A.can("govern")), null, "Where shared accounts' company browsers run, and their health."],
-      A.can("admin") && ["users", "Console users", () => consoleUsersTab(), null, "Who can sign in to the control room, and which areas each role can change."],
-      ["account", "Your account", () => accountTab()],
-    ], { vertical: true, clears: ["section"], label: "Settings categories" }));
+      ])],
+      ["browsers", SETTINGS_CATS.browsers[0], category("browsers", () => workspaceTab(A.can("govern")))],
+      ["emergency", SETTINGS_CATS.emergency[0], category("emergency", emergencyTab)],
+      A.can("admin") && ["users", SETTINGS_CATS.users[0], category("users", consoleUsersTab)],
+      ["account", SETTINGS_CATS.account[0], category("account", accountTab)],
+    ], { vertical: true, clears: ["section"], label: "Settings categories", help: false,
+      icons: Object.fromEntries(Object.entries(SETTINGS_CATS).map(([id, c]) => [id, c[1]])), marks,
+      groups: [["Gateway", ["access", "purpose", "providers", "browsers"]], [null, ["emergency"]], ["Console access", ["users", "account"]]] })));
   }
 
   /* Access & records: grouped settings, one row each, and one save bar that appears only when something has
@@ -297,27 +337,32 @@
     });
     const unit = (input, text, key) => el("span", { class: "unit-wrap" }, el("span", { class: "unit" }, input, text), key ? fieldErr[key] : null);
     const anyEditable = st.areas ? Object.values(st.areas).some((a) => A.can(a)) : A.isOwner();
+    // a row this role can't change says which area it needs — unless nothing here is theirs (the header says so once)
+    const lock = (k) => (anyEditable && off(k) ? { lock: (st.areas || {})[k] || "admin" } : {});
+    const row = (k, label, hint, control, o) => A.settingRow(label, hint, control, { ...lock(k), ...(o || {}) });
     return [
-      A.panel("Records", `${st.records.toLocaleString()} requests · ${(st.db_bytes / 1048576).toFixed(1)} MB on disk`,
-        A.settingRow("Keep records for", "Older request records are deleted automatically every hour. 0 keeps everything. Staff see this number on their privacy page.", unit(retention, "days", "retention_days")),
-        A.settingRow("Keep full request and response bodies", "Needed to pull back exactly what was sent. Off keeps only the summary: who, model, prompt, commands, cost.", storeBodies),
-        A.settingRow("Full bodies", "Drop the stored bodies sooner than the record itself; the summary stays. 0 = as long as the record.", unit(ret.retention_bodies_days, "days", "retention_bodies_days")),
-        A.settingRow("Website visits", "The browser gate's log: which tool, when, how long. 0 = forever.", unit(ret.retention_site_days, "days", "retention_site_days")),
-        A.settingRow("Tools opened from Swangz AI", "0 = forever.", unit(ret.retention_launch_days, "days", "retention_launch_days")),
-        A.settingRow("Audit log", "At least 365 days, or 0 for forever: the record of what admins did should outlive what it watches. Every purge is itself written to the audit log.",
+      A.panel("Request records", `${st.records.toLocaleString()} requests · ${(st.db_bytes / 1048576).toFixed(1)} MB on disk`,
+        row("retention_days", "Keep records for", "Older request records are deleted automatically every hour. 0 keeps everything. Staff see this number on their privacy page.", unit(retention, "days", "retention_days")),
+        row("store_bodies", "Keep full request and response bodies", "Needed to pull back exactly what was sent. Off keeps only the summary: who, model, prompt, commands, cost.", storeBodies)),
+      A.panel("Retention by kind", "keep some records for less time · 0 = as long as the record, or forever",
+        row("retention_bodies_days", "Full bodies", "Drop stored bodies sooner than the record itself; the summary stays.", unit(ret.retention_bodies_days, "days", "retention_bodies_days")),
+        row("retention_site_days", "Website visits", "The browser gate's log: which tool, when, how long.", unit(ret.retention_site_days, "days", "retention_site_days")),
+        row("retention_launch_days", "Tools opened from Swangz AI", "Each Open from the staff app, with its browser and address.", unit(ret.retention_launch_days, "days", "retention_launch_days")),
+        row("retention_audit_days", "Audit log", "At least 365 days, or 0 for forever: the record of what admins did should outlive what it watches. Every purge is itself written to the audit log.",
           unit(ret.retention_audit_days, "days", "retention_audit_days"))),
-      A.panel("Protection", null,
-        A.settingRow("Refuse requests that contain credentials", "API keys, cloud keys, private keys. Off lets them through but flags them. On can interrupt an agent that reads a .env file.", blockSecrets),
-        A.settingRow("Rate limit", "Catches a runaway tool. 0 means no limit. A busy agent can make several requests a minute, so keep it generous.", unit(rate, "a minute, per person", "rate_per_min"))),
+      A.panel("Protection on every request", null,
+        row("block_secrets", "Refuse requests that contain credentials", "API keys, cloud keys, private keys. Off lets them through but flags them. On can interrupt an agent that reads a .env file.", blockSecrets),
+        row("rate_per_min", "Rate limit", "Catches a runaway tool. 0 means no limit. A busy agent can make several requests a minute, so keep it generous.", unit(rate, "a minute, per person", "rate_per_min"))),
       A.panel("Staff", null,
-        A.settingRow("Staff can connect their own devices", "In the Swangz AI app they create and disconnect their own keys. Every key still shows up under Devices, and you can revoke any of them.", selfKeys),
-        A.settingRow("Website gate: full-content logging", "Off by default, and the honest choice: the browser extension records only which approved site staff open and for how long. Staff are told in the extension's policy.", gateFull, { tone: "warn" }),
-        A.settingRow("Who staff contact for help", "Shown on the staff app's privacy page and wherever access is refused.", contact)),
-      anyEditable ? bar : el("div", { class: "notice info" }, icon("info"), "Your role can see these but not change them."),
+        row("staff_self_keys", "Staff can connect their own devices", "In the Swangz AI app they create and disconnect their own keys. Every key still shows up under Devices, and you can revoke any of them.", selfKeys),
+        row("gate_log_full", "Website gate: full-content logging", "Off by default, and the honest choice: the browser extension records only which approved site staff open and for how long. Staff are told in the extension's policy.", gateFull, { tone: "warn" }),
+        row("support_contact", "Who staff contact for help", "Shown on the staff app's privacy page and wherever access is refused.", contact, { stack: true })),
+      anyEditable ? bar : null,
     ];
   }
 
-  /* The stops. Each acts at once — after a deliberate yes — and is written to the audit log. */
+  /* The stops. A status board says what is running now and holds the one big stop; below it, one provider at a time
+     and the company browsers. Each acts at once — after a deliberate yes — and is written to the audit log. */
   async function emergencyTab() {
     const st = await api("GET", "/settings");
     const can = A.can("emergency");
@@ -326,32 +371,45 @@
     };
     const off = new Set(st.disabled_providers);
     const providerRows = st.providers.map((p) => {
-      const sw = A.switchInput(!off.has(p.name), !can, `${p.label || p.name} on`);
+      const name = p.label || p.name;
+      const sw = A.switchInput(!off.has(p.name), !can, `${name}: requests ${off.has(p.name) ? "refused" : "allowed"}`);
       sw.addEventListener("change", async () => {
         const turningOff = !sw.checked;
-        if (turningOff && !(await A.confirmAction(`Switch ${p.label || p.name} off?`, "Every new request to it is refused until it is switched back on. Requests already running finish.", "Switch off", true))) { sw.checked = true; return; }
+        if (turningOff && !(await A.confirmAction(`Switch ${name} off?`, "Every new request to it is refused until it is switched back on. Requests already running finish.", "Switch off", true))) { sw.checked = true; return; }
         const next = new Set(off);
         if (turningOff) next.add(p.name); else next.delete(p.name);
-        put({ disabled_providers: [...next] }, turningOff ? `${p.label || p.name} is off.` : `${p.label || p.name} is back on.`);
+        put({ disabled_providers: [...next] }, turningOff ? `${name} is off.` : `${name} is back on.`);
       });
-      return A.settingRow(el("span", { class: "row" }, p.label || p.name, off.has(p.name) ? SUI.status("blocked", "Off", { plain: true }) : null),
-        p.configured ? "Requests to it go through as usual." : "No company key on the server yet, so its requests are refused anyway.", sw);
+      return A.settingRow(el("span", { class: "row" }, name, off.has(p.name) ? SUI.status("blocked", "Off", { plain: true }) : p.configured ? SUI.status("ok", "On", { plain: true }) : SUI.status("none", "No key", { plain: true })),
+        off.has(p.name) ? "Switched off here: every new request to it is refused." : p.configured ? "Requests to it go through as usual." : "No company key on the server yet, so its requests are refused anyway.", sw);
     });
-    const ws = A.switchInput(!st.workspace_paused, !can, "Company browsers on");
+    const ws = A.switchInput(!st.workspace_paused, !can, "Company browsers: " + (st.workspace_paused ? "paused" : "running"));
     ws.addEventListener("change", async () => {
       if (!ws.checked && !(await A.confirmAction("Pause the company browsers?", "Nobody can open a shared tool in a company browser until they are resumed. Turns already running keep their browser until they end.", "Pause", true))) { ws.checked = true; return; }
       put({ workspace_paused: !ws.checked }, ws.checked ? "Company browsers resumed." : "Company browsers paused.");
     });
+    const onCount = st.providers.filter((p) => !off.has(p.name)).length;
+    const board = el("section", { class: "em-board" + (st.paused ? " stopped" : ""), "aria-labelledby": "em-state" },
+      el("div", { class: "em-state" },
+        el("span", { class: "em-dot", "aria-hidden": "true" }),
+        el("div", null,
+          el("div", { class: "em-k" }, "Right now"),
+          el("h3", { id: "em-state" }, st.paused ? "AI is paused for everyone" : "AI is running for everyone"),
+          el("p", null, st.paused ? "Every request is refused and the staff app's Open buttons are closed until someone resumes access."
+            : `${onCount} of ${SUI.plural(st.providers.length, "provider")} taking requests · company browsers ${st.workspace_paused ? "paused" : "running"}.`))),
+      el("div", { class: "em-act" },
+        can ? (st.paused ? el("button", { class: "btn primary", onclick: () => A.setPaused(false) }, "Resume access")
+          : el("button", { class: "btn danger solid", onclick: () => A.setPaused(true) }, icon("stop"), "Stop all AI")) : null,
+        el("span", { class: "em-hint" }, st.paused ? "Resuming opens everything again at once." : "Cuts every request in flight and refuses new ones. You'll be asked to confirm.")));
     return [
-      A.panel("Stop everything", null,
-        A.settingRow(el("span", { class: "row" }, "Kill switch", st.paused ? SUI.status("blocked", "AI is paused", { plain: true }) : SUI.status("ok", "AI is on", { plain: true })),
-          "Cuts every request in flight, refuses new ones, and closes the portal's Open buttons until someone resumes.",
-          can ? (st.paused ? el("button", { class: "btn primary", onclick: () => A.setPaused(false) }, "Resume access")
-            : el("button", { class: "btn danger", onclick: () => A.setPaused(true) }, icon("stop"), "Stop all AI")) : null)),
-      A.panel("One service at a time", "switch a provider off without stopping everything", providerRows),
+      board,
+      A.panel("One provider at a time", "switch a provider off without stopping everything", providerRows),
       A.panel("Company browsers", null, A.settingRow("Company browsers for shared accounts", "Pause if a workspace server misbehaves; the tools' own sites are unaffected.", ws)),
-      el("p", { class: "hint" }, "Also here, one at a time: stop a single request (Live), suspend a person or revoke a device (their page), take back a shared turn (the tool), switch a model off (Models). ",
-        can ? "" : "Your role can see these but not use them."),
+      el("nav", { class: "em-more", "aria-label": "Smaller stops elsewhere" }, el("span", { class: "em-k" }, "One at a time, elsewhere"),
+        el("a", { href: "#/live" }, "Stop a single request", el("span", null, "Live")),
+        el("a", { href: "#/people" }, "Suspend a person or revoke a device", el("span", null, "People")),
+        el("a", { href: "#/tools" }, "Take back a shared turn", el("span", null, "Tools")),
+        el("a", { href: "#/models" }, "Switch a model off", el("span", null, "Models"))),
     ];
   }
 
@@ -639,8 +697,8 @@
       el("div", { class: "row" }, prices.unpriced_models.map((m) => owner ? el("button", { class: "btn small", onclick: () => editPrice({ model: m }) }, icon("plus"), m) : SUI.badge(m, "warn")))) : null;
     return [unpriced, A.panel("Model prices", owner ? el("div", { class: "row" }, el("span", { class: "sub" }, "US dollars per million tokens"),
       el("button", { class: "btn small", onclick: () => editPrice({}) }, icon("plus"), "Add a price")) : "US dollars per million tokens",
-    SUI.table({ caption: "Model prices", rows: prices.items, sort: ["model", "asc"], columns: [
-      { key: "model", label: "Model", lead: true, render: (x) => el("span", { class: "mono" }, x.model) },
+    SUI.table({ caption: "Model prices", rows: prices.items, sort: ["model", "asc"], cards: false, columns: [
+      { key: "model", label: "Model", lead: true, render: (x) => el("span", { class: "mono nowrap" }, x.model) },
       { key: "input", label: "Input", num: true, render: (x) => usd(x.input) },
       { key: "output", label: "Output", num: true, render: (x) => usd(x.output) },
       { key: "cache_write", label: "Cache write", num: true, render: (x) => (x.cache_write === null ? "—" : usd(x.cache_write)), hideSm: true },

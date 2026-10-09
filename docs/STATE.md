@@ -350,6 +350,19 @@ The page-by-page map — what each page is for, what moved, and the one home of 
   light; viewer, operations, security and billing on the role-sensitive pages at 1440 / 768 / 390 in both
   themes; deep links, refresh and Back/Forward scripted; what each role is offered asserted page by page.
 
+### Oct 9, 2026 (V2.2) — Settings and staff Home redesigned (branch `ui/v2.2-settings-home-polish`)
+
+- **Settings** became a workspace: a grouped rail (Gateway · Emergency · Console access) with icons, a view-only lock per
+  category for the role and the stop state on Emergency; a header per category with its sections inside it; rows that
+  say which access they need when the role can't change them; an Emergency status board with the one big stop; a grid of
+  tiles below 1100px. Choosing a category opens its first section. No setting, permission or endpoint changed.
+- **Staff Home** became a launchpad: a state-aware hero with one action (back to the last tool opened, through `/go/`),
+  the other approved tools as the main column, and Updates, allowance (only when visible), Studio (only when available)
+  and supporting links beside them. Paused, suspended, no-tools and one-tool states each have their own composition.
+- Checked in headless Chromium at 1440×900, 1280×800, 1024×768, 768×1024, 430×932 and 390×844, dark and light (owner and
+  viewer on every Settings category and section; four staff states on Home), plus scripted navigation, role, form,
+  emergency and Home-state checks and axe-core (WCAG 2.1 AA) scans. Details in the PR.
+
 ### How it compares (Oct 2026)
 
 | Need | What established products do | Swangz AI |

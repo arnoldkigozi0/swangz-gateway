@@ -37,8 +37,8 @@ Written for the V2.1 clarity pass (Oct 9, 2026). Keep it current: when a page ga
 | Policies | Rules, trying them, explaining a decision | Editor showed every field at once | — | Policies · Simulate · Explain; the editor is grouped (basics, who, what, limits, message) with conditional fields shown only for their effect |
 | Licences & spend | Licences, metered spend, renewals | Licences opened with a spend figure; "Renewals & budgets" repeated spend by person | Spend, People | Licences (seats, use, idle, reclaim) · What cost us money? (metered spend) · Renewals (commitments only); budgets per person live on People |
 | Reports | Standard questions with CSV | A permanent nine-item vertical tab list | — | A catalogue that says what each report answers; each report on its own page with range and download |
-| Settings | Configure the gateway | Ten flat tabs; PR draft nested tabs shared `?tab=` and lost the section on refresh | — | Categories (secondary list): Access & privacy · Emergency · Purpose & location (Purposes, Locations) · Providers & pricing (Connections, Model prices, Media rates) · Company browsers · Console users · Your account. Old `?tab=` links still land in the right place |
-| Staff Home | Open your tools | Every approved tool repeated from the catalogue; cards for devices and privacy competed with the tools | Tools, Requests | A restrained hero, up to three notices (link to Updates), up to six of your tools (link to the catalogue), Studio and quick links |
+| Settings | Configure the gateway | Ten flat tabs; PR draft nested tabs shared `?tab=` and lost the section on refresh. V2.2: the category list was plain text with no grouping, the content had no header, Emergency looked like any preference, and phones got a cramped scrolling strip | — | A workspace (V2.2): a grouped rail — *Gateway* (Access & privacy · Purpose & location · Providers & pricing · Company browsers), *Emergency*, *Console access* (Console users · Your account) — with icons, a view-only lock per category for the role, and the stop state on Emergency. Each category opens with a header (what it is, "View only" or "Some of these need another role") that holds its sections (Purposes, Locations; Connections, Model prices, Media rates). Rows a role can't change say which access they need. Emergency is a status board with the one big stop, then one provider at a time and the company browsers, then links to the smaller stops. Below 1100px the rail becomes a grid of tiles. Choosing a category opens its first section; old `?tab=` links still land in the right place |
+| Staff Home | Open your tools | Every approved tool repeated from the catalogue; cards for devices and privacy competed with the tools. V2.2: no action in the hero, a "used this week" figure, every module full width and equal | Tools, Requests | A launchpad (V2.2): the hero says where you stand and holds one action — back to the tool you opened last (through `/go/`), or "Choose a tool", or "Browse the catalogue" when nothing is on; paused and suspended say so and offer nothing to open. Your other tools (up to five more, never the one in the hero) are the main column; beside them Updates (up to three, link to Updates), your allowance only when it's visible to you, Studio only when you have it, and quiet links to devices, requests and privacy |
 | Staff Tools | Find and open tools | Drawer repeated what's recorded in two places | Privacy | Catalogue: yours as cards, the rest as rows; drawer sections in one order, ending with a link to Privacy |
 | Staff Studio | Make media | Recent creations made the page long | — | Create · Your creations |
 | Staff Devices | Connect and manage devices | Setup cards, devices and old devices on one page | — | Connected · Connect a tool · Disconnected |
@@ -68,7 +68,7 @@ Written for the V2.1 clarity pass (Oct 9, 2026). Keep it current: when a page ga
 - **Console:** `A.pageTabs(base, params, tabs, opts)`. `tabs` are `[id, label, build, count?, description?]`. Each tab
   builds once, on first view. `opts.param` names the query key (default `tab`); a nested set uses its own key and the
   parent lists it in `opts.clears`, so choosing another category starts its sections over. `opts.vertical` is the
-  Settings-style category list (an underlined row on narrow screens); `opts.split` returns `{ bar, body }` for a
+  Settings-style category list (a grid of tiles on narrow screens); `opts.split` returns `{ bar, body }` for a
   side sheet. Every click is a history entry; Back and Forward switch the view in place. A form with unsaved changes
   calls `A.setDirty(() => changed)` so switching tabs, leaving the page or closing the window asks first; clear it
   with `A.setDirty(null)` after a save. Links from before a rename keep working: Settings maps old `?tab=` values,
@@ -100,3 +100,22 @@ Headless Chromium against the demo gateway (`tests/fake_upstream.py --demo`):
   the unsaved-changes guard, and old links.
 - **Roles, asserted page by page:** what each role is offered.
 - **Unit tests:** the Python suite.
+
+## Settings and Home (V2.2)
+
+- **Settings rail.** `pageTabs(…, { vertical: true, groups, icons, marks })`: `groups` are `[label | null, [ids]]` (no
+  label = a divider), `icons` an icon per tab, `marks` a node after a label (the view-only lock, Emergency's "AI paused"
+  / "2 off"). The rail answers all four arrows, Home and End, because below 1100px it folds into a grid of tiles.
+- **Category header.** Every category starts with `set-head`: icon, title, one line on what it covers, and — when the
+  role can change none of it or only some of it — "View only" or "Some of these need another role". Categories with
+  sections carry them in the header (`pageTabs(…, { param: "section", split: true })`), so the sections read as part of
+  the category, smaller than the rail. Choosing a category by hand opens its first section; Back, Forward and links
+  restore the exact section in the address.
+- **Rows.** `A.settingRow(label, hint, control, { lock: area })` marks a row this role can't change with the access it
+  needs. On phones a switch stays beside its label; numbers and text take the line below.
+- **Emergency.** A status board (what is running now, the one big stop or resume, its consequence), then switches for
+  one provider at a time and the company browsers, then links to the stops that live elsewhere. Every stop still asks
+  first. Text on a solid red fill uses `--on-bad`.
+- **Home.** Only real values: the lead tool is the one opened most recently from here (or the only one), never a guess;
+  no figure appears that doesn't help (no "0 used this week"); a tool is never shown twice; the allowance appears only
+  when the person's budget is visible to them; Studio only when their services include it and they're active.

@@ -46,6 +46,7 @@
   --info: #43B9F5; --info-hi: #78CEF9; --info-soft: rgba(67, 185, 245, .14);
   --warn: #F5B32B; --warn-hi: #F7C45C; --warn-soft: rgba(245, 179, 43, .14);
   --bad: #FF5D52;  --bad-hi: #FF8A82;  --bad-soft: rgba(255, 93, 82, .14);
+  --on-bad: #1F0705;   /* text on a solid --bad fill — 6.4:1 */
   --agent: #B79CFF; --agent-soft: rgba(183, 156, 255, .14);
   --live: var(--ok);
 
@@ -132,6 +133,7 @@
   --info: #1E7FC2; --info-hi: #15618F; --info-soft: #E6F1FA;
   --warn: #B5831A; --warn-hi: #8A6514; --warn-soft: #FBF2DD;
   --bad: #CE4136;  --bad-hi: #A93228;  --bad-soft: #FBE9E7;
+  --on-bad: #FFFFFF;   /* 4.7:1 on --bad */
   --agent: #6B4FC4; --agent-soft: #EFEAFB;
 
   --viz-1: #B07D12;
