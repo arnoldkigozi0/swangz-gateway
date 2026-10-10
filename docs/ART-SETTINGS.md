@@ -1,12 +1,14 @@
 # October 9 artwork and Settings
 
-The supplied archive is `Downloads/Oct 09 - 13_57.zip` (16 JPEGs). Selected the third image,
-`Create_architectural_portal_3D_a…_20261009140153.jpg`, for Home and the fifteenth image,
+The supplied archive is `Downloads/Oct 09 - 13_57.zip` (16 JPEGs). The first design pass used the third image,
+`Create_architectural_portal_3D_a…_20261009140153.jpg`, for Home. After visual review, Home now uses
+the sixteenth image, `Architectural_gateway_for_AI_pla…_20261009140153_5.jpg`: the layered, warmly
+lit entrance set in dark architecture. The fifteenth image,
 `Architectural_gateway_for_AI_pla…_20261009140153_4.jpg`, for sign-in. Originals remain in Downloads.
 Images with checkerboards baked into their pixels were excluded. No image generation or background
 removal was needed. WebP conversion preserves the supplied composition at quality 86.
 
-Home uses a framed matte image beside the welcome text, moving below the action on phones. Staff
+Home uses the sixteenth image in the ZIP, framed in a restrained matte panel beside the welcome text and moving below the action on phones. Its nested doorway and lighting carry the portal visual language without the detached circular badge. Staff
 sign-in uses a shaded doorway image panel; admin sign-in places the form beside the doorway on desktop
 and on an opaque card on phones. Both themes retain readable controls. Decorative `/static/door.svg`
 references are replaced; interface icons and tool logos are unchanged.

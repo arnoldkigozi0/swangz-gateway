@@ -470,3 +470,11 @@ boot startup with lingering, independent child recovery, local/public health che
 Netlify repoint/build/verification on tunnel changes. Uses the existing demo configuration/database
 and saved Netlify CLI login; credentials remain local. Continuous availability still needs an
 always-on host. Installation and maintenance are documented in `deploy/LAPTOP-AUTO.md`.
+
+
+### October 10 — Home artwork updated after visual review
+
+Replaced the circular sculpture on staff Home with the sixteenth supplied reference: nested dark
+architecture with a warm lit entrance. The wide image matches the existing hero panel proportion;
+the design is framed beside Home's copy on desktop and beneath the action on phones. Sign-in art is
+unchanged. Updated the review documentation to record the final selection.

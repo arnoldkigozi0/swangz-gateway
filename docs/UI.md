@@ -83,8 +83,8 @@ Written for the V2.1 clarity pass (Oct 9, 2026). Keep it current: when a page ga
 
 Obsidian & Gold, finished after Swangz Avenue Bookings: near-black neutral surfaces, champagne gold as light and
 accent, tight radii, sentence-case outline buttons with one primary per place. Owner-supplied artwork from
-`Oct 09 - 13_57.zip` replaces the decorative SVG: `static/home-welcome.webp` is the circular portal sculpture on
-staff Home; `static/login-welcome.webp` is the architectural doorway on staff/admin sign-in and welcome pages.
+`Oct 09 - 13_57.zip` replaces the decorative SVG: `static/home-welcome.webp` is the architectural nested doorway on
+staff Home; `static/login-welcome.webp` is the closer architectural doorway on staff/admin sign-in and welcome pages.
 Both are self-hosted and optimized (about 124 KB combined). Home keeps the image in a separate matte panel;
 sign-in uses a shaded image plane away from the form. No artwork sits behind tables, lists, charts or numbers.
 The optional entrance fade respects reduced motion. Interface and tool icons remain vectors.
