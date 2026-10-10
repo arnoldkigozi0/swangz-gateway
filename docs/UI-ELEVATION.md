@@ -49,10 +49,9 @@ with wrapping actions and stable sheet headers. Shared table and state improveme
 Tools, Models, Policies, commercial views, reports, investigation pages and profile tables.
 The category/child-section structure and dedicated Emergency experience remain intact.
 
-Only the existing self-hosted `gateway/static/door.svg` artwork was found. No new Home or login
-image paths are referenced. For later owner-supplied artwork, the proposed filenames are
-`gateway/static/home-welcome.webp` and `gateway/static/login-welcome.webp`. These are documentation
-conventions only: evaluate the supplied files, contrast and responsive crop before adding references.
+The owner-supplied Oct 9 photographs now appear in the staff Home hero and separate staff and admin
+sign-in scenes. Keep the Home artwork blended into the hero surface and the two sign-in images distinct.
+Preserve contrast for the foreground copy and keep decorative art out of data-heavy views.
 
 ## Repeat the browser checks
 

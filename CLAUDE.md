@@ -88,7 +88,7 @@ rather than reopening this.
   `admin.js` (frame, nav, routing, shared event renderers, exported as `window.SWA`); its pages live in
   `admin-monitor.js`, `admin-records.js`, `admin-govern.js`, `admin-money.js`, `admin-rules.js` and
   `admin-trust.js` and register routes with `SWA.page()`. Owner-supplied Oct 9 artwork is `static/home-welcome.webp` on staff Home and
-  `static/login-welcome.webp` on the two sign-in pages. Keep imagery separate from controls and data. Show evidence honestly: a cost is *estimated*
+  `static/login-welcome.webp` on staff sign-in and the distinct `static/admin-welcome.webp` on admin sign-in. Keep imagery separate from controls and data. Show evidence honestly: a cost is *estimated*
   (from which price or rate) or *unpriced*, a platform comes *from the user agent*, a place is a *named
   network*, *approximate* (offline table) or just the address type, a purpose is *declared*, *from the
   tool* or *inferred* with its confidence — never present an inference as a fact.

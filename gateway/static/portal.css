@@ -439,35 +439,45 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
 }
 
 
-/* Owner-supplied Oct 9 artwork: quiet matte surfaces, with text on a separate readable plane. */
+/* Owner-supplied Oct 9 artwork: let the architecture emerge from the page surface. */
 .hero { isolation: isolate; }
-.hero .shell { z-index: 1; }
+.hero .shell { z-index: 2; }
 .hero .shell > * { position: relative; }
 .hero .shell > .eyebrow { color: var(--accent-tx); }
-.hero.art::after { content: ""; position: absolute; z-index: 0; pointer-events: none; top: 24px; bottom: 24px;
-  right: max(var(--gutter), calc((100vw - var(--shell)) / 2 + var(--gutter))); width: min(480px, 36%);
-  background: #101416 url(/static/home-welcome.webp) no-repeat center / cover; border-radius: var(--r-lg);
-  border: 1px solid rgba(212, 185, 132, .18); }
+.hero.art::before { z-index: 1; background:
+  linear-gradient(90deg, var(--ink-0) 0%, color-mix(in srgb, var(--ink-0) 94%, transparent) 23%, color-mix(in srgb, var(--ink-0) 55%, transparent) 45%, transparent 70%, var(--ink-0) 100%),
+  linear-gradient(0deg, var(--ink-0) 0%, transparent 30%, transparent 72%, var(--ink-0) 100%); }
+.hero.art::after { content: ""; position: absolute; z-index: 0; pointer-events: none; inset: 0;
+  background: url(/static/home-welcome.webp) no-repeat 74% center / min(900px, 76%) 100%; }
 .home-hero .shell > h1, .home-hero .shell > .home-lede, .home-hero .shell > .home-act { max-width: 58%; }
 .home-hero .resume { width: min(580px, 58%); }
 .gate-art { background: #101416; }
-.gate-art::before { background: linear-gradient(90deg, rgba(8, 10, 11, .88), rgba(8, 10, 11, .38) 70%, rgba(8, 10, 11, .08)); mask-image: none; z-index: 1; }
+.gate-art::before { background:
+  linear-gradient(90deg, rgba(8, 10, 11, .70), rgba(8, 10, 11, .40) 43%, rgba(8, 10, 11, .08) 100%),
+  linear-gradient(0deg, rgba(8, 10, 11, .35), transparent 28%, transparent 74%, rgba(8, 10, 11, .24)); mask-image: none; z-index: 1; }
 .gate-art::after { content: ""; position: absolute; pointer-events: none; inset: 0;
-  background: url(/static/login-welcome.webp) no-repeat 68% center / cover; z-index: 0; }
+  background: url(/static/login-welcome.webp) no-repeat 68% center / cover; z-index: 0;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 13%, #000 82%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 13%, #000 82%, transparent 100%); }
 .gate-art > * { z-index: 2; }
 @media (prefers-reduced-motion: no-preference) { .hero.art::after, .gate-art::after { animation: art-in 600ms var(--e-out) both; } }
 @keyframes art-in { from { opacity: 0; } }
 @media (max-width: 900px) {
-  .hero.art::after { width: 33%; background-size: auto 100%; }
+  .hero.art::after { background-size: min(760px, 72%) 100%; background-position: 84% center; }
+  .hero.art::before { background: linear-gradient(90deg, var(--ink-0) 0%, color-mix(in srgb, var(--ink-0) 88%, transparent) 32%, transparent 76%, var(--ink-0) 100%),
+    linear-gradient(0deg, var(--ink-0), transparent 30%, transparent 72%, var(--ink-0)); }
   .home-hero .shell > h1, .home-hero .shell > .home-lede, .home-hero .shell > .home-act { max-width: 63%; }
   .home-hero .resume { width: 63%; }
 }
 @media (max-width: 640px) {
   .home-hero .shell > h1, .home-hero .shell > .home-lede, .home-hero .shell > .home-act { max-width: 100%; }
   .home-hero .resume { width: 100%; }
-  .hero.art::after { position: relative; display: block; inset: auto; width: auto; height: 180px; margin: 0 var(--gutter) 24px; background-size: cover; background-position: center 48%; }
+  .hero.art::after { inset: 0; background-size: auto 100%; background-position: 82% center; opacity: .66; }
+  .hero.art::before { background: linear-gradient(90deg, var(--ink-0) 0%, color-mix(in srgb, var(--ink-0) 82%, transparent) 42%, color-mix(in srgb, var(--ink-0) 20%, transparent) 100%),
+    linear-gradient(0deg, var(--ink-0), transparent 36%, transparent 68%, var(--ink-0)); }
+  .home-hero .shell { position: relative; }
+  .gate-art::before { background: linear-gradient(90deg, rgba(8, 10, 11, .68), rgba(8, 10, 11, .35) 60%, rgba(8, 10, 11, .15)); }
   .gate-art::after { background-position: 65% center; }
-  .gate-art::before { background: rgba(8, 10, 11, .66); }
 }
 
 /* ------------------------------------------------------------ views of one page (?view=) */
