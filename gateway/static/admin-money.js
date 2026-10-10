@@ -266,7 +266,7 @@
       ["emergency", SETTINGS_CATS.emergency[0], category("emergency", emergencyTab)],
       A.can("admin") && ["users", SETTINGS_CATS.users[0], category("users", consoleUsersTab)],
       ["account", SETTINGS_CATS.account[0], category("account", accountTab)],
-    ], { vertical: true, clears: ["section"], label: "Settings categories", help: false,
+    ], { vertical: true, mobileSelect: "Settings category", clears: ["section"], label: "Settings categories", help: false,
       railDescriptions: { access: "Records, privacy and safeguards", purpose: "Labels, networks and location", providers: "Connections and cost estimates", browsers: "Hosts and shared workspaces", emergency: "Pause access and services", users: "Console access and roles", account: "Profile and password" },
       icons: Object.fromEntries(Object.entries(SETTINGS_CATS).map(([id, c]) => [id, c[1]])), marks,
       groups: [["Gateway", ["access", "purpose", "providers", "browsers"]], [null, ["emergency"]], ["Console access", ["users", "account"]]] })));
@@ -328,7 +328,14 @@
     [retention, rate, contact, ...Object.values(ret)].forEach((x) => x.addEventListener("input", () => { check(); if (x.getAttribute("aria-invalid") === "true") showProblems(problems()); }));
     Object.values(days).forEach((x) => x.addEventListener("blur", () => showProblems(problems())));
     [storeBodies, blockSecrets, selfKeys, gateFull].forEach((x) => x.addEventListener("change", check));
-    discard.addEventListener("click", () => { A.setDirty(null); A.render(); });
+    discard.addEventListener("click", () => {
+      // Restore in place: a delayed refresh must not discard a new edit made after Discard.
+      for (const [key, input] of Object.entries(days)) input.value = first[key];
+      contact.value = first.support_contact;
+      for (const [key, input] of Object.entries({ store_bodies: storeBodies, block_secrets: blockSecrets,
+        staff_self_keys: selfKeys, gate_log_full: gateFull })) input.checked = first[key];
+      reason.value = ""; err.textContent = ""; showProblems({}); check();
+    });
     // what deserves a second look before it's saved: shorter keeping (older records go within the hour),
     // fewer bodies kept, wider logging of staff
     function consequences(v) {

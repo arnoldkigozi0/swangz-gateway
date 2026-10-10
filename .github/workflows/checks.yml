@@ -1,8 +1,11 @@
 name: Hub checks
 on:
   push:
-    branches: [main, 'feature/**']
+    branches: [main]
   pull_request:
+concurrency:
+  group: hub-checks-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:

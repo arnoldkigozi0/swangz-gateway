@@ -8,9 +8,13 @@
   async function list(params,kind,state){const q=new URLSearchParams({kind,limit:'30',offset:params.get('offset')||'0'});if(state)q.set('state',state);for(const k of ['week','q'])if(params.get(k))q.set(k,params.get(k));const data=await P.api('GET','/hub/reports?'+q);return el('div',null,H.reportRows(data,open),pagination(data));}
   async function weekly(params){
     const holder=el('div',{class:'hub-content'});const rid=params.get('report');
-    P.frame('Weekly reports',el('section',{class:'hub-page'},el('div',{class:'shell narrow'},P.sectionHead('Accountability','Weekly reports','Monday–Sunday in the company time zone. A submitted report clears its reporting requirement.'),holder)));
+    const intro=P.sectionHead('Accountability',rid?'Report details':'Weekly reports',rid?'Your declaration, supporting information and retained history.':'Monday–Sunday in the company time zone. A submitted report clears its reporting requirement.');
+    P.frame(rid?'Report details':'Weekly reports',el('section',{class:'hub-page'},el('div',{class:'shell narrow'},intro,holder)));
     if(rid){
       await SUI.load(holder,async()=>{const r=await P.api('GET','/hub/reports/'+encodeURIComponent(rid));
+        intro.querySelector('h1').textContent=r.kind==='adoption'?'Adoption report':'Weekly report';
+        intro.querySelector('.eyebrow').textContent=r.kind==='adoption'?'Adoption & impact':'Accountability';
+        intro.querySelector('p').textContent=r.kind==='adoption'?'Business purpose, projects and reported value. This declaration is separate from weekly accountability.':'Your tool-specific weekly declaration, system evidence and retained review history.';
         const back=el('a',{class:'btn btn--small',href:r.kind==='adoption'?'#/business?view=reports':'#/weekly?view=pending'},icon('chevronLeft'),'All reports');
         const heading=el('div',{class:'spread'},el('div',null,el('h2',null,r.tool_name),el('p',{class:'muted small'},r.period?`${r.period.week_start} – ${r.period.week_end} · due ${fmt.stamp(r.period.ends)} · ${r.period.timezone}`:'Adoption and business impact report')),H.status(r.state));
         if(['draft','returned'].includes(r.state)||params.get('amend')==='1'&&r.kind==='adoption')return el('div',{class:'hub-content'},back,heading,H.wizard(r,P.api,{params,amendment:params.get('amend')==='1',onDone:async()=>{P.S.me=await P.api('GET','/me');if(params.get('amend')){params.delete('amend');params.delete('step');history.replaceState(null,'','#/weekly?'+params);}P.render();}}));
