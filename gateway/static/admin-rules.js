@@ -1,5 +1,5 @@
 "use strict";
-/* Swangz Gateway — Govern: the model registry and company policies, with the two read-only tools that make
+/* Swangz AI Hub — Govern: the model registry and company policies, with the two read-only tools that make
    rules safe to change: the simulator (what a draft would have refused over recent history) and explain
    (why one person may or may not use one thing right now, check by check). The server decides every
    one of these; this page only asks it and shows the answer with its reasons. */
@@ -12,7 +12,7 @@
     deprecated: ["idle", "Deprecated"], disabled: ["blocked", "Disabled"], unlisted: ["none", "Unlisted"] };
   const CLASS = { public: "Public", internal: "Internal", confidential: "Confidential", restricted: "Restricted" };
   const EFFECT = { deny: ["Refuse", "stop"], hours: ["Permitted hours", "clock"], cap: ["Monthly cap", "wallet"] };
-  const CHANNEL = { request: "Requests through the gateway", launch: "Opening from Swangz AI", site: "Website visits" };
+  const CHANNEL = { request: "Requests through the gateway", launch: "Opening from Swangz AI Hub", site: "Website visits" };
   const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
   function countTabs(base, counts, current, order, labels) {

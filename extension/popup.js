@@ -20,7 +20,7 @@ async function render() {
   body.replaceChildren();
   if (st && st.signedIn) {
     body.append(
-      el("div", { class: "status" }, el("span", { class: "dot" }), "Connected to Swangz AI"),
+      el("div", { class: "status" }, el("span", { class: "dot" }), "Connected to Swangz AI Hub"),
       el("div", { class: "muted" }, st.base),
       el("div", { class: "muted" }, `Guarding ${st.count} AI site${st.count === 1 ? "" : "s"}.`),
       st.holding ? el("div", { class: "status" }, el("span", { class: "dot" }),
@@ -48,8 +48,8 @@ async function render() {
     } catch (e) { err.textContent = e.message; go.disabled = false; go.textContent = "Connect"; }
   } }, "Connect");
   body.append(
-    el("div", { class: "muted" }, "Sign in with your Swangz AI account to use approved AI sites at work."),
-    el("label", null, "Swangz AI address", base),
+    el("div", { class: "muted" }, "Sign in with your Swangz AI Hub account to use approved AI sites at work."),
+    el("label", null, "Swangz AI Hub address", base),
     el("label", null, "Work email", email),
     el("label", null, "Password", pass),
     err, go);

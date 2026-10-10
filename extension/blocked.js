@@ -13,7 +13,9 @@ function btn(label, cls, onclick, href) {
   const b = document.createElement("button"); b.className = cls; b.textContent = label; b.onclick = onclick; return b;
 }
 
-if (p.get("pending")) {
+if (p.get("report") && app) {
+  actions.append(btn("Complete weekly report", "primary", null, app.replace(/\/+$/, "") + "/#/weekly?report=" + encodeURIComponent(p.get("report"))));
+} else if (p.get("pending")) {
   done.innerHTML = '<p class="ok">You\'ve already asked for this — an admin will see it.</p>';
 } else if (app && toolId) {
   const ask = btn("Request access", "primary", async () => {
@@ -31,5 +33,5 @@ if (p.get("pending")) {
   });
   actions.append(ask);
 }
-if (app) actions.append(btn("Open Swangz AI", "ghost", null, app));
+if (app) actions.append(btn("Open Swangz AI Hub", "ghost", null, app));
 actions.append(btn("Go back", "ghost", () => history.length > 1 ? history.back() : window.close()));

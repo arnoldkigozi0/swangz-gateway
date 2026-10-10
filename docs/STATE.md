@@ -6,7 +6,7 @@ control plane added on Oct 9, and `SECURITY.md` for the threat model.
 ## Where it stands
 
 A working platform, built and tested. **258 unit tests** (`python3 -m unittest discover -s tests -t .`).
-Schema is **v18**. Nothing real has been called by a provider yet — there are no company API keys, and
+Schema is **v19**. Nothing real has been called by a provider yet — there are no company API keys, and
 the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
 
 ### Done and verified
@@ -19,7 +19,7 @@ the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
 - **Voice / image / video.** ElevenLabs and Higgsfield through the gateway (Studio in the staff app,
   or the official SDKs pointed at the gateway). Any other API service can be added as a `media`
   provider in `providers.json`.
-- **Tool catalog + entitlements (schema v5).** 49 tools (47 from the Swangz AI Tracker registry with
+- **Tool catalog + entitlements (schema v5).** 49 tools (47 from the Swangz Avenue AI Adoption Tracker registry with
   real pricing, plus Claude Code and Codex). A tool is enabled only when the company subscription is
   active AND the person is assigned it (direct or by department). `gateway/entitle.py` resolves every
   state. Dev tools (Claude Code, Codex) are enforced at the proxy by client name.
@@ -274,7 +274,7 @@ visibility for admins, simplicity for staff). Built on real data only:
   account; the full catalogue with filters, sort and a details drawer (what it does, *why you have it*,
   how sign-in works, who manages access, your recent use, what's recorded); device cards; a clearer
   Connect flow (device, gateway address, masked key with Show/Copy, then the steps); access requests
-  with decisions; and **How Swangz AI works** — what is recorded, what isn't, retention, who can see it,
+  with decisions; and **How Swangz AI Hub works** — what is recorded, what isn't, retention, who can see it,
   and the support contact (new Settings field). Bottom tab bar on phones.
 - **API** (`gateway/insight.py`, all read-only, viewers included): `/trends`, `/attention`, `/security`,
   `/devices`, `/devices/<key>`, `/timeline`, `/usage`, `/spend`, `/search`, `/tools/<id>/usage`; audit
@@ -365,10 +365,10 @@ The page-by-page map — what each page is for, what moved, and the one home of 
 
 ### How it compares (Oct 2026)
 
-| Need | What established products do | Swangz AI |
+| Need | What established products do | Swangz AI Hub |
 |---|---|---|
 | One launchpad for company apps | Okta / Microsoft Entra / JumpCloud dashboards; Google Workspace app launcher | ✅ staff launchpad, logos, recently opened |
-| Sign in once to every tool | SAML/OIDC SSO through the identity provider | ✅ Swangz AI itself: Continue with Google; ⚠️ each tool: launches its own SSO link |
+| Sign in once to every tool | SAML/OIDC SSO through the identity provider | ✅ Swangz AI Hub itself: Continue with Google; ⚠️ each tool: launches its own SSO link |
 | Turn access on/off, time-limited | Okta/Entra assignments; SCIM deprovisioning | ✅ per person / team, end dates; ❌ no SCIM (vendor seats still removed by hand) |
 | Licence use and waste | Zluri, Torii, Productiv, Zylo | ✅ seats vs use, idle seats, reclaim, renewals; ❌ no vendor API sync or invoice import |
 | AI API gateway with budgets | Portkey, LiteLLM, Cloudflare AI Gateway, Kong AI | ✅ keys, budgets, model rules, live cut-off, full records; ❌ no caching or provider failover |
@@ -378,10 +378,7 @@ The page-by-page map — what each page is for, what moved, and the one home of 
 
 ### Accounts are restricted to Swangz emails
 
-A person can only be given an account with a `@swangzavenue.com` email (configurable via
-`SWANGZ_EMAIL_DOMAINS`). The only exceptions are the owner `arnoldkigozi0@gmail.com` and the demo
-account `webdev02022007@gmail.com` (extendable via `SWANGZ_EMAIL_EXCEPTIONS`). Enforced when an admin
-adds or edits a person, so only allowed emails can ever sign in.
+Every account, including all administrator roles, requires the exact `@swangzavenue.com` domain. Only `arnoldkigozi0@gmail.com` and `marvinmusokessekatawa@gmail.com` are approved owner/admin exceptions. Environment allowlists cannot widen this policy. Server checks cover password/OAuth login, invitations, existing sessions, device keys, account management and bootstrap. See [Hub operations](HUB-OPERATIONS.md).
 
 ### Security model (summary)
 

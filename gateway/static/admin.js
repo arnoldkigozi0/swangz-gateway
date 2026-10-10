@@ -1,5 +1,5 @@
 "use strict";
-/* Swangz Gateway — the control room. This file is the core: sign-in, the frame and navigation, the
+/* Swangz AI Hub — the control room. This file is the core: sign-in, the frame and navigation, the
    command menu (Ctrl+K), routing, and the pieces every page shares. The pages themselves live in
    admin-*.js and register their routes here. Built on ui.js; plain DOM, no framework — everything a
    person typed is untrusted text and only ever lands in textContent. */
@@ -98,7 +98,7 @@
       timeline: "Everything in order of time: AI requests, tools opened, website visits, shared-account turns, sign-ins and access changes.",
       usage: "Totals per person and tool for the period — for comparing, not for reading individual requests.",
       ai: "One row per AI request through the gateway; open one for its full record.",
-      opens: "Tools opened from the Swangz AI portal, with the browser and address they were opened from.",
+      opens: "Tools opened from the Swangz AI Hub portal, with the browser and address they were opened from.",
       sites: "Visits to AI websites seen by the browser extension: which site, when and how long — never what was on the page.",
     },
     "#/licences": {
@@ -289,7 +289,7 @@
     const node = el("aside", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-label": label || "Details" });
     let release = null;
     function close() {
-      if (onClose) onClose();
+      if (onClose && onClose() === false) return;
       node.classList.remove("in"); scrim.classList.remove("in");
       setTimeout(() => { scrim.remove(); node.remove(); }, 320);
       document.removeEventListener("keydown", onKey);
@@ -588,7 +588,7 @@
 
   function showSignIn() {
     clearTimers();
-    document.title = "Sign in · Swangz Gateway";
+    document.title = "Sign in · Swangz AI Hub";
     const code = new URLSearchParams(location.search).get("auth_error");
     if (code) history.replaceState(null, "", location.pathname + location.hash);
     const err = el("div", { class: "err", role: "alert" }, code ? (AUTH_ERRORS[code] || "Sign-in didn't work. Try again.") : "");
@@ -596,10 +596,10 @@
     if (!GATEWAY) {
       fetch("/auth/options", { credentials: "include" }).then((r) => (r.ok ? r.json() : {})).then((opt) => {
         if (opt.google) google.append(el("a", { class: "btn google", href: "/auth/google/start?app=admin" }, googleMark(), "Continue with Google"),
-          el("div", { class: "or" }, el("span", null, "or with a username")));
+          el("div", { class: "or" }, el("span", null, "or with your account email")));
       }).catch(() => { /* no Google button */ });
     }
-    const user = el("input", { type: "text", autocomplete: "username", required: true, id: "si-user" });
+    const user = el("input", { type: "email", placeholder: "name@swangzavenue.com", autocomplete: "username", required: true, id: "si-user" });
     const pass = el("input", { type: "password", autocomplete: "current-password", required: true, id: "si-pass" });
     const go = el("button", { class: "btn primary block", type: "submit" }, "Sign in");
     const form = el("form", {
@@ -618,13 +618,13 @@
       },
     },
     el("div", { class: "signin-brand" }, el("img", { src: "/static/icon.svg", alt: "", width: 40, height: 40 }),
-      el("div", null, el("div", { class: "eyebrow" }, "Swangz Gateway"), el("h1", null, "Control room"))),
+      el("div", null, el("div", { class: "eyebrow" }, "Swangz AI Hub"), el("h1", null, "Control room"))),
     el("p", { class: "muted" }, "Mission control for company AI: who is using what, what it costs, and the switches to govern it."),
     google,
-    el("label", { class: "field", for: "si-user" }, "Username", user),
+    el("label", { class: "field", for: "si-user" }, "Email address", user),
     el("label", { class: "field", for: "si-pass" }, "Password", pass),
     err, go,
-    el("p", { class: "hint" }, "Console users only. Staff sign in to Swangz AI at the main address."));
+    el("p", { class: "hint" }, "Console users only. Staff sign in to Swangz AI Hub at the main address."));
     app.replaceChildren(el("main", { class: "signin" }, el("div", { class: "signin-card" }, form),
       el("div", { class: "signin-foot" }, SUI.themeButton())));
     user.focus();
@@ -667,7 +667,8 @@
       ["#/health", "Health", "pulse"]], "What's happening"],
     ["Govern", [["#/people", "People", "people"], ["#/requests", "Access requests", "requests"], ["#/tools", "Tools", "tools"], ["#/models", "Models", "chip"],
       ["#/policies", "Policies", "rule"]], "Access and rules"],
-    ["Money", [["#/licences", "Licences & spend", "licences"], ["#/reports", "Reports", "report"]], "Spend and licences"],
+    ["Reporting", [["#/weekly", "Weekly reporting", "report"], ["#/procurement", "Tool & subscription requests", "requests"]], "Accountability and adoption"],
+    ["Money", [["#/licences", "Licences & spend", "licences"], ["#/reports", "Spend reports", "report"]], "Spend and licences"],
     ["Trust", [["#/security", "Security", "shield"], ["#/incidents", "Incidents", "flag"], ["#/devices", "Devices", "device"], ["#/audit", "Audit log", "audit"],
       ["#/settings", "Settings", "settings"]], "Risks, records, settings"],
   ];
@@ -764,7 +765,7 @@
     const paused = S.overview && S.overview.paused;
     return el("aside", { class: "side" },
       el("a", { class: "brand", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }),
-        el("div", null, el("span", { class: "bn" }, "Swangz ", el("b", null, "Gateway")), el("small", null, "Control room"))),
+        el("div", null, el("span", { class: "bn" }, "Swangz ", el("b", null, "AI Hub")), el("small", null, "Control room"))),
       el("div", { class: "side-tools" },
         el("button", { class: "side-search", type: "button", onclick: () => openCommand(), "aria-label": "Search or jump to a page" }, icon("search"), el("span", null, "Search…"),
           el("span", { class: "u-kbd" }, navigator.platform && /Mac/.test(navigator.platform) ? "⌘K" : "Ctrl K")),
@@ -788,7 +789,7 @@
     const here = (location.hash || "#/").split("?")[0];
     const section = here === "#/" || here === "" ? "#/" : "#/" + here.split("/")[1];
     const active = SECTION_OF[section] || section;
-    document.title = (o.title ? o.title + " · " : "") + "Swangz Gateway";
+    document.title = (o.title ? o.title + " · " : "") + "Swangz AI Hub";
     const side = sidebar(active);
     const paused = S.overview && S.overview.paused;
     const banner = paused ? el("div", { class: "banner", role: "alert" }, icon("stop"),
@@ -796,7 +797,7 @@
       can("emergency") ? el("button", { class: "btn small primary", onclick: () => setPaused(false) }, "Resume access") : null) : null;
     const appbar = el("div", { class: "appbar" },
       el("button", { class: "btn quiet icon-only", type: "button", "aria-label": "Open navigation", onclick: () => openDrawer(active) }, icon("menu")),
-      el("a", { class: "brand mini", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }), "Gateway"),
+      el("a", { class: "brand mini", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }), "AI Hub"),
       el("button", { class: "btn quiet icon-only", type: "button", "aria-label": "Search", onclick: () => openCommand() }, icon("search")), bell());
     // Where you are: the area, then the pages above this one — never the page's own title again.
     const place = NAV.map(([group, links]) => ({ group, item: links.find(([href]) => href === active) })).find((x) => x.item);

@@ -1,7 +1,7 @@
-# Swangz Gateway — threat model and security controls
+# Swangz AI Hub — threat model and security controls
 
 What the gateway protects, from whom, how, and where the edges are. It describes the code as it is
-(schema v18, Oct 9, 2026). When something here stops being true, fix the code or fix this file.
+(schema v19, Oct 10, 2026). When something here stops being true, fix the code or fix this file.
 
 ## What is worth protecting
 
@@ -63,7 +63,7 @@ What the gateway protects, from whom, how, and where the edges are. It describes
 
 ## Privacy (Uganda Data Protection and Privacy Act, 2019)
 
-- Staff are told what is recorded, for how long, and who can see it (staff app → *How Swangz AI works*),
+- Staff are told what is recorded, for how long, and who can see it (staff app → *How Swangz AI Hub works*),
   including that a purpose may be guessed from keywords and is shown to admins as a guess.
 - Retention is per category (records, bodies, website visits, opens, audit) and enforced hourly.
 - Purpose inference can be switched off; location tables are offline; no content of third-party sites.
@@ -86,3 +86,5 @@ What the gateway protects, from whom, how, and where the edges are. It describes
 ## Reporting a problem
 
 Tell Arnold directly; don't open a public issue for anything that could expose keys or people's data.
+
+Hub identity and reporting: exact company-domain validation applies to every role and access boundary. The organisation explicitly authorises only arnoldkigozi0@gmail.com and marvinmusokessekatawa@gmail.com as owner/admin exceptions. Weekly report gates run at launch, extension and proxy boundaries, including Studio. Submissions and reviews preserve append-only versions; frozen evidence contains source IDs and metrics rather than prompt/page content. Recovery and migration procedures are in [Hub operations](HUB-OPERATIONS.md).

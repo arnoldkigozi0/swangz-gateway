@@ -1,5 +1,7 @@
 # Picking this up on another machine
 
+Historical deployment notes below. For the current Hub identity policy, migration and rollout procedure, see [Hub operations](HUB-OPERATIONS.md). The legacy webdev02022007@gmail.com demo identity is no longer allowed to access the Hub; only the two user-approved owner exceptions remain. No public deployment check was performed for this integration.
+
 Read `../CLAUDE.md` first (what the project is and its conventions), then `STATE.md` (what is built
 and what is next). This file is only about **moving to a different computer**.
 

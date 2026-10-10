@@ -1,8 +1,8 @@
-# Swangz AI Gateway
+# Swangz AI Hub
 
-> **New here?** Start with [`CLAUDE.md`](CLAUDE.md) for the project guide and conventions, then
+> **New here?** Start with [`AGENTS.md`](AGENTS.md) and [`CLAUDE.md`](CLAUDE.md) for the project guide and conventions, then
 > [`docs/STATE.md`](docs/STATE.md) for the current status and what's next. On a new machine:
-> `git clone … && cd swangz-gateway && claude` (Claude Code reads `CLAUDE.md` automatically).
+> clone the repository, read [Hub operations](docs/HUB-OPERATIONS.md), and run `python3 -m unittest discover`.
 
 One controlled way into AI for everyone at Swangz. Staff get a personal key and point their tools at
 the gateway instead of at Anthropic or OpenAI. The gateway holds the real provider keys, passes each
@@ -16,9 +16,8 @@ sub-agents) is unchanged — it is simply on the record.
 
 - Python 3.10+ standard library only. Nothing to install.
 - One SQLite file holds everything.
-- **Two apps on one address.** `/` is **Swangz AI**, the staff app: sign in, connect a tool in about a
-  minute, manage your own devices, see your allowance. It is simply how staff reach AI at work and
-  says nothing about monitoring. `/admin` is the **control room**, with roles (owner, operations,
+- **One platform with staff and admin workspaces.** `/` is **Swangz AI Hub**, the staff app: sign in, connect a tool in about a
+  minute, submit weekly and adoption reports, propose purchases, inspect their own recorded activity, and manage devices and allowance. `/admin` is the **control room**, with roles (owner, operations,
   security, billing, viewer) and an audit log of what the watchers themselves did — what changed,
   from what to what, and why.
 
@@ -32,7 +31,7 @@ is kept so an admin can play it back; image and video results are kept as their 
 
 Staff use them two ways:
 
-- **Studio**, inside the Swangz AI app: voice-overs, images and video in the browser, nothing to set up.
+- **Studio**, inside the Swangz AI Hub app: voice-overs, images and video in the browser, nothing to set up.
 - **Their own scripts and apps**, through the official SDKs pointed at the gateway (the app's "Connect
   a tool" shows the exact lines). The gateway accepts the key however each SDK sends it.
 
@@ -105,18 +104,19 @@ hash), so a long agent session costs about one copy of the conversation, not one
 git clone https://github.com/arnoldkigozi0/swangz-gateway.git
 cd swangz-gateway
 cp .env.example .env            # put the provider keys in it
-python3 -m gateway add-admin arnold
+read -r -p "Verified owner email: " HUB_OWNER_EMAIL
+python3 -m gateway add-admin "$HUB_OWNER_EMAIL"
 python3 -m gateway serve        # http://localhost:8787
 ```
 
 Open the control room at `/admin`, add a person under **People** with their work email, and press
 **Create sign-in link**. Send them the link (copy it, or share it on WhatsApp). They choose a password,
-land in the Swangz AI app, and connect their tools themselves — each device gets its own key, shown
+land in the Swangz AI Hub app, and connect their tools themselves — each device gets its own key, shown
 once, with the exact lines to paste. An owner can also issue keys directly from a person's page.
 
 ## Connecting tools
 
-Staff normally do this from the Swangz AI app ("Connect a tool"), which fills in the real address and
+Staff normally do this from the Swangz AI Hub app ("Connect a tool"), which fills in the real address and
 key. For reference:
 
 **Claude Code** — in `~/.claude/settings.json`:
@@ -140,7 +140,7 @@ compaction, background task) and group requests by the prompt they serve, so the
 model_provider = "swangz"
 
 [model_providers.swangz]
-name = "Swangz AI Gateway"
+name = "Swangz AI Hub"
 base_url = "https://ai.example.com/openai/v1"
 env_key = "SWANGZ_AI_KEY"
 wire_api = "responses"
@@ -166,8 +166,8 @@ Environment variables (or a `.env` file next to where you run it):
 | `GATEWAY_TZ_OFFSET` | `+03:00` | when budget days and months start |
 | `GATEWAY_TRUST_PROXY` | off | set to `1` behind a reverse proxy or tunnel: client IPs and the public address come from `X-Forwarded-*` |
 | `GATEWAY_FORCE_HTTPS` | off | set to `1` behind a tunnel that serves https but doesn't say so (localhost.run) |
-| `SWANGZ_EMAIL_DOMAINS` | `swangzavenue.com` | accounts must use an email on these domains (comma-separated) |
-| `SWANGZ_EMAIL_EXCEPTIONS` | — | extra emails allowed besides the Swangz domains (the owner and demo accounts are always allowed) |
+| Identity policy | exact `swangzavenue.com` | enforced for staff and all admin roles; only the two explicitly approved owners are exceptions |
+| `GATEWAY_TIMEZONE` | `Africa/Kampala` | Monday-to-Monday weekly reporting periods; budget offset remains separate |
 | `GATEWAY_CORS_ORIGINS` | — | web origins allowed to call the API cross-site, e.g. a staff app on Netlify (comma-separated); see [`deploy/NETLIFY.md`](deploy/NETLIFY.md) |
 | `GATEWAY_PROVIDERS` | — | path to a JSON list of extra providers (see below) |
 | `GATEWAY_WORKSPACE_AGENT`, `GATEWAY_WORKSPACE_AGENT_TOKEN` | — | the Swangz Workspace Agent's address and token: company browsers for shared accounts, one per person on a turn, started when needed; see [`deploy/WORKSPACE.md`](deploy/WORKSPACE.md) |
@@ -269,7 +269,7 @@ and Privacy Act expects people to be told, and that note covers it without makin
 ## Command line
 
 ```
-python3 -m gateway serve | add-admin USER [--role owner|operations|security|billing|viewer] | add-person NAME [--department D]
+python3 -m gateway serve | add-admin EMAIL [--role owner|operations|security|billing|viewer] | add-person NAME --email EMAIL [--department D]
                    issue-key PERSON_ID [--label L] | revoke-key KEY_ID | people | pause | resume | purge
                    geoip-import FILE --source "DB-IP Lite 2026-10"
 ```
@@ -288,3 +288,5 @@ key handling, every refusal, budgets, cutting live streams, record rebuilding, r
 console API and its permissions, and (`tests/test_v2.py`) roles, the audit fabric, location, purpose,
 the model registry, policies and their simulator, media costs, reports, incidents, notifications, risk
 signals and migrations from v12.
+
+Native adoption reporting, weekly accountability, procurement, migration and operating instructions: [Hub operations](docs/HUB-OPERATIONS.md).

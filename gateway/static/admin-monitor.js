@@ -128,7 +128,7 @@
         : SUI.stateBox({ icon: "calendar", compact: true, title: "No renewals soon", text: "Nothing renews in the next 30 days." })));
 
     const urgent = att ? att.filter((i) => i.severity === "high" || i.severity === "medium").length : 0;
-    A.frame({ title: "Overview", lede: `Swangz AI at a glance — ${fmt.weekday(Date.now() / 1000)}. Times in ${SUI.tzLabel()}.`,
+    A.frame({ title: "Overview", lede: `Swangz AI Hub at a glance — ${fmt.weekday(Date.now() / 1000)}. Times in ${SUI.tzLabel()}.`,
       actions: [el("a", { class: "btn", href: "#/activity" }, icon("activity"), "Activity"), el("a", { class: "btn primary", href: "#/live" }, icon("live"), "Open Live")] },
     [kpis, A.pageTabs("#/", params, [
       ["now", "Right now", nowTab, urgent || null],
@@ -164,7 +164,7 @@
     const finished = el("ol", { class: "events flat" });
     const shared = el("div"), opens = el("div"), sites = el("div");
     const sharedPanel = A.panel("Shared company accounts", "who holds a turn now", shared);
-    A.frame({ title: "Live", lede: "What is happening across Swangz AI right now.", status: conn }, [
+    A.frame({ title: "Live", lede: "What is happening across Swangz AI Hub right now.", status: conn }, [
       kpis,
       el("div", { class: "grid cols-2" },
         el("div", { class: "grid" },
@@ -531,7 +531,7 @@
       model: params.get("model") || "", dept: params.get("dept") || "" };
     const q = el("input", { type: "search", placeholder: "Search prompts, commands, replies…", value: st.q });
     const ctl = { person: personSelect(list, st.person), dept: deptSelect(list, st.dept),
-      client: el("select", { "aria-label": "Application" }, ["", "Claude Code", "Codex", "Swangz AI Studio", "Cursor", "OpenAI SDK", "Anthropic SDK", "curl", "unknown"].map((c) => el("option", { value: c }, c || "Any application"))),
+      client: el("select", { "aria-label": "Application" }, ["", "Claude Code", "Codex", "Swangz AI Hub Studio", "Cursor", "OpenAI SDK", "Anthropic SDK", "curl", "unknown"].map((c) => el("option", { value: c }, c || "Any application"))),
       model: el("input", { type: "text", placeholder: "e.g. claude-sonnet-4-5", value: st.model, "aria-label": "Model" }),
       outcome: el("select", { "aria-label": "Outcome" }, [["", "Any outcome"], ["ok", "Completed"], ["blocked", "Blocked"], ["denied", "Wrong key"], ["cut", "Stopped"], ["aborted", "Closed by the tool"], ["error", "Failed"]].map(([v, t]) => el("option", { value: v }, t))),
       show: el("select", { "aria-label": "Show" }, [["", "All requests"], ["media", "Voice, image & video"], ["prompts", "Only typed prompts"], ["secret", "Credentials flagged"], ["all", "Include token counts & other calls"]].map(([v, t]) => el("option", { value: v }, t))) };
@@ -606,7 +606,7 @@
       box.replaceChildren(data.items.length ? el("div", null,
         refused ? el("div", { class: "body" }, el("div", { class: "notice" }, `${SUI.plural(refused, "open")} refused — the person wasn't entitled at that moment.`)) : null,
         A.eventDays(data.items).node)
-        : SUI.stateBox({ icon: "open", title: "No tools opened in this period", text: "When staff press Open in Swangz AI, it appears here with the device and address it came from." }));
+        : SUI.stateBox({ icon: "open", title: "No tools opened in this period", text: "When staff press Open in Swangz AI Hub, it appears here with the device and address it came from." }));
     }
     const apply = () => {
       fb.draw();
@@ -627,7 +627,7 @@
       { key: "opens", label: "Visits", num: true },
       { key: "blocked", label: "Blocked", num: true, render: (t) => (t.blocked ? SUI.status("blocked", String(t.blocked), { plain: true }) : "—") },
       { key: "seconds", label: "Time", num: true, render: (t) => fmt.dur(t.seconds) }] })
-      : SUI.stateBox({ icon: "globe", title: "No website visits yet", text: "Staff need the Swangz AI Access browser extension installed." });
+      : SUI.stateBox({ icon: "globe", title: "No website visits yet", text: "Staff need the Swangz AI Hub Access browser extension installed." });
     const visits = usage.items.slice(0, 300);
     return [
       el("div", { class: "notice info" }, icon("shield"), "The browser extension records which approved AI site was opened, by whom, when and for how long — never page content or anything typed."),

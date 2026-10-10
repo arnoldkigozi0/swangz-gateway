@@ -91,7 +91,7 @@
     dept.addEventListener("change", () => { st.dept = dept.value; apply(); });
     draw();
     const add = A.can("govern") ? el("button", { class: "btn primary", onclick: addPerson }, icon("plus"), "Add person") : null;
-    A.frame({ title: "People", lede: "Everyone with Swangz AI access — their status, devices, and what they spend.", actions: add }, [
+    A.frame({ title: "People", lede: "Everyone with Swangz AI Hub access — their status, devices, and what they spend.", actions: add }, [
       A.panel(null, null,
         el("div", { class: "filterbar" }, el("div", { class: "fb-row" },
           A.seg(tabs, st.status, (v) => { st.status = v; apply(); }, "Show"),
@@ -257,13 +257,13 @@
       const all = await api("GET", "/devices");
       const mine = all.items.filter((d) => d.person_id === p.id);
       const browsers = all.browsers.filter((b) => b.person_id === p.id);
-      const signInState = { active: "Signs in to the Swangz AI app" + (p.last_login ? ` · last signed in ${fmt.ago(p.last_login)}` : ""),
+      const signInState = { active: "Signs in to the Swangz AI Hub app" + (p.last_login ? ` · last signed in ${fmt.ago(p.last_login)}` : ""),
         invited: `Sign-in link sent — valid until ${fmt.stamp(p.invite_expires)}`, none: "No app sign-in yet" }[p.sign_in];
       return [
         A.panel("Devices", SUI.plural(mine.filter((d) => d.state !== "revoked").length, "active key"), mine.length ? deviceTable(mine, true)
           : A.empty("No keys yet. Issue one per laptop or coding tool.", "No devices", "device")),
         el("div", { class: "grid cols-even" },
-          A.panel("Swangz AI app", null, el("div", { class: "body stack" },
+          A.panel("Swangz AI Hub app", null, el("div", { class: "body stack" },
             el("div", { class: "row" }, signInBadge(p.sign_in), el("span", { class: "muted" }, signInState)),
             el("div", { class: "hint" }, p.email ? `They sign in at ${S.me.base_url}/ with ${p.email}, or with Continue with Google if that email is their Google account.`
               : "Add their email under Details first — it is what they sign in with."),
@@ -335,7 +335,7 @@
       ["overview", "Overview", overviewTab],
       ["access", "Access", async () => accessTab(), p.tool_summary.enabled, "The tools they have and why, and the other limits on what they can do."],
       ["activity", "Activity", activityViews, null, "Everything they did, in order, and their AI sessions."],
-      ["devices", "Devices", devicesTab, activeKeys.length, "Their keys, how they sign in to the Swangz AI app, and the browsers they open tools in."],
+      ["devices", "Devices", devicesTab, activeKeys.length, "Their keys, how they sign in to the Swangz AI Hub app, and the browsers they open tools in."],
       ["security", "Security", securityTab, alerts || null, "Signals involving them in the last 30 days — what to look into, not a history."],
       ["account", "Account", accountTab],
     ], { label: p.name })]);
@@ -389,7 +389,7 @@
   async function inviteLink(p) {
     try {
       const out = await api("POST", `/people/${p.id}/invite`);
-      const text = `Hi ${p.name}, here is your Swangz AI sign-in link (valid ${out.expires_days} days): ${out.link}`;
+      const text = `Hi ${p.name}, here is your Swangz AI Hub sign-in link (valid ${out.expires_days} days): ${out.link}`;
       A.dialog(`Sign-in link for ${p.name}`, el("div", { class: "stack" },
         el("p", { class: "muted" }, `Send this to ${p.name} privately. It works once, for ${out.expires_days} days, and lets them choose a password for ${out.email}. Any older link stops working.`),
         el("div", { class: "spread" }, el("div", { class: "keybox" }, out.link), el("button", { class: "btn", onclick: () => SUI.copy(out.link) }, icon("copy"), "Copy link"))),
@@ -1105,11 +1105,11 @@
         el("span", null, state === "open" ? "granting turns the tool on for them at once" : "decisions are in the audit log too")].filter(Boolean));
       box.replaceChildren(items.length ? el("ul", { class: "reqlist" }, items.map(row))
         : SUI.stateBox({ icon: "requests", tone: state === "open" && !qq ? "ok" : null, title: qq ? "Nothing matches" : state === "open" ? "No open requests" : "Nothing here yet",
-          text: qq ? "Try another search." : state === "open" ? "When staff ask for a tool in Swangz AI, it appears here." : "Decided requests appear here." }));
+          text: qq ? "Try another search." : state === "open" ? "When staff ask for a tool in Swangz AI Hub, it appears here." : "Decided requests appear here." }));
     }
     q.addEventListener("input", SUI.debounce(() => { st.q = q.value; A.keepParams("#/requests", { q: st.q || null }); draw(); }, 150));
     draw();
-    A.frame({ title: "Access requests", lede: "Staff asking for tools in Swangz AI. Granting turns the tool on for them straight away." },
+    A.frame({ title: "Access requests", lede: "Staff asking for tools in Swangz AI Hub. Granting turns the tool on for them straight away." },
       A.panel(null, null,
         el("div", { class: "filterbar" }, el("div", { class: "fb-row" },
           A.seg(tabs, state, (v) => { location.hash = "#/requests" + (v === "open" ? "" : "?state=" + v); }, "Which requests"), el("span", { class: "fb-gap" }),

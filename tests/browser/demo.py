@@ -1,5 +1,6 @@
 """Temporary local fixtures for UI checks; all provider traffic uses FakeUpstream."""
 import json
+import os
 import signal
 import sys
 import threading
@@ -20,11 +21,18 @@ try:
         assert rig.api("POST", f"/people/{rig.person_id}/tools/{tool}")[0] == 200
     for role in ("operations", "security", "billing"):
         rig.gw.db.x("INSERT INTO admins(username,pw_hash,role,areas,created) VALUES(?,?,?,?,?)",
-                    (role, security.hash_password(role + "-password", 1000), *authz.stored(role), time.time()))
+                    (role + "@swangzavenue.com", security.hash_password(role + "-password", 1000), *authz.stored(role), time.time()))
     for _ in range(3):
         assert rig.anthropic({"model": "claude-haiku-4-5", "messages": [{"role": "user", "content": "Local UI test fixture"}]},
                              extra={"x-claude-code-session-id": "local-ui-session"})[0] == 200
-    print(json.dumps({"url": rig.settings.public_url, "person": rig.person_id, "key": rig.key_id, "session": "local-ui-session"}), flush=True)
+    reports=[]
+    if os.environ.get("HUB_UI_FIXTURE"):
+        from gateway import reporting
+        start=reporting.week(rig.gw)['starts']-7*86400
+        for tool in ('chatgpt','canva'):
+            rig.gw.db.x("INSERT INTO launches(tool_id,person_id,ts,outcome) VALUES(?,?,?,'opened')",(tool,rig.person_id,start+60))
+        reports=reporting.compile_closed(rig.gw)
+    print(json.dumps({"reports": reports, "url": rig.settings.public_url, "person": rig.person_id, "key": rig.key_id, "session": "local-ui-session"}), flush=True)
     stop = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())

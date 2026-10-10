@@ -1,5 +1,5 @@
 "use strict";
-/* Swangz AI — the staff app. One calm place to open the AI tools Swangz has given you, connect your
+/* Swangz AI Hub — the staff app. One calm place to open the AI tools Swangz has given you, connect your
    devices, ask for more, and see plainly what the company records. Built on ui.js; anything typed is
    untrusted text and only ever lands in textContent. */
 (() => {
@@ -22,7 +22,7 @@
     }
     let res;
     try { res = await fetch(GATEWAY + "/api" + path, opts); }
-    catch (e) { throw new ApiError(0, "Swangz AI can't be reached. Check your connection and try again."); }
+    catch (e) { throw new ApiError(0, "Swangz AI Hub can't be reached. Check your connection and try again."); }
     let data = null;
     try { data = await res.json(); } catch (e) { /* empty */ }
     if (!res.ok) throw new ApiError(res.status, (data && data.error) || "Something went wrong. Try again.");
@@ -84,7 +84,7 @@
     sso: ["Company sign-in", "Opens with your Swangz work account — no separate password."],
     seat: ["Company seat", "Your own seat on the company plan. Sign in with your work email; Swangz pays one bill."],
     own: ["Your own login", "You use your own account for this one. Swangz still controls access to it."],
-    api: ["Company key", "Runs on the company's key through Swangz AI — nothing to sign in to."],
+    api: ["Company key", "Runs on the company's key through Swangz AI Hub — nothing to sign in to."],
     shared: ["Shared account", "One company account the team takes turns on, so the credits it spends can be traced to whoever held it."],
     workspace: ["Company browser", "Opens a Swangz browser that's already signed in to this tool — your turn, nobody else's. You never see the password."],
   };
@@ -97,7 +97,7 @@
     expired: "That sign-in took too long or was started in another browser. Try again.",
     google: "Google couldn't confirm that account. Try again.",
     not_allowed: "Only Swangz work accounts can sign in here.",
-    no_account: "That Google account isn't set up in Swangz AI yet. Ask your admin to add your email.",
+    no_account: "That Google account isn't set up in Swangz AI Hub yet. Ask your admin to add your email.",
     paused: "Your access is paused. Talk to your admin.",
     off: "Google sign-in isn't set up yet. Use your email and password.",
   };
@@ -133,7 +133,7 @@
 
   function gateArt() {
     return el("section", { class: "gate-art" },
-      el("a", { class: "wordmark", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz ", el("b", null, "AI")),
+      el("a", { class: "wordmark", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz ", el("b", null, "AI Hub")),
       el("div", null,
         el("h1", { class: "gate-title" }, "Every AI tool. ", el("em", null, "One door.")),
         el("p", { class: "gate-lede" }, "The AI tools Swangz pays for, in one place. Open any of them with your work account — no personal subscriptions, no passwords to juggle."),
@@ -149,7 +149,7 @@
   }
 
   function showSignIn() {
-    document.title = "Sign in · Swangz AI";
+    document.title = "Sign in · Swangz AI Hub";
     const email = el("input", { class: "input", type: "email", autocomplete: "email", required: true, placeholder: "you@swangzavenue.com", id: "si-email" });
     const pw = passwordInput("current-password", "si-pass");
     const err = el("div", { class: "form-error", role: "alert" }, authError());
@@ -167,7 +167,7 @@
         } catch (x) { err.textContent = x.message; go.disabled = false; }
       },
     },
-    el("div", null, el("div", { class: "eyebrow" }, "Welcome back"), el("h2", null, "Sign in to Swangz AI")),
+    el("div", null, el("div", { class: "eyebrow" }, "Welcome back"), el("h2", null, "Sign in to Swangz AI Hub")),
     google,
     el("label", { class: "field", for: "si-email" }, el("span", null, "Work email"), email),
     el("label", { class: "field", for: "si-pass" }, el("span", null, "Password"), pw.node),
@@ -218,8 +218,8 @@
 
   // ------------------------------------------------------------------ the frame
 
-  const NAV = [["#/", "Home", "home"], ["#/tools", "Tools", "tools"], ["#/studio", "Studio", "spark"], ["#/devices", "Devices", "device"],
-    ["#/requests", "Requests", "inbox"], ["#/privacy", "Privacy", "shield"]];
+  const NAV = [["#/", "Home", "home"], ["#/tools", "My tools", "tools"], ["#/studio", "Studio", "spark"], ["#/devices", "Devices", "device"],
+    ["#/weekly", "Weekly reports", "report"], ["#/requests", "Requests", "inbox"], ["#/activity", "Activity", "activity"], ["#/privacy", "Privacy & help", "shield"]];
   SUI.ICONS.inbox = SUI.ICONS.requests;
   const hasStudio = () => !!(S.studio && (S.studio.voice || S.studio.image || S.studio.video) && S.me.active);
 
@@ -230,7 +230,7 @@
     const now = Date.now() / 1000;
     // `state` marks the notices that only restate where you stand — Home's hero says that already
     if (me.suspended) out.push({ tone: "bad", icon: "lock", title: "Your access is paused", text: "Talk to your admin to have it restored.", state: true });
-    else if (me.paused) out.push({ tone: "warn", icon: "stop", title: "AI access is paused for everyone", text: "An admin has paused Swangz AI for now. Tools will open again when it's resumed.", state: true });
+    else if (me.paused) out.push({ tone: "warn", icon: "stop", title: "AI access is paused for everyone", text: "An admin has paused Swangz AI Hub for now. Tools will open again when it's resumed.", state: true });
     if (me.access_until && me.access_until - now < 14 * 86400) out.push({ tone: "warn", icon: "calendar", title: "Your access ends " + fmt.date(me.access_until - 1),
       text: "Every tool and key stops working after that day. Ask your admin if you need longer." });
     me.catalog.filter((t) => t.turn && t.turn.mine).forEach((t) => out.push({ tone: "ok", icon: "hand", title: `You have ${t.name} until ${fmt.clock(t.turn.mine.expires)}`,
@@ -249,16 +249,16 @@
   function frame(title, content, opts) {
     opts = opts || {};
     const me = S.me;
-    document.title = (title ? title + " · " : "") + "Swangz AI";
+    document.title = (title ? title + " · " : "") + "Swangz AI Hub";
     const section = "#/" + ((location.hash || "#/").split("?")[0].split("/")[1] || "");
     const active = section === "#/" ? "#/" : section;
     const nav = NAV.filter(([href]) => href !== "#/studio" || hasStudio());
-    const count = notices().length;
+    const count = notices().length + (me.hub_unread || 0);
     const menu = el("div", { class: "menu", role: "menu" },
       el("div", { class: "who" }, el("div", null, me.name), el("div", null, me.email)),
       el("button", { onclick: profile, role: "menuitem" }, icon("user"), "Profile"),
       el("button", { onclick: changePassword, role: "menuitem" }, icon("key"), "Change password"),
-      el("a", { href: "#/privacy", role: "menuitem" }, icon("shield"), "How Swangz AI works"),
+      el("a", { href: "#/privacy", role: "menuitem" }, icon("shield"), "How Swangz AI Hub works"),
       el("button", { onclick: signOut, role: "menuitem" }, icon("logout"), "Sign out"));
     const meBtn = el("button", { class: "me-btn", "aria-haspopup": "menu", "aria-expanded": "false", "aria-label": "Your account",
       onclick: (e) => { e.stopPropagation(); toggleMenu(!menu.classList.contains("open")); } },
@@ -278,21 +278,28 @@
         items[e.key === "Home" ? 0 : e.key === "End" ? items.length - 1 : (i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus();
       } else if (e.key === "Tab") { toggleMenu(false); }
     });
-    const topbar = el("header", { class: "topbar" }, el("div", { class: "inner" },
-      el("a", { class: "wordmark", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz ", el("b", null, "AI")),
-      el("nav", { class: "topnav", "aria-label": "Swangz AI" }, nav.map(([href, label]) => el("a", { href, class: href === active ? "on" : null, "aria-current": href === active ? "page" : null }, label))),
+    const links = () => nav.map(([href, label, ic]) => el("a", { href, class: href === active ? "on" : null, "aria-current": href === active ? "page" : null }, icon(ic), label));
+    const menuButton = el("button", { class: "staff-menu icon-btn", type: "button", "aria-label": "Open navigation", onclick: () => {
+      const d = drawer("Hub navigation"); d.node.append(el("header", null, el("h2", null, "Swangz AI Hub"), el("button", { class: "btn btn--quiet", onclick: d.close, "aria-label": "Close navigation" }, icon("x"))),
+        el("nav", { class: "hub-staff-nav", "aria-label": "Staff workspace" }, links())); d.node.querySelectorAll("a").forEach(a => a.addEventListener("click", d.close));
+    } }, icon("menu"));
+    const side = el("aside", { class: "hub-staff-side" }, el("a", { class: "wordmark", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz AI Hub"),
+      el("p", { class: "eyebrow" }, "Your workspace"), el("nav", { class: "hub-staff-nav", "aria-label": "Staff workspace" }, links()));
+    const topbar = el("header", { class: "topbar" }, el("div", { class: "inner" }, menuButton,
+      el("a", { class: "wordmark", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz ", el("b", null, "AI Hub")),
+      el("nav", { class: "topnav", "aria-label": "Swangz AI Hub" }, nav.map(([href, label]) => el("a", { href, class: href === active ? "on" : null, "aria-current": href === active ? "page" : null }, label))),
       el("div", { class: "top-right" },
         el("a", { class: "icon-btn", href: "#/requests?view=updates", "aria-label": count ? `${count} updates` : "Updates", "data-tip": count ? `${count} notification${count === 1 ? "" : "s"}` : "No new notifications" },
           icon("bell"), count ? el("span", { class: "dot-count" }, String(count)) : null),
         SUI.themeButton(), el("div", { class: "me-menu" }, meBtn, menu))));
-    const tabbar = el("nav", { class: "tabbar", "aria-label": "Swangz AI" }, nav.map(([href, label, ic]) =>
+    const tabbar = el("nav", { class: "tabbar", "aria-label": "Swangz AI Hub" }, nav.map(([href, label, ic]) =>
       el("a", { href, class: href === active ? "on" : null, "aria-current": href === active ? "page" : null }, icon(ic), el("span", null, label),
         href === "#/requests" && count ? el("i", { class: "dot-count" }, String(count)) : null)));
     const foot = el("footer", { class: "foot" }, el("div", { class: "inner" },
-      el("span", { class: "brandline" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz Avenue · Swangz AI"),
-      el("span", { class: "foot-links" }, el("a", { href: "#/privacy" }, "How Swangz AI works"), el("button", { type: "button", onclick: policy }, "Usage policy"))));
+      el("span", { class: "brandline" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz Avenue · Swangz AI Hub"),
+      el("span", { class: "foot-links" }, el("a", { href: "#/privacy" }, "How Swangz AI Hub works"), el("button", { type: "button", onclick: policy }, "Usage policy"))));
     app.replaceChildren(el("a", { class: "skip", href: "#main", onclick: (e) => { e.preventDefault(); document.getElementById("main").focus(); } }, "Skip to content"),
-      topbar, el("main", { id: "main", tabindex: "-1", class: opts.cls || null }, content), foot, tabbar);
+      el("div", { class: "hub-staff-app" }, side, el("div", { class: "hub-staff-main" }, topbar, el("main", { id: "main", tabindex: "-1", class: opts.cls || null }, content), foot)));
   }
   document.addEventListener("click", () => { const m = document.querySelector(".menu.open"); if (m) { m.classList.remove("open"); document.querySelector(".me-btn")?.setAttribute("aria-expanded", "false"); } });
 
@@ -338,7 +345,9 @@
     });
     views.forEach(([id, , build]) => {
       const pane = el("div", { class: "vtab-pane", role: "tabpanel", id: `${uid}-${id}-panel`, "aria-labelledby": `${uid}-${id}`, tabindex: "-1" });
-      pane.append(...[].concat(build()).filter(Boolean));
+      const built = build();
+      if (built && typeof built.then === "function") SUI.load(pane, () => built, SUI.skeleton("rows", 3));
+      else pane.append(...[].concat(built).filter(Boolean));
       panes.set(id, pane);
       body.append(pane);
     });
@@ -352,6 +361,7 @@
     const me = S.me;
     if (!me.active || t.state === "suspended") return SUI.status("suspended", "Paused", { plain: true });
     if (t.state === "enabled") {
+      if (t.report_gate) return SUI.status("waiting", "Report required", { plain: true });
       if (t.turn && t.turn.mine) return SUI.status("live", "Yours until " + fmt.clock(t.turn.mine.expires), { plain: true, breathe: true });
       if (t.turn && !t.turn.free) {
         const soonest = t.turn.others.slice().sort((a, b) => a.expires - b.expires)[0];
@@ -366,6 +376,7 @@
   }
   function tileNote(t) {
     if (t.state === "enabled") {
+      if (t.report_gate) return "Complete the report for " + t.report_gate.week_start + " to use this tool again.";
       if (t.turn && t.turn.mine) return "Hand it back when you're done.";
       if (t.turn && !t.turn.free) return `${t.turn.others[0].person} has the shared account.`;
       if (t.ends) return "Yours until " + fmt.date(t.ends - 1);
@@ -396,6 +407,7 @@
       if (t.pending) return [el("span", { class: "requested" }, icon("check"), "Requested")];
       return [el("button", { class: "btn btn--small", type: "button", onclick: () => requestAccess(t) }, t.state === "past_due" ? "Ask to renew" : "Request access")];
     }
+    if (t.report_gate) return [el("a", { class: "btn btn--small" + emphasis, href: "#/weekly?report=" + t.report_gate.id }, icon("report"), "Complete report")];
     const guide = guideFor(t);
     if (t.id in STUDIO_TOOLS && S.studio && S.studio[STUDIO_TOOLS[t.id]]) return [el("a", { class: "btn btn--small" + emphasis, href: "#/studio" }, icon("spark"), "Open Studio")];
     if (t.kind === "dev") return guide && me.can_add_keys ? [el("button", { class: "btn btn--small" + emphasis, type: "button", onclick: () => connect(guide) }, icon("link"), "Connect")] : [];
@@ -485,7 +497,7 @@
             : [el("dt", null, "Last opened"), el("dd", null, t.last_opened ? fmt.ago(t.last_opened) : "never"),
               el("dt", null, "Opened · 30 days"), el("dd", null, SUI.plural(t.opens_30d || 0, "time"))],
           t.ends ? [el("dt", null, "Access ends"), el("dd", null, fmt.date(t.ends - 1))] : null)) : null,
-        section("What's recorded", el("p", { class: "muted" }, recorded, " ", el("a", { class: "tlink", href: "#/privacy", onclick: close }, "How Swangz AI works")))),
+        section("What's recorded", el("p", { class: "muted" }, recorded, " ", el("a", { class: "tlink", href: "#/privacy", onclick: close }, "How Swangz AI Hub works")))),
       el("footer", null, el("button", { class: "btn btn--quiet", onclick: close }, "Close"), tileActions(t).map((b) => { b.classList.remove("btn--small"); return b; })));
   }
 
@@ -498,7 +510,7 @@
   function pageHome() {
     const me = S.me;
     const catalog = me.catalog;
-    const enabled = catalog.filter((t) => t.state === "enabled");
+    const enabled = catalog.filter((t) => t.state === "enabled" && !t.report_gate);
     const pending = catalog.filter((t) => t.pending).length;
     const byRecent = enabled.slice().sort((a, b) => (b.last_opened || 0) - (a.last_opened || 0) || a.name.localeCompare(b.name));
     // the tool to go back to: the one opened most recently from here — or, when it is the only one, that one
@@ -517,7 +529,7 @@
       text = "Your tools and devices can't be used until an admin restores your access. " + (contact ? "For help: " + contact + "." : "Talk to your admin.");
     } else if (me.paused) {
       headline = "AI is paused for now.";
-      text = "An admin has paused Swangz AI for everyone. Your tools open again as soon as it's resumed — there's nothing you need to do.";
+      text = "An admin has paused Swangz AI Hub for everyone. Your tools open again as soon as it's resumed — there's nothing you need to do.";
     } else if (lead) {
       headline = lead.last_opened ? "Pick up where you left off." : "Your AI workspace is ready.";
       const how = howOf(lead);
@@ -534,6 +546,10 @@
       text = "Paid for by Swangz and ready when you are — choose one to start.";
       action = el("button", { class: "btn btn--solid", type: "button", onclick: () => { toolsBox.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); toolsBox.focus({ preventScroll: true }); } },
         "Choose a tool", icon("arrowDown"));
+    } else if (me.weekly_outstanding) {
+      headline = "Complete your weekly report.";
+      text = "Your tools are assigned. Submit their outstanding reports to resume access.";
+      action = el("a", { class: "btn btn--solid", href: "#/weekly" }, "Complete reports", icon("chevronRight"));
     } else {
       headline = "Nothing is switched on for you yet.";
       text = "Find what you need in the catalogue and ask for it. An admin decides, and the tool appears here when it's on.";
@@ -580,17 +596,18 @@
     const allowance = me.budget && me.budget.monthly !== null && me.budget.monthly !== undefined ? el("section", { class: "home-card", "aria-labelledby": "home-al-h" },
       el("div", { class: "home-h small" }, el("h2", { id: "home-al-h" }, "Your allowance")),
       el("div", { class: "home-allow" }, el("strong", null, fmt.money(me.budget.month)), el("span", null, "of " + fmt.money(me.budget.monthly) + " this month")),
-      meter(me.budget.month, me.budget.monthly), el("p", { class: "home-fine" }, "AI used through Swangz AI on the company's account. It resets on the 1st.")) : null;
+      meter(me.budget.month, me.budget.monthly), el("p", { class: "home-fine" }, "AI used through Swangz AI Hub on the company's account. It resets on the 1st.")) : null;
     const studio = hasStudio() ? el("a", { class: "home-studio", href: "#/studio" }, el("span", { class: "home-studio-ic", "aria-hidden": "true" }, icon("spark")),
       el("span", { class: "grow" }, el("strong", null, "Studio"), el("span", null, "Make voice-overs, images and video here, on the company's account.")), icon("chevronRight")) : null;
-    const links = el("nav", { class: "home-links", "aria-label": "More in Swangz AI" },
+    const links = el("nav", { class: "home-links", "aria-label": "More in Swangz AI Hub" },
       el("a", { href: "#/devices" }, icon("device"), el("span", null, el("strong", null, "My devices"),
         el("span", null, activeKeys.length ? SUI.plural(activeKeys.length, "device") + " connected" : me.active ? "Connect your laptop or coding tools" : "None connected")), icon("chevronRight")),
       el("a", { href: "#/requests?view=access" }, icon("send"), el("span", null, el("strong", null, "Access requests"),
         el("span", null, pending ? SUI.plural(pending, "request") + " waiting for an admin" : me.active ? "Ask for any tool in the catalogue" : "What you've asked for")), icon("chevronRight")),
-      el("a", { href: "#/privacy" }, icon("shield"), el("span", null, el("strong", null, "How Swangz AI works"), el("span", null, "What's recorded, and what isn't")), icon("chevronRight")));
+      el("a", { href: "#/privacy" }, icon("shield"), el("span", null, el("strong", null, "How Swangz AI Hub works"), el("span", null, "What's recorded, and what isn't")), icon("chevronRight")));
     const aside = el("aside", { class: "home-aside", "aria-label": "Updates and more" }, updatesBox, allowance, studio, links);
-    frame("Home", [hero, el("section", { class: "section home-body" }, el("div", { class: "shell home-grid" + (me.suspended ? " solo" : "") }, me.suspended ? null : toolsBox, aside))]);
+    const reminder = me.weekly_outstanding ? el("div", { class: "shell" }, el("aside", { class: "hub-reminder", "aria-label": "Weekly reporting reminder" }, el("div", null, el("strong", null, `${me.weekly_outstanding} weekly tool report(s) need completion`), el("p", { class: "muted small" }, "Complete each report before reopening that tool.")), el("a", { class: "btn btn--small", href: "#/weekly" }, "Complete reports"))) : null;
+    frame("Home", [hero, reminder, el("section", { class: "section home-body" }, el("div", { class: "shell home-grid" + (me.suspended ? " solo" : "") }, me.suspended ? null : toolsBox, aside))]);
   }
 
   /* One of your tools, compact: who it is, where it stands, and its one action. Select it for the details. */
@@ -929,7 +946,7 @@
     const err = el("div", { class: "form-error", role: "alert" });
     const make = el("button", { class: "btn btn--solid", onclick: async () => {
       make.disabled = true;
-      try { const out = await api("POST", "/keys", { label: label.value }); created = true; showSteps(out); }
+      try { const out = await api("POST", "/keys", { label: label.value, tool_id: S.me.catalog.find(t => TOOL_TO_GUIDE[t.id] === tool.id)?.id || tool.id }); created = true; showSteps(out); }
       catch (e) { err.textContent = e.message; make.disabled = false; }
     } }, icon("key"), "Create my key");
     body.replaceChildren(
@@ -938,7 +955,7 @@
         el("h3", null, "Name this device"),
         el("p", null, "So you — and your admin — can tell your devices apart. Include the computer and the tool."),
         el("label", { class: "u-sr", for: "c-label" }, "Device name"), label, err)),
-      el("p", { class: "muted small" }, "Requests from this device go through Swangz AI on the company key and are recorded — see How Swangz AI works."));
+      el("p", { class: "muted small" }, "Requests from this device go through Swangz AI Hub on the company key and are recorded — see How Swangz AI Hub works."));
     foot.replaceChildren(el("button", { class: "btn btn--quiet", onclick: close }, "Cancel"), make);
     requestAnimationFrame(() => { label.focus(); label.select(); });
 
@@ -985,8 +1002,8 @@
     const STATE = { open: ["pending", "Waiting for an admin"], granted: ["ok", "Granted"], declined: ["blocked", "Declined"] };
     const tools = Object.fromEntries(me.catalog.map((t) => [t.id, t]));
     const views = viewTabs("#/requests", params, [
-      ["updates", "Updates", () => (list.length ? el("ul", { class: "notices" }, list.map(noticeItem))
-        : el("div", { class: "empty" }, el("h3", null, "You're all caught up"), el("p", null, "Turned-on tools, decisions on your requests, shared turns and access dates appear here."))), list.length || null],
+      ["updates", "Updates", async () => el("div", { class: "hub-content" }, list.length ? el("ul", { class: "notices" }, list.map(noticeItem)) : null,
+        await SWP.hubNotes()), (list.length + (me.hub_unread || 0)) || null],
       ["access", "Access requests", () => [
         el("div", { class: "spread view-lede" }, el("p", { class: "muted" }, "Ask for any tool in the catalogue — an admin grants or declines it."),
           el("a", { class: "btn btn--small", href: "#/tools?show=others" }, "Browse tools", icon("chevronRight"))),
@@ -996,14 +1013,15 @@
             r.reason ? el("p", { class: "req-reason" }, r.reason) : null, r.decision_note ? el("p", { class: "muted small" }, "Note from your admin: " + r.decision_note) : null),
           SUI.status(...STATE[r.state], { plain: true }))))
           : el("div", { class: "empty" }, el("h3", null, "No requests yet"), el("p", null, "Find a tool in the catalogue and press Request access."), el("a", { class: "btn btn--solid", href: "#/tools?show=others" }, "Browse tools"))], open || null],
+      ["procurement", "Tool & subscription purchases", () => SWP.hubProcurement()],
     ], "Requests");
     frame("Requests", el("section", { class: "section first" }, el("div", { class: "shell narrow" },
       sectionHead(null, "Requests", "What's changed for you, and the tools you've asked for."), views.node)));
   }
 
-  // ------------------------------------------------------------------ Privacy: how Swangz AI works
+  // ------------------------------------------------------------------ Privacy: how Swangz AI Hub works
 
-  /* How Swangz AI works: six short sections with an index. Each says the plain answer first; the detail is one
+  /* How Swangz AI Hub works: six short sections with an index. Each says the plain answer first; the detail is one
      click away rather than in every paragraph. */
   function pagePrivacy() {
     const pv = S.me.privacy || {};
@@ -1011,19 +1029,19 @@
       el("div", null, el("strong", null, title), el("p", null, text), more ? el("details", { class: "p-more" }, el("summary", null, "More about this"), el("p", null, more)) : null));
     const sections = [
       ["recorded", "What is recorded", icon("eye"), [
-        el("p", { class: "p-lead" }, "Your use of approved AI tools through Swangz AI — for security, support and cost."),
+        el("p", { class: "p-lead" }, "Your use of approved AI tools through Swangz AI Hub — for security, support and cost."),
         el("ul", { class: "p-list" },
           item("open", "Tools you open from here", "Which tool, when, and the browser and network address you opened it from."),
           item("globe", "AI websites, with the Swangz browser extension", "Which approved AI site, when and for how long.",
             pv.gate_log_full ? "Your company has also turned on fuller logging for AI websites — ask your admin what it covers." : null),
           item("terminal", "AI requests through the gateway", "Who, which device and app, the model, what you typed, what the AI did and replied, and what it cost.",
-            "This covers coding tools, Studio and apps connected with a Swangz key — they run on the company's key, so each request passes through Swangz AI."),
+            "This covers coding tools, Studio and apps connected with a Swangz key — they run on the company's key, so each request passes through Swangz AI Hub."),
           item("hand", "Shared company accounts", "Who held the turn and when, so the account's use can be matched to a person."))]],
       ["not-recorded", "What is not recorded", icon("lock"), [
         el("ul", { class: "p-list" },
           pv.gate_log_full ? null : item("globe", "Page contents or keystrokes on AI websites", "The extension records the site and the time — never what's on the page or what you type there."),
-          item("x", "Anything outside approved AI tools", "Other websites and apps aren't watched by Swangz AI."),
-          item("user", "Your personal accounts", "Only access through Swangz AI is recorded."))]],
+          item("x", "Anything outside approved AI tools", "Other websites and apps aren't watched by Swangz AI Hub."),
+          item("user", "Your personal accounts", "Only access through Swangz AI Hub is recorded."))]],
       ["purpose", "Purpose and location", icon("target"), [
         el("ul", { class: "p-list" },
           item("target", "What a request was for", pv.purpose_inference ? "Your word if you give it (Studio asks); otherwise the tool's, or a labelled guess." : "Only your word (Studio asks) or what the tool itself implies — never a guess from what you type.",
@@ -1040,7 +1058,11 @@
           : pv.bodies_days ? `Full request contents are kept for ${pv.bodies_days} days, then only the summary stays.` : "Full request contents are kept for that time, so the exact request can be checked if something goes wrong."),
         pv.site_days || pv.launch_days ? el("p", { class: "muted" }, [pv.site_days ? `AI website visits: ${pv.site_days} days.` : null, pv.launch_days ? `Tools opened from here: ${pv.launch_days} days.` : null].filter(Boolean).join(" ")) : null]],
       ["help", "Using it well, and help", icon("info"), [
-        el("p", null, "Swangz AI is for your work at Swangz. Don't paste passwords, other people's personal details, or anything you wouldn't put in a work email."),
+        el("p", null, "Swangz AI Hub is for your work at Swangz. Don't paste passwords, other people's personal details, or anything you wouldn't put in a work email."),
+        el("details", null, el("summary", null, "Weekly reporting and your declarations"),
+          el("p", null, "Completed weeks with recorded activity create a report for each tool. A draft or returned correction locks that tool; submission clears its reporting requirement immediately. Reports and help stay available."),
+          el("p", null, "Your purpose, projects, results and estimates can be read by authorised console users. Saved submissions and review decisions remain in the audit history. Frozen weekly evidence contains counts and source references rather than page contents or keystrokes, and remains available after individual activity records expire."),
+          el("a", { href: "#/weekly", class: "tlink" }, "Open weekly reports")),
         el("p", null, el("strong", null, "Questions? "), pv.support_contact ? pv.support_contact : "Ask your admin."),
         el("div", null, el("button", { class: "btn", type: "button", onclick: policy }, "Read the usage policy"))]],
     ];
@@ -1048,11 +1070,11 @@
     const go = (id) => { const n = document.getElementById("p-" + id); if (n) { n.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }); n.focus({ preventScroll: true }); } };
     const index = el("nav", { class: "p-index", "aria-label": "On this page" }, el("span", { class: "eyebrow" }, "On this page"),
       el("ul", null, sections.map(([id, title]) => el("li", null, el("button", { type: "button", onclick: () => go(id) }, title)))));
-    frame("How Swangz AI works", [
+    frame("How Swangz AI Hub works", [
       el("section", { class: "hero hero-plain" }, el("div", { class: "shell" },
         el("div", { class: "eyebrow" }, "Privacy & monitoring"),
-        el("h1", null, "How Swangz AI works"),
-        el("p", { class: "lede" }, "Your company AI access passes through Swangz Gateway. For security, support and cost management, the company records approved AI use. Here is exactly what that means."))),
+        el("h1", null, "How Swangz AI Hub works"),
+        el("p", { class: "lede" }, "Your company AI access passes through Swangz AI Hub. For security, support and cost management, the company records approved AI use. Here is exactly what that means."))),
       el("section", { class: "section" }, el("div", { class: "shell p-layout" }, index,
         el("div", { class: "p-sections" }, sections.map(([id, title, ic, body]) => el("section", { class: "trust-card", id: "p-" + id, tabindex: "-1", "aria-labelledby": "p-h-" + id },
           el("h2", { id: "p-h-" + id }, ic, title), ...body.filter(Boolean)))))),
@@ -1060,11 +1082,11 @@
   }
 
   function policy() {
-    dialog("Using Swangz AI", el("div", { class: "fields" },
-      el("p", null, "Swangz AI is provided for your work at Swangz. Your requests are handled by AI providers on the company's behalf."),
+    dialog("Using Swangz AI Hub", el("div", { class: "fields" },
+      el("p", null, "Swangz AI Hub is provided for your work at Swangz. Your requests are handled by AI providers on the company's behalf."),
       el("p", null, "Like any company system, use is recorded for security, cost and support — the Privacy page lists exactly what. Don't paste passwords, other people's personal details, or anything you wouldn't put in a work email."),
       el("p", null, "Questions? " + ((S.me && S.me.privacy && S.me.privacy.support_contact) || "Ask your admin."))),
-    (close) => [el("a", { class: "btn btn--quiet", href: "#/privacy", onclick: close }, "How Swangz AI works"), el("button", { class: "btn btn--solid", onclick: close }, "Got it")]);
+    (close) => [el("a", { class: "btn btn--quiet", href: "#/privacy", onclick: close }, "How Swangz AI Hub works"), el("button", { class: "btn btn--solid", onclick: close }, "Got it")]);
   }
 
   // ------------------------------------------------------------------ profile
@@ -1129,7 +1151,7 @@
     } catch (e) {
       if (e.status === 401) showSignIn();
       else app.replaceChildren(el("main", { class: "gate" }, gateArt(), el("section", { class: "gate-form" },
-        el("form", null, el("div", { class: "eyebrow" }, "Connection"), el("h2", null, "Swangz AI is temporarily unavailable"), el("p", { class: "muted" }, e.message),
+        el("form", null, el("div", { class: "eyebrow" }, "Connection"), el("h2", null, "Swangz AI Hub is temporarily unavailable"), el("p", { class: "muted" }, e.message),
           el("button", { class: "btn btn--solid", type: "button", onclick: load }, icon("refresh"), "Try again")))));
     }
   }
@@ -1149,6 +1171,11 @@
       else if (S.me && !document.querySelector("dialog[open], .drawer")) { e.preventDefault(); location.hash = "#/tools"; setTimeout(() => document.querySelector("input.search")?.focus(), 60); }
     }
   });
-  window.addEventListener("hashchange", route);
+  window.SWP = { S, api, gurl, frame, sectionHead, viewTabs, load, render, page: (rx, fn) => ROUTES.push([rx, fn]) };
+  let previousRoute = location.hash;
+  window.addEventListener("hashchange", () => {
+    if (window.HubUI && !HubUI.guard()) { history.pushState(null, "", previousRoute || "#/"); return; }
+    previousRoute = location.hash; route();
+  });
   route();
 })();

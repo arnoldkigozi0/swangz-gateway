@@ -1,4 +1,4 @@
-/* Swangz AI Access — service worker.
+/* Swangz AI Hub Access — service worker.
  *
  * What it does: when you open an AI website that Swangz governs, it asks the gateway whether that
  * tool is turned on for you. If yes, the site opens normally. If not, it shows a page explaining
@@ -9,7 +9,7 @@
  * the portal hands them out a turn at a time. This worker signs the browser out of any shared tool
  * you are not currently holding — when your turn ends, and again every time Chrome starts — by
  * clearing that site's cookies and stored data. So re-opening the tool always means going back
- * through Swangz AI first, and the next person never inherits your session.
+ * through Swangz AI Hub first, and the next person never inherits your session.
  *
  * Only the hosts the gateway lists (the company's AI tools) are ever touched. Every other site is
  * ignored completely. */
@@ -129,7 +129,7 @@ async function onNavigate(tabId, url) {
       if (key) await signOutOf([key]);  // they don't hold the turn: leave nothing signed in
     }
     const params = new URLSearchParams({ tool: r.tool || "This tool", reason: r.reason || "",
-      app: r.app_url || S.base, tool_id: r.tool_id || "", pending: r.pending ? "1" : "" });
+      app: r.app_url || S.base, tool_id: r.tool_id || "", pending: r.pending ? "1" : "", report: r.report_gate ? String(r.report_gate.report_id) : "" });
     chrome.tabs.update(tabId, { url: chrome.runtime.getURL("blocked.html") + "#" + params.toString() });
   }
 }
@@ -151,7 +151,7 @@ async function signOut() {
 function updateBadge(on) {
   chrome.action.setBadgeText({ text: on ? "" : "!" });
   chrome.action.setBadgeBackgroundColor({ color: on ? "#4E9E6A" : "#B3564E" });
-  chrome.action.setTitle({ title: on ? "Swangz AI Access — signed in" : "Swangz AI Access — sign in" });
+  chrome.action.setTitle({ title: on ? "Swangz AI Hub Access — signed in" : "Swangz AI Hub Access — sign in" });
 }
 
 chrome.runtime.onInstalled.addListener(() => { loadConfig().then(refreshHosts); });

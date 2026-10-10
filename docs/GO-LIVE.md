@@ -1,5 +1,7 @@
 # Going live — the checklist, and what it costs
 
+Historical deployment notes below. For the current Hub identity policy, migration and rollout procedure, see [Hub operations](HUB-OPERATIONS.md). The legacy webdev02022007@gmail.com demo identity is no longer allowed to access the Hub; only the two user-approved owner exceptions remain. No public deployment check was performed for this integration.
+
 Last updated: 3 Oct 2026. Swangz uses **paid accounts** (ChatGPT, Claude, Midjourney… subscriptions,
 used in the browser), **not provider API keys**. Everything below follows from that.
 
@@ -8,7 +10,7 @@ used in the browser), **not provider API keys**. Everything below follows from t
 - **Working now:** `https://swangz-ai.netlify.app` (staff) and `/admin` (console), running from Arnold's
   Windows PC through a Cloudflare tunnel. Console owner `arnoldkigozi0@gmail.com`; demo staff
   `webdev02022007@gmail.com`. The PC has to stay on and online — that's why step 2 exists.
-- **Signing in to Swangz AI works.** What doesn't happen yet is arriving **already signed in to the AI
+- **Signing in to Swangz AI Hub works.** What doesn't happen yet is arriving **already signed in to the AI
   tool**: Open sends people to the tool's own site, where they sign in themselves. That needs one of the
   options below per tool.
 
