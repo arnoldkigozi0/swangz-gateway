@@ -323,7 +323,7 @@
     if (kind === "cards") return el("div", { class: "u-skel-cards", "aria-hidden": "true" }, Array.from({ length: n }, () =>
       el("div", { class: "u-skel-card" }, el("span", { class: "u-skel line" }), el("span", { class: "u-skel big" }), el("span", { class: "u-skel line" }))));
     if (kind === "chart") return skelChart();
-    return el("div", { class: "u-skel-rows", "aria-busy": "true", "aria-label": "Loading" }, Array.from({ length: n }, () =>
+    return el("div", { class: "u-skel-rows", role: "status", "aria-busy": "true", "aria-label": "Loading" }, Array.from({ length: n }, () =>
       el("div", { class: "u-skel-row" }, el("span", { class: "u-skel dot" }), el("span", null, el("span", { class: "u-skel line" }), el("span", { class: "u-skel line" })),
         el("span", { class: "u-skel line" }))));
   }

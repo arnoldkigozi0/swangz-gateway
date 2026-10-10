@@ -185,9 +185,11 @@ Command line: `serve | add-admin [--role owner|operations|security|billing|viewe
 DEMO_MODEL=1 bash deploy/laptop-demo.sh  # starts the gateway + a free https tunnel, prints the links
 ```
 
-**Automatic Linux startup and Netlify repair:** `deploy/LAPTOP-AUTO.md` describes the installed
-user service, recovery checks, logs and restarting after configuration/server changes. The staff
-address stays `https://swangz-ai.netlify.app`; the laptop still has to be awake and online.
+**Automatic Linux startup and direct tunnel recovery:** `deploy/LAPTOP-AUTO.md` describes the
+installed user service, recovery checks, logs and restart procedure. The direct tunnel serves both
+apps without Netlify; legacy Netlify synchronisation requires `GATEWAY_NETLIFY_SYNC=1`. Existing
+OAuth callbacks remain configured until a verified first-party hostname is selected. The laptop
+still has to be awake and online; use the documented VPS deployment for permanent availability.
 
 **Configuration** (environment): provider keys `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
 `ELEVENLABS_API_KEY`, `HIGGSFIELD_CREDENTIALS`; address `GATEWAY_PUBLIC_URL`; `GATEWAY_HOST/PORT/DATA`;
