@@ -14,7 +14,8 @@ from . import policy
 from .admin import ApiError
 
 TEXT_FIELDS = ('usage_confirmation', 'reason', 'impact', 'deliverables', 'quality', 'challenges',
-               'issues', 'next_steps', 'revenue_description', 'usage_unit', 'pricing_source', 'selected_plan', 'currency')
+               'issues', 'next_steps', 'revenue_description', 'usage_unit', 'pricing_source', 'selected_plan', 'currency',
+               'adoption_stage', 'frequency_period', 'manual_unit', 'ai_unit')
 NUM_FIELDS = ('manual_hours', 'ai_hours', 'manual_cost', 'ai_cost', 'subscription_cost', 'extra_credits',
               'other_expenses', 'revenue', 'frequency', 'usage_amount', 'usage_included', 'usage_unit_cost_usd', 'usage_cost_usd')
 COUNT_FIELDS = ('claimed_requests', 'claimed_access_events', 'claimed_days')
@@ -71,6 +72,8 @@ def number(value, field, integer=False):
 
 
 def validate(body, submit=False):
+    if not isinstance(body,dict):
+        raise ApiError(400,'A business declaration must be an object.')
     out = {}
     for field in TEXT_FIELDS:
         if field in body:
@@ -96,6 +99,13 @@ def validate(body, submit=False):
         raise ApiError(400, 'Confirm whether you used the tool, only opened it or accessed it accidentally.')
     if out.get('currency') and not re.fullmatch('[A-Z]{3}', out['currency']):
         raise ApiError(400, 'Currency must be a three-letter code.')
+    for key in ('manual_unit', 'ai_unit'):
+        if key in out and out[key] not in ('sec', 'min', 'h', 'd', 'wk', 'mo', 'yr'):
+            raise ApiError(400, 'Choose a valid working-time unit.')
+    if 'frequency_period' in out and out['frequency_period'] not in ('week', 'month', 'year', 'project'):
+        raise ApiError(400, 'Choose the period for the declared frequency.')
+    if 'adoption_stage' in out and out['adoption_stage'] not in ('', 'exploring', 'piloting', 'adopted', 'scaling', 'paused'):
+        raise ApiError(400, 'Choose a valid adoption stage.')
     if 'projects' in body:
         projects = body['projects']
         if not isinstance(projects, list) or len(projects) > 30:
@@ -305,6 +315,8 @@ def detail(gw, rid, pid=None):
     row = gw.db.one('SELECT * FROM hub_reports WHERE id=?' + (' AND person_id=?' if pid is not None else ''), (rid, pid) if pid is not None else (rid,))
     if not row:
         raise ApiError(404, 'Report not found.')
+    if row['archived_at'] is not None and pid is not None:
+        raise ApiError(404, 'Report not found.')
     row['import_provenance'] = import_provenance(gw.db, 'adoption', rid)
     row['projects'] = gw.db.q('SELECT name,link,description,traditional,ai_way,benefit FROM hub_report_projects WHERE report_id=? ORDER BY position', (rid,))
     row['evidence'] = gw.db.one('SELECT * FROM weekly_evidence WHERE id=?', (row['evidence_id'],)) if row['evidence_id'] else None
@@ -314,6 +326,7 @@ def detail(gw, rid, pid=None):
     row['versions'] = gw.db.q('SELECT * FROM hub_report_versions WHERE report_id=? ORDER BY version', (rid,))
     for v in row['versions']:
         v['declaration'] = json.loads(v.pop('declaration_json'))
+    row['attribution_history'] = gw.db.q('SELECT * FROM hub_attribution_changes WHERE report_id=? ORDER BY id',(rid,))
     row['reviews'] = gw.db.q('SELECT actor,ts,action,note,version FROM hub_report_reviews WHERE report_id=? ORDER BY id', (rid,))
     return row
 
@@ -404,7 +417,7 @@ def management_totals(reports, evidence):
     counts = {state: sum(r['state']==state for r in reports) for state in ('draft','submitted','resubmitted','reviewed','confirmed','returned')}
     comparisons = {state: sum(r['reconciliation']==state for r in claims) for state in ('matched','partially_matched','needs_review','insufficient_telemetry','no_observed_activity')}
     # Do not sum money across currencies. Hours remain unverified declarations.
-    pairs = [(r['manual_hours'],r['ai_hours']) for r in claims if r['manual_hours'] is not None and r['ai_hours'] is not None]
+    pairs = [(r['manual_hours'],r['ai_hours']) for r in claims if r.get('usage_confirmation')=='used' and r['manual_hours'] is not None and r['ai_hours'] is not None]
     value = {'reported_time_saved_hours': sum(a-b for a,b in pairs) if pairs else None, 'time_estimate_count': len(pairs)}
     return {'observed': observed, 'states': counts, 'reconciliation': comparisons, 'staff_estimates': value}
 
@@ -413,11 +426,11 @@ def management_snapshot(gw, start, actor='system'):
     bounds(gw, start)
     db = gw.db
     with db.tx():
-        reports = db.q("SELECT id,person_id,tool_id,department,submitter_name,tool_name,state,version,reconciliation,manual_hours,ai_hours,manual_cost,ai_cost,subscription_cost,extra_credits,currency,revenue,impact,usage_cost_usd,evidence_id FROM hub_reports WHERE kind='weekly' AND week_start=? ORDER BY id", (start,))
+        reports = db.q("SELECT id,person_id,tool_id,department,submitter_name,tool_name,state,version,usage_confirmation,reconciliation,manual_hours,ai_hours,manual_cost,ai_cost,subscription_cost,extra_credits,currency,revenue,impact,usage_cost_usd,evidence_id FROM hub_reports WHERE kind='weekly' AND week_start=? ORDER BY id", (start,))
         evidence = db.q('SELECT * FROM weekly_evidence WHERE week_start=? ORDER BY id', (start,))
-        procurement = db.q('SELECT id,tool_name,department,state,estimated_monthly_cost,estimated_one_time_cost FROM procurement_requests WHERE created>=? AND created<? ORDER BY id', (bounds(gw, start)['starts'], bounds(gw, start)['ends']))
+        procurement = db.q('SELECT id,tool_name,department,state,currency,financial_basis,proposal_version,estimated_monthly_cost,estimated_one_time_cost FROM procurement_requests WHERE created>=? AND created<? ORDER BY id', (bounds(gw, start)['starts'], bounds(gw, start)['ends']))
         period=bounds(gw,start)
-        adoption=db.q("SELECT id,person_id,tool_id,department,submitter_name,tool_name,state,version,currency,manual_hours,ai_hours,manual_cost,ai_cost,subscription_cost,extra_credits,usage_cost_usd,revenue,impact FROM hub_reports WHERE kind='adoption' AND created>=? AND created<? ORDER BY id",(period['starts'],period['ends']))
+        adoption=db.q("SELECT id,person_id,tool_id,department,submitter_name,tool_name,state,version,currency,financial_basis,manual_hours,ai_hours,manual_cost,ai_cost,subscription_cost,extra_credits,usage_cost_usd,revenue,impact FROM hub_reports WHERE kind='adoption' AND archived_at IS NULL AND state NOT IN ('draft','returned') AND created>=? AND created<? ORDER BY id",(period['starts'],period['ends']))
         subscriptions = db.q("SELECT s.tool_id,t.name,s.seats,s.monthly_cost FROM subscriptions s JOIN tools t ON t.id=s.tool_id WHERE s.state='active'")
         observed = {e['tool_id'] for e in evidence}
         snap = {'period': evidence_period(evidence[0]) if evidence else bounds(gw, start), 'totals': management_totals(reports,evidence), 'reports': reports, 'adoption_declarations': adoption, 'evidence': evidence, 'procurement': procurement,

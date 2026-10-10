@@ -40,18 +40,13 @@
       const change = tr.previous.cost ? (tr.current.cost - tr.previous.cost) / tr.previous.cost : null;
       const secCount = sec ? sec.events.filter((e) => e.severity !== "info").length : null;
       const subs = licence ? licence.summary.subscriptions_month : 0;
-      kpis = el("div", { class: "kpis five" },
+      kpis = el("div", { class: "kpis three" },
         A.kpi({ label: "AI spend · 30 days", icon: "wallet", value: fmt.money(tr.current.cost), tone: "gold hero",
           tip: "Metered use through the gateway, priced from the model price table when each request ran. Company plans are a fixed monthly cost on top.",
           foot: SUI.delta(change, { vs: "vs the 30 days before" }), note: subs ? `+ ${fmt.moneyShort(subs)}/mo in plans` : "vs the 30 days before",
           spark: SUI.sparkline(days.map((d) => d.cost)), href: "#/licences?tab=spend&range=30d" }),
         A.kpi({ label: "Active today", icon: "people", value: String(today.people), note: `${tr.current.people} in 30 days`,
           tip: "People who made an AI request, opened a tool from the portal, or visited an approved AI website.", href: "#/activity?tab=usage" }),
-        A.kpi({ label: "Live requests", icon: "live", value: String(ov.live.length),
-          foot: ov.live.length ? SUI.status("live", "In flight", { breathe: true, plain: true }) : SUI.status("idle", "Quiet", { plain: true }),
-          note: `${fmt.num(today.requests)} today`, href: "#/live" }),
-        A.kpi({ label: "Tools · 30 days", icon: "tools", value: String(tr.tools_used || 0),
-          note: tr.top_tools.length ? "most used: " + tr.top_tools[0].tool : "none yet", href: "#/activity?tab=usage&range=30d&by=tool" }),
         A.kpi({ label: "Security · 7 days", icon: "shield", value: secCount === null ? "—" : String(secCount),
           tone: sec && sec.posture !== "healthy" ? "alert" : null,
           foot: sec ? SUI.status(sec.posture, { healthy: "Healthy", watch: "Worth a look", elevated: "Elevated" }[sec.posture], { plain: true }) : null,

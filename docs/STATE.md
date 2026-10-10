@@ -5,8 +5,8 @@ control plane added on Oct 9, and `SECURITY.md` for the threat model.
 
 ## Where it stands
 
-A working platform, built and tested. **301 unit tests** (`python3 -m unittest discover -s tests -t .`).
-Schema is **v19**. Nothing real has been called by a provider yet — there are no company API keys, and
+The activated v19 baseline passed **301 unit tests** (`python3 -m unittest discover -s tests -t .`).
+Source schema is **v20**; the live laptop database remains v19 until reviewed deployment. Nothing real has been called by a provider yet — there are no company API keys, and
 the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
 
 ### Hub integration and activation — 10 October 2026
@@ -15,7 +15,7 @@ PR #4 merged at `91f3b3f`; the existing laptop database was backed up, migrated 
 
 Recovered owner Tracker history imported 29 adoption declarations, 3 procurement requests and 1 registry record. Twelve demos were skipped and three explicit test records preserved separately. The original backend hostname returns NXDOMAIN, so recovered views explicitly disclose that backend reconciliation is pending. Historic declarations do not create weekly obligations; actual Gateway evidence created 17 required weekly reports.
 
-The automatic laptop service is enabled, running and has lingering enabled. Direct HTTPS tunnel health and owner/company-staff password sign-in passed. Netlify production builds are blocked by its account credit limit; direct deployment was rejected too. Restore the account's credits before expecting the stable Netlify front door or its Google callback to work. Existing callback/domain configuration was preserved. See [the operations guide](HUB-OPERATIONS.md) for backup/recovery, API-key attribution and enforcement limits.
+The automatic laptop service is enabled, running and has lingering enabled. Direct HTTPS tunnel health and owner/company-staff password sign-in passed. Netlify production builds are blocked by its account credit limit; direct deployment was rejected too. The completed source provides a first-party Caddy/systemd delivery path and optional isolated Railway staging, so Netlify credits are no longer a prerequisite. Existing live callback/domain configuration was preserved; prepared delivery files do not imply public deployment. See [the operations guide](HUB-OPERATIONS.md) for backup/recovery, API-key attribution and enforcement limits.
 
 ### Done and verified
 
@@ -428,8 +428,7 @@ Console roles are checked per area on the server; policies fail closed. Full thr
    demo only.
 3. Set subscriptions and assignments in the control room; invite staff (email → sign-in link); roll
    out the browser extension (Load unpacked, or packed via Chrome Enterprise policy).
-4. Optionally host the staff app + admin console on Netlify (static), pointed at the gateway API —
-   see `deploy/NETLIFY.md`. Set `GATEWAY_CORS_ORIGINS` to the Netlify URL.
+4. Serve both workspaces on the first-party VPS host using `HUB-DELIVERY.md`; optional historical Netlify files are retained for compatibility, not required deployment.
 5. **Back up `data/gateway.db`** — it is the record.
 
 ## Gotchas worth knowing
@@ -483,3 +482,9 @@ Replaced the circular sculpture on staff Home with the sixteenth supplied refere
 architecture with a warm lit entrance. The wide image matches the existing hero panel proportion;
 the design is framed beside Home's copy on desktop and beneath the action on phones. Sign-in art is
 unchanged. Updated the review documentation to record the final selection.
+
+### Native Tracker parity and layered workspaces — 10 October 2026
+
+The current feature branch adds forward migration20, full native business/report/request workflows, saved purchase drafts, project media/detail, governed department scopes, immutable financial/association corrections, registry/pricing references, safe exports and traceable business comparisons. Staff Home/catalogue and admin reporting use compact rows, focused tabs and deliberate detail views. Inactive admin navigation groups fold while the active area remains visible. Original weekly gates and the two approved owners are preserved.
+
+See [feature matrix](TRACKER-PARITY.md), [function inventory](TRACKER-FUNCTION-INVENTORY.md), [verification log](HUB-COMPLETION.md), and [Netlify-free delivery](HUB-DELIVERY.md). The live checkout/database is unchanged by feature development; exact final verification and external recovery/deployment limitations are recorded in the completion log.

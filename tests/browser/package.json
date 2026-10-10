@@ -1,0 +1,1 @@
+{"name":"swangz-hub-browser-checks","private":true,"version":"1.0.0","description":"Synthetic browser regressions only; no runtime dependencies","devDependencies":{"@axe-core/playwright":"4.13.0","playwright":"1.64.0"}}

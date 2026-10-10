@@ -667,7 +667,7 @@
       ["#/health", "Health", "pulse"]], "What's happening"],
     ["Govern", [["#/people", "People", "people"], ["#/requests", "Access requests", "requests"], ["#/tools", "Tools", "tools"], ["#/models", "Models", "chip"],
       ["#/policies", "Policies", "rule"]], "Access and rules"],
-    ["Reporting", [["#/weekly", "Weekly reporting", "report"], ["#/procurement", "Tool & subscription requests", "requests"]], "Accountability and adoption"],
+    ["Reporting", [["#/weekly", "Weekly reporting", "report"], ["#/business", "Business value", "report"], ["#/procurement", "Tool & subscription requests", "requests"]], "Accountability and adoption"],
     ["Money", [["#/licences", "Licences & spend", "licences"], ["#/reports", "Spend reports", "report"]], "Spend and licences"],
     ["Trust", [["#/security", "Security", "shield"], ["#/incidents", "Incidents", "flag"], ["#/devices", "Devices", "device"], ["#/audit", "Audit log", "audit"],
       ["#/settings", "Settings", "settings"]], "Risks, records, settings"],
@@ -731,11 +731,11 @@
     reload();
   }
 
-  /* The four areas, each a group that can be folded away. Every group starts open; what someone folds is
+  /* The four areas, each a group that can be folded away. The active group starts open; other groups stay compact. What someone folds is
      remembered in this browser, but the group holding the page you're on always shows. */
   const NAV_KEY = "swangz-gateway-nav-folded";
   function foldedGroups() {
-    try { return new Set(JSON.parse(localStorage.getItem(NAV_KEY) || "[]")); } catch (e) { return new Set(); }
+    try { return new Set(JSON.parse(localStorage.getItem(NAV_KEY) || JSON.stringify(NAV.map(g => g[0])))); } catch (e) { return new Set(NAV.map(g => g[0])); }
   }
   function sidebar(active, onNavigate) {
     const folded = foldedGroups();

@@ -1,0 +1,54 @@
+name: Hub checks
+on:
+  push:
+    branches: [main, 'feature/**']
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.10', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m unittest discover -s tests -t .
+      - run: python -m compileall -q gateway deploy
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/browser/package-lock.json
+      - run: npm ci --prefix tests/browser
+      - run: npx --prefix tests/browser playwright install --with-deps chromium
+      - name: Check every application and browser JavaScript file
+        run: python tests/browser/syntax.py
+      - name: Existing Gateway interaction and role checks
+        run: node tests/browser/check.cjs
+        env:
+          UI_WIDTH: '1440'
+          UI_THEME: light
+          UI_OUTPUT: /tmp/swangz-hub-gateway-ui
+      - name: Existing Hub workflows
+        run: node tests/browser/hub.cjs
+      - name: Synthetic staging persistence
+        run: node tests/browser/staging.cjs
+      - name: Tracker parity and responsive matrix
+        run: node tests/browser/business.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: synthetic-hub-browser-results
+          path: /tmp/swangz-hub-*/
+          retention-days: 7

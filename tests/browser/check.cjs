@@ -244,7 +244,7 @@ async function layout(p, name, axe = false) {
     await p.getByRole('heading', { name: 'No tools match' }).waitFor();
     check('Catalogue search is in URL', p.url().includes('q=does-not-exist'));
     await p.getByRole('button', { name: 'Clear filters', exact: true }).click();
-    check('Clear filters restores catalogue', await p.locator('.tile').count() > 0 && !p.url().includes('?'));
+    check('Clear filters restores catalogue', await p.locator('.tool-row.s-enabled').count() > 0 && !p.url().includes('?'));
     await p.getByRole('button', { name: 'Design', exact: true }).click();
     await p.getByRole('combobox', { name: 'Sort', exact: true }).selectOption('az');
     await p.reload(); await ready(p);

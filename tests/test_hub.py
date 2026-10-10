@@ -165,7 +165,7 @@ class HubServiceTests(unittest.TestCase):
               {'id':'p1','tag':'request','toolName':'New Tool','reason':'Need video','requestStatus':'new','submittedAt':'2026-08-02T10:00:00Z'},
               {'id':'t1','kind':'registry','toolName':'ChatGPT','officialUrl':'https://chatgpt.com/'}]
         before=self.db.q('SELECT * FROM tools');subs=self.db.q('SELECT * FROM subscriptions')
-        dry=import_entries(self.db,data);self.assertEqual(dry['new'],{'adoption':1,'procurement':1,'registry':1})
+        dry=import_entries(self.db,data);self.assertEqual(dry['new'],{'adoption':1,'procurement':1,'registry':1,'department':0})
         self.assertEqual(self.db.scalar('SELECT COUNT(*) FROM hub_reports'),0)
         actual=import_entries(self.db,data,apply=True);self.assertTrue(actual['applied'])
         self.assertEqual(self.db.scalar('SELECT manual_hours FROM hub_reports'),16)
@@ -204,7 +204,7 @@ class HubServiceTests(unittest.TestCase):
             original={table:old.q('SELECT * FROM '+table) for table in ('people','tools','subscriptions','entitlements','access_requests')};old.close()
             info=backup(path,tmp+'/verified.db');self.assertEqual(info['integrity'],'ok')
             new=DB(path)
-            self.assertEqual(new.scalar("SELECT v FROM meta WHERE k='schema'"),'19')
+            self.assertEqual(new.scalar("SELECT v FROM meta WHERE k='schema'"),'20')
             for table,rows in original.items():self.assertEqual(new.q('SELECT * FROM '+table),rows)
             new.close();again=DB(path);again.close()
             with self.assertRaises(FileExistsError):backup(path,tmp+'/verified.db')
