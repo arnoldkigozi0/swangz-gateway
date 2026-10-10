@@ -303,6 +303,14 @@ async function layout(p, name, axe = false) {
     await p.goBack(); await p.waitForTimeout(150);
     check('Settings Back restores section', await p.locator('.set-sections [aria-selected="true"]').innerText() === 'Model prices');
     await go(p, url, '/admin#/settings?tab=access');
+    const advanced = p.getByLabel('Audit log, days', { exact: true });
+    check('Advanced retention is disclosed on demand', !(await advanced.isVisible()));
+    await p.getByText('Advanced retention by record type', { exact: true }).click();
+    await advanced.fill('30');
+    await p.locator('.savebar').getByRole('button', { name: 'Save changes', exact: true }).click();
+    check('Invalid audit retention is explained without saving', await advanced.getAttribute('aria-invalid') === 'true' && (await p.locator('#err-retention_audit_days').innerText()).includes('365'));
+    await p.locator('.savebar').getByRole('button', { name: /Discard/ }).click();
+    await p.getByText('Advanced retention by record type', { exact: true }).waitFor();
     const days = p.locator('.setting-control input[type="number"]').first();
     await days.fill('91');
     await p.getByRole('tab', { name: 'Emergency', exact: true }).click();

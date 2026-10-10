@@ -60,8 +60,11 @@
   function drawer(label, onClose) {
     const scrim = el("div", { class: "scrim" });
     const node = el("aside", { class: "drawer", role: "dialog", "aria-modal": "true", "aria-label": label });
-    let release = null;
+    let closed = false;
+    const release = SUI.trapFocus(node);
     function close() {
+      if (closed) return;
+      closed = true;
       node.classList.remove("in"); scrim.classList.remove("in");
       setTimeout(() => { scrim.remove(); node.remove(); }, 320);
       document.removeEventListener("keydown", onKey);
@@ -73,7 +76,8 @@
     document.addEventListener("keydown", onKey);
     document.body.append(scrim, node);
     requestAnimationFrame(() => {
-      scrim.classList.add("in"); node.classList.add("in"); release = SUI.trapFocus(node);
+      if (closed) return;
+      scrim.classList.add("in"); node.classList.add("in");
       const first = node.querySelector("input, .btn--solid, button"); if (first) first.focus({ preventScroll: true });
     });
     return { node, close };

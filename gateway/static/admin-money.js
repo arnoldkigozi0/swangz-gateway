@@ -316,6 +316,11 @@
       });
       return out;
     };
+    const focusProblem = (key) => {
+      const disclosure = days[key].closest("details");
+      if (disclosure) disclosure.open = true;
+      days[key].focus();
+    };
     const showProblems = (found) => Object.entries(fieldErr).forEach(([k, node]) => {
       node.textContent = found[k] || "";
       days[k].setAttribute("aria-invalid", found[k] ? "true" : "false");
@@ -341,7 +346,7 @@
       err.textContent = "";
       const found = problems();
       showProblems(found);
-      if (Object.keys(found).length) { err.textContent = "Fix the highlighted values first."; days[Object.keys(found)[0]].focus(); return; }
+      if (Object.keys(found).length) { err.textContent = "Fix the highlighted values first."; focusProblem(Object.keys(found)[0]); return; }
       const v = values();
       const warn = consequences(v);
       if (warn.length && !(await A.confirmAction("Save these changes?", warn.join(" "), "Save changes", true))) return;
@@ -353,7 +358,7 @@
         if (k) {
           const said = e.message.startsWith(k) ? e.message.slice(k.length + 1) : e.message;
           fieldErr[k].textContent = said.charAt(0).toUpperCase() + said.slice(1) + ".";
-          days[k].setAttribute("aria-invalid", "true"); days[k].focus();
+          days[k].setAttribute("aria-invalid", "true"); focusProblem(k);
           err.textContent = "Fix the highlighted value.";
         } else err.textContent = e.message;
       }
@@ -371,12 +376,14 @@
       A.panel("Request records", `${st.records.toLocaleString()} requests · ${(st.db_bytes / 1048576).toFixed(1)} MB on disk`,
         row("retention_days", "Keep records for", "Older request records are deleted automatically every hour. 0 keeps everything. Staff see this number on their privacy page.", unit(retention, "days", "retention_days")),
         row("store_bodies", "Keep full request and response bodies", "Needed to pull back exactly what was sent. Off keeps only the summary: who, model, prompt, commands, cost.", storeBodies)),
-      A.panel("Retention by kind", "days · each row explains what 0 means",
+      el("details", { class: "hub-setting-details" },
+        el("summary", null, "Advanced retention by record type"),
+        A.panel("Retention by kind", "days · each row explains what 0 means",
         row("retention_bodies_days", "Full bodies", "Drop bodies sooner; the summary stays. 0 follows request retention. Bodies cannot outlive their request record.", unit(ret.retention_bodies_days, "days", "retention_bodies_days")),
         row("retention_site_days", "Website visits", "Which tool, when and how long, from the browser gate. 0 keeps these records indefinitely.", unit(ret.retention_site_days, "days", "retention_site_days")),
         row("retention_launch_days", "Tools opened from Swangz AI Hub", "Each portal launch, with its browser and address. 0 keeps these records indefinitely.", unit(ret.retention_launch_days, "days", "retention_launch_days")),
         row("retention_audit_days", "Audit log", "At least 365 days, or 0 for forever: the record of what admins did should outlive what it watches. Every purge is itself written to the audit log.",
-          unit(ret.retention_audit_days, "days", "retention_audit_days"))),
+          unit(ret.retention_audit_days, "days", "retention_audit_days")))),
       A.panel("Protection on every request", null,
         row("block_secrets", "Refuse requests that contain credentials", "API keys, cloud keys, private keys. Off lets them through but flags them. On can interrupt an agent that reads a .env file.", blockSecrets),
         row("rate_per_min", "Rate limit", "Catches a runaway tool. 0 means no limit. A busy agent can make several requests a minute, so keep it generous.", unit(rate, "a minute, per person", "rate_per_min"))),

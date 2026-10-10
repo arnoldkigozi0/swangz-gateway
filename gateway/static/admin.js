@@ -287,9 +287,11 @@
   function sheet(onClose, label) {
     const scrim = el("div", { class: "scrim" });
     const node = el("aside", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-label": label || "Details" });
-    let release = null;
+    let closed = false;
+    const release = SUI.trapFocus(node);
     function close() {
-      if (onClose && onClose() === false) return;
+      if (closed || (onClose && onClose() === false)) return;
+      closed = true;
       node.classList.remove("in"); scrim.classList.remove("in");
       setTimeout(() => { scrim.remove(); node.remove(); }, 320);
       document.removeEventListener("keydown", onKey);
@@ -300,8 +302,8 @@
     document.addEventListener("keydown", onKey);
     document.body.append(scrim, node);
     requestAnimationFrame(() => {
+      if (closed) return;
       scrim.classList.add("in"); node.classList.add("in");
-      release = SUI.trapFocus(node);
       const first = node.querySelector("button, a[href], input, select");
       if (first) first.focus({ preventScroll: true });
     });
@@ -822,8 +824,11 @@
     side.setAttribute("aria-label", "Navigation");
     const closeBtn = el("button", { class: "btn quiet icon-only drawer-close", type: "button", "aria-label": "Close navigation", onclick: () => close() }, icon("x"));
     side.prepend(closeBtn);
-    let release = null;
+    let closed = false;
+    const release = SUI.trapFocus(side);
     function close() {
+      if (closed) return;
+      closed = true;
       side.classList.remove("in"); scrim.classList.remove("in");
       document.removeEventListener("keydown", onKey);
       setTimeout(() => { side.remove(); scrim.remove(); }, 260);
@@ -833,7 +838,7 @@
     scrim.addEventListener("click", close);
     document.addEventListener("keydown", onKey);
     document.body.append(scrim, side);
-    requestAnimationFrame(() => { scrim.classList.add("in"); side.classList.add("in"); release = SUI.trapFocus(side); closeBtn.focus(); });
+    requestAnimationFrame(() => { if (closed) return; scrim.classList.add("in"); side.classList.add("in"); closeBtn.focus(); });
   }
 
   // ------------------------------------------------------------------ the command menu

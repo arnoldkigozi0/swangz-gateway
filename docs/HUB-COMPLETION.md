@@ -42,3 +42,9 @@ The scratch-only metadata backfill restored 29 adoption projections and 3 procur
 - GitHub latest-main hashes were fetched again and remain the audited baseline. No public Railway/VPS activation, production schema migration, external DNS or OAuth changes are claimed.
 
 Final screenshot/legacy browser checks and PR delivery are pending; update this record with their actual results before merge.
+
+## Resumed verification
+
+The user resumed after the travel pause. The full suite passed again: **330 tests in 318.114s**. The enhanced business workflow check passed all nine groups, including department request/approval, unsaved purchase/department navigation and delayed response protection, with no browser exceptions or failed API requests. The existing Gateway desktop-light harness passed **203 interaction assertions and 289 screen checks** across representative console roles. It caught a drawer opening/closing focus race in CI; the fix captures the initiating focus before scheduling animation and prevents animation after closure. Advanced per-kind retention is now disclosed on demand, retains validation and unsaved guards, and automatically opens to focus an invalid field.
+
+The final business visual matrix now includes actual company identity administration and report/project/person/tool details, not just module landing pages. Its full result and manual inspection remain pending in this checkpoint.
