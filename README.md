@@ -25,7 +25,7 @@ sub-agents) is unchanged — it is simply on the record.
 
 Weekly reports enforce per-tool accountability using independently frozen Gateway evidence. Adoption & impact provides the full business declaration wizard, working-time/cost comparisons, scoped department dashboards, projects and immutable report history. Requests separates tool access, procurement with a saved four-step wizard, and department-report permissions. Admin Business value provides the inbox, financial corrections, registry matching, comparison charts and safe exports. Estimates, measured activity and administrative allocations remain visibly distinct.
 
-See [Tracker feature parity](docs/TRACKER-PARITY.md), [verification and recovery status](docs/HUB-COMPLETION.md), and [delivery without Netlify](docs/HUB-DELIVERY.md). Production remains Python/SQLite behind Caddy/systemd on a single first-party host. GitHub Actions runs synthetic checks; Railway staging is optional and isolated. Neither the old Tracker application nor its Supabase backend is required for normal operation.
+See [Tracker feature parity](docs/TRACKER-PARITY.md), [verification and recovery status](docs/HUB-COMPLETION.md), [rendered before/after review](docs/HUB-UI-REVIEW.md), and [delivery without Netlify](docs/HUB-DELIVERY.md). Production remains Python/SQLite behind Caddy/systemd on a single first-party host. GitHub Actions runs synthetic checks; Railway staging is optional and isolated. Neither the old Tracker application nor its Supabase backend is required for normal operation.
 
 ## Voice, image and video services
 

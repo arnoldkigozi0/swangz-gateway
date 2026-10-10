@@ -1,5 +1,5 @@
 [Unit]
-Description=Swangz gateway, tunnel and Netlify recovery
+Description=Swangz AI Hub and automatic tunnel recovery
 StartLimitIntervalSec=0
 
 [Service]

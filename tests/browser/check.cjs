@@ -319,6 +319,7 @@ async function layout(p, name, axe = false) {
     await categoryChoice.selectOption('emergency');
     await p.getByRole('dialog', { name: 'Leave without saving?' }).waitFor();
     await p.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await p.getByRole('dialog', { name: 'Leave without saving?' }).waitFor({ state: 'detached' });
     check('Settings unsaved guard keeps changes on Cancel', await days.inputValue() === '91' && await categoryChoice.inputValue() === 'access');
     await p.locator('.savebar').getByRole('button', { name: /Discard/ }).click();
     await categoryChoice.selectOption('providers');

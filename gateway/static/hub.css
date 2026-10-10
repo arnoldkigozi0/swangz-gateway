@@ -32,3 +32,6 @@
 .hub-setting-details{border:1px solid var(--line);border-radius:10px;margin:16px 0}.hub-setting-details>summary{padding:16px;cursor:pointer;color:var(--tx-1);font-size:14px}.hub-setting-details>summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.hub-setting-details[open]>.panel{border:0;margin:0}
 
 .tabs-mobile-select{display:none}@media(max-width:1100px){.settings-ws .tabs-mobile-select{display:grid;gap:8px;font-size:12px;color:var(--tx-2)}.settings-ws .tabs-wrap.vertical>.ptabs.vertical{display:none}.settings-ws .tabs-wrap.vertical{gap:18px}}
+
+.hub-report-detail>.tabs-wrap>.tabs-mobile-select{display:grid;gap:8px;font-size:12px;color:var(--tx-2)}.hub-report-detail>.tabs-wrap>.ptabs{display:none}.hub-review .hub-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.hub-review .hub-actions .btn{white-space:normal;min-height:42px;height:auto;padding-block:10px}.hub-financial-table .u-table th{white-space:normal}.hub-financial-table .u-table th,.hub-financial-table .u-table td{padding-inline:12px}
+@media(max-width:760px){.hub-actions .btn{flex:1 0 auto;white-space:normal;min-width:0;max-width:100%}}

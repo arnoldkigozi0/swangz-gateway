@@ -137,3 +137,11 @@ Records. Purpose & location and Providers & pricing retain their existing sectio
 begins with an explanation of its task and a compact saved-state summary. Forms still enforce role
 permissions and guard unsaved changes before switching. See `docs/ART-SETTINGS.md` for supplied-art
 selection and verification.
+
+## Native Hub business workspaces (schema20)
+
+Staff Adoption & impact is the home of longer-term declarations, scoped department views, business comparisons and export. Projects opens a focused source-linked deliverable sheet. Weekly reports remains a distinct per-tool accountability task. Requests separates operational tool access, procurement and department-report permissions; purchasing uses its own saved four-step wizard. The shared six-step adoption/report wizard preserves projects, conditional finances and eight-hour working days/forty-hour working weeks.
+
+Admin Business value contains Overview, Reports inbox, Projects, Analytics and Management. Individual reports use a labelled section selector to reveal declaration, evidence, immutable history, review and authorised corrections; mobile decisions wrap without clipping. Weekly reporting retains its compact Overview, Records/review, Management and Policy views. Operational catalogue/licences remain authoritative and have their existing profiles.
+
+Settings retain the category rail on desktop; a native labelled selector replaces the tall grid on narrow screens. Both drive the same URL-state tabs, child-section reset, history and dirty guard. Advanced retention is a disclosure; Discard restores controls in place without an asynchronous redraw that could overwrite a later edit. Staff Home shows three recent tool rows and a compact reporting reminder; the full catalogue is bounded/paginated. See HUB-UI-REVIEW.md for actual screenshots and inspected corrections.

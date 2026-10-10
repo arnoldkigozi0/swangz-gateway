@@ -41,7 +41,7 @@ The scratch-only metadata backfill restored 29 adoption projections and 3 procur
 - Wizard browser workflows: adoption with projects/working days, immutable staff amendment, admin confirmation, purchase draft/refresh/projects/working weeks, immutable quote correction/approval and viewer restrictions passed. Additional scopes/navigation and full responsive/legacy checks are still being completed.
 - GitHub latest-main hashes were fetched again and remain the audited baseline. No public Railway/VPS activation, production schema migration, external DNS or OAuth changes are claimed.
 
-Final screenshot/legacy browser checks and PR delivery are pending; update this record with their actual results before merge.
+Final verification is recorded below. The review branch and job results are attached to [PR #6](https://github.com/arnoldkigozi0/swangz-gateway/pull/6); merge requires green checks for its latest commit.
 
 ## Resumed verification
 
@@ -52,3 +52,15 @@ The final business visual matrix now includes actual company identity administra
 The complete 310-screen business matrix passed layout, accessibility, JavaScript and API checks across 1440/1280/1024/768/390px and both themes. Its immediate URL assertion ran before a dismissed native navigation confirmation finished restoring the address; the check now waits for the expected URL and still asserts the retained state. A follow-up 20-screen adoption detail matrix passed all nine end-to-end workflow groups, with no errors or failed requests. The final isolated staging check passed again. Manual inspection rejected the mobile Settings category card grid; the replacement native selector preserves selected category, child URL state, Back/Forward and dirty guards. The owner Settings suite passed all 72 category/section/theme/viewport checks after this refinement. Full legacy role checks and CI are being rerun against the final selector.
 
 CI failures were inspected from actual job logs: the first failed drawer focus restoration, and the next timed out awaiting a dirty warning after Discard. Both underlying timing issues are fixed; failed historic runs remain visible as history. The workflow now runs once per PR update (plus main pushes), cancelling superseded runs rather than duplicating every feature push and PR event.
+
+## Delivery verification — 11 October 2026
+
+- Full unit suite before final source delivery: **330 passed in 312.470s**. The final suite including the direct-tunnel/Netlify opt-in regression passed **331 tests in 297.793s**. All seven original laptop-service tests still pass (eight with the new recovery test).
+- Final Gateway Chromium check: **383 interaction assertions and 289 screen checks passed**, including four console roles, mobile category history and unsaved Cancel/Discard behaviour. No browser exceptions; the deliberate fake Studio failure is the only expected failed API call.
+- Weekly Hub browser suite: **17 screens and 13 workflow groups passed**, including drafts, submission, returned reports, procurement, management, activity and history.
+- Business matrix: **310 screens and all nine native workflow groups passed**, five widths in both themes, no accessibility findings, unexpected API failures or JavaScript exceptions.
+- Additional final adoption detail matrix: **20 screens and nine workflows passed**. Owner Settings: **72 screen checks and 54 assertions passed**. Strengthened project/report/financial checks identify clipped ordinary actions and oversized media icons; a mobile project pagination label found by this check was corrected.
+- Synthetic local staging passed health, identity, per-tool reporting gates, independent entitlement denial, restart persistence and idempotent seeding again. Prepared Railway files are still not an online deployment.
+- Before/after images and actual manual findings are retained in [HUB-UI-REVIEW.md](HUB-UI-REVIEW.md). The public existing tunnel returned healthy; its systemd service was active/enabled and lingering was enabled. This was baseline health verification, not new source activation.
+
+The last CI failure was a category selector assertion running before the native dialog close event; selection now keeps the current category while a decision is pending, and the test waits for closure. CI retains all original assertions. Latest final job results are available on PR #6, rather than erasing failed historic runs.

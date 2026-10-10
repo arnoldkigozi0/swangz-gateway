@@ -139,7 +139,7 @@
       "aria-label": opts.label || "Views" });
     const panel = el("div", { class: "tab-pane-wrap", role: "tabpanel", id: uid + "-panel", tabindex: "-1" });
     const mobileChoice = opts.mobileSelect ? el("select", { class: "input", "aria-label": opts.mobileSelect,
-      onchange: async () => { await choose(mobileChoice.value); mobileChoice.value = current; }
+      onchange: async () => { const requested = mobileChoice.value; mobileChoice.value = current; await choose(requested); mobileChoice.value = current; }
     }, ...tabs.map(([id, label]) => el("option", { value: id }, label))) : null;
     const mobileControl = mobileChoice ? el("label", { class: "tabs-mobile-select" }, el("span", null, opts.mobileSelect), mobileChoice) : null;
     function description(id) {

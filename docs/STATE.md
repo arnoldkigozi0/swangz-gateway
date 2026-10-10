@@ -9,6 +9,12 @@ The activated v19 baseline passed **301 unit tests** (`python3 -m unittest disco
 Source schema is **v20**; the live laptop database remains v19 until reviewed deployment. Nothing real has been called by a provider yet — there are no company API keys, and
 the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
 
+### Native Tracker parity continuation — 11 October 2026
+
+Source migration20 completes typed adoption/projects, saved procurement proposals, governed department scopes, immutable financial/attribution corrections, archive-safe reconciliation and native business comparisons. The full final suite passed **331 tests**; the original 301-test coverage is retained. Staff and admin use compact summaries, progressive wizards and deliberate details. Settings use a category selector on narrow screens; record review uses a focused section selector. Direct laptop tunnel recovery no longer schedules Netlify builds unless explicitly enabled.
+
+See [feature parity](TRACKER-PARITY.md), [rendered before/after review](HUB-UI-REVIEW.md), [actual verification](HUB-COMPLETION.md) and [first-party delivery](HUB-DELIVERY.md). Source delivery does not itself activate the separate existing laptop database. Original backend history remains partially recovered/unverified; Railway/VPS online creation requires authorised deployment configuration.
+
 ### Hub integration and activation — 10 October 2026
 
 PR #4 merged at `91f3b3f`; the existing laptop database was backed up, migrated to schema 19 and retained its original people, owner, keys, assignments, subscriptions and access request. Native weekly reporting, evidence/reconciliation, procurement, management exports and layered staff/admin workspaces are active. The complete suite passed 301 tests; browser verification is recorded in [the integration log](HUB-INTEGRATION.md).
