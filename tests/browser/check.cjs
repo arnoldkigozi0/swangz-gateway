@@ -150,8 +150,10 @@ async function layout(p, name, axe = false) {
   // Optional deep-view pass after the principal page matrix.
   if (process.env.UI_DETAILS_ONLY === '1') {
     await go(p, url, '/#/tools');
-    const category = p.getByRole('button', { name: 'Design', exact: true });
-    await category.focus(); await p.keyboard.press('Enter');
+    const mobileCategory = p.getByRole('combobox', { name: 'Tool category', exact: true });
+    const category = await mobileCategory.isVisible() ? mobileCategory : p.getByRole('button', { name: 'Design', exact: true });
+    await category.focus();
+    if (await mobileCategory.isVisible()) await mobileCategory.selectOption('Design'); else await p.keyboard.press('Enter');
     check('Category keeps keyboard focus after selection', await category.evaluate(e => e === document.activeElement));
     const filter = p.getByRole('button', { name: 'Available to me', exact: true });
     await filter.focus(); await p.keyboard.press('Enter');
@@ -246,7 +248,8 @@ async function layout(p, name, axe = false) {
     check('Catalogue search is in URL', p.url().includes('q=does-not-exist'));
     await p.getByRole('button', { name: 'Clear filters', exact: true }).click();
     check('Clear filters restores catalogue', await p.locator('.tool-row.s-enabled').count() > 0 && !p.url().includes('?'));
-    await p.getByRole('button', { name: 'Design', exact: true }).click();
+    const toolCategory = p.getByRole('combobox', { name: 'Tool category', exact: true });
+    if (await toolCategory.isVisible()) await toolCategory.selectOption('Design'); else await p.getByRole('button', { name: 'Design', exact: true }).click();
     await p.getByRole('combobox', { name: 'Sort', exact: true }).selectOption('az');
     await p.reload(); await ready(p);
     check('Catalogue category and sort survive refresh', await p.locator('.chip.on').innerText() === 'Design' && await p.getByRole('combobox', { name: 'Sort', exact: true }).inputValue() === 'az');

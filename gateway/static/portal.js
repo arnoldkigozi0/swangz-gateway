@@ -678,10 +678,13 @@
     const count = el("p", { class: "count", role: "status" });
     const search = el("input", { class: "input search", type: "search", placeholder: "Search AI tools…", value: f.q, "aria-label": "Search AI tools" });
     const chips = el("div", { class: "chips-row", role: "group", "aria-label": "Category" });
+    const category = el("select", { class: "input select", "aria-label": "Tool category", onchange: () => { f.cat = category.value; page = 0; remember(true); drawChips(); draw(); } },
+      cats.map(c => el("option", { value: c }, c === "all" ? "All categories" : c)));
     const sort = el("select", { class: "input select", "aria-label": "Sort" }, el("option", { value: "recommended" }, "Recommended"), el("option", { value: "recent" }, "Recently used"), el("option", { value: "az" }, "A–Z"));
     sort.value = f.sort;
     const show = el("div", { class: "u-seg", role: "group", "aria-label": "Show" });
     function drawChips() {
+      category.value = f.cat;
       if (chips.children.length) {
         [...chips.children].forEach((b) => { const on = b.dataset.category === f.cat; b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on)); });
         return;
@@ -730,7 +733,7 @@
     frame("Tools", el("section", { class: "section first" }, el("div", { class: "shell" },
       sectionHead("The catalog", "AI tools at Swangz", "Everything the company offers. Open what's yours; ask for anything else and an admin can turn it on."),
       el("div", { class: "toolbar" }, el("div", { class: "search-wrap" }, icon("search"), search, el("kbd", null, "/")), show, el("label", { class: "sort" }, el("span", { class: "u-sr" }, "Sort"), sort)),
-      chips, el("div", { class: "spread catalog-count" }, count, reset), grid)));
+      chips, el("label", { class: "catalog-category-mobile" }, el("span", null, "Tool category"), category), el("div", { class: "spread catalog-count" }, count, reset), grid)));
     const open = params.get("open");
     const t = open && catalog.find((x) => x.id === open);
     if (t) details(t);

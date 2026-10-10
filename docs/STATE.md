@@ -1,12 +1,12 @@
 # Project state and roadmap
 
-Last updated: 2026-10-10. Read `../CLAUDE.md` first for the overview and conventions; `V2.md` for the
+Last updated: 2026-10-11. Read `../CLAUDE.md` first for the overview and conventions; `V2.md` for the
 control plane added on Oct 9, and `SECURITY.md` for the threat model.
 
 ## Where it stands
 
 The activated v19 baseline passed **301 unit tests** (`python3 -m unittest discover -s tests -t .`).
-Source schema is **v20**; the live laptop database remains v19 until reviewed deployment. Nothing real has been called by a provider yet — there are no company API keys, and
+Source schema is **v20**; the separate laptop deployment was v19 during feature development. Verify its actual running commit/schema and the activation evidence on PR #6 before rollout. Nothing real has been called by a provider yet — there are no company API keys, and
 the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
 
 ### Native Tracker parity continuation — 11 October 2026
