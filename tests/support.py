@@ -44,10 +44,10 @@ class Rig:
         now = time.time()
         db = self.gw.db
         db.x("INSERT INTO admins(username, pw_hash, role, created) VALUES(?,?,?,?)",
-             ("owner", security.hash_password("owner-password", 1000), "owner", now))
+             ("owner@swangzavenue.com", security.hash_password("owner-password", 1000), "owner", now))
         db.x("INSERT INTO admins(username, pw_hash, role, created) VALUES(?,?,?,?)",
-             ("viewer", security.hash_password("viewer-password", 1000), "viewer", now))
-        self.person_id = db.x("INSERT INTO people(name, department, created) VALUES(?,?,?)", ("Nansubuga Grace", "Creative", now)).lastrowid
+             ("viewer@swangzavenue.com", security.hash_password("viewer-password", 1000), "viewer", now))
+        self.person_id = db.x("INSERT INTO people(name, email, department, created) VALUES(?,?,?,?)", ("Nansubuga Grace", "grace@swangzavenue.com", "Creative", now)).lastrowid
         self.key_id, self.key, secret_hash, hint = security.new_key()
         db.x("INSERT INTO keys(id, person_id, label, secret_hash, hint, created) VALUES(?,?,?,?,?,?)",
              (self.key_id, self.person_id, "laptop", secret_hash, hint, now))
@@ -101,13 +101,16 @@ class Rig:
     # ------------------------------------------------------------ console
 
     def login(self, who="owner"):
-        status, headers, body = self.request("POST", "/admin/api/login", {"username": who, "password": f"{who}-password"},
+        status, headers, body = self.request("POST", "/admin/api/login", {"username": who if "@" in who else who + "@swangzavenue.com", "password": f"{who}-password"},
                                              {"x-gateway-admin": "1"})
         assert status == 200, body
         self.cookies[who] = headers["set-cookie"].split(";")[0]
         return self.cookies[who]
 
     def api(self, method, path, body=None, who="owner"):
+        # Existing fixtures create people before testing their permissions; give them valid identities.
+        if method == "POST" and path == "/people" and body and "email" not in body:
+            body = {**body, "email": "fixture" + str(time.time_ns()) + "@swangzavenue.com"}
         if who not in self.cookies:
             self.login(who)
         headers = {"cookie": self.cookies[who], "x-gateway-admin": "1"}

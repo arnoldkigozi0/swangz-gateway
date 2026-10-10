@@ -9,6 +9,8 @@ import sqlite3
 import threading
 from contextlib import contextmanager
 
+from .hub_schema import MIGRATION as HUB_MIGRATION
+
 SCHEMA = [
     # v1
     """
@@ -137,7 +139,7 @@ SCHEMA = [
     ALTER TABLE requests ADD COLUMN turn_id TEXT;
     CREATE INDEX requests_turn ON requests(turn_id);
     """,
-    # v3: staff sign in to the Swangz AI app with an email and a password they set from a one-time link
+    # v3: staff sign in to the Swangz AI Hub app with an email and a password they set from a one-time link
     """
     ALTER TABLE people ADD COLUMN pw_hash TEXT;
     ALTER TABLE people ADD COLUMN invite_hash TEXT;
@@ -494,6 +496,8 @@ SCHEMA = [
     ALTER TABLE site_usage ADD COLUMN rule TEXT;
     CREATE INDEX requests_rule ON requests(rule) WHERE rule IS NOT NULL;
     """,
+    # v19: Swangz AI Hub reporting and procurement, preserving all Gateway records.
+    HUB_MIGRATION,
 ]
 
 

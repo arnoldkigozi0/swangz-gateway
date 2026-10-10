@@ -265,7 +265,7 @@ def describe(p, people, tools):
     if sc.get("classifications"):
         parts.append(" or ".join(sc["classifications"]) + " tools and models")
     what = " · ".join(parts) or "all AI"
-    channels = {"request": "requests through the gateway", "launch": "opening from Swangz AI", "site": "website visits"}
+    channels = {"request": "requests through the gateway", "launch": "opening from Swangz AI Hub", "site": "website visits"}
     where = "any channel" if not sc.get("channels") else ", ".join(channels[c] for c in sc["channels"])
     if p["effect"] == "deny":
         return f"Refuses {what} for {who}, on {where}."

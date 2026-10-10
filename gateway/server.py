@@ -12,6 +12,7 @@ import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import admin, catalog, geo, google, icons, notify, policy, pricing, proxy, purpose, security, staff, store
+from . import hub_api, reporting, hub_delivery, hub_export
 from .db import DB
 from .live import Live
 from .workspace import Workspaces
@@ -33,6 +34,9 @@ CONSOLE_HEADERS = {
 class Gateway:
     def __init__(self, settings):
         self.settings = settings
+        settings.bootstrap_admin = settings.bootstrap_admin.strip().lower()
+        if settings.bootstrap_admin and not settings.email_allowed(settings.bootstrap_admin):
+            raise ValueError("Bootstrap owner must use an approved company identity.")
         self.db = DB(settings.db_path)
         geo.bind(self.db)
         pricing.seed(self.db)
@@ -129,11 +133,11 @@ class Gateway:
             return None, None
         row = self.db.one(
             "SELECT k.*, p.name AS person_name, p.status AS person_status, p.allowed_models, p.allowed_services,"
-            " p.department, p.daily_budget, p.monthly_budget, p.access_until FROM keys k JOIN people p ON p.id = k.person_id"
+            " p.email AS person_email, p.department, p.daily_budget, p.monthly_budget, p.access_until FROM keys k JOIN people p ON p.id = k.person_id"
             " WHERE k.id = ?",
             (key_id,),
         )
-        if not row or not security.secret_matches(secret, row["secret_hash"]):
+        if not row or not self.settings.email_allowed(row["person_email"]) or not security.secret_matches(secret, row["secret_hash"]):
             return None, key_id
         return row, key_id
 
@@ -151,7 +155,8 @@ class Gateway:
         row = self.db.one("SELECT NULL AS id, NULL AS revoked, p.id AS person_id, p.name AS person_name, p.status AS person_status,"
                           " p.allowed_models, p.allowed_services, p.department, p.daily_budget, p.monthly_budget,"
                           " p.access_until FROM people p WHERE p.id = ?", (pid,))
-        return (row, None) if row else None
+        person = self.db.one("SELECT email FROM people WHERE id=?", (pid,))
+        return (row, None) if row and person and self.settings.email_allowed(person["email"]) else None
 
     def dev_tool_gate(self, key, client):
         """Claude Code and Codex are developer agents an admin assigns per person. Other clients
@@ -276,6 +281,7 @@ class Gateway:
     def maintain(self):
         """Retention, then notifications. Every purge that removed something is written to the audit log
         (after the audit log's own trim, so the entry itself survives)."""
+        reporting.compile_closed(self, force=True)  # freeze completed weeks before source retention
         days = int(self.db.get_setting("retention_days", "90") or 0)
         other = store.purge_categories(self.db, {k: self.db.get_setting(k, "0") for k in store.CATEGORIES})
         removed, orphans = store.purge(self.db, days)
@@ -289,6 +295,7 @@ class Gateway:
         self.db.set_setting("maintenance_last", str(time.time()))
         try:
             notify.refresh(self)
+            hub_delivery.deliver(self)
         except Exception as exc:  # noqa: BLE001 — a notification failure must not stop retention
             self.log(f"notifications: refresh failed: {exc!r}")
 
@@ -301,6 +308,7 @@ class Gateway:
                         last = time.time()
                         self.maintain()
                     else:
+                        hub_delivery.deliver(self)
                         notify.refresh(self)  # new notifications (and their email) between the hourly runs
                 except Exception as exc:
                     self.log(f"maintenance failed: {exc!r}")

@@ -29,7 +29,7 @@ def guides(gw, key=None, base=None):
                         "Create it if it isn't there. If it already has an \"env\" block, add these three lines to it.",
                  "code": settings},
                 {"title": "Restart Claude Code",
-                 "how": "Close any running Claude Code and start it again. Type /status — the base URL shows the Swangz AI address.",
+                 "how": "Close any running Claude Code and start it again. Type /status — the base URL shows the Swangz AI Hub address.",
                  "code": "claude"},
             ],
         })
@@ -37,7 +37,7 @@ def guides(gw, key=None, base=None):
             "id": "anthropic-sdk", "name": "Anthropic SDK", "kind": "Scripts and apps",
             "blurb": "Your own scripts, notebooks and tools that use Claude.",
             "steps": [
-                {"title": "Point the client at Swangz AI", "how": "Python:",
+                {"title": "Point the client at Swangz AI Hub", "how": "Python:",
                  "code": f'from anthropic import Anthropic\n\nclient = Anthropic(base_url="{url}", api_key="{key}")'},
                 {"title": "Or use environment variables", "how": "Most tools that use Claude read these:",
                  "code": f'export ANTHROPIC_BASE_URL="{url}"\nexport ANTHROPIC_API_KEY="{key}"'},
@@ -49,14 +49,14 @@ def guides(gw, key=None, base=None):
             "id": "codex", "name": "Codex", "kind": "Coding agent",
             "blurb": "OpenAI's coding agent in your terminal or editor.",
             "steps": [
-                {"title": "Add Swangz AI to Codex",
+                {"title": "Add Swangz AI Hub to Codex",
                  "how": "Open ~/.codex/config.toml (Windows: %USERPROFILE%\\.codex\\config.toml) and add:",
-                 "code": ('model_provider = "swangz"\n\n[model_providers.swangz]\nname = "Swangz AI"\n'
+                 "code": ('model_provider = "swangz"\n\n[model_providers.swangz]\nname = "Swangz AI Hub"\n'
                           f'base_url = "{url}"\nenv_key = "SWANGZ_AI_KEY"\nwire_api = "responses"')},
                 {"title": "Save your key where Codex can find it",
                  "how": "Add this line to ~/.bashrc or ~/.zshrc (Windows: setx SWANGZ_AI_KEY \"…\"), then open a new terminal:",
                  "code": f'export SWANGZ_AI_KEY="{key}"'},
-                {"title": "Start Codex", "how": "It now works through Swangz AI.", "code": "codex"},
+                {"title": "Start Codex", "how": "It now works through Swangz AI Hub.", "code": "codex"},
             ],
         })
         out.append({
@@ -76,7 +76,7 @@ def guides(gw, key=None, base=None):
             "id": "elevenlabs", "name": "ElevenLabs", "kind": "Voice and sound",
             "blurb": "Voice-overs, sound effects and transcripts from your own scripts and apps.",
             "steps": [
-                {"title": "Point the ElevenLabs SDK at Swangz AI", "how": "Python:",
+                {"title": "Point the ElevenLabs SDK at Swangz AI Hub", "how": "Python:",
                  "code": f'from elevenlabs.client import ElevenLabs\n\nclient = ElevenLabs(api_key="{key}", base_url="{url}")'},
                 {"title": "Or call it directly", "how": "This saves hello.mp3 in the current folder:",
                  "code": (f'curl -X POST "{url}/v1/text-to-speech/JBFqnCBsd6RMkjVDRZzb" \\\n  -H "xi-api-key: {key}" '
@@ -90,7 +90,7 @@ def guides(gw, key=None, base=None):
             "id": "higgsfield", "name": "Higgsfield", "kind": "Image and video",
             "blurb": "Images and video from your own scripts and apps.",
             "steps": [
-                {"title": "Point the Higgsfield SDK at Swangz AI", "how": "Node.js — the part after the colon can be anything:",
+                {"title": "Point the Higgsfield SDK at Swangz AI Hub", "how": "Node.js — the part after the colon can be anything:",
                  "code": (f"import {{ createHiggsfieldClient }} from '@higgsfield/client/v2';\n\n"
                           f"const higgsfield = createHiggsfieldClient({{ credentials: '{key}:swangz', baseURL: '{url}' }});")},
                 {"title": "Or call it directly", "how": "Starts an image; poll the status link it returns:",
@@ -103,7 +103,7 @@ def guides(gw, key=None, base=None):
             continue
         url = f"{base}/{p.name}" + ("/v1" if p.dialect == "openai" else "")
         out.append({"id": p.name, "name": p.name.capitalize(), "kind": "Extra provider",
-                    "blurb": f"Models from {p.name} through Swangz AI.",
+                    "blurb": f"Models from {p.name} through Swangz AI Hub.",
                     "steps": [{"title": "Use these two values", "how": "Base URL and API key:",
                                "code": f"Base URL   {url}\nAPI key    {key}"}]})
     return out

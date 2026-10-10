@@ -1,6 +1,6 @@
 """The staff app's API: sign in, connect a tool, look after your own devices.
 
-For staff, Swangz AI is simply how they reach AI tools at work. This API only ever returns the
+For staff, Swangz AI Hub is simply how they reach AI tools at work. This API only ever returns the
 signed-in person's own profile, budget and keys.
 """
 
@@ -54,7 +54,7 @@ def dispatch(h, gw, path, query):
                         raise ApiError(400, "body must be a JSON object")
             result = fn(ctx, **{k: unquote(v) for k, v in m.groupdict().items()})
         except ApiError as err:
-            return h.send_json(err.status, {"error": err.message})
+            return h.send_json(err.status, {"error": err.message, **({"code": err.code, "details": err.details} if err.code else {})})
         if isinstance(result, tuple):
             if isinstance(result[0], bytes):
                 return h.send_bytes(200, result[0], result[1], result[2])
@@ -73,9 +73,10 @@ def current_person(ctx):
             token = auth[7:].strip()
     if not token:
         return None
-    return ctx.db.one(
+    person = ctx.db.one(
         "SELECT p.* FROM staff_sessions s JOIN people p ON p.id = s.person_id WHERE s.token_hash = ? AND s.expires > ?",
         (security.sha256(token), time.time()))
+    return person if person and ctx.gw.settings.email_allowed(person["email"]) else None
 
 
 def _cookie(header, name):
@@ -108,6 +109,10 @@ def _start_session(ctx, person_id):
 
 def new_invite(db, person_id):
     """A one-time sign-in link token, valid for a week. Only its hash is stored."""
+    person = db.one("SELECT email FROM people WHERE id=?", (person_id,))
+    from .config import Settings
+    if not person or not Settings().email_allowed(person["email"]):
+        raise ValueError("Only approved company identities can receive an invitation.")
     token = secrets.token_urlsafe(24)
     db.x("UPDATE people SET invite_hash = ?, invite_expires = ? WHERE id = ?",
          (security.sha256(token), time.time() + INVITE_SECONDS, person_id))
@@ -131,11 +136,11 @@ def login(ctx):
     if ctx.gw.throttle.blocked("staff:" + ctx.ip):
         raise ApiError(429, "Too many attempts. Wait ten minutes and try again.")
     person = ctx.db.one("SELECT * FROM people WHERE lower(email) = ? AND email != ''", (email,)) if email else None
-    if not person or not person["pw_hash"] or not security.check_password(password, person["pw_hash"]):
+    if not person or not ctx.gw.settings.email_allowed(person["email"]) or not person["pw_hash"] or not security.check_password(password, person["pw_hash"]):
         ctx.gw.throttle.fail("staff:" + ctx.ip)
         raise ApiError(401, "That email and password don't match.")
     ctx.gw.throttle.clear("staff:" + ctx.ip)
-    ctx.gw.audit(person["name"], "signed in to Swangz AI", "", "", ctx.ip, correlation=f"person:{person['id']}")
+    ctx.gw.audit(person["name"], "signed in to Swangz AI Hub", "", "", ctx.ip, correlation=f"person:{person['id']}")
     return 200, {"ok": True}, _start_session(ctx, person["id"])
 
 
@@ -150,7 +155,7 @@ def logout(ctx):
 @route("GET", r"/welcome/(?P<token>[A-Za-z0-9_\-]{20,64})", signed_in=False)
 def welcome_check(ctx, token):
     person = _invited(ctx, token)
-    if not person:
+    if not person or not ctx.gw.settings.email_allowed(person["email"]):
         raise ApiError(404, "This sign-in link has expired or was already used. Ask your admin for a new one.")
     return {"name": person["name"], "email": person["email"], "has_password": bool(person["pw_hash"])}
 
@@ -158,7 +163,7 @@ def welcome_check(ctx, token):
 @route("POST", r"/welcome", signed_in=False)
 def welcome(ctx):
     person = _invited(ctx, str(ctx.body.get("token") or ""))
-    if not person:
+    if not person or not ctx.gw.settings.email_allowed(person["email"]):
         raise ApiError(404, "This sign-in link has expired or was already used. Ask your admin for a new one.")
     password = str(ctx.body.get("password") or "")
     if len(password) < 10:
@@ -166,7 +171,7 @@ def welcome(ctx):
     ctx.db.x("UPDATE people SET pw_hash = ?, invite_hash = NULL, invite_expires = NULL WHERE id = ?",
              (security.hash_password(password, ctx.gw.settings.pbkdf2_iterations), person["id"]))
     ctx.db.x("DELETE FROM staff_sessions WHERE person_id = ?", (person["id"],))
-    ctx.gw.audit(person["name"], "set their Swangz AI password", "", "", ctx.ip, correlation=f"person:{person['id']}")
+    ctx.gw.audit(person["name"], "set their Swangz AI Hub password", "", "", ctx.ip, correlation=f"person:{person['id']}")
     return 200, {"ok": True}, _start_session(ctx, person["id"])
 
 
@@ -195,6 +200,9 @@ def me(ctx):
     from . import entitle, turns
 
     p = ctx.person
+    from . import reporting
+    report_pending = reporting.pending(ctx.gw, p["id"])
+    reports_by_tool = {r["tool_id"]: r for r in report_pending}
     day, month = proxy.period_starts(time.time(), ctx.gw.settings.tz_offset_minutes)
     keys = ctx.db.q("SELECT id, label, hint, created, last_used, revoked FROM keys WHERE person_id = ?"
                     " ORDER BY revoked IS NOT NULL, created DESC", (p["id"],))
@@ -219,6 +227,7 @@ def me(ctx):
         " GROUP BY tool_id", (p["id"], time.time() - 30 * 86400))}
     for t in catalog:
         # why they have it: their own grant, or their team's
+        t["report_gate"] = reports_by_tool.get(t["id"])
         t["grant"] = "direct" if t["id"] in direct else ("team" if t["assigned"] else None)
         t["opens_30d"] = opens_30d.get(t["id"], 0)
         t["pending"] = t["id"] in pending
@@ -235,6 +244,8 @@ def me(ctx):
     connect = [g for g in guides.guides(ctx.gw, None, ctx.gw.public_url(ctx.h))
                if _guide_provider(g["id"]) in allow_providers]
     out = {
+        "weekly_outstanding": len(report_pending), "weekly_reports": report_pending,
+        "hub_unread": ctx.db.scalar("SELECT COUNT(*) FROM hub_notifications WHERE person_id=? AND read IS NULL", (p["id"],)),
         "name": p["name"], "email": p["email"],
         "title": p["title"], "department": p["department"],
         "active": p["status"] == "active" and ctx.db.get_setting("paused", "0") != "1",
@@ -342,8 +353,12 @@ def launch(h, gw, tool_id):
         if re.fullmatch(r"[a-z0-9-]{1,80}", tool_id) else None
     if not tool:
         return _launch_page(h, 404, "That tool isn't in the catalog any more.", "Your admin may have removed it.")
+    from . import reporting
     ok, state, reason = entitle.is_enabled(gw.db, person, tool)
-    rule = None
+    report_denial = reporting.gate(gw, person["id"], tool["id"]) if ok else None
+    if report_denial:
+        ok, state, reason = False, "weekly_report_required", report_denial["message"]
+    rule = "weekly_report_required" if report_denial else None
     if gw.db.get_setting("paused", "0") == "1":
         ok, reason = False, "AI access is paused for everyone right now."
     if ok:
@@ -360,7 +375,7 @@ def launch(h, gw, tool_id):
         pool = workspace.browsers(tool)
         asked = time.time()
         with gw.db.tx():  # so two people opening at once can't both get the last seat or the same browser
-            turn, busy = turns.take(gw.db, tool, person)
+            turn, busy = turns.take(gw.db, tool, person, week_ends=reporting.week(gw)["ends"])
             browser = gw.workspaces.assign(tool, turn) if turn and pool else None
         fresh = bool(turn) and turn["started"] >= asked
         full = f"All of Swangz's browsers for {tool['name']} are in use. Try again shortly."
@@ -396,6 +411,8 @@ def launch(h, gw, tool_id):
     gw.db.x("INSERT INTO launches(tool_id, person_id, ts, outcome, ip, user_agent, reason, rule) VALUES(?,?,?,?,?,?,?,?)",
             (tool["id"], person["id"], time.time(), "opened" if ok else "refused", ctx.ip,
              (h.headers.get("user-agent") or "")[:200], "" if ok else (reason or "")[:300], rule))
+    if report_denial:
+        return h.send_bytes(303, b"", "text/plain", {"Location": report_denial["href"], "Cache-Control": "no-store", "X-Swangz-Denial-Code": "weekly_report_required"})
     if not ok:
         return _launch_page(h, 403, f"{tool['name']} isn't open to you right now", reason)
     return h.send_bytes(302, b"", "text/plain", {"Location": target, "Cache-Control": "no-store",
@@ -414,14 +431,14 @@ def _starting_page(h, tool):
 
     body = ("<!doctype html><html lang=en><head><meta charset=utf-8>"
             "<meta name=viewport content='width=device-width, initial-scale=1'>"
-            "<meta http-equiv=refresh content=3><title>Starting your browser · Swangz AI</title>"
+            "<meta http-equiv=refresh content=3><title>Starting your browser · Swangz AI Hub</title>"
             "<link rel=stylesheet href=/static/tokens.css><link rel=stylesheet href=/static/portal.css></head>"
             "<body><main class=launch-msg><div class=launch-card>"
             "<img src=/static/icon.svg alt='' width=40 height=40>"
             f"<h1>Starting your {html.escape(tool['name'])} browser…</h1>"
             "<p>It's starting on Swangz's own server and opens here by itself as soon as it's ready — "
             "usually within half a minute.</p>"
-            "<a class='btn btn--solid' href=/>Back to Swangz AI</a></div></main></body></html>")
+            "<a class='btn btn--solid' href=/>Back to Swangz AI Hub</a></div></main></body></html>")
     h.send_bytes(200, body.encode(), "text/html; charset=utf-8", {"Cache-Control": "no-store", **CONSOLE_HEADERS})
 
 
@@ -429,12 +446,12 @@ def _launch_page(h, status, title, text):
     from .server import CONSOLE_HEADERS
 
     body = ("<!doctype html><html lang=en><head><meta charset=utf-8>"
-            "<meta name=viewport content='width=device-width, initial-scale=1'><title>Swangz AI</title>"
+            "<meta name=viewport content='width=device-width, initial-scale=1'><title>Swangz AI Hub</title>"
             "<link rel=stylesheet href=/static/tokens.css><link rel=stylesheet href=/static/portal.css></head>"
             "<body><main class=launch-msg><div class=launch-card>"
             "<img src=/static/icon.svg alt='' width=40 height=40>"
             f"<h1>{html.escape(title)}</h1><p>{html.escape(text)}</p>"
-            "<a class='btn btn--solid' href=/>Back to Swangz AI</a></div></main></body></html>")
+            "<a class='btn btn--solid' href=/>Back to Swangz AI Hub</a></div></main></body></html>")
     h.send_bytes(status, body.encode(), "text/html; charset=utf-8", {"Cache-Control": "no-store", **CONSOLE_HEADERS})
 
 
@@ -451,7 +468,7 @@ def extension_login(ctx):
     if ctx.gw.throttle.blocked("ext:" + ctx.ip):
         raise ApiError(429, "Too many attempts. Wait ten minutes.")
     person = ctx.db.one("SELECT * FROM people WHERE lower(email) = ? AND email != ''", (email,)) if email else None
-    if not person or not person["pw_hash"] or not security.check_password(password, person["pw_hash"]):
+    if not person or not ctx.gw.settings.email_allowed(person["email"]) or not person["pw_hash"] or not security.check_password(password, person["pw_hash"]):
         ctx.gw.throttle.fail("ext:" + ctx.ip)
         raise ApiError(401, "That email and password don't match.")
     ctx.gw.throttle.clear("ext:" + ctx.ip)
@@ -465,7 +482,7 @@ def extension_login(ctx):
 
 def _gate_policy(ctx):
     full = ctx.db.get_setting("gate_log_full", "0") == "1"
-    return ("Swangz AI records which approved tool you open, when, and for how long — the same as any "
+    return ("Swangz AI Hub records which approved tool you open, when, and for how long — the same as any "
             "company system. It does not read the pages or what you type."
             + (" Your admin has turned on full-content logging for compliance." if full else ""))
 
@@ -509,6 +526,7 @@ def gate_open(ctx):
 
     host = str(ctx.body.get("host") or "").strip().lower()[:200]  # noqa: E501
     tool = catalog.match_host(catalog.host_index(ctx.db), host)
+    report_denial = None
     rule = None
     paused = ctx.db.get_setting("paused", "0") == "1"
     if ctx.person["status"] != "active" or paused:
@@ -519,6 +537,11 @@ def gate_open(ctx):
         from . import turns
 
         ok, state, reason = entitle.is_enabled(ctx.db, ctx.person, tool)
+        if ok:
+            from . import reporting
+            report_denial = reporting.gate(ctx.gw, ctx.person["id"], tool["id"])
+            if report_denial:
+                ok, state, reason, rule = False, "weekly_report_required", report_denial["message"], "weekly_report_required"
         if ok:
             ruled = ctx.gw.tool_policy(ctx.person, tool, "site")
             if ruled:
@@ -539,7 +562,7 @@ def gate_open(ctx):
     return {"known": True, "allowed": allowed, "id": rid, "tool_id": tool["id"] if tool else None,
             "tool": tool["name"] if tool else None, "state": state if tool else None,
             "reason": reason if not allowed else None, "pending": pending,
-            "app_url": ctx.gw.public_url(ctx.h)}
+            "app_url": ctx.gw.public_url(ctx.h), "report_gate": report_denial}
 
 
 @route("POST", r"/gate/close")
@@ -564,10 +587,13 @@ def add_key(ctx):
         raise ApiError(403, "Ask your admin to connect a new device for you.")
     if ctx.db.scalar("SELECT COUNT(*) FROM keys WHERE person_id = ? AND revoked IS NULL", (p["id"],)) >= 10:
         raise ApiError(400, "You have ten devices connected. Disconnect one you no longer use first.")
+    from . import reporting
+    scope = reporting.key_scope(ctx.db, p, ctx.body.get("tool_id"))
     label = str(ctx.body.get("label") or "").strip()[:80] or "My device"
     key_id, full, secret_hash, hint = security.new_key()
     ctx.db.x("INSERT INTO keys(id, person_id, label, secret_hash, hint, created, created_by) VALUES(?,?,?,?,?,?,?)",
              (key_id, p["id"], label, secret_hash, hint, time.time(), "self"))
+    ctx.db.x("UPDATE keys SET hub_tool_id=? WHERE id=?", (scope, key_id))
     ctx.gw.audit(p["name"], "connected a device (issued own key)", p["name"], f"{label} ({hint})", ctx.ip)
     return {"id": key_id, "key": full, "hint": hint, "label": label, "tools": guides.guides(ctx.gw, full, ctx.gw.public_url(ctx.h))}
 
@@ -610,7 +636,7 @@ def _through_gateway(ctx, provider, method, path, body=None, ref=None, purpose=N
     else:
         conn = http.client.HTTPConnection("127.0.0.1", gw.port, timeout=300)
     day = time.strftime("%Y%m%d", time.gmtime(time.time() + gw.settings.tz_offset_minutes * 60))
-    headers = {"x-sgw-internal": gw.internal_secret, "x-sgw-person": str(ctx.person["id"]), "user-agent": "Swangz AI Studio",
+    headers = {"x-sgw-internal": gw.internal_secret, "x-sgw-person": str(ctx.person["id"]), "user-agent": "Swangz AI Hub Studio",
                "x-session-id": f"studio-{ctx.person['id']}-{day}"}
     if ref:
         headers["x-sgw-ref"] = ref
@@ -639,7 +665,7 @@ def _error_from(payload, fallback):
         return fallback
     err = d.get("error")
     if isinstance(err, dict) and err.get("message"):
-        msg = str(err["message"]).replace("Swangz AI gateway: ", "")
+        msg = str(err["message"]).replace("Swangz AI Hub gateway: ", "")
         return msg[:1].upper() + msg[1:]
     detail = d.get("detail")
     if isinstance(detail, dict):
@@ -688,7 +714,7 @@ def _creation(row):
 @route("GET", r"/studio")
 def studio(ctx):
     voice, visual = _service(ctx, "elevenlabs"), _service(ctx, "higgsfield")
-    recent = ctx.db.q("SELECT * FROM requests WHERE person_id = ? AND kind = 'media' AND client = 'Swangz AI Studio'"
+    recent = ctx.db.q("SELECT * FROM requests WHERE person_id = ? AND kind = 'media' AND client IN ('Swangz AI Studio','Swangz AI Hub Studio')"
                       " ORDER BY id DESC LIMIT 12", (ctx.person["id"],))
     return {"voice": bool(voice), "image": bool(visual), "video": bool(visual),
             "voices": _voices(ctx, voice) if voice else [],
@@ -703,6 +729,8 @@ def studio_voice(ctx):
     provider = _service(ctx, "elevenlabs")
     if not provider:
         raise ApiError(403, "Voice isn't switched on for you.")
+    from . import reporting
+    reporting.studio_denial(ctx, provider)
     text = str(ctx.body.get("text") or "").strip()
     voice = str(ctx.body.get("voice_id") or "").strip()
     model = str(ctx.body.get("model_id") or VOICE_MODELS[0][0])
@@ -726,6 +754,8 @@ def studio_generate(ctx):
     provider = _service(ctx, "higgsfield")
     if not provider:
         raise ApiError(403, "Image and video aren't switched on for you.")
+    from . import reporting
+    reporting.studio_denial(ctx, provider)
     kind = ctx.body.get("kind")
     prompt = str(ctx.body.get("prompt") or "").strip()
     if not prompt:

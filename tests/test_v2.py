@@ -17,7 +17,7 @@ from .test_insight import add_request
 def add_admin(db, username, role):
     stored_role, areas = authz.stored(role)
     db.x("INSERT INTO admins(username, pw_hash, role, areas, created) VALUES(?,?,?,?,?)",
-         (username, security.hash_password(f"{username}-password", 1000), stored_role, areas, time.time()))
+         (username if "@" in username else username + "@swangzavenue.com", security.hash_password(f"{username}-password", 1000), stored_role, areas, time.time()))
 
 
 class V2Base(unittest.TestCase):
@@ -80,7 +80,7 @@ class AuthorityTests(V2Base):
         rig = self.rig
         self.assertEqual(rig.api("POST", "/pause", {"paused": True}, who="billing")[0], 403)
         row = self.db.one("SELECT * FROM audit WHERE outcome = 'denied' ORDER BY id DESC LIMIT 1")
-        self.assertEqual((row["actor"], row["action"]), ("billing", "was refused a change"))
+        self.assertEqual((row["actor"], row["action"]), ("billing@swangzavenue.com", "was refused a change"))
         status, me = rig.api("GET", "/me", who="security")
         self.assertEqual((me["role"], me["role_label"], me["can"]), ("security", "Security admin", ["emergency", "trust"]))
         self.assertFalse(me["owner"])
@@ -88,13 +88,13 @@ class AuthorityTests(V2Base):
 
     def test_roles_can_be_given_and_changed_but_one_owner_always_stays(self):
         rig = self.rig
-        self.assertEqual(rig.api("POST", "/admins", {"username": "finance", "password": "a-long-password", "role": "billing"})[0], 200)
+        self.assertEqual(rig.api("POST", "/admins", {"username": "finance@swangzavenue.com", "password": "a-long-password", "role": "billing"})[0], 200)
         status, admins = rig.api("GET", "/admins")
-        finance = next(a for a in admins["items"] if a["username"] == "finance")
+        finance = next(a for a in admins["items"] if a["username"] == "finance@swangzavenue.com")
         self.assertEqual((finance["role"], finance["can"]), ("billing", ["money"]))
         self.assertEqual(rig.api("PATCH", f"/admins/{finance['id']}", {"role": "custom", "areas": ["money", "trust"]})[0], 200)
-        self.assertEqual(authz.role_of(self.db.one("SELECT * FROM admins WHERE username = 'finance'")), "custom")
-        owner = self.db.one("SELECT id FROM admins WHERE username = 'owner'")
+        self.assertEqual(authz.role_of(self.db.one("SELECT * FROM admins WHERE username = 'finance@swangzavenue.com'")), "custom")
+        owner = self.db.one("SELECT id FROM admins WHERE username = 'owner@swangzavenue.com'")
         self.assertEqual(rig.api("PATCH", f"/admins/{owner['id']}", {"role": "viewer"})[0], 400)
         self.assertEqual(rig.api("POST", "/admins", {"username": "x1", "password": "a-long-password", "role": "god"})[0], 400)
         change = self.db.one("SELECT * FROM audit WHERE action = \"changed a console user's role\"")
@@ -127,7 +127,7 @@ class AuditFabricTests(V2Base):
         rig = self.rig
         rig.login("viewer")
         rig.request("POST", "/admin/api/logout", {}, {"cookie": rig.cookies["viewer"], "x-gateway-admin": "1"})
-        self.assertTrue(self.db.one("SELECT 1 FROM audit WHERE actor = 'viewer' AND action = 'signed out'"))
+        self.assertTrue(self.db.one("SELECT 1 FROM audit WHERE actor = 'viewer@swangzavenue.com' AND action = 'signed out'"))
 
 
 class EmergencyTests(V2Base):
@@ -537,7 +537,7 @@ class ReportTests(V2Base):
         status, h, csv_bytes = rig.request("GET", "/admin/api/reports/spend?format=csv", None, {"cookie": rig.cookies["owner"]})
         self.assertEqual((status, h["content-type"]), (200, "text/csv; charset=utf-8"))
         text = csv_bytes.decode("utf-8-sig")
-        self.assertIn("Swangz AI report: Spend by person", text)
+        self.assertIn("Swangz AI Hub report: Spend by person", text)
         self.assertIn("Nansubuga Grace", text)
         self.assertTrue(self.db.one("SELECT 1 FROM audit WHERE action = 'exported a report' AND correlation = 'report:spend'"))
         self.assertEqual(rig.api("GET", "/reports/nope")[0], 404)
@@ -567,7 +567,7 @@ class IncidentTests(V2Base):
         self.assertEqual(rig.api("PATCH", f"/incidents/{iid}", {"status": "open"}, who="security")[0], 400)  # not a valid step
         rig.api("PATCH", f"/incidents/{iid}", {"status": "resolved", "resolution": "Key revoked and rotated."}, who="security")
         inc = rig.api("GET", f"/incidents/{iid}")[1]
-        self.assertEqual((inc["status"], inc["closed_by"], inc["next"]), ("resolved", "security", ["open"]))
+        self.assertEqual((inc["status"], inc["closed_by"], inc["next"]), ("resolved", "security@swangzavenue.com", ["open"]))
         self.assertEqual([n["kind"] for n in inc["notes_list"]], ["status", "status", "note", "status"])
         self.assertEqual([t["action"] for t in inc["trail"]],
                          ["opened an incident", "changed an incident", "added a note to an incident", "changed an incident"])
@@ -618,7 +618,7 @@ class NotificationTests(V2Base):
         # a name with a line break in it can't break the email's headers
         self.db.x("UPDATE notifications SET emailed = NULL, title = 'Two\nlines\r\nBcc: x@example.com' WHERE key = 'att:paused'")
         self.assertEqual(notify.email_new(rig.gw, send=lambda cfg, msg: sent.append(msg)), 1)
-        self.assertEqual(sent[-1]["Subject"], "Swangz AI: Two lines Bcc: x@example.com")
+        self.assertEqual(sent[-1]["Subject"], "Swangz AI Hub: Two lines Bcc: x@example.com")
 
 
 class RetentionTests(V2Base):
@@ -704,10 +704,10 @@ class TimelineAndExportTests(V2Base):
         status, tl = rig.api("GET", f"/timeline?person={rig.person_id}", who="viewer")
         self.assertEqual(status, 200, tl)
         kinds = [(e["type"], e.get("action")) for e in tl["items"]]
-        self.assertIn(("access", "signed in to Swangz AI"), kinds)
+        self.assertIn(("access", "signed in to Swangz AI Hub"), kinds)
         self.assertIn(("access", "suspended a person"), kinds)
         self.assertIn(("turn", None), kinds)
-        signin = next(e for e in tl["items"] if e.get("action") == "signed in to Swangz AI")
+        signin = next(e for e in tl["items"] if e.get("action") == "signed in to Swangz AI Hub")
         self.assertTrue(signin["self"])
         self.assertEqual(rig.api("GET", "/timeline?type=turn", who="viewer")[1]["items"][0]["tool"], "ChatGPT")
 
@@ -722,7 +722,7 @@ class TimelineAndExportTests(V2Base):
         status, h, payload = rig.request("GET", "/admin/api/export.csv", None, {"cookie": rig.login("billing")})
         rows = list(__import__("csv").DictReader(payload.decode("utf-8-sig").splitlines()))
         self.assertEqual((rows[0]["prompt"], rows[0]["purpose"]), ("", "marketing"))
-        audit = self.db.one("SELECT * FROM audit WHERE action = 'exported records' AND actor = 'billing'")
+        audit = self.db.one("SELECT * FROM audit WHERE action = 'exported records' AND actor = 'billing@swangzavenue.com'")
         self.assertIn("without prompts", audit["detail"])
 
 
@@ -750,7 +750,7 @@ class V2PermissionTests(V2Base):
                            ("/simulate/seats", {"tool_id": "canva", "seats": 2}), ("/purposes/test", {"text": "a logo"}),
                            ("/notifications/read", {"all": True})):
             self.assertEqual(rig.api("POST", path, body, who="viewer")[0], 200, path)
-        denied = self.db.scalar("SELECT COUNT(*) FROM audit WHERE actor = 'viewer' AND outcome = 'denied'")
+        denied = self.db.scalar("SELECT COUNT(*) FROM audit WHERE actor = 'viewer@swangzavenue.com' AND outcome = 'denied'")
         self.assertEqual(denied, len(self.CHANGES))
 
 

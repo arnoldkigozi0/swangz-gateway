@@ -277,7 +277,7 @@ def report(ctx, kind):
     stamp = lambda ts: time.strftime("%Y-%m-%d %H:%M", time.gmtime(ts + offset))  # noqa: E731
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow([f"Swangz AI report: {data['title']}"])
+    w.writerow([f"Swangz AI Hub report: {data['title']}"])
     w.writerow([f"Range: {stamp(since)} to {stamp(until)} (gateway time, UTC{'+' if offset >= 0 else '-'}{abs(offset) // 3600:02d}:{abs(offset) % 3600 // 60:02d})"])
     w.writerow([f"Generated: {stamp(data['generated'])} by {ctx.admin['username']}"])
     for note in data["notes"]:

@@ -59,7 +59,7 @@ def held_by(db, person_id):
         "SELECT * FROM tool_turns WHERE person_id = ? AND ended IS NULL", (person_id,))}
 
 
-def take(db, tool, person):
+def take(db, tool, person, week_ends=None):
     """Give this person a turn on the tool.
 
     -> (turn, None) when they have it (an existing turn is returned as-is, not extended), or
@@ -72,8 +72,9 @@ def take(db, tool, person):
     if len(current) >= seats(tool):
         return None, current
     now = time.time()
+    expires = min(now + minutes(tool) * 60, week_ends) if week_ends is not None else now + minutes(tool) * 60
     rid = db.x("INSERT INTO tool_turns(tool_id, person_id, started, expires) VALUES(?,?,?,?)",
-               (tool["id"], person["id"], now, now + minutes(tool) * 60)).lastrowid
+               (tool["id"], person["id"], now, expires)).lastrowid
     return db.one("SELECT * FROM tool_turns WHERE id = ?", (rid,)), None
 
 
@@ -114,6 +115,6 @@ def may_open(db, tool, person):
     if any(t["person_id"] == person["id"] for t in current):
         return True, ""
     if len(current) < seats(tool):
-        return False, "Open it from Swangz AI to take your turn on the shared account."
+        return False, "Open it from Swangz AI Hub to take your turn on the shared account."
     who = ", ".join(t["person"] for t in current)
-    return False, f"{who} has the shared account right now. Swangz AI will tell you when it is free."
+    return False, f"{who} has the shared account right now. Swangz AI Hub will tell you when it is free."

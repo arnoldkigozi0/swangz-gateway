@@ -72,7 +72,7 @@ class ProxyTests(unittest.TestCase):
         self.assertEqual(record["person"], "Nansubuga Grace")
         audit = rig.gw.db.one("SELECT * FROM audit ORDER BY id DESC LIMIT 1")
         self.assertEqual(audit["action"], "opened the full record")  # watching is itself on the record
-        self.assertEqual(audit["actor"], "owner")
+        self.assertEqual(audit["actor"], "owner@swangzavenue.com")
 
     def test_codex_responses_stream(self):
         rig = self.rig
@@ -304,21 +304,21 @@ class ConsoleTests(unittest.TestCase):
 
     def test_sign_in(self):
         rig = self.rig
-        status, _, _ = rig.request("POST", "/admin/api/login", {"username": "owner", "password": "nope"}, {"x-gateway-admin": "1"})
+        status, _, _ = rig.request("POST", "/admin/api/login", {"username": "owner@swangzavenue.com", "password": "nope"}, {"x-gateway-admin": "1"})
         self.assertEqual(status, 401)
-        status, _, _ = rig.request("POST", "/admin/api/login", {"username": "owner", "password": "owner-password"})
+        status, _, _ = rig.request("POST", "/admin/api/login", {"username": "owner@swangzavenue.com", "password": "owner-password"})
         self.assertEqual(status, 403)  # no console header: a form on another site cannot sign anyone in
         self.assertEqual(rig.request("GET", "/admin/api/overview")[0], 401)
         cookie = rig.login()
-        self.assertIn("HttpOnly", rig.request("POST", "/admin/api/login", {"username": "owner", "password": "owner-password"},
+        self.assertIn("HttpOnly", rig.request("POST", "/admin/api/login", {"username": "owner@swangzavenue.com", "password": "owner-password"},
                                               {"x-gateway-admin": "1"})[1]["set-cookie"])
         self.assertEqual(rig.request("GET", "/admin/api/me", headers={"cookie": cookie})[0], 200)
 
     def test_sign_in_throttle(self):
         rig = self.rig
         for _ in range(8):
-            rig.request("POST", "/admin/api/login", {"username": "owner", "password": "wrong"}, {"x-gateway-admin": "1"})
-        status, _, payload = rig.request("POST", "/admin/api/login", {"username": "owner", "password": "owner-password"},
+            rig.request("POST", "/admin/api/login", {"username": "owner@swangzavenue.com", "password": "wrong"}, {"x-gateway-admin": "1"})
+        status, _, payload = rig.request("POST", "/admin/api/login", {"username": "owner@swangzavenue.com", "password": "owner-password"},
                                          {"x-gateway-admin": "1"})
         self.assertEqual(status, 429)
 
@@ -383,10 +383,10 @@ class ConsoleTests(unittest.TestCase):
 
     def test_admins(self):
         rig = self.rig
-        self.assertEqual(rig.api("POST", "/admins", {"username": "auditor", "password": "short", "role": "viewer"})[0], 400)
-        self.assertEqual(rig.api("POST", "/admins", {"username": "auditor", "password": "long-enough-pw", "role": "viewer"})[0], 200)
+        self.assertEqual(rig.api("POST", "/admins", {"username": "auditor@swangzavenue.com", "password": "short", "role": "viewer"})[0], 400)
+        self.assertEqual(rig.api("POST", "/admins", {"username": "auditor@swangzavenue.com", "password": "long-enough-pw", "role": "viewer"})[0], 200)
         self.assertEqual(rig.api("GET", "/admins", who="viewer")[0], 403)
-        owner_id = rig.gw.db.scalar("SELECT id FROM admins WHERE username = 'owner'")
+        owner_id = rig.gw.db.scalar("SELECT id FROM admins WHERE username = 'owner@swangzavenue.com'")
         self.assertEqual(rig.api("DELETE", f"/admins/{owner_id}")[0], 400)
         self.assertEqual(rig.api("POST", "/password", {"current": "owner-password", "new": "a-new-password"})[0], 200)
         actions = [a["action"] for a in rig.api("GET", "/audit")[1]["items"]]
@@ -398,7 +398,7 @@ class ConsoleTests(unittest.TestCase):
         status, headers, payload = rig.request("GET", "/")
         self.assertEqual(status, 200)
         self.assertIn("default-src 'self'", headers["content-security-policy"])
-        self.assertIn(b"<title>Swangz AI</title>", payload)  # staff see the AI app, nothing about monitoring
+        self.assertIn(b"<title>Swangz AI Hub</title>", payload)  # staff see the AI app, nothing about monitoring
         self.assertIn(b"portal.js", payload)
         status, _, payload = rig.request("GET", "/admin")
         self.assertIn(b"admin.js", payload)
@@ -462,6 +462,7 @@ class StaffBase(unittest.TestCase):
 class StaffAppTests(StaffBase):
     def test_invite_link_sets_a_password_once(self):
         rig = self.rig
+        rig.gw.db.x("UPDATE people SET email = '' WHERE id = ?", (rig.person_id,))
         status, out = rig.api("POST", f"/people/{rig.person_id}/invite")
         self.assertEqual((status, out["error"]), (400, "add their email first — it is what they sign in with"))
         token = self.invite()
@@ -516,7 +517,7 @@ class StaffAppTests(StaffBase):
         rig.api("POST", f"/people/{rig.person_id}/suspend")
         self.assertEqual(self.staff("GET", "/me")[0], 401)  # suspending signs them out of the app too
         actions = [a["action"] for a in rig.api("GET", "/audit")[1]["items"]]
-        self.assertIn("set their Swangz AI password", actions)
+        self.assertIn("set their Swangz AI Hub password", actions)
         self.assertIn("created a sign-in link", actions)
 
 
@@ -608,7 +609,7 @@ class StudioTests(StaffBase):
         self.assertTrue(audio.startswith(b"ID3"))
         r = rig.gw.db.one("SELECT * FROM requests WHERE id = ?", (made["id"],))
         self.assertEqual((r["client"], r["person_id"], r["key_id"], r["prompt"]),
-                         ("Swangz AI Studio", rig.person_id, None, "Welcome to the showcase."))
+                         ("Swangz AI Hub Studio", rig.person_id, None, "Welcome to the showcase."))
         # without a stated purpose, a voice-over is derived from the tool; with one, it is the person's word
         self.assertEqual((r["purpose"], r["purpose_source"]), ("audio-production", "derived"))
         self.assertIn({"id": "marketing", "name": "Marketing"}, studio["purposes"])
@@ -901,7 +902,7 @@ class CorsTests(unittest.TestCase):
         self.assertIn("POST", h["access-control-allow-methods"])
 
     def test_cross_site_login_sets_none_cookie_and_cors(self):
-        status, h, _ = self.rig.request("POST", "/admin/api/login", {"username": "owner", "password": "owner-password"},
+        status, h, _ = self.rig.request("POST", "/admin/api/login", {"username": "owner@swangzavenue.com", "password": "owner-password"},
                                         {"x-gateway-admin": "1", "origin": "https://staff.swangz.test"})
         self.assertEqual(status, 200)
         self.assertEqual(h["access-control-allow-origin"], "https://staff.swangz.test")
@@ -909,13 +910,13 @@ class CorsTests(unittest.TestCase):
         self.assertIn("Secure", h["set-cookie"])
 
     def test_same_origin_cookie_stays_strict(self):
-        status, h, _ = self.rig.request("POST", "/admin/api/login", {"username": "owner", "password": "owner-password"},
+        status, h, _ = self.rig.request("POST", "/admin/api/login", {"username": "owner@swangzavenue.com", "password": "owner-password"},
                                         {"x-gateway-admin": "1"})
         self.assertIn("SameSite=Strict", h["set-cookie"])
         self.assertNotIn("access-control-allow-origin", h)
 
     def test_unlisted_origin_gets_no_cors(self):
-        status, h, _ = self.rig.request("POST", "/admin/api/login", {"username": "owner", "password": "owner-password"},
+        status, h, _ = self.rig.request("POST", "/admin/api/login", {"username": "owner@swangzavenue.com", "password": "owner-password"},
                                         {"x-gateway-admin": "1", "origin": "https://evil.example"})
         self.assertNotIn("access-control-allow-origin", h)
         self.assertIn("SameSite=Strict", h["set-cookie"])  # unlisted origin = treated as same-site
@@ -940,13 +941,13 @@ class EmailRuleTests(unittest.TestCase):
         self.assertEqual(rig.api("POST", "/people", {"name": "Grace", "email": "grace2@swangzavenue.com"})[0], 200)
         # the owner and demo exceptions are allowed even though they are gmail
         self.assertEqual(rig.api("POST", "/people", {"name": "Arnold", "email": "arnoldkigozi0@gmail.com"})[0], 200)
-        self.assertEqual(rig.api("POST", "/people", {"name": "Demo", "email": "webdev02022007@gmail.com"})[0], 200)
+        self.assertEqual(rig.api("POST", "/people", {"name": "Demo", "email": "marvinmusokessekatawa@gmail.com"})[0], 200)
         # editing to a bad email is refused too
         pid = rig.person_id
         self.assertEqual(rig.api("PATCH", f"/people/{pid}", {"email": "someone@outlook.com"})[0], 400)
         self.assertEqual(rig.api("PATCH", f"/people/{pid}", {"email": "grace@swangzavenue.com"})[0], 200)
 
-    def test_configurable_domains(self):
+    def test_legacy_configuration_cannot_widen_company_domain(self):
         rig = self.rig
         rig.gw.settings.email_domains = ("swangz.co", "swangzavenue.com")
-        self.assertEqual(rig.api("POST", "/people", {"name": "A", "email": "a@swangz.co"})[0], 200)
+        self.assertEqual(rig.api("POST", "/people", {"name": "A", "email": "a@swangz.co"})[0], 400)

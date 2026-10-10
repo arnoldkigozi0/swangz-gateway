@@ -1,9 +1,9 @@
 """python3 -m gateway <command>
 
   serve                         run the gateway and the console
-  add-admin USER [--role R]     create a console user (asks for the password); R = owner (default),
+  add-admin EMAIL [--role R]     create a console user (asks for the password); R = owner (default),
                                 viewer, billing, security or operations (--viewer still works)
-  add-person NAME [--department D] [--email E]
+  add-person NAME --email E [--department D]
   issue-key PERSON_ID [--label L]
   revoke-key KEY_ID
   people                        list people and their keys
@@ -29,7 +29,7 @@ from .db import DB
 
 def main(argv=None):
     load_dotenv(os.environ.get("GATEWAY_ENV_FILE", ".env"))
-    parser = argparse.ArgumentParser(prog="python3 -m gateway", description="Swangz AI Gateway")
+    parser = argparse.ArgumentParser(prog="python3 -m gateway", description="Swangz AI Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("serve")
     p = sub.add_parser("add-admin")
@@ -43,6 +43,7 @@ def main(argv=None):
     p = sub.add_parser("issue-key")
     p.add_argument("person_id", type=int)
     p.add_argument("--label", default="key")
+    p.add_argument("--tool", help="catalogue ID for a tool-specific API/developer key")
     p = sub.add_parser("revoke-key")
     p.add_argument("key_id")
     sub.add_parser("people")
@@ -55,6 +56,14 @@ def main(argv=None):
     args = parser.parse_args(argv)
     settings = Settings.from_env()
 
+    if args.cmd == "add-admin":
+        args.username = args.username.strip().lower()
+    if args.cmd == "add-person":
+        args.email = args.email.strip().lower()
+    if args.cmd == "add-admin" and not settings.email_allowed(args.username):
+        sys.exit(settings.email_rule())
+    if args.cmd == "add-person" and not settings.email_allowed(args.email):
+        sys.exit(settings.email_rule())
     if args.cmd == "serve":
         return serve(settings)
 
@@ -83,13 +92,24 @@ def main(argv=None):
         audit("added a person", args.name)
         print(f"person #{cur.lastrowid} {args.name}")
     elif args.cmd == "issue-key":
-        person = db.one("SELECT name FROM people WHERE id = ?", (args.person_id,))
+        person = db.one("SELECT name,email FROM people WHERE id = ?", (args.person_id,))
         if not person:
             sys.exit("no such person")
+        if not settings.email_allowed(person["email"]):
+            sys.exit(settings.email_rule())
+        from . import reporting
+        try:
+            tool_id = reporting.key_scope(db, args.person_id, args.tool)
+        except Exception as exc:
+            from .admin import ApiError
+            if not isinstance(exc, ApiError):
+                raise
+            sys.exit(str(exc))
         key_id, full, secret_hash, hint = security.new_key()
         db.x("INSERT INTO keys(id, person_id, label, secret_hash, hint, created, created_by) VALUES(?,?,?,?,?,?,?)",
              (key_id, args.person_id, args.label, secret_hash, hint, time.time(), "command line"))
-        audit("issued a key", person["name"], f"{args.label} ({hint})")
+        db.x("UPDATE keys SET hub_tool_id=? WHERE id=?", (tool_id, key_id))
+        audit("issued a key", person["name"], f"{args.label} ({hint}); tool: {tool_id or 'legacy provider scope'}")
         print(f"Key for {person['name']} — shown once, copy it now:\n\n  {full}\n")
         print(f"Claude Code:  ANTHROPIC_BASE_URL={settings.base_url()}/anthropic  ANTHROPIC_AUTH_TOKEN=<key>")
         print(f"Codex / OpenAI tools:  base_url {settings.base_url()}/openai/v1  key <key>")
@@ -151,10 +171,10 @@ def serve(settings):
     icons.start(gw.db, gw.log)  # tool logos for the catalog, fetched once in the background
     configured = [p.name for p in settings.providers.values() if p.api_key()]
     missing = [p.name for p in settings.providers.values() if not p.api_key()]
-    gw.log(f"Swangz AI Gateway on {settings.base_url()}  (listening {settings.host}:{settings.port})")
+    gw.log(f"Swangz AI Hub on {settings.base_url()}  (listening {settings.host}:{settings.port})")
     gw.log(f"providers with keys: {', '.join(configured) or 'none'}" + (f"; without: {', '.join(missing)}" if missing else ""))
     if not gw.db.scalar("SELECT COUNT(*) FROM admins"):
-        gw.log("no console users yet — run: python3 -m gateway add-admin <name>")
+        gw.log("no console users yet — run: python3 -m gateway add-admin <verified-email>")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

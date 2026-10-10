@@ -83,6 +83,7 @@ class Settings:
     data_dir: str = "data"
     public_url: str = ""  # what staff type into their tools, e.g. https://ai.swangz.com
     secure_cookies: bool = False  # true whenever the console is served over https
+    company_timezone: str = "Africa/Kampala"
     tz_offset_minutes: int = 180  # budget days and months follow Kampala time (UTC+3)
     tls_cert: str = ""
     tls_key: str = ""
@@ -92,10 +93,9 @@ class Settings:
     bootstrap_admin: str = ""
     bootstrap_password: str = ""
     providers: dict = field(default_factory=dict)
-    # Who may be given an account: a Swangz-domain email, or one of the named exceptions (the owner
-    # and the demo user). Configurable; these are the defaults.
+    # Explicit owner exceptions approved by the organisation; legacy environment overrides cannot widen this.
     email_domains: tuple = ("swangzavenue.com",)
-    email_exceptions: frozenset = frozenset({"arnoldkigozi0@gmail.com", "webdev02022007@gmail.com"})
+    email_exceptions: frozenset = frozenset({"arnoldkigozi0@gmail.com", "marvinmusokessekatawa@gmail.com"})
     # The address people open the apps at, when it differs from the gateway's own (e.g. a Netlify site
     # that proxies to the gateway). Used for sign-in links and the Google sign-in return address.
     web_url: str = ""
@@ -125,20 +125,19 @@ class Settings:
         return bool(self.google_client_id and self.google_client_secret)
 
     def email_allowed(self, email):
-        """True when this email may be used for an account: a Swangz domain, or a named exception."""
+        import re
         email = (email or "").strip().lower()
-        if not email or "@" not in email:
+        if not re.fullmatch(r"[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+", email):
             return False
-        if email in self.email_exceptions:
-            return True
-        domain = email.rsplit("@", 1)[1]
-        return any(domain == d or domain.endswith("." + d) for d in self.email_domains)
+        return email.rsplit("@", 1)[1] == "swangzavenue.com" or email in {
+            "arnoldkigozi0@gmail.com", "marvinmusokessekatawa@gmail.com"}
 
     def email_rule(self):
-        doms = " or ".join("@" + d for d in self.email_domains)
-        return f"Accounts use a Swangz email ({doms})."
+        return "Accounts use an @swangzavenue.com work email."
 
     def __post_init__(self):
+        from zoneinfo import ZoneInfo
+        ZoneInfo(self.company_timezone)
         if not self.providers:
             self.providers = {p.name: p for p in default_providers()}
         for name in self.providers:
@@ -171,6 +170,7 @@ class Settings:
             public_url=env.get("GATEWAY_PUBLIC_URL", ""),
             secure_cookies=env.get("GATEWAY_SECURE_COOKIES", "") in ("1", "true", "yes")
             or env.get("GATEWAY_PUBLIC_URL", "").startswith("https://"),
+            company_timezone=env.get("GATEWAY_TIMEZONE", "Africa/Kampala"),
             tz_offset_minutes=parse_offset(env.get("GATEWAY_TZ_OFFSET", "+03:00")),
             tls_cert=env.get("GATEWAY_TLS_CERT", ""),
             tls_key=env.get("GATEWAY_TLS_KEY", ""),
@@ -178,10 +178,6 @@ class Settings:
             bootstrap_admin=env.get("GATEWAY_BOOTSTRAP_ADMIN", ""),
             bootstrap_password=env.get("GATEWAY_BOOTSTRAP_PASSWORD", ""),
             providers=providers,
-            email_domains=tuple(d.strip().lower().lstrip("@") for d in
-                                env.get("SWANGZ_EMAIL_DOMAINS", "swangzavenue.com").split(",") if d.strip()),
-            email_exceptions=frozenset({"arnoldkigozi0@gmail.com", "webdev02022007@gmail.com"}
-                                       | {e.strip().lower() for e in env.get("SWANGZ_EMAIL_EXCEPTIONS", "").split(",") if e.strip()}),
             web_url=env.get("GATEWAY_WEB_URL", "").strip().rstrip("/"),
             google_client_id=env.get("GOOGLE_CLIENT_ID", "").strip(),
             google_client_secret=env.get("GOOGLE_CLIENT_SECRET", "").strip(),
