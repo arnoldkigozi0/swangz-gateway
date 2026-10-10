@@ -206,12 +206,12 @@ settings (retention, rate limit, kill switch, …) live in the control room unde
 **See `docs/HANDOFF.md`** for the full version — what travels in git, what does not (`.env`,
 `data/gateway.db`), and how to move the secrets safely.
 
-With git and Claude Code installed and signed in:
+With git and your coding agent installed and signed in:
 
 ```bash
 git clone https://github.com/arnoldkigozi0/swangz-gateway.git
 cd swangz-gateway
-claude            # Claude Code reads this file automatically; then open docs/STATE.md
+# Open AGENTS.md and docs/STATE.md in your coding agent
 ```
 
 Then `python3 -m unittest discover -s tests -t .` to confirm the suite is green, and

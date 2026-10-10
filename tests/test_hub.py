@@ -177,6 +177,16 @@ class HubServiceTests(unittest.TestCase):
         self.assertEqual(len(import_entries(self.db,data,apply=True)['errors']),1)
         self.assertEqual(self.db.scalar('SELECT reason FROM hub_reports'),'Research')
 
+    def test_recovered_import_provenance_is_explicit_without_exposing_payload(self):
+        data=[{'id':'recovered-history','toolName':'ChatGPT','submittedAt':'2026-08-01T10:00:00Z','currency':'USD','reason':'Campaign'}]
+        self.assertTrue(import_entries(self.db,data,'tracker-browser-recovered',apply=True)['applied'])
+        rid=self.db.scalar("SELECT id FROM hub_reports WHERE kind='adoption'")
+        result=reporting.detail(self.gw,rid)['import_provenance']
+        self.assertEqual(result['source_id'],'recovered-history')
+        self.assertIn('not been reconciled',result['note'])
+        self.assertNotIn('original_json',result)
+        self.assertIsNone(reporting.import_provenance(self.db,'procurement',rid))
+
     def test_import_validation_is_transactional_and_demo_skipped(self):
         data=[{'id':'demo','isDemo':True},{'id':'bad','toolName':'X','tag':'wrong'}]
         out=import_entries(self.db,data,apply=True)

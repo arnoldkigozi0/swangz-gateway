@@ -227,6 +227,7 @@ def procurement_detail(ctx,rid):
     row=ctx.db.one('SELECT * FROM procurement_requests WHERE id=?',(rid,))
     if not row:
         raise ApiError(404,'Procurement request not found.')
+    row['import_provenance']=reporting.import_provenance(ctx.db,'procurement',rid)
     row['history']=ctx.db.q('SELECT * FROM procurement_reviews WHERE request_id=? ORDER BY id',(rid,))
     return row
 

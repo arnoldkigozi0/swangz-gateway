@@ -59,3 +59,21 @@ Compilation uses per-source ID watermarks between week boundaries to avoid resca
 ## Review screenshots
 
 Synthetic fixtures: [staff report wizard](screenshots/hub-staff-dark.png), [mobile admin reporting](screenshots/hub-admin-mobile-light.png).
+
+## Continuation and activation preparation — 10 October 2026
+
+The user requested completion after connectivity returned, including the earlier merge/hosting instruction. GitHub main remained at the audited base; PR #4 was mergeable and its Netlify checks passed. The existing laptop service is running from the original Gateway checkout with its existing database/configuration.
+
+Read-only identity preflight found the approved owner and five company-domain staff accounts; one existing personal-email staff account is retained as history but denied authentication by the requested rule. No replacement company address was invented.
+
+A private online SQLite backup passed integrity/hash checks. Migration 19 was rehearsed on its copy, preserving every original row in all 30 existing tables. Counts before activation: 49 tools, 6 people, 1 admin, 6 keys, 14 assignments, 9 subscriptions, 1 access request, 50 API records, 17 launches and 2 website records. Backup/recovery files remain outside Git and public assets.
+
+Tracker-specific browser storage was recovered from isolated profile copies without running its application sync code. The owner cache contains 48 rows; the second account's 44 overlapping rows are identical. The configured Supabase hostname returns NXDOMAIN (public DNS status 3) despite GitHub and Supabase's main domain resolving. Backend export cannot run against that missing host.
+
+Reconciliation preserves the complete original cache privately, quarantines three explicit test/probe records without changing them, and skips twelve browser-only demos. Thirty-three eligible records passed dry-run and staged import: 29 historical adoption declarations, 3 procurement requests and 1 registry record. Beeble's existing official registry URL was verified at https://beeble.ai/; a new catalogue row has no subscription or assignment and grants no access. The staged rerun detects 33 duplicates and creates none. Existing catalogue rows, subscriptions, assignments, keys and access requests remain intact.
+
+All 32 historical submitters remain external attribution because they have no exact match among existing Gateway people; six non-company historical addresses create no accounts. Five historic report tools remain unmatched catalogue references. No identity, tool assignment, procurement approval or currency was invented. Native report/procurement details now expose safe import provenance, explicitly stating that browser history has not been reconciled against the unavailable backend; raw archived payloads stay private.
+
+Activation is performed only after the new regression run and browser checks pass. The final activation record below captures the actual merged revision, verified backup, migration/import counts and public checks; preparation is not a deployment claim.
+
+Continuation verification: the complete Python suite passed **301 tests in 271.275s**, including recovered-import provenance. The browser rerun passed 7 screens and 13 workflow groups, with no accessibility violations, JavaScript errors or failed API requests. The original full dark/light size matrix remains recorded above. Python compilation, changed JavaScript syntax and whitespace checks passed. The user-authorised merge and backed-up activation proceed against this tested revision.

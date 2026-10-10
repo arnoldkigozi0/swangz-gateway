@@ -48,7 +48,7 @@ Management snapshots are dated, revisioned and immutable. Recompile creates a ne
 
 ## Historic Tracker import
 
-Both source repositories were inspected. No authorised live Tracker export/backend credential was supplied, so **no live records have been exported or imported**. Source repository access does not provide backend data.
+Both source repositories were inspected. The continuation recovered corroborated Tracker browser history from this machine. The configured Supabase hostname currently returns NXDOMAIN, so a live backend export and reconciliation remain unavailable. Recovered imports use the distinct `tracker-browser-recovered` source and show an explicit provenance notice in native report/procurement details. Source repository access alone does not provide backend data. See HUB-INTEGRATION.md for actual recovery/import and activation records.
 
 Supply an authorised JSON export with actual `entries` payloads, keeping credentials and personal data in a private directory outside Git. Optional read-only Supabase export uses `TRACKER_SUPABASE_URL` and `TRACKER_SUPABASE_SERVICE_KEY` in the server shell only. It restricts the destination to the Supabase HTTPS host and rejects redirects. Never put the service-role key into browser code or reports:
 

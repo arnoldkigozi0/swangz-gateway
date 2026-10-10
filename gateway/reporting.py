@@ -291,10 +291,21 @@ def reconcile(declaration, evidence, tolerance=0.1):
     return 'insufficient_telemetry', 'API activity was observed, but the declaration contains no directly comparable numerical claims.'
 
 
+def import_provenance(db, kind, target):
+    row = db.one('SELECT source,source_id,imported FROM tracker_imports WHERE kind=? AND target_id=?', (kind, str(target)))
+    if row:
+        row['note'] = ('Recovered Tracker browser cache; the original backend is unavailable. '
+                       'Historical declarations have not been reconciled against the backend.'
+                       if row['source'] == 'tracker-browser-recovered' else
+                       'Imported Tracker history; this is a historical declaration, not observed weekly activity.')
+    return row
+
+
 def detail(gw, rid, pid=None):
     row = gw.db.one('SELECT * FROM hub_reports WHERE id=?' + (' AND person_id=?' if pid is not None else ''), (rid, pid) if pid is not None else (rid,))
     if not row:
         raise ApiError(404, 'Report not found.')
+    row['import_provenance'] = import_provenance(gw.db, 'adoption', rid)
     row['projects'] = gw.db.q('SELECT name,link,description,traditional,ai_way,benefit FROM hub_report_projects WHERE report_id=? ORDER BY position', (rid,))
     row['evidence'] = gw.db.one('SELECT * FROM weekly_evidence WHERE id=?', (row['evidence_id'],)) if row['evidence_id'] else None
     if row['evidence']:
