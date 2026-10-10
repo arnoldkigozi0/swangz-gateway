@@ -74,10 +74,10 @@ Apply requires a new backup, integrity check and hash. Validation errors stop im
 
 ## Deployment and recovery
 
-1. Review the PR and preserve existing environment/provider configuration, auth callback URLs, Netlify proxy and systemd/Caddy/Cloudflare service settings.
+1. Review the PR and preserve existing environment/provider configuration, auth callback URLs and systemd/Caddy/Cloudflare service settings; use first-party delivery without a required Netlify proxy.
 2. Stop writes during the final deployment window. Verify a SQLite online backup and hash, test opening it read-only with `PRAGMA integrity_check`, and record counts of catalogue, people, admins, assignments, subscriptions, keys, access requests and audit records. Store it outside any public/static or Git directory.
 3. Run identity preflight and resolve every non-approved active account. Retain both approved owners and verify owner login before closing the deployment window.
-4. Upgrade using migration v19; never alter migrations 1–18 or replace the live database with an empty one. Run a dry-run import and review its counts before any authorised apply.
+4. Upgrade using migration v20; never alter migrations 1–19 or replace the live database with an empty one. Run a dry-run import and review its counts before any authorised apply.
 5. Verify preserved Gateway rows/counts, new data reconciliation, role visibility, each access path, notification delivery state and backup restoration. Keep the separate Tracker operational until sign-off.
 6. Restart the existing service using the established deployment guide. Keep URLs/slugs unchanged. Verify `/healthz` and authenticated flows from the public front door.
 
@@ -95,3 +95,9 @@ NODE_PATH=/tmp/swangz-browser/node_modules CHROME=/usr/bin/google-chrome node te
 ```
 
 These use temporary fixture databases and fake upstream providers. Check screenshots and actual logs. Production email, live import, public deployment and real vendor billing are separate operational verifications; local success must not be presented as those checks.
+
+## Native business workflows and v20
+
+See [delivery and recovery](HUB-DELIVERY.md) for the reviewed v20 backfill command, verified backup and first-party VPS cutover. [Parity](TRACKER-PARITY.md) maps the complete source workflows; [actual checks](HUB-COMPLETION.md) distinguishes local proof from external deployment/history blockers. Test tooling can be installed with `npm ci --prefix tests/browser`; it is not a runtime dependency. Run `node tests/browser/business.cjs` for the five-width, two-theme matrix and both wizards, and `node tests/browser/staging.cjs` for isolated restart persistence.
+
+Use Business value → Management for plan references, unknown-tool association, department-report scope review, current financial assumptions, company project folder and notification delivery/retry. Staff business declarations remain separate from weekly accountability. Never treat recovered browser provenance as a complete authoritative Supabase recovery.

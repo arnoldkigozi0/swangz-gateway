@@ -138,6 +138,10 @@
     const bar = el("div", { class: "ptabs" + (opts.vertical ? " vertical" : ""), role: "tablist", "aria-orientation": opts.vertical ? "vertical" : "horizontal",
       "aria-label": opts.label || "Views" });
     const panel = el("div", { class: "tab-pane-wrap", role: "tabpanel", id: uid + "-panel", tabindex: "-1" });
+    const mobileChoice = opts.mobileSelect ? el("select", { class: "input", "aria-label": opts.mobileSelect,
+      onchange: async () => { const requested = mobileChoice.value; mobileChoice.value = current; await choose(requested); mobileChoice.value = current; }
+    }, ...tabs.map(([id, label]) => el("option", { value: id }, label))) : null;
+    const mobileControl = mobileChoice ? el("label", { class: "tabs-mobile-select" }, el("span", null, opts.mobileSelect), mobileChoice) : null;
     function description(id) {
       if (opts.help === false) return "";
       const tab = tabs.find((t) => t[0] === id);
@@ -155,6 +159,7 @@
     // "history" (Back/Forward already moved the address)
     function show(id, how, focus) {
       current = id;
+      if (mobileChoice) mobileChoice.value = id;
       bar.querySelectorAll("[role=tab]").forEach((b) => {
         const on = b.dataset.tab === id;
         b.classList.toggle("on", on);
@@ -230,7 +235,7 @@
     });
     // a side sheet keeps the bar in its header and the view in its body
     if (opts.split) return { bar, body: el("div", { class: "tab-body" }, panel) };
-    return el("div", { class: "tabs-wrap" + (opts.vertical ? " vertical" : "") }, bar, el("div", { class: "tab-body" }, panel));
+    return el("div", { class: "tabs-wrap" + (opts.vertical ? " vertical" : "") }, mobileControl, bar, el("div", { class: "tab-body" }, panel));
   }
 
   /* Settings-style building blocks. A row says what a setting is on the left and holds its control on
@@ -287,9 +292,11 @@
   function sheet(onClose, label) {
     const scrim = el("div", { class: "scrim" });
     const node = el("aside", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-label": label || "Details" });
-    let release = null;
+    let closed = false;
+    const release = SUI.trapFocus(node);
     function close() {
-      if (onClose && onClose() === false) return;
+      if (closed || (onClose && onClose() === false)) return;
+      closed = true;
       node.classList.remove("in"); scrim.classList.remove("in");
       setTimeout(() => { scrim.remove(); node.remove(); }, 320);
       document.removeEventListener("keydown", onKey);
@@ -300,8 +307,8 @@
     document.addEventListener("keydown", onKey);
     document.body.append(scrim, node);
     requestAnimationFrame(() => {
+      if (closed) return;
       scrim.classList.add("in"); node.classList.add("in");
-      release = SUI.trapFocus(node);
       const first = node.querySelector("button, a[href], input, select");
       if (first) first.focus({ preventScroll: true });
     });
@@ -667,7 +674,7 @@
       ["#/health", "Health", "pulse"]], "What's happening"],
     ["Govern", [["#/people", "People", "people"], ["#/requests", "Access requests", "requests"], ["#/tools", "Tools", "tools"], ["#/models", "Models", "chip"],
       ["#/policies", "Policies", "rule"]], "Access and rules"],
-    ["Reporting", [["#/weekly", "Weekly reporting", "report"], ["#/procurement", "Tool & subscription requests", "requests"]], "Accountability and adoption"],
+    ["Reporting", [["#/weekly", "Weekly reporting", "report"], ["#/business", "Business value", "report"], ["#/procurement", "Tool & subscription requests", "requests"]], "Accountability and adoption"],
     ["Money", [["#/licences", "Licences & spend", "licences"], ["#/reports", "Spend reports", "report"]], "Spend and licences"],
     ["Trust", [["#/security", "Security", "shield"], ["#/incidents", "Incidents", "flag"], ["#/devices", "Devices", "device"], ["#/audit", "Audit log", "audit"],
       ["#/settings", "Settings", "settings"]], "Risks, records, settings"],
@@ -731,11 +738,11 @@
     reload();
   }
 
-  /* The four areas, each a group that can be folded away. Every group starts open; what someone folds is
+  /* The four areas, each a group that can be folded away. The active group starts open; other groups stay compact. What someone folds is
      remembered in this browser, but the group holding the page you're on always shows. */
   const NAV_KEY = "swangz-gateway-nav-folded";
   function foldedGroups() {
-    try { return new Set(JSON.parse(localStorage.getItem(NAV_KEY) || "[]")); } catch (e) { return new Set(); }
+    try { return new Set(JSON.parse(localStorage.getItem(NAV_KEY) || JSON.stringify(NAV.map(g => g[0])))); } catch (e) { return new Set(NAV.map(g => g[0])); }
   }
   function sidebar(active, onNavigate) {
     const folded = foldedGroups();
@@ -822,8 +829,11 @@
     side.setAttribute("aria-label", "Navigation");
     const closeBtn = el("button", { class: "btn quiet icon-only drawer-close", type: "button", "aria-label": "Close navigation", onclick: () => close() }, icon("x"));
     side.prepend(closeBtn);
-    let release = null;
+    let closed = false;
+    const release = SUI.trapFocus(side);
     function close() {
+      if (closed) return;
+      closed = true;
       side.classList.remove("in"); scrim.classList.remove("in");
       document.removeEventListener("keydown", onKey);
       setTimeout(() => { side.remove(); scrim.remove(); }, 260);
@@ -833,7 +843,7 @@
     scrim.addEventListener("click", close);
     document.addEventListener("keydown", onKey);
     document.body.append(scrim, side);
-    requestAnimationFrame(() => { scrim.classList.add("in"); side.classList.add("in"); release = SUI.trapFocus(side); closeBtn.focus(); });
+    requestAnimationFrame(() => { if (closed) return; scrim.classList.add("in"); side.classList.add("in"); closeBtn.focus(); });
   }
 
   // ------------------------------------------------------------------ the command menu

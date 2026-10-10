@@ -10,6 +10,7 @@ import threading
 from contextlib import contextmanager
 
 from .hub_schema import MIGRATION as HUB_MIGRATION
+from .business_schema import MIGRATION as BUSINESS_MIGRATION
 
 SCHEMA = [
     # v1
@@ -498,6 +499,7 @@ SCHEMA = [
     """,
     # v19: Swangz AI Hub reporting and procurement, preserving all Gateway records.
     HUB_MIGRATION,
+    BUSINESS_MIGRATION,
 ]
 
 

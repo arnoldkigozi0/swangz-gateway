@@ -13,6 +13,26 @@ spec.loader.exec_module(service)
 
 
 class LaptopRecoveryTests(unittest.TestCase):
+    def test_direct_tunnel_recovery_does_not_require_netlify(self):
+        for flag in (None, "0", "1"):
+            with self.subTest(flag=flag), tempfile.TemporaryDirectory() as directory:
+                env = {} if flag is None else {"GATEWAY_NETLIFY_SYNC": flag}
+                with patch.dict(service.os.environ, env, clear=True), patch.object(service, "load_dotenv"), \
+                        patch.object(service.shutil, "which", return_value="/tmp/cloudflared"), \
+                        patch.object(Path, "is_file", return_value=True):
+                    supervisor = service.Supervisor(Path(directory) / ".env")
+                    supervisor.ensure = Mock()
+                    supervisor.stop = Mock()
+                    supervisor.stop.is_set.side_effect = [False, True]
+                    url = "https://synthetic-fixture.trycloudflare.com"
+                    with patch.object(service, "latest_url", return_value=url), \
+                            patch.object(service.time, "monotonic", return_value=1), \
+                            patch.object(service.threading, "Thread") as sync_thread:
+                        supervisor.run()
+                    self.assertEqual([call.args[0] for call in supervisor.ensure.call_args_list], ["gateway", "tunnel"])
+                    self.assertEqual((Path(directory) / "tunnel-url.txt").read_text().strip(), url)
+                    self.assertEqual(sync_thread.call_count, 1 if flag == "1" else 0)
+
     def test_crashed_child_restarts_without_interrupting_other_children(self):
         with tempfile.TemporaryDirectory() as directory:
             supervisor = service.Supervisor.__new__(service.Supervisor)

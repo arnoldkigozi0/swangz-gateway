@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep the laptop gateway online and repair its Netlify front door after tunnel changes."""
+"""Keep Swangz AI Hub and its direct tunnel online; optional legacy Netlify sync."""
 import argparse
 import json
 import os
@@ -145,6 +145,7 @@ class Supervisor:
         self.files = {}
         self.url = None
         self.sync_thread = None
+        self.netlify_sync = os.environ.get("GATEWAY_NETLIFY_SYNC") == "1"
         self.next_sync = 0
         self.public_failures = 0
         self.local_failures = 0
@@ -221,7 +222,7 @@ class Supervisor:
                                     self.url = None
                             except OSError:
                                 pass
-                if (self.url and time.monotonic() >= self.next_sync
+                if (self.netlify_sync and self.url and time.monotonic() >= self.next_sync
                         and (not self.sync_thread or not self.sync_thread.is_alive())):
                     self.sync_thread = threading.Thread(target=self.sync, args=(self.url,), daemon=True)
                     self.sync_thread.start()

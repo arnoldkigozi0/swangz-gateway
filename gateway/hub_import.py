@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sqlite3
+import socket
 import tempfile
 import time
 from datetime import datetime
@@ -87,12 +88,42 @@ def entries_from(data):
     return out
 
 
+def business_claim(entry):
+    claim={'usage_confirmation':'used' if entry.get('tag')!='request' else None, 'reason':str(entry.get('reason') or ''), 'impact':str(entry.get('impact') or ''),
+           'manual_hours':_hours(entry,'tradTime'),'ai_hours':_hours(entry,'aiTime'), 'manual_cost':entry.get('tradCost'),
+           'ai_cost':entry.get('aiCost'), 'subscription_cost':entry.get('toolMonthlyCost'), 'extra_credits':entry.get('extraCredits'),
+           'revenue':entry.get('revenueAmount'),'revenue_description':entry.get('revenueDesc') or '',
+           'frequency':entry.get('frequency'),'usage_amount':entry.get('usageAmount'),'usage_unit':entry.get('usageUnit') or '',
+           'pricing_source':entry.get('usagePricingSource') or '', 'selected_plan':entry.get('selectedPlanName') or '',
+           'usage_included':entry.get('usageIncluded'),'usage_unit_cost_usd':entry.get('usageUnitCostUSD'),
+           'usage_cost_usd':entry.get('usageCostUSD'),'usage_flat_rate':entry.get('usageFlatRate'), 'currency':entry.get('currency') or 'USD','manual_unit':entry.get('tradTimeUnit') or 'h','ai_unit':entry.get('aiTimeUnit') or 'h','frequency_period':'month','adoption_stage':{'Requesting (need to invest)':'exploring','Piloting':'piloting','In Active Use':'adopted','Scaling Across Team':'scaling'}.get(entry.get('status'),''),
+           'projects':[{ 'name':p.get('name') or p.get('title') or '','link':p.get('link') or '',
+                         'description':p.get('description') or p.get('desc') or '', 'traditional':p.get('traditional') or '', 'ai_way':p.get('aiWay') or '', 'benefit':p.get('benefit') or ''} for p in entry.get('projects') or []]}
+    claim=reporting.validate(claim)
+    return claim
+
+
 def _prepare(db,entry,mapping):
     eid=entry.get('id')
     if not isinstance(eid,str) or not eid or len(eid)>200 or any(ord(c)<32 for c in eid):
         raise ApiError(400,'Entry needs a stable source ID.')
     if entry.get('isDemo'):
         return None
+    if entry.get('kind')=='access':
+        # The old client encoded scopes in a display string. Require reviewed scopes instead of guessing.
+        scopes=entry.get('reviewed_departments')
+        from .departments import departments
+        if not isinstance(scopes,list) or not scopes or len(scopes)>20 or any(not isinstance(d,str) or d not in departments(db) for d in scopes):
+            raise ApiError(400,'Legacy department access needs explicit reviewed_departments matching existing company departments.')
+        email=str(entry.get('submittedByEmail') or '').strip().lower()
+        person=db.q('SELECT id FROM people WHERE lower(email)=? AND email<>\'\'',(email,)) if email else []
+        if len(person)>1: raise ApiError(400,'Ambiguous historical requester.')
+        state={'new':'submitted','reviewed':'reviewed','approved':'approved','declined':'rejected'}.get(entry.get('requestStatus') or 'new')
+        reason=str(entry.get('reason') or '').strip()
+        if not state or not reason or len(reason)>4000: raise ApiError(400,'Invalid department request lifecycle or reason.')
+        fields={'person_id':person[0]['id'] if person else None,'submitter_name':str(entry.get('submittedBy') or '')[:300],'submitter_email':email[:320],
+                'reason':reason,'state':state,'created':timestamp(entry.get('submittedAt')),'updated':timestamp(entry.get('updatedAt') or entry.get('submittedAt')),'admin_note':str(entry.get('adminNote') or '')[:8000]}
+        return 'department',None,fields,sorted(set(scopes))
     tool=match_tool(db,entry,mapping)
     name=str(entry.get('toolName') or '').strip()
     if not name or len(name)>300:
@@ -133,18 +164,8 @@ def _prepare(db,entry,mapping):
         procurement_currency=common['currency']
         if not isinstance(procurement_currency,str) or not re.fullmatch('[A-Z]{3}',procurement_currency):
             raise ApiError(400,'Invalid historical currency.')
-        return 'procurement',None,common,None
-    claim={'usage_confirmation':'used', 'reason':str(entry.get('reason') or ''), 'impact':str(entry.get('impact') or ''),
-           'manual_hours':_hours(entry,'tradTime'),'ai_hours':_hours(entry,'aiTime'), 'manual_cost':entry.get('tradCost'),
-           'ai_cost':entry.get('aiCost'), 'subscription_cost':entry.get('toolMonthlyCost'), 'extra_credits':entry.get('extraCredits'),
-           'revenue':entry.get('revenueAmount'),'revenue_description':entry.get('revenueDesc') or '',
-           'frequency':entry.get('frequency'),'usage_amount':entry.get('usageAmount'),'usage_unit':entry.get('usageUnit') or '',
-           'pricing_source':entry.get('usagePricingSource') or '', 'selected_plan':entry.get('selectedPlanName') or '',
-           'usage_included':entry.get('usageIncluded'),'usage_unit_cost_usd':entry.get('usageUnitCostUSD'),
-           'usage_cost_usd':entry.get('usageCostUSD'),'usage_flat_rate':entry.get('usageFlatRate'), 'currency':entry.get('currency') or 'USD',
-           'projects':[{ 'name':p.get('name') or p.get('title') or 'Historical project','link':p.get('link') or '',
-                         'description':p.get('description') or p.get('desc') or '', 'traditional':p.get('traditional') or '', 'ai_way':p.get('aiWay') or '', 'benefit':p.get('benefit') or ''} for p in entry.get('projects') or []]}
-    claim=reporting.validate(claim)
+        return 'procurement',None,common,business_claim(entry)
+    claim=business_claim(entry)
     state={'new':'submitted','reviewed':'reviewed','confirmed':'confirmed','returned':'returned'}.get(entry.get('reportStatus') or 'new')
     if not state:
         raise ApiError(400,'Unknown historical report state.')
@@ -157,9 +178,13 @@ def _prepare(db,entry,mapping):
 
 def import_entries(db,data,source='tracker',mapping=None,apply=False):
     entries=entries_from(data)
-    summary={'source':source,'read':len(entries),'new':{'adoption':0,'procurement':0,'registry':0},'duplicates':0,'demo_skipped':0,
+    summary={'source':source,'read':len(entries),'new':{'adoption':0,'procurement':0,'registry':0,'department':0},'duplicates':0,'demo_skipped':0,
              'unmatched_people':0,'unmatched_tools':0,'email_domain_exceptions':0,'errors':[], 'applied':False}
-    prepared=[];seen=set()
+    summary.update(matched=0,archived_matches=0,conflicts=0,
+                   destination_before={t:db.scalar('SELECT COUNT(*) FROM '+t) for t in ('hub_reports','procurement_requests','hub_department_requests','tracker_imports')},
+                   unverified_cache_records=db.scalar("SELECT COUNT(*) FROM tracker_imports WHERE source='tracker-browser-recovered'"),
+                   history_completeness='Not established by this import. Original backend must be reconciled independently.')
+    prepared=[];seen=set();matches=[]
     from .config import Settings
     settings=Settings()
     for index,entry in enumerate(entries):
@@ -176,6 +201,16 @@ def import_entries(db,data,source='tracker',mapping=None,apply=False):
                 if prior['digest']!=digest:
                     raise ApiError(409,'Previously imported source ID changed; reconcile explicitly rather than overwrite history.')
                 summary['duplicates']+=1;continue
+            cross=db.q('SELECT * FROM tracker_imports WHERE source_id=?',(entry.get('id'),))
+            if cross:
+                targets={(r['kind'],r['target_id']) for r in cross}
+                if len(targets)!=1 or any(r['digest']!=digest for r in cross):
+                    summary['conflicts']+=1
+                    raise ApiError(409,'This source ID already exists under another provenance with conflicting values; reconcile without overwriting the original.')
+                match=cross[0];summary['matched']+=1
+                if match['kind']=='adoption' and db.scalar('SELECT archived_at FROM hub_reports WHERE id=?',(match['target_id'],)):
+                    summary['archived_matches']+=1
+                matches.append((entry,digest,payload,match));continue
             item=_prepare(db,entry,mapping or {})
             if item is None:
                 summary['demo_skipped']+=1;continue
@@ -183,7 +218,7 @@ def import_entries(db,data,source='tracker',mapping=None,apply=False):
             summary['new'][kind]+=1
             if kind!='registry':
                 summary['unmatched_people']+=fields['person_id'] is None
-                summary['unmatched_tools']+=fields['tool_id'] is None
+                summary['unmatched_tools']+=kind!='department' and fields['tool_id'] is None
                 summary['email_domain_exceptions']+=not settings.email_allowed(fields['submitter_email'])
             prepared.append((entry,digest,payload,item))
         except (ApiError,ValueError,TypeError,AttributeError) as exc:
@@ -191,15 +226,27 @@ def import_entries(db,data,source='tracker',mapping=None,apply=False):
     if not apply or summary['errors']:
         return summary
     with db.tx():
+        for entry,digest,payload,match in matches:
+            db.x('INSERT INTO tracker_imports(source,source_id,digest,kind,target_id,imported,original_json) VALUES(?,?,?,?,?,?,?)',
+                 (source,entry['id'],digest,match['kind'],match['target_id'],time.time(),payload))
         for entry,digest,payload,(kind,target,fields,claim) in prepared:
-            if db.one('SELECT 1 FROM tracker_imports WHERE source=? AND source_id=?',(source,entry['id'])):
+            if db.one('SELECT 1 FROM tracker_imports WHERE source_id=?',(entry['id'],)):
                 raise ApiError(409,'Import state changed concurrently; rerun the dry run.')
             if kind=='registry':
                 if fields:
                     db.x(f"UPDATE tools SET {','.join(k+'=?' for k in fields)} WHERE id=?",(*fields.values(),target))
             else:
-                table='hub_reports' if kind=='adoption' else 'procurement_requests'
+                table={'adoption':'hub_reports','procurement':'procurement_requests','department':'hub_department_requests'}[kind]
                 target=db.x(f"INSERT INTO {table}({','.join(fields)}) VALUES({','.join('?' for _ in fields)})",tuple(fields.values())).lastrowid
+                if kind=='department':
+                    for scope in claim:db.x('INSERT INTO hub_department_request_scopes VALUES(?,?)',(target,scope))
+                    # Historical approval is attribution, not a new live authorisation.
+                if kind=='procurement':
+                    business_fields={k:v for k,v in claim.items() if k in reporting.CLAIMS}
+                    business_fields['request_id']=target
+                    db.x('INSERT INTO procurement_business('+','.join(business_fields)+') VALUES('+','.join('?' for _ in business_fields)+')',tuple(business_fields.values()))
+                    for pos,p in enumerate(claim['projects']):
+                        db.x('INSERT INTO procurement_projects(request_id,position,name,link,description,traditional,ai_way,benefit) VALUES(?,?,?,?,?,?,?,?)',(target,pos,p['name'],p['link'],p['description'],p['traditional'],p['ai_way'],p['benefit']))
                 if kind=='adoption':
                     for pos,p in enumerate(claim['projects']):
                         db.x('INSERT INTO hub_report_projects(report_id,position,name,link,description,traditional,ai_way,benefit) VALUES(?,?,?,?,?,?,?,?)',(target,pos,p['name'],p['link'],p['description'],p['traditional'],p['ai_way'],p['benefit']))
@@ -209,6 +256,7 @@ def import_entries(db,data,source='tracker',mapping=None,apply=False):
                  (source,entry['id'],digest,kind,str(target),time.time(),payload))
         db.x('INSERT INTO audit(ts,actor,action,target,detail) VALUES(?,?,?,?,?)',(time.time(),'import operator','imported Tracker history',source,json.dumps(summary['new'],sort_keys=True)))
     summary['applied']=True
+    summary['destination_after']={t:db.scalar('SELECT COUNT(*) FROM '+t) for t in ('hub_reports','procurement_requests','hub_department_requests','tracker_imports')}
     return summary
 
 
@@ -228,6 +276,9 @@ def supabase_export(destination):
     parsed=urlsplit(base)
     if not secret or parsed.scheme!='https' or not parsed.hostname or not parsed.hostname.endswith('.supabase.co') or parsed.path or parsed.username or parsed.password:
         raise ValueError('Configure an authorised Supabase HTTPS URL and server-side credential outside source control.')
+    try: socket.getaddrinfo(parsed.hostname,443,type=socket.SOCK_STREAM)
+    except socket.gaierror:
+        raise ValueError('The configured Tracker hostname does not resolve. No authenticated request was attempted.') from None
     from urllib.request import HTTPRedirectHandler,build_opener
     class NoRedirect(HTTPRedirectHandler):
         def redirect_request(self,*args,**kwargs):
@@ -252,41 +303,85 @@ def supabase_export(destination):
     return len(rows)
 
 
+def backfill_v20(db,apply=False):
+    """Restore missing typed projections from retained v19 provenance; never alter original versions."""
+    out={'adoption_metadata':0,'procurement_business':0,'unchanged':0,'skipped_amended':0,'errors':[],'applied':False}
+    changes=[];seen=set()
+    for ledger in db.q("SELECT * FROM tracker_imports WHERE kind IN ('adoption','procurement') ORDER BY imported"):
+        key=(ledger['kind'],ledger['target_id'])
+        if key in seen: continue
+        seen.add(key)
+        try:
+            claim=business_claim(json.loads(ledger['original_json']))
+            if ledger['kind']=='adoption':
+                row=db.one('SELECT * FROM hub_reports WHERE id=?',(ledger['target_id'],))
+                if not row: raise ValueError('Missing import target.')
+                if row['version']!=1 or row['archived_at']:
+                    out['skipped_amended']+=1;continue
+                fields={k:claim[k] for k in ('manual_unit','ai_unit','frequency_period','adoption_stage') if row[k]!=claim[k]}
+                defaults={'manual_unit':'h','ai_unit':'h','frequency_period':'month','adoption_stage':''}
+                if any(row[k]!=defaults[k] for k in fields): raise ValueError('Metadata changed after import; manual reconciliation required.')
+                if not fields: out['unchanged']+=1;continue
+                out['adoption_metadata']+=1;changes.append(('adoption',row['id'],fields))
+            else:
+                if db.one('SELECT request_id FROM procurement_business WHERE request_id=?',(ledger['target_id'],)):
+                    out['unchanged']+=1;continue
+                if not db.one('SELECT id FROM procurement_requests WHERE id=?',(ledger['target_id'],)): raise ValueError('Missing import target.')
+                out['procurement_business']+=1;changes.append(('procurement',int(ledger['target_id']),claim))
+        except (ApiError,ValueError,TypeError,KeyError) as exc:
+            out['errors'].append({'kind':ledger['kind'],'target':ledger['target_id'],'error':str(exc)[:300]})
+    if apply and not out['errors']:
+        with db.tx():
+            for kind,rid,claim in changes:
+                if kind=='adoption':
+                    db.x('UPDATE hub_reports SET '+','.join(k+'=?' for k in claim)+' WHERE id=?',(*claim.values(),rid))
+                else:
+                    fields={k:v for k,v in claim.items() if k in reporting.CLAIMS};fields['request_id']=rid
+                    db.x('INSERT INTO procurement_business('+','.join(fields)+') VALUES('+','.join('?' for _ in fields)+')',tuple(fields.values()))
+                    for i,p in enumerate(claim['projects']):
+                        db.x('INSERT INTO procurement_projects VALUES(?,?,?,?,?,?,?,?)',(rid,i,p['name'],p['link'],p['description'],p['traditional'],p['ai_way'],p['benefit']))
+                db.x('INSERT INTO audit(ts,actor,action,target,detail,ip) VALUES(?,?,?,?,?,?)',(time.time(),'Tracker migration','restored typed business metadata',kind+':'+str(rid),'Original source ledger and submitted versions retained.',''))
+        out['applied']=True
+    return out
+
+
 def main():
     parser=argparse.ArgumentParser(description='Safe Tracker-to-Hub migration. Defaults to a non-mutating dry run.')
     parser.add_argument('--database');parser.add_argument('--file');parser.add_argument('--mapping');parser.add_argument('--source',default='tracker')
     parser.add_argument('--apply',action='store_true');parser.add_argument('--backup');parser.add_argument('--summary',required=True)
     parser.add_argument('--export-supabase')
+    parser.add_argument('--backfill-v20',action='store_true',help='Restore missing typed metadata from retained import provenance; dry run by default.')
     args=parser.parse_args()
     if args.export_supabase:
-        count=supabase_export(args.export_supabase)
         fd=os.open(args.summary,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
+        count=supabase_export(args.export_supabase)
         with os.fdopen(fd,'w') as f:
             json.dump({'exported':count,'read_only':True},f,indent=2)
         return
-    if not args.database or not args.file:
+    if not args.database or (not args.file and not args.backfill_v20):
         parser.error('--database and --file are required for import.')
     if args.apply and not args.backup:
         parser.error('--apply requires --backup pointing to a new backup file.')
-    data=json.loads(Path(args.file).read_text());mapping=json.loads(Path(args.mapping).read_text()) if args.mapping else {}
+    # Reserve the review artifact before any target DB opening, migration or import.
+    fd=os.open(args.summary,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
+    data=json.loads(Path(args.file).read_text()) if args.file else None;mapping=json.loads(Path(args.mapping).read_text()) if args.mapping else {}
     with tempfile.TemporaryDirectory(prefix='hub-import-preflight-') as tmp:
         scratch=Path(tmp)/'gateway.db'
         backup(args.database,scratch)
         dry=DB(str(scratch))
         try:
-            summary=import_entries(dry,data,args.source,mapping)
+            summary=backfill_v20(dry) if args.backfill_v20 else import_entries(dry,data,args.source,mapping)
         finally:
             dry.close()
         if args.apply and not summary['errors']:
             verified=backup(args.database,args.backup)
             db=DB(args.database)
             try:
-                summary=import_entries(db,data,args.source,mapping,True)
+                summary=backfill_v20(db,True) if args.backfill_v20 else import_entries(db,data,args.source,mapping,True)
                 summary['backup']=verified
             finally:
                 db.close()
         summary['mode']='apply' if args.apply else 'dry_run'
-        fd=os.open(args.summary,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
         with os.fdopen(fd,'w') as f:
             json.dump(summary,f,indent=2)
         print(json.dumps({k:v for k,v in summary.items() if k not in ('backup','errors')}))

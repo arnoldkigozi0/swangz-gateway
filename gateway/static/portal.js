@@ -60,8 +60,11 @@
   function drawer(label, onClose) {
     const scrim = el("div", { class: "scrim" });
     const node = el("aside", { class: "drawer", role: "dialog", "aria-modal": "true", "aria-label": label });
-    let release = null;
+    let closed = false;
+    const release = SUI.trapFocus(node);
     function close() {
+      if (closed) return;
+      closed = true;
       node.classList.remove("in"); scrim.classList.remove("in");
       setTimeout(() => { scrim.remove(); node.remove(); }, 320);
       document.removeEventListener("keydown", onKey);
@@ -73,7 +76,8 @@
     document.addEventListener("keydown", onKey);
     document.body.append(scrim, node);
     requestAnimationFrame(() => {
-      scrim.classList.add("in"); node.classList.add("in"); release = SUI.trapFocus(node);
+      if (closed) return;
+      scrim.classList.add("in"); node.classList.add("in");
       const first = node.querySelector("input, .btn--solid, button"); if (first) first.focus({ preventScroll: true });
     });
     return { node, close };
@@ -219,7 +223,7 @@
   // ------------------------------------------------------------------ the frame
 
   const NAV = [["#/", "Home", "home"], ["#/tools", "My tools", "tools"], ["#/studio", "Studio", "spark"], ["#/devices", "Devices", "device"],
-    ["#/weekly", "Weekly reports", "report"], ["#/requests", "Requests", "inbox"], ["#/activity", "Activity", "activity"], ["#/privacy", "Privacy & help", "shield"]];
+    ["#/weekly", "Weekly reports", "report"], ["#/business", "Adoption & impact", "report"], ["#/projects", "Projects", "layers"], ["#/requests", "Requests", "inbox"], ["#/activity", "Activity", "activity"], ["#/privacy", "Privacy & help", "shield"]];
   SUI.ICONS.inbox = SUI.ICONS.requests;
   const hasStudio = () => !!(S.studio && (S.studio.voice || S.studio.image || S.studio.video) && S.me.active);
 
@@ -516,7 +520,7 @@
     // the tool to go back to: the one opened most recently from here — or, when it is the only one, that one
     const lead = me.active ? byRecent.find((t) => t.last_opened) || (enabled.length === 1 ? enabled[0] : null) : null;
     const others = byRecent.filter((t) => t !== lead);
-    const shown = others.slice(0, lead ? 5 : 6);
+    const shown = others.slice(0, 3);
     const updates = notices().filter((n) => !n.state);
     const activeKeys = me.keys.filter((k) => !k.revoked);
     const contact = me.privacy && me.privacy.support_contact;
@@ -573,7 +577,7 @@
       toolsBox.append(...(shown.length ? [
         el("div", { class: "home-h" }, el("h2", { id: "home-tools-h" }, lead ? "Your other tools" : "Your tools"),
           el("a", { class: "tlink", href: more > 0 ? "#/tools?show=mine" : "#/tools" }, more > 0 ? `${more} more in Tools` : "Browse the catalogue", icon("chevronRight"))),
-        el("div", { class: "tcards" }, shown.map(toolCard))]
+        el("ul", { class: "tool-rows home-tool-rows" }, shown.map(toolRow))]
         // only one tool is on: say so once, with the way to ask for another
         : [el("div", { class: "home-h" }, el("h2", { id: "home-tools-h" }, "Need another tool?")),
           el("div", { class: "home-note" }, icon("info"), el("span", null, `${lead.name} is the only tool switched on for you. Everything else Swangz offers is in the catalogue — `,
@@ -605,7 +609,7 @@
       el("a", { href: "#/requests?view=access" }, icon("send"), el("span", null, el("strong", null, "Access requests"),
         el("span", null, pending ? SUI.plural(pending, "request") + " waiting for an admin" : me.active ? "Ask for any tool in the catalogue" : "What you've asked for")), icon("chevronRight")),
       el("a", { href: "#/privacy" }, icon("shield"), el("span", null, el("strong", null, "How Swangz AI Hub works"), el("span", null, "What's recorded, and what isn't")), icon("chevronRight")));
-    const aside = el("aside", { class: "home-aside", "aria-label": "Updates and more" }, updatesBox, allowance, studio, links);
+    const aside = el("aside", { class: "home-aside", "aria-label": "Updates and more" }, updatesBox, allowance);
     const reminder = me.weekly_outstanding ? el("div", { class: "shell" }, el("aside", { class: "hub-reminder", "aria-label": "Weekly reporting reminder" }, el("div", null, el("strong", null, `${me.weekly_outstanding} weekly tool report(s) need completion`), el("p", { class: "muted small" }, "Complete each report before reopening that tool.")), el("a", { class: "btn btn--small", href: "#/weekly" }, "Complete reports"))) : null;
     frame("Home", [hero, reminder, el("section", { class: "section home-body" }, el("div", { class: "shell home-grid" + (me.suspended ? " solo" : "") }, me.suspended ? null : toolsBox, aside))]);
   }
@@ -652,16 +656,19 @@
     f.show = ["mine", "others"].includes(params.get("show")) ? params.get("show") : "all";
     f.cat = cats.includes(params.get("cat")) ? params.get("cat") : "all";
     f.sort = ["recent", "az"].includes(params.get("sort")) ? params.get("sort") : "recommended";
+    let page = Math.max(0, Number(params.get("page")) || 0);
     function remember(push = false) {
       const query = new URLSearchParams();
       if (f.q) query.set("q", f.q);
       if (f.show !== "all") query.set("show", f.show);
       if (f.cat !== "all") query.set("cat", f.cat);
       if (f.sort !== "recommended") query.set("sort", f.sort);
+      if (page) query.set("page", String(page));
       const next = "#/tools" + (query.size ? "?" + query : "");
       if (next !== location.hash) history[push ? "pushState" : "replaceState"](null, "", next);
     }
     function resetFilters() {
+      page = 0;
       Object.assign(f, { q: "", cat: "all", show: "all", sort: "recommended" });
       search.value = ""; sort.value = "recommended";
       remember(true); drawChips(); drawShow(); draw(); search.focus();
@@ -671,16 +678,19 @@
     const count = el("p", { class: "count", role: "status" });
     const search = el("input", { class: "input search", type: "search", placeholder: "Search AI tools…", value: f.q, "aria-label": "Search AI tools" });
     const chips = el("div", { class: "chips-row", role: "group", "aria-label": "Category" });
+    const category = el("select", { class: "input select", "aria-label": "Tool category", onchange: () => { f.cat = category.value; page = 0; remember(true); drawChips(); draw(); } },
+      cats.map(c => el("option", { value: c }, c === "all" ? "All categories" : c)));
     const sort = el("select", { class: "input select", "aria-label": "Sort" }, el("option", { value: "recommended" }, "Recommended"), el("option", { value: "recent" }, "Recently used"), el("option", { value: "az" }, "A–Z"));
     sort.value = f.sort;
     const show = el("div", { class: "u-seg", role: "group", "aria-label": "Show" });
     function drawChips() {
+      category.value = f.cat;
       if (chips.children.length) {
         [...chips.children].forEach((b) => { const on = b.dataset.category === f.cat; b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on)); });
         return;
       }
       chips.replaceChildren(...cats.map((c) => el("button", { class: "chip" + (f.cat === c ? " on" : ""), "data-category": c, type: "button", "aria-pressed": f.cat === c ? "true" : "false",
-        onclick: () => { f.cat = c; remember(true); drawChips(); draw(); } }, c === "all" ? "All" : c)));
+        onclick: () => { f.cat = c; page = 0; remember(true); drawChips(); draw(); } }, c === "all" ? "All" : c)));
     }
     function drawShow() {
       if (show.children.length) {
@@ -688,7 +698,7 @@
         return;
       }
       show.replaceChildren(...[["all", "Everything"], ["mine", "Available to me"], ["others", "Others"]].map(([v, label]) => el("button", { type: "button", "data-filter": v, "aria-pressed": f.show === v ? "true" : "false",
-        onclick: () => { f.show = v; remember(true); drawShow(); draw(); } }, label)));
+        onclick: () => { f.show = v; page = 0; remember(true); drawShow(); draw(); } }, label)));
     }
     const rank = { enabled: 0, not_assigned: 1, past_due: 2, locked: 3, suspended: 4 };
     function draw() {
@@ -699,24 +709,31 @@
       list.sort(f.sort === "az" ? (a, b) => a.name.localeCompare(b.name)
         : f.sort === "recent" ? (a, b) => (b.last_opened || 0) - (a.last_opened || 0) || a.name.localeCompare(b.name)
           : (a, b) => (rank[a.state] - rank[b.state]) || (b.last_opened || 0) - (a.last_opened || 0) || a.name.localeCompare(b.name));
-      // Yours as full cards; everything else as a compact list, so the catalogue isn't a wall of identical cards.
+      // Bounded rows keep the full catalogue searchable without a wall of cards.
       const ready = list.filter((t) => t.state === "enabled");
-      const rest = list.filter((t) => t.state !== "enabled");
+      page = Math.min(page, Math.max(0, Math.ceil(list.length / 12) - 1));
+      const visible = list.slice(page * 12, (page + 1) * 12);
+      const readyHere = visible.filter((t) => t.state === "enabled");
+      const rest = visible.filter((t) => t.state !== "enabled");
       const part = (title, n, sub, body) => el("section", { class: "cat-part" }, el("div", { class: "cat-part-h" }, el("h2", null, title, el("span", { class: "n" }, String(n))), sub ? el("span", { class: "muted small" }, sub) : null), body);
       grid.replaceChildren(...(list.length ? [
-        ready.length ? part("Yours", ready.length, "Paid for by Swangz and ready to open.", el("div", { class: "grid-tiles" }, ready.map(tile))) : null,
+        readyHere.length ? part("Yours", ready.length, "Select a tool for its details.", el("ul", { class: "tool-rows" }, readyHere.map(toolRow))) : null,
         rest.length ? part(ready.length ? "Everything else" : "Tools you can ask for", rest.length, "Ask, and an admin can turn it on for you.", el("ul", { class: "tool-rows" }, rest.map(toolRow))) : null,
       ].filter(Boolean) : [el("div", { class: "empty" }, el("h3", null, "No tools match"), el("p", null, "Try another search or clear your filters to see the catalogue."), el("button", { class: "btn", type: "button", onclick: resetFilters }, "Clear filters"))]));
       reset.hidden = !f.q && f.cat === "all" && f.show === "all" && f.sort === "recommended";
       count.textContent = `${SUI.plural(list.length, "tool")}${f.cat !== "all" ? " in " + f.cat : ""}` + (ready.length && rest.length ? ` · ${ready.length} yours` : "");
+      if (list.length > 12) grid.append(el("nav", { class: "hub-pager", "aria-label": "Catalogue pages" },
+        el("button", { class: "btn btn--small", type: "button", disabled: page === 0, onclick: () => { page--; remember(true); draw(); } }, "Previous"),
+        el("span", { class: "small muted" }, `Page ${page + 1} of ${Math.ceil(list.length / 12)}`),
+        el("button", { class: "btn btn--small", type: "button", disabled: (page + 1) * 12 >= list.length, onclick: () => { page++; remember(true); draw(); } }, "Next")));
     }
-    search.addEventListener("input", () => { f.q = search.value; remember(); draw(); });
+    search.addEventListener("input", () => { f.q = search.value; page = 0; remember(); draw(); });
     sort.addEventListener("change", () => { f.sort = sort.value; remember(true); draw(); });
     drawChips(); drawShow(); draw();
     frame("Tools", el("section", { class: "section first" }, el("div", { class: "shell" },
       sectionHead("The catalog", "AI tools at Swangz", "Everything the company offers. Open what's yours; ask for anything else and an admin can turn it on."),
       el("div", { class: "toolbar" }, el("div", { class: "search-wrap" }, icon("search"), search, el("kbd", null, "/")), show, el("label", { class: "sort" }, el("span", { class: "u-sr" }, "Sort"), sort)),
-      chips, el("div", { class: "spread catalog-count" }, count, reset), grid)));
+      chips, el("label", { class: "catalog-category-mobile" }, el("span", null, "Tool category"), category), el("div", { class: "spread catalog-count" }, count, reset), grid)));
     const open = params.get("open");
     const t = open && catalog.find((x) => x.id === open);
     if (t) details(t);
@@ -1014,6 +1031,7 @@
           SUI.status(...STATE[r.state], { plain: true }))))
           : el("div", { class: "empty" }, el("h3", null, "No requests yet"), el("p", null, "Find a tool in the catalogue and press Request access."), el("a", { class: "btn btn--solid", href: "#/tools?show=others" }, "Browse tools"))], open || null],
       ["procurement", "Tool & subscription purchases", () => SWP.hubProcurement()],
+      ["departments", "Department reports", () => SWP.hubDepartmentRequests()],
     ], "Requests");
     frame("Requests", el("section", { class: "section first" }, el("div", { class: "shell narrow" },
       sectionHead(null, "Requests", "What's changed for you, and the tools you've asked for."), views.node)));
@@ -1171,7 +1189,7 @@
       else if (S.me && !document.querySelector("dialog[open], .drawer")) { e.preventDefault(); location.hash = "#/tools"; setTimeout(() => document.querySelector("input.search")?.focus(), 60); }
     }
   });
-  window.SWP = { S, api, gurl, frame, sectionHead, viewTabs, load, render, page: (rx, fn) => ROUTES.push([rx, fn]) };
+  window.SWP = { S, api, gurl, frame, sectionHead, viewTabs, load, render, rememberRoute: () => { previousRoute = location.hash; }, page: (rx, fn) => ROUTES.push([rx, fn]) };
   let previousRoute = location.hash;
   window.addEventListener("hashchange", () => {
     if (window.HubUI && !HubUI.guard()) { history.pushState(null, "", previousRoute || "#/"); return; }

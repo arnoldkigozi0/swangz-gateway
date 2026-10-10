@@ -124,7 +124,7 @@
         el("label", { class: "field" }, "Role / title", f.title),
         el("label", { class: "field" }, "Department", f.department),
         el("label", { class: "field" }, "Email — they sign in with it", f.email,
-          el("span", { class: "hint" }, "A Swangz email (@swangzavenue.com). The owner and demo accounts are the only exceptions."))),
+          el("span", { class: "hint" }, "A Swangz email (@swangzavenue.com). Only the two explicitly authorised owner/admin addresses are exceptions."))),
       el("div", { class: "form-grid" },
         el("label", { class: "field" }, "Daily budget (USD)", f.daily_budget),
         el("label", { class: "field" }, "Monthly budget (USD)", f.monthly_budget),

@@ -220,6 +220,7 @@ h1, h2, h3 { text-wrap: balance; }
 .toolbar .u-seg button { padding: 8px 12px; font-size: 13px; }
 .sort .input { min-height: 40px; width: auto; }
 .chips-row { display: flex; flex-wrap: wrap; gap: var(--s2); margin-bottom: var(--s3); }
+.catalog-category-mobile { display: none; }
 .chip { background: var(--ink-1); border: 1px solid var(--line); color: var(--tx-2); padding: 6px 14px; border-radius: var(--r-full); font-weight: 620; font-size: 13px; cursor: pointer;
   transition: color var(--d-fast), border-color var(--d-fast), background var(--d-fast); }
 .chip:hover { color: var(--tx-1); border-color: var(--line-hi); }
@@ -432,9 +433,8 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
   .trust-card { padding: var(--s5); }
   .req-list li { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; }
   .req-list li > .u-status { grid-column: 2; justify-self: start; }
-  .chips-row { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-left: calc(-1 * var(--gutter)); margin-right: calc(-1 * var(--gutter)); padding: 2px var(--gutter); }
-  .chips-row::-webkit-scrollbar { display: none; }
-  .chips-row .chip { flex: none; }
+  .chips-row { display: none; }
+  .catalog-category-mobile { display: grid; gap: 8px; color: var(--tx-2); font-size: 12px; margin-bottom: var(--s4); }
   .tool-rows { padding: 2px 14px; }
 }
 
@@ -492,6 +492,11 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
 .vtabs [role=tab]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 3px; }
 .vt-n { font-size: 11px; font-weight: 700; padding: 0 7px; line-height: 18px; border-radius: var(--r-full); background: var(--ink-3); color: var(--tx-2); font-variant-numeric: tabular-nums; }
 .vtabs [aria-selected="true"] .vt-n { background: var(--accent-soft); color: var(--accent-tx); }
+@media (max-width: 640px) {
+  .vtabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; border: 0; overflow: visible; }
+  .vtabs [role=tab] { padding: 10px; min-height: 42px; margin: 0; border: 1px solid var(--line); white-space: normal; text-align: left; }
+  .vtabs [role=tab][aria-selected="true"] { background: var(--ink-3); border-color: var(--accent); }
+}
 .vtab-pane { display: grid; gap: var(--s4); min-width: 0; }
 .vtab-pane:focus { outline: none; }
 .vtab-pane[hidden] { display: none; }

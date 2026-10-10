@@ -76,7 +76,8 @@ async function layout(p, name, axe = false) {
       await p.setViewportSize({ width, height });
       for (const [category, section] of settingsViews) {
         await go(p, url, '/admin#/settings?tab=' + category + (section ? '&section=' + section : ''));
-        await p.locator('.ptabs.vertical [data-tab="' + category + '"][aria-selected="true"]').waitFor();
+        if (width <= 1100) { await p.getByRole('combobox', { name: 'Settings category', exact: true }).waitFor(); check('Mobile Settings restores selected category ' + category, await p.getByRole('combobox', { name: 'Settings category', exact: true }).inputValue() === category); }
+        else await p.locator('.ptabs.vertical [data-tab="' + category + '"][aria-selected="true"]').waitFor();
         await p.waitForFunction(() => !document.querySelector('main .u-skel-rows, main .u-skel-cards'));
         await p.evaluate(t => { document.documentElement.dataset.theme = t; }, theme);
         const name = `owner-${theme}-${width}-settings-${category}${section ? '-' + section : ''}`;
@@ -149,8 +150,10 @@ async function layout(p, name, axe = false) {
   // Optional deep-view pass after the principal page matrix.
   if (process.env.UI_DETAILS_ONLY === '1') {
     await go(p, url, '/#/tools');
-    const category = p.getByRole('button', { name: 'Design', exact: true });
-    await category.focus(); await p.keyboard.press('Enter');
+    const mobileCategory = p.getByRole('combobox', { name: 'Tool category', exact: true });
+    const category = await mobileCategory.isVisible() ? mobileCategory : p.getByRole('button', { name: 'Design', exact: true });
+    await category.focus();
+    if (await mobileCategory.isVisible()) await mobileCategory.selectOption('Design'); else await p.keyboard.press('Enter');
     check('Category keeps keyboard focus after selection', await category.evaluate(e => e === document.activeElement));
     const filter = p.getByRole('button', { name: 'Available to me', exact: true });
     await filter.focus(); await p.keyboard.press('Enter');
@@ -244,8 +247,9 @@ async function layout(p, name, axe = false) {
     await p.getByRole('heading', { name: 'No tools match' }).waitFor();
     check('Catalogue search is in URL', p.url().includes('q=does-not-exist'));
     await p.getByRole('button', { name: 'Clear filters', exact: true }).click();
-    check('Clear filters restores catalogue', await p.locator('.tile').count() > 0 && !p.url().includes('?'));
-    await p.getByRole('button', { name: 'Design', exact: true }).click();
+    check('Clear filters restores catalogue', await p.locator('.tool-row.s-enabled').count() > 0 && !p.url().includes('?'));
+    const toolCategory = p.getByRole('combobox', { name: 'Tool category', exact: true });
+    if (await toolCategory.isVisible()) await toolCategory.selectOption('Design'); else await p.getByRole('button', { name: 'Design', exact: true }).click();
     await p.getByRole('combobox', { name: 'Sort', exact: true }).selectOption('az');
     await p.reload(); await ready(p);
     check('Catalogue category and sort survive refresh', await p.locator('.chip.on').innerText() === 'Design' && await p.getByRole('combobox', { name: 'Sort', exact: true }).inputValue() === 'az');
@@ -303,13 +307,31 @@ async function layout(p, name, axe = false) {
     await p.goBack(); await p.waitForTimeout(150);
     check('Settings Back restores section', await p.locator('.set-sections [aria-selected="true"]').innerText() === 'Model prices');
     await go(p, url, '/admin#/settings?tab=access');
+    const advanced = p.getByLabel('Audit log, days', { exact: true });
+    check('Advanced retention is disclosed on demand', !(await advanced.isVisible()));
+    await p.getByText('Advanced retention by record type', { exact: true }).click();
+    await advanced.fill('30');
+    await p.locator('.savebar').getByRole('button', { name: 'Save changes', exact: true }).click();
+    check('Invalid audit retention is explained without saving', await advanced.getAttribute('aria-invalid') === 'true' && (await p.locator('#err-retention_audit_days').innerText()).includes('365'));
+    await p.locator('.savebar').getByRole('button', { name: /Discard/ }).click();
+    check('Discard restores invalid retention without replacing the form', await advanced.getAttribute('aria-invalid') === 'false' && !(await p.locator('.savebar').isVisible()));
     const days = p.locator('.setting-control input[type="number"]').first();
     await days.fill('91');
-    await p.getByRole('tab', { name: 'Emergency', exact: true }).click();
+    const categoryChoice = p.getByRole('combobox', { name: 'Settings category', exact: true });
+    check('Mobile Settings uses a compact category selector', await categoryChoice.isVisible());
+    await categoryChoice.selectOption('emergency');
     await p.getByRole('dialog', { name: 'Leave without saving?' }).waitFor();
     await p.getByRole('button', { name: 'Cancel', exact: true }).click();
-    check('Settings unsaved guard keeps changes on Cancel', await days.inputValue() === '91');
+    await p.getByRole('dialog', { name: 'Leave without saving?' }).waitFor({ state: 'detached' });
+    check('Settings unsaved guard keeps changes on Cancel', await days.inputValue() === '91' && await categoryChoice.inputValue() === 'access');
     await p.locator('.savebar').getByRole('button', { name: /Discard/ }).click();
+    await categoryChoice.selectOption('providers');
+    await p.getByRole('heading', { name: 'Providers & pricing', exact: true }).waitFor();
+    check('Mobile Settings category selection updates the URL', p.url().includes('tab=providers'));
+    await p.goBack();
+    await p.getByRole('heading', { name: 'Access & privacy', exact: true }).waitFor();
+    check('Mobile Settings Back restores the selected category', await categoryChoice.inputValue() === 'access');
+    await screenshot(p, 'mobile-settings-records');
     // Matrix: all principal pages, desktop, tablet and phone; dark and light.
     const routes = ['/', '/#/tools', '/#/studio', '/#/devices', '/#/requests', '/#/privacy',
       ...['', 'live', 'attention', 'activity', 'health', 'people', `people/${person}`, 'tools', 'models', 'policies', 'licences', 'reports', 'security', 'incidents', 'devices', 'audit', 'settings', 'records/1', `devices/${key}`].map(r => '/admin#/' + r)];
@@ -341,7 +363,10 @@ async function layout(p, name, axe = false) {
       for (const category of categories) {
         await go(rp, url, '/admin#/settings?tab=' + category);
         const selected = category === 'users' ? 'access' : category.split('&')[0]; // Console users is restricted to admin.
-        await rp.locator('.ptabs.vertical [data-tab="' + selected + '"][aria-selected="true"]').waitFor();
+        if (width <= 1100) {
+          await rp.getByRole('combobox', { name: 'Settings category', exact: true }).waitFor();
+          check(role + ' mobile Settings selects ' + selected, await rp.getByRole('combobox', { name: 'Settings category', exact: true }).inputValue() === selected);
+        } else await rp.locator('.ptabs.vertical [data-tab="' + selected + '"][aria-selected="true"]').waitFor();
         await rp.waitForFunction(() => !document.querySelector('main .u-skel-rows, main .u-skel-cards'));
         await rp.evaluate(t => { document.documentElement.dataset.theme = t; }, theme);
         await layout(rp, `${role}-${theme}-${width}-settings-${category}`);

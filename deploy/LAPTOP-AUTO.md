@@ -1,22 +1,12 @@
 # Automatic laptop hosting
 
-`laptop-service.py` supervises the gateway, Cloudflare quick tunnel and (only when the existing demo
-configuration enables it) the stand-in provider. It uses the existing `~/swangz-gateway-demo/.env`,
-database and provider definitions; it does not create accounts or call real provider models.
+`laptop-service.py` supervises Swangz AI Hub, its direct Cloudflare quick tunnel and the stand-in provider only when the existing demo configuration enables it. It uses the existing `~/swangz-gateway-demo/.env`, database and provider definitions; it does not create accounts or call live models to check health.
 
-The public staff address remains **https://swangz-ai.netlify.app**. When the quick-tunnel address
-changes, the service updates `SWANGZ_GATEWAY` for all Netlify contexts, starts a build and verifies
-Netlify's `/healthz`. It resumes pending deployment checks after a service restart. Healthy unchanged
-addresses do not trigger another build. Failed syncs retry after two minutes. A missing/expired Netlify
-login is reported in the journal; local service continues running.
-
-Credentials come from `NETLIFY_AUTH_TOKEN` in the existing environment, or the active Netlify CLI
-login at `~/.config/netlify/config.json`. Neither credentials nor provider error bodies are printed or
-stored in deployment state. State files use mode 0600; the unit creates logs/files with umask 0077.
+The direct tunnel serves both staff `/` and admin `/admin`. Read its current HTTPS address from `~/swangz-gateway-demo/tunnel-url.txt`. Neither Netlify credits nor a Netlify login is required. A quick-tunnel address can change after reconnection. Existing Google callback registrations and `GATEWAY_WEB_URL` remain configured until a verified first-party hostname is deliberately selected; password sign-in uses the direct host.
 
 ## Install on this Linux PC
 
-After reviewing `deploy/swangz-laptop.service` and adjusting the repository path if needed:
+Review `deploy/swangz-laptop.service` and adjust the repository path if needed:
 
 ```bash
 mkdir -p ~/.config/systemd/user
@@ -26,27 +16,22 @@ systemctl --user daemon-reload
 systemctl --user enable --now swangz-laptop.service
 ```
 
-Stop any manually started `deploy/laptop-demo.sh` before starting the service so only one gateway
-owns the configured port. The user service starts at boot (lingering), stays running after logout,
-and survives closing a terminal or this chat. During sleep the PC cannot serve requests; Cloudflare
-reconnects when its network returns. Exited children are restarted within about five seconds. The
-health watchdog restarts a stuck gateway after three failed checks, and recreates a persistently
-broken tunnel only when outbound internet is available. Netlify repairs may take a few minutes after
-a changed tunnel address while its deployment completes.
+Stop any manually started `deploy/laptop-demo.sh` before starting the service so only one gateway owns the configured port. The service starts at boot with lingering, remains running after logout, and survives closing a terminal. During sleep the PC cannot serve requests; Cloudflare reconnects when its network returns. Exited children restart within about five seconds. The health watchdog restarts a stuck gateway after three failed checks and reconnects a persistently broken tunnel only when outbound internet is available.
 
 ```bash
 systemctl --user status swangz-laptop.service
 journalctl --user -u swangz-laptop.service -n 30 --no-pager
-systemctl --user restart swangz-laptop.service  # after changing .env or Python server code
-systemctl --user disable --now swangz-laptop.service  # stop automatic hosting
+systemctl --user restart swangz-laptop.service
 cat ~/swangz-gateway-demo/tunnel-url.txt
 ```
 
-The child logs are in `~/swangz-gateway-demo/logs/{gateway,model,tunnel}.log`; the current tunnel is
-saved in `tunnel-url.txt`, and pending/verified Netlify state is in `netlify-sync.json`. Logs are replaced
-when that child restarts. The SQLite database remains in its existing configured data directory.
+Child logs are in `~/swangz-gateway-demo/logs/{gateway,model,tunnel}.log` and are replaced when that child restarts. The database stays in its existing configured data directory. Follow [Hub delivery](../docs/HUB-DELIVERY.md) before any schema upgrade: verified SQLite backup, scratch rehearsal, approved code, stopped writes, additive migration/backfill, preservation checks and recovery procedure.
 
-To repair the front door for a manually running tunnel without starting services:
+## Optional legacy Netlify front door
+
+Automatic synchronisation is disabled by default. `GATEWAY_NETLIFY_SYNC=1` explicitly enables the historical proxy/build integration. It updates `SWANGZ_GATEWAY`, resumes pending deployment checks and verifies Netlify health; a failed build never becomes a successful delivery claim. Legacy failures leave direct Hub hosting running.
+
+If opted in, credentials come from the existing environment or active Netlify CLI login and never enter logs or deployment state. State files use mode 0600 and the installed unit uses umask 0077. The explicit maintenance command remains available:
 
 ```bash
 python3 deploy/laptop-service.py --sync https://your-current-link.trycloudflare.com
@@ -54,16 +39,8 @@ python3 deploy/laptop-service.py --sync https://your-current-link.trycloudflare.
 
 ## Permanent availability
 
-Automatic laptop hosting keeps the Netlify address stable but cannot serve while the laptop is
-asleep, switched off or offline. True continuous availability requires an always-on gateway host with
-a persistent database. A named Cloudflare Tunnel additionally requires a Cloudflare account and a
-domain on Cloudflare; it offers a fixed origin hostname instead of a temporary quick-tunnel hostname.
-See Cloudflare's [setup guide](https://developers.cloudflare.com/tunnel/get-started/) and the existing
-`GO-LIVE.md`, `setup-gateway-server.sh` and `WORKSPACE.md` deployment guides. Do not move or duplicate
-the active database onto another host without planning the cutover.
+Automatic recovery cannot serve requests while the PC is asleep, switched off or disconnected. Use the existing Caddy/systemd VPS architecture and a configured first-party hostname for continuous availability. Do not change DNS or OAuth callbacks until the actual deployment settings are verified. Do not duplicate the active database across two writable hosts. [Hub delivery](../docs/HUB-DELIVERY.md) contains cutover, backup and recovery steps; Railway configuration is isolated optional staging.
 
 ## Verification
 
-The recovery tests mock Netlify: crashed-child recovery, URL selection, all-context environment updates, build ordering,
-pending-deployment resumption, failed-build retry, health validation and duplicate-build avoidance.
-The installed service is separately checked against the real gateway and Netlify front door.
+Eight laptop-service regressions cover child recovery, URL publication, opt-in Netlify scheduling, legacy sync ordering, failed/pending deployments, health validation and duplicate-build avoidance. Actual service/tunnel checks and activation status are recorded separately in [Hub completion](../docs/HUB-COMPLETION.md).

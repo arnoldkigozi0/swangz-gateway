@@ -6,7 +6,7 @@ from .admin import ApiError
 
 
 def _filters(ctx, personal=False):
-    clauses, args = [], []
+    clauses, args = ['archived_at IS NULL'], []
     if personal:
         clauses.append('person_id=?'); args.append(ctx.person['id'])
     for param, column in (('kind','kind'), ('week','week_start'), ('department','department'), ('person','person_id'),
@@ -73,8 +73,15 @@ def staff_submit(ctx, rid):
 def adoption(ctx):
     tid = str(ctx.body.get('tool_id') or '')
     tool = ctx.db.one('SELECT * FROM tools WHERE id=? AND archived=0', (tid,))
+    if tid and not tool:
+        raise ApiError(400, 'Choose an existing catalogue tool.')
     if not tool:
-        raise ApiError(400, 'Choose an existing catalogue tool. Use procurement to propose a new tool.')
+        name = str(ctx.body.get('tool_name') or '').strip()
+        category = str(ctx.body.get('category') or '').strip()
+        if not name or len(name)>300 or not category or len(category)>100:
+            raise ApiError(400, 'An unlisted tool needs its name and category.')
+        tool = {'name':name,'url':reporting.safe_url(ctx.body.get('official_url')),'category':category}
+        tid = None
     now, p = time.time(), ctx.person
     rid = ctx.db.x('INSERT INTO hub_reports(kind,person_id,tool_id,department,submitter_name,submitter_email,tool_name,official_url,category,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
                    ('adoption',p['id'],tid,p['department'],p['name'],p['email'],tool['name'],tool['url'],tool['category'],now,now)).lastrowid
@@ -162,7 +169,8 @@ def export(ctx):
     return reporting.csv_bytes(rows,fields),'text/csv; charset=utf-8',{'Content-Disposition':f'attachment; filename="hub-week-{start}.csv"','Cache-Control':'no-store',**__import__('gateway.server',fromlist=['CONSOLE_HEADERS']).CONSOLE_HEADERS}
 
 
-def procurement_values(body):
+def procurement_values(body, draft=False):
+    if not isinstance(body,dict): raise ApiError(400,'A request must be an object.')
     values={}
     for name in ('tool_name','official_url','category','purchase_type','reason','business_impact','requested_plan','currency'):
         value=body.get(name)
@@ -173,13 +181,47 @@ def procurement_values(body):
             raise ApiError(400,f'{name} is too long.')
     values['official_url']=reporting.safe_url(values['official_url'])
     values['currency']=values['currency'] or 'USD'
-    if values['purchase_type'] not in ('new_tool','subscription','licence','credits','other') or not values['tool_name'] or not values['reason']:
+    if values['purchase_type'] not in ('new_tool','subscription','licence','credits','other',*([''] if draft else [])) or (not draft and (not values['tool_name'] or not values['reason'])):
         raise ApiError(400,'A request needs a tool, purchase type and business reason.')
     if not __import__('re').fullmatch('[A-Z]{3}',values['currency']):
         raise ApiError(400,'Currency must be a three-letter code.')
     for name in ('estimated_monthly_cost','estimated_one_time_cost'):
         values[name]=reporting.number(body.get(name),name)
     return values
+
+
+@staff.route('GET', r'/hub/procurement/draft')
+def procurement_draft(ctx):
+    pid=ctx.person['id']; row=ctx.db.one('SELECT * FROM procurement_drafts WHERE person_id=?',(pid,))
+    if not row: return {'version':0,'data':None}
+    if row['submitted_request_id']: return {'version':row['version'],'data':None}
+    row['business']=ctx.db.one('SELECT * FROM procurement_draft_business WHERE person_id=?',(pid,)) or {}
+    row['business']['projects']=ctx.db.q('SELECT name,link,description,traditional,ai_way,benefit FROM procurement_draft_projects WHERE person_id=? ORDER BY position',(pid,))
+    return {'version':row['version'],'data':row}
+
+
+@staff.route('PUT', r'/hub/procurement/draft')
+def save_procurement_draft(ctx):
+    values=procurement_values(ctx.body,True); claim=reporting.validate(ctx.body.get('business') or {})
+    pid=ctx.person['id']; tid=ctx.body.get('tool_id') or None
+    if tid and not ctx.db.one('SELECT id FROM tools WHERE id=?',(tid,)): raise ApiError(400,'Unknown catalogue tool.')
+    with ctx.db.tx():
+        old=ctx.db.one('SELECT version FROM procurement_drafts WHERE person_id=?',(pid,))
+        version=old['version'] if old else 0
+        if ctx.body.get('draft_version')!=version: raise ApiError(409,'This purchase draft changed. Reload before saving.')
+        values.update(tool_id=tid,updated=time.time(),version=version+1,submitted_request_id=None)
+        if old:
+            ctx.db.x('UPDATE procurement_drafts SET '+','.join(k+'=?' for k in values)+' WHERE person_id=?',(*values.values(),pid))
+        else:
+            values['person_id']=pid
+            ctx.db.x('INSERT INTO procurement_drafts('+','.join(values)+') VALUES('+','.join('?' for _ in values)+')',tuple(values.values()))
+        fields={k:v for k,v in claim.items() if k in reporting.CLAIMS};fields['person_id']=pid
+        ctx.db.x('DELETE FROM procurement_draft_business WHERE person_id=?',(pid,))
+        ctx.db.x('INSERT INTO procurement_draft_business('+','.join(fields)+') VALUES('+','.join('?' for _ in fields)+')',tuple(fields.values()))
+        ctx.db.x('DELETE FROM procurement_draft_projects WHERE person_id=?',(pid,))
+        for i,p in enumerate(claim.get('projects',[])):
+            ctx.db.x('INSERT INTO procurement_draft_projects VALUES(?,?,?,?,?,?,?,?)',(pid,i,p['name'],p['link'],p['description'],p['traditional'],p['ai_way'],p['benefit']))
+    return procurement_draft(ctx)
 
 
 @staff.route('POST', r'/hub/procurement')
@@ -191,7 +233,23 @@ def procurement_create(ctx):
     p,now=ctx.person,time.time()
     values.update(person_id=p['id'],tool_id=tid,submitter_name=p['name'],submitter_email=p['email'],department=p['department'],created=now,updated=now)
     with ctx.db.tx():
+        if 'draft_version' in ctx.body:
+            draft=ctx.db.one('SELECT * FROM procurement_drafts WHERE person_id=?',(p['id'],))
+            if not draft or draft['version']!=ctx.body['draft_version']: raise ApiError(409,'Save the current purchase draft before submitting.')
+            if draft['submitted_request_id']:
+                return ctx.db.one('SELECT * FROM procurement_requests WHERE id=?',(draft['submitted_request_id'],))
+        business=reporting.validate(ctx.body.get('business') or {})
         rid=ctx.db.x(f"INSERT INTO procurement_requests({','.join(values)}) VALUES({','.join('?' for _ in values)})",tuple(values.values())).lastrowid
+        fields={k:v for k,v in business.items() if k in reporting.CLAIMS}
+        fields['request_id']=rid
+        ctx.db.x('INSERT INTO procurement_business('+','.join(fields)+') VALUES('+','.join('?' for _ in fields)+')',tuple(fields.values()))
+        for i,project in enumerate(business.get('projects',[])):
+            if not project['name']: raise ApiError(400,'Each proposed project needs a name.')
+            ctx.db.x('INSERT INTO procurement_projects(request_id,position,name,link,description,traditional,ai_way,benefit) VALUES(?,?,?,?,?,?,?,?)',(rid,i,project['name'],project['link'],project['description'],project['traditional'],project['ai_way'],project['benefit']))
+        if 'draft_version' in ctx.body:
+            ctx.db.x('UPDATE procurement_drafts SET submitted_request_id=? WHERE person_id=?',(rid,p['id']))
+        original=ctx.db.one('SELECT * FROM procurement_requests WHERE id=?',(rid,))
+        ctx.db.x('INSERT INTO procurement_versions VALUES(?,?,?,?,?,?)',(rid,0,p['email'],now,'Original submitted proposal',json.dumps(original,sort_keys=True)))
         ctx.gw.audit(p['email'],'submitted a procurement request',str(rid),correlation=f'procurement:{rid}')
         reporting.notify_person(ctx.gw,p['id'],f'procurement:{rid}','Your procurement request was submitted','#/requests?view=procurement')
     return ctx.db.one('SELECT * FROM procurement_requests WHERE id=?',(rid,))
@@ -229,7 +287,18 @@ def procurement_detail(ctx,rid):
         raise ApiError(404,'Procurement request not found.')
     row['import_provenance']=reporting.import_provenance(ctx.db,'procurement',rid)
     row['history']=ctx.db.q('SELECT * FROM procurement_reviews WHERE request_id=? ORDER BY id',(rid,))
+    row['business']=ctx.db.one('SELECT * FROM procurement_business WHERE request_id=?',(rid,))
+    row['projects']=ctx.db.q('SELECT name,link,description,traditional,ai_way,benefit FROM procurement_projects WHERE request_id=? ORDER BY position',(rid,))
+    row['versions']=ctx.db.q('SELECT version,actor,ts,reason,snapshot_json FROM procurement_versions WHERE request_id=? ORDER BY version',(rid,))
+    for version in row['versions']:version['snapshot']=json.loads(version.pop('snapshot_json'))
     return row
+
+
+@staff.route('GET', r'/hub/procurement/(?P<rid>\d+)')
+def procurement_staff_detail(ctx,rid):
+    if not ctx.db.one('SELECT id FROM procurement_requests WHERE id=? AND person_id=?',(rid,ctx.person['id'])):
+        raise ApiError(404,'Procurement request not found.')
+    return procurement_detail(ctx,rid)
 
 
 @admin.route('POST', r'/hub/procurement/(?P<rid>\d+)/review', area=('govern','money'))

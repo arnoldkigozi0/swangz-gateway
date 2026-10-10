@@ -60,9 +60,10 @@ def conditions(gw):
                     "href": f"#/incidents/{r['id']}"})
     for key, title, query, href in (
         ("hub-pending", "Weekly reports outstanding", "SELECT COUNT(*) FROM hub_reports WHERE kind='weekly' AND state IN ('draft','returned')", "#/weekly?tab=overview"),
-        ("hub-submitted", "Hub reports awaiting review", "SELECT COUNT(*) FROM hub_reports WHERE state IN ('submitted','resubmitted')", "#/weekly?tab=review"),
-        ("hub-discrepancies", "Reports need evidence review", "SELECT COUNT(*) FROM hub_reports WHERE reconciliation='needs_review' AND state<>'confirmed'", "#/weekly?tab=reconciliation"),
-        ("hub-procurement", "Procurement requests awaiting review", "SELECT COUNT(*) FROM procurement_requests WHERE state IN ('submitted','reviewed')", "#/procurement")):
+        ("hub-submitted", "Hub reports awaiting review", "SELECT COUNT(*) FROM hub_reports WHERE archived_at IS NULL AND state IN ('submitted','resubmitted')", "#/weekly?tab=review"),
+        ("hub-discrepancies", "Reports need evidence review", "SELECT COUNT(*) FROM hub_reports WHERE archived_at IS NULL AND reconciliation='needs_review' AND state<>'confirmed'", "#/weekly?tab=reconciliation"),
+        ("hub-procurement", "Procurement requests awaiting review", "SELECT COUNT(*) FROM procurement_requests WHERE state IN ('submitted','reviewed')", "#/procurement"),
+        ("hub-departments", "Department-report requests awaiting review", "SELECT COUNT(*) FROM hub_department_requests WHERE state IN ('submitted','reviewed')", "#/business?tab=management")):
         count = db.scalar(query) or 0
         if count:
             out.append({"key": key, "severity": "notice", "area": "Govern", "title": title,

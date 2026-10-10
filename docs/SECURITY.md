@@ -1,7 +1,7 @@
 # Swangz AI Hub — threat model and security controls
 
 What the gateway protects, from whom, how, and where the edges are. It describes the code as it is
-(schema v19, Oct 10, 2026). When something here stops being true, fix the code or fix this file.
+(schema v20, Oct 10, 2026). When something here stops being true, fix the code or fix this file.
 
 ## What is worth protecting
 
@@ -88,3 +88,11 @@ What the gateway protects, from whom, how, and where the edges are. It describes
 Tell Arnold directly; don't open a public issue for anything that could expose keys or people's data.
 
 Hub identity and reporting: exact company-domain validation applies to every role and access boundary. The organisation explicitly authorises only arnoldkigozi0@gmail.com and marvinmusokessekatawa@gmail.com as owner/admin exceptions. Weekly report gates run at launch, extension and proxy boundaries, including Studio. Submissions and reviews preserve append-only versions; frozen evidence contains source IDs and metrics rather than prompt/page content. Recovery and migration procedures are in [Hub operations](HUB-OPERATIONS.md).
+
+## Native business information (schema20)
+
+Adoption history and procurement proposals are typed server-side declarations, not measured usage. Immutable versions retain original submitted values, authors and timestamps. Governance association changes are separately audited; financial changes need money permission and a reason. Approved purchase estimates/associations changed later renew review; purchasing never grants tool access. Soft archival retains provenance and cannot remove weekly obligations.
+
+Department-report scope approval permits only submitted adoption information in approved departments. It never exposes private weekly reports, drafts, vendor secrets or entitlements. Server identity remains exact company domain plus the two authorised owner exceptions. CSV formula guards, escaped print documents, restrictive CSP and explicit media links protect exports/detail views.
+
+The optional staging entrypoint requires an isolated marked volume and refuses production providers/OAuth/SMTP. It is not imported by the production launcher. The install worker caches no private HTML or APIs. Test fixtures and CI screenshots are synthetic only.

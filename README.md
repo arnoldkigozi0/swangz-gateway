@@ -21,6 +21,12 @@ sub-agents) is unchanged — it is simply on the record.
   security, billing, viewer) and an audit log of what the watchers themselves did — what changed,
   from what to what, and why.
 
+## Native business and reporting workspace
+
+Weekly reports enforce per-tool accountability using independently frozen Gateway evidence. Adoption & impact provides the full business declaration wizard, working-time/cost comparisons, scoped department dashboards, projects and immutable report history. Requests separates tool access, procurement with a saved four-step wizard, and department-report permissions. Admin Business value provides the inbox, financial corrections, registry matching, comparison charts and safe exports. Estimates, measured activity and administrative allocations remain visibly distinct.
+
+See [Tracker feature parity](docs/TRACKER-PARITY.md), [verification and recovery status](docs/HUB-COMPLETION.md), [rendered before/after review](docs/HUB-UI-REVIEW.md), and [delivery without Netlify](docs/HUB-DELIVERY.md). Production remains Python/SQLite behind Caddy/systemd on a single first-party host. GitHub Actions runs synthetic checks; Railway staging is optional and isolated. Neither the old Tracker application nor its Supabase backend is required for normal operation.
+
 ## Voice, image and video services
 
 ElevenLabs and Higgsfield are built in; any other AI service with an API key (Runway, Replicate,
@@ -168,7 +174,7 @@ Environment variables (or a `.env` file next to where you run it):
 | `GATEWAY_FORCE_HTTPS` | off | set to `1` behind a tunnel that serves https but doesn't say so (localhost.run) |
 | Identity policy | exact `swangzavenue.com` | enforced for staff and all admin roles; only the two explicitly approved owners are exceptions |
 | `GATEWAY_TIMEZONE` | `Africa/Kampala` | Monday-to-Monday weekly reporting periods; budget offset remains separate |
-| `GATEWAY_CORS_ORIGINS` | — | web origins allowed to call the API cross-site, e.g. a staff app on Netlify (comma-separated); see [`deploy/NETLIFY.md`](deploy/NETLIFY.md) |
+| `GATEWAY_CORS_ORIGINS` | — | web origins allowed to call the API cross-site, optional separate web origins (comma-separated); leave blank for first-party deployment |
 | `GATEWAY_PROVIDERS` | — | path to a JSON list of extra providers (see below) |
 | `GATEWAY_WORKSPACE_AGENT`, `GATEWAY_WORKSPACE_AGENT_TOKEN` | — | the Swangz Workspace Agent's address and token: company browsers for shared accounts, one per person on a turn, started when needed; see [`deploy/WORKSPACE.md`](deploy/WORKSPACE.md) |
 | `GATEWAY_WORKSPACE_TOKEN` | — | fallback mode only: the Neko API token of fixed browsers listed on a tool, so the gateway makes and removes a sign-in per turn itself |

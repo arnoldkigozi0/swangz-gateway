@@ -1,107 +1,43 @@
-# Picking this up on another machine
+# Moving Swangz AI Hub to another machine
 
-Historical deployment notes below. For the current Hub identity policy, migration and rollout procedure, see [Hub operations](HUB-OPERATIONS.md). The legacy webdev02022007@gmail.com demo identity is no longer allowed to access the Hub; only the two user-approved owner exceptions remain. No public deployment check was performed for this integration.
-
-Read `../CLAUDE.md` first (what the project is and its conventions), then `STATE.md` (what is built
-and what is next). This file is only about **moving to a different computer**.
+Read [AGENTS.md](../AGENTS.md), [CLAUDE.md](../CLAUDE.md), [State](STATE.md), then [Hub delivery](HUB-DELIVERY.md). Use the existing Gateway repository; staff and admin are one Python/SQLite application. Netlify and the old Tracker frontend/backend are not required.
 
 ```bash
 git clone https://github.com/arnoldkigozi0/swangz-gateway.git
 cd swangz-gateway
-claude                      # Claude Code reads CLAUDE.md automatically
-python3 -m unittest discover -s tests -t .    # should be 181 tests, all passing
+python3 -m unittest discover -s tests -t .
 ```
 
-Python 3.10+ and git are the only requirements. There is nothing to install — the whole gateway is
-the standard library.
+Production requires Python 3.10+ and Git. Browser-check npm dependencies are test-only. Current source schema is 20; the recorded final local suite contains 331 tests. Verify the checkout's actual test result rather than relying on this count.
 
-## What is in the repo, and what is not
+## What travels in Git
 
-**In git, so it travels by itself:** all the code, the 49-tool catalog, both front-ends, the browser
-extension, the tests, the deploy guides, and these docs.
+Code, catalogue definitions, shared UI assets, browser extension, migrations, synthetic fixtures, tests and deployment documentation travel in Git. Provider keys, Google client secrets, environment files, actual staff databases, private exports and backup/reconciliation summaries do not.
 
-**Deliberately NOT in git** (`.gitignore`), because secrets must never go to GitHub:
+## Secrets and identity
 
-| Not in git | What it is | How to move it |
-|---|---|---|
-| `.env` | provider keys, the Google client secret, addresses | copy by hand, see below |
-| `data/gateway.db` | **the record** — people, tools, turns, launches, every request | copy only if this machine becomes the main one |
-| `CREDENTIALS.txt` | the demo sign-ins | re-create, or copy by hand |
-| the location table CSV | the offline GeoIP file loaded with `geoip-import` (V2) | download a fresh one (DB-IP Lite or IP2Location LITE) and import it again — or copy `data/gateway.db`, which already holds it |
-| `GATEWAY_SMTP_*`, `GATEWAY_NOTIFY_TO` | optional email for notifications (V2) | in `.env`, like the other secrets |
+Transfer the existing private `.env` securely outside Git; never paste secrets in chat or email. Use mode 0600. Preserve all provider/workspace/SMTP configuration and explicitly verify the destination's absolute `GATEWAY_DATA` path. Do not replace live configuration with `.env.example`.
 
-## Moving the secrets safely
+Both `GATEWAY_PUBLIC_URL` and `GATEWAY_WEB_URL` should reference the verified first-party HTTPS host. Preserve registered Google callbacks until an authorised change is verified. An old Netlify callback is historical configuration, not a required hosting architecture. First-party production needs no Netlify token or proxy; laptop legacy synchronisation is opt-in only.
 
-**Do not** email them, paste them into a chat, or commit them. Use a USB stick, or type them again
-from the source they came from.
+Every staff/admin/custom-role identity must use exactly `@swangzavenue.com`, except the two explicitly authorised owners `arnoldkigozi0@gmail.com` and `marvinmusokessekatawa@gmail.com`. Environment allowlists and historical imported email addresses cannot widen this rule. Verify legitimate owner access before cutover.
 
-On the old machine the live settings are in `~/swangz-gateway-demo/.env`. On the new machine:
+## Database transfer and recovery
 
-```bash
-mkdir -p ~/swangz-gateway-demo
-cp .env.example ~/swangz-gateway-demo/.env
-nano ~/swangz-gateway-demo/.env     # fill in from the old machine, then:
-chmod 600 ~/swangz-gateway-demo/.env
-```
+The database holds people, assignments, subscriptions, keys, access requests, launches, evidence, weekly/adoption declarations, purchasing and audit history. Never create a fresh database as a substitute for it.
 
-`.env.example` lists every setting with a note on what it is for. The ones that matter today:
+1. Verify the actual running commit, `meta` schema version, absolute database path and current counts.
+2. Make a private SQLite backup using the backup API and check integrity/hash. Do not copy only a live WAL database. Rehearse the additive migration and metadata backfill on a scratch copy.
+3. Stop writes on the original host for final transfer. Copy the verified stopped backup and private configuration securely to the destination. Keep only one writable primary host.
+4. Follow [Hub delivery](HUB-DELIVERY.md) for migration, backfill, restart, health, login, entitlement/report gates and count-preservation checks. Keep a verified pre-upgrade backup and the old code/configuration.
+5. For rollback, stop writes, preserve the upgraded database, restore the verified backup with the matching prior code and reconcile any post-cutover writes. Never run old code against a newer schema or silently discard activity.
 
-- `GATEWAY_WEB_URL` — `https://swangz-ai.netlify.app`
-- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — from the Google Cloud project `swangz-ai`; the client
-  id is also visible in the Google console, the secret can be regenerated there if it is lost
-- provider keys — still empty; Swangz has not supplied real ones
+A separate clean development/staging environment may use a new synthetic database. Railway's explicit staging launcher refuses an unmarked existing database and production provider/OAuth/SMTP credentials before migration; never mark the real database as staging.
 
-**If the Google secret is lost:** Google Cloud console → project `swangz-ai` → Clients → "Swangz Ai"
-→ add a new secret, paste it into `.env`, restart. Nothing else changes.
+## Historical Tracker recovery
 
-## The database
+Normal native Hub workflows operate independently. Recovered cache entries retain provenance and remain unverified against the unavailable Supabase endpoint. Retain original exports; use the read-only recovery diagnostic and idempotent dry-run import before any approved import. [Tracker parity](TRACKER-PARITY.md) and [completion evidence](HUB-COMPLETION.md) document actual scope and limitations.
 
-`data/gateway.db` holds everything that has happened — people, who was assigned what, turns, launches,
-every recorded request. It is one file.
+## Operational checks
 
-- **Starting fresh on the new machine?** Do nothing. It is created on first run, the 49-tool catalog
-  seeds itself, and `GATEWAY_BOOTSTRAP_ADMIN` / `..._PASSWORD` make the first owner account.
-- **Moving the real thing across?** Stop the gateway on the old machine first, then copy
-  `gateway.db` (and any `-wal` / `-shm` files next to it). Migrations run themselves on start-up, so a
-  database from an older schema upgrades without any work.
-
-## Where things stand right now (3 Oct 2026)
-
-- **Live:** `https://swangz-ai.netlify.app` (staff) and `/admin` (console). Netlify project
-  `swangz-ai` builds from `main`, base directory `deploy/netlify`.
-- **Netlify needs one variable:** `SWANGZ_GATEWAY` = the gateway's https address. It is currently the
-  laptop's Cloudflare quick-tunnel link, **which changes every time the tunnel restarts**, and it only
-  takes effect when a deploy runs with it. When it changes: Netlify → Site configuration → Environment
-  variables → edit it → Deploys → Trigger deploy.
-- **On Windows** (since Oct 3) the demo runs from `deploy/windows-demo.ps1`, with its settings in
-  `%USERPROFILE%\swangz-gateway-demo\.env`. With `NETLIFY_AUTH_TOKEN` in that file it updates
-  `SWANGZ_GATEWAY` and redeploys by itself whenever the tunnel link changes; `-Restart` restarts only the
-  gateway and keeps the link. The token gives full access to the Netlify account: it belongs in that
-  file only, and can be revoked under Netlify → User settings → Applications.
-- **Google sign-in** works, in Testing mode, with two test users (`arnoldkigozi0@gmail.com`,
-  `webdev02022007@gmail.com`). Publishing it needs the Branding page completed first.
-- **Not done:** real provider keys, and a permanent home for the gateway.
-
-## The next job, in order
-
-**`docs/GO-LIVE.md` is the up-to-date checklist** (Oct 3: Swangz uses paid accounts, not API keys, so
-provider keys are no longer on the list). `deploy/setup-gateway-server.sh` and
-`deploy/setup-workspace-server.sh` set up each server in one run. The summary:
-
-1. **A small VPS (~$5/month)** for the gateway, at `ai.swangzavenue.com`. `deploy/` has the systemd
-   unit and a Caddyfile; Caddy gets the certificate by itself. Then set `GATEWAY_PUBLIC_URL`, point
-   Netlify's `SWANGZ_GATEWAY` at it, and the changing-link problem is gone for good.
-2. **Real provider keys** from Swangz, into `.env`.
-3. **The shared workspace server** — the gateway side and the Workspace Agent are built and tested
-   against stand-ins; the server itself (an 8 GB VPS with Docker, Caddy and the agent) is not.
-   `deploy/WORKSPACE.md` walks through it — read its warnings before spending money.
-
-## Things that will trip you up
-
-- **`pkill -f <pattern>` can kill the calling shell.** Match the exact process with
-  `ps -eo pid,args | awk ...` instead.
-- **The CSP blocks inline `style=""`.** Set styles with a class or `element.style.x`, never a style
-  attribute string.
-- **A request's record is written just after its reply ends** — tests and Studio must wait for it.
-- **Migrations are append-only.** Add a new entry to `SCHEMA` in `db.py`; never edit an old one.
-- **Tests before every commit**, and no AI attribution in commit messages or public copy.
+Use [automatic laptop hosting](../deploy/LAPTOP-AUTO.md) for the existing Linux service/direct tunnel, or [Hub delivery](HUB-DELIVERY.md) for permanent Caddy/systemd hosting. Verify health from the actual address. Inspect test outputs and GitHub checks. Migrations are forward-only; audit measured facts, estimates and declarations separately; keep private data out of commits, screenshots and CI.
