@@ -1,13 +1,21 @@
 # Project state and roadmap
 
-Last updated: 2026-10-09. Read `../CLAUDE.md` first for the overview and conventions; `V2.md` for the
+Last updated: 2026-10-10. Read `../CLAUDE.md` first for the overview and conventions; `V2.md` for the
 control plane added on Oct 9, and `SECURITY.md` for the threat model.
 
 ## Where it stands
 
-A working platform, built and tested. **258 unit tests** (`python3 -m unittest discover -s tests -t .`).
+A working platform, built and tested. **301 unit tests** (`python3 -m unittest discover -s tests -t .`).
 Schema is **v19**. Nothing real has been called by a provider yet — there are no company API keys, and
 the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
+
+### Hub integration and activation — 10 October 2026
+
+PR #4 merged at `91f3b3f`; the existing laptop database was backed up, migrated to schema 19 and retained its original people, owner, keys, assignments, subscriptions and access request. Native weekly reporting, evidence/reconciliation, procurement, management exports and layered staff/admin workspaces are active. The complete suite passed 301 tests; browser verification is recorded in [the integration log](HUB-INTEGRATION.md).
+
+Recovered owner Tracker history imported 29 adoption declarations, 3 procurement requests and 1 registry record. Twelve demos were skipped and three explicit test records preserved separately. The original backend hostname returns NXDOMAIN, so recovered views explicitly disclose that backend reconciliation is pending. Historic declarations do not create weekly obligations; actual Gateway evidence created 17 required weekly reports.
+
+The automatic laptop service is enabled, running and has lingering enabled. Direct HTTPS tunnel health and owner/company-staff password sign-in passed. Netlify production builds are blocked by its account credit limit; direct deployment was rejected too. Restore the account's credits before expecting the stable Netlify front door or its Google callback to work. Existing callback/domain configuration was preserved. See [the operations guide](HUB-OPERATIONS.md) for backup/recovery, API-key attribution and enforcement limits.
 
 ### Done and verified
 

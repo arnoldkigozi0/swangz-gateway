@@ -1,6 +1,6 @@
 # Swangz AI Hub operations and migration
 
-The Hub uses the existing Python standard-library server, SQLite database, vanilla UI, provider configuration and deployment URLs. The repository remains `swangz-gateway`. This integration is on a feature branch for review; no production restart, import, DNS change or merge is part of the development checks.
+The Hub uses the existing Python standard-library server, SQLite database, vanilla UI, provider configuration and deployment URLs. The repository remains `swangz-gateway`. PR #4 was merged and the existing laptop instance activated after the user requested completion. Actual backup, migration, recovered-history import and public verification results are recorded in HUB-INTEGRATION.md. DNS and Google callback configuration were preserved.
 
 ## Identity policy
 
