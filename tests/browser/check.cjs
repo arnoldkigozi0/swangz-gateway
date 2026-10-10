@@ -27,7 +27,7 @@ async function fixture() {
   });
 }
 async function login(c, url, role = 'owner') {
-  const r = await c.request.post(url + '/admin/api/login', { headers: { 'x-gateway-admin': '1' }, data: { username: role, password: role + '-password' } });
+  const r = await c.request.post(url + '/admin/api/login', { headers: { 'x-gateway-admin': '1' }, data: { username: role + "@swangzavenue.com", password: role + '-password' } });
   assert.equal(r.status(), 200);
 }
 async function staffLogin(c, url) {
@@ -289,7 +289,9 @@ async function layout(p, name, axe = false) {
     await p.locator('.just-made audio').waitFor();
     check('Studio success renders a playable result', await script.inputValue() === '');
     await p.setViewportSize({ width: 390, height: 844 });
-    check('Mobile navigation exposes Studio', await p.locator('.tabbar a[href="#/studio"]').isVisible());
+    await p.getByRole('button', { name: 'Open navigation' }).click();
+    check('Mobile navigation exposes Studio', await p.locator('.drawer a[href="#/studio"]').isVisible());
+    await p.getByRole('button', { name: 'Close navigation' }).click();
     await screenshot(p, 'studio-mobile-result');
     // Settings nested links/history and unsaved changes remain intact.
     await go(p, url, '/admin#/settings?tab=providers&section=prices');

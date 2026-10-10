@@ -1,4 +1,4 @@
-# Swangz Gateway — interface map
+# Swangz AI Hub — interface map
 
 How the two apps are organised, where each kind of information lives, and the rules for adding to them.
 Written for the V2.1 clarity pass (Oct 9, 2026). Keep it current: when a page gains or loses a job, say so here.

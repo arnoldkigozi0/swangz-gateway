@@ -119,11 +119,15 @@ def _valid(claims, client_id, nonce):
     if not isinstance(claims, dict):
         return False
     aud = claims.get("aud")
+    try:
+        expires = float(claims.get("exp") or 0)
+    except (TypeError, ValueError):
+        return False
     return (claims.get("iss") in ISSUERS
             and (aud == client_id or (isinstance(aud, list) and client_id in aud))
-            and float(claims.get("exp") or 0) > time.time()
+            and expires > time.time()
             and claims.get("nonce") == nonce
-            and claims.get("email_verified") in (True, "true")
+            and (claims.get("email_verified") is True or claims.get("email_verified") == "true")
             and bool(claims.get("email")))
 
 
@@ -145,6 +149,10 @@ def callback(h, gw, query):
         return _back(h, app, "google")
     email = str(claims["email"]).strip().lower()
     ctx = Ctx(h, gw, "")
+
+    if not gw.settings.email_allowed(email):
+        gw.audit(email, "Google sign-in refused", "", "identity outside approved company accounts", ctx.ip)
+        return _back(h, app, "not_allowed")
 
     if app == "admin":
         row = gw.db.one("SELECT * FROM admins WHERE lower(username) = ?", (email,))

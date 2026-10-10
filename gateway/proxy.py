@@ -112,14 +112,14 @@ def model_allowed(patterns, model):
 
 
 def error_body(dialect, etype, message, code=None):
-    message = "Swangz AI gateway: " + message
+    message = "Swangz AI Hub gateway: " + message
     if dialect == "anthropic":
         return {"type": "error", "error": {"type": etype, "message": message}}
     return {"error": {"message": message, "type": etype, "code": code or etype, "param": None}}
 
 
 def _cut_event(dialect, kind, message):
-    message = "Swangz AI gateway: " + message
+    message = "Swangz AI Hub gateway: " + message
     if dialect == "anthropic":
         data = {"type": "error", "error": {"type": "permission_error", "message": message}}
         return b"event: error\ndata: " + json.dumps(data).encode() + b"\n\n"
@@ -195,6 +195,27 @@ class Call:
         if gate:
             status, etype, message, why = gate
             return self.refuse(status, etype, message, "blocked", why)
+        from . import reporting, policy
+        if self.kind not in ("other", "media-status"):
+            tool = self.gw.db.one("SELECT * FROM tools WHERE id=?", (row.get("hub_tool_id"),)) if row.get("hub_tool_id") else policy.request_tool(self.gw.db, self.rec["client"], self.provider.name)
+            if row.get("hub_tool_id") and (not tool or tool.get("provider") != self.provider.name):
+                return self.refuse(403, "permission_error", "This device key is scoped to a different tool/provider.", "blocked", "key tool scope")
+            if row.get("hub_tool_id"):
+                from . import entitle
+                person = self.gw.db.one("SELECT * FROM people WHERE id=?", (row["person_id"],))
+                if not entitle.is_enabled(self.gw.db, person, tool)[0]:
+                    return self.refuse(403, "permission_error", "This scoped tool is no longer assigned and available.", "blocked", "tool entitlement")
+            self.rec["hub_tool_id"] = (tool or {}).get("id")
+            candidates = [tool["id"]] if tool else []
+            if not row.get("hub_tool_id"):
+                # Legacy keys cannot assert a trusted client identity. Fail closed across outstanding
+                # tools on that provider, so changing the user agent or issuing a new key cannot bypass it.
+                candidates += [t["id"] for t in self.gw.db.q("SELECT id FROM tools WHERE provider=?", (self.provider.name,))]
+            for tid in dict.fromkeys(candidates):
+                denial = reporting.gate(self.gw, row["person_id"], tid)
+                if denial:
+                    self.rec["rule"] = "weekly_report_required"
+                    return self.refuse(403, "weekly_report_required", denial["message"], "blocked", "weekly_report_required", extra=denial)
         ruled = self.gw.policy_gate(row, self.rec["model"], self.kind, self.provider, self.rec["client"])
         if ruled:
             status, etype, message, why, self.rec["rule"] = ruled
@@ -235,8 +256,11 @@ class Call:
             flags.append(f"attachments:{self.summary['attachments']}")
         self.rec["flags"] = ",".join(flags)
 
-    def refuse(self, status, etype, message, outcome, why, store=True):
-        payload = json.dumps(error_body(self.provider.dialect, etype, message)).encode()
+    def refuse(self, status, etype, message, outcome, why, store=True, extra=None):
+        body = error_body(self.provider.dialect, etype, message)
+        if extra:
+            body["error"].update(extra)
+        payload = json.dumps(body).encode()
         # A policy refusal won't change on a retry; an unreachable provider might.
         retry = "true" if status >= 500 or status == 429 else "false"
         self.h.send_bytes(status, payload, "application/json", {"x-should-retry": retry})

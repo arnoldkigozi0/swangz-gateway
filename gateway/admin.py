@@ -19,10 +19,11 @@ ROUTES = []
 
 
 class ApiError(Exception):
-    def __init__(self, status, message):
+    def __init__(self, status, message, code=None, details=None):
         super().__init__(message)
         self.status = status
         self.message = message
+        self.code, self.details = code, details
 
 
 def route(method, pattern, role="viewer", area=None):
@@ -109,7 +110,7 @@ def dispatch(h, gw, path, query):
                     raise ApiError(403, "your role can't do that" + (" — only an owner can" if needed == "admin" else ""))
             result = fn(ctx, **{k: unquote(v) for k, v in m.groupdict().items()})
         except ApiError as err:
-            return h.send_json(err.status, {"error": err.message})
+            return h.send_json(err.status, {"error": err.message, **({"code": err.code, "details": err.details} if err.code else {})})
         if isinstance(result, tuple):  # (status, body, headers) or (bytes, ctype, headers)
             if isinstance(result[0], bytes):
                 return h.send_bytes(200, result[0], result[1], result[2])
@@ -128,7 +129,7 @@ def current_admin(ctx):
     row = ctx.db.one(
         "SELECT a.id, a.username, a.role, a.areas FROM admin_sessions s JOIN admins a ON a.id = s.admin_id"
         " WHERE s.token_hash = ? AND s.expires > ?", (security.sha256(token), time.time()))
-    return row
+    return row if row and ctx.gw.settings.email_allowed(row["username"]) else None
 
 
 def _cookie(header, name):
@@ -151,12 +152,12 @@ def _session_cookie(ctx, token, max_age):
 
 @route("POST", r"/login", role=None)
 def login(ctx):
-    username = str(ctx.body.get("username") or "").strip()
+    username = str(ctx.body.get("username") or "").strip().lower()
     password = str(ctx.body.get("password") or "")
     if ctx.gw.throttle.blocked(ctx.ip):
         raise ApiError(429, "too many failed sign-ins from here; wait ten minutes")
     row = ctx.db.one("SELECT * FROM admins WHERE username = ?", (username,))
-    if not row or not security.check_password(password, row["pw_hash"]):
+    if not row or not ctx.gw.settings.email_allowed(username) or not security.check_password(password, row["pw_hash"]):
         ctx.gw.throttle.fail(ctx.ip)
         ctx.gw.audit(username or "?", "failed sign-in", "", "", ctx.ip)
         raise ApiError(401, "wrong username or password")
@@ -166,6 +167,8 @@ def login(ctx):
 
 def start_session(ctx, row, how="signed in"):
     """A console session for this admin -> the Set-Cookie header. Used by password and Google sign-in."""
+    if not ctx.gw.settings.email_allowed(row["username"]):
+        raise ApiError(403, ctx.gw.settings.email_rule())
     token = security.new_session_token()
     now = time.time()
     ctx.db.x("INSERT INTO admin_sessions(token_hash, admin_id, created, expires, ip) VALUES(?,?,?,?,?)",
@@ -462,7 +465,7 @@ def _person_values(body, partial):
 
 
 def _email_free(ctx, email, person_id=None):
-    if email and not ctx.gw.settings.email_allowed(email):
+    if not ctx.gw.settings.email_allowed(email):
         raise ApiError(400, ctx.gw.settings.email_rule() + " That address isn't allowed.")
     if email and ctx.db.one("SELECT id FROM people WHERE lower(email) = lower(?) AND id != ?", (email, person_id or -1)):
         raise ApiError(400, "someone else already uses that email")
@@ -569,7 +572,8 @@ def update_person(ctx, pid):
     old = ctx.db.one("SELECT * FROM people WHERE id = ?", (int(pid),))
     if not old:
         raise ApiError(404, "no such person")
-    _email_free(ctx, values.get("email"), int(pid))
+    if "email" in values:
+        _email_free(ctx, values["email"], int(pid))
     ctx.db.x(f"UPDATE people SET {', '.join(f'{c} = ?' for c in values)} WHERE id = ?", [*values.values(), int(pid)])
     changed = {c: v for c, v in values.items() if old.get(c) != v}
     if changed:
@@ -581,7 +585,7 @@ def update_person(ctx, pid):
 @route("POST", r"/people/(?P<pid>\d+)/(?P<action>suspend|resume)", area=_suspend_area)
 def suspend_person(ctx, pid, action):
     pid = int(pid)
-    person = ctx.db.one("SELECT name FROM people WHERE id = ?", (pid,))
+    person = ctx.db.one("SELECT name,email FROM people WHERE id = ?", (pid,))
     if not person:
         raise ApiError(404, "no such person")
     ctx.db.x("UPDATE people SET status = ? WHERE id = ?", ("suspended" if action == "suspend" else "active", pid))
@@ -602,14 +606,19 @@ def suspend_person(ctx, pid, action):
 @route("POST", r"/people/(?P<pid>\d+)/keys", area="govern")
 def issue_key(ctx, pid):
     pid = int(pid)
-    person = ctx.db.one("SELECT name FROM people WHERE id = ?", (pid,))
+    person = ctx.db.one("SELECT name,email FROM people WHERE id = ?", (pid,))
     if not person:
         raise ApiError(404, "no such person")
+    if not ctx.gw.settings.email_allowed(person["email"]):
+        raise ApiError(400, ctx.gw.settings.email_rule())
+    from . import reporting
+    tool_id = reporting.key_scope(ctx.db, pid, ctx.body.get("tool_id"))
     label = str(ctx.body.get("label") or "").strip()[:80] or "key"
     key_id, full, secret_hash, hint = security.new_key()
     ctx.db.x("INSERT INTO keys(id, person_id, label, secret_hash, hint, created, created_by) VALUES(?,?,?,?,?,?,?)",
              (key_id, pid, label, secret_hash, hint, time.time(), ctx.admin["username"]))
-    ctx.audit("issued a key", person["name"], f"{label} ({hint})", correlation=f"device:{key_id}")
+    ctx.db.x("UPDATE keys SET hub_tool_id=? WHERE id=?", (tool_id, key_id))
+    ctx.audit("issued a key", person["name"], f"{label} ({hint}); tool: {tool_id or 'legacy provider scope'}", correlation=f"device:{key_id}")
     return {"id": key_id, "key": full, "hint": hint, "label": label, "tools": guides.guides(ctx.gw, full, ctx.gw.public_url(ctx.h))}
 
 
@@ -1552,9 +1561,9 @@ def _role_from_body(ctx):
 
 @route("POST", r"/admins", area="admin")
 def add_admin(ctx):
-    username = str(ctx.body.get("username") or "").strip()
-    if not re.fullmatch(r"[A-Za-z0-9._@-]{2,64}", username):
-        raise ApiError(400, "username: 2-64 letters, digits, . _ @ -")
+    username = str(ctx.body.get("username") or "").strip().lower()
+    if not ctx.gw.settings.email_allowed(username):
+        raise ApiError(400, ctx.gw.settings.email_rule())
     role, areas = _role_from_body(ctx)
     password = str(ctx.body.get("password") or "")
     _check_password_strength(password)
@@ -1573,6 +1582,8 @@ def change_admin_role(ctx, aid):
     row = ctx.db.one("SELECT id, username, role, areas FROM admins WHERE id = ?", (int(aid),))
     if not row:
         raise ApiError(404, "no such console user")
+    if not ctx.gw.settings.email_allowed(row["username"]):
+        raise ApiError(400, ctx.gw.settings.email_rule())
     role, areas = _role_from_body(ctx)
     if row["role"] == "owner" and role != "owner" and ctx.db.scalar("SELECT COUNT(*) FROM admins WHERE role = 'owner'") <= 1:
         raise ApiError(400, "keep at least one owner")

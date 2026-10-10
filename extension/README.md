@@ -1,4 +1,4 @@
-# Swangz AI Access — browser extension
+# Swangz AI Hub Access — browser extension
 
 Some AI tools (ChatGPT, Midjourney, Canva, Runway, …) are used on their own websites and can't be
 routed through the gateway. This company extension governs those sites: it opens the ones Swangz has
@@ -13,7 +13,7 @@ extension enforces the other half: it lets only the person holding the turn onto
 again every time Chrome starts. It does that by clearing that site's cookies and stored data
 (`chrome.browsingData.remove` for the tool's own domains — nothing else is touched).
 
-So re-opening the tool always means going back through Swangz AI, and the next person never inherits
+So re-opening the tool always means going back through Swangz AI Hub, and the next person never inherits
 someone else's session. It also means the vendor's credit history lines up with the turn log: whoever
 held the account at the time spent what was spent.
 
@@ -34,7 +34,7 @@ ignored completely — the extension does nothing on them.
 
 ## How it works
 
-1. A staff member installs the extension and signs in with their Swangz AI address and account.
+1. A staff member installs the extension and signs in with their Swangz AI Hub address and account.
 2. The extension fetches the list of governed AI hosts and the usage policy from the gateway.
 3. When they open one of those sites, the extension asks the gateway whether that tool is enabled for
    them (the same "paid **and** assigned" rule as everything else). If yes, the site opens normally.
@@ -49,7 +49,7 @@ person or pausing all AI invalidates the token immediately.
 
 1. Open `chrome://extensions`, turn on **Developer mode**.
 2. **Load unpacked**, and choose this `extension/` folder.
-3. Click the extension, enter the Swangz AI address (e.g. `https://ai.swangz.com`) and sign in.
+3. Click the extension, enter the Swangz AI Hub address (e.g. `https://ai.swangz.com`) and sign in.
 
 For a managed rollout, the same folder can be packed and pushed through Chrome Enterprise policy so
 staff get it automatically and can't remove it.

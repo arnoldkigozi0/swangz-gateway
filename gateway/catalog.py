@@ -1,6 +1,6 @@
 """The catalog of AI tools Swangz may use — names, categories, where they live, and pricing.
 
-Seeded from the Swangz AI Tracker registry (47 tools) plus the two developer agents. `kind`:
+Seeded from the Swangz Avenue AI Adoption Tracker registry (47 tools) plus the two developer agents. `kind`:
   api  — routed through the gateway on the company API key (Claude, OpenAI, ElevenLabs, Higgsfield)
   dev  — a developer agent on an API key, available only to people an admin assigns (Claude Code, Codex)
   site — a website staff use directly; the browser access gate enables or blocks it by entitlement
@@ -102,7 +102,7 @@ DETAILS = {
     "stable-diffusion": ("Stability AI's open image models.", "#8B5CF6"),
     "suno": ("Songs and music from a prompt.", "#E8863A"),
     "udio": ("AI music generation.", "#E84D8A"),
-    "heyeddie": ("From the Swangz AI Tracker registry.", "#4C9A8A"),
+    "heyeddie": ("From the Swangz Avenue AI Adoption Tracker registry.", "#4C9A8A"),
     "airtable-ai": ("AI fields and apps on Airtable data.", "#E0A100"),
     "loom-ai": ("Screen recordings with AI titles, summaries and edits.", "#625DF5"),
     "notion-ai": ("Write, summarise and search inside Notion.", "#5A5A55"),

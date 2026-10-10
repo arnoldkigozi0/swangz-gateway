@@ -51,12 +51,12 @@ No GitHub? Build on the laptop and drag the folder in instead:
 
 ## Part 2 — Google
 
-1. <https://console.cloud.google.com> → project picker → **New project** → name it `Swangz AI` → Create.
+1. <https://console.cloud.google.com> → project picker → **New project** → name it `Swangz AI Hub` → Create.
 2. Menu → **APIs & Services → OAuth consent screen** (shown as **Google Auth Platform**) → **Get started**:
-   - App name `Swangz AI`, support email your Gmail → **Audience: External** → contact email → Create.
+   - App name `Swangz AI Hub`, support email your Gmail → **Audience: External** → contact email → Create.
    - **Audience** → **Publish app** (only email/profile are asked for, so Google needs no review).
      Or leave it in Testing and add each person's Gmail under **Test users**.
-3. **Clients → Create client** → type **Web application**, name `Swangz AI`:
+3. **Clients → Create client** → type **Web application**, name `Swangz AI Hub`:
    - **Authorized redirect URIs** → add `https://swangz-ai.netlify.app/auth/google/callback`
      (your exact Netlify address + `/auth/google/callback`).
    - Create → copy the **Client ID** and **Client secret**.

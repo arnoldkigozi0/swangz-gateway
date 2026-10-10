@@ -58,6 +58,15 @@ def conditions(gw):
         out.append({"key": f"incident:{r['id']}", "severity": "critical" if r["severity"] == "critical" else "high", "area": "Trust",
                     "title": f"Incident: {r['title']}", "text": f"{r['severity'].capitalize()} severity, {r['status']}.",
                     "href": f"#/incidents/{r['id']}"})
+    for key, title, query, href in (
+        ("hub-pending", "Weekly reports outstanding", "SELECT COUNT(*) FROM hub_reports WHERE kind='weekly' AND state IN ('draft','returned')", "#/weekly?tab=overview"),
+        ("hub-submitted", "Hub reports awaiting review", "SELECT COUNT(*) FROM hub_reports WHERE state IN ('submitted','resubmitted')", "#/weekly?tab=review"),
+        ("hub-discrepancies", "Reports need evidence review", "SELECT COUNT(*) FROM hub_reports WHERE reconciliation='needs_review' AND state<>'confirmed'", "#/weekly?tab=reconciliation"),
+        ("hub-procurement", "Procurement requests awaiting review", "SELECT COUNT(*) FROM procurement_requests WHERE state IN ('submitted','reviewed')", "#/procurement")):
+        count = db.scalar(query) or 0
+        if count:
+            out.append({"key": key, "severity": "notice", "area": "Govern", "title": title,
+                        "text": f"{count} record(s) need attention in the authenticated Hub workspace.", "href": href})
     return out
 
 
@@ -130,11 +139,11 @@ def email_new(gw, send=None):
     base = gw.public_url().rstrip("/") + "/admin"
     msg = EmailMessage()
     # titles carry names people typed; a header must never carry a line break
-    msg["Subject"] = " ".join(f"Swangz AI: {rows[0]['title']}".split())[:180] + (f" (+{len(rows) - 1} more)" if len(rows) > 1 else "")
+    msg["Subject"] = " ".join(f"Swangz AI Hub: {rows[0]['title']}".split())[:180] + (f" (+{len(rows) - 1} more)" if len(rows) > 1 else "")
     msg["From"] = (cfg or {}).get("sender", "swangz-ai@localhost")
     msg["To"] = ", ".join((cfg or {}).get("to", []))
     msg.set_content("\n\n".join(f"[{r['severity'].upper()}] {r['title']}\n{r['text']}\n{base}{r['href']}" for r in rows)
-                    + "\n\n— Swangz AI control room. Manage notifications in the console.")
+                    + "\n\n— Swangz AI Hub control room. Manage notifications in the console.")
     try:
         (send or _smtp_send)(cfg, msg)
     except (OSError, smtplib.SMTPException, ValueError) as exc:

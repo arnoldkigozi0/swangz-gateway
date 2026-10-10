@@ -1,4 +1,4 @@
-# Swangz AI Gateway — project guide
+# Swangz AI Hub — project guide
 
 This file is the starting point for anyone (or any assistant) opening this repo. Read it, then
 `docs/STATE.md` for the current status and the roadmap. Keep both up to date as the project moves.
@@ -13,9 +13,9 @@ Two apps on one address, plus a browser extension:
 
 | Where | What |
 |---|---|
-| `/` | **Swangz AI** — the staff app: Home (a launchpad: a state-aware hero whose one action goes back to the tool you opened last, your other tools, and beside them Updates, allowance when visible, Studio when available, quick links), Tools (the whole catalogue: search, categories, sort, a details drawer per tool saying why you have it, how sign-in works and what's recorded), Studio (Create · Your creations), Devices (Connected · Connect a tool · Disconnected; the key is shown once), Requests (Updates · Access requests — the bell opens Updates), Privacy (*How Swangz AI works* — six sections with an index). A page's views live in `?view=` (`viewTabs()` in `portal.js`). **Open** goes through `/go/<tool>`, which checks access, logs the launch and sends the person to the tool's company sign-in link (SSO) or website |
+| `/` | **Swangz AI Hub** — the staff app: Home (a launchpad: a state-aware hero whose one action goes back to the tool you opened last, your other tools, and beside them Updates, allowance when visible, Studio when available, quick links), Tools (the whole catalogue: search, categories, sort, a details drawer per tool saying why you have it, how sign-in works and what's recorded), Studio (Create · Your creations), Devices (Connected · Connect a tool · Disconnected; the key is shown once), Requests (Updates · Access requests — the bell opens Updates), Privacy (*How Swangz AI Hub works* — six sections with an index). A page's views live in `?view=` (`viewTabs()` in `portal.js`). **Open** goes through `/go/<tool>`, which checks access, logs the launch and sends the person to the tool's company sign-in link (SSO) or website |
 | `/admin` | **Control room** — MONITOR: Overview, Live (in-flight requests; *Inspect* follows one into its record), Needs attention, Activity (Timeline = who did what, when, where — requests, opens, visits, shared turns, sign-ins and access changes · Who used what · AI requests · Tools opened · Websites visited), Health. GOVERN: People, Access requests, Tools, **Models** (the registry), **Policies** (rules + Simulate + Explain a decision). MONEY: Licences & spend (incl. *What cost us money?*), **Reports**. TRUST: Security, **Incidents**, Devices, Audit log (before/after, reason, outcome), Settings (a grouped rail — Gateway: Access & privacy · Purpose & location · Providers & pricing · Company browsers; Emergency; Console access: Console users · Your account — each category opening with a header that holds its sections; Access & privacy is Records · Safeguards · Staff controls). A tool's profile is a side sheet (Overview · Usage · Access · Subscription · Configuration · Workspace for shared accounts); a person's is Overview · Access · Activity · Devices · Security · Account. A **notifications bell** sits by the search. Ctrl+K opens a command menu that searches everything. Dense pages are split with `pageTabs(base, params, tabs, opts)`: each tab builds on demand, the choice lives in `?tab=` (or `opts.param`, e.g. Settings' `?section=`, with `opts.clears` so a parent resets its child), every switch is a history entry, Back/Forward switch in place, and a form with unsaved changes calls `A.setDirty(fn)` so leaving asks first. Time ranges and filters live in the address too (`A.keepParams`). Where each kind of information lives, and why, is `docs/UI.md` — one home per kind, summaries elsewhere link to it. Arnold asked for fewer tiles (Oct 7, 2026): lists put their counts in the filter tabs, headline numbers sit in one `.kpis` strip or a slim `.statline`, and long catalogues are tables, not cards. Settings-style pages use `A.settingRow()` / `A.switchInput()` and `pageTabs(…, { vertical: true })`; a panel's save actions go in `A.panelFoot()`. |
-| `extension/` | **Swangz AI Access** — a browser extension that governs AI *websites* (ChatGPT, Midjourney, …): opens the ones a person is entitled to, blocks the rest, logs access-level use only |
+| `extension/` | **Swangz AI Hub Access** — a browser extension that governs AI *websites* (ChatGPT, Midjourney, …): opens the ones a person is entitled to, blocks the rest, logs access-level use only |
 
 The core rule everywhere: **a tool is enabled for a person only when the company subscription is
 active AND the person is assigned it** (directly or through their department). API and dev tools run
@@ -116,7 +116,7 @@ gateway/
   store.py      request bodies stored once per message by hash; retention clean-up
   pricing.py    model price table and cost per request
   live.py       requests in flight, and cutting them
-  db.py         SQLite + append-only numbered migrations (currently schema v18)
+  db.py         SQLite + append-only numbered migrations (currently schema v19)
   security.py   key/password hashing, sign-in throttle, per-person rate limiter
   admin.py      control-room API: the route decorator (role + area), people, keys, tools, settings, audit
   authz.py      roles as areas, and the one place that says who may change what
@@ -172,7 +172,8 @@ docs/UI.md      the interface map: each page's job, the one home of each kind of
 ## Run it
 
 ```bash
-python3 -m gateway add-admin <name>      # first owner (asks for a password)
+read -r -p "Verified owner email: " HUB_OWNER_EMAIL
+python3 -m gateway add-admin "$HUB_OWNER_EMAIL" # first owner (asks for a password)
 python3 -m gateway serve                 # http://localhost:8787
 ```
 
@@ -205,14 +206,16 @@ settings (retention, rate limit, kill switch, …) live in the control room unde
 **See `docs/HANDOFF.md`** for the full version — what travels in git, what does not (`.env`,
 `data/gateway.db`), and how to move the secrets safely.
 
-With git and Claude Code installed and signed in:
+With git and your coding agent installed and signed in:
 
 ```bash
 git clone https://github.com/arnoldkigozi0/swangz-gateway.git
 cd swangz-gateway
-claude            # Claude Code reads this file automatically; then open docs/STATE.md
+# Open AGENTS.md and docs/STATE.md in your coding agent
 ```
 
 Then `python3 -m unittest discover -s tests -t .` to confirm the suite is green, and
 `python3 -m gateway serve` (or the demo script) to run it. The database and `.env` do not travel with
 the repo — on a new machine you start with a fresh `data/gateway.db` and your own keys.
+
+For native Hub reporting, migrations, identity policy and review status, read docs/HUB-INTEGRATION.md and docs/HUB-OPERATIONS.md. Never widen the two explicitly approved owner exceptions, rewrite migrations 1–18, replace a production database or represent historic adoption entries as weekly activity.

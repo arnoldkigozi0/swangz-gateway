@@ -355,6 +355,8 @@ class Workspaces:
 
         with self._sweeping:
             turns.expire(self.gw.db)
+            from . import reporting
+            reporting.close_week_turns(self.gw)
             for turn in self.gw.db.q("SELECT * FROM tool_turns WHERE ended IS NOT NULL AND ws_member != ''"
                                      " AND ws_closed IS NULL ORDER BY id"):
                 try:

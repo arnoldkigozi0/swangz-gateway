@@ -1,5 +1,5 @@
 "use strict";
-/* Swangz Gateway — Trust: incidents (a signal turned into a tracked case with an owner, evidence, notes and
+/* Swangz AI Hub — Trust: incidents (a signal turned into a tracked case with an owner, evidence, notes and
    an ending) and Health (is the gateway itself well: providers, latency, errors, housekeeping). */
 (() => {
   const A = window.SWA;

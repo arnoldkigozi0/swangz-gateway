@@ -53,7 +53,7 @@ class TimelineTests(LensBase):
         work = [e for e in out["items"] if e["type"] != "access"]
         self.assertEqual([e["type"] for e in work], ["launch", "site", "request"])
         # sign-ins and access changes about the person join the stream too (V2)
-        self.assertIn("signed in to Swangz AI", [e["action"] for e in out["items"] if e["type"] == "access"])
+        self.assertIn("signed in to Swangz AI Hub", [e["action"] for e in out["items"] if e["type"] == "access"])
         req = work[2]
         self.assertEqual((req["person"], req["tool"], req["device"], req["platform"], req["place"]),
                          ("Nansubuga Grace", "Codex", "laptop", "Codex on macOS", "public internet"))
@@ -132,7 +132,7 @@ class SecurityTests(LensBase):
         for _ in range(5):
             rig.anthropic({"model": "claude-sonnet-4-5", "max_tokens": 5, "messages": [{"role": "user", "content": "x"}]},
                           key="sgw_000000000000_badbadbadbadbadbadbadbad")
-        rig.request("POST", "/admin/api/login", {"username": "owner", "password": "wrong"}, {"x-gateway-admin": "1"})
+        rig.request("POST", "/admin/api/login", {"username": "owner@swangzavenue.com", "password": "wrong"}, {"x-gateway-admin": "1"})
         out = rig.api("GET", "/security", who="viewer")[1]
         by = {e["type"]: e for e in out["events"]}
         self.assertIn("an AWS access key", by["credential"]["text"])
@@ -224,8 +224,8 @@ class SearchAndFilterTests(LensBase):
         rig.api("GET", "/audit", who="viewer")
         out = rig.api("GET", "/audit?q=paused")[1]
         self.assertEqual([a["action"] for a in out["items"]], ["paused AI access for everyone"])
-        self.assertEqual({a["actor"] for a in rig.api("GET", "/audit?actor=viewer")[1]["items"]}, {"viewer"})
-        self.assertIn("owner", out["actors"])
+        self.assertEqual({a["actor"] for a in rig.api("GET", "/audit?actor=viewer@swangzavenue.com")[1]["items"]}, {"viewer@swangzavenue.com"})
+        self.assertIn("owner@swangzavenue.com", out["actors"])
         self.assertEqual(rig.api("GET", f"/audit?since={time.time() + 60}")[1]["items"], [])
         add_request(self.db, ts=time.time() - 7200, person_id=self.pid)
         self.assertEqual(len(rig.api("GET", "/requests?dept=Creative")[1]["items"]), 1)
