@@ -59,6 +59,11 @@ What the gateway protects, from whom, how, and where the edges are. It describes
 | Location data leaking to third parties | no external geolocation: an offline table imported by an admin on the server; named networks; everything approximate is labelled so | `geo.py` | `test_v2.LocationTests` |
 | Inferences presented as facts | every purpose carries its source (declared / derived / inferred) and confidence and evidence; costs carry their basis; places say approximate | `purpose.py`, `money.describe_source`, `geo.describe` | `test_v2.PurposeTests`, `MediaCostTests` |
 | Shared-account password exposure | the gateway never stores or types vendor passwords (deliberately — see CLAUDE.md); company browsers are signed in by hand | `workspace.py` | `test_workspace` |
+| Someone tricks a person into approving *their* device (device-code phishing) | the approval page names what is asking (system, version, the address it asked from), says to approve only what you started just now, needs the person's own signed-in browser and a per-code CSRF token; codes last 15 minutes, are single-use, and the secret the device polls with is 256-bit and stored hashed; asking for codes and guessing them are rate-limited | `enroll.page`, `enroll.device_code`, `enroll.device_token` | `test_devices.EnrolmentTests` |
+| A stolen or lost device keeps its access | an enrolled device is an ordinary key: "disconnect this device" (staff app, console, or the app's own sign-out) revokes it and cuts in-flight requests; the app, told `device_revoked`, removes everything it installed | `enroll.device_auth`, `core.Client` | `test_devices.ManifestTests`, `test_client.RevocationTests` |
+| A hostile or damaged package (zip-slip, links, zip bombs, tampering, a swapped download) | checksum recorded at publish and checked by the server before sending and by the app before unpacking; every file must land inside the package's folder (no `..`, absolute, drive or backslash paths, no links); size and file-count caps; unpacked beside the final place then moved in; downloads only from the server the device signed in to, so a manifest can't send the key elsewhere | `enroll.publish`, `bundles.py`, `core.Api.download` | `test_client.PackageTests`, `test_devices.PackageTests` |
+| The app edits someone's other programs' settings badly | personal devices: nothing outside the app's folder is written. Company devices: only marked lines are added, a copy of the original is kept, invalid or conflicting files are left untouched and reported, and removal takes back only what the app wrote and only while it is still the app's | `agents.py` | `test_client.CompanyDeviceTests`, `SettingsFileTests` |
+| Covert monitoring of a person's own device | the app records the device's name, system, version, installed packages and last check-in, plus the AI requests that already pass through the gateway — never files, screen, keystrokes or other programs; the approval and the app's *This device* page say so | `enroll.RECORDING`, `docs/CLIENT.md` | `test_devices.ManifestTests` |
 | Covert monitoring of third-party sites | the browser gate records which approved tool, when and how long; full-content logging is an admin setting, off by default, disclosed to staff | `staff.gate_open`, extension | `test_gateway.AccessGateTests` |
 
 ## Privacy (Uganda Data Protection and Privacy Act, 2019)
@@ -81,6 +86,10 @@ What the gateway protects, from whom, how, and where the edges are. It describes
   gateway can't see inside a vendor's own logs. Invoice import (actual costs) isn't built.
 - **TLS termination** is Caddy's or the tunnel's; misconfiguring `GATEWAY_TRUST_PROXY` lets a client spoof
   its address (and so its "place").
+- **The Swangz app on a device** is only as safe as the device. Its key sits in a 0600 file (owner-only on Unix,
+  the user profile on Windows) — not yet the OS keychain. Someone with the person's account on that device has
+  the key; "disconnect this device" is the answer. On a personal device the gateway sees what coding agents send
+  to the AI but not what they do to local files, by design.
 - **Approximate places** come from a third-party table that can be wrong, stale or VPN-shifted.
 
 ## Reporting a problem

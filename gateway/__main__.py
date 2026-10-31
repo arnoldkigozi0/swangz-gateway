@@ -14,6 +14,9 @@
                                 a verified, compressed copy of the database (safe while running); also sent
                                 off the server when GATEWAY_BACKUP_REMOTE is set
   backup-verify FILE            re-check a backup's checksum and the database inside it
+  package-publish FILE --id ID --version V --name N [--department D | --person ID]…
+                                add a package (a .zip) for the Swangz app to install; a department of "*" is
+                                everyone. Anyone it is granted to gets it at their next sync.
 
 The command line works on the same database as a running gateway. One difference: a revoke or
 pause made here is enforced from the next request on; only the console can also cut requests
@@ -65,6 +68,16 @@ def main(argv=None):
     p.add_argument("--no-remote", action="store_true", help="do not send this one off the server")
     p = sub.add_parser("backup-verify")
     p.add_argument("file")
+    p = sub.add_parser("package-publish")
+    p.add_argument("file")
+    p.add_argument("--id", required=True, help="lowercase letters, digits and dashes")
+    p.add_argument("--version", required=True)
+    p.add_argument("--name", required=True)
+    p.add_argument("--kind", default="tool", help="tool, template, connector… (a label)")
+    p.add_argument("--description", default="")
+    p.add_argument("--platforms", default="", help="comma list of windows,macos,linux,android,ios (default: all)")
+    p.add_argument("--department", action="append", default=[], help='who gets it; "*" means everyone (repeatable)')
+    p.add_argument("--person", action="append", type=int, default=[], help="a person's id (repeatable)")
     args = parser.parse_args(argv)
     settings = Settings.from_env()
 
@@ -154,6 +167,20 @@ def main(argv=None):
         if removed or orphans or other:
             audit("purged old records", "retention", "; ".join(parts))
         print("removed " + ", ".join(parts))
+    elif args.cmd == "package-publish":
+        from types import SimpleNamespace
+
+        from . import enroll
+
+        try:
+            out = enroll.publish(SimpleNamespace(db=db, settings=settings), args.file, args.id, args.version, args.name, kind=args.kind,
+                                 description=args.description, platforms=args.platforms,
+                                 audience={"departments": args.department, "people": args.person})
+        except (enroll.PackageError, OSError) as exc:
+            sys.exit(f"could not publish: {exc}")
+        audit("published a package", f"{args.id} {args.version}", f"sha256 {out['sha256'][:12]}")
+        who = ", ".join([*args.department, *(f"person {p}" for p in args.person)]) or "nobody yet (grant it in the console)"
+        print(f"published {args.id} {args.version} ({out['size']} bytes, sha256 {out['sha256']}) for {who}")
     elif args.cmd == "geoip-import":
         try:
             n = geo.import_csv(db, args.file, args.source)

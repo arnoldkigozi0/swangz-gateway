@@ -1,6 +1,6 @@
 # Project state and roadmap
 
-Last updated: 2026-10-31. Read `../CLAUDE.md` first for the overview and conventions; `V2.md` for the
+Last updated: 2026-10-31 (the Swangz app). Read `../CLAUDE.md` first for the overview and conventions; `V2.md` for the
 control plane added on Oct 9, and `SECURITY.md` for the threat model.
 
 ## Where it stands
@@ -8,6 +8,25 @@ control plane added on Oct 9, and `SECURITY.md` for the threat model.
 The activated v19 baseline passed **301 unit tests** (`python3 -m unittest discover -s tests -t .`).
 Source schema is **v20**; the separate laptop deployment was v19 during feature development. Verify its actual running commit/schema and the activation evidence on PR #6 before rollout. Nothing real has been called by a provider yet — there are no company API keys, and
 the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
+
+### The Swangz app for people's devices — 31 October 2026
+
+Arnold's direction: a system people **install on their own device** (personal ones too) to reach the packages
+Swangz provides, with premium and shared accounts reachable only through Swangz's own infrastructure. Built:
+schema v21 (`device_codes`, `devices`, `packages`, `package_grants`), `gateway/enroll.py` (device-code sign-in
+and the `/device` approval page, the per-person manifest, check-ins, package download/publish/withdraw/grant,
+`python3 -m gateway package-publish`), the control room's Devices list showing app version, kind and installed
+packages, and `swangz_client/` — a desktop app (Tk window: Home · Apps · Packages · This device; sign-in, sync,
+start at login, sign out and remove) over a core and a command line that behave the same, with the coding agents
+pointed at the gateway (scoped on personal devices, for good on company ones), safe package unpacking and
+removal. Tests: `test_devices` (31), `test_client` (35, against a real running gateway), `test_client_gui` (13,
+needs Tk and a display). The Linux standalone program was built with `packaging/build.py` (7 MB) and driven
+end-to-end against a real gateway: sign-in with a browser approval, sync, check-in, a run, sign-out, key revoked,
+nothing left on disk. **Not done:** signed Windows and macOS installers (workflow `build-app.yml` builds them
+unsigned; they have not been built or run on those systems), keychain storage, self-update, installing the
+coding agents themselves, store apps for phones. `docs/CLIENT.md` lists them. Separately, a finished private-browser
+feature for the Workspace Agent (persistent per-person browsers with a domain-only egress log) was set aside on
+branch `claude/private-browsers-agent-paused` when the direction changed.
 
 ### Production hosting hardening — 31 October 2026
 
