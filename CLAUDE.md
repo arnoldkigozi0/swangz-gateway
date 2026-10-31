@@ -15,6 +15,7 @@ Two apps on one address, plus a browser extension:
 |---|---|
 | `/` | **Swangz AI Hub** — the staff app: Home (a launchpad: a state-aware hero whose one action goes back to the tool you opened last, three compact recent tool rows, and beside them Updates and allowance when visible), Tools (the whole catalogue: search, categories, sort, a details drawer per tool saying why you have it, how sign-in works and what's recorded), Studio (Create · Your creations), Devices (Connected · Connect a tool · Disconnected; the key is shown once), Requests (Updates · Access requests · Procurement · Department reports — the bell opens Updates), Weekly reports (mandatory per-tool accountability), Adoption & impact (declarations, scoped department views, analytics, projects and history), Projects (focused deliverable detail), Privacy (*How Swangz AI Hub works* — six sections with an index). A page's views live in `?view=` (`viewTabs()` in `portal.js`). **Open** goes through `/go/<tool>`, which checks access, logs the launch and sends the person to the tool's company sign-in link (SSO) or website |
 | `/admin` | **Control room** — MONITOR: Overview, Live (in-flight requests; *Inspect* follows one into its record), Needs attention, Activity (Timeline = who did what, when, where — requests, opens, visits, shared turns, sign-ins and access changes · Who used what · AI requests · Tools opened · Websites visited), Health. GOVERN: People, Access requests, Tools, **Models** (the registry), **Policies** (rules + Simulate + Explain a decision). MONEY: Licences & spend (incl. *What cost us money?*), **Reports**. TRUST: Security, **Incidents**, Devices, Audit log (before/after, reason, outcome), Settings (a grouped rail — Gateway: Access & privacy · Purpose & location · Providers & pricing · Company browsers; Emergency; Console access: Console users · Your account — each category opening with a header that holds its sections; Access & privacy is Records · Safeguards · Staff controls). A tool's profile is a side sheet (Overview · Usage · Access · Subscription · Configuration · Workspace for shared accounts); a person's is Overview · Access · Activity · Devices · Security · Account. A **notifications bell** sits by the search. Ctrl+K opens a command menu that searches everything. Dense pages are split with `pageTabs(base, params, tabs, opts)`: each tab builds on demand, the choice lives in `?tab=` (or `opts.param`, e.g. Settings' `?section=`, with `opts.clears` so a parent resets its child), every switch is a history entry, Back/Forward switch in place, and a form with unsaved changes calls `A.setDirty(fn)` so leaving asks first. Time ranges and filters live in the address too (`A.keepParams`). Where each kind of information lives, and why, is `docs/UI.md` — one home per kind, summaries elsewhere link to it. Arnold asked for fewer tiles (Oct 7, 2026): lists put their counts in the filter tabs, headline numbers sit in one `.kpis` strip or a slim `.statline`, and long catalogues are tables, not cards. Settings-style pages use `A.settingRow()` / `A.switchInput()` and `pageTabs(…, { vertical: true })`; a panel's save actions go in `A.panelFoot()`. |
+| `swangz_client/` | **The Swangz app** — what people install on their own devices (Windows, macOS, Linux; phones use the installable staff web app): a desktop window (Home · Apps · Packages · This device) over a shared core that signs the device in with a code approved in the person's own browser (`/device`), installs exactly what the server says it is offered (coding agents pointed at the gateway, the browser access gate, published packages, website tools opened through `/go/`), checks in, and removes everything when the device is disconnected. Personal devices: nothing outside the app's folder is touched (`swangz run claude`); company devices: Claude Code/Codex are pointed at the gateway for good. Server side `gateway/enroll.py`, schema v21. `docs/CLIENT.md` |
 | `extension/` | **Swangz AI Hub Access** — a browser extension that governs AI *websites* (ChatGPT, Midjourney, …): opens the ones a person is entitled to, blocks the rest, logs access-level use only |
 
 The core rule everywhere: **a tool is enabled for a person only when the company subscription is
@@ -114,10 +115,11 @@ gateway/
   icons.py      tool logos: fetched once server-side (public hosts only, sniffed, size-capped) or uploaded
   entitle.py    who may use which tool, and why (enabled / locked / not_assigned / past_due / suspended)
   store.py      request bodies stored once per message by hash; retention clean-up
+  enroll.py     the Swangz app's server side: device codes, the per-person manifest, check-ins, package download and publish
   backup.py     verified, compressed database copies (SQLite backup API, never migrates), optional rsync off-server
   pricing.py    model price table and cost per request
   live.py       requests in flight, and cutting them
-  db.py         SQLite + append-only numbered migrations (currently schema v20)
+  db.py         SQLite + append-only numbered migrations (currently schema v21)
   security.py   key/password hashing, sign-in throttle, per-person rate limiter
   admin.py      control-room API: the route decorator (role + area), people, keys, tools, settings, audit
   authz.py      roles as areas, and the one place that says who may change what
@@ -136,6 +138,8 @@ gateway/
   static/       ui.js + ui.css (shared), index.html + portal.* (staff), admin.html + admin*.js + admin.css (console), tokens.css, fonts/
                 (admin-rules.js = Models + Policies; admin-trust.js = Incidents + Health)
 extension/      the MV3 browser access gate (its own README)
+swangz_client/  the Swangz app for people's devices (stdlib; core.py, agents.py, bundles.py, shell.py, cli.py, gui.py — docs/CLIENT.md)
+packaging/      building the app into a standalone program (build.py; README.md says what signing needs)
 workspace_agent/ agent.py — the Swangz Workspace Agent, alone on the workspace machine (stdlib);
                 computer.py — runs it on a Windows PC or Mac: setup, tunnel, start with the computer
 tests/          unittest suite + fake_upstream.py (a stand-in for every provider)
@@ -145,6 +149,7 @@ docs/HANDOFF.md moving to another machine: what is NOT in git, and how to carry 
 docs/GO-LIVE.md the rollout checklist (who does what) and the monthly cost — Swangz uses paid accounts, not API keys
 docs/V2.md      the V2 control plane: what existed, what V2 built (with tests), migrations v13–v18, what is open
 docs/SECURITY.md threat model: assets, actors, boundaries, threats → controls → tests, privacy, limits
+docs/CLIENT.md  the Swangz app on people's devices: how a device joins, what it is offered, what is recorded, packages
 docs/UI.md      the interface map: each page's job, the one home of each kind of information, the tab/view rules
 ```
 
@@ -165,6 +170,10 @@ docs/UI.md      the interface map: each page's job, the one home of each kind of
 - **No AI attribution** in commits, docs, READMEs, or anything that could be shared — it is Arnold's
   work under his name. Write commit messages and public copy with no "generated by" / "Co-Authored-By"
   lines. (This is a standing instruction; it is not about denying AI help if someone directly asks.)
+- **The Swangz app never reads a device's content.** It records the device's name, system, version, installed
+  packages and last check-in, and what passes through the gateway — not files, screens, keystrokes or other
+  programs. On a personal device it changes nothing outside its own folder. Don't add device-content capture or
+  silent changes to a person's own tools. (`docs/CLIENT.md`)
 - **Website monitoring is an access gate + access-level logging only** (which tool, when, how long —
   never page content or keystrokes). This is deliberate and keeps it lawful under Uganda's Data
   Protection and Privacy Act. Do not add covert content capture of third-party sites. Full-content
@@ -178,7 +187,7 @@ python3 -m gateway add-admin "$HUB_OWNER_EMAIL" # first owner (asks for a passwo
 python3 -m gateway serve                 # http://localhost:8787
 ```
 
-Command line: `serve | add-admin [--role owner|operations|security|billing|viewer] | add-person | issue-key | revoke-key | people | pause | resume | purge | geoip-import FILE --source "DB-IP Lite 2026-10" | backup [--dir D] [--keep N] [--no-remote] | backup-verify FILE`.
+Command line: `serve | add-admin [--role owner|operations|security|billing|viewer] | add-person | issue-key | revoke-key | people | pause | resume | purge | geoip-import FILE --source "DB-IP Lite 2026-10" | backup [--dir D] [--keep N] [--no-remote] | backup-verify FILE | package-publish FILE --id I --version V --name N [--department D] [--person ID]`.
 
 **Demo online from a laptop** (a stand-in model answers, so nothing is spent):
 

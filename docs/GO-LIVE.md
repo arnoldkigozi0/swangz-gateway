@@ -35,3 +35,12 @@ Configure appropriate retention, privacy, budgets and policies through the exist
 Inspect the Python suite, browser checks and GitHub Actions results; do not mistake prepared files for a deployed environment. Screenshots use synthetic data only. Historical Tracker cache records remain unverified until authorised backend/export recovery succeeds; normal Hub workflows do not depend on that recovery.
 
 Hosting, storage, backups, domain and tool-subscription prices require current vendor quotations before purchase; old illustrative prices are not a deployment budget. Review actual spend separately from estimated API cost, administrative allocations and staff-reported benefits. Actual implementation/testing and external blockers are in [Hub completion](HUB-COMPLETION.md).
+
+## The Swangz app on staff devices
+
+Staff install the Swangz app (`docs/CLIENT.md`) and sign in with a code approved in their own browser; it then
+installs what the company has made available to them and keeps it current. Roll it out after the gateway is
+live on its first-party address: publish any packages (`python3 -m gateway package-publish …`), tell staff what
+is recorded (it is shown at approval and in the app), and tell them a personal device keeps its own settings
+while a company device has its coding agents pointed at the gateway. Signed installers for Windows and macOS
+need certificates and a build on those systems first (`packaging/README.md`).

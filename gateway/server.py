@@ -13,7 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import admin, catalog, geo, google, icons, notify, policy, pricing, proxy, purpose, security, staff, store
 from . import hub_api, reporting, hub_delivery, hub_export
-from . import business, departments
+from . import business, departments, enroll
 from .db import DB
 from .live import Live
 from .workspace import Workspaces
@@ -363,6 +363,8 @@ class Handler(BaseHTTPRequestHandler):
                     return google.callback(self, self.gw, query)
             if path.startswith("/go/") and self.command in ("GET", "HEAD"):
                 return staff.launch(self, self.gw, path[len("/go/"):])
+            if path == "/device" and self.command in ("GET", "HEAD", "POST"):
+                return enroll.page(self, self.gw, query)
             if path.startswith("/icons/") and self.command in ("GET", "HEAD"):
                 return self.serve_icon(path[len("/icons/"):])
             if path == "/healthz":

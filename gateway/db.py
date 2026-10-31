@@ -11,6 +11,7 @@ from contextlib import contextmanager
 
 from .hub_schema import MIGRATION as HUB_MIGRATION
 from .business_schema import MIGRATION as BUSINESS_MIGRATION
+from .device_schema import MIGRATION as DEVICE_MIGRATION
 
 SCHEMA = [
     # v1
@@ -500,6 +501,8 @@ SCHEMA = [
     # v19: Swangz AI Hub reporting and procurement, preserving all Gateway records.
     HUB_MIGRATION,
     BUSINESS_MIGRATION,
+    # v21: the Swangz app on people's own devices, and the packages published to it.
+    DEVICE_MIGRATION,
 ]
 
 

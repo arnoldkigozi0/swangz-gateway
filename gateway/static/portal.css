@@ -642,3 +642,17 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
   .tcards { grid-template-columns: minmax(0, 1fr); }
   .tcard-desc { min-height: 0; }
 }
+
+/* /device: approving a device that is waiting with a code */
+.device-card { width: min(540px, 100%); }
+.device-facts { width: 100%; border-collapse: collapse; font-size: var(--t-sm, .875rem); }
+.device-facts th { text-align: left; font-weight: 500; color: var(--tx-2); padding: var(--s1, 4px) var(--s3, 12px) var(--s1, 4px) 0; white-space: nowrap; }
+.device-facts td { color: var(--tx-1, inherit); padding: var(--s1, 4px) 0; overflow-wrap: anywhere; }
+.device-form { display: flex; flex-direction: column; gap: var(--s4); width: 100%; }
+.device-form label { display: flex; gap: var(--s2, 8px); align-items: baseline; color: var(--tx-1, inherit); }
+.device-form input[type=text], .device-form input:not([type]) { flex: 1; font: inherit; letter-spacing: .12em; text-transform: uppercase; padding: var(--s2, 8px) var(--s3, 12px); background: var(--ink-0, transparent); color: inherit; border: 1px solid var(--line); border-radius: var(--r-sm, 4px); }
+.device-form fieldset { border: 1px solid var(--line); border-radius: var(--r-sm, 4px); display: flex; flex-direction: column; gap: var(--s2, 8px); padding: var(--s3, 12px); margin: 0; }
+.device-form legend { color: var(--tx-2); padding: 0 var(--s1, 4px); }
+.device-actions { display: flex; gap: var(--s3, 12px); justify-content: flex-end; }
+.device-warn { color: var(--coral, #ff6b6b) !important; }
+.device-note { font-size: var(--t-sm, .875rem); }

@@ -204,7 +204,7 @@ class HubServiceTests(unittest.TestCase):
             original={table:old.q('SELECT * FROM '+table) for table in ('people','tools','subscriptions','entitlements','access_requests')};old.close()
             info=backup(path,tmp+'/verified.db');self.assertEqual(info['integrity'],'ok')
             new=DB(path)
-            self.assertEqual(new.scalar("SELECT v FROM meta WHERE k='schema'"),'20')
+            self.assertEqual(new.scalar("SELECT v FROM meta WHERE k='schema'"),str(len(SCHEMA)))
             for table,rows in original.items():self.assertEqual(new.q('SELECT * FROM '+table),rows)
             new.close();again=DB(path);again.close()
             with self.assertRaises(FileExistsError):backup(path,tmp+'/verified.db')

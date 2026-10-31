@@ -450,6 +450,17 @@ def devices(ctx):
                           os=describe_agent(l.get("user_agent"))["os"], last_ip=l.get("client_ip") or None,
                           place=ip_kind(l.get("client_ip")) if l.get("client_ip") else None,
                           requests_30d=s.get("requests", 0), cost_30d=s.get("cost", 0.0), ips_30d=s.get("ips", 0)))
+    # devices enrolled through the Swangz app carry facts the user agent can't give: app version, what is installed
+    enrolled = {r["key_id"]: r for r in db.q("SELECT * FROM devices")}
+    for item in items:
+        d = enrolled.get(item["id"])
+        if d:
+            try:
+                installed = json.loads(d["packages_json"] or "[]")
+            except ValueError:
+                installed = []
+            item.update(app_version=d["app_version"] or None, owner_kind=d["owner_kind"], enrolled=d["enrolled"],
+                        last_seen=d["last_seen"], packages=installed, os=item["os"] or d["os"] or None)
     browsers = {}
     for r in db.q("SELECT l.person_id, p.name, l.user_agent, l.ip, MAX(l.ts) AS last, COUNT(*) AS opens FROM launches l"
                   " JOIN people p ON p.id = l.person_id WHERE l.ts >= ? GROUP BY l.person_id, l.user_agent", (now - 90 * DAY,)):

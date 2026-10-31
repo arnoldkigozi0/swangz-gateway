@@ -1,0 +1,39 @@
+name: Build the Swangz app
+# Manual: builds the standalone app on each system and keeps the (unsigned) results for a week.
+# Signing and notarization need certificates held as repository secrets — see packaging/README.md.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Tk for Linux
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y python3-tk xvfb
+      - run: python -m pip install pyinstaller
+      - run: python packaging/build.py
+      - name: Smoke test (Linux and macOS)
+        if: runner.os != 'Windows'
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then BIN=dist/Swangz.app/Contents/MacOS/Swangz; else BIN=dist/Swangz; fi
+          "$BIN" --version
+          SWANGZ_HOME=$RUNNER_TEMP/h "$BIN" status || test $? -eq 2
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        run: dist\Swangz.exe --version
+      # - name: Sign (Windows) / codesign + notarize (macOS) — needs secrets; see packaging/README.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: swangz-app-${{ runner.os }}
+          path: dist/
+          retention-days: 7
