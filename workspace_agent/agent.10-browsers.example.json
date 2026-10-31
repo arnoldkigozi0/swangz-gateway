@@ -1,0 +1,21 @@
+{
+  "_about": "Sized for about 10 people working at once on one dedicated server (8 cores/16 threads, 64 GB RAM): 10 browsers running at most, 720p at 25 fps to save CPU and office bandwidth. Change 'tools' to the shared accounts you actually have; every browser number is unique and opens WebRTC port 59100 + number (UDP and TCP). See deploy/WORKSPACE.md.",
+  "token": "REPLACE with: openssl rand -hex 32  (the same value goes in the gateway's GATEWAY_WORKSPACE_AGENT_TOKEN)",
+  "public_url": "https://workspace.swangzavenue.com",
+  "public_ip": "REPLACE with this server's public IP address",
+  "gateway_ip": "REPLACE with the gateway server's IP address (only it may reach the agent)",
+  "data": "/var/lib/swangz-workspace",
+  "image": "ghcr.io/m1k1o/neko/chromium:latest",
+  "max_running": 10,
+  "screen": "1280x720@25",
+  "memory": "2g",
+  "cpus": "1.5",
+  "shm": "2g",
+  "idle_minutes": 15,
+  "tools": {
+    "chatgpt": {"start_url": "https://chatgpt.com/", "browsers": [1, 2, 3, 4]},
+    "claude": {"start_url": "https://claude.ai/", "browsers": [5, 6, 7]},
+    "midjourney": {"start_url": "https://www.midjourney.com/", "browsers": [8, 9]},
+    "suno": {"start_url": "https://suno.com/", "browsers": [10]}
+  }
+}

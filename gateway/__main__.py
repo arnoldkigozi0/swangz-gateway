@@ -10,6 +10,10 @@
   pause | resume                stop / restart AI access for everyone
   purge                         apply the retention windows now
   geoip-import FILE --source S  load an offline location table (DB-IP Lite / IP2Location LITE CSV)
+  backup [--dir D] [--keep N] [--no-remote]
+                                a verified, compressed copy of the database (safe while running); also sent
+                                off the server when GATEWAY_BACKUP_REMOTE is set
+  backup-verify FILE            re-check a backup's checksum and the database inside it
 
 The command line works on the same database as a running gateway. One difference: a revoke or
 pause made here is enforced from the next request on; only the console can also cut requests
@@ -19,6 +23,8 @@ that are already streaming.
 import argparse
 import getpass
 import os
+import sqlite3
+import subprocess
 import sys
 import time
 
@@ -53,6 +59,12 @@ def main(argv=None):
     p = sub.add_parser("geoip-import")
     p.add_argument("file")
     p.add_argument("--source", required=True, help="where the table came from, e.g. 'DB-IP Lite 2026-10'")
+    p = sub.add_parser("backup")
+    p.add_argument("--dir", help="where to keep them (default: GATEWAY_BACKUP_DIR, else <data>/backups)")
+    p.add_argument("--keep", type=int, help="how many to keep on this server (default: GATEWAY_BACKUP_KEEP, else 14)")
+    p.add_argument("--no-remote", action="store_true", help="do not send this one off the server")
+    p = sub.add_parser("backup-verify")
+    p.add_argument("file")
     args = parser.parse_args(argv)
     settings = Settings.from_env()
 
@@ -66,6 +78,8 @@ def main(argv=None):
         sys.exit(settings.email_rule())
     if args.cmd == "serve":
         return serve(settings)
+    if args.cmd in ("backup", "backup-verify"):
+        return run_backup(args, settings)
 
     db = DB(settings.db_path)
     pricing.seed(db)
@@ -147,6 +161,34 @@ def main(argv=None):
             sys.exit(f"could not import: {exc}")
         audit("imported a location table", args.source, f"{n} address ranges")
         print(f"imported {n} address ranges from {args.source}")
+
+
+def run_backup(args, settings, env=None):
+    """Never opens the database through DB, so it never migrates it."""
+    from . import backup
+
+    env = os.environ if env is None else env
+    try:
+        if args.cmd == "backup-verify":
+            backup.verify(args.file)
+            print(f"{args.file}: checksum and integrity ok")
+            return 0
+        out_dir = args.dir or env.get("GATEWAY_BACKUP_DIR") or os.path.join(settings.data_dir, "backups")
+        keep = args.keep if args.keep is not None else int(env.get("GATEWAY_BACKUP_KEEP") or 14)
+        result = backup.take(settings.db_path, out_dir, keep)
+        print(f"backup {result['path']} ({result['bytes']} bytes, sha256 {result['sha256']}) integrity ok")
+        if result["removed"]:
+            print(f"removed {len(result['removed'])} older: {', '.join(result['removed'])}")
+        remote = (env.get("GATEWAY_BACKUP_REMOTE") or "").strip()
+        if remote and not args.no_remote:
+            ssh = env.get("GATEWAY_BACKUP_SSH") or backup.default_ssh(settings.data_dir, env.get("GATEWAY_BACKUP_SSH_PORT", ""))
+            backup.send(result["path"], remote, ssh)
+            print(f"sent off the server to {remote}")
+        elif not remote:
+            print("note: GATEWAY_BACKUP_REMOTE is not set, so this copy lives only on this server")
+    except (backup.BackupError, OSError, sqlite3.Error, ValueError, subprocess.SubprocessError) as exc:
+        sys.exit(f"backup failed: {exc}")
+    return 0
 
 
 def serve(settings):

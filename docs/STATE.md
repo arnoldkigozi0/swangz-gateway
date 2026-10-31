@@ -1,6 +1,6 @@
 # Project state and roadmap
 
-Last updated: 2026-10-11. Read `../CLAUDE.md` first for the overview and conventions; `V2.md` for the
+Last updated: 2026-10-31. Read `../CLAUDE.md` first for the overview and conventions; `V2.md` for the
 control plane added on Oct 9, and `SECURITY.md` for the threat model.
 
 ## Where it stands
@@ -8,6 +8,10 @@ control plane added on Oct 9, and `SECURITY.md` for the threat model.
 The activated v19 baseline passed **301 unit tests** (`python3 -m unittest discover -s tests -t .`).
 Source schema is **v20**; the separate laptop deployment was v19 during feature development. Verify its actual running commit/schema and the activation evidence on PR #6 before rollout. Nothing real has been called by a provider yet — there are no company API keys, and
 the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
+
+### Production hosting hardening — 31 October 2026
+
+Reviewed for a VPS rollout. Added `python3 -m gateway backup` / `backup-verify` (`gateway/backup.py`: SQLite backup API, integrity check, gzip + sha256, mode 0600, keeps 14, optional rsync off-server that never deletes remotely, never migrates) and `deploy/swangz-gateway-backup.{service,timer}` (nightly, 02:30 Kampala). Both setup scripts now enable a host firewall through `deploy/firewall.sh` (keeps sshd's real port open; the workspace adds each browser's WebRTC port, UDP+TCP; `SKIP_FIREWALL=1` opts out). The Caddyfile sends HSTS and documents `trusted_proxies` if a CDN is put in front (the sign-in throttle keys on X-Forwarded-For). `workspace_agent/agent.10-browsers.example.json` sizes the workspace for ~10 people at once (`max_running` 10, 720p/25). Fixed the setup script's pointer to a missing `docs/DEPLOYMENT.md`. Tests: `tests/test_deploy.py`; the full suite passed **347 tests**. Sizing guidance: `deploy/WORKSPACE.md` → *About 10 people at once*. Nothing has been deployed to a VPS yet.
 
 ### Native Tracker parity continuation — 11 October 2026
 

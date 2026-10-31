@@ -1,0 +1,18 @@
+[Unit]
+Description=Swangz AI Hub database backup (verified copy, optionally sent off the server)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=swangz
+WorkingDirectory=/opt/swangz-gateway
+# reads .env itself, like the gateway: GATEWAY_BACKUP_REMOTE / _KEEP / _DIR / _SSH / _SSH_PORT
+ExecStart=/usr/bin/python3 -m gateway backup
+Nice=10
+IOSchedulingClass=idle
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/swangz-gateway/data
+PrivateTmp=true

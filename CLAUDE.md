@@ -114,6 +114,7 @@ gateway/
   icons.py      tool logos: fetched once server-side (public hosts only, sniffed, size-capped) or uploaded
   entitle.py    who may use which tool, and why (enabled / locked / not_assigned / past_due / suspended)
   store.py      request bodies stored once per message by hash; retention clean-up
+  backup.py     verified, compressed database copies (SQLite backup API, never migrates), optional rsync off-server
   pricing.py    model price table and cost per request
   live.py       requests in flight, and cutting them
   db.py         SQLite + append-only numbered migrations (currently schema v20)
@@ -138,7 +139,7 @@ extension/      the MV3 browser access gate (its own README)
 workspace_agent/ agent.py — the Swangz Workspace Agent, alone on the workspace machine (stdlib);
                 computer.py — runs it on a Windows PC or Mac: setup, tunnel, start with the computer
 tests/          unittest suite + fake_upstream.py (a stand-in for every provider)
-deploy/         systemd unit, Caddyfile, laptop-demo.sh, NETLIFY.md, WORKSPACE.md
+deploy/         systemd units (+ nightly backup timer), Caddyfile (HSTS), firewall.sh, setup scripts, laptop-demo.sh, NETLIFY.md, WORKSPACE.md
 docs/STATE.md   current status, what's done, what's next  ← read this after this file
 docs/HANDOFF.md moving to another machine: what is NOT in git, and how to carry it across
 docs/GO-LIVE.md the rollout checklist (who does what) and the monthly cost — Swangz uses paid accounts, not API keys
@@ -177,7 +178,7 @@ python3 -m gateway add-admin "$HUB_OWNER_EMAIL" # first owner (asks for a passwo
 python3 -m gateway serve                 # http://localhost:8787
 ```
 
-Command line: `serve | add-admin [--role owner|operations|security|billing|viewer] | add-person | issue-key | revoke-key | people | pause | resume | purge | geoip-import FILE --source "DB-IP Lite 2026-10"`.
+Command line: `serve | add-admin [--role owner|operations|security|billing|viewer] | add-person | issue-key | revoke-key | people | pause | resume | purge | geoip-import FILE --source "DB-IP Lite 2026-10" | backup [--dir D] [--keep N] [--no-remote] | backup-verify FILE`.
 
 **Demo online from a laptop** (a stand-in model answers, so nothing is spent):
 
@@ -200,7 +201,8 @@ username = Google email); `GATEWAY_WORKSPACE_AGENT` / `GATEWAY_WORKSPACE_AGENT_T
 Agent on the rented server); `GATEWAY_TURN_CLOUDFLARE_KEY_ID` / `_TOKEN` or `GATEWAY_TURN_URLS` /
 `GATEWAY_TURN_SECRET` (the video relay for company browsers on Swangz's own computers);
 `GATEWAY_WORKSPACE_TOKEN` (fallback: fixed browsers' Neko API token); `GATEWAY_CORS_ORIGINS` to let a Netlify-hosted front-end call the API (see `deploy/NETLIFY.md`); `GATEWAY_TZ_OFFSET`;
-`GATEWAY_SMTP_HOST` / `_PORT` / `_USER` / `_PASSWORD` / `_FROM` and `GATEWAY_NOTIFY_TO` (optional: email high and critical notifications). Runtime
+`GATEWAY_SMTP_HOST` / `_PORT` / `_USER` / `_PASSWORD` / `_FROM` and `GATEWAY_NOTIFY_TO` (optional: email high and critical notifications);
+`GATEWAY_BACKUP_REMOTE` (+ `_SSH_PORT`, `_KEEP`, `_DIR`, `_SSH`) for off-server copies of the nightly backup. Runtime
 settings (retention, rate limit, kill switch, …) live in the control room under Settings.
 
 ## Picking the project up on a new machine

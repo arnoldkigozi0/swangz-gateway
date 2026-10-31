@@ -26,6 +26,14 @@ Use `deploy/setup-gateway-server.sh` and `deploy/swangz-gateway.service` for the
 
 Before installation, verify the real hostname and the server's current deployment/configuration. Record the reviewed commit, running commit, schema version, owner identities and health. Keep secret `.env` files out of the checkout and preserve their permissions. Set `GATEWAY_PUBLIC_URL` and `GATEWAY_WEB_URL` to the verified same first-party HTTPS URL, bind Python to `127.0.0.1:8787`, and let Caddy terminate HTTPS. Existing provider, workspace, SMTP and subscription configuration stays intact. Exact Google callback: `https://VERIFIED_HOST/auth/google/callback`; change it only after the real host is authorised and verified. Same-origin deployment needs no cross-origin allowlist.
 
+### Nightly backups and the firewall
+
+`setup-gateway-server.sh` turns on a host firewall (SSH on the port(s) sshd really uses, 80, 443; `SKIP_FIREWALL=1` leaves it to the provider's firewall) and installs `swangz-gateway-backup.timer`, which runs `python3 -m gateway backup` at 02:30 Kampala time (missed runs happen at the next boot). Each run uses SQLite's backup API, so it is safe while the gateway serves; checks integrity; writes `data/backups/gateway-YYYYmmdd-HHMMSS.db.gz` plus a `.sha256` (mode 0600); and keeps the newest 14 (`GATEWAY_BACKUP_KEEP`). It opens the database read-only and never migrates it.
+
+A copy on the same server is not a backup of the server. Set `GATEWAY_BACKUP_REMOTE` (an rsync-over-SSH destination, e.g. a storage box) and put a dedicated key at `data/.ssh/backup_key` (owner `swangz`, mode 0600; its public half on the remote). Only the new file is sent and nothing remote is deleted, so a compromised server cannot erase the history; prune the remote with its own snapshots or retention. A failed copy fails the unit: check `systemctl list-timers swangz-gateway-backup`, `systemctl status swangz-gateway-backup` and `journalctl -u swangz-gateway-backup`. Turn on the VPS provider's own snapshots as well.
+
+Restore drill (monthly, into a scratch directory, never over the live file): `python3 -m gateway backup-verify FILE`, then `gunzip -k FILE` and open the result with a scratch `GATEWAY_DATA` to confirm counts. A real restore follows *Rollback/recovery* below.
+
 ### Backup and rehearsal
 
 Stop writes for the final cutover. Do not copy only a live WAL database with `cp`; use SQLite's backup API. With the service running, a read-only rehearsal can use:

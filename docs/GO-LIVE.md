@@ -30,7 +30,7 @@ Invite only eligible company identities and grant the minimum appropriate admin 
 
 ## Operations and acceptance
 
-Configure appropriate retention, privacy, budgets and policies through the existing console. Try policies in the simulator before applying them. Optional SMTP failure must remain visible; in-app notifications continue without it. Schedule off-host verified backups and restoration rehearsals. Restrict host/database access and retain immutable report/amendment/import history.
+Configure appropriate retention, privacy, budgets and policies through the existing console. Try policies in the simulator before applying them. Optional SMTP failure must remain visible; in-app notifications continue without it. The setup script installs the nightly verified backup timer and a host firewall; set `GATEWAY_BACKUP_REMOTE` so copies also leave the server, and rehearse restores ([Hub delivery](HUB-DELIVERY.md#nightly-backups-and-the-firewall)). Restrict host/database access and retain immutable report/amendment/import history.
 
 Inspect the Python suite, browser checks and GitHub Actions results; do not mistake prepared files for a deployed environment. Screenshots use synthetic data only. Historical Tracker cache records remain unverified until authorised backend/export recovery succeeds; normal Hub workflows do not depend on that recovery.
 

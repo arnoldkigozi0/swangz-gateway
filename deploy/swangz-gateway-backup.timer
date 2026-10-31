@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly Swangz AI Hub database backup
+
+[Timer]
+# 23:30 UTC = 02:30 in Kampala; a missed run (server off) happens at the next boot
+OnCalendar=*-*-* 23:30:00 UTC
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target
