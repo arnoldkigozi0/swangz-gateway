@@ -1,5 +1,10 @@
 # Caddy fetches and renews the https certificate on its own.
 ai.example.com {
+	# browsers only ever use https here from now on (no includeSubDomains: other swangzavenue.com names are not ours to decide)
+	header Strict-Transport-Security "max-age=31536000"
+	# The gateway reads the visitor's address from X-Forwarded-For, which Caddy sets. If you put a CDN or proxy
+	# (e.g. Cloudflare's orange cloud) in front of Caddy, add its ranges under `trusted_proxies` in a global
+	# `servers` block, or every visitor shares one address and the sign-in throttle locks everyone out.
 	reverse_proxy 127.0.0.1:8787 {
 		# stream model replies as they arrive; never buffer
 		flush_interval -1

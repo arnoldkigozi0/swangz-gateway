@@ -153,6 +153,21 @@ Ubuntu, 8 GB RAM (4 GB for one or two at once), the region nearest Kampala you c
 and Caddy. Point `workspace.swangzavenue.com` at it. Firewall: 80 and 443, plus each browser's WebRTC port
 — `59100 + its number`, UDP **and** TCP (59101 for browser 1, …).
 
+**About 10 people at once.** Use a server with *dedicated* CPU (every browser also encodes its screen as
+video, and shared "vCPU" plans stutter when everyone works together): 8 cores / 16 threads, 64 GB RAM (32 GB
+is the floor), NVMe, and unmetered traffic or at least 3 TB a month (~5–10 GB per person per day). A rented
+dedicated server gives this for far less than a cloud VM of the same size; nearer Kampala (e.g.
+Johannesburg) feels snappier but costs more. Start from the sized config, which caps it at 10 running
+browsers at 720p/25 fps:
+
+```bash
+sudo AGENT_EXAMPLE=workspace_agent/agent.10-browsers.example.json bash deploy/setup-workspace-server.sh workspace.swangzavenue.com <gateway IP>
+```
+
+Keep the gateway on its own small server (2 vCPU / 4 GB is plenty): a busy browser must not take down the
+record, and the agent's Docker access is root-equivalent. The office needs roughly 30–50 Mbps down for ten
+people streaming. The setup script opens this server's firewall for SSH, 80, 443 and each browser's port.
+
 Pull the browser image once, pinned to a version you've tested:
 
 ```bash

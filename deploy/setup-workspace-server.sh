@@ -8,6 +8,9 @@
 # Caddy and the Swangz Workspace Agent, writes /etc/swangz-workspace/agent.json the first time (with a
 # new random token; edit its "tools" to choose which tools get browsers and how many, then run this
 # again), pulls the browser image, writes the Caddy routes and starts the agent. Safe to run again.
+# Turns on a host firewall: SSH, 80, 443 and each browser's WebRTC port (UDP and TCP); SKIP_FIREWALL=1 skips it.
+# For about 10 people at once, start from the sized example:
+#   sudo AGENT_EXAMPLE=workspace_agent/agent.10-browsers.example.json bash deploy/setup-workspace-server.sh ...
 # Read deploy/WORKSPACE.md first.
 set -euo pipefail
 
@@ -18,7 +21,12 @@ CONF_DIR=/etc/swangz-workspace
 CONF="$CONF_DIR/agent.json"
 DATA=/var/lib/swangz-workspace
 APP=/opt/swangz-workspace
+EXAMPLE="${AGENT_EXAMPLE:-workspace_agent/agent.example.json}"
+case "$EXAMPLE" in /*) ;; *) EXAMPLE="$SRC/$EXAMPLE" ;; esac
 [ "$(id -u)" = 0 ] || { echo "Run it as root: sudo bash $0 $*" >&2; exit 1; }
+[ -f "$EXAMPLE" ] || { echo "No agent example at $EXAMPLE" >&2; exit 1; }
+# shellcheck source=deploy/firewall.sh
+. "$SRC/deploy/firewall.sh"
 
 # read one thing from the agent's config: tools | image | token | ports
 conf() {
@@ -57,7 +65,7 @@ mkdir -p "$APP" "$CONF_DIR"
 install -m 644 "$SRC/workspace_agent/agent.py" "$APP/agent.py"
 if [ ! -f "$CONF" ]; then
   PUBLIC_IP="$(curl -fsS https://api.ipify.org || hostname -I | awk '{print $1}')"
-  python3 - "$CONF" "$DOMAIN" "$PUBLIC_IP" "$GATEWAY_IP" "$DATA" "$SRC/workspace_agent/agent.example.json" <<'PY'
+  python3 - "$CONF" "$DOMAIN" "$PUBLIC_IP" "$GATEWAY_IP" "$DATA" "$EXAMPLE" <<'PY'
 import json, secrets, sys
 conf, domain, ip, gateway_ip, data, example = sys.argv[1:]
 with open(example, encoding="utf-8") as f:
@@ -76,6 +84,10 @@ echo "== the browser image"
 docker pull -q "$(conf image)" >/dev/null
 agent check
 
+echo "== firewall"
+# shellcheck disable=SC2046
+open_firewall 80/tcp 443/tcp 443/udp $(conf ports | while read -r port; do echo "$port/udp $port/tcp"; done)
+
 echo "== Caddy: https://$DOMAIN"
 agent caddy > /etc/caddy/Caddyfile
 systemctl enable -q caddy
@@ -92,7 +104,8 @@ curl -fsS -H "Authorization: Bearer $(conf token)" http://127.0.0.1:8790/health 
 
 echo
 echo "The workspace agent is running. Next:"
-echo "  - open each browser's WebRTC port, UDP and TCP, in any firewall in front of this server:"
+echo "  - this server's firewall is open for them; also open each browser's WebRTC port, UDP and TCP,"
+echo "    in any provider firewall in front of this server:"
 conf ports
 echo "  - on the gateway server, add to /opt/swangz-gateway/.env and restart it (systemctl restart swangz-gateway):"
 echo "      GATEWAY_WORKSPACE_AGENT=https://$DOMAIN/agent"
