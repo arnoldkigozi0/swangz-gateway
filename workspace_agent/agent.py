@@ -24,6 +24,15 @@ Every container start gets a new random Neko API token that only this agent know
 Neko password anywhere. A person gets a Neko sign-in made for their turn, deleted when the turn ends —
 and if Neko doesn't answer then, the container is removed instead, so a turn that's over is over.
 
+Private workspaces (the `personal` block of the config, a server only): a pool of browsers that belong to
+whoever holds them, one person at a time, for as long as they like. Unlike a shared browser, nobody signs
+in to a tool in it: the person's own tabs, sign-ins, bookmarks and history live in a volume that is theirs
+(swangz-ws-profile-me-<user>) and follow them to whichever browser they're given next. Nothing is recycled
+for the next person; the container stops (gracefully, so the profile is saved) when they press Stop, when
+their browser has been disconnected for `idle_minutes`, or after `max_hours`. Their traffic is forced
+through egress.py, which records which websites were visited (host names only) and keeps the browser off
+the server's own network. GET /visits?after=N hands the gateway what's new.
+
 On a company computer nothing on the internet can reach the machine, so two things change. Its tunnel
 sends every request to this agent, which passes each browser's page on to it (/<slot>/…). And the video
 goes through a relay (TURN) the gateway hands out, instead of straight to a public address.
@@ -52,6 +61,11 @@ import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+try:
+    from . import egress
+except ImportError:  # run as a script from /opt/swangz-workspace, with egress.py beside it
+    import egress  # noqa: E402
+
 DEFAULT_CONFIG = "/etc/swangz-workspace/agent.json"
 DEFAULTS = {
     "listen": "127.0.0.1:8790",
@@ -72,7 +86,13 @@ DEFAULTS = {
     "gateway": "", "host": "",
     "lan_ip": "",  # this computer's address on the office network: people there connect straight to it
     "ice_servers": [],  # a fixed video relay (TURN), instead of the one the gateway hands out
+    "personal": {},  # private workspaces: {"browsers": [21, 22, …], "start_url", "idle_minutes", "max_hours", "max_running", "egress"}
+    "proxy_port_base": 8800,  # each private browser's egress proxy listens on this + its number
+    "proxy_bind": "0.0.0.0",  # where those proxies listen; only private-network peers are served (see egress.py)
 }
+PERSONAL = "personal"  # the tool id the gateway asks for a private workspace by
+PERSONAL_DEFAULTS = {"browsers": [], "start_url": "https://www.google.com/", "idle_minutes": 20, "max_hours": 12,
+                     "max_running": 0, "egress": True}
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # Windows: no console window flashing up per docker call
 SWEEP_SECONDS = 15
 HELLO_SECONDS = 60
@@ -148,11 +168,33 @@ def check_config(raw):
         raise ConfigError("'max_running' is how many browsers may run at once, a whole number (0 = no limit)")
     if not isinstance(cfg["ice_servers"], list):
         raise ConfigError("'ice_servers' is a list of relay servers, like a browser's iceServers")
-    cfg["browsers"] = browsers_for(cfg.get("tools") or {}, cfg["fresh_start"])
+    tools = dict(cfg.get("tools") or {})
+    if PERSONAL in tools:
+        raise ConfigError(f"'{PERSONAL}' is reserved for private workspaces: configure them under 'personal'")
+    cfg["personal"] = personal = check_personal(cfg.get("personal"))
+    if personal["browsers"]:
+        tools[PERSONAL] = {"start_url": personal["start_url"], "browsers": personal["browsers"], "personal": True}
+    cfg["browsers"] = browsers_for(tools, cfg["fresh_start"])
     cfg["tools_from_gateway"] = computer and not cfg.get("tools")
     if not cfg["browsers"] and not cfg["tools_from_gateway"]:
         raise ConfigError("no browsers: list them under 'tools', e.g. {\"chatgpt\": {\"browsers\": [1, 2]}}")
     return cfg
+
+
+def check_personal(raw):
+    raw = raw or {}
+    if not isinstance(raw, dict):
+        raise ConfigError("'personal' is an object: {\"browsers\": [21, 22, …]}")
+    out = {**PERSONAL_DEFAULTS, **raw}
+    if not isinstance(out["browsers"], list):
+        raise ConfigError("personal.browsers is a list of browser numbers")
+    for key in ("idle_minutes", "max_hours", "max_running"):
+        if type(out[key]) is not int or out[key] < (0 if key == "max_running" else 1):
+            raise ConfigError(f"personal.{key} must be a whole number" + (" (0 = no extra limit)" if key == "max_running" else ""))
+    if out["start_url"] and not str(out["start_url"]).startswith(("https://", "http://")):
+        raise ConfigError("personal.start_url must be a web address")
+    out["egress"] = bool(out["egress"])
+    return out
 
 
 def browsers_for(tools, fresh_start=False):
@@ -172,7 +214,7 @@ def browsers_for(tools, fresh_start=False):
             numbers.add(n)
             slot = f"{tool}-{n}"
             browsers[slot] = {"slot": slot, "tool": tool, "n": n, "start_url": start_url,
-                              "fresh_start": bool(spec.get("fresh_start", fresh_start))}
+                              "fresh_start": bool(spec.get("fresh_start", fresh_start)), "personal": bool(spec.get("personal"))}
     return browsers
 
 
@@ -184,8 +226,20 @@ def profile_volume(slot):
     return "swangz-ws-profile-" + slot
 
 
-def policy_for(browser):
+def personal_volume(user):
+    """A person's own profile: it follows them to whichever private browser they're given."""
+    return "swangz-ws-profile-me-" + user
+
+
+def policy_for(browser, proxy=None):
+    """Chromium's managed policy for one browser. `proxy` ('host:port') forces all of a private workspace's
+    traffic through the egress proxy; the person can't change a managed setting, and with DNS-over-HTTPS,
+    QUIC and non-proxied WebRTC off there is no side door for the browser itself."""
     policy = dict(POLICY)
+    if proxy:
+        policy.update(ProxySettings={"ProxyMode": "fixed_servers", "ProxyServer": proxy}, DnsOverHttpsMode="off",
+                      QuicAllowed=False, WebRtcIPHandling="disable_non_proxied_udp",
+                      URLBlocklist=policy["URLBlocklist"] + ["chrome://net-internals", "chrome://net-export"])
     if browser["start_url"]:
         policy["NewTabPageLocation"] = browser["start_url"]
         policy["HomepageLocation"] = browser["start_url"]
@@ -230,6 +284,12 @@ class Docker:
         if p.returncode != 0 and "no such container" not in p.stderr.lower():
             raise DockerError(p.stderr.strip() or "docker rm failed")
 
+    def stop(self, name, seconds=15):
+        """Ask the container to finish, so a private browser's profile is saved. Raises only when Docker fails."""
+        p = self._run("stop", "-t", str(int(seconds)), name)
+        if p.returncode != 0 and "no such container" not in p.stderr.lower():
+            raise DockerError(p.stderr.strip() or "docker stop failed")
+
     def run(self, name, args):
         p = self._run("run", "-d", "--name", name, *args)
         if p.returncode != 0:
@@ -257,6 +317,8 @@ class Agent:
         self.tools_path = os.path.join(cfg["data"], "tools.json")  # what the gateway last asked for, and numbers
         self.ice_servers = list(cfg["ice_servers"])
         self.checked_in = {}  # the gateway's last answer: when, whether this is the workspace in use, or why not
+        self.visits = egress.VisitLog(os.path.join(cfg["data"], "visits.jsonl"))  # websites private browsers visited
+        self.egress = None  # the proxies, once start_egress() has run
         self._machine = None
         if cfg.get("tools_from_gateway"):  # until the gateway answers, the browsers it asked for last time
             cfg["browsers"] = browsers_for(self._read_tools().get("wanted", {}), cfg["fresh_start"])
@@ -309,9 +371,13 @@ class Agent:
     def _start(self, slot):
         cfg, b, s = self.cfg, self.cfg["browsers"][slot], self.slots[slot]
         token = secrets.token_hex(32)
+        personal = b.get("personal")
+        if personal and not s["user"]:
+            raise AgentError(500, f"{slot} has no one to belong to")
+        proxied = bool(personal and cfg["personal"]["egress"])
         policy = os.path.join(cfg["data"], "policies", slot + ".json")
         with open(policy, "w", encoding="utf-8") as f:
-            json.dump(policy_for(b), f, indent=2)
+            json.dump(policy_for(b, f"host.docker.internal:{cfg['proxy_port_base'] + b['n']}" if proxied else None), f, indent=2)
         http_port, rtc = cfg["http_port_base"] + b["n"], cfg["webrtc_port_base"] + b["n"]
         env = {"NEKO_MEMBER_PROVIDER": "object", "NEKO_SESSION_API_TOKEN": token, "NEKO_SERVER_PROXY": "true",
                "NEKO_SERVER_PATH_PREFIX": "/" + slot, "NEKO_WEBRTC_UDPMUX": str(rtc),
@@ -336,15 +402,19 @@ class Agent:
             # while every other request waits ("agent.py check" says when the image needs pulling)
             "--pull", "never", "--label", "swangz.workspace=1", "--label", "swangz.browser=" + slot, "--restart", "no",
             "--shm-size", cfg["shm"], "--memory", cfg["memory"], "--cpus", str(cfg["cpus"]), "--pids-limit", "1024",
+            *(["--add-host", "host.docker.internal:host-gateway"] if proxied else []),  # how it finds its egress proxy
             "-p", f"127.0.0.1:{http_port}:8080", "-p", f"{rtc}:{rtc}/udp", "-p", f"{rtc}:{rtc}/tcp",
-            # the tool's sign-in lives here. A named volume: Docker gives it the browser's own owner
-            # (uid 1000) from the image, and it outlives every container that uses it
-            "-v", f"{profile_volume(slot)}:/home/neko/.config/chromium",
+            # the tool's sign-in lives here (a private workspace: the person's own profile, whichever browser
+            # they're in). A named volume: Docker gives it the browser's own owner (uid 1000) from the image,
+            # and it outlives every container that uses it
+            "-v", f"{personal_volume(s['user']) if personal else profile_volume(slot)}:/home/neko/.config/chromium",
             "-v", f"{policy}:/etc/chromium/policies/managed/policies.json:ro",
             "--env-file", env_file, cfg["image"]])
         s.update(token=token, started=time.time(), status="starting")
 
-    def _stop(self, slot):
+    def _stop(self, slot, graceful=False):
+        if graceful:  # a private browser's profile is written as it shuts down
+            self.docker.stop(container_name(slot))
         self.docker.remove(container_name(slot))
         self.slots[slot].update(token="", status="stopped")
 
@@ -426,6 +496,8 @@ class Agent:
         """End whoever holds this browser. Their sign-in is deleted (Neko drops the session); if Neko
         doesn't answer, the container goes instead. Only then is the browser free."""
         s = self.slots[slot]
+        if self.cfg["browsers"][slot].get("personal"):
+            return self._revoke_personal(slot)
         gone = False
         if s["token"] and s["user"]:
             try:
@@ -448,6 +520,62 @@ class Agent:
             except DockerError:
                 s.update(token="", status="stopped")  # started again on the next turn
 
+    def _revoke_personal(self, slot):
+        """A private browser is let go: the person's sign-in is deleted, the container is stopped gracefully
+        (their profile is saved) and nothing is recycled — the next person gets a browser with their own
+        profile, never this one's. If Docker can't stop it the lease is kept and the caller tries again."""
+        s = self.slots[slot]
+        if s["token"] and s["user"]:
+            try:
+                self._neko(slot, "DELETE", f"/api/members/{s['user']}", ok=(204, 404))
+            except AgentError:
+                pass  # it is being stopped anyway
+        self._stop(slot, graceful=True)
+        s.update(lease=None, kind=None, user="", name="", since=0.0, last_used=time.time())
+
+    def _connected(self, slot):
+        """Is the person's tab connected to this browser right now? True / False, or None when Neko can't say."""
+        s = self.slots[slot]
+        try:
+            req = urllib.request.Request(self.neko_base(slot) + "/api/sessions",
+                                         headers={"Authorization": "Bearer " + s["token"], "Accept": "application/json"})
+            with urllib.request.urlopen(req, timeout=NEKO_TIMEOUT) as resp:
+                listed = json.loads(resp.read(256 * 1024) or b"[]")
+        except (urllib.error.URLError, OSError, ValueError):
+            return None
+        if not isinstance(listed, list):
+            return None
+        mine = [x for x in listed if isinstance(x, dict) and x.get("id") == s["user"]]
+        if not mine:
+            return False
+        state = mine[0].get("state")
+        if not isinstance(state, dict) or "is_connected" not in state:
+            return None
+        return bool(state["is_connected"])
+
+    def _watch_personal(self, slot, now):
+        """Let go of a private browser nobody is in any more, or that has been up past its time limit."""
+        s, personal = self.slots[slot], self.cfg["personal"]
+        if s["status"] == "starting":
+            return  # allocate() looks after one that won't start
+        if s["status"] == "stopped" or not self.docker.running(container_name(slot)):
+            log(f"{slot}: {s['name']}'s private browser is no longer running")
+            return self._revoke(slot)  # the lease goes with it; opening again starts a browser with their profile
+        connected = self._connected(slot)
+        if connected is None and self.visits.last_active(s["user"]) > now - 120:
+            connected = True  # Neko can't say; the browser is still moving data
+        if connected:
+            s["last_used"] = now
+        if now - s["since"] > personal["max_hours"] * 3600:
+            log(f"{slot}: {s['name']}'s private browser reached its {personal['max_hours']}-hour limit")
+            self._revoke(slot)
+        elif now - max(s["last_used"], s["started"], s["since"]) > personal["idle_minutes"] * 60:
+            log(f"{slot}: {s['name']}'s private browser was idle for {personal['idle_minutes']} minutes")
+            self._revoke(slot)
+
+    def _personal_running(self):
+        return [sl for sl, b in self.cfg["browsers"].items() if b.get("personal") and self.slots[sl]["status"] != "stopped"]
+
     # ------------------------------------------------------------ the API
 
     def _slot_of(self, lease):
@@ -461,6 +589,10 @@ class Agent:
             if not slot:  # back with a new turn before the old one was released: same browser
                 slot = next((sl for sl, s in self.slots.items() if s["kind"] == "staff" and s["user"] == user
                              and self.cfg["browsers"][sl]["tool"] == tool), None)
+            if not slot and tool == PERSONAL:
+                cap = self.cfg["personal"]["max_running"]
+                if cap and len(self._personal_running()) >= cap:
+                    raise AgentError(409, f"all {cap} private workspaces this server runs at once are in use", full="personal")
             if not slot:
                 rank = {"running": 0, "starting": 1, "stopped": 2}
                 free = sorted((sl for sl, s in self.slots.items() if not s["lease"]
@@ -497,6 +629,8 @@ class Agent:
             s = self.slots.get(slot)
             if s is None:
                 raise AgentError(404, "no such browser")
+            if self.cfg["browsers"][slot].get("personal"):
+                raise AgentError(409, "private workspaces belong to the people using them; an admin doesn't sign in to them")
             if s["lease"] and s["kind"] != "admin":
                 raise AgentError(409, f"{s['name']} is using {slot} right now")
             if not s["lease"]:
@@ -518,24 +652,33 @@ class Agent:
 
     def status(self):
         with self.lock:
-            out = []
+            out, personal = [], []
             for slot, s in self.slots.items():
                 b = self.cfg["browsers"][slot]
                 holder = {"kind": s["kind"], "name": s["name"], "user": s["user"], "lease": s["lease"],
                           "since": s["since"]} if s["lease"] else None
-                out.append({"slot": slot, "tool": b["tool"], "n": b["n"], "state": s["status"],
-                            "holder": holder, "last_used": s["last_used"] or None})
+                row = {"slot": slot, "tool": b["tool"], "n": b["n"], "state": s["status"],
+                       "holder": holder, "last_used": s["last_used"] or None}
+                (personal if b.get("personal") else out).append(row)  # kept apart: they have no tool to sign in to
             capacity = {}
             for b in self.cfg["browsers"].values():
-                capacity[b["tool"]] = capacity.get(b["tool"], 0) + 1
-            return {"browsers": sorted(out, key=lambda r: (r["tool"], r["n"])), "capacity": capacity}
+                if not b.get("personal"):
+                    capacity[b["tool"]] = capacity.get(b["tool"], 0) + 1
+            result = {"browsers": sorted(out, key=lambda r: (r["tool"], r["n"])), "capacity": capacity}
+            if personal:
+                result.update(personal=sorted(personal, key=lambda r: r["n"]), personal_capacity=len(personal),
+                              visits_last=self.visits.seq)
+            return result
 
     def health(self):
         docker = self.docker.ok()
         with self.lock:
             running = sum(1 for s in self.slots.values() if s["status"] != "stopped")
+            private = len(self._personal_running())
         out = {"ok": docker, "docker": docker, "running": running, "browsers": len(self.slots),
                "max_running": self.cfg["max_running"]}
+        if self.cfg["personal"]["browsers"]:
+            out.update(personal=private, egress=bool(self.egress))
         if self.cfg["gateway"]:
             out.update(relay=bool(self.ice_servers), gateway=dict(self.checked_in))
         return out
@@ -639,6 +782,9 @@ class Agent:
                 wanted[tool] = {"start_url": start_url if start_url.startswith(("https://", "http://")) else "",
                                 "browsers": mine[:count]}
             browsers = browsers_for(wanted, self.cfg["fresh_start"])
+            for slot, b in self.cfg["browsers"].items():
+                if b.get("personal"):
+                    browsers[slot] = b  # private workspaces come from this machine's config, not from the gateway
             for slot in list(self.slots):
                 if slot in browsers:
                     continue
@@ -656,7 +802,7 @@ class Agent:
                 self.slots.setdefault(slot, self._blank())
             self.cfg["browsers"] = browsers
             have = {}  # what there is now, kept for the next start — including browsers kept until free
-            for b in sorted(browsers.values(), key=lambda b: b["n"]):
+            for b in sorted((b for b in browsers.values() if not b.get("personal")), key=lambda b: b["n"]):
                 have.setdefault(b["tool"], {"start_url": b["start_url"], "browsers": []})["browsers"].append(b["n"])
             tmp = self.tools_path + ".tmp"
             with open(tmp, "w", encoding="utf-8") as f:
@@ -674,6 +820,8 @@ class Agent:
                 try:
                     if s["kind"] == "admin" and now - s["since"] > self.cfg["admin_minutes"] * 60:
                         self._revoke(slot)
+                    elif s["lease"] and s["kind"] == "staff" and self.cfg["browsers"][slot].get("personal"):
+                        self._watch_personal(slot, now)
                     elif s["status"] != "stopped" and not self.docker.running(container_name(slot)):
                         s.update(token="", status="stopped")  # restarted when it's next needed
                     elif not s["lease"] and s["status"] != "stopped" and \
@@ -682,6 +830,18 @@ class Agent:
                 except (AgentError, DockerError) as exc:
                     log(f"sweep {slot}: {exc}")
             self._save()
+        self.visits.flush()
+
+    def start_egress(self):
+        """One egress proxy per private browser. Without them private browsers run unwatched, so a failure
+        to listen is loud and stops the agent starting."""
+        personal = self.cfg["personal"]
+        if not (personal["browsers"] and personal["egress"]):
+            return
+        self.egress = egress.EgressProxy(self.visits, lambda slot: self.slots[slot]["user"] if self.slots.get(slot, {}).get("lease") else "")
+        for slot, b in sorted(self.cfg["browsers"].items(), key=lambda kv: kv[1]["n"]):
+            if b.get("personal"):
+                self.egress.listen(slot, self.cfg["proxy_bind"], self.cfg["proxy_port_base"] + b["n"])
 
     def start_sweeping(self, every=SWEEP_SECONDS):
         def loop():
@@ -727,6 +887,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._reply(200, agent.health())
             if self.command == "GET" and path == "/status":
                 return self._reply(200, agent.status())
+            if self.command == "GET" and path == "/visits":
+                q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+                try:
+                    after, limit = int((q.get("after") or ["0"])[0]), int((q.get("limit") or ["500"])[0])
+                except ValueError:
+                    return self._reply(400, {"error": "after and limit are whole numbers"})
+                return self._reply(200, agent.visits.since(max(0, after), limit))
             if self.command != "POST":
                 return self._reply(404, {"error": "not found"})
             body = self._body()
@@ -874,12 +1041,14 @@ def main(argv=None):
         else:
             print(f"config ok: {len(cfg['browsers'])} browser(s)" + (f", at most {cap} running at once" if cap else ""))
         for slot, b in sorted(cfg["browsers"].items(), key=lambda kv: kv[1]["n"]):
-            print(f"  {slot:24} {cfg['public_url']}/{slot}/   webrtc port {cfg['webrtc_port_base'] + b['n']} (udp+tcp)")
+            more = f", egress proxy port {cfg['proxy_port_base'] + b['n']}" if b.get("personal") and cfg["personal"]["egress"] else ""
+            print(f"  {slot:24} {cfg['public_url']}/{slot}/   webrtc port {cfg['webrtc_port_base'] + b['n']} (udp+tcp){more}")
         print("docker:", "ok" if docker.ok() else "NOT REACHABLE — is this user in the docker group?")
         print("image:", cfg["image"], "present" if docker.ok() and docker.image_present(cfg["image"])
               else "missing — run: docker pull " + cfg["image"])
         return
     agent = Agent(cfg, docker)
+    agent.start_egress()
     agent.start_sweeping()
     if cfg["gateway"]:
         agent.start_hello()

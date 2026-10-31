@@ -36,6 +36,10 @@ class FakeDocker:
         self._check()
         return name in self.containers
 
+    def stop(self, name, seconds=15):
+        self._check()
+        self.log.append(("stop", name))
+
     def remove(self, name):
         self._check()
         self.log.append(("rm", name))

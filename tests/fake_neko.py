@@ -55,6 +55,12 @@ class Handler(BaseHTTPRequestHandler):
                 if self.command == "POST" and parts[3:] == ["password"]:
                     member["password"] = body["password"]
                     return self._reply(204)
+            if parts[:2] == ["api", "sessions"] and len(parts) == 2 and self.command == "GET":
+                if neko.sessions_unreadable:
+                    return self._reply(404, {"message": "not found"})
+                return self._reply(200, [{"id": sid, "profile": (neko.members.get(sid) or {}).get("profile"),
+                                          "state": {"is_connected": True, "is_watching": True}}
+                                         for sid in sorted(neko.sessions)])
             if parts[:2] == ["api", "sessions"] and parts[3:] == ["disconnect"] and self.command == "POST":
                 if parts[2] not in neko.sessions:
                     return self._reply(404, {"message": "session not found"})
@@ -81,6 +87,7 @@ class FakeNeko:
         self.sessions = set()  # ids of members whose browser tab is connected
         self.calls = []
         self.broken = False
+        self.sessions_unreadable = False  # GET /api/sessions answers 404, like a Neko that doesn't offer it
         self.booting = 0
         self.lock = threading.Lock()
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
