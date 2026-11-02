@@ -302,8 +302,8 @@ secrets in ordinary database records. Storage/access/revocation and secret refer
 ### 5. Managed Chrome architecture
 
 **Partial.** `workspace_agent/agent.py` has Chromium policy and per-slot persistent profile volumes;
-`extension/background.js` provides an access gate. Per-slot shared sessions are not proof of isolated
-personal or assigned-seat ownership. Prefer local official Chrome/Chromium with a separate managed
+`extension/background.js` provides an access gate. Per-slot saved profiles are acceptable only for company-held `shared` accounts. Seat profiles
+are tied to one person and wiped when the seat is reassigned (D-015). Prefer local official Chrome/Chromium with a separate managed
 profile per authorized user or seat, distinct from personal browsing. Keep cookies/storage isolated,
 show the signed-in provider account and accessible data, and record ownership/access events.
 **Missing:** verified local provisioning, ownership, lifecycle and workspace integration. Remote isolated
@@ -313,15 +313,18 @@ features remain; no automatic conversion of personal subscriptions to shared ses
 ### 6. Browser restrictions and threat model
 
 **Partial.** `workspace_agent/agent.py:POLICY` disables sync, extra profiles, guest mode, developer
-tools and downloads and defines some URL policies. This does not prove approved-site-only browsing.
-Sentinel must assess local administrator escape, cross-user session access, redirect/popup/new-tab
+tools and downloads. Its URL policy allows one local folder and blocks `file://*` plus four
+`chrome://` pages; there is no block-everything rule, no `RemoteDebuggingAllowed=false`, and no
+external-protocol control (`workspace_agent/agent.py:96-97`). This does not prove approved-site-only
+browsing. Browser boundaries are governed by Sentinel D-015/D-016. Design must address local administrator escape, cross-user session access, redirect/popup/new-tab
 bypasses, alternate hosts, direct IPs, local resources and external protocols. Design URLAllowlist and
 URLBlocklist together; remote browsers also need network restrictions. Evaluate Gmail, Drive,
 Google account/security/session pages, account switching and unapproved provider account management.
 Do not indiscriminately block OAuth endpoints. Restrict unapproved extensions, debugging, downloads,
 external protocols and sensitive local resources, and test the effective policy on each supported OS.
 **Partial:** device approval opens a browser through `swangz_client/core.py` and `shell.py`; Hub OIDC
-lives in `gateway/google.py`. **Missing:** verified managed-browser/system-browser return flows.
+lives in `gateway/google.py`. **Missing:** verified managed-browser/system-browser return flows and refusal to start production
+Google sign-in without a fixed return address (D-017); current fallback derives it from Host.
 Google OAuth must use secure system-browser authorization, never an embedded WebView, credential
 interception, cookie reading or automated password entry. URL blocking cannot prevent use on another
 device; provider-side identity, assigned seats and supported organization controls remain authoritative.
@@ -340,7 +343,7 @@ Provider documentation PR #9 at `4929d349` has Sentinel's research-only approval
 **Implemented in source:** staff/admin UI, catalogue, device enrollment, packages, weekly reporting,
 access policies, audit and subscriptions (`gateway/enroll.py`, `reporting.py`, `policy.py`, `staff.py`,
 `gateway/static/`, `swangz_client/`). Preserve them and production history with forward-only changes;
-shipped migrations 1–19 are immutable. Exact company-domain identity rules and the two approved owner
+every migration shipped at `ba82a2a` (through schema v21) is immutable. Exact company-domain identity rules and the two approved owner
 exceptions remain in force. Personal workspace completeness, browser isolation, sync and real provider
 compatibility remain partial/missing/restricted as above, regardless of design documents.
 
@@ -348,8 +351,9 @@ Unmerged credential work at `6cbe7dd` adds native keystore adapters and migratio
 record reports Forge's corrected focused run: `python3 -m unittest tests.test_client_credentials
 tests.test_client tests.test_devices`, **Ran 89 tests in 84.486s, OK, exit 0**, tied to source digest
 `707de085f54f08dd22b97b84b06e3f3d34ceb822268c6e0e8ceade934b51ef9a`.
-That is recorded runner evidence, not Chief's test execution. Independent QA, full regression and
-Sentinel review remain pending. Native credential stores, Windows DACL/macOS ACL checks and real vendor
+That is recorded runner evidence, not Chief's test execution. Probe VERIFIED the exact commit/tree `0fe75e0a965c56caa5496475eede35b0185ca627`: full suite
+449 tests in 447.083s, OK (skipped=13), exit 0; Chief read the retained log. Sentinel APPROVED
+G3a with native limitations disclosed and managed Claude/Windows helpers remaining gated. Native credential stores, Windows DACL/macOS ACL checks and real vendor
 clients remain unverified. Managed Claude and Windows managed Codex remain gated per that artifact.
 Canonical main baseline supplied by Arnold: **426 tests in 1191.8s, OK (skipped=13), exit 0**.
 Not run for this documentation update: Python, browser, native platform or live-provider checks.
@@ -386,3 +390,17 @@ another available engine; retry at the next heartbeat, without loops or model ch
 
 The product remains: one Swangz identity, personal workspaces, authorized provider accounts,
 one controlled application environment and low infrastructure cost.
+
+Sentinel decisions D-012–D-018 authorize documentation design only. D-012 separates account holder
+from payer and forbids gateway relay/storage of individual subscription tokens. D-013 keeps the VPS
+lightweight: company sync secrets use environment/service-file references, never ordinary DB records;
+per-user token storage waits for an encryption decision and any required dependency approval. D-014
+keeps personal content/automations in existing device environments; the server holds ownership,
+explicit bounded sharing grants and access events only. D-015 distinguishes machine-enforced company
+Chrome from advisory personal profiles; cloud profile policy remains unverified and needs Arnold OK.
+D-016 requires default-deny navigation, approved login exceptions and actual bypass tests. D-017 keeps
+device-code handoff and system-browser sign-in; future provider OAuth needs fixed callback, PKCE,
+session/person/provider-bound state, read-only sourced scopes, explicit account consent and revocation.
+D-018 requires value provenance/freshness, provider-specific documented webhook verification before
+exposing any receiver, timestamp/replay/idempotency/body/rate controls, and hourly polling with backoff.
+Unsupported fields stay unavailable/manual; research is provisional until citations are verified.
