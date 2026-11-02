@@ -160,3 +160,29 @@ Prior Probe full regression (`Ran 449 tests in 447.083s`, `OK (skipped=13)`, exi
 approval cover `6cbe7dd` only; corrected-tree CI and renewed independent verification/security review
 remain required. Native credential checks remain unverified. Managed Claude and Windows helper
 gates are unchanged; amendment work remains paused until Chief releases writing.
+
+### Python 3.10 follow-up from the same CI run
+
+While awaiting corrected-tree CI, fetched original run `41504842126` Python 3.10 job
+`125481373997` logs. CPython 3.10.22: `Ran 449 tests in 339.986s`,
+`FAILED (failures=2, errors=2, skipped=13)`, exit 1. Four credential/client tests assumed managed
+Codex files/profile existed or conflicting settings failed installation. On Python 3.10 the existing
+production gate deliberately returns scoped mode before reading/writing TOML (`tomllib` requires
+Python 3.11); this documented gate remains unchanged. Two missing-file errors and two managed-mode
+assertions were test expectation defects; these were not provider or sandbox failures.
+
+Corrected the expectations to assert gated scoped mode, unchanged personal configuration, no profile
+or backup creation, child-only credential/CLI overrides and safe removal on Python 3.10. Existing
+managed-mode checks still run on Python 3.11+. Added a synthetic Python 3.10 gate regression that also
+runs on newer Python. No further product code changed. Corrected-tree Actions evidence pending;
+the local machine still cannot execute Tk and no suite/browser matrix was started under Codex.
+
+### Corrected Tk evidence
+
+GitHub Actions run `41506089806`, job `125486297145`, completed successfully. Fetched and read the
+actual logs: Ubuntu 24.04.5, CPython 3.12.15, PR merge SHA
+`6fe32b76214c15b17ff77f973241fe21294d2183` (head `fd81576a752f3c5cecec99ce7a41b82012b917dd`).
+`xvfb-run -a python -m unittest tests.test_client_gui`: `Ran 14 tests in 0.752s`, `OK`, no skips
+reported, successful step/job (exit 0). No Tk callback traceback appeared in the log. This verifies
+the corrected sign-in and cleanup retry GUI fixture on Linux. GUI/test files are unchanged by the
+Python 3.10 expectation follow-up; final-head full CI and Probe/Sentinel reviews remain required.

@@ -5,6 +5,7 @@ import ctypes
 import io
 import json
 import os
+import sys
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
@@ -256,6 +257,14 @@ class CredentialTests(unittest.TestCase):
         self.assertEqual(path.read_text(), before)
         record = agents.install_codex(self.paths, SERVER + "/openai/v1", SECRET, "managed")
         config = agents.codex_config(self.paths)
+        if sys.version_info < (3, 11):
+            self.assertEqual(record["mode"], "scoped")
+            self.assertTrue(record["gated"])
+            self.assertFalse(config.exists())
+            agents.remove_codex(self.paths, record)
+            self.assertFalse(config.exists())
+            self.assertFalse((self.paths.home / ".profile").exists())
+            return
         config.write_text(config.read_text().replace('name = "Swangz AI Hub"', 'name = "changed-by-person"'))
         profile = self.paths.home / ".profile"
         profile.write_text(profile.read_text().replace("export SWANGZ_AI_KEY", "export MY_OWN_KEY"))
@@ -263,6 +272,20 @@ class CredentialTests(unittest.TestCase):
         agents.remove_codex(self.paths, record)
         self.assertEqual(config.read_text(), config_before)
         self.assertEqual(profile.read_text(), profile_before)
+
+    def test_python310_managed_codex_stays_scoped_and_preserves_personal_settings(self):
+        config = agents.codex_config(self.paths)
+        original = 'model_provider = "personal"\ninvalid TOML left untouched\n'
+        core.write_private(config, original)
+        with patch.object(agents.sys, "version_info", (3, 10)):
+            record = agents.install_codex(self.paths, SERVER + "/openai/v1", SECRET, "managed")
+        self.assertEqual(record["mode"], "scoped")
+        self.assertTrue(record["gated"])
+        self.assertEqual(config.read_text(), original)
+        self.assertFalse((self.paths.home / ".profile").exists())
+        self.assertFalse((self.paths.data / "backups").exists())
+        agents.remove_codex(self.paths, record)
+        self.assertEqual(config.read_text(), original)
 
     def test_erase_failure_keeps_a_visible_warning_and_retry_clears_it(self):
         self.legacy()

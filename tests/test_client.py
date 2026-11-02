@@ -224,19 +224,31 @@ class CompanyDeviceTests(ClientBase):
         self.assertIn("key --for claude-code", settings["apiKeyHelper"])
         self.assertNotIn("ANTHROPIC_AUTH_TOKEN", settings["env"])
         self.assertNotIn(key, self.claude.read_text())
+        if os.name == "posix":
+            self.assertEqual(stat.S_IMODE(self.claude.stat().st_mode), 0o600)
+        self.assertEqual((self.data / "backups" / "claude-settings.json.orig").read_text(), self.claude_original)
         toml = self.codex.read_text()
+        if sys.version_info < (3, 11):
+            self.assertEqual(toml, self.codex_original)
+            record = self.client.status()["installed"]["codex"]
+            self.assertEqual(record["mode"], "scoped")
+            self.assertTrue(record["gated"])
+            self.assertFalse((self.home / ".profile").exists())
+            self.assertFalse((self.data / "backups" / "codex-config.toml.orig").exists())
+            argv, env = self.client.agent_command("codex")
+            self.assertEqual(argv, ["codex", *agents.codex_overrides(self.server + "/openai/v1")])
+            self.assertEqual(env["SWANGZ_AI_KEY"], key)
+            return
         self.assertTrue(toml.startswith(agents.BEGIN))
         self.assertIn(f'base_url = "{self.server}/openai/v1"', toml)
         self.assertTrue(toml.endswith(self.codex_original))
         self.assertNotIn(key, toml)  # Codex reads the key from the environment
         if os.name == "posix":
-            self.assertEqual(stat.S_IMODE(self.claude.stat().st_mode), 0o600)
             profile = (self.home / ".profile").read_text()
             self.assertIn("SWANGZ_AI_KEY", profile)
             self.assertNotIn(key, profile)  # it reads our private key file
             self.assertIn("key --for codex", profile)
             self.assertNotIn("device.key", profile)
-        self.assertEqual((self.data / "backups" / "claude-settings.json.orig").read_text(), self.claude_original)
         self.assertEqual((self.data / "backups" / "codex-config.toml.orig").read_text(), self.codex_original)
         argv, _ = self.client.agent_command("codex")
         self.assertEqual(argv, ["codex"])  # no overrides needed: the config does it
@@ -248,7 +260,11 @@ class CompanyDeviceTests(ClientBase):
         self.assertEqual(results["codex"], "removed")
         self.assertEqual(self.codex.read_text(), self.codex_original)
         if os.name == "posix":
-            self.assertNotIn("SWANGZ_AI_KEY", (self.home / ".profile").read_text())
+            profile = self.home / ".profile"
+            if sys.version_info < (3, 11):
+                self.assertFalse(profile.exists())
+            else:
+                self.assertNotIn("SWANGZ_AI_KEY", profile.read_text())
         self.assertIn("ANTHROPIC_BASE_URL", self.claude.read_text())  # Claude Code is still offered
 
     def test_signing_out_restores_the_settings_and_keeps_what_the_person_changed_since(self):
@@ -273,7 +289,14 @@ class CompanyDeviceTests(ClientBase):
         results = {pid: (o, d) for pid, o, d in self.client.sync()["results"]}
         self.assertEqual(results["claude-code"][0], "failed")
         self.assertIn("left it alone", results["claude-code"][1])
-        self.assertEqual(results["codex"][0], "failed")
+        if sys.version_info < (3, 11):
+            self.assertEqual(results["codex"][0], "installed")
+            record = self.client.status()["installed"]["codex"]
+            self.assertEqual(record["mode"], "scoped")
+            self.assertTrue(record["gated"])
+            self.assertFalse((self.home / ".profile").exists())
+        else:
+            self.assertEqual(results["codex"][0], "failed")
         self.assertEqual(self.claude.read_text(), "{ not json")
         self.assertEqual(self.codex.read_text(), 'model_provider = "mine"\n')
         self.assertEqual(results["access-gate"][0], "installed")  # one failing never stops the others
