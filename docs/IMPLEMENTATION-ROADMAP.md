@@ -33,3 +33,26 @@ Aim for a controlled internal beta of the existing web/PWA and whichever desktop
 Do not call unsigned packages production installers. Defer a native mobile app and any signed installer
 whose required identity/certificate is unavailable. Never treat a Swangz session as a provider session;
 retain official provider OAuth/SSO, company-seat and approved user-login flows.
+
+## Amendment 01 backend proposal — 22:06 review checkpoint
+
+Forge returned a design proposal only, not implemented or security-approved. Proposed additive tables
+cover provider-account ownership/payer/route, per-field provenance and freshness, sync state, verified
+webhook replay/idempotency, consent, workspace pointers and expiring explicit sharing grants. Personal
+content and subscription tokens remain on devices/existing environments. Company admin secrets use
+references only; per-user tokens remain gated. Official adapters require provider evidence; unsupported
+fields remain unavailable/manual; hourly polling uses backoff. No shipped migration changes or backfill.
+
+Required design corrections before acceptance: document a workable PKCE verifier lifecycle (a hash
+alone cannot redeem a code; token-storage prohibition still holds); preserve metadata/audit on ending
+a connection; define company-held versus person-held identity and route enums consistently with D012;
+restrict console listing by area and classify personal metadata; make sharing grants metadata/pointer
+permissions only, with no server content access; scope event deduplication to the authenticated provider
+connection/tenant; require documented signature algorithm rather than assuming HMAC comparison;
+allowlist secret references and outbound destinations against file-read/SSRF abuse; describe disconnect
+revocation failures honestly; remove unsupported zero-cost claims. Await Forge corrected text and
+Sentinel review. No migration/code/production change authorized by this proposal.
+
+Prism's Chrome/profile/workspace design remains next documentation work after the credential fix
+handoff, under D015/016/017. Company machine policy versus personal advisory profiles, system-browser
+OAuth, seat/profile lifecycle, bypass checks and measured remote capacity must be explicit.

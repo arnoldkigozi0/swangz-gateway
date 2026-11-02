@@ -114,3 +114,10 @@ Last updated: 2026-11-02. Coordination branch: `team/log`. Product baseline: mai
 - Daily report refreshed at docs/daily/2026-11-02.md from Git 24-hour history, status files, retained test summaries and live PR queries. #9 is the sole merge candidate (green Hub jobs); #10 remains draft with browser running.
 - PR11 original run: Python3.10 FAILED, Python3.12 CANCELLED, app-window FAILED, browser running. fd81576 pushed at22:01 with GUI correction; new Hub green results and renewed Probe/Sentinel gates remain pending. Prior449-test verification/approval bind only6cbe7dd. All-skipped14-test local Tk result is unavailable coverage, not success.
 - Independent approved design/research continues; one workspace writer. Existing dirty RELEASE-READINESS preserved outside this commit. No merge, deploy or product edits by Chief. Report-only Python/browser tests not run; retained milestone evidence reused.
+
+## 22:06 returned correction and design checkpoint
+
+- Prism returned pushed `865250c7d5ae0873112069696f87be79accbe312`, frozen for renewed QA/security review; includes GUI status cleanup and Python3.10 scoped fallback test corrections. Earlier approval binds only6cbe7dd. Reported14-test Actions Tk pass is not yet independently checked at final head. No new green CI claim.
+- Sentinel requires one final blueprint sentence pinning credential approval to6cbe7dd/tree0fe75e0; Chief applied it and will request changed-line check only. Blueprint10 remains draft until review/Probe verification.
+- Forge backend design returned but truncated in test section. Chief recorded proposal and mandatory corrections in IMPLEMENTATION-ROADMAP; no implementation or acceptance claimed. In particular PKCE hash-only storage, personal metadata visibility, sharing, event tenant scoping, lifecycle retention and source/secret/destination validation need resolution.
+- Preserve existing daily report5e05155 and dirty RELEASE-READINESS; retry outstanding team/log push with next coordination commit. No production identity, billing or ownership approval received.
