@@ -10,7 +10,7 @@ Evidence labels used everywhere:
 | Label | Meaning |
 |---|---|
 | **REPO** | Read from this repository (file named). |
-| **MOCK** | Covered only by `tests/fake_upstream.py` / unit tests. G1 baseline: 426 passed, 13 skipped, 503.976s. This is **not** provider testing. |
+| **MOCK** | Covered only by `tests/fake_upstream.py` / unit tests. Historical G1 baseline (Arnold, `main` ba82a2a, run outside any sandbox): Ran 426 tests in 1191.8s, OK (skipped=13), exit 0. Fake services only; this is **not** provider testing and does not validate vendor claims or this document. |
 | **DOC** | Stated by a vendor's official page (URL given, accessed 2026-11-02). |
 | **DOC-V** | DOC, and Probe fetched the page itself and read the sentence. |
 | **DOC-R** | Reported by GPT-6.1 Sol in pass 1. In pass 2 a second read-only GPT-6.1 Sol run opened each cited URL (ledger 6.2). A cell whose page was blocked or did not support it is now marked **UNVERIFIED** in place. Probe did not personally read these pages; only DOC-V rows are first-hand. |
@@ -400,7 +400,7 @@ here is how the vendor charges, not how Swangz attributes cost.
 4. Authorise (or not) a **capped test key** per provider for LIVE tests; credentials needed: Anthropic, OpenAI,
    ElevenLabs, Higgsfield test keys with spend limits. Probe has none and must not request them without approval.
 
-**Test status (honest):** MOCK only. G1 baseline (before this document): 426 passed, 13 skipped, 503.976s. Probe re-ran the required suite once for this revision on commit `dee2d87` (docs-only change over `ba82a2a`): `python3 -m unittest discover -s tests -t .` → **Ran 426 tests in 581.994s, OK (skipped=13)**, run while two review jobs shared the laptop, so the duration is not comparable. Docker was not reachable and the fake workspace server refused connections inside tests (expected, logged by the tests). The suite uses fake services, so it says nothing about real providers. LIVE: none. Native Windows/macOS/Linux/mobile: not part of this document.
+**Test status (honest):** MOCK only. Historical G1 baseline (Arnold, `main` ba82a2a, outside any sandbox): Ran 426 tests in 1191.8s, OK (skipped=13), exit 0. It validates neither vendor claims nor this commit. Probe re-ran the required suite once for this revision on commit `dee2d87` (docs-only change over `ba82a2a`): `python3 -m unittest discover -s tests -t .` → **Ran 426 tests in 581.994s, OK (skipped=13)**, run while two review jobs shared the laptop, so the duration is not comparable. Docker was not reachable and the fake workspace server refused connections inside tests (expected, logged by the tests). The suite uses fake services, so it says nothing about real providers. LIVE: none. Native Windows/macOS/Linux/mobile: not part of this document.
 
 **Limitations:**
 - Gemini review failed (agy headless permission auto-deny); GPT-6.1 Sol fallback supplied the vendor tables. A
