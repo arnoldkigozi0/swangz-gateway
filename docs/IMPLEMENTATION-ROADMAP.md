@@ -1,7 +1,6 @@
 # Swangz AI Hub — 14-day implementation roadmap
 
-**Window:** 2–16 November 2026. **Baseline:** main `ba82a2a`; 426 Python tests passed in 503.976s
-(13 skipped). See [remaining-work matrix](REMAINING-WORK.md) and [release readiness](RELEASE-READINESS.md).
+**Window:** 2–16 November 2026. **Baseline:** main `ba82a2a`; outside-sandbox baseline supplied by Arnold: Ran 426 tests in 1191.8s, OK (skipped=13), exit 0. See [remaining-work matrix](REMAINING-WORK.md) and [release readiness](RELEASE-READINESS.md).
 
 ## Order and gates
 
@@ -10,7 +9,7 @@
 | G1 — audit actual main, PRs, Actions, implementation and local baseline | 2 Nov | Chief | Matrix and actual test/CI evidence recorded; completed PR #6–#8 are not reopened without a defect. |
 | G2 — architecture/security decisions | 2–3 Nov | Sentinel, read-only | Written approval/conditions for OS credential storage and migration, signed update trust/rollback, package channels, setup consent and device continuity. Builders wait until this is explicit. |
 | G6 research in parallel | begins after G1; target 4 Nov | Probe | Official-source provider matrix; real-vs-mock verification scope and any credential requirement stated. |
-| G3 — native credential storage | target 3–6 Nov | Prism | Linux/Windows/macOS adapters and safe existing-file migration; CI tests each platform. |
+| G3 — native credential storage | target 3–6 Nov | Prism client first; Forge backend next, sequential | Linux/Windows/macOS adapters and safe existing-file migration; CI tests each platform. |
 | G4 — signed/verifiable app update | target 6–10 Nov | Prism; Forge only if G2 assigns server work | Signed metadata/artifact validation, tamper/rollback/interruption coverage and a documented recovery path. |
 | G5 — desktop CI packages | target 9–12 Nov | Prism | Three-OS build/smoke workflow; test artifacts labelled unsigned; production signing only if authorised certificates and services are available. |
 | G4 — optional coding-client setup | target 10–12 Nov | Prism | Per-client consent, approved pinned sources, integrity and rollback; otherwise leave out of beta scope. |
@@ -22,6 +21,11 @@ Only one builder writes in the shared workspace at a time. Each implementation t
 `feature/<task>` branch, a short specification, independent review and PR. The team uses GitHub Actions
 for broad platform builds and expensive browser work. If a gate or required account access slips, keep
 work moving on independent research/docs and revise beta scope rather than skipping security gates.
+
+G1 is closed. G2 credential work is approved at `bf8ebfc` (pushed); G4 remains TEST-key-only.
+Prism begins G3a per [the bounded specification](AGENT-PROGRESS.md#g3a-bounded-implementation-specification).
+Chief and Prism do not run tests under Codex: use Forge/Probe or Actions. Full suite at integration
+milestones; targeted tests between them.
 
 ## Beta scope decision
 

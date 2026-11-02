@@ -9,16 +9,16 @@ the 2–16 November 2026 execution window, based on main `ba82a2a`.
 - Latest main GitHub Actions **Hub checks** run 13 succeeded on 31 October 2026.
 - GitHub's available 13-run history contains only `Hub checks`; `.github/workflows/build-app.yml` has
   not been run in that history, so no current Windows/macOS/Linux artifacts were verified here.
-- Local Python baseline: **426 tests passed, 13 skipped, 503.976s** on Python 3.14. The first run was
-blocked by sandbox loopback restrictions; the successful run used fake local services.
+- G1 baseline supplied by Arnold, main `ba82a2a`, outside any sandbox on this laptop:
+  **Ran 426 tests in 1191.8s, OK (skipped=13). Exit code 0.** Fake services only; G1 closed.
+- Sentinel G2 credential design approval is issued on pushed `docs/architecture-review`, `bf8ebfc`.
+  G4 implementation is TEST-key-only; remaining release prerequisites still apply.
 - Linux standalone desktop app had previously passed a smoke and end-to-end gateway journey, per
 `docs/STATE.md` and `packaging/README.md`.
 - Hub PWA manifest/install support and synthetic browser workflow coverage exist.
 
 ## Release gates not yet passed
 
-- G2 Sentinel architecture/security approval for credential storage, update trust, client installation
-and continuity.
 - G3 OS keychain storage on Linux, Windows and macOS, with safe migration from `device.key`.
 - G4 signed update integrity, rollback and recovery verified across supported platforms.
 - G5 current Windows/macOS/Linux CI package artifacts and install smoke checks; production signing is
@@ -51,7 +51,7 @@ not evidenced; do not treat fake-provider success as vendor verification.
    and target-OS smoke/installation results exist.
 4. Swangz authentication is not provider authentication. Provider sign-in, company-seat terms and spend
    attribution must be explicit per tool.
-5. The local Python 3.14 baseline emitted resource cleanup warnings. They did not fail tests; triage
-   separately if Sentinel/Probe judges them security- or reliability-relevant.
+5. Cross-platform credential and update implementation remains pending independent verification.
+   Chief/Prism must use Forge/Probe or Actions for tests; sandbox port errors are not product failures.
 
 Update this checklist with exact commits, links and raw test outcomes at each G8/G9 checkpoint.
