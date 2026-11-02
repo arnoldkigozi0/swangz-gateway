@@ -171,6 +171,10 @@ class App:
                       "Sign in with your Swangz account to get started.", color="muted", wrap=560).pack(anchor="w", pady=(8, 20))
         if self.error:
             self.label(f, self.error, color="bad", wrap=560).pack(anchor="w", pady=(0, 14))
+        if (self.client.store.device() or {}).get("cleanup_pending"):
+            self.label(f, "Credential removal is incomplete. Retry while the keychain is available.", color="bad", wrap=560).pack(anchor="w")
+            self.button(f, "Retry local removal", lambda: self.work(self.client.remove_everything,
+                        lambda ok, value: self.show("signin") if ok else self.failed(value))).pack(anchor="w", pady=12)
         self.server_var = tk.StringVar(value=os.environ.get("SWANGZ_SERVER", ""))
         self.name_var = tk.StringVar(value=core.device_name())
         for text, var in (("Swangz AI Hub address", self.server_var), ("Name for this device", self.name_var)):
@@ -309,11 +313,14 @@ class App:
         card.pack(fill="x", pady=(14, 14))
         for k, v in (("Name", d.get("name")), ("Kind", "Company-owned" if d.get("owner_kind") == "company" else "Personal"),
                      ("Signed in as", f"{(st.get('person') or {}).get('name', '')}  ({(st.get('person') or {}).get('email', '')})"),
-                     ("Server", st.get("server")), ("Swangz version", st.get("client_version")), ("Last synced", clock(st.get("last_sync")))):
+                     ("Server", st.get("server")), ("Swangz version", st.get("client_version")),
+                     ("Key storage", st.get("key_storage")), ("Last synced", clock(st.get("last_sync")))):
             row = tk.Frame(card, bg=C["panel"])
             row.pack(fill="x", pady=2)
             self.label(row, k, 10, color="muted", bg=C["panel"], width=16).pack(side="left")
             self.label(row, str(v or "—"), 10, bg=C["panel"]).pack(side="left")
+        if st.get("credential_warning"):
+            self.label(f, st["credential_warning"], 10, color="bad", wrap=700).pack(anchor="w", pady=(0, 14))
         self.label(f, "What Swangz records", 13, bold=True).pack(anchor="w")
         self.label(f, st.get("recording") or "", 10, color="muted", wrap=700).pack(anchor="w", pady=(4, 14))
         self.auto_var = tk.BooleanVar(value=st.get("autostart", False))
@@ -369,7 +376,7 @@ class App:
         if not messagebox.askyesno("Sign out", "Sign out and remove Swangz from this device?\n\nThe coding agents and packages Swangz "
                                                 "installed will be taken off, and the device disconnected."):
             return
-        self.work(self.client.logout, lambda ok, value: (setattr(self, "error", ""), self.show("signin")))
+        self.work(self.client.logout, lambda ok, value: (setattr(self, "error", ""), self.show("signin")) if ok else self.failed(value))
 
 
 def main(client=None, background=False):

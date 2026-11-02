@@ -10,13 +10,14 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 
 from gateway import enroll
-from swangz_client import __version__, agents, bundles, cli, core, shell
+from swangz_client import __version__, agents, bundles, cli, core, keystore, shell
 
 from .test_devices import DeviceBase, make_zip
 
@@ -26,6 +27,14 @@ class ClientBase(DeviceBase):
 
     def setUp(self):
         super().setUp()
+        # Never touch the test runner's real credential service.
+        backend_patch = patch.object(keystore, "put", side_effect=keystore.Unavailable("fixture has no keychain"))
+        backend_patch.start()
+        self.addCleanup(backend_patch.stop)
+        # Fixture-only configuration coverage; no claim about the real Claude binary's prefix handling.
+        gate_patch = patch.object(agents, "CLAUDE_PREFIX_VERIFIED", True)
+        gate_patch.start()
+        self.addCleanup(gate_patch.stop)
         self.server = f"http://127.0.0.1:{self.rig.port}"
         self.rig.gw.settings.public_url = self.server  # so the links in what the server says are ones the client can reach
         self.root = Path(tempfile.mkdtemp(prefix="sgw-client-"))
@@ -211,7 +220,10 @@ class CompanyDeviceTests(ClientBase):
         key = (self.data / "device.key").read_text().strip()
         settings = json.loads(self.claude.read_text())
         self.assertEqual((settings["theme"], settings["env"]["EDITOR"]), ("dark", "vim"))
-        self.assertEqual((settings["env"]["ANTHROPIC_BASE_URL"], settings["env"]["ANTHROPIC_AUTH_TOKEN"]), (self.server + "/anthropic", key))
+        self.assertEqual(settings["env"]["ANTHROPIC_BASE_URL"], self.server + "/anthropic")
+        self.assertIn("key --for claude-code", settings["apiKeyHelper"])
+        self.assertNotIn("ANTHROPIC_AUTH_TOKEN", settings["env"])
+        self.assertNotIn(key, self.claude.read_text())
         toml = self.codex.read_text()
         self.assertTrue(toml.startswith(agents.BEGIN))
         self.assertIn(f'base_url = "{self.server}/openai/v1"', toml)
@@ -222,6 +234,8 @@ class CompanyDeviceTests(ClientBase):
             profile = (self.home / ".profile").read_text()
             self.assertIn("SWANGZ_AI_KEY", profile)
             self.assertNotIn(key, profile)  # it reads our private key file
+            self.assertIn("key --for codex", profile)
+            self.assertNotIn("device.key", profile)
         self.assertEqual((self.data / "backups" / "claude-settings.json.orig").read_text(), self.claude_original)
         self.assertEqual((self.data / "backups" / "codex-config.toml.orig").read_text(), self.codex_original)
         argv, _ = self.client.agent_command("codex")
