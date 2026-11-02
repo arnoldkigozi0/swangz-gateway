@@ -171,7 +171,7 @@ class App:
                       "Sign in with your Swangz account to get started.", color="muted", wrap=560).pack(anchor="w", pady=(8, 20))
         if self.error:
             self.label(f, self.error, color="bad", wrap=560).pack(anchor="w", pady=(0, 14))
-        if (self.client.store.device() or {}).get("cleanup_pending"):
+        if self.client.status().get("cleanup_pending"):
             self.label(f, "Credential removal is incomplete. Retry while the keychain is available.", color="bad", wrap=560).pack(anchor="w")
             self.button(f, "Retry local removal", lambda: self.work(self.client.remove_everything,
                         lambda ok, value: self.show("signin") if ok else self.failed(value))).pack(anchor="w", pady=12)

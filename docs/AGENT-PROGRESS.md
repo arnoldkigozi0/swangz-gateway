@@ -123,3 +123,40 @@ per Arnold's G3 integration test rule.
 Implementation handoff is ready for Chief to route independent Probe verification and Sentinel review.
 G3a does not claim native platform support, verified vendor versions or rollout approval. Managed Claude
 remains gated pending observed CLI prefix behavior, and Windows managed helpers remain gated.
+
+## PR11 app-window correction — 2026-11-02
+
+Fetched the actual GitHub job logs through the GitHub connector for run `41504842126`, job
+`125481373931`, on PR merge SHA `9e7818f404d0a388b3e70b87ae9b8fe9bbf98777` (head `6cbe7dd`).
+The runner was Ubuntu 24.04.5 with CPython 3.12.15 and a working Tk/Xvfb installation.
+Command: `xvfb-run -a python -m unittest tests.test_client_gui`.
+Exact summary: `Ran 13 tests in 0.527s`, `FAILED (errors=7)`, exit 1. A Tk callback also raised the
+same exception during sign-out. All errors stemmed from `page_signin()` accessing `client.store`:
+`AttributeError: 'FakeClient' object has no attribute 'store'`. This was not an installation or
+network failure. The earlier CLI log-fetch attempt could not reach GitHub; the connector succeeded.
+
+Minimal correction: read `cleanup_pending` from the existing `Client.status()` interface, which
+already reports that field. The GUI no longer reaches into storage. Extend the GUI stand-in's
+status/cleanup contract and exercise failed cleanup followed by a successful retry with a real Tk
+window on an available display. Existing signed-out/login/sign-out/revocation assertions remain.
+No credential behavior, helper gates, personal settings, workflows or dependencies changed.
+
+Read-only Forge runner request `2d5a37c2-a585-45c2-ba3b-bd5d1a9d5393`: targeted Tk coverage
+unavailable. Python 3.14.4 (GCC 15.2.0), Linux 7.0.0-38-generic x86_64, outside Codex.
+`xvfb-run -a python3 -m unittest tests.test_client_gui` exited 127 (`command not found`).
+With existing `DISPLAY=:0`, `python3 -m unittest -v tests.test_client_gui` reported
+`Ran 14 tests in 0.002s`, `OK (skipped=14)`, exit 0; importing `tkinter` failed with
+`ModuleNotFoundError`. All tests skipped: this is unavailable Tk coverage, not a passing check.
+No installation or system changes. Raw runner output: `/tmp/pr11-tk-fix.out`.
+HEAD remained `6cbe7dde5354fab78a6a9580206f2b904aaa775b`; GUI source digest before and after:
+`a4b3140f7483148e5740b10dbce55b5fc99cb30cd91b56f5ffbd49c1e221366f`.
+Digest construction: SHA-256 over sorted `swangz_client/gui.py`, `tests/test_client_gui.py`,
+updating with each path's UTF-8 bytes, NUL, complete file bytes, NUL. Rechecked unchanged before
+commit; syntax parsing and `git diff --check` passed (exit 0). Neither substitutes for tests.
+
+Push this bounded correction to the existing PR for the existing Actions Tk/full regression/browser
+checks; no blind rerun of the old failing job. No suite or browser matrix run under Codex.
+Prior Probe full regression (`Ran 449 tests in 447.083s`, `OK (skipped=13)`, exit 0) and Sentinel
+approval cover `6cbe7dd` only; corrected-tree CI and renewed independent verification/security review
+remain required. Native credential checks remain unverified. Managed Claude and Windows helper
+gates are unchanged; amendment work remains paused until Chief releases writing.
