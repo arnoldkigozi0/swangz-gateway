@@ -121,3 +121,9 @@ Last updated: 2026-11-02. Coordination branch: `team/log`. Product baseline: mai
 - Sentinel requires one final blueprint sentence pinning credential approval to6cbe7dd/tree0fe75e0; Chief applied it and will request changed-line check only. Blueprint10 remains draft until review/Probe verification.
 - Forge backend design returned but truncated in test section. Chief recorded proposal and mandatory corrections in IMPLEMENTATION-ROADMAP; no implementation or acceptance claimed. In particular PKCE hash-only storage, personal metadata visibility, sharing, event tenant scoping, lifecycle retention and source/secret/destination validation need resolution.
 - Preserve existing daily report5e05155 and dirty RELEASE-READINESS; retry outstanding team/log push with next coordination commit. No production identity, billing or ownership approval received.
+
+## 22:12 renewed credential security approval
+
+- Sentinel APPROVED correction range6cbe7dd..865250c at exact commit865250c7d5ae0873112069696f87be79accbe312/tree6edfcd5222be9e1fee2a58f18b091ff2ff339f28; Chief confirmed tree locally. Read-only review found no blockers. GUI status cannot reinstall configs while cleanup_pending because Store.key returns None; Python3.10 tests preserve scoped gate and personal settings. No suite run by reviewer.
+- Probe final-head independent QA and green Hub CI remain pending; PR11 is NOT merge-ready. Prior native/platform/vendor limitations and all G8 findings remain. Any further commit requires renewed review. No merge/deploy.
+- Coordination-only update: Python/browser tests not run; git diff --check validates document whitespace only.
