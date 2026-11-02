@@ -353,7 +353,9 @@ tests.test_client tests.test_devices`, **Ran 89 tests in 84.486s, OK, exit 0**, 
 `707de085f54f08dd22b97b84b06e3f3d34ceb822268c6e0e8ceade934b51ef9a`.
 That is recorded runner evidence, not Chief's test execution. Probe VERIFIED the exact commit/tree `0fe75e0a965c56caa5496475eede35b0185ca627`: full suite
 449 tests in 447.083s, OK (skipped=13), exit 0; Chief read the retained log. Sentinel APPROVED
-G3a with native limitations disclosed and managed Claude/Windows helpers remaining gated. Native credential stores, Windows DACL/macOS ACL checks and real vendor
+G3a for exact commit `6cbe7dd` (tree `0fe75e0`) only, with native limitations disclosed and
+managed Claude/Windows helpers remaining gated. PR #11 CI failed on that artifact; every fix
+produces a new artifact requiring renewed Probe verification and Sentinel review before proceeding. Native credential stores, Windows DACL/macOS ACL checks and real vendor
 clients remain unverified. Managed Claude and Windows managed Codex remain gated per that artifact.
 Canonical main baseline supplied by Arnold: **426 tests in 1191.8s, OK (skipped=13), exit 0**.
 Not run for this documentation update: Python, browser, native platform or live-provider checks.
