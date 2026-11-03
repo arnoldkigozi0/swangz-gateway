@@ -16,6 +16,11 @@ the 2–16 November 2026 execution window, based on main `ba82a2a`.
 - Linux standalone desktop app had previously passed a smoke and end-to-end gateway journey, per
 `docs/STATE.md` and `packaging/README.md`.
 - Hub PWA manifest/install support and synthetic browser workflow coverage exist.
+- Provider research covers all 49 catalogue IDs at `4929d349`, with dated source links, A–E integration
+  models, authentication/billing fields, observation profiles and UNVERIFIED gaps. Chief verified
+  document coverage; Sentinel APPROVED research boundaries. [PR #9](https://github.com/arnoldkigozi0/swangz-gateway/pull/9)
+  is open; Python 3.10/3.12, browser and app-window CI jobs were in progress when checked. This is
+  research evidence, not approval of vendor arrangements or live support.
 
 ## Release gates not yet passed
 
@@ -23,8 +28,9 @@ the 2–16 November 2026 execution window, based on main `ba82a2a`.
 - G4 signed update integrity, rollback and recovery verified across supported platforms.
 - G5 current Windows/macOS/Linux CI package artifacts and install smoke checks; production signing is
 unavailable until required account/certificate access is verified.
-- G6 current cited provider compatibility/seat/SSO/billing matrix and independent QA. Live tests are
-not evidenced; do not treat fake-provider success as vendor verification.
+- G6 provider integration verification and independent QA. The cited compatibility/seat/SSO/billing
+  research is complete in PR #9; vendor configuration, permission gaps and live attribution remain
+  unverified. Do not treat fake-provider success or research approval as live-provider verification.
 - G7 current mobile PWA install/device checks and written native packaging decision.
 - G8 independent security review, all required regression/browser/platform checks and actual results.
 - G9 exact candidate commit/artifact inventory, operations/recovery, known issues and Arnold review.
