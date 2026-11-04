@@ -209,6 +209,46 @@ class UpdateTests(unittest.TestCase):
         with patch.object(updater.Updater, "check", side_effect=updater.UpdateError("Expired release")):
             self.assertEqual(self.client.sync()["manifest"], manifest)
 
+    def test_held_update_lock_does_not_interrupt_background_sync(self):
+        self.client.store.device = Mock(return_value={"server": self.server.url, "key_storage": "file"})
+        self.client.store.key = Mock(return_value=DEVICE_KEY)
+        self.client._upgrade_agents = Mock()
+        # Cleanup runs even without a latest-client hint. Exercise both paths.
+        for latest in (None, "0.2.0"):
+            manifest = {"client": {"latest": latest, "minimum": "0.1.0"},
+                        "packages": [], "apps": [], "recording": "test"}
+            api = Mock()
+            api.call.side_effect = [manifest, {}]
+            self.client.api = Mock(return_value=api)
+            with self.subTest(latest=latest), self.u.locked():
+                result = self.client.sync()
+                self.assertEqual(result, {"results": [], "manifest": manifest})
+                self.assertTrue(self.client.store.state()["last_sync"])
+                # Sync must not release another updater's lock to make progress.
+                with self.assertRaises(OSError):
+                    with updater.Updater(self.client).locked():
+                        self.fail("sync released the active updater's lock")
+            self.assertEqual(api.call.call_count, 2)  # manifest plus completed heartbeat
+        self.assertEqual(self.server.seen, [])
+
+    def test_orphaned_previous_binary_cannot_block_credential_helper(self):
+        self.u._paths()
+        self.u.prev.write_bytes(b"orphaned previous application")
+        with self.assertRaises(updater.UpdateError):
+            self.u.recover()  # prove this fixture would block an interactive recovery
+        self.client.store.save_state({"installed": {"codex": {}}})
+        self.client.store.key = Mock(return_value=DEVICE_KEY)
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr), patch.object(stdout, "isatty", return_value=False), \
+                patch.object(self.client, "updater", wraps=self.client.updater) as get_updater, \
+                patch.object(cli.subprocess, "Popen") as launch:
+            self.assertEqual(cli.main(["key", "--for", "codex"], client=self.client), 0)
+        self.assertEqual(stdout.getvalue(), DEVICE_KEY)
+        self.assertEqual(stderr.getvalue(), "")
+        get_updater.assert_not_called()
+        launch.assert_not_called()
+        self.assertTrue(self.u.prev.exists())
+
     def test_manifest_and_signature_bit_flips_rejected_before_json_parse(self):
         for which in ("release.json", "release.json.sig"):
             self.publish()

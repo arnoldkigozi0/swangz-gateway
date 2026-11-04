@@ -500,13 +500,13 @@ class Client:
         state["latest_client"] = manifest.get("client", {}).get("latest")
         self.store.save_state(state)
         heartbeat = self.heartbeat()
-        if heartbeat is not None and not any(outcome == "failed" for _, outcome, _ in results):
-            self.updater().synced()
-        if state.get("latest_client") and version_tuple(state["latest_client"]) > version_tuple(__version__):
-            try:
+        try:
+            if heartbeat is not None and not any(outcome == "failed" for _, outcome, _ in results):
+                self.updater().synced()
+            if state.get("latest_client") and version_tuple(state["latest_client"]) > version_tuple(__version__):
                 self.updater().check()  # hint triggers a check; signed bytes alone select a file
-            except (ValueError, ApiFailure, OSError):
-                pass  # update availability never stops ordinary work; explicit check exposes errors
+        except (ValueError, ApiFailure, OSError):
+            pass  # update cleanup/checks never stop ordinary work, including lock contention
         return {"results": results, "manifest": manifest}
 
     def _install(self, api, pkg, key, device):
