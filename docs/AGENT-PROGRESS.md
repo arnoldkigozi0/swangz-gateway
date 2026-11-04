@@ -174,3 +174,4 @@ Last updated: 2026-11-04. Coordination branch: `team/log`. Product baseline: mai
 - Probe VERIFIED tree 2b13167 with its own read: 182 tests in 189.0s, OK, 0 skips, exit 0; no attribution trailer in 65b8240 or ec83d59.
 - Chief opened PR #12 from `feature/device-lifecycle-v22`: https://github.com/arnoldkigozi0/swangz-gateway/pull/12. Next step: CI green, then list it in the 22:00 report.
 - Queued for Prism (not yet assigned): G3b client follow-up (persist the new key first, "Reconnect this device" on device_key_rotated, send key_backend), then the PR #10 credential statement update to 865250c.
+- 10:05 Assigned to Prism: G3b client rotation on new `feature/client-key-rotation` from 865250c (stacked on PR #11). Probe verifies and Sentinel reviews before a PR.
