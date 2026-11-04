@@ -48,6 +48,8 @@ jobs:
       - run: npx --prefix tests/browser playwright install --with-deps chromium
       - name: Check every application and browser JavaScript file
         run: python tests/browser/syntax.py
+      - name: Staff web app install, update and sign-out contract
+        run: node tests/browser/pwa.cjs
       - name: Existing Gateway interaction and role checks
         run: node tests/browser/check.cjs
         env:
