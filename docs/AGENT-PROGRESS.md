@@ -178,3 +178,4 @@ Last updated: 2026-11-04. Coordination branch: `team/log`. Product baseline: mai
 - 10:05 Assigned to Prism: G3b client rotation on new `feature/client-key-rotation` from 865250c (stacked on PR #11). Probe verifies and Sentinel reviews before a PR.
 - 10:10 Prism hit "out of credits" before starting; client rotation reassigned to Forge (Claude engine), same branch and brief. Retry Prism at the next heartbeat for its later tasks (PR #10 credential statement update).
 - 10:20 Forge pushed client rotation 8743eda (tree a132dcc): 134 tests OK, 14 Tk skips, exit 0 (teammate-reported, against a stub). Dispatched Probe QA with a local end-to-end merge check against ec83d59, and Sentinel critical review.
+- PR #12 CI run 41789014056 green: python 3.10 and 3.12 (6m39s), browser (8m34s), app-window (21s). PR #12 is ready for Arnold.
