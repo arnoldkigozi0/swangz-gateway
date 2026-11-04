@@ -278,28 +278,37 @@ class Updater:
             folder = self.root / manifest["version"]
             _dir(folder)
             path = folder / artifact["file"]
-            # A failed prior download is never a usable candidate. No symlinks followed.
-            if path.exists() or path.is_symlink():
-                _file(path)
-                _allow_remove(path)
-                path.unlink()
-            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            state = self._read("state.json")
             try:
-                with os.fdopen(fd, "wb") as output:
-                    if os.name == "nt":
-                        keystore.protect_windows_file(path)
-                    _, size, digest, _ = self._fetch(api, prefix + "/" + artifact["file"], artifact["size"], output)
-                    output.flush()
-                    os.fsync(output.fileno())
-                if not hmac.compare_digest(str(size), str(artifact["size"])) or not hmac.compare_digest(digest, artifact["sha256"]):
-                    raise UpdateError("Release size or SHA-256 mismatch.")
-                if os.name != "nt":
-                    path.chmod(0o500)
-            except Exception:
-                _allow_remove(path)
-                path.unlink(missing_ok=True)
-                raise
+                reusable = (state.get("status") == "staged" and state.get("version") == manifest["version"]
+                            and hmac.compare_digest(str(_file(path).st_size), str(artifact["size"]))
+                            and hmac.compare_digest(_hash(path), artifact["sha256"]))
+            except FileNotFoundError:
+                reusable = False
+            if not reusable:
+                # A failed prior download is never a usable candidate. No symlinks followed.
+                if path.exists() or path.is_symlink():
+                    _file(path)
+                    _allow_remove(path)
+                    path.unlink()
+                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                try:
+                    with os.fdopen(fd, "wb") as output:
+                        if os.name == "nt":
+                            keystore.protect_windows_file(path)
+                        _, size, digest, _ = self._fetch(api, prefix + "/" + artifact["file"], artifact["size"], output)
+                        output.flush()
+                        os.fsync(output.fileno())
+                    if not hmac.compare_digest(str(size), str(artifact["size"])) or not hmac.compare_digest(digest, artifact["sha256"]):
+                        raise UpdateError("Release size or SHA-256 mismatch.")
+                    if os.name != "nt":
+                        path.chmod(0o500)
+                except Exception:
+                    _allow_remove(path)
+                    path.unlink(missing_ok=True)
+                    raise
             # Retain signed input; install re-verifies expiry, compatibility, floors and bytes.
+            # Refresh metadata even when reusing bytes (e.g. a renewed signed expiry).
             keystore.write_private(folder / "release.json", raw.decode("utf-8"))
             keystore.write_private(folder / "release.json.sig.hex", signature.hex())
             self._state(status="staged", message="Verified update staged. Platform signature: not checked.",
