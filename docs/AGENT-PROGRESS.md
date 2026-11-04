@@ -1,22 +1,22 @@
 # Agent progress
 
-Last updated: 2026-11-04. Coordination branch: `team/log`. Product baseline: main
+Last updated: 2026-11-04 22:00. Coordination branch: `team/log`. Product baseline: main
 `ba82a2ad0c1516db9877263e9cac6eb01825618a`.
 
 | Task | Owner | Branch | Status | Next step |
 |---|---|---|---|---|
 | G1: verify actual main, PR #6–#8, Actions and client gaps; record baseline | Chief | `team/log` | verified | G1 closed: audit, matrix and exact outside-sandbox baseline recorded; refresh evidence at integration milestones. |
 | G2: architecture and security approval for desktop work | Sentinel | `docs/architecture-review` (`bf8ebfc`, pushed; GitHub branch verified 2 Nov) | verified | Arnold to decide outstanding product, budget and signing-key items below. |
-| G3a: client OS credentials, migration and removal of copied keys | Prism; Probe QA; Sentinel review | `feature/device-credentials` | PR (ready) | Probe VERIFIED 6cbe7dd; full449/447.083s/skip13/exit0. Sentinel APPROVED 6cbe7dd; PR #11 open. fd81576 fixes GUI CI; renewed QA/security and green CI required. |
-| G3b: server credential lifecycle and rotation | Forge | `feature/device-lifecycle-v22` (ec83d59, tree 2b13167) | PR #12 | Sentinel APPROVED, Probe VERIFIED (182 tests OK); waiting for CI, then Arnold. Client follow-up for Prism. |
-| G3b client: key rotation in the app | Forge (for Prism) | `feature/client-key-rotation` (37252fe, tree a44a780, on 865250c) | PR #13 | Probe VERIFIED a132dcc (134 targeted OK skipped=14 Tk; e2e merge with ec83d59 103 OK, real client 3/3). Sentinel APPROVED a132dcc with F-C1 (cross-process rotation lock) required before staff use; Forge fixing, then Sentinel delta + Probe re-run, then PR. Tk/native stores Not run. |
-| G4: signed/verifiable updater and rollback | Prism | `feature/verified-updates` (6bf1af9) | PR #14 | Implement only D-003/D-004/D-005 with TEST keys, signed/expiring manifest, anti-rollback, staged swap, 60-second self-test and rollback. Production signing prerequisites remain unresolved. |
+| G3a: client OS credentials, migration and removal of copied keys | Prism; Probe QA; Sentinel review | `feature/device-credentials` (865250c) | PR #11 | Probe VERIFIED + Sentinel APPROVED 865250c, CI green; waiting for Arnold. |
+| G3b: server credential lifecycle and rotation | Forge | `feature/device-lifecycle-v22` (ec83d59, tree 2b13167) | PR #12 | Sentinel APPROVED, Probe VERIFIED (182 OK), CI green; waiting for Arnold. |
+| G3b client: key rotation in the app | Forge (for Prism) | `feature/client-key-rotation` (37252fe, tree a44a780) | PR #13 (on #11) | F-C1 fixed; Sentinel APPROVED, Probe VERIFIED 37252fe, CI green; waiting for Arnold. Low: keychain dead item (Prism, 5 Nov). |
+| G4: signed/verifiable updater and rollback | Prism | `feature/verified-updates` (6bf1af9) + `-n1` (29280db) | PR #14, #15 | Verified/approved, CI green; TEST keys only, updates off; waiting for Arnold. |
 | G4 server: release distribution route and publish CLI | Forge; Probe QA; Sentinel review | `feature/device-releases` (675c46e) + `feature/updater-staged-skip` (91e3b54) | PR #16, #17 | Sentinel APPROVED, Probe VERIFIED, CI green; waiting for Arnold (merge order #11, #13, #14–#17). |
 | Provider authentication boundaries and per-tool compatibility | Probe; Sentinel security review | `feature/provider-compatibility` | PR | Research complete at `4929d349`; Chief verified documentation coverage, Sentinel APPROVED research boundaries. [PR #9](https://github.com/arnoldkigozi0/swangz-gateway/pull/9) open; CI in progress when checked. Await green checks and Arnold's named merge approval. G6 remains open; no live provider tests. |
-| G5: Windows/macOS/Linux artifact workflow | Prism; Probe QA | `feature/desktop-distribution` (1e5c9c4, tree 69695f2) | PR #18 | Read Prism brief; verify unsigned test artifacts separately from signed installers; use Actions runners. |
+| G5: Windows/macOS/Linux artifact workflow | Prism; Probe QA | `feature/desktop-distribution` (1e5c9c4, tree 69695f2) | PR #18 (on #17) | Probe VERIFIED, CI green; unsigned test builds only. Installers/signing are Arnold decisions. |
 | Approved coding-client setup with consent and rollback | Prism | `feature/client-setup` | todo (after G2) | Read Prism brief; wait for approved source/version list and consent/rollback requirements. |
-| G5 continuity: device, web and browser revocation journeys | Forge then Prism, sequential | `feature/device-continuity` (3d224d9, tree f4b1a1a) + `feature/extension-fail-closed` | PR #19 + PR #20 (merge together) | Sentinel note 4 Nov 13:20. Forge starts after Prism hands back G5; v23 migration waits for Arnold's sign-out decision. |
-| G7 PWA/mobile verification and native-app decision | Prism; Probe independent check | `feature/mobile-readiness` | todo (after G2) | Read Prism brief; test install/update/logout on available devices; report unavailable device checks. |
+| G5 continuity: device, web and browser revocation journeys | Forge, Prism | `feature/device-continuity` (3d224d9) + `feature/extension-fail-closed` (108b062) + follow-ups #21–#23 | PR #19 + #20 (merge together), #21 draft, #22, #23 | All verified/approved, CI green. Part 2 (v23 session kinds) waits for Arnold's sign-out decision. |
+| G7 PWA/mobile verification and native-app decision | Prism; Probe independent check | `feature/mobile-readiness-g7` (5570e26) + `feature/mobile-signout` (94b6cd4) + `feature/mobile-signout-docs` (ceb33c7) | PR #24, #25 (on #24) | Verified/approved, CI green; docs branch PR after #24/#25 decision. Device checks Not run. |
 | G8/G9 release evidence and independent approval | Probe, Sentinel; Chief consolidates | `team/log` | todo | Record actual output and unresolved risks; no merge/deploy without Arnold. |
 
 ## Baseline and audit evidence
@@ -236,6 +236,14 @@ Last updated: 2026-11-04. Coordination branch: `team/log`. Product baseline: mai
 - 2026-11-04 19:16 Heartbeat: PR #24 and #25 CI green (run 41848281412 incl. browser job running pwa.cjs), closing #25's "Not run: Actions" gap. No commits since 17:30. Prism assigned MOBILE-READINESS.md sign-out update on new feature/mobile-signout-docs from 94b6cd4 (#24/#25 heads unchanged). #9, #11–#25 wait for Arnold at 22:00.
 - 2026-11-04 19:18 Prism pushed feature/mobile-signout-docs ceb33c7 (tree 9ff5820, one commit on 94b6cd4, docs/MOBILE-READINESS.md only, +18/-5, no trailer): failed sign-out stays with error, success clears studio purpose, pwa.cjs 11 tests in CI (run 41848281412), new device check "failed sign-out on a real phone" Not run. Chief read the diff: matches 94b6cd4 behaviour. #24/#25 heads unchanged. PR after #24/#25 decision.
 
+- (Restored 22:00) The six records below were written 12:27–12:40 but committed to a local `feature/device-releases` ref (54cbe7d) instead of team/log and never pushed. Text restored as written; origin `feature/device-releases` / PR #16 head (675c46e) unaffected.
+- 12:27 Forge pushed G4 server 675c46e (tree d3fd3cb; one commit on 29280db, 7 files +1391/-5). Forge reports 145 targeted tests in 254.393s, OK (teammate-reported). Sentinel critical review and Probe QA dispatched.
+- 12:30 Sentinel APPROVED G4 server 675c46e/d3fd3cb: must-haves 1–8 met. F1 Medium (client) check() re-downloads an already staged release every sync, fix before ENABLED; F2 Low hint vs build channel; F3 Low optional expired-manifest refusal. F1 assigned to Prism on feature/updater-staged-skip.
+- 12:34 Prism pushed staged-skip fix 91e3b54 (tree b0d7050; one commit on 675c46e, +102/-20). Sentinel delta review dispatched.
+- 12:35 Probe VERIFIED G4 server 675c46e/d3fd3cb: 202 tests in 318.008s, OK, exit 0, 0 skips; real CLI publish + device fetch byte-equal; 8 traversal attempts refused; limit [200,200,429,429]. PR #16 opened, stacked on #15.
+- 12:36 Sentinel APPROVED staged-skip 91e3b54/b0d7050: skip only after fresh manifest verification with same version/size/SHA-256; damaged files re-downloaded. Low later: delete older staged folders.
+- 12:40 Probe VERIFIED staged-skip 91e3b54/b0d7050: 116 tests in 228.780s, OK, exit 0, 0 skips. PR #17 opened, stacked on #16.
+
 ## 20:50 consolidation and plan for 5 November
 
 State at 20:50: no work running, no commits since 19:18. PRs #9, #11–#20 and #22–#25 are verified, approved where critical, with CI green at the last heartbeat (#21 is a draft CI helper). Merge order follows each PR's base: #11 → #13 → #14 → #15 → #16 → #17 → #18; #12 → #19 → #20 → #21/#22 → #23; #24 → #25. Prism's `feature/mobile-signout-docs` (ceb33c7) gets its PR after #24/#25 are decided. The 22:00 report lists these for Arnold's named approval.
@@ -247,3 +255,11 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 - 14:00 Prism: PR #10 credential statement updated to 865250c/tree 6edfcd5 with Probe's 104-test record; then the client Low (a crash between promote and old-item delete leaves a dead keychain item) on a branch from 37252fe.
 - 17:00 After any merges, Probe runs the full suite once on the new main (integration milestone) and records exact output; Chief retargets the stacked PRs whose base has merged.
 - Waiting on Arnold: v23 sign-out decisions, paused-view decision, D-011, signing accounts/budget, deleting the old branch `feature/device-credential-lifecycle` (5fc37c7, superseded by `feature/device-lifecycle-v22`).
+
+## 22:00 daily report — 4 November
+
+- Report: docs/daily/2026-11-04.md. Live GitHub 22:05 (first call failed to connect, retry OK): #9, #11–#25 open, Python 3.10/3.12, browser, app-window SUCCESS on all; Netlify "Pages changed" NEUTRAL is informational. #10 and #21 drafts. main ba82a2a; nothing merged. Nothing running.
+- Ready for Arnold's named merge: #9, #11, #13–#18 (chain on #11), #12, #19–#23 (chain on #12; #19+#20 together; #21 must be marked ready), #24, #25. #10 not ready (cda1455 delta not re-checked).
+- After each base merges, retarget its child to main before merging it (`gh pr edit N --base main`).
+- New for Arnold: delete superseded `feature/mobile-readiness` (a58699b) and the stray local `feature/device-releases` ref (54cbe7d) along with `feature/device-credential-lifecycle`.
+- docs/STATE.md is stale (31 Oct, schema v20/v21); docs sweep after merges. Coordination-only update; tests not run by Chief.
