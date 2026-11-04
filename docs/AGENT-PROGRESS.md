@@ -8,7 +8,7 @@ Last updated: 2026-11-04. Coordination branch: `team/log`. Product baseline: mai
 | G1: verify actual main, PR #6–#8, Actions and client gaps; record baseline | Chief | `team/log` | verified | G1 closed: audit, matrix and exact outside-sandbox baseline recorded; refresh evidence at integration milestones. |
 | G2: architecture and security approval for desktop work | Sentinel | `docs/architecture-review` (`bf8ebfc`, pushed; GitHub branch verified 2 Nov) | verified | Arnold to decide outstanding product, budget and signing-key items below. |
 | G3a: client OS credentials, migration and removal of copied keys | Prism; Probe QA; Sentinel review | `feature/device-credentials` | PR (ready) | Probe VERIFIED 6cbe7dd; full449/447.083s/skip13/exit0. Sentinel APPROVED 6cbe7dd; PR #11 open. fd81576 fixes GUI CI; renewed QA/security and green CI required. |
-| G3b: server credential lifecycle and rotation | Forge | `feature/device-lifecycle-v22` (tree 6971b39) | review | Start after Prism hands back workspace ownership. D-001 heartbeat storage report, D-002 idle expiry/rotation and append-only v22; technical ambiguities go to Sentinel before implementation. |
+| G3b: server credential lifecycle and rotation | Forge | `feature/device-lifecycle-v22` (ec83d59, tree 2b13167) | PR #12 | Sentinel APPROVED, Probe VERIFIED (182 tests OK); waiting for CI, then Arnold. Client follow-up for Prism. |
 | G4: signed/verifiable updater and rollback | Prism | `feature/verified-updates` | todo; TEST-key work approved | Implement only D-003/D-004/D-005 with TEST keys, signed/expiring manifest, anti-rollback, staged swap, 60-second self-test and rollback. Production signing prerequisites remain unresolved. |
 | Provider authentication boundaries and per-tool compatibility | Probe; Sentinel security review | `feature/provider-compatibility` | PR | Research complete at `4929d349`; Chief verified documentation coverage, Sentinel APPROVED research boundaries. [PR #9](https://github.com/arnoldkigozi0/swangz-gateway/pull/9) open; CI in progress when checked. Await green checks and Arnold's named merge approval. G6 remains open; no live provider tests. |
 | G5: Windows/macOS/Linux artifact workflow | Prism | `feature/desktop-distribution` | todo (after G2/G4) | Read Prism brief; verify unsigned test artifacts separately from signed installers; use Actions runners. |
@@ -168,3 +168,9 @@ Last updated: 2026-11-04. Coordination branch: `team/log`. Product baseline: mai
 
 - Forge pushed ec83d59 (tree 2b13167) on `feature/device-lifecycle-v22`, with no attribution trailer per Forge. The idle query now ignores refused uses after revocation. The new orphaned-device test fails against the old code. Forge reports 182 tests OK, 190.2s, 0 skips, exit 0 (teammate-reported).
 - Dispatched in parallel, both read-only: Sentinel delta review (65b8240..ec83d59) and Probe final QA on tree 2b13167. Chief accepted Probe's own read as independent QA. Next step: PR from `feature/device-lifecycle-v22` once both pass and CI runs.
+
+### 2026-11-04 10:00 — G3b PR opened
+- Sentinel APPROVED tree 2b13167 (ec83d59): F1 fix correct; the backdated test is accepted in place of a fake clock.
+- Probe VERIFIED tree 2b13167 with its own read: 182 tests in 189.0s, OK, 0 skips, exit 0; no attribution trailer in 65b8240 or ec83d59.
+- Chief opened PR #12 from `feature/device-lifecycle-v22`: https://github.com/arnoldkigozi0/swangz-gateway/pull/12. Next step: CI green, then list it in the 22:00 report.
+- Queued for Prism (not yet assigned): G3b client follow-up (persist the new key first, "Reconnect this device" on device_key_rotated, send key_backend), then the PR #10 credential statement update to 865250c.
