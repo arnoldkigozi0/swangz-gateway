@@ -30,6 +30,8 @@ MAX_DOWNLOAD = 150 * 1024 * 1024
 LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1", "[::1]")
 HEARTBEAT_SECONDS = 15 * 60  # the window's sync/check-in interval; a refused key is not retried faster than this
 ROTATE_AFTER_DAYS = 30  # used when the manifest does not say
+ROTATE_LOCK_STALE = 180  # a rotation is two short calls; a lock older than this is from a hung or dead process
+SESSION_MAX_AGE = 7 * 86400  # a session marker older than this is not believed, even if its pid is alive again
 
 
 class ApiFailure(Exception):
@@ -88,6 +90,70 @@ class Paths:
 
 def write_private(path, text):
     keystore.write_private(path, text)
+
+
+class RotationLock:
+    """One rotation at a time on this data folder, across processes (the window and `swangz sync` share it).
+    The file is created exclusively; a lock whose owner is gone, or that is older than ROTATE_LOCK_STALE, is
+    taken over. Not re-entrant: a second holder in the same process is refused like any other."""
+
+    def __init__(self, path, alive, stale=ROTATE_LOCK_STALE):
+        self.path, self.alive, self.stale = Path(path), alive, stale
+        self._mine = None
+
+    def _read(self):
+        try:
+            return self.path.read_text(encoding="utf-8")
+        except OSError:
+            return None
+
+    def _is_stale(self, text):
+        try:
+            owner = json.loads(text)
+            pid, at = owner["pid"], float(owner["at"])
+            if isinstance(pid, bool) or not isinstance(pid, int):
+                raise ValueError
+        except (TypeError, ValueError, KeyError):
+            try:  # unreadable or half-written: judge it by the file's age alone
+                return time.time() - self.path.stat().st_mtime > self.stale
+            except OSError:
+                return False
+        return time.time() - at > self.stale or not self.alive(pid)
+
+    def acquire(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        text = json.dumps({"pid": os.getpid(), "at": time.time()})
+        for _ in range(2):
+            try:
+                fd = os.open(str(self.path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            except FileExistsError:
+                seen = self._read()
+                if seen is None or not self._is_stale(seen):
+                    if seen is None:
+                        continue  # it vanished between the two calls; try to create it again
+                    return False
+                if self._read() == seen:  # break it only if it is still the same stale lock
+                    try:
+                        self.path.unlink()
+                    except FileNotFoundError:
+                        pass
+                continue
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(text)
+            self._mine = text
+            return True
+        return False
+
+    def release(self):
+        mine, self._mine = self._mine, None
+        if mine is not None and self._read() == mine:  # never remove a lock somebody else took over
+            self.path.unlink(missing_ok=True)
+
+    def __enter__(self):
+        return self.acquire()
+
+    def __exit__(self, *exc):
+        self.release()
 
 
 class Store:
@@ -231,10 +297,23 @@ class Store:
                         return
                 except keystore.KeyStoreError:
                     pass
+                self._forget_item(info["server"], key_id)  # the put may have stored something we could not read back
             nxt = self.paths.data / "device.key.next"
             write_private(nxt, secret)
             if nxt.read_text(encoding="utf-8") != secret:
                 raise keystore.KeyStoreError("The new device credential could not be verified.")
+
+    def _forget_item(self, server, key_id):
+        """Remove a keychain item we are not going to use; if that cannot be confirmed, remember it for wipe()."""
+        try:
+            self.credentials.delete(server, key_id)
+            if self.credentials.get(server, key_id) is None:
+                return
+        except keystore.KeyStoreError:
+            pass
+        now = self.device()
+        now["stale_key_ids"] = (now.get("stale_key_ids") or []) + [key_id]
+        self._save_info(now)
 
     def promote(self):
         """Make the staged key the current one. The old one is deleted afterwards (and retried at sign-out if that fails)."""
@@ -298,7 +377,7 @@ class Store:
             for root in reversed(self.roots()):
                 keystore.erase_file(root / "device.key")
                 keystore.erase_file(root / "device.key.next")
-                for name in ("state.json", "manifest.json", "device.json", "credential-access.log"):
+                for name in ("state.json", "manifest.json", "device.json", "credential-access.log", "rotate.lock"):
                     (root / name).unlink(missing_ok=True)
 
 
@@ -757,11 +836,30 @@ class Client:
         folder = self.paths.data / "sessions"
         folder.mkdir(parents=True, exist_ok=True)
         marker = folder / f"{os.getpid()}-{time.time_ns()}"
-        marker.write_text(str(os.getpid()), encoding="utf-8")
+        marker.write_text(json.dumps({"pid": os.getpid(), "started": time.time()}), encoding="utf-8")
         try:
             yield
         finally:
             marker.unlink(missing_ok=True)
+
+    @staticmethod
+    def _read_marker(marker):
+        """-> (pid, start time). Older markers only have the pid in the name; their start is the file's age."""
+        try:
+            data = json.loads(marker.read_text(encoding="utf-8"))
+            pid, started = data["pid"], data["started"]
+            if isinstance(pid, int) and not isinstance(pid, bool) and isinstance(started, (int, float)):
+                return pid, float(started)
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+        try:
+            pid = int(marker.name.split("-")[0])
+        except ValueError:
+            return None, None
+        try:
+            return pid, marker.stat().st_mtime
+        except OSError:
+            return pid, None
 
     def in_session(self):
         """Is a coding agent started by this app running (in this or another Swangz process)?"""
@@ -771,11 +869,12 @@ class Client:
         except FileNotFoundError:
             return False
         for marker in markers:
-            try:
-                pid = int(marker.name.split("-")[0])
-            except ValueError:
+            pid, started = self._read_marker(marker)
+            if pid is None:
                 continue
-            if self._pid_alive(pid):
+            if started is not None and time.time() - started > SESSION_MAX_AGE:
+                marker.unlink(missing_ok=True)  # far too old to be believed: its pid has likely been reused
+            elif self._pid_alive(pid):
                 live = True
             else:
                 marker.unlink(missing_ok=True)  # the run ended without cleaning up
@@ -799,6 +898,9 @@ class Client:
         info = self.store.device()
         if not info or info.get("cleanup_pending") or self.in_session():
             return None
+        lock = RotationLock(self.paths.data / "rotate.lock", self._pid_alive)
+        if not lock.acquire():
+            return None  # another Swangz process on this device is rotating; it will finish or time out
         try:
             staged = self.store.staged()
             if staged:
@@ -811,6 +913,8 @@ class Client:
             raise
         except (ApiFailure, keystore.KeyStoreError, OSError):
             return None  # try again at the next check-in; the current key still works
+        finally:
+            lock.release()
         return None
 
     def _rotate(self):

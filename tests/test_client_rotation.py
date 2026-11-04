@@ -36,6 +36,7 @@ class Hub:
         self.drop_next_rotate_response = False
         self.first_use = None  # called with the secret the first time a pending key is used
         self.refuse_new_key = False  # 500 for a key that has never been used (simulates a failing confirm)
+        self.on_call = None  # called as (path, secret) before a request is handled, outside the Hub's lock
         self.counter = 0
         self.lock = threading.Lock()
 
@@ -49,6 +50,8 @@ class Hub:
 
     def handle(self, method, path, key, body):
         """-> (status, dict) or None to drop the connection."""
+        if self.on_call:
+            self.on_call(path, key)
         with self.lock:
             entry = self.keys.get(key or "")
             self.log.append((method, path, entry["id"] if entry else None))
@@ -66,6 +69,13 @@ class Hub:
             if path == "/api/device/rotate":
                 if self.rotate_status:
                     return self.rotate_status[0], {"code": self.rotate_status[1], "error": self.rotate_status[1]}
+                if entry["state"] == "grace":
+                    # docs/CLIENT.md: during grace a rotation is reissued, which revokes the unused new key
+                    pending = [v for v in self.keys.values() if v["state"] == "pending" and v["old"] == key]
+                    if not pending:
+                        return 409, {"code": "rotation_pending", "error": "rotation_pending"}
+                    for v in pending:
+                        v["state"] = "revoked"
                 new_secret = f"sgw_new{self.counter + 1}_" + "x" * 40
                 new_id = self.add(new_secret, "pending")
                 entry["state"], self.keys[new_secret]["old"] = "grace", key
@@ -316,6 +326,41 @@ class NeverMidSession(RotationBase):
         self.assertTrue(self.client.in_session())
         self.assertIsNone(self.client.sync()["rotation"])
 
+    def test_a_marker_records_when_the_run_started(self):
+        with self.client._session():
+            (marker,) = (self.paths.data / "sessions").iterdir()
+            body = json.loads(marker.read_text())
+            self.assertEqual(body["pid"], os.getpid())
+            self.assertAlmostEqual(body["started"], time.time(), delta=30)
+            self.assertTrue(self.client.in_session())
+        self.assertFalse(self.client.in_session())
+
+    def test_a_marker_with_a_start_time_far_in_the_past_is_not_believed_when_its_pid_was_reused(self):
+        marker = self.paths.data / "sessions" / f"{os.getppid()}-1"  # a live pid that now belongs to something else
+        marker.parent.mkdir(parents=True)
+        marker.write_text(json.dumps({"pid": os.getppid(), "started": time.time() - core.SESSION_MAX_AGE - 60}))
+        self.age_key(31)
+        self.assertFalse(self.client.in_session())
+        self.assertFalse(marker.exists())
+        self.assertEqual(self.client.sync()["rotation"], "rotated")
+
+    def test_a_recent_marker_with_a_live_pid_still_blocks_rotation(self):
+        marker = self.paths.data / "sessions" / f"{os.getppid()}-2"
+        marker.parent.mkdir(parents=True)
+        marker.write_text(json.dumps({"pid": os.getppid(), "started": time.time() - 3600}))
+        self.age_key(31)
+        self.assertIsNone(self.client.sync()["rotation"])
+        self.assertTrue(marker.exists())
+
+    def test_an_old_style_marker_is_aged_by_its_file_when_it_has_no_start_time(self):
+        marker = self.paths.data / "sessions" / f"{os.getppid()}-3"
+        marker.parent.mkdir(parents=True)
+        marker.write_text("x")
+        old = time.time() - core.SESSION_MAX_AGE - 60
+        os.utime(marker, (old, old))
+        self.assertFalse(self.client.in_session())
+        self.assertFalse(marker.exists())
+
     def test_a_marker_left_by_a_process_that_has_ended_is_ignored_and_cleared(self):
         child = subprocess.Popen([sys.executable, "-c", "pass"])
         child.wait()
@@ -350,6 +395,177 @@ class NeverMidSession(RotationBase):
             with self.assertRaises(OSError):
                 self.client.run_agent("claude-code")
         self.assertFalse(self.client.in_session())
+
+
+class OneRotationAtATime(RotationBase):
+    """The window and `swangz sync` are separate processes on one data folder; the in-process lock cannot stop both
+    rotating, and a second rotation in grace would revoke the first new key and strand the device (F-C1)."""
+
+    def other_client(self):
+        return core.Client(self.paths, sleep=lambda s: None, credentials=self.credentials)
+
+    def lock_path(self):
+        return self.paths.data / "rotate.lock"
+
+    def test_a_second_process_starting_mid_rotation_skips_and_the_device_stays_signed_in(self):
+        other = self.other_client()
+        seen = {}
+
+        def fire(path, key):
+            # the first confirm (the new key's first use) happens while the first process holds the lock
+            if path == "/api/device/heartbeat" and key.startswith("sgw_new") and "ran" not in seen:
+                seen["ran"] = True
+                seen["rotation"] = other.maintain_credential()
+                seen["lock_held"] = self.lock_path().exists()
+
+        self.hub.on_call = fire
+        self.age_key(31)
+        self.assertEqual(self.client.sync()["rotation"], "rotated")
+        self.assertIsNone(seen["rotation"])
+        self.assertTrue(seen["lock_held"])
+        self.assertEqual(self.hub.count("/api/device/rotate"), 1)
+        self.assertEqual([v["state"] for v in self.hub.keys.values()].count("pending"), 0)
+        self.assertNotIn("reconnect", self.device())
+        new = self.current_key()
+        self.assertTrue(new.startswith("sgw_new"))
+        # both processes carry on with the one new key, and nobody has to reconnect
+        self.assertIsNone(other.sync()["rotation"])
+        self.assertIsNone(self.client.sync()["rotation"])
+        self.assertEqual(other.store.key(), new)
+        self.assertEqual(self.hub.count("/api/device/rotate"), 1)
+        self.assertFalse(self.lock_path().exists())
+
+    def interleave(self, other):
+        """The other process looks at the key between our rotate response and our write of the new key."""
+        real_stage = self.client.store.stage
+        seen = {}
+
+        def stage(key_id, secret):
+            if "ran" not in seen:
+                seen["ran"] = True
+                seen["rotation"] = other.maintain_credential()
+            return real_stage(key_id, secret)
+
+        self.client.store.stage = stage
+        return seen
+
+    def test_a_second_process_in_the_gap_before_the_new_key_is_written_does_not_reissue(self):
+        other = self.other_client()
+        seen = self.interleave(other)
+        self.age_key(31)
+        self.assertEqual(self.client.sync()["rotation"], "rotated")
+        self.assertIsNone(seen["rotation"])  # it found the lock held and left the key alone
+        self.assertEqual(self.hub.count("/api/device/rotate"), 1)  # so nothing was reissued or revoked
+        self.assertNotIn("revoked", self.states().values())
+        self.assertNotIn("reconnect", self.device())
+        self.assertTrue(self.current_key().startswith("sgw_new"))
+        self.assertEqual(other.store.key(), self.current_key())
+
+    def test_without_the_lock_that_same_gap_would_reissue_and_lose_the_first_new_key(self):
+        """The failure the lock prevents, shown against the same stand-in Hub."""
+        other = self.other_client()
+        seen = self.interleave(other)
+        self.age_key(31)
+        with mock.patch.object(core.RotationLock, "acquire", return_value=True):
+            try:
+                self.client.sync()
+            except core.Revoked:
+                pass
+        self.assertEqual(seen["rotation"], "rotated")
+        self.assertEqual(self.hub.count("/api/device/rotate"), 2)
+        self.assertIn("revoked", self.states().values())  # the first new key was revoked by the reissue
+
+    def test_two_processes_syncing_at_the_same_moment_rotate_once(self):
+        others = [self.other_client() for _ in range(3)]
+        everyone = [self.client] + others
+        barrier = threading.Barrier(len(everyone))
+        results = []
+        self.age_key(31)
+
+        def go(client):
+            barrier.wait()
+            results.append(client.maintain_credential())
+
+        threads = [threading.Thread(target=go, args=(c,)) for c in everyone]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(30)
+        self.assertEqual(self.hub.count("/api/device/rotate"), 1)
+        self.assertEqual(results.count("rotated"), 1)
+        self.assertNotIn("reconnect", self.device())
+        for client in everyone:
+            self.assertEqual(client.store.key(), self.current_key())
+        self.assertTrue(self.current_key().startswith("sgw_new"))
+        self.assertFalse(self.lock_path().exists())
+
+    def test_a_lock_held_by_a_live_process_means_no_rotation_this_time(self):
+        self.age_key(31)
+        self.lock_path().write_text(json.dumps({"pid": os.getppid(), "at": time.time()}))  # our parent is alive
+        self.assertIsNone(self.client.sync()["rotation"])
+        self.assertEqual(self.hub.count("/api/device/rotate"), 0)
+        self.assertTrue(self.lock_path().exists())  # not ours to remove
+        self.assertEqual(self.current_key(), self.OLD)
+
+    def test_a_lock_left_by_a_process_that_has_ended_is_taken_over(self):
+        child = subprocess.Popen([sys.executable, "-c", "pass"])
+        child.wait()
+        self.lock_path().write_text(json.dumps({"pid": child.pid, "at": time.time()}))
+        self.age_key(31)
+        self.assertEqual(self.client.sync()["rotation"], "rotated")
+        self.assertFalse(self.lock_path().exists())
+
+    def test_a_lock_older_than_the_timeout_is_taken_over_even_if_its_pid_is_alive(self):
+        self.lock_path().write_text(json.dumps({"pid": os.getppid(), "at": time.time() - core.ROTATE_LOCK_STALE - 5}))
+        self.age_key(31)
+        self.assertEqual(self.client.sync()["rotation"], "rotated")
+
+    def test_an_unreadable_lock_is_judged_by_its_age(self):
+        self.lock_path().write_text("{not json")
+        self.age_key(31)
+        self.assertIsNone(self.client.sync()["rotation"])  # fresh: maybe still being written
+        old = time.time() - core.ROTATE_LOCK_STALE - 5
+        os.utime(self.lock_path(), (old, old))
+        self.assertEqual(self.client.sync()["rotation"], "rotated")
+
+    def test_the_lock_is_released_when_the_rotation_fails(self):
+        self.hub.rotate_status = (429, "slow_down")
+        self.age_key(31)
+        self.assertIsNone(self.client.sync()["rotation"])
+        self.assertFalse(self.lock_path().exists())
+        self.hub.refuse_new_key = True  # the confirm fails after a successful rotate
+        self.hub.rotate_status = None
+        self.assertIsNone(self.client.sync()["rotation"])
+        self.assertFalse(self.lock_path().exists())
+
+    def test_the_lock_is_released_when_the_device_turns_out_to_be_revoked(self):
+        self.hub.device_revoked = True
+        self.age_key(31)
+        with self.assertRaises(core.Revoked):
+            self.client.maintain_credential()
+        self.assertFalse(self.lock_path().exists())
+
+    def test_release_never_removes_a_lock_somebody_else_took_over(self):
+        lock = core.RotationLock(self.lock_path(), lambda pid: True)
+        self.assertTrue(lock.acquire())
+        self.lock_path().write_text(json.dumps({"pid": 1, "at": time.time()}))  # taken over after our timeout
+        lock.release()
+        self.assertTrue(self.lock_path().exists())
+
+    def test_the_lock_is_created_private_and_exclusively(self):
+        lock = core.RotationLock(self.lock_path(), lambda pid: True)
+        self.assertTrue(lock.acquire())
+        self.assertEqual(oct(self.lock_path().stat().st_mode & 0o777), "0o600")
+        again = core.RotationLock(self.lock_path(), lambda pid: True)
+        self.assertFalse(again.acquire())  # the same process is not let in twice
+        lock.release()
+        self.assertTrue(again.acquire())
+        again.release()
+
+    def test_signing_out_removes_the_lock_file(self):
+        self.lock_path().write_text(json.dumps({"pid": os.getppid(), "at": time.time()}))
+        self.client.remove_everything()
+        self.assertFalse(self.lock_path().exists())
 
 
 class KeyRotatedNeverWipes(RotationBase):
@@ -547,6 +763,32 @@ class WhereTheKeyLives(RotationBase):
         self.credentials.delete = real_delete
         self.client.remove_everything()
         self.assertEqual(self.credentials.items, {})
+
+    def stage_with_unreadable_item(self, delete_works):
+        """The keychain stores the new item but will not give it back."""
+        creds = self.credentials
+        real_get, real_delete = creds.get, creds.delete
+        creds.get = lambda server, key_id: None if key_id == "key-9" else real_get(server, key_id)
+        if not delete_works:
+            creds.delete = mock.Mock(side_effect=keystore.KeyStoreError("busy"))
+        self.client.store.stage("key-9", "sgw_staged_" + "b" * 40)
+        return creds, real_get, real_delete
+
+    def test_a_new_item_the_keychain_stored_but_could_not_read_back_is_removed(self):
+        creds, _, _ = self.stage_with_unreadable_item(delete_works=True)
+        self.assertNotIn((self.url, "key-9"), creds.items)
+        self.assertEqual(self.device()["next_key_storage"], "file")  # fell back to the protected file
+        self.assertNotIn("stale_key_ids", self.device())
+
+    def test_a_new_item_that_cannot_be_removed_is_remembered_so_sign_out_deletes_it(self):
+        creds, real_get, real_delete = self.stage_with_unreadable_item(delete_works=False)
+        self.assertIn((self.url, "key-9"), creds.items)
+        self.assertEqual(self.device()["stale_key_ids"], ["key-9"])
+        self.assertEqual(self.device()["next_key_storage"], "file")
+        creds.get, creds.delete = real_get, real_delete
+        self.client.remove_everything()
+        self.assertEqual(creds.items, {})
+        self.assertFalse((self.paths.data / "device.key.next").exists())
 
     def test_the_heartbeat_reports_the_backend_with_the_storage_mode(self):
         self.client.heartbeat()

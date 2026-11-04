@@ -125,6 +125,22 @@ written by another window) and tries once more. With nothing newer it keeps ever
 clears the wait. Only `device_revoked` removes Swangz from the device, including a staged key. Heartbeats carry
 `key_storage` and, when the key is in a native store, `key_backend`.
 
+**One rotation at a time on a device.** The window and `swangz sync` are separate processes, and a second rotation
+during the 10-minute grace is reissued by the Hub, which revokes the first new key. So a rotation (finish a staged
+key, or rotate, write the new key and confirm it) is done under a lock file, `rotate.lock` in the data folder,
+created exclusively and private to the person. A process that finds it held skips rotation until its next check-in.
+A lock whose process has ended, or that is older than three minutes, is taken over; it is removed only if it is still
+the one that process wrote, and signing out deletes it. Taking over a stale lock is two steps (read, then remove), so
+two processes taking over the same stale lock at the same instant could in theory both rotate. That is rare, needs a
+crashed holder, and ends in **Reconnect this device** at worst; nothing is removed.
+
+**What a run in progress sees.** Each `sessions/` marker records the process id and when the run started. A marker
+older than seven days is ignored and removed even if its process id is live, because the number has been reused by
+something else; an older marker without a start time is aged by its file. When the new key is confirmed, requests
+still using the old key are cut at once, not after the 10 minutes: grace ends at the new key's first use. Managed
+Claude Code and Codex shells opened before the rotation therefore get "key renewed" (`device_key_rotated`) until they
+fetch the key again or a new shell is started; the app does not wait for or interrupt them.
+
 ## The app
 
 `swangz` opens the window: a dock down the left (Home, Apps, Packages, This device), sign-in, sync every 15
