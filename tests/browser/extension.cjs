@@ -26,7 +26,8 @@ async function worker(initial = storedSession(), options = {}) {
         set: async values => { Object.assign(stored, clone(values)); trace.push(['set', clone(values)]); },
         remove: async keys => { keys = [].concat(keys); trace.push(['remove', keys]); for (const k of keys) delete stored[k]; },
       },
-      session: { set: async values => trace.push(['session', clone(values)]) },
+      session: { set: async values => trace.push(['session', clone(values)]),
+        remove: async keys => trace.push(['session-remove', [].concat(keys)]) },
     },
     browsingData: { remove: async (filter, data) => {
       clears.push({ filter: clone(filter), data: clone(data) });
@@ -211,6 +212,78 @@ test('a tab moving from an allowed governed tool to a known:false host ends the 
   assert.equal(JSON.parse(close[0].init.body).id, 42);
   assert.deepEqual(w.state().open, {});
   assert.equal(w.updates.length, 0);
+});
+
+const openAnswers = (w, ids) => w.fetchWith(async (url, init) => {
+  const name = url.split('/').pop();
+  if (name === 'open') {
+    const host = JSON.parse(init.body).host;
+    return response(200, ids[host] === 'blocked' ? { known: true, allowed: false, tool: 'X', reason: 'no' }
+      : { known: true, allowed: true, id: ids[host].shift() });
+  }
+  return response(200, {});
+});
+const calls = w => w.requests.map(r => r.url.split('/').pop() + (r.init.body ? ':' + r.init.body : ''));
+
+test('moving a tab from one governed tool to another closes the first record before asking about the second', async () => {
+  const w = await worker(); w.requests.length = 0;
+  openAnswers(w, { 'chatgpt.com': [41], 'canva.com': [42] });
+  await w.run("onNavigate(7, 'https://chatgpt.com/')");
+  await w.run("onNavigate(7, 'https://canva.com/design')");
+  const c = calls(w);
+  assert.equal(c[0], 'open:{"host":"chatgpt.com"}');
+  assert.match(c[1], /^close:\{"id":41,"seconds":\d+\}$/);
+  assert.equal(c[2], 'open:{"host":"canva.com"}');
+  assert.equal(c.length, 3);
+  assert.equal(w.state().open[7].id, 42);
+});
+
+test('the first record ends even if the second tool then cannot be checked', async () => {
+  const w = await worker();
+  openAnswers(w, { 'chatgpt.com': [41] });
+  await w.run("onNavigate(7, 'https://chatgpt.com/')");
+  w.fetchWith(async url => { if (url.endsWith('/close')) return response(200, {}); throw new TypeError('offline'); });
+  await w.run("onNavigate(7, 'https://canva.com/')");
+  assert.ok(w.requests.some(r => r.url.endsWith('/close') && JSON.parse(r.init.body).id === 41));
+  assert.deepEqual(w.state().open, {});
+  blocked(w);
+});
+
+test('a new address on the same tool keeps the running record and leaves no duplicate open', async () => {
+  const w = await worker(); w.requests.length = 0;
+  openAnswers(w, { 'chatgpt.com': [41, 43], 'openai.com': [44] });
+  await w.run("onNavigate(7, 'https://chatgpt.com/')");
+  await w.run("onNavigate(7, 'https://chatgpt.com/c/abc')");
+  await w.run("onNavigate(7, 'https://openai.com/')");  // another host of the same tool
+  assert.equal(w.state().open[7].id, 41);
+  const closes = w.requests.filter(r => r.url.endsWith('/close')).map(r => JSON.parse(r.init.body));
+  assert.deepEqual(closes, [{ id: 43, seconds: 0 }, { id: 44, seconds: 0 }]);  // the extra server records, not the running one
+  assert.equal(w.updates.length, 0);
+});
+
+test('a refusal on the same or another tool ends the record the tab had running', async () => {
+  for (const next of ['https://chatgpt.com/private', 'https://canva.com/']) {
+    const w = await worker();
+    openAnswers(w, { 'chatgpt.com': [41, 'blocked'], 'canva.com': 'blocked' });
+    await w.run("onNavigate(7, 'https://chatgpt.com/')");
+    openAnswers(w, { 'chatgpt.com': 'blocked', 'canva.com': 'blocked' });
+    w.requests.length = 0;
+    await w.run(`onNavigate(7, '${next}')`);
+    assert.ok(w.requests.some(r => r.url.endsWith('/close') && JSON.parse(r.init.body).id === 41), next);
+    assert.deepEqual(w.state().open, {}, next);
+    assert.ok(w.updates.length >= 1, next);
+  }
+});
+
+test('ending a record also removes its open_<tab> entry from session storage', async () => {
+  const w = await worker();
+  openAnswers(w, { 'chatgpt.com': [41] });
+  await w.run("onNavigate(7, 'https://chatgpt.com/')");
+  assert.ok(w.trace.some(t => t[0] === 'session' && 'open_7' in t[1]));
+  await w.run('endTab(7)');
+  assert.deepEqual(w.trace.filter(t => t[0] === 'session-remove'), [['session-remove', ['open_7']]]);
+  await w.run('endTab(7)');  // nothing running: nothing more to remove or send
+  assert.equal(w.trace.filter(t => t[0] === 'session-remove').length, 1);
 });
 
 test('401 during a known:false config refresh still blocks and signs out', async () => {
