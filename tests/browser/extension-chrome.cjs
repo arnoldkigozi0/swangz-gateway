@@ -101,10 +101,12 @@ async function blocked(page, extensionId, name) {
   context.on('response', async res => {
     if (!res.url().startsWith(base + '/api/gate/')) return;
     const record = { endpoint: new URL(res.url()).pathname, status: res.status() };
-    if (record.endpoint.endsWith('/open')) {
+    // Observe status immediately. Chrome may defer retrieving an unconsumed
+    // error-response body until teardown; the worker intentionally never reads it.
+    results.gateResponses.push(record);
+    if (res.ok() && record.endpoint.endsWith('/open')) {
       try { const data = await res.json(); record.known = data.known; record.allowed = data.allowed; } catch (_) {}
     }
-    results.gateResponses.push(record);
   });
   const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
   const extensionId = new URL(worker.url()).hostname;
@@ -187,7 +189,12 @@ async function blocked(page, extensionId, name) {
   assert.equal(new URL(ordinary.url()).hostname, ordinaryHost);
   pass('ungoverned site still loads while the gateway is unreachable');
   results.ok = true;
-})().catch(error => { results.error = error.message; console.error(error); process.exitCode = 1; }).finally(async () => {
+})().catch(error => {
+  results.error = error.message;
+  console.error(error);
+  console.error('Safe gate observations:', JSON.stringify(results.gateResponses));
+  process.exitCode = 1;
+}).finally(async () => {
   try { if (context) await context.close(); } finally {
     try { await stopFixture(); } finally {
       if (profile) fs.rmSync(profile, { recursive: true, force: true });
