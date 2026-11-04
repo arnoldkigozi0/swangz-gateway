@@ -1136,6 +1136,14 @@
       } }, "Save")]);
   }
 
+  function showPaused(me) {
+    app.replaceChildren(el("main", { class: "gate" }, gateArt(), el("section", { class: "gate-form" },
+      el("form", null, el("div", { class: "eyebrow" }, "Access paused"), el("h2", null, me.name ? `${me.name}, your access is paused` : "Your access is paused"),
+        el("p", { class: "muted" }, me.reason || "Talk to your admin to have it restored."),
+        me.support_contact ? el("p", { class: "muted" }, "Contact: ", me.support_contact) : null,
+        el("button", { class: "btn btn--solid", type: "button", onclick: signOut }, "Sign out")))));
+  }
+
   async function signOut() {
     try { await api("POST", "/logout"); } catch (e) { /* signed out anyway */ }
     S.me = null;
@@ -1161,6 +1169,7 @@
     try {
       const me = await api("GET", "/me");
       S.me = me;
+      if (me.paused_view) return showPaused(me); // a suspended person: the read-only view, no tools, keys or Studio
       SUI.setGatewayOffset(180);
       // the device count on each coding tool's tile
       me.catalog.forEach((t) => { if (t.kind === "dev") t.connected = me.keys.filter((k) => !k.revoked && k.client === t.name).length; });
