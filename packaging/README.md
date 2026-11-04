@@ -64,6 +64,14 @@ Local suite/build checks are intentionally not run under Codex: fake servers can
 ports there and the laptop is reserved for light work. Actions is the cross-platform
 execution authority; Probe provides independent verification of exact commits.
 
+Execution record (4 November 2026): [initial Actions run 41814355423](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/41814355423)
+at `c47a874` built all three apps. Linux x86_64 and macOS arm64 passed all seven
+smoke steps and uploaded test artifacts; storage was `file` and `keychain`, respectively.
+Windows failed before starting the app because the gateway fixture lacked IANA timezone
+data. The fixed EAT fixture corrects that setup issue; its format decoded locally as
+UTC+03:00. A follow-up Actions run is required for Windows and the corrected head.
+The full Python suite and exhaustive browser/manual desktop checks were not run here.
+
 ## Decisions for Arnold before production distribution
 
 Installer formats and their additional tools remain undecided: Windows installer (for

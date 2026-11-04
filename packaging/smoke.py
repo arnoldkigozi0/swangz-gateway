@@ -111,12 +111,15 @@ def smoke(binary, report_path):
             report["key_storage"] = device["key_storage"]
             passed(f"device-code sign-in + approval + initial sync: exit 0; storage={device['key_storage']}")
             before = json.loads((data / "state.json").read_text(encoding="utf-8"))["last_sync"]
+            before_heartbeat = rig.gw.db.scalar("SELECT last_seen FROM devices WHERE key_id = ?", (device["key_id"],))
             time.sleep(0.05)
             run("sync")
             state = json.loads((data / "state.json").read_text(encoding="utf-8"))
             require(state["last_sync"] > before and "access-gate" in state["installed"], "sync did not install extension")
-            require(rig.gw.db.scalar("SELECT COUNT(*) FROM devices WHERE last_seen IS NOT NULL") == 1,
-                    "gateway did not record the heartbeat")
+            heartbeat = rig.gw.db.one("SELECT last_seen, packages_json FROM devices WHERE key_id = ?", (device["key_id"],))
+            require(heartbeat["last_seen"] > before_heartbeat and any(
+                p["id"] == "access-gate" for p in json.loads(heartbeat["packages_json"])),
+                "gateway did not record the new heartbeat and installed extension")
             passed("second sync: exit 0; state advanced, local extension installed, gateway heartbeat recorded")
             run("status")
             passed("signed-in status: exit 0 (credential read)")
