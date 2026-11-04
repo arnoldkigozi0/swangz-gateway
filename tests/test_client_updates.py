@@ -185,6 +185,79 @@ class UpdateTests(unittest.TestCase):
             self.assertEqual(path.stat().st_mode & 0o777, 0o500)
             self.assertEqual(path.parent.stat().st_mode & 0o777, 0o700)
 
+    def test_two_syncs_download_a_matching_staged_artifact_only_once(self):
+        self.publish()
+        self.client.store.device = Mock(return_value={"server": self.server.url, "key_storage": "file"})
+        self.client.store.key = Mock(return_value=DEVICE_KEY)
+        self.client._upgrade_agents = Mock()
+        manifest = {"client": {"latest": "0.2.0", "minimum": "0.1.0"},
+                    "packages": [], "apps": [], "recording": "test"}
+        api = core.Api(self.server.url, DEVICE_KEY)
+        api.call = Mock(side_effect=[manifest, {}, manifest, {}])
+        self.client.api = Mock(return_value=api)
+        self.client.updater = Mock(return_value=self.u)  # fixed release-validation clock
+        for _ in range(2):
+            self.assertEqual(self.client.sync()["manifest"], manifest)
+        requests = [path for path, _ in self.server.seen]
+        self.assertEqual(requests.count(PREFIX + "Swangz-test"), 1)
+        self.assertEqual(requests.count(PREFIX + "release.json"), 2)
+        self.assertEqual(requests.count(PREFIX + "release.json.sig"), 2)
+        self.assertEqual((self.u.root / "0.2.0" / "Swangz-test").read_bytes(), self.payload)
+        self.assertEqual(self.u.status()["status"], "staged")
+        self.assertNotIn("highest", self.u._read("state.json"))
+
+    def test_damaged_or_missing_staged_artifact_is_downloaded_again(self):
+        self.publish()
+        self.u.check()
+        path = self.u.root / "0.2.0" / "Swangz-test"
+        for damaged in (b"X" * len(self.payload), self.payload[:-1], None):
+            path.chmod(0o600)
+            if damaged is None:
+                path.unlink()
+            else:
+                path.write_bytes(damaged)
+            before = sum(p == PREFIX + "Swangz-test" for p, _ in self.server.seen)
+            with self.subTest(damaged=damaged):
+                self.assertEqual(self.u.check()["status"], "staged")
+                self.assertEqual(path.read_bytes(), self.payload)
+                self.assertEqual(sum(p == PREFIX + "Swangz-test" for p, _ in self.server.seen), before + 1)
+
+    def test_newer_signed_manifest_stages_new_artifact_instead_of_reusing_old_version(self):
+        self.publish()
+        self.u.check()
+        self.manifest["version"] = "0.3.0"
+        self.payload = b"newer synthetic executable"
+        self.manifest["artifacts"][0].update(file="Swangz-new", size=len(self.payload), sha256=hashlib.sha256(self.payload).hexdigest())
+        self.publish()
+        self.assertEqual(self.u.check()["version"], "0.3.0")
+        self.assertEqual((self.u.root / "0.3.0" / "Swangz-new").read_bytes(), self.payload)
+        self.assertEqual(sum(p == PREFIX + "Swangz-test" for p, _ in self.server.seen), 1)
+        self.assertEqual(sum(p == PREFIX + "Swangz-new" for p, _ in self.server.seen), 1)
+        self.assertNotIn("highest", self.u._read("state.json"))
+
+    def test_reused_staged_bytes_still_require_valid_signature_and_current_manifest_policy(self):
+        self.publish()
+        self.u.check()
+        self.server.routes[PREFIX + "release.json.sig"] = (200, b"x" * 512, {})
+        with self.assertRaises(updater.UpdateError):
+            self.u.check()
+        self.publish()
+        self.u.now = lambda: NOW + 4000
+        with self.assertRaises(updater.UpdateError):
+            self.u.check()
+        self.assertEqual(sum(p == PREFIX + "Swangz-test" for p, _ in self.server.seen), 1)
+
+    def test_same_artifact_with_renewed_signed_expiry_refreshes_local_metadata_without_download(self):
+        self.publish()
+        self.u.check()
+        self.manifest["expires"] += 3600
+        self.publish()
+        self.u.check()
+        folder = self.u.root / "0.2.0"
+        self.assertEqual(json.loads((folder / "release.json").read_bytes())["expires"], self.manifest["expires"])
+        self.assertEqual(bytes.fromhex((folder / "release.json.sig.hex").read_text()), self.server.routes[PREFIX + "release.json.sig"][1])
+        self.assertEqual(sum(p == PREFIX + "Swangz-test" for p, _ in self.server.seen), 1)
+
     def test_unsigned_latest_hint_does_not_claim_a_verified_update_or_enable_downloads(self):
         self.client.store.device = Mock(return_value={"server": self.server.url, "key_storage": "file"})
         self.client.store.key = Mock(return_value=DEVICE_KEY)
