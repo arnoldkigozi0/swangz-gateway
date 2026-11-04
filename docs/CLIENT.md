@@ -65,6 +65,36 @@ any file that would land outside the package's folder (`..`, absolute or drive p
 count, and unpacks beside the final place before moving it in, so a failure never leaves half a package. It
 only downloads from the server it signed in to, so a manifest can never send the key elsewhere.
 
+## Device credentials: rotation, idle expiry, key-storage report (schema v22)
+
+A device is one `devices` row with a stable `device_id` (the id of its first key). Over its life it holds several
+gateway keys (`keys.device_id`); `devices.key_id` points at the current one. Device keys are accepted by the proxy and
+`/api/device/*` only, never by the staff app or the console.
+
+**Error codes on `/api/device/*`.** `device_revoked`: the device was disconnected (person, admin, app sign-out, idle) —
+remove everything. `device_key_rotated`: *this key* was replaced by a newer one on the same device — reload the key
+from the keystore and retry; **never wipe**. `device_unknown`: ask the person. The proxy answers a rotated key with 403
+"this device key was renewed".
+
+**`POST /api/device/rotate`** (device key; no body needed). Returns `{key, key_id, device_id, old_key_valid_until,
+rotate_after_days}`; the response is `no-store` and the key is shown once. The app rotates every `rotate_after_days`
+(30; also in the manifest as `credential.rotate_after_days`): put the new key in the keystore, verify it, call any
+device endpoint (e.g. a check-in) with it, then delete the old item. The old key works until the new key's first call at a
+device endpoint (use through the proxy does not count) or 10 minutes after the rotate call, whichever is first. If the response
+is lost, the old key may call rotate again while that grace lasts and the new key was never used: the unused key is revoked
+(`device_key_rotated`) and a fresh one issued; the grace is never extended. Errors: `429 slow_down` (3 a
+device per hour), `409 rotation_pending` (already being replaced and the new key has been used). If the grace ends
+without the new key reaching the app, the app only has a rotated key: it asks the person to reconnect the device.
+
+**Idle expiry.** A device with no activity for `device_idle_days` (console setting, 7–365, default 60) is revoked by the hourly
+job, audited as `system`. Activity is the newest of the app's last check-in, enrolment and any of its keys being used
+at the proxy, so a device in daily use through Claude Code is never idle.
+
+**Key-storage report.** Heartbeat bodies may carry `key_storage` (`keychain` or `file`) and `key_backend`
+(`credential-manager`, `keychain`, `secret-service`; optional). Anything else is stored as `unknown` / empty. The console shows it
+as "reported by the app", flags `file`, and shows older apps as "Not reported (older app)". It is a report, never evidence, and
+never an input to an access decision. Moving to `file` is audited once.
+
 ## Disconnecting
 
 If the server says a device was disconnected (`401 device_revoked`), the app removes everything it installed
