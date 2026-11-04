@@ -68,8 +68,8 @@ class SessionIsCheckedEveryRequest(Continuity):
     def test_ended_access_opens_nothing_and_a_later_end_date_does_not(self):
         token = self.extension_token()
         self.set_person(access_until=time.time() - 5)
-        # ended access is not a paused view: the web session opens nothing at all
-        self.assertEqual((self.strict(self.person_cookie), self.me(self.person_cookie), self.gate(token)), (401, 401, 401))
+        # ended access is the same read-only paused view as a suspension; the extension opens nothing
+        self.assertEqual((self.strict(self.person_cookie), self.me(self.person_cookie), self.gate(token)), (403, 200, 401))
         self.set_person(access_until=time.time() + 3600)
         self.assertEqual((self.me(self.person_cookie), self.gate(token)), (200, 200))
 
@@ -77,7 +77,7 @@ class SessionIsCheckedEveryRequest(Continuity):
         self.set_person(email="grace@gmail.com")
         self.assertEqual(self.me(self.person_cookie), 401)
 
-    def test_a_suspended_person_signs_in_to_the_paused_view_only_and_an_ended_one_not_at_all(self):
+    def test_a_suspended_or_ended_person_signs_in_to_the_paused_view_only(self):
         self.set_person(status="suspended")
         before = self.sessions()
         status, h, payload = self.rig.request("POST", "/api/login", {"email": EMAIL, "password": PASSWORD}, {"x-swangz-app": "1"})
@@ -91,10 +91,13 @@ class SessionIsCheckedEveryRequest(Continuity):
         status, out = self.staff("POST", "/extension/login", {"email": EMAIL, "password": PASSWORD}, cookie="")
         self.assertEqual((status, out.get("code")), (403, "person_paused"))
         self.assertEqual(self.sessions(), before + 1)
-        self.set_person(status="active", access_until=time.time() - 5)
-        for path in ("/login", "/extension/login"):
-            self.assertEqual(self.staff("POST", path, {"email": EMAIL, "password": PASSWORD}, cookie="")[0], 403, path)
-        self.assertEqual(self.sessions(), before + 1)
+        self.set_person(status="active", access_until=time.time() - 5)  # ended access: the same
+        status, h, payload = self.rig.request("POST", "/api/login", {"email": EMAIL, "password": PASSWORD}, {"x-swangz-app": "1"})
+        self.assertEqual((status, json.loads(payload).get("paused")), (200, True))
+        cookie = h["set-cookie"].split(";")[0]
+        self.assertEqual((self.me(cookie), self.strict(cookie)), (200, 403))
+        self.assertEqual(self.staff("POST", "/extension/login", {"email": EMAIL, "password": PASSWORD}, cookie="")[0], 403)
+        self.assertEqual(self.sessions(), before + 2)
         self.assertEqual(self.audits("connected the access extension"), [])
 
     def test_a_wrong_password_still_says_the_same_thing_whatever_the_status(self):

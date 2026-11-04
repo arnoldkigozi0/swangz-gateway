@@ -142,7 +142,7 @@ class GoogleSignInTests(unittest.TestCase):
             self.assertEqual(where, expected, over)
             self.assertNotIn("sgw_staff=", cookies.replace("sgw_staff=;", ""))
 
-    def test_a_suspended_person_gets_the_read_only_paused_view_and_an_ended_one_is_refused(self):
+    def test_a_suspended_or_ended_person_gets_the_read_only_paused_view_and_an_unapproved_email_is_refused(self):
         self.rig.gw.db.x("UPDATE people SET status = 'suspended' WHERE id = ?", (self.rig.person_id,))
         q, cookie = self.begin()
         where, cookies = self.finish(q, cookie)
@@ -153,8 +153,15 @@ class GoogleSignInTests(unittest.TestCase):
         self.assertEqual(self.rig.request("GET", "/api/studio", None, {"cookie": session})[0], 403)
         self.assertTrue(self.rig.gw.db.one("SELECT 1 FROM audit WHERE action = 'signed in with Google (access paused: read-only view)'"))
         self.rig.gw.db.x("UPDATE people SET status = 'active', access_until = ? WHERE id = ?", (time.time() - 5, self.rig.person_id))
-        q, cookie = self.begin()
-        self.assertEqual(self.finish(q, cookie)[0], "/?auth_error=paused")
+        q, cookie = self.begin()  # ended access: the same read-only view
+        where, cookies = self.finish(q, cookie)
+        self.assertEqual(where, "/")
+        session = next(c.split(";")[0] for c in cookies.split(", ") if c.startswith("sgw_staff="))
+        status, _, body = self.rig.request("GET", "/api/me", None, {"cookie": session})
+        self.assertEqual((status, json.loads(body)["paused_view"]), (200, True))
+        self.rig.gw.db.x("UPDATE people SET email = 'grace@gmail.com' WHERE id = ?", (self.rig.person_id,))
+        q, cookie = self.begin()  # an address outside the approved accounts is still refused
+        self.assertEqual(self.finish(q, cookie, email="grace@gmail.com")[0], "/?auth_error=not_allowed")
 
     def test_the_company_account_check_uses_the_hd_claim_in_the_id_token(self):
         cases = [  # (email, hd claim or None, where it should land for the staff app)

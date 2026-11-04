@@ -23,7 +23,7 @@ ROUTES = []
 
 
 # What a browser-extension session may reach: its own sign-in, the access gate, and signing out. Nothing else.
-EXTENSION_PATHS = re.compile(r"/(?:extension|gate)/.+|/logout")
+EXTENSION_PATHS = re.compile(r"/(?:extension|gate)/.+|/logout|/tools/[a-z0-9-]+/request")
 PAUSED = ("Your access is paused. Talk to your admin to have it restored.", "person_paused")
 
 
@@ -128,10 +128,10 @@ def _who(ctx, sub, signed_in, paused_ok):
 
 
 def person_state(ctx, person):
-    """active | paused (suspended: may sign in to a read-only view) | refused (ended, or not an approved account)."""
-    if entitle.access_ended(person) or not ctx.gw.settings.email_allowed(person["email"]):
+    """active | paused (suspended, or access ended: may sign in to a read-only view) | refused (not an approved account)."""
+    if not ctx.gw.settings.email_allowed(person["email"]):
         return "refused"
-    return "active" if person["status"] == "active" else "paused"
+    return "paused" if person["status"] != "active" or entitle.access_ended(person) else "active"
 
 
 def session_allowed(ctx, person):

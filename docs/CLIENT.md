@@ -120,17 +120,17 @@ device key: each is refused on the other's endpoints. Each action is one audit e
 (counts), correlated `device:<id>` or `person:<id>`, and no token.
 
 Sessions have a kind (schema v23, `staff_sessions.kind`): `web` rows are accepted only as the `sgw_staff` cookie, `extension`
-rows only as a bearer token, and an extension session reaches only `/api/extension/*`, the gate (`/api/gate/*`) and sign-out;
+rows only as a bearer token, and an extension session reaches only `/api/extension/*`, the gate (`/api/gate/*`), sign-out and `POST /api/tools/<id>/request` (the blocked page's "Request access");
 anywhere else it answers `403 {"code": "session_kind"}`. A row that existed before v23 became an `extension` row: nothing was
 deleted, the old cookies simply stop working, and the old bearer tokens keep working on the gate. `last_seen` is recorded at most
 once a minute.
 
-A session is checked against the person on every request. A person whose `access_until` has passed, or whose email is no longer an
-approved account, gets `401` from every signed-in endpoint. A suspended person's **web** session keeps a read-only paused view
+A session is checked against the person on every request. A person whose email is no longer an approved account gets `401` from
+every signed-in endpoint. A suspended person's, or one whose `access_until` has passed, **web** session keeps a read-only paused view
 (`paused_ok` routes, which refuse to register for anything but a GET and sign-out): `GET /api/me` trimmed to `{paused_view, name,
 status, reason, support_contact}`, `GET /api/hub/reports` and `/api/hub/reports/<id>` (their own), `GET /api/hub/notifications`
 and `POST /api/logout`. Every other signed-in route, `/go/<tool>` and `/device` answer `403 {"code": "person_paused"}`; an
-extension session of a suspended person gets `401`. `POST /api/login` for a suspended person starts a web session
+extension session of such a person gets `401`; the proxy, `/device` and device keys refuse them as before. `POST /api/login` for such a person starts a web session
 (`{"ok": true, "paused": true}`); `POST /api/extension/login` and invites still answer `403 person_paused`, and a wrong password is
 still the same `401` whatever the status. Suspending someone through the console still deletes their sessions. Google sign-in
 applies the same rule, and for everyone but the two approved owner addresses it requires the ID token's own `hd` claim to equal
