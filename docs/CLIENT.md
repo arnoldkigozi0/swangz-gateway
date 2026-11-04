@@ -109,6 +109,22 @@ does not claim successful sign-out when cleanup fails. `cleanup` makes no server
 The device screen and terminal status expose `key_storage: keychain|file`; each heartbeat reports that mode.
 Server ingestion, idle expiry and rotation belong to the later G3b change and are not implemented here.
 
+## Key rotation in the app (server contract: schema v22, `POST /api/device/rotate`)
+
+At the end of every sync (start-up and each idle check-in) the app rotates the device key when it is older than the
+manifest's `credential.rotate_after_days` (30 if absent). Never while a coding agent started by the app is running: a
+run holds the key in its environment, so `swangz run` leaves a marker in `sessions/` (checked against live process
+ids) and rotation waits for the next check-in. Steps: call rotate; write the new key to the store and read it back
+(native item, or a protected `device.key.next` if the keychain refuses) **before** any use; make one check-in with it;
+only then make it current and delete the old item. A failed confirm leaves the old key in place and the new one staged,
+and the next check-in confirms it. `device.json` records only identities (`key_id`, `key_issued`, `next_key_id`), never a key.
+
+`device_key_rotated` never removes anything. The app reloads the key from the store (a staged key, or a newer one
+written by another window) and tries once more. With nothing newer it keeps everything, shows **Reconnect this device**
+(`swangz sync` exits 4), and tries the Hub again no faster than the 15-minute check-in interval; a newer key arriving
+clears the wait. Only `device_revoked` removes Swangz from the device, including a staged key. Heartbeats carry
+`key_storage` and, when the key is in a native store, `key_backend`.
+
 ## The app
 
 `swangz` opens the window: a dock down the left (Home, Apps, Packages, This device), sign-in, sync every 15
