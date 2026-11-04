@@ -1,6 +1,6 @@
 # Agent progress
 
-Last updated: 2026-11-02. Coordination branch: `team/log`. Product baseline: main
+Last updated: 2026-11-04. Coordination branch: `team/log`. Product baseline: main
 `ba82a2ad0c1516db9877263e9cac6eb01825618a`.
 
 | Task | Owner | Branch | Status | Next step |
@@ -127,3 +127,10 @@ Last updated: 2026-11-02. Coordination branch: `team/log`. Product baseline: mai
 - Sentinel APPROVED correction range6cbe7dd..865250c at exact commit865250c7d5ae0873112069696f87be79accbe312/tree6edfcd5222be9e1fee2a58f18b091ff2ff339f28; Chief confirmed tree locally. Read-only review found no blockers. GUI status cannot reinstall configs while cleanup_pending because Store.key returns None; Python3.10 tests preserve scoped gate and personal settings. No suite run by reviewer.
 - Probe final-head independent QA and green Hub CI remain pending; PR11 is NOT merge-ready. Prior native/platform/vendor limitations and all G8 findings remain. Any further commit requires renewed review. No merge/deploy.
 - Coordination-only update: Python/browser tests not run; git diff --check validates document whitespace only.
+
+## 09:00 checkpoint — 4 November
+
+- Nov 3: no team activity (machine restart; only commit 42bddae, RELEASE-READINESS draft). Probe's rpc_error incidents concerned the already-finished provider research thread (PR #9); final retry exhausted, no rework needed.
+- Live GitHub check: PR #9 (4929d349), #10 draft (d0f56e0) and #11 (865250c, run 41506599142) all show Python 3.10/3.12, browser and app-window **pass**. main still ba82a2a. Nothing merged.
+- Dispatched: Probe final-head QA of PR #11 at 865250c (targeted modules + diff review; full regression cited from CI, not rerun). Sentinel changed-line check of PR #10 d0f56e0. Forge read-only G3b plan (heartbeat storage report, D-002 expiry/rotation, v22); Sentinel threat note before any code.
+- Merge candidates for Arnold tonight: #9 now; #11 only if Probe VERIFIED 865250c. No merge/deploy. Coordination-only update; tests not run.
