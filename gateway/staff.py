@@ -13,7 +13,7 @@ import ssl
 import time
 from urllib.parse import quote, unquote
 
-from . import credentials, guides, parse, proxy, security, store
+from . import credentials, entitle, guides, parse, proxy, security, store
 from .admin import ApiError, Ctx
 
 COOKIE = "sgw_staff"
@@ -71,12 +71,18 @@ def current_person(ctx):
         auth = (ctx.h.headers.get("authorization") or "").strip()
         if auth[:7].lower() == "bearer ":
             token = auth[7:].strip()
-    if not token:
-        return None
+    if not token or security.split_key(token)[0]:
+        return None  # a device or API key is never a session, however it is presented
     person = ctx.db.one(
         "SELECT p.* FROM staff_sessions s JOIN people p ON p.id = s.person_id WHERE s.token_hash = ? AND s.expires > ?",
         (security.sha256(token), time.time()))
-    return person if person and ctx.gw.settings.email_allowed(person["email"]) else None
+    # Checked on every request, not only at sign-in: a suspended person, or one whose account has ended, holds
+    # a session that opens nothing. The row stays, so restoring them restores the session until it expires.
+    return person if person and session_allowed(ctx, person) else None
+
+
+def session_allowed(ctx, person):
+    return person["status"] == "active" and not entitle.access_ended(person) and ctx.gw.settings.email_allowed(person["email"])
 
 
 def _cookie(header, name):
@@ -140,6 +146,8 @@ def login(ctx):
         ctx.gw.throttle.fail("staff:" + ctx.ip)
         raise ApiError(401, "That email and password don't match.")
     ctx.gw.throttle.clear("staff:" + ctx.ip)
+    if not session_allowed(ctx, person):
+        raise ApiError(403, "Your access is paused or has ended. Talk to your admin.", "person_paused")
     ctx.gw.audit(person["name"], "signed in to Swangz AI Hub", "", "", ctx.ip, correlation=f"person:{person['id']}")
     return 200, {"ok": True}, _start_session(ctx, person["id"])
 
@@ -148,7 +156,13 @@ def login(ctx):
 def logout(ctx):
     token = _cookie(ctx.h.headers.get("cookie") or "", COOKIE)
     if token:
-        ctx.db.x("DELETE FROM staff_sessions WHERE token_hash = ?", (security.sha256(token),))
+        digest = security.sha256(token)
+        row = ctx.db.one("SELECT s.person_id, p.name FROM staff_sessions s JOIN people p ON p.id = s.person_id WHERE s.token_hash = ?", (digest,))
+        # this one session only: the person's other sessions and their devices are untouched
+        if row and ctx.db.x("DELETE FROM staff_sessions WHERE token_hash = ?", (digest,)).rowcount:
+            left = ctx.db.scalar("SELECT COUNT(*) FROM staff_sessions WHERE person_id = ? AND expires > ?", (row["person_id"], time.time()))
+            ctx.gw.audit(row["name"], "signed out of the web app", row["name"], "", ctx.ip, before={"sessions_ended": 0},
+                         after={"sessions_ended": 1, "sessions_remaining": left}, correlation=f"person:{row['person_id']}")
     return 200, {"ok": True}, {"Set-Cookie": _session_cookie(ctx, "", 0)}
 
 
@@ -475,6 +489,8 @@ def extension_login(ctx):
         ctx.gw.throttle.fail("ext:" + ctx.ip)
         raise ApiError(401, "That email and password don't match.")
     ctx.gw.throttle.clear("ext:" + ctx.ip)
+    if not session_allowed(ctx, person):
+        raise ApiError(403, "Your access is paused or has ended. Talk to your admin.", "person_paused")
     token = security.new_session_token()
     now = time.time()
     ctx.db.x("INSERT INTO staff_sessions(token_hash, person_id, created, expires, ip) VALUES(?,?,?,?,?)",
@@ -606,11 +622,11 @@ def revoke_key(ctx, kid):
     row = ctx.db.one("SELECT * FROM keys WHERE id = ? AND person_id = ?", (kid, ctx.person["id"]))
     if not row:
         raise ApiError(404, "No such device.")
-    ids, _ = credentials.revoke_device_keys(ctx.db, ctx.gw.live, kid, "self")  # every key of a device mid-rotation, not just this one
-    if ids:
+    ids, cut = credentials.revoke_device_keys(ctx.db, ctx.gw.live, kid, "self")  # every key of a device mid-rotation, not just this one
+    if ids:  # web sessions are not touched: disconnecting a device does not sign the person out of the web app
         ctx.gw.audit(ctx.person["name"], "disconnected a device (revoked own key)", ctx.person["name"],
-                     f"{row['label']} ({row['hint']})", ctx.ip, before={"keys": ids} if len(ids) > 1 else None,
-                     correlation=f"device:{row['device_id'] or kid}")
+                     f"{row['label']} ({row['hint']})", ctx.ip, before={"keys": ids},
+                     after={"keys_revoked": len(ids), "requests_cut": cut}, correlation=f"device:{row['device_id'] or kid}")
     return {"ok": True}
 
 
