@@ -145,6 +145,7 @@ async function onNavigate(tabId, url) {
   try { r = await gate("open", { host }); } catch (e) { /* unavailable: no allow decision */ }
   if (!S.token || !r) { await blockForSignIn(tabId); return; }
   if (r.known === false) {
+    await endTab(tabId);  // the tab left the tool it had open: stop that record before anything else can fail
     await refreshHosts();  // authenticated removal from governance; refresh the stale cache
     if (!S.token) await blockForSignIn(tabId);
     return;

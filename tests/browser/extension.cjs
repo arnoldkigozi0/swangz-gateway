@@ -198,6 +198,21 @@ test('authenticated known:false refreshes stale governance and allows the site',
   assert.deepEqual(w.stored.hosts, { 'canva.com': 'canva' });
 });
 
+test('a tab moving from an allowed governed tool to a known:false host ends the first record', async () => {
+  const w = await worker(); w.requests.length = 0;
+  w.fetchWith(async url => response(200, url.endsWith('/open') ? { known: true, allowed: true, id: 42 } : {}));
+  await w.run("onNavigate(7, 'https://chatgpt.com/')");
+  assert.deepEqual(Object.keys(w.state().open), ['7']);
+  w.fetchWith(async url => response(200, url.endsWith('/open') ? { known: false } : url.endsWith('/close') ? {} : { hosts: { 'canva.com': 'canva' } }));
+  await w.run("onNavigate(7, 'https://chatgpt.com/')");
+  const close = w.requests.filter(r => r.url.endsWith('/close'));
+  assert.equal(close.length, 1);
+  assert.deepEqual(Object.keys(JSON.parse(close[0].init.body)).sort(), ['id', 'seconds']);
+  assert.equal(JSON.parse(close[0].init.body).id, 42);
+  assert.deepEqual(w.state().open, {});
+  assert.equal(w.updates.length, 0);
+});
+
 test('401 during a known:false config refresh still blocks and signs out', async () => {
   const w = await worker();
   w.fetchWith(async url => url.endsWith('/open') ? response(200, { known: false }) : response(401));
