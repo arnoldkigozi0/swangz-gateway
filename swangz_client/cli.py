@@ -31,7 +31,7 @@ def when(ts):
 
 
 def main(argv=None, client=None):
-    argv = list(sys.argv[1:] if argv is None else argv)
+    command_argv = list(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(prog="swangz", description="Swangz AI Hub on this device")
     parser.add_argument("--version", action="version", version=f"swangz {__version__}")
     parser.add_argument("--background", action="store_true", help="open the window minimised (used when starting at login)")
@@ -59,29 +59,31 @@ def main(argv=None, client=None):
     sub.add_parser("gui")
     p = sub.add_parser("update", help="check, stage or apply an authenticated app release")
     p.add_argument("action", choices=("status", "check", "apply"), nargs="?", default="status")
-    args = parser.parse_args(argv)
+    args = parser.parse_args(command_argv)
     client = client or core.Client()
     try:
-        updater = client.updater()
-        if args.post_update:
-            updater.post_update()
-            return 0  # acknowledgement probe exits; restart normally to open the updated app
-        if updater.recover():
-            subprocess.Popen([str(updater.target), *argv], env=dict(os.environ),
-                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            return 1
         if args.cmd == "key":
             if sys.stdout.isatty():
                 print("Credential helpers require a pipe; refusing terminal output.", file=sys.stderr)
                 return 1
             try:
                 key = client.helper_key(args.tool)
-            except (core.NotSignedIn, keystore.KeyStoreError, OSError):
+            except (core.ApiFailure, core.NotSignedIn, core.ClientTooOld, keystore.KeyStoreError,
+                    agents.AgentConfigError, ValueError, OSError):
                 print("The credential helper could not read this device's key. Open Swangz to retry.", file=sys.stderr)
                 return 1
             sys.stdout.write(key)  # Bare token, no banner or newline; access record is a separate private file.
             sys.stdout.flush()
             return 0
+        if args.post_update or args.cmd in (None, "gui", "status", "sync", "update"):
+            updater = client.updater()
+            if args.post_update:
+                updater.post_update()
+                return 0  # acknowledgement probe exits; restart normally to open the updated app
+            if updater.recover():
+                subprocess.Popen([str(updater.target), *command_argv], env=dict(os.environ),
+                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return 1
         return run(args, client)
     except core.Revoked:
         say("This device was disconnected from Swangz AI Hub, so Swangz has been removed from it.")
@@ -90,7 +92,10 @@ def main(argv=None, client=None):
         say(str(exc) + "  Run: swangz login")
         return 2
     except (core.ApiFailure, core.ClientTooOld, keystore.KeyStoreError, agents.AgentConfigError, ValueError, OSError) as exc:
-        say(getattr(exc, "message", None) or str(exc))
+        if args.cmd == "key":
+            print("The credential helper could not complete. Open Swangz to retry.", file=sys.stderr)
+        else:
+            say(getattr(exc, "message", None) or str(exc))
         return 1
     except KeyboardInterrupt:
         return 130

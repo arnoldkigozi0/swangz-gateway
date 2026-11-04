@@ -121,6 +121,17 @@ def _hash(path):
     return digest.hexdigest()
 
 
+def _allow_remove(path):
+    """Windows read-only is independent of our DACL; clear it before replace/unlink.
+
+    Also handles files staged by older updater builds that used chmod(0500).
+    Keep the DACL intact, and refuse links before changing attributes.
+    """
+    if os.name == "nt" and (path.exists() or path.is_symlink()):
+        _file(path)
+        path.chmod(stat.S_IREAD | stat.S_IWRITE)
+
+
 class Updater:
     def __init__(self, client, running=__version__, now=time.time):
         self.client, self.running, self.now = client, running, now
@@ -269,6 +280,7 @@ class Updater:
             # A failed prior download is never a usable candidate. No symlinks followed.
             if path.exists() or path.is_symlink():
                 _file(path)
+                _allow_remove(path)
                 path.unlink()
             fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             try:
@@ -280,8 +292,10 @@ class Updater:
                     os.fsync(output.fileno())
                 if not hmac.compare_digest(str(size), str(artifact["size"])) or not hmac.compare_digest(digest, artifact["sha256"]):
                     raise UpdateError("Release size or SHA-256 mismatch.")
-                path.chmod(0o500)
+                if os.name != "nt":
+                    path.chmod(0o500)
             except Exception:
+                _allow_remove(path)
                 path.unlink(missing_ok=True)
                 raise
             # Retain signed input; install re-verifies expiry, compatibility, floors and bytes.
@@ -315,6 +329,8 @@ class Updater:
                 raise UpdateError("Previous application changed; automatic recovery refused.")
             if self.target.exists():
                 _file(self.target)
+            _allow_remove(self.prev)
+            _allow_remove(self.target)
             os.replace(self.prev, self.target)
             _sync_dir(self.app)
         elif not self.target.exists() or not hmac.compare_digest(_hash(self.target), pending["old_sha256"]):
@@ -374,6 +390,7 @@ class Updater:
             self._journal(pending)  # write-ahead journal before touching current
             process = None
             try:
+                _allow_remove(self.target)
                 os.replace(self.target, self.prev)
                 _sync_dir(self.app)
                 pending["phase"] = "old_moved"
@@ -445,6 +462,7 @@ class Updater:
             if pending.get("phase") == "ok" and pending.get("version") == self.running and self._acknowledged(pending):
                 if self.prev.exists():
                     _file(self.prev)
+                    _allow_remove(self.prev)
                     self.prev.unlink()
                 _sync_dir(self.app)
                 (self.root / "pending.json").unlink()

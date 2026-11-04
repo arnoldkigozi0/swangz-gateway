@@ -1,16 +1,18 @@
 """D-003 abuse tests. Pure Python TEST-key signing; never live providers or keys."""
 
 import hashlib
+from contextlib import nullcontext, redirect_stderr, redirect_stdout
 import io
 import json
 import os
 from pathlib import Path
 import platform
+import stat
 import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 from swangz_client import cli, core, keystore, release_keys, updater
 from tests.fake_releases import FakeReleases
@@ -77,6 +79,49 @@ class ReleaseVerificationTests(unittest.TestCase):
             self.assertNotIn(str(N), text)
             self.assertNotIn("BEGIN PRIVATE KEY", text)
             self.assertNotIn("test_release_rsa4096", text)
+
+
+class CommandRecoveryTests(unittest.TestCase):
+    def test_entry_point_with_argv_none_relaunches_normalized_process_arguments(self):
+        client = Mock()
+        client.updater.return_value.target = Path("/test/Swangz")
+        client.updater.return_value.recover.return_value = True
+        with patch.object(sys, "argv", ["Swangz", "sync", "--force"]), patch.object(cli.subprocess, "Popen") as launch:
+            self.assertEqual(cli.main(argv=None, client=client), 1)
+        self.assertEqual(launch.call_args.args[0], [str(client.updater.return_value.target), "sync", "--force"])
+        client.sync.assert_not_called()
+
+    def test_key_pipe_never_initializes_or_recovers_updater_and_errors_use_stderr(self):
+        client = Mock()
+        client.updater.side_effect = updater.UpdateError("recovery must never reach the key pipe")
+        for failure in (None, keystore.KeyStoreError("locked keychain"), ValueError("invalid key"),
+                        core.NotSignedIn("not connected"), OSError("local read failure")):
+            client.helper_key.side_effect = failure
+            client.helper_key.return_value = DEVICE_KEY
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with self.subTest(failure=failure), redirect_stdout(stdout), redirect_stderr(stderr), \
+                    patch.object(stdout, "isatty", return_value=False), patch.object(cli.subprocess, "Popen") as launch:
+                code = cli.main(["key", "--for", "codex"], client=client)
+            self.assertEqual(code, 0 if failure is None else 1)
+            self.assertEqual(stdout.getvalue(), DEVICE_KEY if failure is None else "")
+            self.assertEqual(bool(stderr.getvalue()), failure is not None)
+            self.assertNotIn(DEVICE_KEY, stderr.getvalue())
+            client.updater.assert_not_called()
+            launch.assert_not_called()
+
+    def test_recovery_is_limited_to_interactive_and_sync_update_commands(self):
+        for argv in ([], ["gui"], ["status"], ["sync"], ["update", "status"]):
+            client = Mock()
+            client.updater.return_value.recover.return_value = False
+            with self.subTest(argv=argv), patch.object(cli, "run", return_value=0):
+                self.assertEqual(cli.main(argv, client=client), 0)
+            client.updater.return_value.recover.assert_called_once_with()
+        for argv in (["login"], ["logout"], ["cleanup"], ["packages"], ["apps"], ["run", "codex"],
+                     ["open", "test-tool"], ["autostart", "off"]):
+            client = Mock()
+            with self.subTest(argv=argv), patch.object(cli, "run", return_value=0):
+                self.assertEqual(cli.main(argv, client=client), 0)
+            client.updater.assert_not_called()
 
 
 class UpdateTests(unittest.TestCase):
@@ -342,6 +387,78 @@ class UpdateTests(unittest.TestCase):
                 self.assertEqual(fresh.target.read_bytes(), b"original application")
                 self.assertEqual(fresh._read("state.json")["failed_version"], "0.2.0")
                 self.assertFalse(fresh.recover())
+
+    def test_windows_readonly_candidate_rolls_back_and_readonly_prev_is_cleaned(self):
+        self.stage()
+        old = self.u.target.read_bytes()
+        os.replace(self.u.target, self.u.prev)
+        self.u.target.write_bytes(self.payload)
+        self.u.target.chmod(0o400)
+        self.u.prev.chmod(0o400)
+        pending = {"phase": "new_moved", "version": "0.2.0", "nonce": "windows-test",
+                   "sha256": hashlib.sha256(self.payload).hexdigest(), "old_sha256": hashlib.sha256(old).hexdigest()}
+        self.u._journal(pending)
+        path_type = type(self.u.target)
+        replace, unlink = os.replace, path_type.unlink
+
+        # Enforce Windows read-only behavior on a POSIX test runner. These checks
+        # intentionally fail on the old updater, where POSIX rename would mask F1.
+        def windows_replace(source, target):
+            for path in (source, target):
+                path = path_type(path)
+                if path.exists() and not path.stat().st_mode & stat.S_IWRITE:
+                    raise PermissionError("Windows read-only file")
+            return replace(source, target)
+
+        def windows_unlink(path, *args, **kwargs):
+            if path.exists() and not path.stat().st_mode & stat.S_IWRITE:
+                raise PermissionError("Windows read-only file")
+            return unlink(path, *args, **kwargs)
+
+        with patch.object(updater.os, "name", "nt"), patch.object(keystore, "Path", path_type), \
+                patch.object(keystore, "protect_windows_file"), \
+                patch.object(updater.os, "replace", side_effect=windows_replace), \
+                patch.object(path_type, "unlink", windows_unlink):
+            self.u._rollback(pending)
+        self.assertEqual(self.u.target.read_bytes(), old)
+        self.assertFalse(self.u.prev.exists())
+        self.assertEqual(self.u._read("state.json")["status"], "update_failed")
+
+        # First acknowledged sync also needs to delete a read-only prior build.
+        self.u.target.write_bytes(self.payload)
+        self.u.prev.write_bytes(old)
+        self.u.prev.chmod(0o400)
+        pending["phase"] = "ok"
+        self.u._journal(pending)
+        updater._json(self.u.root / "update-ok", {"version": "0.2.0", "nonce": pending["nonce"]})
+        new = updater.Updater(self.client, running="0.2.0")
+        with patch.object(updater.os, "name", "nt"), patch.object(new, "locked", return_value=nullcontext()), \
+                patch.object(path_type, "unlink", windows_unlink):
+            new.synced()
+        self.assertFalse(self.u.prev.exists())
+        self.assertFalse((self.u.root / "pending.json").exists())
+
+    def test_windows_staging_uses_dacl_without_setting_readonly_attribute(self):
+        self.u._paths()
+        self.publish()
+        path_type = type(self.u.root)
+
+        def fetch(api, path, cap, output=None):
+            status, raw, headers = self.server.routes[path]
+            self.assertEqual(status, 200)
+            if output is not None:
+                output.write(raw)
+                return b"", len(raw), hashlib.sha256(raw).hexdigest(), headers
+            return raw, len(raw), hashlib.sha256(raw).hexdigest(), headers
+
+        with patch.object(updater.os, "name", "nt"), patch.object(keystore, "Path", path_type), \
+                patch.object(self.u, "locked", return_value=nullcontext()), \
+                patch.object(self.u, "_fetch", side_effect=fetch), \
+                patch.object(keystore, "protect_windows_file") as protect:
+            self.assertEqual(self.u.check()["status"], "staged")
+        artifact = self.u.root / "0.2.0" / "Swangz-test"
+        self.assertTrue(artifact.stat().st_mode & stat.S_IWRITE)
+        self.assertIn(call(artifact), protect.call_args_list)
 
     @unittest.skipUnless(os.name == "posix", "portable script fixture requires a POSIX shebang; native builds await CI")
     def test_valid_end_to_end_launch_self_test_accept_restart_then_sync_removes_one_prev(self):

@@ -196,8 +196,10 @@ backslashes or `..`. Size is positive and at most 150 MiB; SHA-256 is lowercase 
 The candidate must be newer than the running version, the durable highest accepted version and any
 failed version. Streaming stops at the signed size cap plus one detection byte and writes no overflow
 byte. Exact size and SHA-256 are compared before staging in private `updates/<version>/` (0700
-directories / 0500 executable on POSIX, protected DACL on Windows). Release metadata is retained;
-installation verifies it again, including expiry, floors and staged bytes. Platform signature status
+directories / 0500 executable on POSIX, protected DACL on Windows). Release metadata is retained.
+Windows staging retains the writable attribute under that DACL. Replace/delete operations clear any
+read-only attribute left by older builds, including rollback targets and the previous-version backup.
+Installation verifies it again, including expiry, floors and staged bytes. Platform signature status
 is **not checked**: `native_signature_status()` is a placeholder for codesign/WinVerifyTrust, not a pass.
 
 `swangz update status|check|apply` exposes the development path. Apply is available only to a frozen
@@ -214,6 +216,9 @@ to use the new version. A desktop process is not restarted automatically on succ
 On failure/timeout the candidate process is stopped and the exact previous binary restored; the
 failed version cannot be retried until a newer signed release arrives. At normal startup an
 interrupted journal without acknowledgement restores the previous binary and relaunches it.
+Startup recovery runs only for GUI, status, sync and update commands. The credential helper never
+initializes the updater or relaunches the app: its stdout is exclusively the credential pipe, and
+helper failures are reported on stderr. Entry-point relaunches preserve normalized process arguments.
 There is exactly one `prev`; it remains until the acknowledged new version completes its first sync
 without package or heartbeat failures. The accepted-version ledger survives sign-out. Missing or
 modified recovery files fail visibly rather than claiming recovery succeeded. Local administrator
@@ -225,3 +230,7 @@ provider calls or certificate checks. Python 3.10 syntax parsing and `git diff -
 implementation; neither is a test result. Targeted Python results await Probe/CI. Native Windows/macOS
 rename/locking/DACL, packaged binaries, `.app` handling, platform signatures and actual GUI update
 screens are **Not run**. This work is not a production-update or cross-platform packaging claim.
+
+Sentinel follow-up to `9f505cf`: regression cases emulate Windows read-only replace/unlink failures,
+cover staging without the read-only attribute, `main(argv=None)` after recovery, and the credential
+helper's isolated stdout/stderr behavior. Tests are added for Probe to run; not executed under Codex.
