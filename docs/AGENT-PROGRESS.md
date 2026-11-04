@@ -155,3 +155,11 @@ Last updated: 2026-11-04. Coordination branch: `team/log`. Product baseline: mai
 - The commit carries an AI attribution trailer, against repo rules. Forge is re-pushing the identical tree without the trailer as `feature/device-lifecycle-v22` (no force-push). The old branch is kept; deleting it waits for Arnold.
 - Probe QA and Sentinel critical review are dispatched, bound to tree 6971b39. Open points for Sentinel: in-flight requests at the 10-minute retirement, a lost-response dead end, a hidden pending key and timeline entries. CLAUDE.md still says schema v21 (docs sweep).
 - G3b → review. Coordination-only update; tests not run by Chief.
+
+## 09:50 G3b review round 1 — 4 November
+
+- Clean replacement branch `feature/device-lifecycle-v22` at 65b8240 (parent ba82a2a, tree 6971b39, identical to 5fc37c7, no attribution trailer). Old `feature/device-credential-lifecycle` is kept; deleting it waits for Arnold.
+- Sentinel **BLOCKED** tree 6971b39 on F1 (High): idle expiry counts refused old-key proxy attempts as activity, so an orphaned device never idles out. Conditions 1–6 and Q1/Q2 are confirmed in code. Forge's points a/b/c are accepted (b only once F1 is fixed). The 5-minute sweep is unnecessary.
+- Probe ran `tests.test_device_lifecycle tests.test_devices tests.test_v2 tests.test_insight tests.test_gateway -v` outside the sandbox: 180 tests, 187.8s, 0 skips, exit 0, tree 6971b39, clean before/after. Probe's diff read found no blocker and reproduced the lost-response lockout (non-blocking). The Gemini and GPT external second opinions both failed. Chief accepts Probe's own read as independent QA (this is Forge's code, so no Prism-model conflict), consistent with the 2 Nov precedent that a Gemini re-check isn't required.
+- Forge is fixing F1 with a test, plus CLIENT.md notes on in-flight retirement and lost-response handling. Then Sentinel reviews the delta and Probe reruns the targeted modules on the final tree.
+- Prism follow-up (after G3b merges): the client persists the new key before use, handles device_key_rotated by showing "Reconnect this device" (no wipe, heartbeat-paced retries), and sends key_backend. Coordination-only update; tests not run by Chief.
