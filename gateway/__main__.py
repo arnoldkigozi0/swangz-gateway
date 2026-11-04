@@ -17,6 +17,12 @@
   package-publish FILE --id ID --version V --name N [--department D | --person ID]…
                                 add a package (a .zip) for the Swangz app to install; a department of "*" is
                                 everyone. Anyone it is granted to gets it at their next sync.
+  release-publish DIR --channel stable|pilot
+                                check a signed release folder (release.json, release.json.sig and the listed
+                                files) against the pinned release keys and make it that channel's current release
+  release-withdraw --channel C  stop serving a channel (its devices get 404); the next release must be higher
+  release-pilot add|remove PERSON
+                                who may use the pilot channel (a person's id)
 
 The command line works on the same database as a running gateway. One difference: a revoke or
 pause made here is enforced from the next request on; only the console can also cut requests
@@ -78,6 +84,14 @@ def main(argv=None):
     p.add_argument("--platforms", default="", help="comma list of windows,macos,linux,android,ios (default: all)")
     p.add_argument("--department", action="append", default=[], help='who gets it; "*" means everyone (repeatable)')
     p.add_argument("--person", action="append", type=int, default=[], help="a person's id (repeatable)")
+    p = sub.add_parser("release-publish")
+    p.add_argument("dir")
+    p.add_argument("--channel", required=True, choices=("stable", "pilot"))
+    p = sub.add_parser("release-withdraw")
+    p.add_argument("--channel", required=True, choices=("stable", "pilot"))
+    p = sub.add_parser("release-pilot")
+    p.add_argument("action", choices=("add", "remove"))
+    p.add_argument("person", type=int)
     args = parser.parse_args(argv)
     settings = Settings.from_env()
 
@@ -181,6 +195,22 @@ def main(argv=None):
         audit("published a package", f"{args.id} {args.version}", f"sha256 {out['sha256'][:12]}")
         who = ", ".join([*args.department, *(f"person {p}" for p in args.person)]) or "nobody yet (grant it in the console)"
         print(f"published {args.id} {args.version} ({out['size']} bytes, sha256 {out['sha256']}) for {who}")
+    elif args.cmd in ("release-publish", "release-withdraw", "release-pilot"):
+        from . import releases
+
+        try:
+            if args.cmd == "release-publish":
+                out = releases.publish(db, settings.data_dir, args.dir, args.channel)
+                print(f"published {out['channel']} {out['version']} ({', '.join(out['files'])}); previous: {out['previous'] or 'none'}")
+            elif args.cmd == "release-withdraw":
+                out = releases.withdraw(db, settings.data_dir, args.channel)
+                print(f"withdrew {out['channel']} {out['version']}: devices on that channel now get 404")
+            else:
+                changed = releases.pilot_change(db, args.action, args.person)
+                print(f"person {args.person} {'added to' if args.action == 'add' else 'removed from'} the pilot list" if changed
+                      else "no change: the pilot list already says that")
+        except (releases.ReleaseError, OSError) as exc:
+            sys.exit(f"could not {args.cmd.replace('release-', '')}: {exc}")
     elif args.cmd == "geoip-import":
         try:
             n = geo.import_csv(db, args.file, args.source)

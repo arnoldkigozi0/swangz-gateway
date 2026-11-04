@@ -36,7 +36,7 @@ import time
 import zipfile
 from urllib.parse import parse_qs, quote
 
-from . import entitle, security
+from . import entitle, releases, security
 from .admin import ApiError
 from .admin import route as admin_route
 from .staff import COOKIE, Ctx, _cookie, current_person, route
@@ -287,7 +287,7 @@ def build_manifest(gw, h, person, device):
                      "company_browser": bool(tool and catalog.uses_workspace(tool)), "open": f"{base}/go/{t['id']}"})
     return {"server": base, "person": {"name": person["name"], "email": person["email"], "department": person.get("department") or ""},
             "device": {"id": device["key_id"], "name": device["name"], "os": device["os"], "owner_kind": device["owner_kind"]},
-            "client": {"latest": CLIENT_LATEST, "minimum": CLIENT_MINIMUM}, "packages": packages, "apps": apps,
+            "client": {"latest": releases.latest_hint(gw, person, CLIENT_LATEST), "minimum": CLIENT_MINIMUM}, "packages": packages, "apps": apps,
             "recording": RECORDING, "generated": time.time()}
 
 
@@ -310,7 +310,7 @@ def device_heartbeat(ctx):
              (now, ctx.ip, _os_name(ctx.body.get("os")), _clean(ctx.body.get("arch"), 20), _version(ctx.body.get("app_version")),
               json.dumps(installed), device["key_id"]))
     ctx.db.x("UPDATE keys SET last_used = ? WHERE id = ?", (now, device["key_id"]))
-    return {"ok": True, "latest_client": CLIENT_LATEST, "server_time": now}
+    return {"ok": True, "latest_client": releases.latest_hint(ctx.gw, person, CLIENT_LATEST), "server_time": now}
 
 
 @route("GET", r"/device/extension", signed_in=False)
