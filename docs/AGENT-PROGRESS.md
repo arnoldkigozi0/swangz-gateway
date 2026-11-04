@@ -163,3 +163,8 @@ Last updated: 2026-11-04. Coordination branch: `team/log`. Product baseline: mai
 - Probe ran `tests.test_device_lifecycle tests.test_devices tests.test_v2 tests.test_insight tests.test_gateway -v` outside the sandbox: 180 tests, 187.8s, 0 skips, exit 0, tree 6971b39, clean before/after. Probe's diff read found no blocker and reproduced the lost-response lockout (non-blocking). The Gemini and GPT external second opinions both failed. Chief accepts Probe's own read as independent QA (this is Forge's code, so no Prism-model conflict), consistent with the 2 Nov precedent that a Gemini re-check isn't required.
 - Forge is fixing F1 with a test, plus CLIENT.md notes on in-flight retirement and lost-response handling. Then Sentinel reviews the delta and Probe reruns the targeted modules on the final tree.
 - Prism follow-up (after G3b merges): the client persists the new key before use, handles device_key_rotated by showing "Reconnect this device" (no wipe, heartbeat-paced retries), and sends key_backend. Coordination-only update; tests not run by Chief.
+
+## 09:55 F1 fix in final review — 4 November
+
+- Forge pushed ec83d59 (tree 2b13167) on `feature/device-lifecycle-v22`, with no attribution trailer per Forge. The idle query now ignores refused uses after revocation. The new orphaned-device test fails against the old code. Forge reports 182 tests OK, 190.2s, 0 skips, exit 0 (teammate-reported).
+- Dispatched in parallel, both read-only: Sentinel delta review (65b8240..ec83d59) and Probe final QA on tree 2b13167. Chief accepted Probe's own read as independent QA. Next step: PR from `feature/device-lifecycle-v22` once both pass and CI runs.
