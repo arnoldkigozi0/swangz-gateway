@@ -15,23 +15,40 @@
  * ignored completely. */
 
 const S = { base: null, token: null, hosts: {}, policy: "", open: {}, holding: {} };
+let signingOut = null;
 
 async function loadConfig() {
-  const stored = await chrome.storage.local.get(["base", "token", "hosts", "policy"]);
-  Object.assign(S, stored);
+  if (signingOut) await signingOut;
+  const stored = await chrome.storage.local.get(["base", "token", "hosts", "policy", "holding"]);
+  Object.assign(S, { base: null, token: null, hosts: {}, policy: "", holding: {} }, stored);
   return !!(S.base && S.token);
+}
+
+async function authenticatedFetch(path, options = {}) {
+  if (!S.base || !S.token) return null;
+  const base = S.base, token = S.token;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const res = await fetch(base + "/api/gate/" + path, {
+      ...options, signal: controller.signal,
+      headers: { "authorization": "Bearer " + token, "x-swangz-app": "1", ...options.headers },
+    });
+    if (S.base !== base || S.token !== token) return null;
+    if (res.status === 401 || res.status === 403) { await signOut(); return null; }
+    if (!res.ok) return null;
+    const data = await res.json();
+    return S.base === base && S.token === token ? data : null;
+  } finally { clearTimeout(timeout); }
 }
 
 async function refreshHosts() {
   if (!S.base || !S.token) return;
   try {
-    const res = await fetch(S.base + "/api/gate/config", {
-      headers: { "authorization": "Bearer " + S.token, "x-swangz-app": "1" },
-    });
-    if (res.status === 401) { await signOut(); return; }
-    if (!res.ok) return;
-    const data = await res.json();
-    S.hosts = data.hosts || {};
+    const data = await authenticatedFetch("config");
+    if (!data) return;
+    if (!data.hosts || typeof data.hosts !== "object" || Array.isArray(data.hosts)) return;
+    S.hosts = data.hosts;
     S.policy = data.policy || "";
     await chrome.storage.local.set({ hosts: S.hosts, policy: S.policy });
     updateBadge(true);
@@ -43,54 +60,57 @@ async function refreshHosts() {
 async function signOutOf(hosts) {
   const origins = [];
   for (const h of hosts) origins.push("https://" + h, "https://www." + h);
-  if (!origins.length) return;
+  if (!origins.length) return true;
   try {
     await chrome.browsingData.remove({ origins },
       { cookies: true, localStorage: true, indexedDB: true, cacheStorage: true, serviceWorkers: true });
-  } catch (e) { /* the browser refused; the turn still ended on the server */ }
+    return true;
+  } catch (e) { return false; }  // retain held-site state so a later check can retry cleanup
+}
+
+async function clearHeldSites() {
+  const held = new Set(Object.keys(S.holding));
+  return signOutOf(Object.keys(S.hosts).filter((host) => held.has(S.hosts[host])));
 }
 
 /* Ask the gateway which shared tools we still hold. When a turn we had has ended, sign this browser
    out of that tool so the next person starts clean and we have to come back through the portal. */
 async function syncTurns() {
-  if (!S.base || !S.token) return;
+  if (!S.base || !S.token) { if (Object.keys(S.holding).length) await signOut(); return; }
   let data;
   try {
-    const res = await fetch(S.base + "/api/gate/turns", {
-      headers: { "authorization": "Bearer " + S.token, "x-swangz-app": "1" },
-    });
-    if (res.status === 401) { await signOut(); return; }
-    if (!res.ok) return;
-    data = await res.json();
+    data = await authenticatedFetch("turns");
+    if (!data) return;
   } catch (e) { return; }  // offline: leave things as they are
   const holding = {};
   for (const t of data.holding || []) holding[t.tool_id] = t.expires;
   const lost = Object.keys(S.holding).filter((id) => !(id in holding));
+  for (const id of lost) {
+    const hosts = Object.keys(S.hosts).filter((host) => S.hosts[host] === id);
+    const reported = (data.sign_out || []).find((t) => t.tool_id === id);
+    if (!await signOutOf([...new Set([...hosts, ...(reported?.hosts || [])])])) holding[id] = S.holding[id];
+  }
   S.holding = holding;
   await chrome.storage.local.set({ holding });
-  if (!lost.length) return;
-  for (const t of data.sign_out || []) {
-    if (lost.includes(t.tool_id)) await signOutOf(t.hosts);
-  }
 }
 
 /* Chrome has just started: the previous session is over, so no shared account carries across. */
 async function clearSharedOnStartup() {
-  if (!S.base || !S.token) { await chrome.storage.local.set({ holding: {} }); return; }
+  if (!S.base || !S.token) { await signOut(); return; }
+  if (!await clearHeldSites()) return;
   try {
-    const res = await fetch(S.base + "/api/gate/turns", {
-      headers: { "authorization": "Bearer " + S.token, "x-swangz-app": "1" },
-    });
-    if (!res.ok) return;
-    const data = await res.json();
-    for (const t of [...(data.sign_out || []), ...(data.holding || [])]) await signOutOf(t.hosts);
-  } catch (e) { /* offline */ }
+    const data = await authenticatedFetch("turns");
+    if (!data) return;
+    for (const t of [...(data.sign_out || []), ...(data.holding || [])]) {
+      if (!await signOutOf(t.hosts)) return;
+    }
+  } catch (e) { return; }
   S.holding = {};
   await chrome.storage.local.set({ holding: {} });
 }
 
 function hostnameOf(url) {
-  try { const u = new URL(url); return u.protocol.startsWith("http") ? u.hostname.toLowerCase() : null; }
+  try { const u = new URL(url); return ["http:", "https:"].includes(u.protocol) ? u.hostname.toLowerCase() : null; }
   catch (e) { return null; }
 }
 
@@ -104,23 +124,27 @@ function governed(hostname) {
 }
 
 async function gate(path, body) {
-  const res = await fetch(S.base + "/api/gate/" + path, {
+  return authenticatedFetch(path, {
     method: "POST",
-    headers: { "authorization": "Bearer " + S.token, "x-swangz-app": "1", "content-type": "application/json" },
+    headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (res.status === 401) { await signOut(); return null; }
-  return res.ok ? res.json() : null;
+}
+
+function blockForSignIn(tabId) {
+  const params = new URLSearchParams({ signin: "1", app: S.base || "" });
+  return chrome.tabs.update(tabId, { url: chrome.runtime.getURL("blocked.html") + "#" + params });
 }
 
 async function onNavigate(tabId, url) {
-  if (!S.base || !S.token) return;
+  await ready;
   const host = hostnameOf(url);
   if (!governed(host)) { endTab(tabId); return; }
+  if (!S.base || !S.token) { await blockForSignIn(tabId); return; }
   let r;
-  try { r = await gate("open", { host }); } catch (e) { return; }
-  if (!r || !r.known) return;
-  if (r.allowed) {
+  try { r = await gate("open", { host }); } catch (e) { /* unavailable: no allow decision */ }
+  if (!S.token || !r || !r.known) { await blockForSignIn(tabId); return; }
+  if (r.allowed === true) {
     S.open[tabId] = { id: r.id, since: Date.now() };
     await chrome.storage.session?.set?.({ ["open_" + tabId]: S.open[tabId] }).catch(() => {});
   } else {
@@ -143,9 +167,19 @@ async function endTab(tabId) {
 }
 
 async function signOut() {
-  S.base = S.token = null; S.hosts = {}; S.open = {}; S.holding = {};
-  await chrome.storage.local.remove(["token", "holding"]);
-  updateBadge(false);
+  if (signingOut) return signingOut;
+  signingOut = (async () => {
+    S.token = null; S.open = {};
+    await chrome.storage.local.remove("token");
+    // Keep base/hosts/policy to guard known sites and offer the correct sign-in.
+    // Clear held account data before discarding the state needed to find it.
+    if (await clearHeldSites()) {
+      S.holding = {};
+      await chrome.storage.local.remove("holding");
+    }
+    updateBadge(false);
+  })();
+  try { await signingOut; } finally { signingOut = null; }
 }
 
 function updateBadge(on) {
@@ -172,6 +206,7 @@ chrome.tabs.onRemoved.addListener((tabId) => endTab(tabId));
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   (async () => {
+    await ready;
     if (msg.type === "status") {
       await loadConfig();
       await syncTurns();
@@ -185,4 +220,5 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   return true;
 });
 
-loadConfig().then((ok) => { updateBadge(ok); if (ok) syncTurns(); });
+const ready = loadConfig();
+ready.then((ok) => { updateBadge(ok); if (ok) syncTurns(); });
