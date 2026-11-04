@@ -10,6 +10,9 @@ import re
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
+COMPANY_DOMAIN = "swangzavenue.com"
+# The two explicitly approved owner identities. Fixed in code on purpose: nothing configurable can widen this list.
+OWNER_EXCEPTIONS = frozenset({"arnoldkigozi0@gmail.com", "marvinmusokessekatawa@gmail.com"})
 RESERVED_NAMES = {"admin", "api", "static", "healthz", "favicon.ico", "auth", "go", "icons"}
 
 
@@ -94,6 +97,8 @@ class Settings:
     bootstrap_password: str = ""
     providers: dict = field(default_factory=dict)
     # Explicit owner exceptions approved by the organisation; legacy environment overrides cannot widen this.
+    # The one company domain: GATEWAY_COMPANY_DOMAIN, default swangzavenue.com. Not editable in the console.
+    company_domain: str = COMPANY_DOMAIN
     email_domains: tuple = ("swangzavenue.com",)
     email_exceptions: frozenset = frozenset({"arnoldkigozi0@gmail.com", "marvinmusokessekatawa@gmail.com"})
     # The address people open the apps at, when it differs from the gateway's own (e.g. a Netlify site
@@ -129,8 +134,21 @@ class Settings:
         email = (email or "").strip().lower()
         if not re.fullmatch(r"[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+", email):
             return False
-        return email.rsplit("@", 1)[1] == "swangzavenue.com" or email in {
-            "arnoldkigozi0@gmail.com", "marvinmusokessekatawa@gmail.com"}
+        return email.rsplit("@", 1)[1] == self.company_domain or email in OWNER_EXCEPTIONS
+
+    def google_account_allowed(self, claims):
+        """Is this verified Google identity a company account? Decided from the ID token Google returned for our own
+        code exchange, never from the `hd` hint in the sign-in URL (which the person controls). A company address needs
+        Google's own `hd` claim to name the company domain; the two approved owner addresses are exact matches."""
+        if not isinstance(claims, dict) or claims.get("email_verified") not in (True, "true"):
+            return False
+        email = str(claims.get("email") or "").strip().lower()
+        if not self.email_allowed(email):
+            return False
+        if email in OWNER_EXCEPTIONS:
+            return True
+        hd = claims.get("hd")
+        return isinstance(hd, str) and hd.strip().lower() == self.company_domain and email.endswith("@" + self.company_domain)
 
     def email_rule(self):
         return "Accounts use an @swangzavenue.com work email."
@@ -178,6 +196,7 @@ class Settings:
             bootstrap_admin=env.get("GATEWAY_BOOTSTRAP_ADMIN", ""),
             bootstrap_password=env.get("GATEWAY_BOOTSTRAP_PASSWORD", ""),
             providers=providers,
+            company_domain=_company_domain(env.get("GATEWAY_COMPANY_DOMAIN")),
             web_url=env.get("GATEWAY_WEB_URL", "").strip().rstrip("/"),
             google_client_id=env.get("GOOGLE_CLIENT_ID", "").strip(),
             google_client_secret=env.get("GOOGLE_CLIENT_SECRET", "").strip(),
@@ -190,6 +209,15 @@ class Settings:
             turn_urls=tuple(u.strip() for u in env.get("GATEWAY_TURN_URLS", "").split(",") if u.strip()),
             turn_secret=env.get("GATEWAY_TURN_SECRET", "").strip(),
         )
+
+
+def _company_domain(value):
+    value = (value or "").strip().lower()
+    if not value:
+        return COMPANY_DOMAIN
+    if not re.fullmatch(r"[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+", value):
+        raise ValueError("GATEWAY_COMPANY_DOMAIN must be a plain domain name such as swangzavenue.com")
+    return value
 
 
 def load_provider_file(path):

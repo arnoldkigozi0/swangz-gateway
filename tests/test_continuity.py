@@ -33,6 +33,10 @@ class Continuity(Lifecycle):
             headers["authorization"] = "Bearer " + bearer
         return self.rig.request("GET", "/api/me", None, headers)[0]
 
+    def strict(self, cookie):
+        """A route the paused view does not include: Studio."""
+        return self.rig.request("GET", "/api/studio", None, {"x-swangz-app": "1", "cookie": cookie})[0]
+
     def gate(self, bearer):
         return self.rig.request("GET", "/api/gate/config", None, {"x-swangz-app": "1", "authorization": "Bearer " + bearer})[0]
 
@@ -54,35 +58,43 @@ class Continuity(Lifecycle):
 class SessionIsCheckedEveryRequest(Continuity):
     def test_a_suspended_person_s_existing_session_and_extension_token_open_nothing(self):
         token = self.extension_token()
-        self.assertEqual((self.me(self.person_cookie), self.me(bearer=token), self.gate(token)), (200, 200, 200))
+        self.assertEqual((self.strict(self.person_cookie), self.me(self.person_cookie), self.gate(token)), (200, 200, 200))
         self.set_person(status="suspended")  # not through the admin route, which deletes sessions: the check is per request
-        self.assertEqual((self.me(self.person_cookie), self.me(bearer=token), self.gate(token)), (401, 401, 401))
+        # the web session keeps only the read-only paused view; the extension token opens nothing
+        self.assertEqual((self.strict(self.person_cookie), self.me(self.person_cookie), self.gate(token)), (403, 200, 401))
         self.set_person(status="active")  # the rows were never touched, so restoring the person restores the sessions
-        self.assertEqual((self.me(self.person_cookie), self.me(bearer=token), self.gate(token)), (200, 200, 200))
+        self.assertEqual((self.strict(self.person_cookie), self.me(self.person_cookie), self.gate(token)), (200, 200, 200))
 
     def test_ended_access_opens_nothing_and_a_later_end_date_does_not(self):
         token = self.extension_token()
         self.set_person(access_until=time.time() - 5)
-        self.assertEqual((self.me(self.person_cookie), self.me(bearer=token), self.gate(token)), (401, 401, 401))
+        # ended access is not a paused view: the web session opens nothing at all
+        self.assertEqual((self.strict(self.person_cookie), self.me(self.person_cookie), self.gate(token)), (401, 401, 401))
         self.set_person(access_until=time.time() + 3600)
-        self.assertEqual((self.me(self.person_cookie), self.me(bearer=token)), (200, 200))
+        self.assertEqual((self.me(self.person_cookie), self.gate(token)), (200, 200))
 
     def test_a_personal_address_outside_the_allowed_accounts_opens_nothing(self):
         self.set_person(email="grace@gmail.com")
         self.assertEqual(self.me(self.person_cookie), 401)
 
-    def test_signing_in_is_refused_with_the_right_password_for_a_suspended_or_ended_person(self):
+    def test_a_suspended_person_signs_in_to_the_paused_view_only_and_an_ended_one_not_at_all(self):
         self.set_person(status="suspended")
         before = self.sessions()
-        for path in ("/login", "/extension/login"):
-            status, out = self.staff("POST", path, {"email": EMAIL, "password": PASSWORD}, cookie="")
-            self.assertEqual((status, out.get("code")), (403, "person_paused"), path)
-        self.assertEqual(self.sessions(), before)  # nothing was minted
+        status, h, payload = self.rig.request("POST", "/api/login", {"email": EMAIL, "password": PASSWORD}, {"x-swangz-app": "1"})
+        self.assertEqual(status, 200, payload)
+        self.assertTrue(json.loads(payload)["paused"])
+        self.assertEqual(self.sessions(), before + 1)
+        cookie = h["set-cookie"].split(";")[0]
+        self.assertEqual((self.me(cookie), self.strict(cookie)), (200, 403))
+        self.assertEqual(len(self.audits("signed in to Swangz AI Hub (access paused: read-only view)")), 1)
+        # the browser extension still refuses a paused person
+        status, out = self.staff("POST", "/extension/login", {"email": EMAIL, "password": PASSWORD}, cookie="")
+        self.assertEqual((status, out.get("code")), (403, "person_paused"))
+        self.assertEqual(self.sessions(), before + 1)
         self.set_person(status="active", access_until=time.time() - 5)
         for path in ("/login", "/extension/login"):
             self.assertEqual(self.staff("POST", path, {"email": EMAIL, "password": PASSWORD}, cookie="")[0], 403, path)
-        self.assertEqual(self.sessions(), before)
-        self.assertEqual(self.audits("signed in to Swangz AI Hub"), [])
+        self.assertEqual(self.sessions(), before + 1)
         self.assertEqual(self.audits("connected the access extension"), [])
 
     def test_a_wrong_password_still_says_the_same_thing_whatever_the_status(self):
@@ -130,7 +142,7 @@ class DisconnectingADeviceLeavesTheWebAlone(Continuity):
         self.assertTrue(all(t.reason for t in tickets))
         self.assertFalse(mine.reason)
         self.assertEqual(self.sessions(), sessions)
-        self.assertEqual((self.me(self.person_cookie), self.me(other), self.me(bearer=ext)), (200, 200, 200))
+        self.assertEqual((self.me(self.person_cookie), self.me(other), self.gate(ext)), (200, 200, 200))
         entry, before, after = self.entry("disconnected a device%")
         self.assertEqual(entry["correlation"], f"device:{self.device_id}")
         self.assertEqual(sorted(before["keys"]), sorted([self.device["key_id"], out["key_id"]]))
@@ -183,7 +195,7 @@ class SigningOutEndsOneSession(Continuity):
         self.assertEqual(status, 200)
         self.assertIn("sgw_staff=;", h["set-cookie"].replace(" ", ""))
         self.assertEqual(self.me(self.person_cookie), 401)
-        self.assertEqual((self.me(other), self.me(bearer=ext), self.manifest()[0]), (200, 200, 200))
+        self.assertEqual((self.me(other), self.gate(ext), self.manifest()[0]), (200, 200, 200))
         self.assertEqual(self.sessions(), 2)
         self.assertEqual(self.unrevoked(), 1)
         entry, before, after = self.entry("signed out of the web app")

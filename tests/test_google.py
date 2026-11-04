@@ -77,7 +77,9 @@ class GoogleSignInTests(unittest.TestCase):
 
     def finish(self, q, cookie, email="grace@swangzavenue.com", **over):
         self.google.claims = {"iss": "https://accounts.google.com", "aud": CLIENT, "exp": time.time() + 600,
-                              "nonce": q["nonce"], "email": email, "email_verified": True, "name": "Test", **over}
+                              "nonce": q["nonce"], "email": email, "email_verified": True, "name": "Test", "hd": "swangzavenue.com", **over}
+        for k in [k for k, v in over.items() if v is None]:
+            del self.google.claims[k]  # a test passes hd=None to send a token with no hd claim at all
         status, h, _ = self.rig.request("GET", f"/auth/google/callback?state={q['state']}&code=one-time-code", None, {"cookie": cookie})
         self.assertEqual(status, 302)
         cookies = h.get("set-cookie", "")
@@ -140,10 +142,79 @@ class GoogleSignInTests(unittest.TestCase):
             self.assertEqual(where, expected, over)
             self.assertNotIn("sgw_staff=", cookies.replace("sgw_staff=;", ""))
 
-    def test_suspended_people_are_refused(self):
+    def test_a_suspended_person_gets_the_read_only_paused_view_and_an_ended_one_is_refused(self):
         self.rig.gw.db.x("UPDATE people SET status = 'suspended' WHERE id = ?", (self.rig.person_id,))
         q, cookie = self.begin()
+        where, cookies = self.finish(q, cookie)
+        self.assertEqual(where, "/")
+        session = next(c.split(";")[0] for c in cookies.split(", ") if c.startswith("sgw_staff="))
+        status, _, body = self.rig.request("GET", "/api/me", None, {"cookie": session})
+        self.assertEqual((status, json.loads(body)["paused_view"]), (200, True))
+        self.assertEqual(self.rig.request("GET", "/api/studio", None, {"cookie": session})[0], 403)
+        self.assertTrue(self.rig.gw.db.one("SELECT 1 FROM audit WHERE action = 'signed in with Google (access paused: read-only view)'"))
+        self.rig.gw.db.x("UPDATE people SET status = 'active', access_until = ? WHERE id = ?", (time.time() - 5, self.rig.person_id))
+        q, cookie = self.begin()
         self.assertEqual(self.finish(q, cookie)[0], "/?auth_error=paused")
+
+    def test_the_company_account_check_uses_the_hd_claim_in_the_id_token(self):
+        cases = [  # (email, hd claim or None, where it should land for the staff app)
+            ("grace@swangzavenue.com", "swangzavenue.com", "/"),                     # right hd
+            ("grace@swangzavenue.com", None, "/?auth_error=not_allowed"),             # no hd claim
+            ("grace@swangzavenue.com", "evil.example", "/?auth_error=not_allowed"),   # wrong hd
+            ("grace@swangzavenue.com", "SwangzAvenue.com", "/"),                      # hd is compared without case
+            ("grace@swangzavenue.com.evil.example", "swangzavenue.com", "/?auth_error=not_allowed"),  # right hd, wrong suffix
+            ("grace@evil.swangzavenue.com", "swangzavenue.com", "/?auth_error=not_allowed"),
+            ("someone@gmail.com", None, "/?auth_error=not_allowed"),                  # an hd-less Gmail
+            ("someone@gmail.com", "swangzavenue.com", "/?auth_error=not_allowed"),
+        ]
+        for email, hd, expected in cases:  # refusals come before any account lookup, so only grace needs an account
+            q, cookie = self.begin()
+            where, cookies = self.finish(q, cookie, email=email, hd=hd)
+            self.assertEqual(where, expected, (email, hd))
+            if expected != "/":
+                self.assertNotIn("sgw_staff=", cookies.replace("sgw_staff=;", ""))
+
+    def test_the_url_hint_is_never_trusted(self):
+        q, cookie = self.begin()
+        self.assertNotIn("hd", q)  # we send no hd hint; and the callback only ever reads the token's claim
+        where, _ = self.finish(q, cookie, hd=None)
+        self.assertEqual(where, "/?auth_error=not_allowed")
+        q, cookie = self.begin()
+        status, h, _ = self.rig.request("GET", f"/auth/google/callback?state={q['state']}&code=c&hd=swangzavenue.com",
+                                        None, {"cookie": cookie})
+        self.assertEqual(status, 302)  # the hint in the address changes nothing
+
+    def test_the_two_owner_exceptions_need_only_a_verified_exact_match_and_no_hd(self):
+        db = self.rig.gw.db
+        for email in ("arnoldkigozi0@gmail.com", "marvinmusokessekatawa@gmail.com", "ArnoldKigozi0@Gmail.com"):
+            q, cookie = self.begin("admin")
+            if email.lower() == "marvinmusokessekatawa@gmail.com":
+                db.x("INSERT INTO admins(username, pw_hash, role, created) VALUES(?,?,?,?)",
+                     (email, security.hash_password("x" * 12, 1000), "viewer", time.time()))
+            where, cookies = self.finish(q, cookie, email=email, hd=None)
+            self.assertEqual(where, "/admin", email)
+            self.assertIn("sgw_admin=", cookies)
+        q, cookie = self.begin("admin")  # unverified: refused even for an exception
+        self.assertEqual(self.finish(q, cookie, email="arnoldkigozi0@gmail.com", hd=None, email_verified=False)[0], "/admin?auth_error=google")
+        for lookalike in ("arnoldkigozi0+x@gmail.com", "arnold.kigozi0@gmail.com", "arnoldkigozi0@gmail.com.evil.example"):
+            q, cookie = self.begin("admin")
+            self.assertEqual(self.finish(q, cookie, email=lookalike, hd=None)[0], "/admin?auth_error=not_allowed", lookalike)
+
+    def test_a_refusal_is_audited_without_a_token(self):
+        q, cookie = self.begin()
+        self.finish(q, cookie, email="grace@swangzavenue.com", hd="evil.example")
+        row = self.rig.gw.db.one("SELECT * FROM audit WHERE action = 'Google sign-in refused'")
+        self.assertEqual(row["detail"], "not a company Google account")
+        dump = json.dumps(self.rig.gw.db.q("SELECT * FROM audit"), default=str)
+        for secret in ("one-time-code", "secret-xyz", self.google.claims["nonce"]):
+            self.assertNotIn(secret, dump)
+
+    def test_the_domain_is_one_environment_value_with_an_unchanged_default(self):
+        from gateway.config import Settings
+        self.assertEqual(Settings().company_domain, "swangzavenue.com")
+        self.assertEqual(Settings.from_env({"GATEWAY_COMPANY_DOMAIN": "Example.org"}).company_domain, "example.org")
+        with self.assertRaises(ValueError):
+            Settings.from_env({"GATEWAY_COMPANY_DOMAIN": "bad domain/x"})
 
     def test_state_must_match_this_browser_and_is_single_use(self):
         q, cookie = self.begin()
