@@ -175,3 +175,4 @@ Last updated: 2026-11-04. Coordination branch: `team/log`. Product baseline: mai
 - Chief opened PR #12 from `feature/device-lifecycle-v22`: https://github.com/arnoldkigozi0/swangz-gateway/pull/12. Next step: CI green, then list it in the 22:00 report.
 - Queued for Prism (not yet assigned): G3b client follow-up (persist the new key first, "Reconnect this device" on device_key_rotated, send key_backend), then the PR #10 credential statement update to 865250c.
 - 10:05 Assigned to Prism: G3b client rotation on new `feature/client-key-rotation` from 865250c (stacked on PR #11). Probe verifies and Sentinel reviews before a PR.
+- 10:10 Prism hit "out of credits" before starting; client rotation reassigned to Forge (Claude engine), same branch and brief. Retry Prism at the next heartbeat for its later tasks (PR #10 credential statement update).
