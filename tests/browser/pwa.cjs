@@ -152,9 +152,46 @@ test("manifest is installable standalone from /", () => {
   assert.ok(read("index.html").includes('<link rel="manifest" href="/static/hub.webmanifest">'));
 });
 
-test("staff sign-out reloads to a clean page after the server ends the session", () => {
+// Runs portal.js's own signOut() with a mocked api, toast, location and storage.
+function runSignOut(apiResult) {
   const src = read("portal.js");
-  const body = src.slice(src.indexOf("async function signOut()"), src.indexOf("// ------------------------------------------------------------------ start"));
-  assert.match(body, /api\("POST", "\/logout"\)/);
-  assert.ok(body.indexOf('"/logout"') < body.indexOf('location.replace("/")'), "logout before reload");
+  const start = src.indexOf("  async function signOut()");
+  assert.ok(start > 0, "signOut found");
+  let depth = 0, end = src.indexOf("{", start);
+  for (; end < src.length; end++) { if (src[end] === "{") depth++; else if (src[end] === "}" && --depth === 0) break; }
+  const calls = { api: [], toasts: [], replaced: [], removed: [] };
+  const store = new Map([["swangz-studio-purpose", "marketing"], ["swangz-theme", "light"]]);
+  const ctx = {
+    S: { me: { email: "a@swangzavenue.com" }, studio: { items: [1] } },
+    api: async (method, p) => { calls.api.push([method, p]); return apiResult(); },
+    toast: (m, bad) => calls.toasts.push([m, !!bad]),
+    location: { replace: (u) => calls.replaced.push(u) },
+    localStorage: { removeItem: (k) => { calls.removed.push(k); store.delete(k); } },
+  };
+  vm.runInNewContext(src.slice(start, end + 1) + "\nthis.signOut = signOut;", ctx);
+  return { run: () => ctx.signOut(), calls, ctx, store };
+}
+
+test("sign-out success ends the session, forgets the Studio purpose, then reloads a clean page", async () => {
+  const t = runSignOut(() => ({ ok: true }));
+  await t.run();
+  assert.deepEqual(t.calls.api, [["POST", "/logout"]]);
+  assert.deepEqual(t.calls.replaced, ["/"]);
+  assert.deepEqual(t.calls.toasts, []);
+  assert.equal(t.ctx.S.me, null);
+  assert.equal(t.ctx.S.studio, null);
+  assert.equal(t.store.has("swangz-studio-purpose"), false);
+  assert.equal(t.store.get("swangz-theme"), "light", "theme preference kept");
 });
+
+for (const [label, fail] of [["offline", { status: 0, message: "Swangz AI Hub can't be reached." }], ["server error", { status: 503, message: "Unavailable" }]]) {
+  test(`sign-out failure (${label}) says so and does not reload`, async () => {
+    const t = runSignOut(() => { throw Object.assign(new Error(fail.message), { status: fail.status }); });
+    await t.run();
+    assert.deepEqual(t.calls.api, [["POST", "/logout"]]);
+    assert.deepEqual(t.calls.toasts, [["Couldn't sign out. Try again.", true]]);
+    assert.deepEqual(t.calls.replaced, [], "no reload");
+    assert.ok(t.ctx.S.me, "still signed in on screen");
+    assert.equal(t.store.get("swangz-studio-purpose"), "marketing");
+  });
+}
