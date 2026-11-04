@@ -30,9 +30,10 @@ Last updated: 2026-11-04 22:00. Coordination branch: `team/log`. Product baselin
 
 ## Decisions awaiting Arnold
 
-- G5 continuity: suspended or access-ended people are now refused everywhere (401; 403 person_paused at login), so the "access paused" page, /hub/reports and /hub/help (previously kept open for suspended staff, per an old test comment) go away. Keep that, or keep a read-only paused view?
+- DECIDED 5 Nov 00:47 (Arnold): keep a read-only "access paused" view for suspended or access-ended staff (no tool access, no changes). Was: refuse them everywhere.
 
-- G5 continuity migration v23 (separate web/extension sessions): OK to delete all existing staff sessions once (everyone signs in again once)? If no, existing rows become `extension` (fewest permissions) and web users re-sign-in when pages fail.
+- v23 session kinds: Arnold was not explicit on a one-time sign-out and left the rest to the team ("do the best"). Chief's call, since deleting production data needs his yes: no mass delete; existing session rows become `extension` (fewest permissions) and web users sign in again when a page refuses. Reported back at 22:00.
+- Accounts (Arnold, 5 Nov): staff sign in with their company Google accounts; paid tool accounts are set up by an admin. He wrote "swangz.com"; the standing rule is @swangzavenue.com plus two owner exceptions. Domain unchanged until he confirms which domain is meant.
 
 - Decide D-011: console password login off when Google is configured, with server-shell break-glass; if password login stays, require TOTP. This changes Arnold's sign-in and must not be activated without his agreement.
 - Confirm whether Windows Authenticode and Apple Developer ID/notarization accounts or certificates are available, and approve any associated budget before purchase or account changes.
@@ -263,3 +264,4 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 - After each base merges, retarget its child to main before merging it (`gh pr edit N --base main`).
 - New for Arnold: delete superseded `feature/mobile-readiness` (a58699b) and the stray local `feature/device-releases` ref (54cbe7d) along with `feature/device-credential-lifecycle`.
 - docs/STATE.md is stale (31 Oct, schema v20/v21); docs sweep after merges. Coordination-only update; tests not run by Chief.
+- 2026-11-05 00:50 Arnold's answers recorded (read-only paused view kept; accounts note). No merges named. Sentinel asked for the G5 continuity part 2 threat note (v23 session kinds without deleting sessions, read-only paused view, Google `hd` check); Forge builds after it.
