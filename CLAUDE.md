@@ -353,7 +353,9 @@ migration. Probe VERIFIED this exact artifact outside the sandbox with
 **104 tests in 67.4s, OK (skipped=14 Tk/display), exit 0**. This is Probe's recorded evidence.
 Sentinel APPROVED the same artifact; Hub CI run `41506599142` passed Python 3.10/3.12, browser
 and app-window checks. Native credential stores, Windows DACL/macOS ACL checks and real vendor
-clients remain unverified. Managed Claude and Windows managed Codex remain gated.
+clients remain unverified. Managed Claude, Windows managed Codex and managed Codex on Python 3.10
+(scoped mode; `swangz_client/agents.py:204`) remain gated. Every fix produces a new artifact requiring
+renewed Probe verification and Sentinel review before proceeding.
 Key rotation follows in PR #12 (server, schema v22) and PR #13 (client); neither is merged.
 Canonical main baseline supplied by Arnold: **426 tests in 1191.8s, OK (skipped=13), exit 0**.
 Not run for this documentation update: Python, browser, native platform or live-provider checks.
