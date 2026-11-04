@@ -235,3 +235,15 @@ Last updated: 2026-11-04. Coordination branch: `team/log`. Product baseline: mai
 - 2026-11-04 17:30 Probe VERIFIED feature/mobile-signout 94b6cd4/c4edcb9: pwa.cjs 11/11, syntax.py 24 files, revert fails 9-11, mutations caught, checks.yml parses. Not run: Actions run, devices. Chief opened PR #25 (base feature/mobile-readiness-g7, stacked on #24). MOBILE-READINESS.md update still owed.
 - 2026-11-04 19:16 Heartbeat: PR #24 and #25 CI green (run 41848281412 incl. browser job running pwa.cjs), closing #25's "Not run: Actions" gap. No commits since 17:30. Prism assigned MOBILE-READINESS.md sign-out update on new feature/mobile-signout-docs from 94b6cd4 (#24/#25 heads unchanged). #9, #11–#25 wait for Arnold at 22:00.
 - 2026-11-04 19:18 Prism pushed feature/mobile-signout-docs ceb33c7 (tree 9ff5820, one commit on 94b6cd4, docs/MOBILE-READINESS.md only, +18/-5, no trailer): failed sign-out stays with error, success clears studio purpose, pwa.cjs 11 tests in CI (run 41848281412), new device check "failed sign-out on a real phone" Not run. Chief read the diff: matches 94b6cd4 behaviour. #24/#25 heads unchanged. PR after #24/#25 decision.
+
+## 20:50 consolidation and plan for 5 November
+
+State at 20:50: no work running, no commits since 19:18. PRs #9, #11–#20 and #22–#25 are verified, approved where critical, with CI green at the last heartbeat (#21 is a draft CI helper). Merge order follows each PR's base: #11 → #13 → #14 → #15 → #16 → #17 → #18; #12 → #19 → #20 → #21/#22 → #23; #24 → #25. Prism's `feature/mobile-signout-docs` (ceb33c7) gets its PR after #24/#25 are decided. The 22:00 report lists these for Arnold's named approval.
+
+Plan for 5 November. Each task can start without Arnold's merges; anything that needs a merged main waits for it.
+- 08:00 Probe: research the Google OIDC `hd` claim and the device-code phishing guidance (F-07, F-05/D-009) from official docs only; short note for Sentinel.
+- 09:00 Forge: small follow-ups on a new branch from `ec83d59`: rotation and reissue revokes in the revoked-key timeline; CLAUDE.md schema note v21 → v22. If Arnold has answered the v23 sign-out questions, G5 continuity part 2 (session kinds) instead, after a Sentinel threat note.
+- 09:00 Sentinel (light): D-002 addendum in docs/DECISIONS.md on `docs/architecture-review` (rotation rulings of 4 Nov).
+- 14:00 Prism: PR #10 credential statement updated to 865250c/tree 6edfcd5 with Probe's 104-test record; then the client Low (a crash between promote and old-item delete leaves a dead keychain item) on a branch from 37252fe.
+- 17:00 After any merges, Probe runs the full suite once on the new main (integration milestone) and records exact output; Chief retargets the stacked PRs whose base has merged.
+- Waiting on Arnold: v23 sign-out decisions, paused-view decision, D-011, signing accounts/budget, deleting the old branch `feature/device-credential-lifecycle` (5fc37c7, superseded by `feature/device-lifecycle-v22`).
