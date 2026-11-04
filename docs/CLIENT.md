@@ -121,7 +121,15 @@ Build a standalone program for the computer you are on (it carries its own Pytho
 pip install pyinstaller && python3 packaging/build.py
 ```
 
-See `packaging/README.md` for installers and signing.
+The manual `build-app.yml` Actions workflow builds Linux, Windows and macOS standalone apps,
+smokes each packaged executable against an isolated local gateway, and uploads archives named
+**UNSIGNED-TEST** with SHA-256 sidecars and per-OS smoke reports (seven-day retention). The smoke
+covers frozen imports and a hidden sign-in window, device-code sign-in, sync, credential read and
+sign-out. Windows' windowed executable reports its offline check through
+`Swangz.exe --self-check REPORT.json`; it has no console output. Updates remain disabled with no
+production keys. These artifacts have no trusted publisher signature; installers, code signing
+and notarization need separate decisions. See `packaging/README.md` for the build procedure,
+verification limits and pending tooling decisions.
 
 ## Not built yet (in rough priority)
 
