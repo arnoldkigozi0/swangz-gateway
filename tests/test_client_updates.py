@@ -500,6 +500,68 @@ class UpdateTests(unittest.TestCase):
         self.assertTrue(artifact.stat().st_mode & stat.S_IWRITE)
         self.assertIn(call(artifact), protect.call_args_list)
 
+    def test_windows_interrupted_self_test_renames_running_candidate_before_restore_and_restart(self):
+        self.u._paths()
+        running = updater.Updater(self.client, running="0.2.0")
+        running.target = running.app / "Swangz.exe"
+        running.prev = running.app / "Swangz.prev.exe"
+        running.failed = running.app / "Swangz.failed.exe"
+        old = b"previous working application"
+        running.prev.write_bytes(old)
+        running.target.write_bytes(self.payload)
+        running._state(highest="0.1.0")
+        running._journal({"phase": "new_moved", "version": "0.2.0", "nonce": "interrupted-test",
+                          "sha256": hashlib.sha256(self.payload).hexdigest(),
+                          "old_sha256": hashlib.sha256(old).hexdigest()})
+        path_type = type(running.target)
+        replace, rename, unlink = os.replace, os.rename, path_type.unlink
+        events, loaded = [], {"failed": False}
+
+        def windows_replace(source, destination):
+            if path_type(destination) == running.target:
+                if running.target.exists():
+                    raise PermissionError("Cannot replace a loaded executable")
+                events.append("restore")
+            return replace(source, destination)
+
+        def windows_rename(source, destination):
+            self.assertEqual((path_type(source), path_type(destination)), (running.target, running.failed))
+            events.append("rename-running-aside")
+            loaded["failed"] = True
+            return rename(source, destination)
+
+        def windows_unlink(path, *args, **kwargs):
+            if path == running.failed and loaded["failed"]:
+                raise PermissionError("Failed image is still loaded by recovery process")
+            return unlink(path, *args, **kwargs)
+
+        with patch.object(updater.os, "name", "nt"), patch.object(sys, "executable", str(running.target)), \
+                patch.object(keystore, "Path", path_type), patch.object(keystore, "protect_windows_file"), \
+                patch.object(running, "locked", side_effect=lambda: nullcontext()), \
+                patch.object(updater.os, "replace", side_effect=windows_replace), \
+                patch.object(updater.os, "rename", side_effect=windows_rename), \
+                patch.object(path_type, "unlink", windows_unlink), \
+                patch.object(self.client, "updater", return_value=running), \
+                patch.object(cli.subprocess, "Popen") as restart:
+            self.assertEqual(cli.main(["status"], client=self.client), 1)
+            self.assertEqual(events, ["rename-running-aside", "restore"])
+            self.assertEqual(restart.call_args.args[0], [str(running.target), "status"])
+            self.assertEqual(running.target.read_bytes(), old)
+            self.assertEqual(running.failed.read_bytes(), self.payload)
+            self.assertFalse(running.prev.exists())
+            self.assertFalse((running.root / "pending.json").exists())
+            state = running._read("state.json")
+            self.assertEqual(state["highest"], "0.1.0")
+            self.assertEqual(state["failed_version"], "0.2.0")
+            self.assertEqual(state["status"], "update_failed")
+            # A prompt restart can race the old process's exit; defer cleanup.
+            self.assertFalse(running.recover())
+            self.assertTrue(running.failed.exists())
+            loaded["failed"] = False
+            self.assertFalse(running.recover())
+            self.assertFalse(running.failed.exists())
+            self.assertEqual(running._read("state.json")["highest"], "0.1.0")
+
     @unittest.skipUnless(os.name == "posix", "portable script fixture requires a POSIX shebang; native builds await CI")
     def test_valid_end_to_end_launch_self_test_accept_restart_then_sync_removes_one_prev(self):
         # This is a signed TEST executable, not downloaded/third-party program content.
