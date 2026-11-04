@@ -424,9 +424,9 @@ def device_package(ctx, pid, version):
 def device_signout(ctx):
     """The app signs itself out: this device's key is revoked, exactly like "disconnect this device"."""
     person, device, key = device_key_auth(ctx)
-    ids, _ = credentials.revoke_device_keys(ctx.db, ctx.gw.live, key["id"], "device", "this device was signed out.")
+    ids, cut = credentials.revoke_device_keys(ctx.db, ctx.gw.live, key["id"], "device", "this device was signed out.")
     ctx.gw.audit(person["name"], "signed a device out of Swangz", person["name"], device["name"], ctx.ip,
-                 before={"keys": ids}, correlation=f"device:{device['device_id']}")
+                 before={"keys": ids}, after={"keys_revoked": len(ids), "requests_cut": cut}, correlation=f"device:{device['device_id']}")
     return {"ok": True}
 
 

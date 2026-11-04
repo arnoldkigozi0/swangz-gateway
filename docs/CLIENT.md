@@ -113,6 +113,17 @@ and the key. `swangz logout` (or the button) tells the server first, so the key 
 does the same. If the server can't be reached the local removal still happens and the app says to have an admin
 disconnect the key.
 
+Disconnecting a device (the person's button, an admin, or `swangz logout`) ends **every** key of that device, including both
+keys during a rotation grace, and cuts its requests in flight. It never touches web or extension sessions, and signing out of
+the web app ends only that one session. A device key is never a web session and a web session or extension token is never a
+device key: each is refused on the other's endpoints. Each action is one audit entry with `before` (key ids) / `after`
+(counts), correlated `device:<id>` or `person:<id>`, and no token.
+
+A web session is checked against the person on every request: a suspended person, or one whose `access_until` has passed, gets
+`401` from any signed-in endpoint (the session row stays, so restoring them restores it). `POST /api/login` and
+`POST /api/extension/login` with the right password for such a person answer `403 {"code": "person_paused"}` and start nothing;
+a wrong password is still the same `401` whatever the status.
+
 ## The app
 
 `swangz` opens the window: a dock down the left (Home, Apps, Packages, This device), sign-in, sync every 15
