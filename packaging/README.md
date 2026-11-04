@@ -34,6 +34,9 @@ working directory without source Python paths. It uses the existing isolated gat
 No external provider is contacted, and no credential backend is mocked in the executable.
 The browser launch is redirected to a no-op process; the driver approves the code using
 the real local gateway's authenticated device page.
+When the runner has no IANA timezone database (Windows), the driver supplies a
+temporary fixed EAT/UTC+03:00 TZif fixture for the gateway. It is not shipped in the
+client and does not verify historical timezone rules or require a tzdata dependency.
 
 The smoke checks:
 

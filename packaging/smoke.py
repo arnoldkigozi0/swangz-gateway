@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import platform
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -29,7 +30,22 @@ def smoke(binary, report_path):
     report = {"os": platform.system(), "arch": platform.machine(), "steps": [], "ok": False}
     fixture = DeviceBase()
     initialized = False
+    timezone_dir = tempfile.TemporaryDirectory(prefix="swangz-smoke-timezone-")
     try:
+        # Windows has no system IANA database. Supply only the gateway fixture's
+        # current fixed EAT offset, not a runtime client dependency or a claim
+        # about historical timezone rules. The desktop itself needs no tzdata.
+        from zoneinfo import TZPATH, ZoneInfo, ZoneInfoNotFoundError, reset_tzpath
+        try:
+            ZoneInfo("Africa/Kampala")
+            report["gateway_timezone"] = "system Africa/Kampala"
+        except ZoneInfoNotFoundError:
+            zone = Path(timezone_dir.name) / "Africa" / "Kampala"
+            zone.parent.mkdir(parents=True)
+            zone.write_bytes(b"TZif\x00" + b"\x00" * 15 + struct.pack(">6l", 0, 0, 0, 0, 1, 4)
+                             + struct.pack(">lbb", 3 * 3600, 0, 0) + b"EAT\x00")
+            reset_tzpath([timezone_dir.name, *TZPATH])
+            report["gateway_timezone"] = "fixture fixed EAT UTC+03:00 (current smoke only)"
         fixture.setUp()
         initialized = True
         rig = fixture.rig
@@ -120,6 +136,7 @@ def smoke(binary, report_path):
         if initialized:
             fixture.tearDown()
             shutil.rmtree(fixture.tmp, ignore_errors=True)
+        timezone_dir.cleanup()
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
