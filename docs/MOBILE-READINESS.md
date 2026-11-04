@@ -2,7 +2,8 @@
 
 Review of the staff web app as an installable app on phones and desktops: `gateway/static/hub.webmanifest`,
 `hub-install.js`, `hub-worker.js`, how `gateway/server.py` serves them, and staff sign-out in `portal.js`.
-Branch `feature/mobile-readiness` from `main` at `ba82a2a`, 2026-11-04.
+Branch `feature/mobile-readiness-g7` from `main` at `ba82a2a`, 2026-11-04, with the sign-out follow-up on
+`feature/mobile-signout` (`94b6cd4`).
 
 ## How it works
 
@@ -24,8 +25,17 @@ Branch `feature/mobile-readiness` from `main` at `ba82a2a`, 2026-11-04.
 2. **Sign-out left the previous person's data in the page.** That data was unsaved report drafts, the
    catalogue and Studio. Staff sign-out now reloads `/` after the server ends the session. On a shared
    phone or an installed window, the next person starts from a clean page running the newest release.
+3. **A failed sign-out looked like a successful one** (follow-up). If `POST /logout` fails, offline or with a
+   server error, the session may still be live. The app now shows "Couldn't sign out. Try again." and stays
+   as it is, without reloading. Only a successful sign-out reloads.
+4. **The Studio purpose outlived the person** (follow-up). A successful sign-out now also removes the
+   `swangz-studio-purpose` choice from the browser's local storage. A failed one keeps it, because that
+   person is still signed in. The theme and time-zone preferences belong to the browser and are kept.
 
-Tests: `node tests/browser/pwa.cjs` (mocked DOM; 9 tests). Four of them fail against main's `hub-install.js`.
+Tests: `node tests/browser/pwa.cjs` (mocked DOM; 11 tests), run in the CI browser job after `syntax.py`.
+Four of them (2, 3, 5, 6) fail against main's `hub-install.js`. Tests 9–11 run `portal.js`'s own `signOut()`
+with a mocked server connection, for success, offline and a 503. All three fail against the sign-out at
+`5570e26`. Hub checks run 41848281412 on `feature/mobile-signout` was green.
 
 ## Gaps, not fixed here
 
@@ -39,8 +49,9 @@ Tests: `node tests/browser/pwa.cjs` (mocked DOM; 9 tests). Four of them fail aga
 
 ## Checks run, and where
 
-- Mocked contract tests, run with Node 22 on the team laptop: worker registration, install placement and
-  removal, the no-fetch/no-cache worker, the manifest fields and icon file, and sign-out ordering.
+- Mocked contract tests, run with Node 22 on the team laptop and in the CI browser job (Actions run
+  41848281412): worker registration, install placement and removal, the no-fetch/no-cache worker, the
+  manifest fields and icon file, and sign-out on success, offline and a server error.
 - Static review of the server headers and routes, done by reading the code.
 
 ## Device checks
@@ -51,7 +62,9 @@ Tests: `node tests/browser/pwa.cjs` (mocked DOM; 9 tests). Four of them fail aga
 - Desktop Chrome/Edge install and the installed window: **Not run.** No headed browser on this laptop.
 - Update reaching an installed app after a release: **Not run.** It needs a real install.
 - Sign-out in an installed app, then a second person signing in: **Not run.** It needs a real install.
-  This is covered only by the mocked test.
+  This is covered only by the mocked tests.
+- A failed sign-out on a real phone (airplane mode, then Sign out): **Not run.** No device here. This is
+  covered only by the mocked tests.
 - Lighthouse/installability audit: **Not run.** It needs a real browser; it could run on Actions with the
   pinned Playwright Chromium.
 - Phone-width layout of the top bar with the button present: **Not run.** It needs a real browser; it
