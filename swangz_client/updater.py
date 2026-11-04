@@ -141,6 +141,7 @@ class Updater:
         self.app = self.base / "app"
         self.target = self.app / ("Swangz.exe" if os.name == "nt" else "Swangz")
         self.prev = self.app / ("Swangz.prev.exe" if os.name == "nt" else "Swangz.prev")
+        self.failed = self.app / ("Swangz.failed.exe" if os.name == "nt" else "Swangz.failed")
 
     def _paths(self):
         if self.base.resolve() != self.base:
@@ -331,6 +332,14 @@ class Updater:
                 _file(self.target)
             _allow_remove(self.prev)
             _allow_remove(self.target)
+            if os.name == "nt" and self.target.exists() and os.path.samefile(sys.executable, self.target):
+                # Windows permits renaming a loaded exe, but not replacing it.
+                # Leave the failed image until a later start, after this process exits.
+                self._cleanup_failed()
+                if self.failed.exists():
+                    raise UpdateError("A failed application is still running. Close it and retry recovery.")
+                os.rename(self.target, self.failed)
+                _sync_dir(self.app)
             os.replace(self.prev, self.target)
             _sync_dir(self.app)
         elif not self.target.exists() or not hmac.compare_digest(_hash(self.target), pending["old_sha256"]):
@@ -343,6 +352,19 @@ class Updater:
         (self.root / "pending.json").unlink(missing_ok=True)
         (self.root / "update-ok").unlink(missing_ok=True)
         _sync_dir(self.root)
+
+    def _cleanup_failed(self):
+        if self.failed.exists() or self.failed.is_symlink():
+            _file(self.failed)
+            _allow_remove(self.failed)
+            try:
+                self.failed.unlink()
+            except PermissionError:
+                if os.name != "nt":
+                    raise
+                # The old recovery process may not have exited yet. Retry next start.
+            else:
+                _sync_dir(self.app)
 
     def recover(self):
         if not self.root.exists():
@@ -358,6 +380,8 @@ class Updater:
             elif self.prev.exists():
                 # A previous binary without its journal must never be silently discarded.
                 raise UpdateError("Previous application has no update journal; recovery needs review.")
+            else:
+                self._cleanup_failed()
         return False
 
     def install(self, launch=subprocess.Popen, monotonic=time.monotonic, sleep=time.sleep):
