@@ -250,7 +250,7 @@ provider billing and account ownership changes require Arnold's explicit approva
 this blueprint and the assignments in the 22:00 report.
 
 Status evidence is source inspection at main `ba82a2a`, plus the explicitly identified unmerged
-credential artifact `6cbe7dde5354fab78a6a9580206f2b904aaa775b`. Implemented means code exists;
+credential artifact `865250c7d5ae0873112069696f87be79accbe312`. Implemented means code exists;
 it does not mean deployed or independently verified. Partial means only some required behavior exists.
 Missing means no implementation evidence was established here. Technically restricted means a
 provider or platform capability must be established before that route can be supported.
@@ -347,16 +347,14 @@ every migration shipped at `ba82a2a` (through schema v21) is immutable. Exact co
 exceptions remain in force. Personal workspace completeness, browser isolation, sync and real provider
 compatibility remain partial/missing/restricted as above, regardless of design documents.
 
-Unmerged credential work at `6cbe7dd` adds native keystore adapters and migration. Its retained progress
-record reports Forge's corrected focused run: `python3 -m unittest tests.test_client_credentials
-tests.test_client tests.test_devices`, **Ran 89 tests in 84.486s, OK, exit 0**, tied to source digest
-`707de085f54f08dd22b97b84b06e3f3d34ceb822268c6e0e8ceade934b51ef9a`.
-That is recorded runner evidence, not Chief's test execution. Probe VERIFIED the exact commit/tree `0fe75e0a965c56caa5496475eede35b0185ca627`: full suite
-449 tests in 447.083s, OK (skipped=13), exit 0; Chief read the retained log. Sentinel APPROVED
-G3a for exact commit `6cbe7dd` (tree `0fe75e0`) only, with native limitations disclosed and
-managed Claude/Windows helpers remaining gated. PR #11 CI failed on that artifact; every fix
-produces a new artifact requiring renewed Probe verification and Sentinel review before proceeding. Native credential stores, Windows DACL/macOS ACL checks and real vendor
-clients remain unverified. Managed Claude and Windows managed Codex remain gated per that artifact.
+Unmerged PR #11 credential work at `865250c` (tree `6edfcd5`) adds native keystore adapters and
+migration. Probe VERIFIED this exact artifact outside the sandbox with
+`python3 -m unittest tests.test_client tests.test_client_credentials tests.test_client_gui tests.test_devices -v`:
+**104 tests in 67.4s, OK (skipped=14 Tk/display), exit 0**. This is Probe's recorded evidence.
+Sentinel APPROVED the same artifact; Hub CI run `41506599142` passed Python 3.10/3.12, browser
+and app-window checks. Native credential stores, Windows DACL/macOS ACL checks and real vendor
+clients remain unverified. Managed Claude and Windows managed Codex remain gated.
+Key rotation follows in PR #12 (server, schema v22) and PR #13 (client); neither is merged.
 Canonical main baseline supplied by Arnold: **426 tests in 1191.8s, OK (skipped=13), exit 0**.
 Not run for this documentation update: Python, browser, native platform or live-provider checks.
 
