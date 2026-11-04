@@ -179,6 +179,8 @@ def welcome(ctx):
     person = _invited(ctx, str(ctx.body.get("token") or ""))
     if not person or not ctx.gw.settings.email_allowed(person["email"]):
         raise ApiError(404, "This sign-in link has expired or was already used. Ask your admin for a new one.")
+    if not session_allowed(ctx, person):  # before anything is consumed: the invite stays unused, no password is set
+        raise ApiError(403, "Your access is paused or has ended. Talk to your admin.", "person_paused")
     password = str(ctx.body.get("password") or "")
     if len(password) < 10:
         raise ApiError(400, "Use at least 10 characters.")

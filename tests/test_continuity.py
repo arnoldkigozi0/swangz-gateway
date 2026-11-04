@@ -5,7 +5,10 @@ sign-out ends one session, and every one of these actions leaves an audit record
 import json
 import time
 
+from gateway import turns
+
 from .test_device_lifecycle import BODY, Lifecycle
+from .test_turns import TurnBase
 
 EMAIL, PASSWORD = "grace@swangzavenue.com", "a-good-password-1"
 
@@ -224,3 +227,101 @@ class AuditsCarryCountsAndNoSecrets(Continuity):
         for secret in (ext, other.split("=", 1)[1], self.person_cookie.split("=", 1)[1], out["key"], out["key"].split("_", 2)[2],
                        self.key, self.key.split("_", 2)[2], PASSWORD):
             self.assertNotIn(secret, text)
+
+
+class AnInviteIsNotUsedUpByAPausedPerson(Continuity):
+    def welcome(self, token):
+        return self.staff("POST", "/welcome", {"token": token, "password": "a-brand-new-password"}, cookie="")
+
+    def untouched(self, token):
+        row = self.db.one("SELECT pw_hash, invite_hash FROM people WHERE id = ?", (self.rig.person_id,))
+        self.assertTrue(row["invite_hash"])  # the invite is still there
+        self.assertEqual(self.sessions(), 1)  # and nothing was signed out or in: the one from setUp is still the only one
+        return row["pw_hash"]
+
+    def test_a_suspended_or_ended_person_cannot_use_an_invite_and_the_invite_stays_unused(self):
+        token = self.invite()
+        before = self.db.scalar("SELECT pw_hash FROM people WHERE id = ?", (self.rig.person_id,))
+        for fields in ({"status": "suspended"}, {"status": "active", "access_until": time.time() - 5}):
+            self.set_person(**fields)
+            status, out = self.welcome(token)
+            self.assertEqual((status, out.get("code")), (403, "person_paused"), fields)
+            self.assertEqual(self.untouched(token), before)  # no password was set
+        self.assertEqual(self.audits("set their Swangz AI Hub password").__len__(), 1)  # only setUp's own
+        self.assertEqual(self.staff("POST", "/login", {"email": EMAIL, "password": "a-brand-new-password"}, cookie="")[0], 401)
+
+    def test_the_same_invite_works_once_the_person_is_active_again(self):
+        token = self.invite()
+        self.set_person(status="suspended")
+        self.assertEqual(self.welcome(token)[0], 403)
+        self.set_person(status="active")
+        self.assertEqual(self.welcome(token)[0], 200)
+        self.assertEqual(self.staff("POST", "/login", {"email": EMAIL, "password": "a-brand-new-password"}, cookie="")[0], 200)
+
+
+class AHolderWhoseAccountEndedHoldsNothing(TurnBase):
+    def hold(self):
+        self.assertEqual(self.go("midjourney")[0], 302)
+        return self.rig.gw.db.one("SELECT * FROM tool_turns WHERE ended IS NULL")
+
+    def end_account(self, pid=None):
+        self.rig.gw.db.x("UPDATE people SET access_until = ? WHERE id = ?", (time.time() - 5, pid or self.rig.person_id))
+
+    def check_released(self, turn):
+        db = self.rig.gw.db
+        done = db.one("SELECT * FROM tool_turns WHERE id = ?", (turn["id"],))
+        self.assertTrue(done["ended"])
+        self.assertEqual((done["ended_by"], done["reason"]), ("system", "their access ended"))
+        rows = db.q("SELECT * FROM audit WHERE action LIKE ?", ("ended a person's turns%",))
+        self.assertEqual(len(rows), 1, rows)
+        self.assertEqual((rows[0]["actor"], rows[0]["correlation"]), ("system", f"person:{turn['person_id']}"))
+        self.assertEqual((json.loads(rows[0]["before_json"]), json.loads(rows[0]["after_json"])), ({"turns_open": 1}, {"turns_ended": 1}))
+
+    def test_the_next_turns_read_shows_it_released_and_recorded(self):
+        turn = self.hold()
+        self.end_account()
+        db = self.rig.gw.db
+        self.assertEqual(turns.holders(db, "midjourney"), [])
+        self.assertEqual(turns.held_by(db, self.rig.person_id), {})
+        self.check_released(turn)
+        self.assertEqual(turns.holders(db, "midjourney"), [])  # reading again records nothing more
+        self.assertEqual(db.scalar("SELECT COUNT(*) FROM audit WHERE action LIKE ?", ("ended a person's turns%",)), 1)
+
+    def test_the_console_list_shows_it_released(self):
+        turn = self.hold()
+        self.end_account()
+        status, out = self.rig.api("GET", "/turns")
+        self.assertEqual(status, 200)
+        self.assertEqual(out["now"], [])
+        self.assertIn(turn["id"], [t["id"] for t in out["recent"]])
+        self.check_released(turn)
+
+    def test_the_next_person_can_claim_the_seat_straight_away(self):
+        turn = self.hold()
+        self.end_account()
+        self.assertEqual(self.go_as_other("midjourney")[0], 302)
+        self.check_released(turn)
+        self.assertEqual(self.rig.gw.db.one("SELECT person_id FROM tool_turns WHERE ended IS NULL")["person_id"], self.other)
+
+    def test_the_workspace_sweep_releases_it_too(self):
+        turn = self.hold()
+        self.end_account()
+        self.rig.gw.workspaces.sweep()
+        self.check_released(turn)
+
+    def test_a_future_end_date_or_none_leaves_the_turn_alone(self):
+        turn = self.hold()
+        self.rig.gw.db.x("UPDATE people SET access_until = ? WHERE id = ?", (time.time() + 3600, self.rig.person_id))
+        self.assertEqual([t["id"] for t in turns.holders(self.rig.gw.db, "midjourney")], [turn["id"]])
+        self.rig.gw.db.x("UPDATE people SET access_until = NULL WHERE id = ?", (self.rig.person_id,))
+        self.assertEqual([t["id"] for t in turns.holders(self.rig.gw.db, "midjourney")], [turn["id"]])
+        self.assertEqual(self.rig.gw.db.scalar("SELECT COUNT(*) FROM audit WHERE action LIKE ?", ("ended a person's turns%",)), 0)
+
+    def test_only_the_person_whose_account_ended_loses_theirs(self):
+        self.rig.api("PATCH", "/tools/midjourney", {"seats_at_once": 2})
+        mine = self.hold()
+        self.assertEqual(self.go_as_other("midjourney")[0], 302)
+        self.end_account()
+        left = turns.holders(self.rig.gw.db, "midjourney")
+        self.assertEqual([t["person_id"] for t in left], [self.other])
+        self.check_released(mine)
