@@ -126,8 +126,7 @@ See `packaging/README.md` for installers and signing.
 ## Not built yet (in rough priority)
 
 - **Signed installers** for Windows (`.msi`/`.exe`, Authenticode) and macOS (`.dmg`, Developer ID + notarization),
-  and a Linux `.deb`/AppImage, built by CI from tags; then in-app self-update (the app already learns the latest
-  version from each check-in and says so; it does not replace itself yet).
+  and a Linux `.deb`/AppImage, built by CI from tags. The TEST-key updater below is not enabled in shipped builds.
 - **Installing Claude Code and Codex themselves.** The app configures and runs them; when one isn't installed it
   says how (`npm install -g …`). Installing third-party programs should be an allow-listed, pinned, checked step.
 - **A sign-in link that lands the person in the web app already signed in**, so "Open" on an app doesn't ask again.
@@ -164,3 +163,65 @@ Native Windows/macOS/Linux credential-service, DACL, macOS ACL and vendor execut
 **Not run** until actual native/CI evidence is supplied. Mocked adapter tests do not prove OS behavior.
 No provider, real credential, deployment, signing or installer check is claimed. Exact targeted test output
 and the artifact checked are recorded in `docs/AGENT-PROGRESS.md` on this feature branch.
+
+## Verified updater development channel (G4 / D-003)
+
+This branch is stacked on PR #11 (`865250c`), without PR #13's rotation code. No gateway routes,
+schema, packaging/signing workflows or dependencies change. Integration with PR #13 remains necessary.
+`release_keys.py` ships **no public keys** and `ENABLED = False`. With either gate closed, checks
+return **Updates unavailable** without reading a device credential, creating update folders or making
+a request. Tests alone patch in the public TEST key; its private counterpart is publicly committed at
+`tests/fixtures/test_release_rsa4096.json`. It is not a production secret and is never loaded by the app.
+The gate stays closed until G8 and Arnold's production-key decision. MDM installs must retain the gate.
+
+The future Forge endpoint contract is same-origin, authenticated GETs at
+`/api/device/releases/<channel>/release.json`, `release.json.sig`, and `<file>`.
+The detached signature is exactly 512 binary bytes. The release response must provide
+`X-Swangz-Gateway-Version` as a strict `major.minor.patch`; absent/invalid version means no update.
+These endpoints and that header are a proposed client contract, **not implemented server support**.
+`client.latest` only triggers a check after sync; it never selects a URL, key, version or artifact.
+HTTPS is required outside the loopback-only fake-server route, regardless of `SWANGZ_ALLOW_HTTP`.
+Cross-origin redirects are refused before a redirected request can carry a device credential.
+
+Authentication precedes all release JSON parsing: RSA-4096 / exponent 65537 / PKCS#1 v1.5 / SHA-256,
+comparing the entire expected EMSA encoding. The signed `key_id` must identify the pinned key that
+verified those bytes. Duplicate JSON fields and non-finite numbers are rejected. The manifest requires
+`schema: 1`, matching `channel`, strict three-component `version` and `min_server`, Unix integer
+`released`/`expires`, and `artifacts: [{platform, arch, file, size, sha256}]`. Release time permits at
+most 300 seconds of future skew; expiry must be future and after release. Platform is
+`linux|macos|windows`, architecture uses `x86_64|arm64` (other exact machine strings may match);
+there must be exactly one matching artifact. Names are plain ASCII filenames without slashes,
+backslashes or `..`. Size is positive and at most 150 MiB; SHA-256 is lowercase hexadecimal.
+
+The candidate must be newer than the running version, the durable highest accepted version and any
+failed version. Streaming stops at the signed size cap plus one detection byte and writes no overflow
+byte. Exact size and SHA-256 are compared before staging in private `updates/<version>/` (0700
+directories / 0500 executable on POSIX, protected DACL on Windows). Release metadata is retained;
+installation verifies it again, including expiry, floors and staged bytes. Platform signature status
+is **not checked**: `native_signature_status()` is a placeholder for codesign/WinVerifyTrust, not a pass.
+
+`swangz update status|check|apply` exposes the development path. Apply is available only to a frozen
+portable executable located at the app's own `data/app/Swangz` (`Swangz.exe` on Windows); source
+checkouts and arbitrary installed paths are refused. There is no bundled `.app`/installer unpacking
+or bootstrap installer here. Single-file swaps use an OS-held process lock, a durable write-ahead
+journal, `current → prev`, then staged → current. The exact checked file is renamed, rehashed and
+started with `--post-update`. The probe imports client modules, strictly reads app state and reads
+the current keychain/file credential without migrating it. It writes a nonce-bound `update-ok` and
+exits. The parent waits no more than 60 seconds for acknowledgement and successful probe exit.
+Only then does the highest-accepted version advance. Apply exits after the probe; open Swangz again
+to use the new version. A desktop process is not restarted automatically on successful apply.
+
+On failure/timeout the candidate process is stopped and the exact previous binary restored; the
+failed version cannot be retried until a newer signed release arrives. At normal startup an
+interrupted journal without acknowledgement restores the previous binary and relaunches it.
+There is exactly one `prev`; it remains until the acknowledged new version completes its first sync
+without package or heartbeat failures. The accepted-version ledger survives sign-out. Missing or
+modified recovery files fail visibly rather than claiming recovery succeeded. Local administrator
+or same-user tampering with the app/state is outside this update trust boundary.
+
+Verification: `tests.test_client_updates` uses a loopback fake server and pure-Python TEST-key signing,
+including a signed POSIX script fixture for swap/self-test/restart. No OpenSSL, production keys,
+provider calls or certificate checks. Python 3.10 syntax parsing and `git diff --check` passed during
+implementation; neither is a test result. Targeted Python results await Probe/CI. Native Windows/macOS
+rename/locking/DACL, packaged binaries, `.app` handling, platform signatures and actual GUI update
+screens are **Not run**. This work is not a production-update or cross-platform packaging claim.
