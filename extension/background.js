@@ -131,7 +131,8 @@ async function gate(path, body) {
   });
 }
 
-function blockForSignIn(tabId) {
+async function blockForSignIn(tabId) {
+  await endTab(tabId);  // the tab is leaving whatever it had open
   const params = new URLSearchParams({ signin: "1", app: S.base || "" });
   return chrome.tabs.update(tabId, { url: chrome.runtime.getURL("blocked.html") + "#" + params });
 }
@@ -139,7 +140,10 @@ function blockForSignIn(tabId) {
 async function onNavigate(tabId, url) {
   await ready;
   const host = hostnameOf(url);
-  if (!governed(host)) { endTab(tabId); return; }
+  const key = governed(host);
+  if (!key) { await endTab(tabId); return; }
+  // Moving to a different tool closes the previous record first, before anything new is stored or asked.
+  if (S.open[tabId] && S.open[tabId].tool !== S.hosts[key]) await endTab(tabId);
   if (!S.base || !S.token) { await blockForSignIn(tabId); return; }
   let r;
   try { r = await gate("open", { host }); } catch (e) { /* unavailable: no allow decision */ }
@@ -152,11 +156,17 @@ async function onNavigate(tabId, url) {
   }
   if (!r.known) { await blockForSignIn(tabId); return; }
   if (r.allowed === true) {
-    S.open[tabId] = { id: r.id, since: Date.now() };
+    if (S.open[tabId]) {
+      // Same tool, new address in the same tab: keep the record already running. The server started one for this
+      // check too, so close that one straight away rather than leave a duplicate open-ended.
+      try { await gate("close", { id: r.id, seconds: 0 }); } catch (e) { /* will be left open-ended */ }
+      return;
+    }
+    S.open[tabId] = { id: r.id, since: Date.now(), tool: S.hosts[key] };
     await chrome.storage.session?.set?.({ ["open_" + tabId]: S.open[tabId] }).catch(() => {});
   } else {
+    await endTab(tabId);  // refused: the tab is about to show the blocked page, so nothing stays open
     if (r.state === "no_turn") {
-      const key = governed(host);
       if (key) await signOutOf([key]);  // they don't hold the turn: leave nothing signed in
     }
     const params = new URLSearchParams({ tool: r.tool || "This tool", reason: r.reason || "",
@@ -169,6 +179,7 @@ async function endTab(tabId) {
   const rec = S.open[tabId];
   if (!rec) return;
   delete S.open[tabId];
+  try { await chrome.storage.session?.remove?.("open_" + tabId); } catch (e) { /* best effort */ }
   const seconds = Math.round((Date.now() - rec.since) / 1000);
   try { await gate("close", { id: rec.id, seconds }); } catch (e) { /* will be left open-ended */ }
 }
