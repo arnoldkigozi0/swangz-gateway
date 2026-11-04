@@ -309,6 +309,35 @@ class IdleTests(Lifecycle):
         self.assertEqual(credentials.expire_idle(self.rig.gw), 1)
         self.assertEqual(self.unrevoked(), 0)
 
+    def test_refused_retries_on_a_rotated_key_are_not_activity_so_an_orphaned_device_still_goes_idle(self):
+        # the rotate response is lost: the app keeps the old key, which is retired after the grace
+        out = self.rotate()[1]
+        start = time.time() - 70 * DAY
+        self.db.x("UPDATE devices SET enrolled = ?, last_seen = ? WHERE device_id = ?", (start, start, self.device_id))
+        self.db.x("UPDATE keys SET created = ?, last_used = NULL WHERE device_id = ?", (start, self.device_id))
+        self.db.x("UPDATE keys SET retire_at = ? WHERE id = ?", (start + credentials.GRACE_SECONDS, self.device["key_id"]))
+        # the old key is retried through the proxy every day since, and refused each time (the proxy stamps last_used first)
+        self.assertEqual(self.rig.anthropic(BODY, key=self.key)[0], 403)
+        old = self.db.one("SELECT * FROM keys WHERE id = ?", (self.device["key_id"],))
+        self.assertEqual(old["revoked_by"], "system: rotated")
+        self.assertGreater(old["last_used"], old["revoked"])  # the refused attempt is on record
+        self.db.x("UPDATE keys SET last_used = ? WHERE id = ?", (time.time() - DAY, self.device["key_id"]))
+        self.assertEqual(self.unrevoked(), 1)  # only the unused new key is left
+        self.assertEqual(credentials.expire_idle(self.rig.gw), 1)
+        self.assertEqual(self.unrevoked(), 0)
+        self.assertEqual(self.db.scalar("SELECT revoked_by FROM keys WHERE id = ?", (out["key_id"],)), "system: idle")
+
+    def test_use_made_while_a_key_was_valid_still_counts_after_it_is_revoked(self):
+        out = self.rotate()[1]
+        self.long_ago(90)
+        used = time.time() - 2 * DAY
+        # the old key was used two days ago and retired a minute later: real activity, then a clean retirement
+        self.db.x("UPDATE keys SET last_used = ?, revoked = ?, revoked_by = 'system: rotated' WHERE id = ?",
+                  (used, used + 60, self.device["key_id"]))
+        self.assertEqual(self.unrevoked(), 1)
+        self.assertEqual(credentials.expire_idle(self.rig.gw), 0)
+        self.assertEqual(self.db.scalar("SELECT revoked FROM keys WHERE id = ?", (out["key_id"],)), None)
+
     def test_the_setting_is_bounded_audited_and_needs_the_admin_area(self):
         for bad in (0, 6, 366, "soon", None):
             self.assertEqual(self.rig.api("PUT", "/settings", {"device_idle_days": bad})[0], 400, bad)

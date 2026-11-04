@@ -52,7 +52,9 @@ def active_device_count(db, person_id):
 
 def expire_idle(gw, now=None):
     """Hourly: revoke every device with no activity for `device_idle_days`. Activity is the newest of the app's
-    last check-in, enrolment, and any of its keys being used (proxy use counts). -> number revoked."""
+    last check-in, enrolment, and any of its keys being used (proxy use counts). A refused attempt on a key that was
+    already revoked is not activity (the proxy stamps last_used before it checks), so only use made while the key was
+    valid counts. -> number revoked."""
     db = gw.db
     now = time.time() if now is None else now
     days = idle_days(db)
@@ -60,7 +62,7 @@ def expire_idle(gw, now=None):
     # the 10-minute grace is enforced when a key is used; make it true in the records too
     db.x("UPDATE keys SET revoked = retire_at, revoked_by = 'system: rotated' WHERE revoked IS NULL AND retire_at IS NOT NULL AND retire_at <= ?", (now,))
     n = 0
-    for d in db.q("SELECT d.device_id, d.person_id, d.name, d.enrolled, d.last_seen, MAX(k.last_used) AS used, p.name AS person"
+    for d in db.q("SELECT d.device_id, d.person_id, d.name, d.enrolled, d.last_seen, MAX(CASE WHEN k.revoked IS NULL OR k.last_used <= k.revoked THEN k.last_used END) AS used, p.name AS person"
                   " FROM devices d JOIN keys k ON k.device_id = d.device_id JOIN people p ON p.id = d.person_id"
                   " WHERE d.device_id IS NOT NULL GROUP BY d.device_id HAVING SUM(k.revoked IS NULL) > 0"):
         last = max(d["enrolled"] or 0, d["last_seen"] or 0, d["used"] or 0)

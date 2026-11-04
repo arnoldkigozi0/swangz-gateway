@@ -84,11 +84,22 @@ device endpoint (use through the proxy does not count) or 10 minutes after the r
 is lost, the old key may call rotate again while that grace lasts and the new key was never used: the unused key is revoked
 (`device_key_rotated`) and a fresh one issued; the grace is never extended. Errors: `429 slow_down` (3 a
 device per hour), `409 rotation_pending` (already being replaced and the new key has been used). If the grace ends
-without the new key reaching the app, the app only has a rotated key: it asks the person to reconnect the device.
+without the new key reaching the app, the app only has a rotated key (see below).
+
+**Lost response, after the grace.** Once the 10 minutes are up the old key answers `device_key_rotated` and cannot
+rotate again. So the app must write the new key to its store before it calls any endpoint with it. If the app gets
+`device_key_rotated` and its store holds no newer key, it shows "Reconnect this device", never wipes, and retries no
+faster than the heartbeat interval. The hourly idle job ends the orphaned device (refused retries do not count as
+activity), and the person reconnects with a new code.
+
+**What retirement cuts.** The 10-minute retirement of an old key does not cut requests already in flight on it; it is
+routine rotation. If a key is believed compromised, revoke the device (person, administrator or app sign-out): that ends
+every key of the device and cuts everything in flight.
 
 **Idle expiry.** A device with no activity for `device_idle_days` (console setting, 7–365, default 60) is revoked by the hourly
 job, audited as `system`. Activity is the newest of the app's last check-in, enrolment and any of its keys being used
-at the proxy, so a device in daily use through Claude Code is never idle.
+at the proxy, so a device in daily use through Claude Code is never idle. An attempt refused because the key was already
+revoked is not activity.
 
 **Key-storage report.** Heartbeat bodies may carry `key_storage` (`keychain` or `file`) and `key_backend`
 (`credential-manager`, `keychain`, `secret-service`; optional). Anything else is stored as `unknown` / empty. The console shows it
