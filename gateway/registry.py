@@ -54,8 +54,11 @@ FIELD_CEILING = {
 CONSOLE_AREAS = ("govern", "money")
 
 # Currency codes: SIX's ISO 4217 "List One" (current currency and funds codes), the file published 2026-09-17
-# (<ISO_4217 Pblshd="2026-09-17">; sha256 33139b438657d1cee116ba737807ea71d19d6de4b90f799a09c56f0cc6a1b0ff, fetched from SIX by Probe on 5 Nov 2026 23:29 UTC). Left out, because a
-# subscription is never priced in them: fund codes (BOV CHE CHW CLF COU MXV USN UYI UYW), metals (XAG XAU XPD XPT), unit and
+# (<ISO_4217 Pblshd="2026-09-17">), fetched by Probe 2026-11-06 02:29 EAT (HTTP 200, 47491 bytes) from
+# https://www.six-group.com/dam/download/financial-information/data-center/iso-currrency/lists/list-one.xml
+# (sic, three r's); sha256 33139b438657d1cee116ba737807ea71d19d6de4b90f799a09c56f0cc6a1b0ff. The file holds 178 distinct
+# codes; this set is 155 of them. Excluding the other 23 is provisional pending Sentinel's inclusion ruling (it follows Probe's
+# recommendation, not a technical decision). Left out for now, because a subscription is never priced in them: fund codes (BOV CHE CHW CLF COU MXV USN UYI UYW), metals (XAG XAU XPD XPT), unit and
 # bond-market codes (XAD XBA XBB XBC XBD XDR XSU XUA) and the test and no-currency codes (XTS XXX). To refresh, take the new List
 # One file and repeat that derivation; tests/test_provider_registry.py compares this set with the file when it is present.
 CURRENCIES = frozenset("""
