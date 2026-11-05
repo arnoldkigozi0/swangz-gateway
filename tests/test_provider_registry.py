@@ -464,12 +464,15 @@ class LimitTests(Base):
         self.assertEqual(self.value(self.aid, "plan", "Pro")["values"]["plan"]["as_of"], today.isoformat())
 
     def test_currency_must_be_an_iso_4217_code(self):
-        for code in ("UGX", "USD", "EUR", "GBP", "KES", "JPY"):
+        for code in ("UGX", "USD", "EUR", "GBP", "KES", "JPY", "XCG", "ZWG", "XAF", "XCD", "XOF", "XPF"):
             self.value(self.aid, "monthly_price", "5", code)
             self.clear_rate()
-        for code in ("XXX", "ABC", "US", "USDD", "usd", "Usd", "", " USD", "U$D", "١٢٣"):
+        withdrawn = "ANG BGN ZWL".split()
+        for code in (*sorted(CurrencySourceTests.EXCLUDED), *withdrawn, "ABC", "US", "USDD", "usd", "Usd", "", " USD", "U$D", "١٢٣"):
             status, out = self.call("POST", self.path, {"kind": "monthly_price", "value": "5", "currency": code})
             self.assertEqual((status, out.get("code")), (400, "bad_currency"), code)
+            self.clear_rate()
+        self.assertEqual(len(CurrencySourceTests.EXCLUDED), 23)
 
     def test_twenty_active_accounts_per_person_and_ending_one_makes_room(self):
         tools = [r["id"] for r in self.db.q("SELECT id FROM tools WHERE signin IN ('seat','own','sso') AND archived = 0 AND id != 'canva' ORDER BY id")]
@@ -1138,6 +1141,8 @@ class CurrencySourceTests(unittest.TestCase):
         self.assertTrue(all(len(c) == 3 and c.isalpha() and c.isupper() for c in codes))
         source = open(registry.__file__, encoding="utf-8").read()
         self.assertIn("2026-09-17", source)
+        self.assertIn("https://www.six-group.com/dam/download/financial-information/data-center/iso-currrency/lists/list-one.xml", source)
+        self.assertTrue(all(c in source for c in self.EXCLUDED))
         self.assertIn("33139b438657d1cee116ba737807ea71d19d6de4b90f799a09c56f0cc6a1b0ff", source)
 
     def test_the_set_matches_the_published_file_when_it_is_present(self):

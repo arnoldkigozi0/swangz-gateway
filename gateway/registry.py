@@ -53,14 +53,22 @@ FIELD_CEILING = {
 }
 CONSOLE_AREAS = ("govern", "money")
 
-# Currency codes: SIX's ISO 4217 "List One" (current currency and funds codes), the file published 2026-09-17
-# (<ISO_4217 Pblshd="2026-09-17">), fetched by Probe 2026-11-06 02:29 EAT (HTTP 200, 47491 bytes) from
+# Currency codes: a frozen literal (no XML is read at run time) of 155 ordinary codes taken from SIX's ISO 4217 "List One"
+# (current currency and funds codes), <ISO_4217 Pblshd="2026-09-17">, 178 distinct codes, 47491 bytes, fetched by Probe
+# 2026-11-06 02:29 EAT from
 # https://www.six-group.com/dam/download/financial-information/data-center/iso-currrency/lists/list-one.xml
-# (sic, three r's); sha256 33139b438657d1cee116ba737807ea71d19d6de4b90f799a09c56f0cc6a1b0ff. The file holds 178 distinct
-# codes; this set is 155 of them. Excluding the other 23 is provisional pending Sentinel's inclusion ruling (it follows Probe's
-# recommendation, not a technical decision). Left out for now, because a subscription is never priced in them: fund codes (BOV CHE CHW CLF COU MXV USN UYI UYW), metals (XAG XAU XPD XPT), unit and
-# bond-market codes (XAD XBA XBB XBC XBD XDR XSU XUA) and the test and no-currency codes (XTS XXX). To refresh, take the new List
-# One file and repeat that derivation; tests/test_provider_registry.py compares this set with the file when it is present.
+# (sic, three r's); sha256 33139b438657d1cee116ba737807ea71d19d6de4b90f799a09c56f0cc6a1b0ff. Sentinel opened the same file
+# independently and ruled (6 Nov 2026) that exactly these 23 are excluded, because a subscription is never priced in them:
+#   funds        BOV CHE CHW CLF COU MXV USN UYI UYW
+#   metals       XAG XAU XPD XPT
+#   bond-market  XAD XBA XBB XBC XBD XSU XUA
+#   SDR-type     XDR
+#   test         XTS
+#   no currency  XXX
+# Not "all X codes" and not the IsFund flag alone: XAF XCD XOF XPF XCG ZWG are ordinary currencies and stay in. Withdrawn
+# codes (ANG BGN ZWL, replaced by XCG, EUR and ZWG) are not in the file and are refused. Codes are matched exactly, so lowercase
+# "usd" is refused, not normalised. To refresh, take the new List One file and repeat that derivation;
+# tests/test_provider_registry.py compares this set with the file (difference exactly the 23) when it is present.
 CURRENCIES = frozenset("""
 AED AFN ALL AMD AOA ARS AUD AWG AZN BAM BBD BDT BHD BIF BMD BND BOB BRL BSD BTN BWP BYN BZD CAD CDF CHF CLP CNY COP
 CRC CUP CVE CZK DJF DKK DOP DZD EGP ERN ETB EUR FJD FKP GBP GEL GHS GIP GMD GNF GTQ GYD HKD HNL HTG HUF IDR ILS INR
