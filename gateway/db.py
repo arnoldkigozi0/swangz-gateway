@@ -516,21 +516,6 @@ SCHEMA = [
 ]
 
 
-def statements(script):
-    """A migration script as single statements. A statement ends at a semicolon, except inside CREATE TRIGGER ... END,
-    whose body holds semicolons of its own. Scripts without a trigger split exactly as `script.split(";")` always did."""
-    out, pending = [], ""
-    for piece in script.split(";"):
-        pending = pending + ";" + piece if pending else piece
-        if pending.lstrip().upper().startswith("CREATE TRIGGER") and not pending.rstrip().upper().endswith("END"):
-            continue
-        out.append(pending)
-        pending = ""
-    if pending:
-        out.append(pending)
-    return [s for s in out if s.strip()]
-
-
 class DB:
     def __init__(self, path):
         if path != ":memory:":
@@ -558,8 +543,11 @@ class DB:
             for i, script in enumerate(SCHEMA[version:], start=version + 1):
                 self.conn.execute("BEGIN")
                 try:
-                    for stmt in statements(script):
-                        self.conn.execute(stmt)
+                    # A str entry is split on semicolons, exactly as it always was. A tuple entry (v24 onward) holds one
+                    # statement per element, so a trigger body can carry semicolons; sqlite refuses an element with two.
+                    for stmt in (script if isinstance(script, tuple) else script.split(";")):
+                        if stmt.strip():
+                            self.conn.execute(stmt)
                     self.conn.execute("INSERT OR REPLACE INTO meta(k, v) VALUES('schema', ?)", (str(i),))
                     self.conn.execute("COMMIT")
                 except Exception:

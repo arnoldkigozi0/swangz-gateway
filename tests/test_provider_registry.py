@@ -12,6 +12,7 @@ import re
 import sqlite3
 import tempfile
 import time
+import types
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest import mock
@@ -19,7 +20,7 @@ from unittest import mock
 import gateway.db as dbmod
 from gateway import registry, security, staff, store
 from gateway.admin import ROUTES as ADMIN_ROUTES
-from gateway.db import DB, SCHEMA, statements
+from gateway.db import DB, SCHEMA
 
 from .test_devices import DeviceBase
 
@@ -411,7 +412,7 @@ class LimitTests(Base):
             for text in (f"a{ch}b", ch + "ab", "ab" + ch):
                 self.refused({"tool_id": "codex", "route": "seat", "label": text}, "bad_text")
                 self.refused({"kind": "plan", "value": text}, "bad_text", self.path)
-        self.assertEqual(self.account(tool="codex", route="seat", label="a‍b")["label"], "a‍b")  # a joiner is fine
+        self.refused({"tool_id": "codex", "route": "seat", "label": "a\u200db"}, "bad_text")  # a zero-width joiner is a format character
 
     def test_text_that_looks_like_a_secret_is_refused_without_being_repeated(self):
         samples = ["sk-ant-api03-abc", "sk-", "AKIAIOSFODNN7EXAMPLE", "ghp_abcdefghij", "xoxb-1234", "Bearer abc", "bearer abc",
@@ -421,19 +422,19 @@ class LimitTests(Base):
             self.assertEqual((status, out["code"]), (400, "looks_like_secret"), text)
             self.assertNotIn(text, json.dumps(out))
             self.refused({"kind": "plan", "value": text}, "looks_like_secret", self.path)
-        for text in ("sk", "Akia team", "ghp", "Bearer", "xo", "my key " + "A" * 31, "Max 20x plan, billed yearly", "Okello's team seat"):
+        for text in ("sk", "ghp", "Bearer", "xo", "my key " + "A" * 31, "Max 20x plan, billed yearly", "Okello's team seat"):
             self.assertTrue(self.call("POST", "/provider-accounts", {"tool_id": "codex", "route": "seat", "label": text})[0] in (201, 409), text)
             self.clear_rate()
 
     def test_numbers_are_finite_decimals_from_zero_to_a_trillion(self):
         good = [(0, "0"), (-0.0, "0"), ("0", "0"), (7, "7"), (12.5, "12.5"), ("12.50", "12.5"), ("0.000001", "0.000001"),
                 (1000000000000, "1000000000000"), ("1000000000000", "1000000000000"), (999999999999.5, "999999999999.5"),
-                (0.1 + 0.2, "0.3")]
+                (0.000001, "0.000001"), (1e-06, "0.000001"), (0.123456, "0.123456")]
         for given, stored in good:
             self.assertEqual(self.value(self.aid, "quota_limit", given)["values"]["quota_limit"]["value"], stored, given)
             self.clear_rate()
         for given in (-1, -0.01, "-1", 1000000000001, "1000000000000.000001", 1000000000000.5, float("nan"), float("inf"), float("-inf"),
-                      "nan", "inf", "1e3", "1E3", " 5", "5 ", "5.", ".5", "1,000", "0x10", "5.0000001", "", True, False, None, [1], {"v": 1},
+                      "nan", "inf", "1e3", "1E3", " 5", "5 ", "5.", ".5", "1,000", "0x10", "5.0000001", 0.1 + 0.2, "", True, False, None, [1], {"v": 1},
                       10 ** 400, "٣"):
             status, out = self.call("POST", self.path, {"kind": "quota_used", "value": given})
             self.assertEqual((status, out.get("code")), (400, "bad_number"), repr(given))
@@ -455,7 +456,7 @@ class LimitTests(Base):
             status, out = self.call("POST", self.path, {"kind": "period_end", "value": bad})
             self.assertEqual((status, out.get("code")), (400, "bad_date"), repr(bad))
             self.clear_rate()
-        today = datetime.now(timezone.utc).date()
+        today = registry._today(types.SimpleNamespace(gw=self.rig.gw))
         self.assertEqual(self.value(self.aid, "plan", "Pro", as_of=(today + timedelta(days=1)).isoformat())["values"]["plan"]["as_of"],
                          (today + timedelta(days=1)).isoformat())
         self.refused({"kind": "plan", "value": "Pro", "as_of": (today + timedelta(days=2)).isoformat()}, "bad_date", self.path)
@@ -711,9 +712,10 @@ class PrivacyTests(Base):
         self.assertEqual([r["action"] for r in rows], ["registered a provider account", "recorded a provider account value",
                                                        "recorded a provider account value", "recorded a provider account value",
                                                        "ended a provider account"])
-        self.assertTrue(all(r["correlation"] == f"person:{self.pid}" and r["detail"] == "" and r["outcome"] == "ok" for r in rows))
-        self.assertEqual(json.loads(rows[0]["after_json"]), {"route": "individual", "status": "active", "tool_id": "canva"})
-        self.assertEqual(set(json.loads(rows[1]["after_json"])), {"kind", "value_id"})
+        self.assertTrue(all(r["correlation"] == f"provider_account:{aid}" and r["detail"] == "" and r["outcome"] == "ok"
+                            and r["actor"] == "Nansubuga Grace" for r in rows))
+        self.assertEqual(json.loads(rows[0]["after_json"]), {"status": "active"})
+        self.assertEqual(set(json.loads(rows[1]["after_json"])), {"value_id"})
         self.assertEqual((json.loads(rows[4]["before_json"]), json.loads(rows[4]["after_json"])), ({"status": "active"}, {"status": "ended"}))
 
     def test_an_ended_or_refused_call_leaves_no_secret_in_an_error_body(self):
@@ -734,19 +736,59 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(len(SCHEMA), 24)
         self.assertEqual(hashlib.sha256("\x00".join(SCHEMA[:23]).encode()).hexdigest(), SCHEMA_23_SHA256)
 
-    def test_the_statement_splitter_reads_every_older_script_exactly_as_before(self):
-        for i, script in enumerate(SCHEMA[:23]):
-            self.assertEqual(statements(script), [s for s in script.split(";") if s.strip()], i)
-        self.assertEqual(len(statements(SCHEMA[23])), 11)
-        self.assertEqual(sum(s.lstrip().upper().startswith("CREATE TRIGGER") for s in statements(SCHEMA[23])), 5)
+    def test_older_entries_are_still_strings_and_v24_is_a_tuple_of_single_statements(self):
+        self.assertTrue(all(isinstance(entry, str) for entry in SCHEMA[:23]))
+        self.assertIsInstance(SCHEMA[23], tuple)
+        for element in SCHEMA[23]:
+            self.assertTrue(sqlite3.complete_statement(element + ";"), element[:60])
+            self.assertIsNone(re.search(r"\bEND\s*;\s*\S", element))  # nothing follows a trigger's END
+        self.assertEqual(sum(e.lstrip().startswith("CREATE TRIGGER") for e in SCHEMA[23]), 7)
+        with self.assertRaises((sqlite3.Warning, sqlite3.ProgrammingError)):  # sqlite itself refuses an element that holds two statements
+            sqlite3.connect(":memory:").execute("SELECT 1; SELECT 2")
+        self.assertFalse(hasattr(dbmod, "statements"))  # no parser: a str entry is split on semicolons, as it always was
 
     def test_a_fresh_database_gets_the_registry_and_its_rules(self):
         db = DB(":memory:")
         self.assertEqual(db.scalar("SELECT v FROM meta WHERE k = 'schema'"), "24")
         names = {r["name"] for r in db.q("SELECT name FROM sqlite_master")}
         self.assertTrue({"provider_accounts", "provider_account_values", "provider_accounts_one_active", "provider_account_values_no_update",
-                         "provider_accounts_only_end"} <= names)
+                         "provider_accounts_only_end", "provider_accounts_no_replace", "provider_account_values_no_replace"} <= names)
+        self.assertEqual(db.scalar("PRAGMA recursive_triggers"), 0)  # the guards do not rely on it
         db.close()
+
+    def test_a_failing_statement_rolls_the_whole_tuple_back_to_v23(self):
+        for broken in (("CREATE TABLE zz_a(x)", "CREATE TRIGGER zz_t BEFORE INSERT ON zz_a BEGIN SELECT 1; END", "CREATE TABLE zz_a(x)"),
+                       ("CREATE TABLE zz_a(x)", "CREATE TABLE zz_b(x); CREATE TABLE zz_c(x)"),  # two statements in one element
+                       ("CREATE TABLE zz_a(x)", "CREATE TRIGGER zz_t BEFORE INSERT ON zz_a BEGIN SELECT RAISE(ABORT, 'x'); END",
+                        "INSERT INTO no_such_table VALUES(1)")):
+            path = os.path.join(tempfile.mkdtemp(prefix="sgw-v24-"), "g.db")
+            with mock.patch.object(dbmod, "SCHEMA", SCHEMA[:23]):
+                DB(path).close()
+            with mock.patch.object(dbmod, "SCHEMA", SCHEMA[:23] + [broken]):
+                with self.assertRaises(sqlite3.Error):
+                    DB(path)
+            raw = sqlite3.connect(path)
+            self.assertEqual(raw.execute("SELECT v FROM meta WHERE k = 'schema'").fetchone()[0], "23")
+            self.assertEqual(raw.execute("SELECT COUNT(*) FROM sqlite_master WHERE name LIKE 'zz_%'").fetchone()[0], 0)
+            raw.close()
+            with mock.patch.object(dbmod, "SCHEMA", SCHEMA[:23]):  # and the v23 database still opens
+                reopened = DB(path)
+                self.assertEqual(reopened.scalar("SELECT v FROM meta WHERE k = 'schema'"), "23")
+                reopened.close()
+
+    def test_the_real_v24_failing_part_way_leaves_v23_untouched(self):
+        path = os.path.join(tempfile.mkdtemp(prefix="sgw-v24-"), "g.db")
+        with mock.patch.object(dbmod, "SCHEMA", SCHEMA[:23]):
+            DB(path).close()
+        broken = SCHEMA[23] + ("CREATE TABLE provider_accounts(x)",)  # the last element fails: the table exists by then
+        with mock.patch.object(dbmod, "SCHEMA", SCHEMA[:23] + [broken]):
+            with self.assertRaises(sqlite3.Error):
+                DB(path)
+        raw = sqlite3.connect(path)
+        self.assertEqual(raw.execute("SELECT v FROM meta WHERE k = 'schema'").fetchone()[0], "23")
+        self.assertEqual(raw.execute("SELECT COUNT(*) FROM sqlite_master WHERE name LIKE 'provider_account%'").fetchone()[0], 0)
+        raw.close()
+        DB(path).close()  # the real upgrade then succeeds from the untouched v23 file
 
     def test_a_populated_v23_database_upgrades_with_every_existing_row_unchanged(self):
         path = os.path.join(tempfile.mkdtemp(prefix="sgw-v24-"), "g.db")
@@ -814,6 +856,301 @@ class SweepTests(Base):
                 self.assertEqual(self.console(path, who)[0], code, (path, who))
         denied = self.db.scalar("SELECT COUNT(*) FROM audit WHERE outcome = 'denied'")
         self.assertEqual(denied, 4)  # each refusal is recorded by the dispatcher
+
+
+# ------------------------------------------------------------------ correction R1-R5 (Sentinel, 6 November 02:27)
+
+
+class ReplaceGuardTests(Base):
+    """R1: INSERT OR REPLACE and REPLACE INTO delete the row they replace without firing DELETE triggers."""
+
+    def seed(self, with_values=True):
+        aid = self.account(label=LABEL_MARK)["id"]
+        if with_values:
+            self.value(aid, "plan", "Pro")
+            self.value(aid, "quota_used", "5")
+        return aid
+
+    def snapshot(self):
+        return (self.db.q("SELECT * FROM provider_accounts ORDER BY id"), self.db.q("SELECT * FROM provider_account_values ORDER BY id"),
+                self.db.scalar("SELECT COUNT(*) FROM audit"))
+
+    def refuses(self, sql, args=()):
+        before = self.snapshot()
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.x(sql, args)
+        self.assertEqual(self.snapshot(), before)
+
+    VALUE = "INSERT OR REPLACE INTO provider_account_values(id, account_id, kind, value, as_of, recorded, recorded_by) VALUES(?,?,'plan','Free','2026-11-06',1,?)"
+
+    def test_replacing_a_value_row_is_refused_and_nothing_changes(self):
+        aid = self.seed()
+        vid = self.db.scalar("SELECT MIN(id) FROM provider_account_values")
+        self.refuses(self.VALUE, (vid, aid, self.pid))
+        self.refuses(self.VALUE.replace("INSERT OR REPLACE", "REPLACE"), (vid, aid, self.pid))
+        self.refuses(self.VALUE.replace("INSERT OR REPLACE", "INSERT"), (vid, aid, self.pid))
+        self.assertEqual(self.db.scalar("SELECT value FROM provider_account_values WHERE id = ?", (vid,)), "Pro")
+
+    def test_replacing_an_account_row_is_refused_with_and_without_values(self):
+        for with_values in (True, False):
+            aid = self.seed(with_values)
+            sql = ("INSERT OR REPLACE INTO provider_accounts(id, account_holder_kind, holder_person_id, tool_id, route, payer, label, created,"
+                   " created_by) VALUES(?, 'person', ?, 'gemini', 'seat', 'company', 'taken over', 1, ?)")
+            self.refuses(sql, (aid, self.other_pid, self.pid))
+            self.refuses(sql.replace("INSERT OR REPLACE", "REPLACE"), (aid, self.other_pid, self.pid))
+            self.assertEqual(self.db.scalar("SELECT label FROM provider_accounts WHERE id = ?", (aid,)), LABEL_MARK)
+            self.call("POST", f"/provider-accounts/{aid}/end", {})
+
+    def test_replacing_through_the_partial_index_under_a_new_id_is_refused(self):
+        for with_values in (False, True):  # without values nothing else would stop the replace
+            self.partial_index_replace(with_values)
+            aid = self.db.scalar("SELECT MAX(id) FROM provider_accounts")
+            self.call("POST", f"/provider-accounts/{aid}/end", {})
+
+    def partial_index_replace(self, with_values):
+        aid = self.seed(with_values)
+        for verb in ("INSERT OR REPLACE", "REPLACE", "INSERT OR IGNORE"):
+            sql = (f"{verb} INTO provider_accounts(id, account_holder_kind, holder_person_id, tool_id, route, payer, label, created,"
+                   " created_by) VALUES(?, 'person', ?, 'canva', 'individual', 'none', 'new row', 1, ?)")
+            before = self.snapshot()
+            try:
+                self.db.x(sql, (aid + 50, self.pid, self.pid))
+            except sqlite3.IntegrityError:
+                pass
+            self.assertEqual(self.snapshot(), before, verb)
+        self.assertEqual(self.db.scalar("SELECT status FROM provider_accounts WHERE id = ?", (aid,)), "active")
+
+    def test_an_ended_account_may_be_registered_again_and_a_replace_cannot_touch_the_ended_one(self):
+        aid = self.seed()
+        self.call("POST", f"/provider-accounts/{aid}/end", {})
+        again = self.account()["id"]
+        self.assertNotEqual(aid, again)
+        self.refuses("REPLACE INTO provider_accounts(id, account_holder_kind, holder_person_id, tool_id, route, payer, created, created_by,"
+                     " status, ended) VALUES(?, 'person', ?, 'canva', 'individual', 'none', 1, ?, 'ended', 2)", (aid, self.pid, self.pid))
+
+    def test_ids_must_be_positive_so_the_guards_stay_exact_and_normal_use_still_works(self):
+        self.refuses("INSERT INTO provider_accounts(id, account_holder_kind, holder_person_id, tool_id, route, payer, created, created_by)"
+                     " VALUES(-1, 'person', ?, 'gemini', 'seat', 'company', 1, ?)", (self.pid, self.pid))
+        self.refuses("INSERT INTO provider_accounts(id, account_holder_kind, holder_person_id, tool_id, route, payer, created, created_by)"
+                     " VALUES(0, 'person', ?, 'gemini', 'seat', 'company', 1, ?)", (self.pid, self.pid))
+        aid = self.seed()
+        self.assertEqual(self.call("POST", f"/provider-accounts/{aid}/end", {})[0], 200)
+        self.assertEqual(self.db.scalar("PRAGMA recursive_triggers"), 0)
+
+
+# ------------------------------------------------------------------ R2: text categories and the write boundary
+
+
+class TextCategoryTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.aid = self.account()["id"]
+        self.path = f"/provider-accounts/{self.aid}/values"
+
+    def test_lone_surrogates_are_a_400_not_a_traceback(self):
+        for ch in ("\ud800", "\udbff", "\udc00", "\udfff"):
+            for text in (ch, "a" + ch + "b"):
+                got, out = self.call("POST", "/provider-accounts", {"tool_id": "codex", "route": "seat", "label": text})
+                self.assertEqual((got, out["code"]), (400, "bad_text"), repr(text))
+                self.refused({"kind": "plan", "value": text}, "bad_text", self.path)
+        self.assertEqual(self.db.scalar("SELECT COUNT(*) FROM provider_accounts"), 1)
+
+    def test_a_surrogate_that_reaches_the_database_is_still_a_400(self):
+        with mock.patch.object(registry, "_text", lambda value, name, limit, required: "\ud800"):
+            got, out = self.call("POST", "/provider-accounts", {"tool_id": "codex", "route": "seat", "label": "x"})
+            self.assertEqual((got, out["code"]), (400, "bad_text"))
+            got, out = self.call("POST", self.path, {"kind": "plan", "value": "x"})
+            self.assertEqual((got, out["code"]), (400, "bad_text"))
+        self.assertEqual(self.db.scalar("SELECT COUNT(*) FROM provider_accounts"), 1)
+        self.assertEqual(self.db.scalar("SELECT COUNT(*) FROM provider_account_values"), 0)
+
+    def test_every_other_category_is_refused_and_ordinary_text_is_not(self):
+        for ch in ("\u200b", "\u200c", "\u200d", "\u200e", "\u200f", "\ufeff", "\u2065", "\u206a", "\u00ad", "\ue000", "\u0378",
+                   "\U000f0000", "\U0010ffff", "\u061c", "\u2060", "\u180e", "\U000e0001"):
+            self.refused({"tool_id": "codex", "route": "seat", "label": "a" + ch + "b"}, "bad_text")
+            self.refused({"kind": "plan", "value": ch + "Pro"}, "bad_text", self.path)
+        for text in ("Jos\u00e9", "Zo\u00eb's team", "Cafe\u0301", "\u65e5\u672c\u8a9e plan", "\U0001f44d", "Max 20x \U0001f680"):
+            self.clear_rate()
+            self.assertTrue(self.value(self.aid, "plan", text)["values"]["plan"]["value"])
+        for sequence in ("\U0001f468\u200d\U0001f469\u200d\U0001f467", "\U0001f3f3\ufe0f\u200d\U0001f308"):  # ZWJ sequences: refused
+            self.refused({"kind": "plan", "value": sequence}, "bad_text", self.path)
+
+    def test_a_lone_surrogate_in_the_raw_body_does_not_break_the_server(self):
+        raw = b'{"tool_id": "codex", "route": "seat", "label": "\\ud800"}'
+        status, _, payload = self.rig.request("POST", "/api/provider-accounts", raw, {"x-swangz-app": "1", "cookie": self.person_cookie})
+        self.assertEqual(status, 400, payload)
+        self.assertEqual(json.loads(payload)["code"], "bad_text")
+        self.assertEqual(self.call("GET", "/provider-accounts")[0], 200)
+
+
+# ------------------------------------------------------------------ R3: the audit log is readable by every console user
+
+
+class AuditPrivacyTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.make_admin("bill", areas="money")
+        self.make_admin("sec", areas="trust,emergency")
+        self.aid = self.account(tool="canva", route="individual", payer="person", label=LABEL_MARK)["id"]
+        self.value(self.aid, "monthly_price", "30", "USD")
+        self.value(self.aid, "plan", PLAN_MARK)
+        self.call("POST", f"/provider-accounts/{self.aid}/end", {})
+
+    def test_the_three_audit_entries_name_the_holder_and_the_record_and_nothing_else(self):
+        rows = self.db.q("SELECT * FROM audit WHERE target = ? ORDER BY id", (f"provider_account:{self.aid}",))
+        self.assertEqual([r["action"] for r in rows], ["registered a provider account", "recorded a provider account value",
+                                                       "recorded a provider account value", "ended a provider account"])
+        ref = f"provider_account:{self.aid}"
+        for r in rows:
+            self.assertEqual((r["actor"], r["correlation"], r["detail"], r["reason"], r["outcome"]), ("Nansubuga Grace", ref, "", "", "ok"))
+        shapes = [(json.loads(r["before_json"]) if r["before_json"] else None, json.loads(r["after_json"])) for r in rows]
+        self.assertEqual(shapes[0], (None, {"status": "active"}))
+        self.assertEqual([set(a) for b, a in shapes[1:3]], [{"value_id"}, {"value_id"}])
+        self.assertEqual(shapes[3], ({"status": "active"}, {"status": "ended"}))
+        text = json.dumps(rows, default=str)
+        for word in ("canva", "Canva", "individual", "seat", "monthly_price", "plan\"", "USD", "payer", LABEL_MARK, PLAN_MARK):
+            self.assertNotIn(word, text.replace("recorded a provider account value", "").replace("a provider account", ""), word)
+
+    def test_no_console_audit_view_search_or_timeline_shows_a_tool_route_kind_or_content(self):
+        private = (LABEL_MARK, PLAN_MARK, "monthly_price", "individual", '"USD"', "canva", "Canva")
+        for who in ("viewer", "bill", "sec", "owner"):
+            audit = [self.console(path, who) for path in ("/audit?limit=500", "/audit?q=provider&limit=500")]
+            search = [self.console("/search?q=" + q, who) for q in ("provider", str(self.aid), "Grace", "canva", LABEL_MARK)]
+            for status, body in audit + search:
+                self.assertEqual(status, 200, who)
+            entries = [i for status, body in audit for i in body["items"] if "provider account" in i["action"]]
+            self.assertEqual(len(entries), 8, who)  # four entries, seen in both listings
+            for item in entries:
+                self.assertEqual((item["target"], item["actor"]), (f"provider_account:{self.aid}", "Nansubuga Grace"), who)
+            for marker in private:
+                self.assertNotIn(marker, json.dumps(entries), (who, marker))
+            for status, body in search[3:]:  # a search for the tool or the content finds no registry entry
+                self.assertNotIn("provider_account", json.dumps(body), who)
+                self.assertNotIn("provider account", json.dumps(body), who)
+
+    def test_the_person_timeline_has_no_registry_rows(self):
+        for query in ("/timeline", f"/timeline?person={self.pid}", f"/timeline?kind=access&person={self.pid}",
+                      f"/people/{self.pid}/timeline"):
+            status, body = self.console(query, "owner")
+            if status == 404:
+                continue
+            self.assertEqual(status, 200, query)
+            text = json.dumps(body)
+            self.assertNotIn("provider account", text, query)
+            self.assertNotIn("provider_account", text, query)
+        self.assertEqual(self.db.scalar("SELECT COUNT(*) FROM audit WHERE correlation LIKE 'person:%' AND action LIKE '%provider account%'"), 0)
+
+
+# ------------------------------------------------------------------ R5: local day, six places, case, currencies
+
+
+class LocalDayTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.aid = self.account()["id"]
+        self.path = f"/provider-accounts/{self.aid}/values"
+        # 21:30 UTC on 5 November is 00:30 on 6 November in Kampala (UTC+3)
+        self.at = datetime(2026, 11, 5, 21, 30, tzinfo=timezone.utc).timestamp()
+
+    def test_the_default_day_and_the_tomorrow_limit_follow_the_gateway_not_utc(self):
+        self.assertEqual(self.rig.gw.settings.tz_offset_minutes, 180)
+        with mock.patch.object(registry, "_now", lambda: self.at):
+            self.assertEqual(self.value(self.aid, "plan", "Pro")["values"]["plan"]["as_of"], "2026-11-06")  # not 2026-11-05
+            self.clear_rate()
+            self.assertEqual(self.value(self.aid, "plan", "Pro", as_of="2026-11-07")["values"]["plan"]["as_of"], "2026-11-07")
+            self.clear_rate()
+            self.refused({"kind": "plan", "value": "Pro", "as_of": "2026-11-08"}, "bad_date", self.path)
+        with mock.patch.object(registry, "_now", lambda: self.at - 3600):  # 20:30 UTC, 23:30 in Kampala: still 5 November
+            self.clear_rate()
+            self.assertEqual(self.value(self.aid, "plan", "Pro")["values"]["plan"]["as_of"], "2026-11-05")
+            self.clear_rate()
+            self.refused({"kind": "plan", "value": "Pro", "as_of": "2026-11-07"}, "bad_date", self.path)
+
+    def test_the_offset_is_the_gateway_setting(self):
+        ctx = types.SimpleNamespace(gw=types.SimpleNamespace(settings=types.SimpleNamespace(tz_offset_minutes=-300)))
+        with mock.patch.object(registry, "_now", lambda: self.at):
+            self.assertEqual(registry._today(ctx).isoformat(), "2026-11-05")  # 16:30 in UTC-5
+            ctx.gw.settings.tz_offset_minutes = 180
+            self.assertEqual(registry._today(ctx).isoformat(), "2026-11-06")
+
+
+class SixPlacesTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.aid = self.account()["id"]
+        self.path = f"/provider-accounts/{self.aid}/values"
+
+    def test_more_than_six_decimal_places_are_refused_as_number_and_as_text_never_rounded(self):
+        pairs = [(1e-7, "1e-7"), (0.0000001, "0.0000001"), (1.0000001, "1.0000001"), (0.1234567, "0.1234567"), (12.3456789, "12.3456789"),
+                 (5e-324, "5e-324"), (0.1 + 0.2, "0.30000000000000004"), (1e-10, "0.0000000001")]
+        for number, text in pairs:
+            for given in (number, text):
+                self.clear_rate()
+                got, out = self.call("POST", self.path, {"kind": "quota_used", "value": given})
+                self.assertEqual((got, out.get("code")), (400, "bad_number"), repr(given))
+        self.assertEqual(self.db.scalar("SELECT COUNT(*) FROM provider_account_values"), 0)
+        for number, text in ((1e-06, "0.000001"), (0.5, "0.5"), (123456.123456, "123456.123456"), (2.5e-05, "0.000025"), (3, "3")):
+            self.clear_rate()
+            self.assertEqual(self.value(self.aid, "quota_used", number)["values"]["quota_used"]["value"], text)
+            self.clear_rate()
+            self.assertEqual(self.value(self.aid, "quota_used", text)["values"]["quota_used"]["value"], text)
+
+    def test_amount_unit_boundaries(self):
+        for given, stored in ((0, "0"), (0.0, "0"), (-0.0, "0"), ("0", "0"), ("0.000000", "0"), (1e-06, "0.000001"), (1e12, "1000000000000"),
+                               ("999999999999.999999", "999999999999.999999")):
+            self.assertEqual(registry._amount(given, "x"), stored, given)
+        for given in ("1000000000000.000001", "1000000000000.5", -1e-06, "-0.000001"):
+            with self.assertRaises(registry.ApiError, msg=given):
+                registry._amount(given, "x")
+
+
+class SecretCaseTests(Base):
+    def test_secret_prefixes_are_matched_without_regard_to_case(self):
+        aid = self.account()["id"]
+        for text in ("SK-abc", "Sk-ant-123", "akia1234", "Akia team", "AKIAXXXX", "GHP_abc", "Ghp_abc", "XOXB-1", "Xoxp-1", "BEARER x",
+                     "Bearer abc", "bEaReR token", "sk-"):
+            self.clear_rate()
+            for body, path in (({"tool_id": "codex", "route": "seat", "label": text}, "/provider-accounts"),
+                               ({"kind": "plan", "value": text}, f"/provider-accounts/{aid}/values")):
+                got, out = self.call("POST", path, body)
+                self.assertEqual((got, out["code"]), (400, "looks_like_secret"), text)
+                self.assertNotIn(text, json.dumps(out))
+        for text in ("Skate plan", "Bearers club", "Ghpx", "akin", "xo plan", "Skip"):
+            self.clear_rate()
+            self.assertEqual(self.call("POST", f"/provider-accounts/{aid}/values", {"kind": "plan", "value": text})[0], 201, text)
+
+    def test_a_required_plan_of_only_whitespace_is_refused_and_an_optional_blank_label_is_empty(self):
+        aid = self.account()["id"]
+        self.refused({"kind": "plan", "value": " \u00a0\u3000 "}, "bad_text", f"/provider-accounts/{aid}/values")
+        self.assertEqual(self.account(tool="chatgpt", label="  \u00a0 ")["label"], "")
+
+
+class CurrencySourceTests(unittest.TestCase):
+    SIX_FILE = os.environ.get("SIX_LIST_ONE", "/tmp/probe_six/l1.xml")
+    EXCLUDED = set("BOV CHE CHW CLF COU MXV USN UYI UYW XAD XAG XAU XBA XBB XBC XBD XDR XPD XPT XSU XTS XUA XXX".split())
+
+    def test_the_set_is_the_documented_derivation_of_list_one(self):
+        codes = registry.CURRENCIES
+        self.assertEqual(len(codes), 155)
+        self.assertTrue({"UGX", "USD", "EUR", "GBP", "KES", "XCG", "ZWG", "SLE", "VED", "XOF", "XAF", "XCD", "XPF"} <= codes)
+        self.assertFalse({"ANG", "BGN", "ZWL", "XXX", "XTS", "XAU", "XAG", "XDR", "USN", "CHE", "CHW", "CLF", "UYI", "UYW", "BOV", "MXV",
+                          "COU", "XAD", "XSU", "XUA", "usd", "AAA"} & codes)
+        self.assertTrue(all(len(c) == 3 and c.isalpha() and c.isupper() for c in codes))
+        source = open(registry.__file__, encoding="utf-8").read()
+        self.assertIn("2026-09-17", source)
+        self.assertIn("33139b438657d1cee116ba737807ea71d19d6de4b90f799a09c56f0cc6a1b0ff", source)
+
+    def test_the_set_matches_the_published_file_when_it_is_present(self):
+        if not os.path.exists(self.SIX_FILE):
+            self.skipTest(f"Not run: the SIX List One file is not at {self.SIX_FILE} (set SIX_LIST_ONE)")
+        import xml.etree.ElementTree as ET
+        raw = open(self.SIX_FILE, "rb").read()
+        if hashlib.sha256(raw).hexdigest() != "33139b438657d1cee116ba737807ea71d19d6de4b90f799a09c56f0cc6a1b0ff":
+            self.skipTest("Not run: that file is not the 2026-09-17 List One the set was derived from")
+        root = ET.fromstring(raw)
+        listed = {e.findtext("Ccy") for e in root.iter("CcyNtry") if e.findtext("Ccy")}
+        self.assertEqual(root.attrib["Pblshd"], "2026-09-17")
+        self.assertEqual(registry.CURRENCIES, listed - self.EXCLUDED)
 
 
 if __name__ == "__main__":

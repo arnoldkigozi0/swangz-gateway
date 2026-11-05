@@ -36,7 +36,7 @@ READS_PER_MINUTE = 120
 LABEL_MAX, PLAN_MAX = 80, 60
 LIST_LIMIT = 200
 MAX_AMOUNT = Decimal(10) ** 12
-DECIMAL_PLACES = Decimal("0.000001")
+DECIMAL_PLACES = 6
 
 # ---------------------------------------------------------------- who sees what (Sentinel D-019)
 # Per record kind, per audience: the account fields and the value kinds visible. A console user sees the union over the
@@ -53,19 +53,23 @@ FIELD_CEILING = {
 }
 CONSOLE_AREAS = ("govern", "money")
 
-# Active ISO 4217 currency codes.
+# Currency codes: SIX's ISO 4217 "List One" (current currency and funds codes), the file published 2026-09-17
+# (<ISO_4217 Pblshd="2026-09-17">; sha256 33139b438657d1cee116ba737807ea71d19d6de4b90f799a09c56f0cc6a1b0ff, fetched from SIX by Probe on 5 Nov 2026 23:29 UTC). Left out, because a
+# subscription is never priced in them: fund codes (BOV CHE CHW CLF COU MXV USN UYI UYW), metals (XAG XAU XPD XPT), unit and
+# bond-market codes (XAD XBA XBB XBC XBD XDR XSU XUA) and the test and no-currency codes (XTS XXX). To refresh, take the new List
+# One file and repeat that derivation; tests/test_provider_registry.py compares this set with the file when it is present.
 CURRENCIES = frozenset("""
-AED AFN ALL AMD ANG AOA ARS AUD AWG AZN BAM BBD BDT BGN BHD BIF BMD BND BOB BRL BSD BTN BWP BYN BZD CAD CDF CHF CLP CNY
-COP CRC CUP CVE CZK DJF DKK DOP DZD EGP ERN ETB EUR FJD FKP GBP GEL GHS GIP GMD GNF GTQ GYD HKD HNL HTG HUF IDR ILS INR
-IQD IRR ISK JMD JOD JPY KES KGS KHR KMF KPW KRW KWD KYD KZT LAK LBP LKR LRD LSL LYD MAD MDL MGA MKD MMK MNT MOP MRU MUR
-MVR MWK MXN MYR MZN NAD NGN NIO NOK NPR NZD OMR PAB PEN PGK PHP PKR PLN PYG QAR RON RSD RUB RWF SAR SBD SCR SDG SEK SGD
-SHP SLE SOS SRD SSP STN SVC SYP SZL THB TJS TMT TND TOP TRY TTD TWD TZS UAH UGX USD UYU UZS VED VES VND VUV WST XAF XCD
-XOF XPF YER ZAR ZMW ZWL""".split())
+AED AFN ALL AMD AOA ARS AUD AWG AZN BAM BBD BDT BHD BIF BMD BND BOB BRL BSD BTN BWP BYN BZD CAD CDF CHF CLP CNY COP
+CRC CUP CVE CZK DJF DKK DOP DZD EGP ERN ETB EUR FJD FKP GBP GEL GHS GIP GMD GNF GTQ GYD HKD HNL HTG HUF IDR ILS INR
+IQD IRR ISK JMD JOD JPY KES KGS KHR KMF KPW KRW KWD KYD KZT LAK LBP LKR LRD LSL LYD MAD MDL MGA MKD MMK MNT MOP MRU
+MUR MVR MWK MXN MYR MZN NAD NGN NIO NOK NPR NZD OMR PAB PEN PGK PHP PKR PLN PYG QAR RON RSD RUB RWF SAR SBD SCR SDG
+SEK SGD SHP SLE SOS SRD SSP STN SVC SYP SZL THB TJS TMT TND TOP TRY TTD TWD TZS UAH UGX USD UYU UZS VED VES VND VUV
+WST XAF XCD XCG XOF XPF YER ZAR ZMW ZWG""".split())
 
 # ---------------------------------------------------------------- bounded, secret-resistant input
 
 _KEY_LIKE = re.compile(r"[A-Za-z0-9_\-+/=.]{32,}")
-_SECRET_PREFIXES = ("sk-", "AKIA", "ghp_", "xox")
+_SECRET_PREFIXES = ("sk-", "akia", "ghp_", "xox", "bearer ")  # compared after casefold
 
 
 def _bad(message, code="bad_request"):
@@ -73,13 +77,15 @@ def _bad(message, code="bad_request"):
 
 
 def _text(value, name, limit, *, required):
-    """NFC, trimmed, bounded, and refused when it carries a control or bidi-override character or looks like a secret.
-    The refusal never repeats the text."""
+    """NFC, trimmed, bounded. Refused when it holds any character of a Unicode "other" category (controls, format characters
+    such as bidi marks and zero-width spaces, surrogates, private use, unassigned) or a line or paragraph separator, or when it
+    looks like a secret. The refusal never repeats the text."""
     if not isinstance(value, str):
         raise _bad(f"{name} must be text", "bad_text")
     s = unicodedata.normalize("NFC", value)
     for ch in s:
-        if unicodedata.category(ch) in ("Cc", "Zl", "Zp") or "‪" <= ch <= "‮" or "⁦" <= ch <= "⁩":
+        category = unicodedata.category(ch)
+        if category[0] == "C" or category in ("Zl", "Zp"):
             raise _bad(f"{name} has a character that is not allowed", "bad_text")
     s = s.strip()
     if not s:
@@ -88,13 +94,14 @@ def _text(value, name, limit, *, required):
         return ""
     if len(s) > limit:
         raise _bad(f"{name} is longer than {limit} characters", "too_long")
-    if s.startswith(_SECRET_PREFIXES) or s[:7].lower() == "bearer " or _KEY_LIKE.search(s):
+    if s.casefold().startswith(_SECRET_PREFIXES) or _KEY_LIKE.search(s):
         raise _bad(f"{name} looks like a key or a token. Don't put secrets here.", "looks_like_secret")
     return s
 
 
 def _amount(value, name):
-    """A finite decimal from 0 to 1e12, as a canonical string (at most six decimal places)."""
+    """A finite decimal from 0 to 1e12 with at most six decimal places, as a canonical string. More places are refused, never
+    rounded: a float is read as the shortest text that round-trips (Decimal(repr(x))), so 1e-7 is seven places and is refused."""
     if isinstance(value, bool) or not isinstance(value, (int, float, str)):
         raise _bad(f"{name} must be a number", "bad_number")
     try:
@@ -108,11 +115,10 @@ def _amount(value, name):
             number = Decimal(repr(value))
         else:
             number = Decimal(value)
-        if number < 0 or number > MAX_AMOUNT:
+        if number < 0 or number > MAX_AMOUNT or number.normalize().as_tuple().exponent < -DECIMAL_PLACES:
             raise ValueError
-        number = number.quantize(DECIMAL_PLACES)
     except (ValueError, ArithmeticError):
-        raise _bad(f"{name} must be a number from 0 to 1000000000000", "bad_number")
+        raise _bad(f"{name} must be a number from 0 to 1000000000000 with at most six decimal places", "bad_number")
     if number == 0:
         number = Decimal(0)
     out = format(number, "f")
@@ -136,8 +142,14 @@ def _strict(body, allowed):
         raise _bad("That request has a field this form does not take.", "unknown_field")
 
 
-def _today():
-    return datetime.now(timezone.utc).date()
+def _now():
+    return time.time()
+
+
+def _today(ctx):
+    """Today's date at the gateway (settings.tz_offset_minutes, Kampala by default), not in UTC: between midnight and 03:00
+    in Kampala it is already a different day from UTC's."""
+    return datetime.fromtimestamp(_now() + ctx.gw.settings.tz_offset_minutes * 60, timezone.utc).date()
 
 
 # ---------------------------------------------------------------- reading
@@ -225,9 +237,12 @@ def _own(ctx, account_id):
 
 
 def _audit(ctx, action, account_id, before, after):
-    """Ids, route, status and value kinds only: a label or a value is never written to the audit log."""
-    ctx.gw.audit(ctx.person["name"], action, f"provider_account:{account_id}", "", ctx.ip, before=before, after=after,
-                 correlation=f"person:{ctx.person['id']}")
+    """The audit log is readable by every console user, so a registry entry says only who (the holder's name, as in every other
+    entry), which of the three actions, and which record: the target and the correlation are `provider_account:<id>` (not
+    `person:<id>`, so these never appear in a person's Timeline), and before/after hold a status or a value id and nothing else.
+    No tool, route, kind, payer, label or value is ever written here."""
+    ref = f"provider_account:{account_id}"
+    ctx.gw.audit(ctx.person["name"], action, ref, "", ctx.ip, before=before, after=after, correlation=ref)
 
 
 # ---------------------------------------------------------------- staff routes (the holder's own accounts)
@@ -298,7 +313,9 @@ def register(ctx):
                 (person_id, tool_id, route, payer, label, now, person_id)).lastrowid
         except sqlite3.IntegrityError:
             raise ApiError(409, "You already have this account registered.", "already_registered")
-        _audit(ctx, "registered a provider account", account_id, None, {"status": "active", "route": route, "tool_id": tool_id})
+        except UnicodeEncodeError:
+            raise _bad("label has a character that is not allowed", "bad_text")
+        _audit(ctx, "registered a provider account", account_id, None, {"status": "active"})
     row = _own(ctx, account_id)
     return 201, _shape(row, {}, ("holder",))
 
@@ -328,7 +345,7 @@ def add_value(ctx, aid):
         value = _day(body["value"], "period_end", date(2100, 12, 31))
     else:
         value = _amount(body["value"], kind)
-    today = _today()
+    today = _today(ctx)
     as_of = _day(body["as_of"], "as_of", today + timedelta(days=1)) if "as_of" in body else today.isoformat()
     if row["status"] != "active":
         raise ApiError(409, "This account has ended, so it takes no more values.", "account_ended")
@@ -341,7 +358,9 @@ def add_value(ctx, aid):
                 " VALUES(?,?,?,?,?,?,?)", (row["id"], kind, value, currency, as_of, time.time(), ctx.person["id"])).lastrowid
         except sqlite3.IntegrityError:
             raise ApiError(409, "This account has ended, so it takes no more values.", "account_ended")
-        _audit(ctx, "recorded a provider account value", row["id"], None, {"kind": kind, "value_id": value_id})
+        except UnicodeEncodeError:
+            raise _bad("value has a character that is not allowed", "bad_text")
+        _audit(ctx, "recorded a provider account value", row["id"], None, {"value_id": value_id})
     return 201, _shape(row, _current_values(ctx.db, [row["id"]]).get(row["id"], {}), ("holder",))
 
 
