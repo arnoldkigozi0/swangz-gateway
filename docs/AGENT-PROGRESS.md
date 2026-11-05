@@ -286,3 +286,11 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 - GitHub read succeeded outside the network-restricted sandbox: PR #26 OPEN at b0d7c998f2feb2a537041ece07c2f99980a0feab, all four Hub checks SUCCESS (Python 3.10/3.12, app-window, browser). This does not establish a visual check of the paused screen.
 - Resuming Prism paused-screen verification as sole builder and Probe read-only queue/head/CI reconciliation. No repeated full suite; no merge or deployment authorized.
 - Chief checks: coordination whitespace only; Python/browser tests Not run by Chief (documentation-only update, existing milestone evidence reused).
+
+## Amendment 01 approved — 5 November 23:48
+
+- Arnold: "also approve the ammendment". Recorded as product approval of Amendment 01 — Product Operating Model, issued 2 November (`/home/inquiline/swangz-team/mission/amendment-01-operating-model.md`): individual provider accounts/seats, isolated personal workspaces, lightweight VPS, official metadata synchronization and managed Chrome.
+- Proceed with bounded design and implementation tasks under the existing architecture, independent QA and critical security gates. Backend proposal corrections in IMPLEMENTATION-ROADMAP remain unresolved until reviewed; product approval does not establish technical acceptance or completed functionality.
+- No PR number was named for merge. Deployment, spending, credentials/account changes and the staff-domain decision retain their separate approval boundaries. No production action performed.
+- Prism paused-screen work and Probe PR reconciliation remain in flight, unchanged; Prism retains sole builder slot.
+- Checks: coordination whitespace; Python/browser tests Not run (approval record only).
