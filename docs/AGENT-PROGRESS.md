@@ -1,6 +1,6 @@
 # Agent progress
 
-Last updated: 2026-11-05 22:51 (restart reconciliation). Coordination branch: `team/log`. Product baseline: main
+Last updated: 2026-11-06 00:49 (paused correction PR). Coordination branch: `team/log`. Product baseline: main
 `ba82a2ad0c1516db9877263e9cac6eb01825618a`.
 
 | Task | Owner | Branch | Status | Next step |
@@ -17,7 +17,7 @@ Last updated: 2026-11-05 22:51 (restart reconciliation). Coordination branch: `t
 | Approved coding-client setup with consent and rollback | Prism | `feature/client-setup` | todo (after G2) | Read Prism brief; wait for approved source/version list and consent/rollback requirements. |
 | G5 continuity: device, web and browser revocation journeys | Forge, Prism | `feature/device-continuity` (3d224d9) + `feature/extension-fail-closed` (108b062) + follow-ups #21–#23 | PR #19 + #20 (merge together), #21 draft, #22, #23 | All verified/approved, CI green. Part 2 is PR #26 at b0d7c99 (tree bc13786), stacked on #19; Probe VERIFIED and Sentinel delta-APPROVED. GitHub rechecked 5 Nov 23:45: head b0d7c99 unchanged; Python 3.10/3.12, app-window and browser checks SUCCESS. |
 | G7 PWA/mobile verification and native-app decision | Prism; Probe independent check | `feature/mobile-readiness-g7` (5570e26) + `feature/mobile-signout` (94b6cd4) + `feature/mobile-signout-docs` (ceb33c7) | PR #24, #25 (on #24) | Verified/approved, CI green; docs branch PR after #24/#25 decision. Device checks Not run. |
-| Paused-screen visual check (G5 part 2) | Prism | `feature/paused-view-check` from b0d7c99 | review | Prism pushed 4aaccf8/tree 87b8862; direct Probe/Sentinel final-artifact evidence requested. Logout composition with #24/#25 remains pending. |
+| Paused-screen visual check (G5 part 2) | Prism | `feature/paused-view-check` from b0d7c99 | PR | Draft #27 on #26, 4aaccf8/tree 87b8862: Probe VERIFIED, Sentinel APPROVED. Hold for #24/#25 logout integration, renewed review/tests and CI. |
 | Restored QA queue and CI reconciliation | Probe | existing feature refs (read-only) | verified | Probe found no outstanding agy-only checks; open PR heads unchanged, all four CI jobs green at 5 Nov 23:5x. #10 and #21 remain draft; #26 held for presentation correction. |
 | G8/G9 release evidence and independent approval | Probe, Sentinel; Chief consolidates | `team/log` | todo | Record actual output and unresolved risks; no merge/deploy without Arnold. |
 
@@ -316,3 +316,12 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 - Chief confirmed local feature/paused-view-check HEAD 4aaccf8e736d05aeb514cec23aa445fb64595dd6, tree 87b88626813878330d83891f661cce6d0c836e74. Delta from b0d7c99 changes portal.js/CSS and browser checks only; whitespace passed. Untracked prior report/screenshots preserved.
 - Prism reports 20 behaviour checks, 24 JS syntax checks and two route-contract tests passing, exit 0; no full suite/fresh CI. Prism relays Probe VERIFIED and Sentinel APPROVED; direct exact-artifact evidence requested from those reviewers before claiming those verdicts or opening PR. Reuse retained checks if they already reviewed this exact artifact; do not repeat completed runs.
 - PR #26 remains held pending correction acceptance. No product merge/deploy. PR #24/#25 logout integration and renewed review remain pending; larger viewports/real phones Not run.
+
+## Paused correction accepted; draft PR #27 — 6 November 00:49
+
+- Direct Probe VERIFIED and Sentinel APPROVED received for 4aaccf8e736d05aeb514cec23aa445fb64595dd6/tree 87b88626813878330d83891f661cce6d0c836e74. Probe retained two real-browser runs 00:32–00:45; no repeated run requested. paused.cjs 20/20 and syntax 24 files exit 0; no timings supplied. Python route-contract checks were Prism-reported only.
+- Probe covered both identities/light-dark at 1280x720 and 390x720, hostile routes/history/shortcuts zero errors, own report/detail/updates without write controls, allowlisted network, stale Hub-sheet and stale identity-response refusal; active Home/Tools/wizard regression passed. Fixture stopped; no real providers. Larger viewports/real phones Not run.
+- Sentinel full-delta approval confirms no server changes, no added innerHTML/writes and signOut byte-identical to b0d7c99. F1 stale Hub sheets and F2 late identity responses corrected. Approval binds exact tree; new merge requires review.
+- Chief opened draft PR #27 https://github.com/arnoldkigozi0/swangz-gateway/pull/27, base feature/session-kinds (#26), with actual evidence and limitations. #26/#27 remain held from merge-ready recommendations for logout composition with #24/#25 and resulting Sentinel review plus Probe 503/200 checks. CI initiated by PR; no fresh success claimed.
+- Nonblocking QA advisories retained: delayed read responses may move focus; project-detail Escape-handler edge case unconfirmed. Separate observation: active QA department account saw another QA account report in business Overview; likely intended department scope but unconfirmed, no authorization defect asserted. Carry to next scoped QA/technical triage rather than infer acceptance.
+- Chief whitespace check passed; Python/browser tests Not run by Chief. Existing untracked presentation evidence preserved. Nothing merged or deployed. Amendment 01 product approval remains recorded.
