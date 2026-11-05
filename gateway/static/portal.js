@@ -1173,11 +1173,12 @@
     const ticket = ++pausedRender, me = S.me;
     document.title = "Access paused · Swangz AI Hub";
     S.studio = null;
-    document.querySelectorAll(".drawer, .scrim, dialog[open]").forEach((n) => { if (n.close) n.close(); n.remove(); });
+    document.querySelectorAll(".drawer, .scrim, .hub-side-sheet, .hub-sheet-scrim, dialog[open]").forEach((n) => { if (n.close) n.close(); n.remove(); });
     const hash = location.hash || "#/";
     const detail = hash.match(/^#\/paused\/reports\/([1-9]\d{0,14})$/);
     if (location.search || !["#/", "#/paused/reports", "#/paused/updates"].includes(hash) && !detail) return pausedHome();
-    const content = el("section", { class: "paused-content", "aria-label": "Read-only workspace" });
+    const content = el("section", { class: "paused-content", tabindex: "-1", "aria-label": "Read-only workspace" });
+    const showContent = (...children) => { content.replaceChildren(...children); content.focus({ preventScroll: true }); };
     const links = [["#/", "Home"], ["#/paused/reports", "Reports"], ["#/paused/updates", "Updates"]];
     app.replaceChildren(el("main", { class: "shell paused-page", id: "main", tabindex: "-1" },
       el("header", { class: "paused-header" }, el("a", { class: "wordmark", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz AI Hub"),
@@ -1192,17 +1193,18 @@
     const label = (value) => String(value || "Unknown").replaceAll("_", " ");
     const fact = (name, value) => value === null || value === undefined || value === "" ? [] : [el("dt", null, name), el("dd", null, String(value))];
     if (hash === "#/") {
-      content.append(el("h2", null, "Your read-only workspace"), el("p", null, "You can read your own reports and updates. Tools and report changes are unavailable while your access is paused."));
+      showContent(el("h2", null, "Your read-only workspace"), el("p", null, "You can read your own reports and updates. Tools and report changes are unavailable while your access is paused."));
       return;
     }
     content.append(el("h2", null, detail ? "Report details" : hash === "#/paused/reports" ? "Your reports" : "Your updates"),
       el("p", { role: "status" }, "Loading…"));
+    content.focus({ preventScroll: true });
     try {
       if (detail) {
         const report = await api("GET", "/hub/reports/" + detail[1]);
         if (!current()) return;
         if (String(report.id) !== detail[1]) return pausedHome();
-        content.replaceChildren(el("h2", null, report.tool_name), el("p", { class: "muted" }, "Read-only report. Declarations are reported by staff; they do not verify business value or vendor spend."),
+        showContent(el("h2", null, report.tool_name), el("p", { class: "muted" }, "Read-only report. Declarations are reported by staff; they do not verify business value or vendor spend."),
           el("dl", { class: "facts" }, ...fact("Status", label(report.state)), ...fact("Kind", label(report.kind)),
             ...fact("Week beginning", report.week_start), ...fact("Version", report.version), ...fact("Currency", report.currency)),
           ...[["Usage confirmation", report.usage_confirmation], ["Purpose / business problem", report.reason], ["Deliverables", report.deliverables],
@@ -1212,7 +1214,7 @@
       } else if (hash === "#/paused/updates") {
         const data = await api("GET", "/hub/notifications");
         if (!current()) return;
-        content.replaceChildren(el("h2", null, "Your updates"), data.items.length ? el("ul", { class: "paused-list" }, data.items.map((item) =>
+        showContent(el("h2", null, "Your updates"), data.items.length ? el("ul", { class: "paused-list" }, data.items.map((item) =>
           el("li", null, el("p", null, item.title), el("p", { class: "muted small" }, fmt.stamp(item.created))))) : el("p", null, "No updates yet."));
       } else {
         let pageRequest = 0;
@@ -1221,7 +1223,7 @@
           const data = await api("GET", "/hub/reports?limit=30&offset=" + offset);
           if (!current() || request !== pageRequest) return;
           const next = offset + data.items.length;
-          content.replaceChildren(el("h2", null, "Your reports"), el("p", { class: "muted" }, "Read-only. Reports cannot be edited or submitted while your access is paused."),
+          showContent(el("h2", null, "Your reports"), el("p", { class: "muted" }, "Read-only. Reports cannot be edited or submitted while your access is paused."),
             data.items.length ? el("ul", { class: "paused-list" }, data.items.map((report) => el("li", null,
               el("a", { class: "tlink", href: "#/paused/reports/" + report.id }, report.tool_name),
               el("p", { class: "muted small" }, [label(report.kind), report.week_start, label(report.state)].filter(Boolean).join(" · "))))) : el("p", null, "No reports yet."),
@@ -1242,7 +1244,7 @@
       if (!current()) return;
       if (detail && e.status === 404) return pausedHome();
       if (e.status === 401) return load();
-      content.replaceChildren(el("h2", null, "Couldn't load this view"), el("p", { role: "alert" }, e.message),
+      showContent(el("h2", null, "Couldn't load this view"), el("p", { role: "alert" }, e.message),
         el("button", { class: "btn", type: "button", onclick: renderPaused }, "Try again"));
     }
   }
@@ -1274,6 +1276,7 @@
     try {
       const me = await api("GET", "/me");
       if (ticket !== loading) return;
+      if (me.paused_view && !isPaused()) identityGeneration++;
       S.me = me;
       if (me.paused_view) return renderPaused();
       SUI.setGatewayOffset(180);

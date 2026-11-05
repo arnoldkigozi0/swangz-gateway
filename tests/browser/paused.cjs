@@ -18,6 +18,10 @@ function element(tag, attrs, ...children) {
 }
 const nodes = n => typeof n === 'object' ? [n, ...n.children.flatMap(nodes)] : [];
 const text = n => typeof n === 'object' ? n.children.map(text).join(' ') : String(n);
+function matches(n, selector) {
+  if (selector.startsWith('.')) return (n.attrs.class || '').split(/\s+/).includes(selector.slice(1));
+  return selector === 'dialog[open]' && n.tag === 'dialog' && n.attrs.open;
+}
 function deferred() { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; }
 
 async function boot({ hash = '#/', search = '', me = paused, request } = {}) {
@@ -28,9 +32,12 @@ async function boot({ hash = '#/', search = '', me = paused, request } = {}) {
     history: {
       replaceState(_a, _b, url) { replacements.push(url); c.location.hash = url.slice(url.indexOf('#')); c.location.search = ''; },
       pushState(_a, _b, url) { pushes.push(url); c.location.hash = url; } },
-    document: { getElementById: () => app, querySelectorAll: () => overlays, querySelector: () => null,
+    document: { getElementById: id => id === 'app' ? app : nodes(app).find(n => n.attrs.id === id),
+      querySelectorAll: selector => overlays.filter(n => !n.removed && selector.split(',').some(s => matches(n, s.trim()))), querySelector: () => null,
       addEventListener: (type, fn, capture) => { if (type === 'keydown') keys.push({ fn, capture }); }, activeElement: null },
-    SUI: { ICONS: {}, el: element, icon: name => element('svg', { name }), fmt: { stamp: x => String(x) },
+    SUI: { ICONS: {}, el: (...args) => {
+      const n = element(...args); n.focus = () => { c.document.activeElement = n; }; return n;
+    }, icon: name => element('svg', { name }), fmt: { stamp: x => String(x) },
       themeButton: () => element('button', { 'aria-label': 'Theme' }), setGatewayOffset() {}, toast() {} },
     HubUI: { guard() { guardCalls++; return true; } },
     fetch: async (url, opts = {}) => {
@@ -156,11 +163,14 @@ module.exports = async function run() {
     await nodes(t.app).find(n => n.tag === 'button' && text(n) === 'Try again').attrs.onclick();
     assert.match(text(t.app), /Showing 1–1 of 1/); assert.ok(t.calls.every(([method]) => method === 'GET'));
   });
-  await check('paused entry clears Studio, drawers, scrims and open dialogs', async () => {
+  await check('selector-aware paused entry removes Hub sheets, drawers, scrims and open dialogs', async () => {
     const t = await boot(); t.c.SWP.S.studio = { secret: 'old studio' };
-    const overlay = { removed: false, closed: false, close() { this.closed = true; }, remove() { this.removed = true; } };
-    t.overlays.push(overlay); await t.navigate('#/');
-    assert.equal(t.c.SWP.S.studio, null); assert.ok(overlay.closed && overlay.removed);
+    const overlays = ['drawer', 'scrim', 'hub-side-sheet', 'hub-sheet-scrim'].map(className => element('aside', { class: className }));
+    const dialog = element('dialog', { open: true }); dialog.close = () => { dialog.closed = true; };
+    const unrelated = element('aside', { class: 'unrelated' });
+    overlays.push(dialog); t.overlays.push(...overlays, unrelated); await t.navigate('#/');
+    assert.equal(t.c.SWP.S.studio, null); assert.ok(overlays.every(n => n.removed));
+    assert.ok(dialog.closed); assert.equal(unrelated.removed, undefined);
   });
   await check('mid-session person_paused refreshes /me and replaces the full identity', async () => {
     const slow = deferred(); let meCalls = 0;
@@ -220,6 +230,24 @@ module.exports = async function run() {
     const result = await Promise.allSettled([a, b]);
     assert.ok(result.every(r => r.status === 'rejected' && r.reason.code === 'person_paused'));
     assert.equal(meCalls, 2); assert.equal(t.c.SWP.S.me, paused);
+  });
+  await check('ordinary load entering paused rejects older responses', async () => {
+    const slow = deferred();
+    const t = await boot({ request: url => url === '/api/old' ? slow.promise : undefined });
+    t.c.SWP.S.me = { catalog: ['secret'], keys: ['old'] };
+    const stale = t.c.SWP.api('GET', '/old');
+    await t.c.SWP.load(); assert.equal(t.c.SWP.S.me, paused);
+    slow.resolve(response({ old: 'sensitive data' }));
+    await assert.rejects(stale, e => e.code === 'person_paused');
+  });
+  await check('paused navigation focuses the new read-only region', async () => {
+    const t = await boot();
+    for (const hash of ['#/', '#/paused/reports', '#/paused/reports/7', '#/paused/updates', '#/']) {
+      await t.navigate(hash);
+      const focused = t.c.document.activeElement;
+      assert.ok(nodes(t.app).includes(focused));
+      assert.equal(focused.attrs.class, 'paused-content'); assert.equal(focused.attrs.tabindex, '-1');
+    }
   });
   console.log(`PASS paused behavior: ${count} checks; no browser/layout/server-authorization coverage claimed`);
   return count;
