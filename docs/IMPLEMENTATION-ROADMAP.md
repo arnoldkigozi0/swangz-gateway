@@ -190,3 +190,50 @@ changing it requires ADR/Arnold/task6 review. D4 capacity/adapter location task4
 remain unapproved (seven days not accepted); D6 secret-ref management task3; D7 fixed callback/Host
 fallback task6 (existing defect retained). Sentinel's permanent D-019 ADR write remains queued until
 writer handoff; this coordination record preserves the ruling without modifying Sentinel-owned files.
+
+
+## Registry correction gate R1–R5 — Sentinel, 6 November 02:27
+
+48cc003/tree 4145f9f remains BLOCKED, not approved implementation. Sentinel read full diff and
+local c388134 QA entry; no writes/tests. Required correction scope follows; supersedes earlier
+conflicting parser/audit prescriptions. Forge owns correction, then Probe exact-artifact QA, then
+Sentinel full diff 4aaccf8...new-head. No rebase/force-push, no merge/deploy.
+
+R1: amend unshipped v24 with BEFORE INSERT abort for existing NEW.id on both account and value
+tables; account trigger ALSO aborts an active holder/tool/route conflict (partial-index REPLACE
+under new id). Do NOT enable recursive_triggers globally. Test INSERT OR REPLACE, REPLACE INTO,
+partial-index replace, account with/without child values; original rows/values/audit unchanged.
+Normal register/append/end still pass.
+
+R2: _text rejects Unicode categories starting C (Cc/Cf/Cs/Co/Cn) plus Zl/Zp. Separate bidi ranges
+unnecessary; rejecting ZWJ sequences accepted. Catch UnicodeEncodeError at write boundary -> 400
+bad_text, no traceback. Test lone D800/DFFF labels/plans, 200B/200E/200F/FEFF/2065/206A/00AD/E000;
+normal accented text and standalone emoji accepted.
+
+R3: registry audit ONLY: actor holder name, existing three action verbs, target provider_account:<id>;
+before/after status only or value_id only. No tool_id/route/kind/payer/label/value. Correlation
+provider_account:<id>, NOT person:<id>, to exclude registry from person Timeline. General audit
+semantics unchanged. Document in V2: all console users can see named person changed declarations
+and when, while tool/route/kind/contents only through field-gated registry reads. Before RELEASE,
+Privacy page must disclose this; separate UI task, registry unreleased until complete. Tests viewer,
+money-only/security-only Audit/search/Timeline reveal no individual tool/route/kind; person Timeline
+has no registry rows; existing marker-leak checks retained.
+
+R4: remove statements() parser. Preserve original str migration split(';') loop exactly; tuple entry
+executes each element as one statement (sqlite rejects multi-statement elements). v24 tuple; all
+SCHEMA[:23] strings unchanged; future trigger migrations tuple too. Tests fresh DB, populated v23
+upgrade unchanged data, failed tuple statement rolls back to v23/no partial tables/triggers, len=24.
+
+R5 required now: gateway-local settings.tz_offset_minutes for default as_of/tomorrow, test Kampala
+00:30 at previous UTC date. Reject >6 decimal places for number and string alike; Decimal(repr(float)),
+no silent rounding of 1e-7; test seven-place pairs. Casefold secret prefixes sk-/akia/ghp_/xox/bearer-space;
+test SK-, Ghp_, BEARER x. Currency set from Probe-verified SIX ISO4217 List One, date comment,
+active codes only; if unavailable preserve old list and explicitly record missing citation, do not
+infer individual codes from memory. Probe must compare against actual file. Remove V2 EOF blank.
+Whitespace-only optional label acceptable, required plan whitespace rejected by test. Refused writes
+counting toward existing limiter intentional, leave unchanged.
+
+Correction files: registry_schema.py/db.py/registry.py/test_provider_registry.py/docs/V2.md. No UI,
+outbound product traffic/OAuth/sync/webhooks/secrets/sharing/admin writes/deps. All R regressions
+and Probe adversarial cases, prior 54 checks and diff --check required; full suite once with retained
+raw log/exit/tree. D-019 permanent ADR still queued after writer slot, with amended R3 wording.
