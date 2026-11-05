@@ -110,3 +110,83 @@ OAuth and D-017; D3 console privacy/incident access; D4 future adapter location/
 D5 grant duration/ledger retention (Forge floated seven days, not accepted); D6 secret-ref owner-only
 management; D7 fixed callback/Host fallback. Decide first-task blockers now and defer unrelated later
 choices rather than prematurely approving all six tasks. Return bounded threat note and explicit verdict.
+
+
+## Task 1 security gate — Sentinel, 6 November 01:29
+
+APPROVED WITH CONDITIONS for manual registry only; supersedes conflicting v3 proposals above.
+Review covered team/log 6052187, amendment and relevant staff/authz/audit/db/tool-delete code;
+Sentinel wrote nothing and ran no tests. Tasks 2–6 remain unapproved.
+
+Base: 4aaccf8 (tree 87b8862), feature/provider-registry. Append v24, preserve SCHEMA[:23]
+byte-for-byte. Base includes pending v22/v23 stack; inherits holds and cannot merge ahead of required
+#19–#27 dependencies. If stack changes, merge base without rebase/force-push, renumber only own
+migration if necessary, and obtain renewed review. No main merge authorized.
+
+D-019 proposed ruling: central server visibility = record-kind field ceiling intersect actor areas,
+then union across allowed areas. Ceiling applies even to console owner. Console GET list/detail use
+area=(govern,money), enforce inside handler/function if dispatcher skips GET areas. 403 for viewer,
+security/emergency/admin-only; no trust access. No break-glass, search/Timeline/insight/notifications/
+CSV/exports additions. Exact field matrix:
+
+| Fields | Holder | govern | money |
+|---|---|---|---|
+| Individual id/tool/route/status/created/ended | yes | yes | no |
+| Individual payer/label/values/creator | yes | no | no |
+| Seat core/payer/assertor/label | yes | yes | yes |
+| Seat plan/quota_limit/quota_used/period_end | yes | yes | no |
+| Seat credit_balance/monthly_price | yes | no | yes |
+
+Holder staff routes: GET/POST /provider-accounts; GET /provider-accounts/<id>;
+POST /provider-accounts/<id>/values; POST /provider-accounts/<id>/end. Console list/detail only.
+All routes require ordinary active approved web identity; none paused_ok; paused/ended people,
+extension sessions and device keys refused. EXTENSION_PATHS and pinned paused route set unchanged.
+Writes require x-swangz-app CSRF guard. Global AI pause alone does not block registry.
+
+Session fixes holder_person_id; account_holder_kind=person; assertion=holder_declared. Strict allowed
+request fields; reject extras/holder/company assertions with 400. individual payer=person|none;
+seat payer=company, labelled declared by holder, unconfirmed. Never count these declarations in
+spend/licences/totals or feed entitlement/policy/turns/subscriptions/notifications. api/enterprise/
+admin_declared enums exist but routes cannot write them; no company-held creation. Refuse tools
+with signin shared or api. No provider-account email/identity field. Missing fields represented as
+{state: unavailable}, never zero. Existing enum/holder two-way constraints still required.
+
+Bounds: NFC + trim optional label <=80 chars, plan <=60; reject controls, U+202A–202E/U+2066–2069,
+text starting sk-/AKIA/ghp_/xox/Bearer-space and >=32 contiguous key-like characters without spaces.
+Fixed kinds plan/quota_limit/quota_used/period_end/credit_balance/monthly_price, last two financial.
+Finite decimal numbers 0..1e12; ISO dates 2000..2100; as_of <= tomorrow; three-letter ISO 4217 currency.
+20 active accounts/person, 200 values/account; existing per-person limiter only. Partial unique index
+allows one active (holder,tool,route); ended registration may be recreated.
+
+Immutable value rows: triggers abort UPDATE/DELETE, account trigger aborts DELETE. End active->ended
+transactionally; repeated end 200 same timestamp/no new audit; append value to ended 409. Store purge
+must leave registry alone. FK to tools/people ON DELETE RESTRICT; adjust existing admin tool-delete
+handler to give clear 409 rather than 500 (explicitly within scope). Audit is broadly console-readable:
+before/after may contain status/route/tool_id/value-kind/value-id only; never label/value in audit,
+detail or logs. Correlation person:<id> and provider_account:<id>.
+
+Acceptance tests, synthetic/no outbound:
+1. Ownership IDOR, indistinguishable missing vs other-person 404 on all relevant operations.
+2. Exact matrix for holder, console owner/govern/money/combined/security/admin-only/viewer.
+3. Enum, holder, route/payer, status/timestamp checks, active duplicate index and immutable triggers.
+4. Strict bodies/assertions; company/api/enterprise/admin_declared unreachable; shared/api tool denial.
+5. All input/count/rate limits including decimal/date/currency/secret/control/bidi boundaries.
+6. Every route denies paused/ended/wrong session kinds; missing CSRF header 403; pinned route set unchanged.
+7. Entitlement, subscription, licence/spend, search/insight/notification behavior unchanged.
+8. End idempotent, records retained, no values after end; tool-delete 409 and purge exclusion.
+9. Unique private label/value markers absent from audit, stderr/access logs and individual console responses.
+10. len(SCHEMA)==24, SCHEMA[:23] hash matches base; fresh DB and populated synthetic v23 upgrade preserve rows.
+11. Permission sweep every new staff/console route; full suite green before implementation commit.
+
+Implementation paths: gateway/registry_schema.py (new), gateway/db.py append, gateway/registry.py
+(new routes/visibility), route import, existing admin tool-delete conflict handler, tests/test_provider_registry.py,
+permission sweep coverage, short existing doc section and CLAUDE.md schema line. No static/UI, outbound,
+OAuth/sync/webhooks/secrets/sharing/workspace pointers/admin writes/new dependencies/production access.
+Builder targeted checks then milestone full suite (outside Codex); exact output/tree required. Probe verifies
+exact artifact, then Sentinel reviews full diff from 4aaccf8 before Chief opens PR.
+
+Deferred: D2 public-device OAuth rejected for now, D-017 confidential server client + PKCE stands;
+changing it requires ADR/Arnold/task6 review. D4 capacity/adapter location task4; D5 grant/ledger limits
+remain unapproved (seven days not accepted); D6 secret-ref management task3; D7 fixed callback/Host
+fallback task6 (existing defect retained). Sentinel's permanent D-019 ADR write remains queued until
+writer handoff; this coordination record preserves the ruling without modifying Sentinel-owned files.
