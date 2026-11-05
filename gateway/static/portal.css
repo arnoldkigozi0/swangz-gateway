@@ -8,6 +8,20 @@
 .skip:focus { top: 12px; }
 main:focus { outline: none; }
 
+/* The paused workspace has its own bounded read-only navigation. */
+.shell.paused-page { padding-block: var(--s6); }
+.paused-header, .paused-actions, .paused-nav { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; }
+.paused-header { justify-content: space-between; }
+.paused-panel { max-width: 760px; margin: var(--s6) auto; }
+.paused-panel h1 { font-size: var(--t-h1); line-height: 1.15; }
+.paused-panel p, .paused-panel h1, .paused-content h2, .paused-content h3, .paused-content dd, .paused-list a { overflow-wrap: anywhere; }
+.paused-nav { margin-block: var(--s5); }
+.paused-content { padding-block: var(--s4); }
+.paused-content p { white-space: pre-wrap; }
+.paused-list { list-style: none; margin: 0; padding: 0; }
+.paused-list li { padding-block: var(--s4); border-bottom: 1px solid var(--line); }
+.paused-list li p { margin-block: var(--s2); }
+
 /* ------------------------------------------------------------ buttons & fields */
 
 /* Buttons — the Swangz Avenue Bookings system, one size up for touch: an outline by default; the one

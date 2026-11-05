@@ -61,6 +61,7 @@ async function layout(p, name, axe = false) {
   if (axe) assert.deepEqual(violations.map(v => v.id), [], name + ': accessibility findings');
 }
 (async () => {
+  await require('./paused.cjs')();
   const { url, person, key, session } = await fixture();
   browser = await chromium.launch({ executablePath: process.env.CHROME || undefined, headless: true, args: ['--no-sandbox'] });
   const c = await browser.newContext({ viewport: { width: 1440, height: 900 } });
