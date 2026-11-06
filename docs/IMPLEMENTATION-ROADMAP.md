@@ -237,3 +237,42 @@ Correction files: registry_schema.py/db.py/registry.py/test_provider_registry.py
 outbound product traffic/OAuth/sync/webhooks/secrets/sharing/admin writes/deps. All R regressions
 and Probe adversarial cases, prior 54 checks and diff --check required; full suite once with retained
 raw log/exit/tree. D-019 permanent ADR still queued after writer slot, with amended R3 wording.
+
+
+## Registry NULL-safe correction C1/C2 — Sentinel, 6 November 03:18
+
+Current 255863d remains BLOCKED. Correct on feature/provider-registry with normal new commits.
+Freeze v24 SCHEMA[23] exactly at 255863d. Append tuple MIGRATION_25 as v25, no rebuild/data moves/
+row deletion/production checks. Historical SCHEMA[:23] unchanged. v25 drops four weak guard trigger
+names IF EXISTS and installs NULL-safe versions/new NULL guards to repair all earlier v24 variants.
+Defaults remain; no recursive_triggers or connection-wide pragma. Application must still explicitly
+write every column (test). Weak pre-release fixture DBs may exist; do not assume production state.
+
+C1: BEFORE INSERT and BEFORE UPDATE accounts abort if any NEW NOT NULL field is NULL:
+account_holder_kind/tool_id/route/payer/assertion/label/status/created. Values BEFORE INSERT rejects
+currency NULL (default-bearing column); other no-default required fields already ABORT. only_end:
+every column compared with IS, whole valid condition wrapped WHEN NOT COALESCE((...),0).
+no_replace: existing id OR COALESCE(NEW.status,'active')='active' with active holder/tool/route
+matching via IS. not_after_end: COALESCE((SELECT status...), '') != 'active'. SQL guards, not app-only.
+
+Required regressions (abort preserving rows/values/audit): exact Probe NULL-status partial-index
+INSERT OR REPLACE with/without child values; NULL label/assertion/account_holder_kind/payer variants
+and explicit active status; exact UPDATE OR REPLACE ending with NULL label/assertion plus each column
+individually, ordinary UPDATE and UPDATE OR REPLACE; immutable-field upsert; value existing-id replace
+and NULL currency. Positive register/append/end/idempotent end/ended re-registration still work.
+Upgrade populated weak v24 variants (including no no_replace guards state), preserve rows, check
+sqlite_master expected guards and run all bypass regressions. Fresh reaches25; failed v25 rolls back
+to24 with no partial objects. Update schema pins/CLAUDE to25. Tests must demonstrate failures before fix.
+
+Currency: remove tests depending on /tmp/probe_six/l1.xml and skips. Hermetic fixed155 count, pinned
+SHA256 of comma-joined sorted codes, excluded23 absence and prior HTTP accept/refuse cases. Do not
+commit vendor XML or fetch at test/runtime. Probe independently compares final set to retained cited
+source and records evidence in AGENT-PROGRESS. Replace unsupported 'replaced by' comment with
+'ANG, BGN and ZWL are not in the 2026-09-17 file and are refused.' No broader historical research.
+
+Files: registry_schema.py adds MIGRATION_25 (v24 untouched), db.py appends entry, registry.py currency
+comment only, test_provider_registry.py, CLAUDE schema line, V2 v25 note. Existing scope exclusions
+remain: no UI/outbound/OAuth/sync/webhooks/secrets/sharing/admin writes/dependencies/production.
+Required targeted/regression and full suite once retaining raw output/exit/tree, clean whitespace;
+then Probe newest-head QA, Sentinel full diff from4aaccf8. Privacy notice release blocker/D-019 writer
+handoff/stack merge holds unchanged. No implementation approval, merge or deployment authorized.
