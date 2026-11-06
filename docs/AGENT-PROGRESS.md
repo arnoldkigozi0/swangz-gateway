@@ -1,6 +1,6 @@
 # Agent progress
 
-Last updated: 2026-11-06 23:29 EAT (corrected profile independent QA). Coordination branch: `team/log`. Product baseline: main `ba82a2a`.
+Last updated: 2026-11-06 23:31 EAT (profiles approved; publication blocked). Coordination branch: `team/log`. Product baseline: main `ba82a2a`.
 
 | Task | Owner | Branch | Status | Next step |
 |---|---|---|---|---|
@@ -22,7 +22,7 @@ Last updated: 2026-11-06 23:29 EAT (corrected profile independent QA). Coordinat
 | Paused/logout composition | Prism; Probe QA; Sentinel review | feature/paused-logout-integration 60df1e2 (tree0f5df9d) | PR #30 | Probe VERIFIED + Sentinel APPROVED60df1e2; publication unblocked by Arnold. All4 CI SUCCESS run42263495809; Chief marked ready after direct Probe evidence; no main merge authorized. Coordinated stack merge still requires named approval. |
 | D-019 permanent registry decision record | Sentinel; Probe QA | docs/architecture-review b30ae91 (tree 3d498b9), pushed | verified | Probe VERIFIED; fast-forward push succeeded after Arnold explicitly requested unblocking. Remote publication hold cleared. |
 | Restored QA queue and CI reconciliation | Probe | existing feature refs (read-only) | verified | Probe found no outstanding agy-only checks; open PR heads unchanged, all four CI jobs green at 5 Nov 23:5x. #10 and #21 remain draft; #26 held for presentation correction. |
-| Amendment 01 managed Chrome inert slice | Prism; Probe QA; Sentinel review | `feature/browser-profiles-inert` 801d007 | review | Probe VERIFIED corrected head; Sentinel final review and Windows empty-batch side-effect ruling pending. Old ee2cfbe remains blocked. No production integration. |
+| Amendment 01 managed Chrome inert slice | Prism; Probe QA; Sentinel review | `feature/browser-profiles-inert` 801d007 | review | Probe VERIFIED + Sentinel APPROVED exact corrected head; Windows empty-batch side effect accepted. Automatic approval review blocked feature push/PR publication; explicit Arnold authorization needed. No production integration. |
 | Browser personal ownership/lifecycle contract | Forge design; Sentinel G2 | read-only proposal | review | Stable people/device IDs proposed; no seat authority. Sentinel must resolve eligibility/global-pause/lifecycle before backend implementation. |
 | G8/G9 release evidence and independent approval | Probe, Sentinel; Chief consolidates | `team/log` | todo | Record actual output and unresolved risks; no merge/deploy without Arnold. |
 
@@ -726,3 +726,10 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 - Independent aged10000s live holder refuses prepare/retire_all as busy; killed holder releases within0.001s; inode persists; FIFO/unsafe permissions refused; four processes/515 sections had no interleaving. Original ee2cfbe negative control overlaps; corrected head busy. Windows mocked lock/retirement refusal and no existing-tree change passed; mocks are not native evidence. GPT second opinion found no bypass/fd leak/outside deletion/production import.
 - Low reproduced: Windows empty retire_owner/all creates empty browser-profiles directory and zero-byte .lock before refusal. No profile rename/list/delete; Sentinel must rule whether allowed locking satisfies prior refuse-before-mutation condition. No Chief fix authorization. Final exact-head Sentinel review next; no PR until approval.
 - Probe removed archive/scripts; about12 fake-data temp directories remain after automatic cleanup refusal. Nothing left running; no source edits. Chief will not retry cleanup or request unrelated deletion. Prior team/log backlog pushed successfully4b64381 at23:18; PR30 ready/open heads unchanged on fresh GitHub check. Chief tests Not run: coordination only; reuses independent exact-head results. No main merge/deploy/production.
+
+
+## Corrected profiles approved; publication blocked — 6 November 23:31
+
+- Sentinel APPROVED exact801d007/tree bf7942f: F1/F2 fixed by persistent OS-held locks, F3 fixed by Windows retirement/purge refusal. Ten regressions present; accepted Low empty Windows batch creates app-owned empty root/.lock before returning incomplete; no correction needed. Sentinel read-only, tests Not run; relies on Probe42targeted/468full OK. Native platform/version gaps and workspace-agent noise remain as recorded. Approval is inert module only; Forge ownership G2 still pending.
+- Chief independently checked clean exact branch head/tree, three-file diff, no existing PR/remote feature head. Prepared PR title/body including real tests, noise and unsupported platforms at /tmp/chief-profile-pr.md. Automatic approval review rejected combined feature push/PR creation: 'pushes code to the remote and publishes a PR, conflicting with the explicit instruction not to publish as part of an unreviewed rollout.' No workaround/retry; explicit Arnold publication authorization required despite completed independent review. No PR created; feature branch remains local based on last remote read.
+- Chief coordination only; whitespace check, no product edits/tests rerun/main merge/deploy/production. Preserve approved artifact unchanged until publication unblocked.
