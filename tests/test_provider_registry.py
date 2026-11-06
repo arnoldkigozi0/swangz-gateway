@@ -32,7 +32,13 @@ GOVERN_KINDS = {"plan", "quota_limit", "quota_used", "period_end"}
 MONEY_KINDS = {"credit_balance", "monthly_price"}
 ALL_KINDS = GOVERN_KINDS | MONEY_KINDS
 SCHEMA_23_SHA256 = "02070d74ad6d1743d2adcdebbb106f83ca2a753c4c2f6cfafa600baa0ba68928"
+SCHEMA_24_SHA256 = "eb68021decccaab9651fdf80a8d4cfc020a0eb385406fcc47e052f5a2b02bf62"
 OTHER_PASSWORD = "another-long-pw"
+
+GUARDS = {"provider_account_values_no_update", "provider_account_values_no_delete", "provider_account_values_no_replace",
+          "provider_account_values_no_null_currency", "provider_account_values_not_after_end", "provider_accounts_no_delete",
+          "provider_accounts_no_null_insert", "provider_accounts_no_null_update", "provider_accounts_no_replace",
+          "provider_accounts_only_end"}
 
 VALUES = [("plan", "Max 20x", None), ("quota_limit", 900, None), ("quota_used", "123.5", None), ("period_end", "2026-12-31", None),
           ("credit_balance", "42.10", "USD"), ("monthly_price", 200000, "UGX")]
@@ -735,9 +741,10 @@ class PrivacyTests(Base):
 
 
 class MigrationTests(unittest.TestCase):
-    def test_the_schema_has_24_entries_and_the_first_23_are_byte_for_byte_the_base(self):
-        self.assertEqual(len(SCHEMA), 24)
+    def test_the_schema_has_25_entries_v24_is_frozen_and_the_first_23_are_byte_for_byte_the_base(self):
+        self.assertEqual(len(SCHEMA), 25)
         self.assertEqual(hashlib.sha256("\x00".join(SCHEMA[:23]).encode()).hexdigest(), SCHEMA_23_SHA256)
+        self.assertEqual(hashlib.sha256("\x00".join(SCHEMA[23]).encode()).hexdigest(), SCHEMA_24_SHA256)  # v24 as at 255863d
 
     def test_older_entries_are_still_strings_and_v24_is_a_tuple_of_single_statements(self):
         self.assertTrue(all(isinstance(entry, str) for entry in SCHEMA[:23]))
@@ -746,16 +753,24 @@ class MigrationTests(unittest.TestCase):
             self.assertTrue(sqlite3.complete_statement(element + ";"), element[:60])
             self.assertIsNone(re.search(r"\bEND\s*;\s*\S", element))  # nothing follows a trigger's END
         self.assertEqual(sum(e.lstrip().startswith("CREATE TRIGGER") for e in SCHEMA[23]), 7)
+        self.assertIsInstance(SCHEMA[24], tuple)  # v25 is a tuple too: four drops, seven NULL-safe creates, nothing else
+        for element in SCHEMA[24]:
+            self.assertTrue(sqlite3.complete_statement(element + ";"), element[:60])
+            self.assertIsNone(re.search(r"\bEND\s*;\s*\S", element))
+        self.assertEqual([e.split()[0] for e in SCHEMA[24]], ["DROP"] * 4 + ["CREATE"] * 7)
+        self.assertTrue(all(e.startswith("DROP TRIGGER IF EXISTS ") for e in SCHEMA[24][:4]))
+        self.assertTrue(all(e.startswith("CREATE TRIGGER") for e in SCHEMA[24][4:]))
         with self.assertRaises((sqlite3.Warning, sqlite3.ProgrammingError)):  # sqlite itself refuses an element that holds two statements
             sqlite3.connect(":memory:").execute("SELECT 1; SELECT 2")
         self.assertFalse(hasattr(dbmod, "statements"))  # no parser: a str entry is split on semicolons, as it always was
 
     def test_a_fresh_database_gets_the_registry_and_its_rules(self):
         db = DB(":memory:")
-        self.assertEqual(db.scalar("SELECT v FROM meta WHERE k = 'schema'"), "24")
+        self.assertEqual(db.scalar("SELECT v FROM meta WHERE k = 'schema'"), "25")
         names = {r["name"] for r in db.q("SELECT name FROM sqlite_master")}
-        self.assertTrue({"provider_accounts", "provider_account_values", "provider_accounts_one_active", "provider_account_values_no_update",
-                         "provider_accounts_only_end", "provider_accounts_no_replace", "provider_account_values_no_replace"} <= names)
+        self.assertTrue({"provider_accounts", "provider_account_values", "provider_accounts_one_active"} <= names)
+        self.assertEqual({n for n in names if n.startswith("provider_account") and db.scalar(
+            "SELECT type FROM sqlite_master WHERE name = ?", (n,)) == "trigger"}, GUARDS)
         self.assertEqual(db.scalar("PRAGMA recursive_triggers"), 0)  # the guards do not rely on it
         db.close()
 
@@ -807,7 +822,7 @@ class MigrationTests(unittest.TestCase):
             before = {t: old.q(f"SELECT * FROM {t}") for t in tables}
             old.close()
         db = DB(path)
-        self.assertEqual(db.scalar("SELECT v FROM meta WHERE k = 'schema'"), "24")
+        self.assertEqual(db.scalar("SELECT v FROM meta WHERE k = 'schema'"), "25")
         for table, rows in before.items():
             if table == "meta":
                 continue  # only the schema number moves
@@ -1128,34 +1143,279 @@ class SecretCaseTests(Base):
         self.assertEqual(self.account(tool="chatgpt", label="  \u00a0 ")["label"], "")
 
 
+# ------------------------------------------------------------------ C1/C2: NULL-safe guards (v25)
+
+ACCOUNT_COLUMNS = ("account_holder_kind", "holder_person_id", "tool_id", "route", "payer", "assertion", "label", "status", "created",
+                   "created_by", "ended")
+REQUIRED = ("account_holder_kind", "tool_id", "route", "payer", "assertion", "label", "status", "created")
+
+
+def sql_snapshot(db):
+    return (db.q("SELECT * FROM provider_accounts ORDER BY id"), db.q("SELECT * FROM provider_account_values ORDER BY id"),
+            db.scalar("SELECT COUNT(*) FROM audit"))
+
+
+def seed_pair(db, pid):
+    """Account A (canva, individual, with two values) and account B (gemini, seat, no values), both active. Returns their ids."""
+    row = "INSERT INTO provider_accounts(account_holder_kind, holder_person_id, tool_id, route, payer, assertion, label, status, created, created_by)" \
+          " VALUES('person', ?, ?, ?, ?, 'holder_declared', ?, 'active', 1, ?)"
+    a = db.x(row, (pid, "canva", "individual", "person", LABEL_MARK, pid)).lastrowid
+    b = db.x(row, (pid, "gemini", "seat", "company", "second", pid)).lastrowid
+    for kind, value in (("plan", "Pro"), ("quota_used", "5")):
+        db.x("INSERT INTO provider_account_values(account_id, kind, value, currency, as_of, recorded, recorded_by) VALUES(?,?,?,?,?,1,?)",
+             (a, kind, value, "", "2026-11-06", pid))
+    return a, b
+
+
+def attack_suite(tc, db, pid, other):
+    """Every bypass Probe and Sentinel described. Each statement must abort and leave rows, values and audit exactly as they were.
+    Runs against the live schema and, in the upgrade tests, against databases that came up from weak v24."""
+    ended_before = db.scalar("SELECT COUNT(*) FROM provider_accounts WHERE status = 'ended'")
+    a, b = seed_pair(db, pid)
+    tc.assertEqual(db.scalar("SELECT COUNT(*) FROM provider_account_values"), 2)
+
+    def refuses(sql, args=(), why=""):
+        before = sql_snapshot(db)
+        with tc.assertRaises(sqlite3.IntegrityError, msg=f"{why}: {sql}"):
+            db.x(sql, args)
+        tc.assertEqual(sql_snapshot(db), before, f"{why}: {sql}")
+
+    def account_row(overrides, same_key_as=None):
+        """A complete valid row for account A's key (canva, individual, active), with some columns replaced (None means NULL)."""
+        row = {"account_holder_kind": "person", "holder_person_id": pid, "tool_id": "canva", "route": "individual", "payer": "none",
+               "assertion": "holder_declared", "label": "intruder", "status": "active", "created": 2, "created_by": pid, "ended": None}
+        row.update(overrides)
+        return row
+
+    def insert(verb, row):
+        cols = ", ".join(row)
+        return f"{verb} INTO provider_accounts({cols}) VALUES({', '.join('?' for _ in row)})", tuple(row.values())
+
+    verbs = ("INSERT OR REPLACE", "REPLACE", "INSERT")
+    # --- C1, Probe's exact NULL-status partial-index replace (a different id, the same active holder/tool/route), with values on A
+    for verb in verbs:
+        refuses(*insert(verb, account_row({"status": None})), why="NULL status partial-index replace, account with values")
+        refuses(*insert(verb, {k: v for k, v in account_row({}).items() if k not in ("status", "assertion", "label", "account_holder_kind")}
+                        | {"status": None}), why="omitted defaults plus NULL status")
+        refuses(*insert(verb, account_row({"status": None, "tool_id": "gemini", "route": "seat", "payer": "company"})), why="same, no values")
+        refuses(*insert(verb, account_row({"id": b, "status": None, "tool_id": "gemini", "route": "seat", "payer": "company"})),
+                why="same id, NULL status")
+        # explicit 'active' and each NULL in a required column, taking the place of an active row or just arriving
+        refuses(*insert(verb, account_row({})), why="explicit active replace")
+        for column in REQUIRED:
+            for key in ({}, {"tool_id": "chatgpt", "route": "api", "payer": "company"}, {"id": a}):
+                refuses(*insert(verb, account_row({**key, column: None})), why=f"NULL {column} {key}")
+    # --- an ended-status row that reuses an existing id
+    refuses(*insert("INSERT OR REPLACE", account_row({"id": a, "status": "ended", "ended": 3})), why="existing id, ended")
+    # --- C1, UPDATE: the exact Probe repro and each column set NULL, with an ordinary UPDATE and UPDATE OR REPLACE
+    for verb in ("UPDATE OR REPLACE", "UPDATE"):
+        refuses(f"{verb} provider_accounts SET status = 'ended', ended = 2, label = NULL, assertion = NULL WHERE id = ?", (a,), "exact D2")
+        for column in (*REQUIRED, "holder_person_id", "created_by"):
+            sets = {"status": "'ended'", "ended": "2"}
+            sets[column] = "NULL"
+            refuses(f"{verb} provider_accounts SET {', '.join(f'{k} = {v}' for k, v in sets.items())} WHERE id = ?", (a,), f"NULL {column}")
+            refuses(f"{verb} provider_accounts SET {column} = NULL WHERE id = ?", (a,), f"only NULL {column}")
+        for column, value in (("label", "'renamed'"), ("assertion", "'admin_declared'"), ("tool_id", "'chatgpt'"), ("created", "9"),
+                              ("payer", "'none'"), ("holder_person_id", str(other)), ("created_by", str(other)), ("id", "99")):
+            refuses(f"{verb} provider_accounts SET status = 'ended', ended = 2, {column} = {value} WHERE id = ?", (a,), f"end plus {column}")
+    # --- UPSERT, immutable fields
+    for target in ("id", "holder_person_id, tool_id, route) WHERE (status = 'active'"):
+        for set_clause in ("label = 'x'", "label = NULL", "assertion = 'admin_declared'", "status = 'ended', ended = 2, label = NULL"):
+            for status in ("'active'", "NULL"):
+                refuses("INSERT INTO provider_accounts(id, account_holder_kind, holder_person_id, tool_id, route, payer, assertion, label,"
+                        f" status, created, created_by) VALUES({a}, 'person', {pid}, 'canva', 'individual', 'none', 'holder_declared', 'u', {status}, 2, {pid})"
+                        f" ON CONFLICT({target}) DO UPDATE SET {set_clause}", (), f"upsert {target} {set_clause} {status}")
+    # --- values: existing id, NULL currency, upsert, an ended or missing account
+    vid = db.scalar("SELECT MIN(id) FROM provider_account_values")
+    value_cols = "(id, account_id, kind, value, currency, as_of, recorded, recorded_by)"
+    for verb in verbs:
+        refuses(f"{verb} INTO provider_account_values{value_cols} VALUES(?,?,'plan','Free','','2026-11-06',1,?)", (vid, a, pid), "value existing id")
+        refuses(f"{verb} INTO provider_account_values{value_cols} VALUES(?,?,'plan','Free',NULL,'2026-11-06',1,?)", (vid, a, pid), "value NULL cur, id")
+        refuses(f"{verb} INTO provider_account_values(account_id, kind, value, currency, as_of, recorded, recorded_by)"
+                " VALUES(?,'plan','Free',NULL,'2026-11-06',1,?)", (a, pid), "value NULL currency")
+        refuses(f"{verb} INTO provider_account_values(account_id, kind, value, currency, as_of, recorded, recorded_by)"
+                " VALUES(?,'credit_balance','5',NULL,'2026-11-06',1,?)", (a, pid), "balance NULL currency")
+        refuses(f"{verb} INTO provider_account_values(account_id, kind, value, as_of, recorded, recorded_by)"
+                " VALUES(?,'plan','Free','2026-11-06',1,?)", (999, pid), "missing account")
+    refuses(f"INSERT INTO provider_account_values{value_cols} VALUES({vid}, {a}, 'plan', 'Free', '', '2026-11-06', 1, {pid})"
+            " ON CONFLICT(id) DO UPDATE SET value = 'Free'", (), "value upsert")
+    refuses("INSERT INTO provider_account_values(account_id, kind, value, currency, as_of, recorded, recorded_by)"
+            f" VALUES({a}, 'plan', 'Free', NULL, '2026-11-06', 1, {pid}) ON CONFLICT DO NOTHING", (), "value NULL currency do-nothing")
+    tc.assertEqual(db.scalar("SELECT status FROM provider_accounts WHERE id = ?", (a,)), "active")
+    tc.assertEqual(db.scalar("SELECT label FROM provider_accounts WHERE id = ?", (a,)), LABEL_MARK)
+
+    # --- and the ordinary operations still work: end, end again, register again, append values, a different holder
+    db.x("UPDATE provider_accounts SET status = 'ended', ended = 7 WHERE id = ?", (a,))
+    tc.assertEqual(db.x("UPDATE provider_accounts SET status = 'ended', ended = 8 WHERE id = ? AND status = 'active'", (a,)).rowcount, 0)
+    refuses(f"INSERT OR REPLACE INTO provider_account_values{value_cols} VALUES(NULL, {a}, 'plan', 'Late', '', '2026-11-06', 1, {pid})",
+            why="value on ended account")
+    refuses(*insert("REPLACE", account_row({"id": a, "status": "ended", "ended": 9})), why="replace the ended one")
+    again = db.x(*insert("INSERT", account_row({"label": "again"}))).lastrowid
+    tc.assertNotEqual(again, a)
+    db.x(f"INSERT INTO provider_account_values{value_cols} VALUES(NULL, ?, 'monthly_price', '5', 'USD', '2026-11-06', 1, ?)", (again, pid))
+    db.x(*insert("INSERT", account_row({"holder_person_id": other, "created_by": other})))  # another person, same tool and route
+    db.x("UPDATE provider_accounts SET status = 'ended', ended = 7 WHERE id = ?", (again,))
+    tc.assertEqual(db.scalar("SELECT COUNT(*) FROM provider_accounts WHERE status = 'ended'"), ended_before + 2)
+    tc.assertEqual(db.scalar("PRAGMA recursive_triggers"), 0)
+
+
+class NullSafeGuardTests(Base):
+    def test_every_bypass_aborts_and_changes_nothing(self):
+        attack_suite(self, self.db, self.pid, self.other_pid)
+
+    def test_probes_exact_reproduction(self):
+        aid = self.account(label="original")["id"]
+        self.account(tool="gemini", route="seat", label="keep")
+        before = sql_snapshot(self.db)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.x("UPDATE OR REPLACE provider_accounts SET status = 'ended', ended = 2, label = NULL, assertion = NULL WHERE id = ?", (aid,))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.x("INSERT OR REPLACE INTO provider_accounts(holder_person_id, tool_id, route, payer, status, created)"
+                      " VALUES(?, 'canva', 'individual', 'person', NULL, 2)", (self.pid,))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.x("INSERT OR REPLACE INTO provider_accounts(id, holder_person_id, tool_id, route, payer, status, created)"
+                      " VALUES(?, ?, 'gemini', 'seat', 'company', NULL, 2)", (aid + 1, self.pid))
+        self.assertEqual(sql_snapshot(self.db), before)
+        self.assertEqual(self.db.scalar("SELECT label FROM provider_accounts WHERE id = ?", (aid,)), "original")
+
+    def test_the_application_writes_every_required_column_explicitly(self):
+        seen = []
+        self.db.conn.set_trace_callback(seen.append)
+        try:
+            aid = self.account(label="mine")["id"]
+            self.value(aid, "plan", "Pro")
+            self.value(aid, "monthly_price", "5", "USD")
+            self.assertEqual(self.call("POST", f"/provider-accounts/{aid}/end", {})[0], 200)
+            self.assertEqual(self.call("POST", f"/provider-accounts/{aid}/end", {})[0], 200)  # ending again is idempotent
+        finally:
+            self.db.conn.set_trace_callback(None)
+        inserts = list(dict.fromkeys(s for s in seen if s.lstrip().startswith("INSERT INTO provider_account")))  # a trigger repeats the text
+        self.assertEqual(len(inserts), 3)
+        for sql in inserts:
+            columns = re.search(r"\(([^)]*)\)\s*VALUES", sql).group(1)
+            written = {c.strip() for c in columns.split(",")}
+            need = set(REQUIRED) if "provider_accounts(" in sql else {"currency"}
+            self.assertTrue(need <= written, (need - written, sql[:80]))
+        self.assertEqual(self.db.scalar("SELECT status FROM provider_accounts WHERE id = ?", (aid,)), "ended")
+        again = self.account(label="again")["id"]  # an ended account can be registered again
+        self.assertNotEqual(again, aid)
+
+    def test_a_ended_account_still_refuses_values_through_the_api(self):
+        aid = self.account()["id"]
+        self.call("POST", f"/provider-accounts/{aid}/end", {})
+        self.value(aid, "plan", "Pro", expect=409)
+
+
+class WeakV24UpgradeTests(unittest.TestCase):
+    """Databases that already ran v24 in a pre-release form carry the weak guards. v25 must repair them in place."""
+
+    def v24_database(self, variant):
+        path = os.path.join(tempfile.mkdtemp(prefix="sgw-v25-"), "g.db")
+        with mock.patch.object(dbmod, "SCHEMA", SCHEMA[:24]):
+            db = DB(path)
+            db.x("INSERT INTO people(id, name, email, created) VALUES(1, 'A', 'a@swangzavenue.com', 1), (2, 'B', 'b@swangzavenue.com', 2)")
+            for tool in ("canva", "gemini", "chatgpt"):
+                db.x("INSERT INTO tools(id, name, created) VALUES(?, ?, 1)", (tool, tool))
+            if variant == "no_replace_absent":  # a pre-release form that never had the replace guards
+                db.x("DROP TRIGGER provider_accounts_no_replace")
+                db.x("DROP TRIGGER provider_account_values_no_replace")
+            elif variant == "only_end_absent":
+                db.x("DROP TRIGGER provider_accounts_only_end")
+                db.x("DROP TRIGGER provider_account_values_not_after_end")
+        return db, path
+
+    def test_the_v24_guards_really_were_weak(self):
+        """Documents the defect: on frozen v24 Probe's reproduction changes a retained row and replaces another."""
+        db, _ = self.v24_database("as_shipped")
+        a, b = seed_pair(db, 1)
+        db.x("UPDATE OR REPLACE provider_accounts SET status = 'ended', ended = 2, label = NULL, assertion = NULL WHERE id = ?", (a,))
+        self.assertEqual(db.q("SELECT status, label, assertion FROM provider_accounts WHERE id = ?", (a,)),
+                         [{"status": "ended", "label": "", "assertion": "holder_declared"}])  # the label was erased
+        db.x("INSERT OR REPLACE INTO provider_accounts(holder_person_id, tool_id, route, payer, status, created)"
+             " VALUES(1, 'gemini', 'seat', 'company', NULL, 2)")
+        self.assertEqual(db.scalar("SELECT COUNT(*) FROM provider_accounts WHERE id = ?", (b,)), 0)  # B was deleted by the replace
+        db.close()
+
+    def test_upgrading_each_weak_form_keeps_every_row_installs_the_guards_and_closes_every_bypass(self):
+        for variant in ("as_shipped", "no_replace_absent", "only_end_absent"):
+            db, path = self.v24_database(variant)
+            db.x("INSERT INTO provider_accounts(account_holder_kind, holder_person_id, tool_id, route, payer, assertion, label, status, created, created_by, ended)"
+                 " VALUES('person', 2, 'chatgpt', 'individual', 'person', 'holder_declared', 'old and ended', 'ended', 1, 2, 5)")
+            tables = ("people", "tools", "provider_accounts", "provider_account_values", "audit")
+            before = {t: db.q(f"SELECT * FROM {t} ORDER BY 1") for t in tables}
+            self.assertEqual(db.scalar("SELECT v FROM meta WHERE k = 'schema'"), "24")
+            db.close()
+            upgraded = DB(path)
+            self.assertEqual(upgraded.scalar("SELECT v FROM meta WHERE k = 'schema'"), "25", variant)
+            for table, rows in before.items():
+                self.assertEqual(upgraded.q(f"SELECT * FROM {table} ORDER BY 1"), rows, (variant, table))
+            names = {r["name"] for r in upgraded.q("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'provider_account%'")}
+            self.assertEqual(names, GUARDS, variant)
+            attack_suite(self, upgraded, 1, 2)
+            upgraded.close()
+            reopened = DB(path)  # and opening again is a no-op
+            self.assertEqual(reopened.scalar("SELECT v FROM meta WHERE k = 'schema'"), "25")
+            self.assertEqual(sum(1 for r in reopened.q("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'provider_account%'")), len(GUARDS))
+            reopened.close()
+
+    def test_a_populated_weak_database_keeps_its_rows(self):
+        db, path = self.v24_database("as_shipped")
+        a, b = seed_pair(db, 1)
+        db.x("UPDATE provider_accounts SET status = 'ended', ended = 4 WHERE id = ?", (b,))
+        before = (db.q("SELECT * FROM provider_accounts ORDER BY id"), db.q("SELECT * FROM provider_account_values ORDER BY id"))
+        db.close()
+        upgraded = DB(path)
+        self.assertEqual((upgraded.q("SELECT * FROM provider_accounts ORDER BY id"), upgraded.q("SELECT * FROM provider_account_values ORDER BY id")), before)
+        upgraded.close()
+
+    def test_a_failing_v25_rolls_back_to_v24_with_no_partial_objects(self):
+        db, path = self.v24_database("as_shipped")
+        seed_pair(db, 1)
+        objects = db.q("SELECT type, name, sql FROM sqlite_master ORDER BY name")
+        rows = db.q("SELECT * FROM provider_accounts")
+        db.close()
+        for failing in (SCHEMA[24] + ("CREATE TRIGGER provider_accounts_only_end BEFORE UPDATE ON provider_accounts BEGIN SELECT 1; END",),
+                        SCHEMA[24][:6] + ("INSERT INTO no_such_table VALUES(1)",) + SCHEMA[24][6:]):
+            with mock.patch.object(dbmod, "SCHEMA", SCHEMA[:24] + [failing]):
+                with self.assertRaises(sqlite3.Error):
+                    DB(path)
+            raw = sqlite3.connect(path)
+            self.assertEqual(raw.execute("SELECT v FROM meta WHERE k = 'schema'").fetchone()[0], "24")
+            raw.close()
+            with mock.patch.object(dbmod, "SCHEMA", SCHEMA[:24]):  # still the same v24 database, drops undone, nothing new left behind
+                reopened = DB(path)
+                self.assertEqual(reopened.q("SELECT type, name, sql FROM sqlite_master ORDER BY name"), objects)
+                self.assertEqual(reopened.q("SELECT * FROM provider_accounts"), rows)
+                reopened.close()
+        DB(path).close()  # the real upgrade then succeeds
+
+
+
 class CurrencySourceTests(unittest.TestCase):
-    SIX_FILE = os.environ.get("SIX_LIST_ONE", "/tmp/probe_six/l1.xml")
+    """Hermetic: no vendor file, no network. Probe compares the committed set with the cited SIX file on its own."""
     EXCLUDED = set("BOV CHE CHW CLF COU MXV USN UYI UYW XAD XAG XAU XBA XBB XBC XBD XDR XPD XPT XSU XTS XUA XXX".split())
+    SORTED_COMMA_SHA256 = "8d7ba525c994749938b084d9cc60ac4ca78c73ee4ab1dbc197536e84cf955d4c"
 
-    def test_the_set_is_the_documented_derivation_of_list_one(self):
+    def test_the_set_is_the_frozen_155_ordinary_codes(self):
         codes = registry.CURRENCIES
+        self.assertIsInstance(codes, frozenset)
         self.assertEqual(len(codes), 155)
+        self.assertEqual(hashlib.sha256(",".join(sorted(codes)).encode()).hexdigest(), self.SORTED_COMMA_SHA256)
         self.assertTrue({"UGX", "USD", "EUR", "GBP", "KES", "XCG", "ZWG", "SLE", "VED", "XOF", "XAF", "XCD", "XPF"} <= codes)
-        self.assertFalse({"ANG", "BGN", "ZWL", "XXX", "XTS", "XAU", "XAG", "XDR", "USN", "CHE", "CHW", "CLF", "UYI", "UYW", "BOV", "MXV",
-                          "COU", "XAD", "XSU", "XUA", "usd", "AAA"} & codes)
+        self.assertEqual(len(self.EXCLUDED), 23)
+        self.assertFalse(self.EXCLUDED & codes)
+        self.assertFalse({"ANG", "BGN", "ZWL", "usd", "AAA"} & codes)
         self.assertTrue(all(len(c) == 3 and c.isalpha() and c.isupper() for c in codes))
-        source = open(registry.__file__, encoding="utf-8").read()
-        self.assertIn("2026-09-17", source)
-        self.assertIn("https://www.six-group.com/dam/download/financial-information/data-center/iso-currrency/lists/list-one.xml", source)
-        self.assertTrue(all(c in source for c in self.EXCLUDED))
-        self.assertIn("33139b438657d1cee116ba737807ea71d19d6de4b90f799a09c56f0cc6a1b0ff", source)
 
-    def test_the_set_matches_the_published_file_when_it_is_present(self):
-        if not os.path.exists(self.SIX_FILE):
-            self.skipTest(f"Not run: the SIX List One file is not at {self.SIX_FILE} (set SIX_LIST_ONE)")
-        import xml.etree.ElementTree as ET
-        raw = open(self.SIX_FILE, "rb").read()
-        if hashlib.sha256(raw).hexdigest() != "33139b438657d1cee116ba737807ea71d19d6de4b90f799a09c56f0cc6a1b0ff":
-            self.skipTest("Not run: that file is not the 2026-09-17 List One the set was derived from")
-        root = ET.fromstring(raw)
-        listed = {e.findtext("Ccy") for e in root.iter("CcyNtry") if e.findtext("Ccy")}
-        self.assertEqual(root.attrib["Pblshd"], "2026-09-17")
-        self.assertEqual(registry.CURRENCIES, listed - self.EXCLUDED)
+    def test_the_source_is_cited_next_to_the_literal(self):
+        source = open(registry.__file__, encoding="utf-8").read()
+        for cited in ("2026-09-17", "33139b438657d1cee116ba737807ea71d19d6de4b90f799a09c56f0cc6a1b0ff",
+                      "https://www.six-group.com/dam/download/financial-information/data-center/iso-currrency/lists/list-one.xml"):
+            self.assertIn(cited, source)
+        self.assertTrue(all(c in source for c in self.EXCLUDED))
+        self.assertIn("ANG, BGN and ZWL are not in the 2026-09-17 file and are refused.", source)
+        self.assertNotIn("replaced by", source)
+        self.assertNotIn("xml.etree", source)  # nothing reads the file at run time
 
 
 if __name__ == "__main__":

@@ -14,7 +14,7 @@ from .business_schema import MIGRATION as BUSINESS_MIGRATION
 from .device_schema import MIGRATION as DEVICE_MIGRATION
 from .device_schema import MIGRATION_22 as DEVICE_LIFECYCLE_MIGRATION
 from .device_schema import MIGRATION_23 as SESSION_KIND_MIGRATION
-from .registry_schema import MIGRATION as PROVIDER_REGISTRY_MIGRATION
+from .registry_schema import MIGRATION as PROVIDER_REGISTRY_MIGRATION, MIGRATION_25 as PROVIDER_REGISTRY_NULL_SAFE_MIGRATION
 
 SCHEMA = [
     # v1
@@ -513,6 +513,8 @@ SCHEMA = [
     SESSION_KIND_MIGRATION,
     # v24: the manual provider-account registry (Amendment 01 task 1): declarations by the holder, retained, never fetched.
     PROVIDER_REGISTRY_MIGRATION,
+    # v25: v24's guards made NULL-safe (an explicit NULL in a defaulted column slipped past them under OR REPLACE). v24 stays frozen.
+    PROVIDER_REGISTRY_NULL_SAFE_MIGRATION,
 ]
 
 

@@ -74,3 +74,46 @@ WHEN NOT (OLD.status = 'active' AND NEW.status = 'ended' AND NEW.ended IS NOT NU
  AND NEW.label = OLD.label AND NEW.created = OLD.created AND NEW.created_by IS OLD.created_by)
 BEGIN SELECT RAISE(ABORT, 'a provider account can only be ended'); END""",
 )
+
+
+MIGRATION_25 = (
+    # v25 repairs v24's guards in place. v24 is frozen: a database that already ran it, in any of its pre-release forms,
+    # has the weak versions, so this drops the four weak triggers by name (IF EXISTS: one form had no no_replace guard at
+    # all) and installs NULL-safe ones. Nothing is rebuilt, moved or deleted, and no pragma is changed.
+    #
+    # Why: a BEFORE trigger sees NEW as the statement wrote it, but INSERT OR REPLACE / UPDATE OR REPLACE then swap an
+    # explicit NULL in a NOT NULL column for its DEFAULT. In SQL, `NULL = 'active'` is NULL, never true, so the v24
+    # guards let a NULL status or NULL label/assertion through, and the row that landed was a different row.
+    "DROP TRIGGER IF EXISTS provider_accounts_no_replace",
+    "DROP TRIGGER IF EXISTS provider_accounts_only_end",
+    "DROP TRIGGER IF EXISTS provider_account_values_no_replace",
+    "DROP TRIGGER IF EXISTS provider_account_values_not_after_end",
+    """CREATE TRIGGER provider_accounts_no_null_insert BEFORE INSERT ON provider_accounts
+WHEN NEW.account_holder_kind IS NULL OR NEW.tool_id IS NULL OR NEW.route IS NULL OR NEW.payer IS NULL
+ OR NEW.assertion IS NULL OR NEW.label IS NULL OR NEW.status IS NULL OR NEW.created IS NULL
+BEGIN SELECT RAISE(ABORT, 'a provider account needs every field written'); END""",
+    """CREATE TRIGGER provider_accounts_no_null_update BEFORE UPDATE ON provider_accounts
+WHEN NEW.account_holder_kind IS NULL OR NEW.tool_id IS NULL OR NEW.route IS NULL OR NEW.payer IS NULL
+ OR NEW.assertion IS NULL OR NEW.label IS NULL OR NEW.status IS NULL OR NEW.created IS NULL
+BEGIN SELECT RAISE(ABORT, 'a provider account needs every field written'); END""",
+    """CREATE TRIGGER provider_accounts_no_replace BEFORE INSERT ON provider_accounts
+WHEN EXISTS (SELECT 1 FROM provider_accounts WHERE id = NEW.id)
+ OR (COALESCE(NEW.status, 'active') = 'active' AND EXISTS (SELECT 1 FROM provider_accounts WHERE status = 'active'
+  AND holder_person_id IS NEW.holder_person_id AND tool_id IS NEW.tool_id AND route IS NEW.route))
+BEGIN SELECT RAISE(ABORT, 'provider accounts are never replaced'); END""",
+    """CREATE TRIGGER provider_accounts_only_end BEFORE UPDATE ON provider_accounts
+WHEN NOT COALESCE((OLD.status = 'active' AND NEW.status = 'ended' AND NEW.ended IS NOT NULL
+ AND NEW.id IS OLD.id AND NEW.account_holder_kind IS OLD.account_holder_kind AND NEW.holder_person_id IS OLD.holder_person_id
+ AND NEW.tool_id IS OLD.tool_id AND NEW.route IS OLD.route AND NEW.payer IS OLD.payer AND NEW.assertion IS OLD.assertion
+ AND NEW.label IS OLD.label AND NEW.created IS OLD.created AND NEW.created_by IS OLD.created_by), 0)
+BEGIN SELECT RAISE(ABORT, 'a provider account can only be ended'); END""",
+    """CREATE TRIGGER provider_account_values_no_replace BEFORE INSERT ON provider_account_values
+WHEN EXISTS (SELECT 1 FROM provider_account_values WHERE id = NEW.id)
+BEGIN SELECT RAISE(ABORT, 'provider account values are never replaced'); END""",
+    """CREATE TRIGGER provider_account_values_no_null_currency BEFORE INSERT ON provider_account_values
+WHEN NEW.currency IS NULL
+BEGIN SELECT RAISE(ABORT, 'a provider account value needs its currency written'); END""",
+    """CREATE TRIGGER provider_account_values_not_after_end BEFORE INSERT ON provider_account_values
+WHEN COALESCE((SELECT status FROM provider_accounts WHERE id = NEW.account_id), '') != 'active'
+BEGIN SELECT RAISE(ABORT, 'an ended provider account takes no more values'); END""",
+)

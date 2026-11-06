@@ -65,10 +65,10 @@ CONSOLE_AREAS = ("govern", "money")
 #   SDR-type     XDR
 #   test         XTS
 #   no currency  XXX
-# Not "all X codes" and not the IsFund flag alone: XAF XCD XOF XPF XCG ZWG are ordinary currencies and stay in. Withdrawn
-# codes (ANG BGN ZWL, replaced by XCG, EUR and ZWG) are not in the file and are refused. Codes are matched exactly, so lowercase
-# "usd" is refused, not normalised. To refresh, take the new List One file and repeat that derivation;
-# tests/test_provider_registry.py compares this set with the file (difference exactly the 23) when it is present.
+# Not "all X codes" and not the IsFund flag alone: XAF XCD XOF XPF XCG ZWG are ordinary currencies and stay in.
+# ANG, BGN and ZWL are not in the 2026-09-17 file and are refused.
+# Codes are matched exactly, so lowercase "usd" is refused, not normalised. To refresh, take the new List One file and repeat
+# that derivation. The tests pin the count and a hash of this set without the file; the comparison with the file is Probe's.
 CURRENCIES = frozenset("""
 AED AFN ALL AMD AOA ARS AUD AWG AZN BAM BBD BDT BHD BIF BMD BND BOB BRL BSD BTN BWP BYN BZD CAD CDF CHF CLP CNY COP
 CRC CUP CVE CZK DJF DKK DOP DZD EGP ERN ETB EUR FJD FKP GBP GEL GHS GIP GMD GNF GTQ GYD HKD HNL HTG HUF IDR ILS INR
