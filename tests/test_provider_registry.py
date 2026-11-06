@@ -184,22 +184,32 @@ class ConsoleCeilingTests(Base):
         self.assertEqual((out["values"]["credit_balance"]["value"], out["values"]["credit_balance"]["currency"]), ("42.1", "USD"))
         self.assertEqual((out["values"]["plan"]["source"], out["values"]["plan"]["confirmed"]), ("holder_declared", False))
 
-    def test_individual_accounts_show_the_console_only_that_they_exist(self):
-        for who in ("owner", "ops", "both"):
-            item = self.items(who)[self.ind]
-            self.assertEqual(set(item), CORE, who)
-            self.assertEqual(item["route"], "individual")
-            status, detail = self.console(f"/provider-accounts/{self.ind}", who)
-            self.assertEqual((status, set(detail)), (200, CORE), who)
-            self.assertNotIn(LABEL_MARK, json.dumps(detail))
-            self.assertNotIn("Max 20x", json.dumps(detail))
-            self.assertNotIn("holder", detail)  # the ceiling names no holder for an individual account
+    def test_individual_accounts_are_holder_only_for_every_console_actor(self):
+        missing = self.console("/provider-accounts/999999", "owner")
+        self.assertEqual(missing[0], 404)
+        for who in ("owner", "ops", "bill", "both"):
+            self.assertNotIn(self.ind, self.items(who), who)
+            for path in ("/provider-accounts", "/provider-accounts?tool=canva", "/provider-accounts?status=active",
+                         "/provider-accounts?status=ended", "/provider-accounts?tool=canva&limit=1", "/provider-accounts?limit=200"):
+                status, out = self.console(path, who)
+                self.assertEqual(status, 200, (who, path))
+                self.assertTrue(all(i["route"] == "seat" for i in out["items"]), (who, path))
+                self.assertNotIn(LABEL_MARK, json.dumps(out))
+            self.assertEqual(self.console(f"/provider-accounts/{self.ind}", who), self.console("/provider-accounts/999999", who), who)
+            self.assertEqual(self.console(f"/provider-accounts/{self.ind}", who)[0], 404, who)
+        self.assertEqual(self.items("owner").keys(), {self.seat})  # the seat is still listed; the tool filter finds no individual one
+        self.assertEqual(self.console("/provider-accounts?tool=canva", "owner")[1]["items"], [])
+        self.assertEqual(self.console("/provider-accounts?tool=chatgpt", "owner")[1]["items"][0]["id"], self.seat)
 
-    def test_money_alone_does_not_see_individual_accounts_at_all(self):
-        self.assertNotIn(self.ind, self.items("bill"))
-        self.assertEqual(self.console(f"/provider-accounts/{self.ind}", "bill")[0], 404)
-        missing = self.console("/provider-accounts/999999", "bill")
-        self.assertEqual(self.console(f"/provider-accounts/{self.ind}", "bill"), missing)
+    def test_the_individual_ceiling_entries_are_gone(self):
+        self.assertFalse([k for k in registry.FIELD_CEILING if k[0] == "individual" and k[1] != "holder"])
+        self.assertEqual({k for k in registry.FIELD_CEILING if k[0] == "individual"}, {("individual", "holder")})
+
+    def test_an_individual_account_stays_hidden_after_it_ends_and_with_many_of_them(self):
+        self.assertEqual(self.call("POST", f"/provider-accounts/{self.ind}/end", {})[0], 200)
+        for who in ("owner", "ops", "both", "bill"):
+            self.assertEqual(self.console(f"/provider-accounts/{self.ind}", who)[0], 404, who)
+            self.assertNotIn(self.ind, self.items(who), who)
 
     def test_seat_accounts_split_between_govern_and_money_and_the_owner_gets_the_union(self):
         want = {"govern": (CORE | SEAT_EXTRA, GOVERN_KINDS), "ops": (CORE | SEAT_EXTRA, GOVERN_KINDS),
@@ -234,10 +244,10 @@ class ConsoleCeilingTests(Base):
                              ("PUT", f"/provider-accounts/{self.seat}"), ("DELETE", f"/provider-accounts/{self.seat}")):
             self.assertEqual(self.console(path, "owner", method)[0], 404, (method, path))
 
-    def test_ended_accounts_stay_readable_with_the_same_ceiling(self):
-        self.assertEqual(self.call("POST", f"/provider-accounts/{self.ind}/end", {})[0], 200)
-        item = self.console(f"/provider-accounts/{self.ind}", "ops")[1]
-        self.assertEqual((item["status"], set(item)), ("ended", CORE))
+    def test_ended_seat_accounts_stay_readable_with_the_same_ceiling(self):
+        self.assertEqual(self.call("POST", f"/provider-accounts/{self.seat}/end", {})[0], 200)
+        item = self.console(f"/provider-accounts/{self.seat}", "ops")[1]
+        self.assertEqual((item["status"], set(item)), ("ended", CORE | SEAT_EXTRA | {"values"}))
         self.assertIsNotNone(item["ended"])
 
 

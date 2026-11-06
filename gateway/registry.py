@@ -41,13 +41,14 @@ DECIMAL_PLACES = 6
 # ---------------------------------------------------------------- who sees what (Sentinel D-019)
 # Per record kind, per audience: the account fields and the value kinds visible. A console user sees the union over the
 # areas they hold. An audience with no entry for a kind sees no such record at all (it is 404, as if it did not exist).
+# An individual account has no console entry at all (Sentinel F1): even its id, status and times would let a console user
+# match it to the audit log's named actor and learn which tool a person holds personally.
 CORE = frozenset({"id", "tool_id", "tool", "route", "status", "created", "ended"})
 SEAT_EXTRA = frozenset({"holder", "payer", "assertion", "confirmed", "label"})
 HOLDER_FIELDS = CORE | {"payer", "assertion", "confirmed", "label", "created_by"}
 FIELD_CEILING = {
     ("individual", "holder"): (HOLDER_FIELDS, frozenset(KINDS)),
     ("seat", "holder"): (HOLDER_FIELDS, frozenset(KINDS)),
-    ("individual", "govern"): (CORE, frozenset()),
     ("seat", "govern"): (CORE | SEAT_EXTRA, frozenset({"plan", "quota_limit", "quota_used", "period_end"})),
     ("seat", "money"): (CORE | SEAT_EXTRA, frozenset({"credit_balance", "monthly_price"})),
 }
@@ -59,10 +60,10 @@ CONSOLE_AREAS = ("govern", "money")
 # https://www.six-group.com/dam/download/financial-information/data-center/iso-currrency/lists/list-one.xml
 # (sic, three r's); sha256 33139b438657d1cee116ba737807ea71d19d6de4b90f799a09c56f0cc6a1b0ff. Sentinel opened the same file
 # independently and ruled (6 Nov 2026) that exactly these 23 are excluded, because a subscription is never priced in them:
-#   funds        BOV CHE CHW CLF COU MXV USN UYI UYW
+#   funds        BOV CHE CHW CLF COU MXV USN UYI UYW XAD   (XAD is the Arab Accounting Dinar, grouped with the funds by ruling)
 #   metals       XAG XAU XPD XPT
-#   bond-market  XAD XBA XBB XBC XBD XSU XUA
-#   SDR-type     XDR
+#   SDR-type     XDR XSU XUA   (the SDR, the Sucre and the African Development Bank unit of account, grouped by ruling)
+#   bond-market  XBA XBB XBC XBD
 #   test         XTS
 #   no currency  XXX
 # Not "all X codes" and not the IsFund flag alone: XAF XCD XOF XPF XCG ZWG are ordinary currencies and stay in.
@@ -406,10 +407,7 @@ def console_list(ctx):
     if status not in ("all", "active", "ended"):
         raise ApiError(400, "status is active, ended or all")
     where, args = [], []
-    if "govern" not in audiences:  # money alone sees seats only
-        where.append("a.route = 'seat'")
-    else:
-        where.append("a.route IN ('individual', 'seat')")
+    where.append("a.route = 'seat'")  # an individual account is holder-only: no console row, count or tool filter reaches one
     if status != "all":
         where.append("a.status = ?")
         args.append(status)
@@ -427,7 +425,7 @@ def console_list(ctx):
 @admin.route("GET", r"/provider-accounts/(?P<aid>[0-9]+)", area=CONSOLE_AREAS)
 def console_read(ctx, aid):
     audiences = _audiences(ctx)
-    row = ctx.db.one(SELECT_ACCOUNT + " WHERE a.id = ?", (_id(aid),)) if audiences else None
+    row = ctx.db.one(SELECT_ACCOUNT + " WHERE a.id = ? AND a.route = 'seat'", (_id(aid),)) if audiences else None
     out = _shape(row, _current_values(ctx.db, [row["id"]]).get(row["id"], {}), audiences) if row else None
     if out is None:
         raise ApiError(404, "no such account", "no_such_account")
