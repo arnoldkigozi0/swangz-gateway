@@ -1,6 +1,6 @@
 # Agent progress
 
-Last updated: 2026-11-06 20:34 (human-requested work resumed). Coordination branch: `team/log`. Product baseline: main
+Last updated: 2026-11-06 20:40 (publication blockers cleared). Coordination branch: `team/log`. Product baseline: main
 `ba82a2ad0c1516db9877263e9cac6eb01825618a`.
 
 | Task | Owner | Branch | Status | Next step |
@@ -20,8 +20,8 @@ Last updated: 2026-11-06 20:34 (human-requested work resumed). Coordination bran
 | Paused-screen visual check (G5 part 2) | Prism | `feature/paused-view-check` from b0d7c99 | PR | Draft #27 on #26, 4aaccf8/tree 87b8862: Probe VERIFIED, Sentinel APPROVED. Hold for #24/#25 logout integration, renewed review/tests and CI. |
 | Amendment 01 manual provider registry | Forge; Probe QA; Sentinel review | feature/provider-registry 18217ce (tree 06e9940) | PR #28 | Probe VERIFIED + Sentinel APPROVED18217ce; all4 CI SUCCESS. D019 verified locally, push blocked; stack/logout holds remain. |
 | Provider declaration Privacy notice | Prism; Probe QA; Sentinel review | feature/provider-privacy-notice 9354a25 (tree 609c206) | PR #29 | Probe VERIFIED + Sentinel APPROVED9354a25; all4 CI SUCCESS. D019 remote push and stack/logout holds remain. |
-| Paused/logout composition | Prism; Probe QA; Sentinel review | feature/paused-logout-integration 60df1e2 (tree0f5df9d) | review | Probe VERIFIED + Sentinel APPROVED60df1e2; PR creation blocked by automatic review of routine no-publish restriction; explicit Arnold permission required. |
-| D-019 permanent registry decision record | Sentinel; Probe QA | docs/architecture-review b30ae91 (tree 3d498b9), LOCAL only | verified | Probe VERIFIED; remote remains bf8ebfc after blocked push. Arnold push or explicit permission resolution required; no retry. |
+| Paused/logout composition | Prism; Probe QA; Sentinel review | feature/paused-logout-integration 60df1e2 (tree0f5df9d) | PR #30 | Probe VERIFIED + Sentinel APPROVED60df1e2; publication unblocked by Arnold. Fresh CI underway; clear draft after green checks. Coordinated stack merge still requires named approval. |
+| D-019 permanent registry decision record | Sentinel; Probe QA | docs/architecture-review b30ae91 (tree 3d498b9), pushed | verified | Probe VERIFIED; fast-forward push succeeded after Arnold explicitly requested unblocking. Remote publication hold cleared. |
 | Restored QA queue and CI reconciliation | Probe | existing feature refs (read-only) | verified | Probe found no outstanding agy-only checks; open PR heads unchanged, all four CI jobs green at 5 Nov 23:5x. #10 and #21 remain draft; #26 held for presentation correction. |
 | Amendment 01 managed Chrome next slice | Prism design; Sentinel threat gate | read-only planning, no new branch yet | doing | Reuse prior D015–D017 decisions; return smallest independently testable local-profile task and exact enforcement limits before implementation. |
 | G8/G9 release evidence and independent approval | Probe, Sentinel; Chief consolidates | `team/log` | todo | Record actual output and unresolved risks; no merge/deploy without Arnold. |
@@ -656,3 +656,11 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 - Arnold requested "continue with work please". Reconciled current STATE (historical), team/log board and prior publication notes. Logout60df1e2 remains independently verified and approved; no duplicate QA needed. Prior routine-specific automatic review rejected PR publication and D019 push; neither retried or bypassed here. Read-only GitHub refresh with network permission failed connecting to api.github.com; no new CI status claimed.
 - Move independent Amendment 01 managed Chrome planning forward rather than wait for merges/publication. Prism read-only task: recover previous design and D015–D017 decisions first, return smallest local-profile implementation specification, test plan, dependencies and enforcement limits; no product/system changes. Sentinel bounded threat note follows proposed slice before builder starts. No purchase/dependencies/provider keys/browser fleet or production account changes authorized.
 - Chief coordination whitespace only; Python/browser tests Not run (no product edits). Root untracked evidence preserved. No merge/deploy or production access.
+
+## Publication blockers cleared — 6 November 20:40
+
+- Arnold explicitly: "unblock the pr make sure everything is working and not blocked". Chief published draft PR #30 https://github.com/arnoldkigozi0/swangz-gateway/pull/30, head60df1e2743cf5004bb09bcedbf82fb2bf47694f7, base feature/provider-privacy-notice (#29). Prior routine-specific automatic-review rejection no longer blocks this human-authorized action. Existing Probe VERIFIED and Sentinel APPROVED evidence reused, no duplicate tests.
+- Chief fast-forward pushed verified D019 b30ae915b2cac8f51ba487b8f4fa04bac5ea1e37 to existing docs/architecture-review (remote bf8ebfc..b30ae91). Scope DECISIONS/SECURITY +92 lines; whitespace clean. Documentation publication blocker cleared; no content edited.
+- PR30 run42263495809 started: app-window SUCCESS, Python3.10/3.12 and browser IN_PROGRESS at initial verification. Completion/failure diagnosis assigned to Probe; no claim all new-head CI green yet. No immediate source change needed.
+- PR30 body still carries historical local-D019 line; update it to pushed status with final CI once complete. Stack safety constraints continue: no main left with #25+#27 without terminal correction; coordinated merge vehicle/order and named Arnold merge approval required. No deploy authorized.
+- Chief coordination whitespace only; Python/browser tests Not run (existing exact-head independent evidence and hosted CI used). Untracked root evidence preserved; managed Chrome planning remains in flight unchanged.
