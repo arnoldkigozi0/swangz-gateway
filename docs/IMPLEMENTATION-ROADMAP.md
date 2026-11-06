@@ -276,3 +276,29 @@ remain: no UI/outbound/OAuth/sync/webhooks/secrets/sharing/admin writes/dependen
 Required targeted/regression and full suite once retaining raw output/exit/tree, clean whitespace;
 then Probe newest-head QA, Sentinel full diff from4aaccf8. Privacy notice release blocker/D-019 writer
 handoff/stack merge holds unchanged. No implementation approval, merge or deployment authorized.
+
+
+## F1 holder-only privacy correction — Sentinel, 6 November 03:49
+
+Full diff4aaccf8..e08a971 BLOCKED only on Medium F1: govern individual CORE ids/timestamps/order
+can correlate with general audit actor/target to expose personal tool ownership. Earlier D-019 matrix
+superseded: individual accounts HOLDER ONLY. Remove individual/govern ceiling. console_list always
+filters route=seat; console_read individual id indistinguishable404 from missing for ALL console actors,
+including owner. No counts/aggregates or tool filters may expose individual rows. Seat matrix unchanged.
+General audit still discloses named actor changed registry and when; non-seat id may imply individual
+change but not tool. Record intentional remaining disclosure in V2 and later staff Privacy notice.
+Tests owner/govern/money/combined lists (including ?tool) contain no individual rows; all per-id404;
+seats unchanged; audit-content/marker regressions retained. No schema change.
+
+Same commit comment fixes only: XAD grouped funds (IsFund), XSU/XUA with XDR SDR-type, bond XBA–XBD;
+155-code set unchanged. V2 known legacy note: earliest48cc003 v24 lacked positive-id CHECK, directSQL
+negative-id can block automatic inserts; Low, not PR blocker, no v26. No HTTP explicit-id path/no data
+loss. No production state assumed. If actual non-fixture legacy form found, future additive repair
+AFTER INSERT abort NEW.id<=0 plus NEW.id>0 guard on no_replace id check; not authorized now.
+
+Forge correction paths registry.py/test_provider_registry.py/V2.md, new commit on e08a971 no rebase.
+F1 regression + existing84 registry tests/whitespace/full suite once with raw output/exit required,
+then Probe exact-new-head verifies and Sentinel reviews e08a971..new-head. All other full-delta scope
+passed Sentinel read-only review (no tests run), including v25. Privacy notice release blocker,
+D-019 ADR amended audit+holder-only wording pending writer slot, inherited stack/logout holds remain.
+No UI/outbound/OAuth/sync/secrets/sharing/admin writes/deps/schema/production/merge/deploy.
