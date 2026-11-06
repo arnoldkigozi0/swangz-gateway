@@ -251,6 +251,65 @@ class ConsoleCeilingTests(Base):
         self.assertIsNotNone(item["ended"])
 
 
+class FinalPinTests(Base):
+    """Sentinel's final pins on 763d4bf: the limit cannot leak individual rows, and deleting a tool answers the same either way."""
+
+    def make_tool(self, name):
+        self.assertEqual(self.rig.api("POST", "/tools", {"name": name, "kind": "site", "url": "https://example.test/"})[0], 200)
+        return name.lower().replace(" ", "-")
+
+    def test_a_limit_never_lets_newer_individual_rows_change_what_the_console_returns(self):
+        """Probe's /tmp/probe_f1_lim.py fixture, ported: seat id 1, then individual ids 2 and 3. If the SQL stopped filtering to
+        seats, LIMIT would count the individual rows and the number of seat rows returned would depend on how many exist."""
+        for name in ("ops", "bill", "both"):
+            self.make_admin(name, areas={"ops": "govern", "bill": "money", "both": "govern,money"}[name])
+        seat = self.account(tool="chatgpt", route="seat", payer="company", label="Team seat")["id"]
+        ind = [self.account(tool=t, route="individual", payer="person")["id"] for t in ("canva", "gemini")]
+        self.assertEqual((seat, ind), (1, [2, 3]))
+        for who in ("owner", "ops", "bill", "both"):
+            for limit in (1, 2, 3):
+                for query in ("", "&tool=chatgpt", "&status=active", "&tool=chatgpt&status=active"):
+                    status, out = self.console(f"/provider-accounts?limit={limit}{query}", who)
+                    self.assertEqual(status, 200, (who, limit, query))
+                    self.assertEqual([i["id"] for i in out["items"]], [1], (who, limit, query))
+            for query in ("&tool=canva", "&tool=gemini"):  # a tool only an individual account uses finds nothing
+                self.assertEqual(self.console(f"/provider-accounts?limit=3{query}", who)[1]["items"], [], (who, query))
+            for aid in ind:
+                self.assertEqual(self.console(f"/provider-accounts/{aid}", who)[0], 404, (who, aid))
+            self.assertEqual(self.console(f"/provider-accounts/{seat}", who)[0], 200, who)
+
+    def delete_both(self):
+        only_individual, only_seat = self.make_tool("Only Individual"), self.make_tool("Only Seat")
+        self.account(tool=only_individual, route="individual", payer="person")
+        self.account(tool=only_seat, route="seat", payer="company")
+        rows = lambda: self.db.q("SELECT id, tool_id, route, status FROM provider_accounts ORDER BY id")
+        before = rows()
+        answers = [self.rig.api("DELETE", f"/tools/{tool}") for tool in (only_individual, only_seat)]
+        self.assertEqual(rows(), before)
+        for tool in (only_individual, only_seat):
+            self.assertIsNotNone(self.db.one("SELECT 1 AS x FROM tools WHERE id = ?", (tool,)))
+        return answers
+
+    def test_deleting_a_tool_answers_the_same_whether_an_individual_or_a_seat_account_points_at_it(self):
+        individual, seat = self.delete_both()
+        self.assertEqual(individual, seat)  # same status, code and message: nothing says which route
+        self.assertEqual((individual[0], individual[1].get("code")), (409, "has_provider_accounts"))
+        self.assertNotIn("individual", json.dumps(individual).lower())
+        self.assertNotIn("seat", json.dumps(individual).lower())
+
+    def test_the_race_path_of_the_tool_delete_also_answers_the_same_for_both_routes(self):
+        """If the row appears after the first check, the database's own foreign key refuses the delete. Make the first check
+        see nothing, so that second 409 is the one under test. Its message differs from the first path's, but not by route."""
+        real = self.db.scalar
+        blind = lambda sql, *a, **k: 0 if "FROM provider_accounts WHERE tool_id" in sql else real(sql, *a, **k)
+        with mock.patch.object(self.db, "scalar", side_effect=blind):
+            individual, seat = self.delete_both()
+        self.assertEqual(individual, seat)
+        self.assertEqual((individual[0], individual[1].get("code")), (409, "has_provider_accounts"))
+        self.assertNotIn("individual", json.dumps(individual).lower())
+        self.assertNotIn("seat", json.dumps(individual).lower())
+
+
 # ------------------------------------------------------------------ 3. database rules
 
 
