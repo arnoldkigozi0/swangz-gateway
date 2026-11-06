@@ -1,6 +1,6 @@
 # Agent progress
 
-Last updated: 2026-11-06 07:48 (correction ruling). Coordination branch: `team/log`. Product baseline: main
+Last updated: 2026-11-06 08:00 (corrected artifact). Coordination branch: `team/log`. Product baseline: main
 `ba82a2ad0c1516db9877263e9cac6eb01825618a`.
 
 | Task | Owner | Branch | Status | Next step |
@@ -20,7 +20,7 @@ Last updated: 2026-11-06 07:48 (correction ruling). Coordination branch: `team/l
 | Paused-screen visual check (G5 part 2) | Prism | `feature/paused-view-check` from b0d7c99 | PR | Draft #27 on #26, 4aaccf8/tree 87b8862: Probe VERIFIED, Sentinel APPROVED. Hold for #24/#25 logout integration, renewed review/tests and CI. |
 | Amendment 01 manual provider registry | Forge; Probe QA; Sentinel review | feature/provider-registry 18217ce (tree 06e9940) | PR #28 | Probe VERIFIED + Sentinel APPROVED18217ce; all4 CI SUCCESS. D019 verified locally, push blocked; stack/logout holds remain. |
 | Provider declaration Privacy notice | Prism; Probe QA; Sentinel review | feature/provider-privacy-notice 9354a25 (tree 609c206) | PR #29 | Probe VERIFIED + Sentinel APPROVED9354a25; all4 CI SUCCESS. D019 remote push and stack/logout holds remain. |
-| Paused/logout composition | Prism; Probe QA; Sentinel review | feature/paused-logout-integration 8462c6b (tree1b81008) | review | Probe REJECTED8462c6b; Sentinel requires terminal logout correction, Prism solebuilder next then deltaQA/finalreview. |
+| Paused/logout composition | Prism; Probe QA; Sentinel review | feature/paused-logout-integration 6416eca (treee0b19a7) | review | Terminal correction pushed; Probe deltaQA next, then Sentinel finalreview and Chief PR. |
 | D-019 permanent registry decision record | Sentinel; Probe QA | docs/architecture-review b30ae91 (tree 3d498b9), LOCAL only | verified | Probe VERIFIED; remote remains bf8ebfc after blocked push. Arnold push or explicit permission resolution required; no retry. |
 | Restored QA queue and CI reconciliation | Probe | existing feature refs (read-only) | verified | Probe found no outstanding agy-only checks; open PR heads unchanged, all four CI jobs green at 5 Nov 23:5x. #10 and #21 remain draft; #26 held for presentation correction. |
 | G8/G9 release evidence and independent approval | Probe, Sentinel; Chief consolidates | `team/log` | todo | Record actual output and unresolved risks; no merge/deploy without Arnold. |
@@ -610,3 +610,8 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 
 - Sentinel confirms both late403 and post-api consumer races real; rejection8462c6b stands. Approved bounded newcommit samebranch, merge2324809 untouched: one-way signedOut flag set after logout api success; bump generation/loading, clear me/studio and app, try remove purpose then replace('/'). At api entry throw beforefetch ifsignedOut; lateperson_paused refresh only !signedOut/currentgeneration, refreshPaused earlyreturn; guard every top-level appwriter including load/errorpaths. Preserve exactlogout exemption/stalechecks/pausedallowlist/failure/doubleclick/server.
 - Tests actualbutton: late403reports/notifications after200 active+suspended nofetch/noappmutation afterclear; deterministic Studio generate/load races same-task bothorders appempty/noidentitystrings/no unhandledrejection/one navigation; post-success directapi/leftovernodes zero fetch; retryablefetch/503/500/unreadable failures retainstate/purpose/view. Prior60paused/11PWA/syntax25 retained. Probe nextnewhead deltaQA and realbrowserlate4031280/390 active+suspended; advisoryrace may be stubonly, disclosed. Prism solebuilder handoffnext; no server/CSS/copy/dependencies. Chief coordinationonly, no tests; D019push/mainmerge/CI/deployholds unchanged.
+
+## Terminal logout corrected artifact — 6 November 08:00
+
+- Prism pushed6416ecad8fc7402da5123f404e7f9aaa38ccbded/treee0b19a7ec9e9ff84c41b5cf68c9fa8f6da5a4c0c on8462c6b. Chief confirms metadata, three-file169+/20- delta and cleanwhitespace. Commit records seven rootwriter sites plus terminal entry guards. Builder reports73paused/11PWA/syntax25 pass,10negativecontrols reject, testedbytesmatchcommit, cleanworktree/existingrefs/merge2324809 preserved and stopped.
+- Evidence /tmp/prism-logout-terminal-evidence.json; realbrowser/MutationObserver/phones/Python/newCI Notrun, Studioordering Nodefixtures only. Probe exacthead deltaQA and realbrowserlate403 active/suspended1280/390 next; previous composition evidence reused. No VERIFIED/APPROVED onnewhead yet, then Sentinel finalreview/ChiefPRagainst29. Prior8462c6b rejection remains historical. Chief coordination-only testsNotrun; D019push/mergeorder/deployholds unchanged.
