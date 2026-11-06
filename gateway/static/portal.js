@@ -1080,8 +1080,8 @@
           item("terminal", "AI requests through the gateway", "Who, which device and app, the model, what you typed, what the AI did and replied, and what it cost.",
             "This covers coding tools, Studio and apps connected with a Swangz key — they run on the company's key, so each request passes through Swangz AI Hub."),
           item("hand", "Shared company accounts", "Who held the turn and when, so the account's use can be matched to a person."),
-          item("wallet", "Subscriptions you tell us about", "If you record an AI subscription you hold, Swangz AI Hub keeps what you enter: the tool, whether it's personal or a seat on the company plan, and any plan, quota, renewal date or price you add. It's your own declaration. Nobody checks it with the provider, and it doesn't change which tools you can use.",
-            "You can end a record but not delete it, and each value you add is kept as you entered it."))]],
+          item("wallet", "Subscriptions you tell us about", "If you record an AI subscription you hold, Swangz AI Hub keeps what you enter: the tool, whether it's personal or a seat on the company plan, who pays, an optional label, and any plan, quota, period end date, price or credit you add. It's your own declaration: nobody checks it with the provider, and it doesn't change which tools you can use.",
+            "You can end a record but not delete it. Values can't be edited; adding a new one keeps the earlier one in the record's history."))]],
       ["not-recorded", "What is not recorded", icon("lock"), [
         el("ul", { class: "p-list" },
           pv.gate_log_full ? null : item("globe", "Page contents or keystrokes on AI websites", "The extension records the site and the time — never what's on the page or what you type there."),
@@ -1096,16 +1096,16 @@
             "The gateway sees the network address of each request. Admins see the network's name if Swangz has named it, or an approximate town from an offline table" + (pv.location_table ? "" : " (not loaded here yet)") + ". Your address is never sent to an outside service."))]],
       ["who", "Who can see it", icon("shield"), [
         el("p", null, "Swangz administrators, in the control room. Every time one opens a full record or exports records, that is itself written to an audit log — and only some admin roles can export what you typed."),
-        el("p", null, "Details of a personal subscription are shown only to you in Swangz AI Hub. For a seat on the company plan, administrators who manage tools also see its plan and quota, and those who manage spending see its price and credit. Whenever you add, update or end a subscription record, the audit log notes your name, the change, the time, your network address and a record number. Any administrator can see that entry, but it never includes the tool, plan, price or anything else you entered."),
+        el("p", null, "Swangz AI Hub shows the details of a personal subscription you record only to you. For a seat on the company plan, control-room users who manage tools or spending see its tool, status, dates, holder, payer and label; those who manage tools also see its plan, quota and period end, and those who manage spending see its price and credit. Whenever you add a subscription record, add a value to it or end it, the audit log notes your name, the change, the time, your network address and a record number. Everyone with control-room access, including read-only users, can see that entry. It never includes the tool, plan, price or anything else you entered."),
         el("details", { class: "p-more" }, el("summary", null, "More about this"),
-          el("p", null, "As with every record here, the people who run the Swangz server and its backups can reach the stored data.")),
+          el("p", null, "From that entry, control-room users who manage tools or spending can tell whether the change was to a personal subscription or a company seat, but not which tool. As with every record here, the people who run the Swangz server and its backups can reach the stored data.")),
         el("p", { class: "muted" }, pv.block_secrets ? "Requests that contain passwords or API keys are refused, to keep them out of AI tools." : "Requests that look like they contain passwords or API keys are flagged so they can be changed.")]],
       ["kept", "How long it's kept", icon("clock"), [
         el("p", null, pv.retention_days ? `AI request records are deleted automatically after ${pv.retention_days} days.` : "AI request records are kept until an administrator removes them."),
         el("p", { class: "muted" }, !pv.store_bodies ? "Only a summary is kept — not the full contents of requests."
           : pv.bodies_days ? `Full request contents are kept for ${pv.bodies_days} days, then only the summary stays.` : "Full request contents are kept for that time, so the exact request can be checked if something goes wrong."),
         pv.site_days || pv.launch_days ? el("p", { class: "muted" }, [pv.site_days ? `AI website visits: ${pv.site_days} days.` : null, pv.launch_days ? `Tools opened from here: ${pv.launch_days} days.` : null].filter(Boolean).join(" ")) : null,
-        el("p", null, "Subscription records and their values are kept even after you end them. Audit log entries are kept for at least a year.")]],
+        el("p", null, "Subscription records and their values are kept, even after you end them. Audit log entries are kept for at least a year.")]],
       ["help", "Using it well, and help", icon("info"), [
         el("p", null, "Swangz AI Hub is for your work at Swangz. Don't paste passwords, other people's personal details, or anything you wouldn't put in a work email."),
         el("details", null, el("summary", null, "Weekly reporting and your declarations"),

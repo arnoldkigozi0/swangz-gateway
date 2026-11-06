@@ -270,15 +270,22 @@ module.exports = async function run() {
     };
     const rec = section('recorded');
     assert.ok(leaf(rec, 'strong', 'Subscriptions you tell us about'));
-    assert.ok(leaf(rec, 'p', "If you record an AI subscription you hold, Swangz AI Hub keeps what you enter: the tool, whether it's personal or a seat on the company plan, and any plan, quota, renewal date or price you add. It's your own declaration. Nobody checks it with the provider, and it doesn't change which tools you can use."));
-    more(rec, 'You can end a record but not delete it, and each value you add is kept as you entered it.');
+    assert.ok(leaf(rec, 'p', "If you record an AI subscription you hold, Swangz AI Hub keeps what you enter: the tool, whether it's personal or a seat on the company plan, who pays, an optional label, and any plan, quota, period end date, price or credit you add. It's your own declaration: nobody checks it with the provider, and it doesn't change which tools you can use."));
+    more(rec, "You can end a record but not delete it. Values can't be edited; adding a new one keeps the earlier one in the record's history.");
     const not = section('not-recorded');
     assert.ok(leaf(not, 'p', 'Only your access through Swangz AI Hub is recorded, plus any subscription you choose to record yourself.'));
     assert.ok(!all.some(n => n.children.includes('Only access through Swangz AI Hub is recorded.')), 'old unqualified sentence gone');
+    for (const old of [
+      "If you record an AI subscription you hold, Swangz AI Hub keeps what you enter: the tool, whether it's personal or a seat on the company plan, and any plan, quota, renewal date or price you add. It's your own declaration. Nobody checks it with the provider, and it doesn't change which tools you can use.",
+      "You can end a record but not delete it, and each value you add is kept as you entered it.",
+      "Details of a personal subscription are shown only to you in Swangz AI Hub. For a seat on the company plan, administrators who manage tools also see its plan and quota, and those who manage spending see its price and credit. Whenever you add, update or end a subscription record, the audit log notes your name, the change, the time, your network address and a record number. Any administrator can see that entry, but it never includes the tool, plan, price or anything else you entered.",
+      "As with every record here, the people who run the Swangz server and its backups can reach the stored data.",
+      "Subscription records and their values are kept even after you end them. Audit log entries are kept for at least a year."])
+      assert.ok(!all.some(n => n.children.includes(old)), 'superseded copy gone: ' + old.slice(0, 40));
     const who = section('who');
-    assert.ok(leaf(who, 'p', 'Details of a personal subscription are shown only to you in Swangz AI Hub. For a seat on the company plan, administrators who manage tools also see its plan and quota, and those who manage spending see its price and credit. Whenever you add, update or end a subscription record, the audit log notes your name, the change, the time, your network address and a record number. Any administrator can see that entry, but it never includes the tool, plan, price or anything else you entered.'));
-    more(who, 'As with every record here, the people who run the Swangz server and its backups can reach the stored data.');
-    assert.ok(leaf(section('kept'), 'p', 'Subscription records and their values are kept even after you end them. Audit log entries are kept for at least a year.'));
+    assert.ok(leaf(who, 'p', 'Swangz AI Hub shows the details of a personal subscription you record only to you. For a seat on the company plan, control-room users who manage tools or spending see its tool, status, dates, holder, payer and label; those who manage tools also see its plan, quota and period end, and those who manage spending see its price and credit. Whenever you add a subscription record, add a value to it or end it, the audit log notes your name, the change, the time, your network address and a record number. Everyone with control-room access, including read-only users, can see that entry. It never includes the tool, plan, price or anything else you entered.'));
+    more(who, 'From that entry, control-room users who manage tools or spending can tell whether the change was to a personal subscription or a company seat, but not which tool. As with every record here, the people who run the Swangz server and its backups can reach the stored data.');
+    assert.ok(leaf(section('kept'), 'p', 'Subscription records and their values are kept, even after you end them. Audit log entries are kept for at least a year.'));
     assert.equal(all.filter(n => ['form', 'input', 'textarea', 'select'].includes(n.tag)).length, 0, 'no form or Save control');
     assert.ok(all.every(n => !('innerHTML' in n.attrs)), 'no innerHTML');
     assert.ok(t.calls.every(([, url]) => !url.includes('provider-accounts') && !url.includes('/hub/registry')), 'no registry request');
