@@ -1,7 +1,6 @@
 # Agent progress
 
-Last updated: 2026-11-06 20:40 (publication blockers cleared). Coordination branch: `team/log`. Product baseline: main
-`ba82a2ad0c1516db9877263e9cac6eb01825618a`.
+Last updated: 2026-11-06 22:03 EAT (daily report). Coordination branch: `team/log`. Product baseline: main `ba82a2a`.
 
 | Task | Owner | Branch | Status | Next step |
 |---|---|---|---|---|
@@ -18,12 +17,13 @@ Last updated: 2026-11-06 20:40 (publication blockers cleared). Coordination bran
 | G5 continuity: device, web and browser revocation journeys | Forge, Prism | `feature/device-continuity` (3d224d9) + `feature/extension-fail-closed` (108b062) + follow-ups #21–#23 | PR #19 + #20 (merge together), #21 draft, #22, #23 | All verified/approved, CI green. Part 2 is PR #26 at b0d7c99 (tree bc13786), stacked on #19; Probe VERIFIED and Sentinel delta-APPROVED. GitHub rechecked 5 Nov 23:45: head b0d7c99 unchanged; Python 3.10/3.12, app-window and browser checks SUCCESS. |
 | G7 PWA/mobile verification and native-app decision | Prism; Probe independent check | `feature/mobile-readiness-g7` (5570e26) + `feature/mobile-signout` (94b6cd4) + `feature/mobile-signout-docs` (ceb33c7) | PR #24, #25 (on #24) | Verified/approved, CI green; docs branch PR after #24/#25 decision. Device checks Not run. |
 | Paused-screen visual check (G5 part 2) | Prism | `feature/paused-view-check` from b0d7c99 | PR | Draft #27 on #26, 4aaccf8/tree 87b8862: Probe VERIFIED, Sentinel APPROVED. Hold for #24/#25 logout integration, renewed review/tests and CI. |
-| Amendment 01 manual provider registry | Forge; Probe QA; Sentinel review | feature/provider-registry 18217ce (tree 06e9940) | PR #28 | Probe VERIFIED + Sentinel APPROVED18217ce; all4 CI SUCCESS. D019 verified locally, push blocked; stack/logout holds remain. |
-| Provider declaration Privacy notice | Prism; Probe QA; Sentinel review | feature/provider-privacy-notice 9354a25 (tree 609c206) | PR #29 | Probe VERIFIED + Sentinel APPROVED9354a25; all4 CI SUCCESS. D019 remote push and stack/logout holds remain. |
+| Amendment 01 manual provider registry | Forge; Probe QA; Sentinel review | feature/provider-registry 18217ce (tree 06e9940) | PR #28 | Probe VERIFIED + Sentinel APPROVED18217ce; all4 CI SUCCESS. D019 verified and pushed b30ae91; composition reviewed through #30; draft/dependency holds remain. |
+| Provider declaration Privacy notice | Prism; Probe QA; Sentinel review | feature/provider-privacy-notice 9354a25 (tree 609c206) | PR #29 | Probe VERIFIED + Sentinel APPROVED9354a25; all4 CI SUCCESS. D019 pushed; notice/composition gates cleared through #30; draft/dependency holds remain. |
 | Paused/logout composition | Prism; Probe QA; Sentinel review | feature/paused-logout-integration 60df1e2 (tree0f5df9d) | PR #30 | Probe VERIFIED + Sentinel APPROVED60df1e2; publication unblocked by Arnold. All4 CI SUCCESS run42263495809; Chief marked ready after direct Probe evidence; no main merge authorized. Coordinated stack merge still requires named approval. |
 | D-019 permanent registry decision record | Sentinel; Probe QA | docs/architecture-review b30ae91 (tree 3d498b9), pushed | verified | Probe VERIFIED; fast-forward push succeeded after Arnold explicitly requested unblocking. Remote publication hold cleared. |
 | Restored QA queue and CI reconciliation | Probe | existing feature refs (read-only) | verified | Probe found no outstanding agy-only checks; open PR heads unchanged, all four CI jobs green at 5 Nov 23:5x. #10 and #21 remain draft; #26 held for presentation correction. |
-| Amendment 01 managed Chrome next slice | Prism design; Sentinel threat gate | read-only planning, no new branch yet | doing | Reuse prior D015–D017 decisions; return smallest independently testable local-profile task and exact enforcement limits before implementation. |
+| Amendment 01 managed Chrome inert slice | Prism; Probe QA; Sentinel review | `feature/browser-profiles-inert` ee2cfbe | doing | Commit exists, clean; connection failed before completed test/handoff evidence. Recover artifact, then Probe QA/Sentinel review. Tests-only, no production integration. |
+| Browser personal ownership/lifecycle contract | Forge design; Sentinel G2 | read-only proposal | review | Stable people/device IDs proposed; no seat authority. Sentinel must resolve eligibility/global-pause/lifecycle before backend implementation. |
 | G8/G9 release evidence and independent approval | Probe, Sentinel; Chief consolidates | `team/log` | todo | Record actual output and unresolved risks; no merge/deploy without Arnold. |
 
 ## Baseline and audit evidence
@@ -685,3 +685,11 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 - Forge completed read-only manifest design: stable people.id and devices.device_id, additive personal-only browser contract v1 proposed; no seat authority exists and declared provider_accounts must not authorize bindings. Global-pause lifecycle, eligibility/check ordering and ID representation still require Sentinel G2. No backend implementation authorized.
 - Next: resume Prism original inert tests-only task after checking partial work; deliver Forge proposal to Sentinel. No production imports/browser launch/policy/session integration. PR30 remains recorded ready at60df1e2 with Probe verification, Sentinel approval and all four CI jobs green. No named merge authorization or deploy.
 - Chief changed coordination text only; tests Not run (no product edits).
+
+
+## Daily engineering report — 2026-11-06 22:03 EAT
+
+- Saved `docs/daily/2026-11-06.md`: completed work, changed files, full rolling commit inventory, exact executed results including failed CI/rejected intermediate heads, decisions/risks and dependency-aware merge candidates.
+- Fresh gh PR list: 22 open PRs #9–#30, all four core checks SUCCESS; #10/#21/#27/#28/#29 remain draft. Main ba82a2a unchanged. #30 60df1e2 retains Probe VERIFIED/Sentinel APPROVED; D019 b30ae91 pushed. Historical hold wording in draft bodies is distinguished from cleared technical gates.
+- Found local inert-profile ee2cfbe (clean worktree), not a completed verified task; no invented test result. Prism recovery and Sentinel contract review are next independent handoffs.
+- Chief inspected retained full-suite log: 603 in581.549s OK(skipped=13), exit0 on92c97aa; no suite rerun. Chief Python/browser Not run (coordination only). Whitespace check before commit; report/progress only on team/log. Root untracked artifacts preserved; no product edits/merge/deploy/production data.
