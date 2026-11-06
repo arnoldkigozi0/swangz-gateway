@@ -8,6 +8,7 @@ import csv
 import io
 import json
 import re
+import sqlite3
 import time
 from urllib.parse import parse_qs, unquote
 
@@ -1349,6 +1350,10 @@ def delete_tool(ctx, tid):
         raise ApiError(404, "no such tool")
     if tool["builtin"]:
         raise ApiError(400, "built-in tools can be removed from the catalog, not deleted")
+    if ctx.db.scalar("SELECT COUNT(*) FROM provider_accounts WHERE tool_id = ?", (tid,)):
+        # the provider-account registry keeps its rows for good, so a tool they point at is removed from the catalog instead
+        raise ApiError(409, "People have recorded provider accounts for this tool, and those records are kept. "
+                            "Remove it from the catalog instead of deleting it.", "has_provider_accounts")
     # its turns go with it, so first take back anyone's workspace sign-in — nothing may be left behind
     from .workspace import Unavailable
 
@@ -1360,7 +1365,11 @@ def delete_tool(ctx, tid):
         except Unavailable as exc:
             raise ApiError(502, f"Its workspace browser didn't answer, so someone could still be signed in there. "
                                 f"Try again in a minute. ({exc})")
-    ctx.db.x("DELETE FROM tools WHERE id = ?", (tid,))
+    try:
+        ctx.db.x("DELETE FROM tools WHERE id = ?", (tid,))
+    except sqlite3.IntegrityError:  # a record that points at the tool appeared after the check above
+        raise ApiError(409, "Records point at this tool and are kept. Remove it from the catalog instead of deleting it.",
+                       "has_provider_accounts")
     ctx.audit("deleted a tool", tool["name"])
     return {"ok": True}
 

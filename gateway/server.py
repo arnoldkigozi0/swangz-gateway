@@ -13,7 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import admin, catalog, geo, google, icons, notify, policy, pricing, proxy, purpose, security, staff, store
 from . import hub_api, reporting, hub_delivery, hub_export
-from . import business, credentials, departments, enroll
+from . import business, credentials, departments, enroll, registry
 from .db import DB
 from .live import Live
 from .workspace import Workspaces
