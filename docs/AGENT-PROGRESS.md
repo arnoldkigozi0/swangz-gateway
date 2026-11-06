@@ -1,6 +1,6 @@
 # Agent progress
 
-Last updated: 2026-11-06 07:23 (integration plan). Coordination branch: `team/log`. Product baseline: main
+Last updated: 2026-11-06 07:25 (integration ruling). Coordination branch: `team/log`. Product baseline: main
 `ba82a2ad0c1516db9877263e9cac6eb01825618a`.
 
 | Task | Owner | Branch | Status | Next step |
@@ -20,6 +20,7 @@ Last updated: 2026-11-06 07:23 (integration plan). Coordination branch: `team/lo
 | Paused-screen visual check (G5 part 2) | Prism | `feature/paused-view-check` from b0d7c99 | PR | Draft #27 on #26, 4aaccf8/tree 87b8862: Probe VERIFIED, Sentinel APPROVED. Hold for #24/#25 logout integration, renewed review/tests and CI. |
 | Amendment 01 manual provider registry | Forge; Probe QA; Sentinel review | feature/provider-registry 18217ce (tree 06e9940) | PR #28 | Probe VERIFIED + Sentinel APPROVED18217ce; all4 CI SUCCESS. D019 verified locally, push blocked; stack/logout holds remain. |
 | Provider declaration Privacy notice | Prism; Probe QA; Sentinel review | feature/provider-privacy-notice 9354a25 (tree 609c206) | PR #29 | Probe VERIFIED + Sentinel APPROVED9354a25; all4 CI SUCCESS. D019 remote push and stack/logout holds remain. |
+| Paused/logout composition | Prism; Probe QA; Sentinel review | new feature/paused-logout-integration from9354a25 | todo | Sentinel pre-implementation plan approved; sole builder handoff next, merge94b6cd4 then separate race fix. |
 | D-019 permanent registry decision record | Sentinel; Probe QA | docs/architecture-review b30ae91 (tree 3d498b9), LOCAL only | verified | Probe VERIFIED; remote remains bf8ebfc after blocked push. Arnold push or explicit permission resolution required; no retry. |
 | Restored QA queue and CI reconciliation | Probe | existing feature refs (read-only) | verified | Probe found no outstanding agy-only checks; open PR heads unchanged, all four CI jobs green at 5 Nov 23:5x. #10 and #21 remain draft; #26 held for presentation correction. |
 | G8/G9 release evidence and independent approval | Probe, Sentinel; Chief consolidates | `team/log` | todo | Record actual output and unresolved risks; no merge/deploy without Arnold. |
@@ -587,3 +588,9 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 - Prism completed read-only planning: proposed feature/paused-logout-integration from9354a25, normal merge94b6cd4 (includes5570e26), fixed existing refs and new PR against29. Only intersecting path portal.js; no trial merge, conflicts not yet proven absent. Proposed paused Sign out tests exercise real API wrapper; existing pwa.cjs tests only isolated logout body. No files/refs/fixtures changed or tests run by planner.
 - Prism identified successful logout/identityGeneration race; Chief confirms generation guard and logout allowlist in9354a25. Sentinel assigned bounded read-only pre-implementation ruling on branch strategy (prior note required24/25main), narrow success exception, preserved stale-response guards and required race/negative checks. No builder authorized; waiting on Sentinel. Then Prism builder, Probe QA, Sentinel final review and exact-head CI. Existing D019 push/mainmerge/deployment holds unchanged.
 - Chief coordination-only whitespace check; Not run: Python/browser tests (planning only). No product changes or production access.
+
+## Sentinel logout ruling — 6 November 07:25
+
+- Sentinel approves new feature branch from9354a25 merging94b6cd4, followed by mandatory separate fix commit; merge alone BLOCKED. Sentinel reports merge-tree conflictfree, no working-tree/ref edits, no tests. Prior00:04 condition means reviewed composition, not prior main merges. No server change required. Two races: generation bump turns successful logout into apparent failure; late me/studio/reports responses may redraw prior identity after logout.
+- Required: exact successful POST /logout alone bypasses generation check; all failed responses/network/unreadable body retain failure behavior. Success first increments identityGeneration and loading, then clears me/studio, removes purpose in try, replaces('/'); no later DOM/render/retry. Preserve stale guards for every other request, paused GET-only journeys and logout allowlist. Tests must drive actual Sign out button: active/suspended/ended success/fetch/503/500 failures, refresh during logout, late responses after cleanup, throwing storage, path near-misses, stale GET/blocked POST and doubleclick at-most-one navigation; existing21paused/PWA/syntax and both CI steps retained.
+- Merge hold: main must never retain25+27 without fix; integration lands in same sitting as whichever is second, with no deployment between, or serves as whole-stack merge vehicle. All main merges still require Arnold naming PRs. D019 remote push remainsblocked/notretried. Next sole builder Prism, then Probe exacthead composition/race QA, Sentinel finaldelta review, Chief PR against29, greenCI. No implementation verification yet; Chief Python/browser Not run (coordination only).
