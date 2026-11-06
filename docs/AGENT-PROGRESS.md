@@ -1,6 +1,6 @@
 # Agent progress
 
-Last updated: 2026-11-06 22:03 EAT (daily report). Coordination branch: `team/log`. Product baseline: main `ba82a2a`.
+Last updated: 2026-11-06 22:07 EAT (profile recovery). Coordination branch: `team/log`. Product baseline: main `ba82a2a`.
 
 | Task | Owner | Branch | Status | Next step |
 |---|---|---|---|---|
@@ -22,7 +22,7 @@ Last updated: 2026-11-06 22:03 EAT (daily report). Coordination branch: `team/lo
 | Paused/logout composition | Prism; Probe QA; Sentinel review | feature/paused-logout-integration 60df1e2 (tree0f5df9d) | PR #30 | Probe VERIFIED + Sentinel APPROVED60df1e2; publication unblocked by Arnold. All4 CI SUCCESS run42263495809; Chief marked ready after direct Probe evidence; no main merge authorized. Coordinated stack merge still requires named approval. |
 | D-019 permanent registry decision record | Sentinel; Probe QA | docs/architecture-review b30ae91 (tree 3d498b9), pushed | verified | Probe VERIFIED; fast-forward push succeeded after Arnold explicitly requested unblocking. Remote publication hold cleared. |
 | Restored QA queue and CI reconciliation | Probe | existing feature refs (read-only) | verified | Probe found no outstanding agy-only checks; open PR heads unchanged, all four CI jobs green at 5 Nov 23:5x. #10 and #21 remain draft; #26 held for presentation correction. |
-| Amendment 01 managed Chrome inert slice | Prism; Probe QA; Sentinel review | `feature/browser-profiles-inert` ee2cfbe | doing | Commit exists, clean; connection failed before completed test/handoff evidence. Recover artifact, then Probe QA/Sentinel review. Tests-only, no production integration. |
+| Amendment 01 managed Chrome inert slice | Prism; Probe QA; Sentinel review | `feature/browser-profiles-inert` ee2cfbe | doing | Artifact recovered clean; original tests unverified. Probe targeted QA next, including live-PID stale-lock concern, then Sentinel ruling/review. Tests-only, no production integration. |
 | Browser personal ownership/lifecycle contract | Forge design; Sentinel G2 | read-only proposal | review | Stable people/device IDs proposed; no seat authority. Sentinel must resolve eligibility/global-pause/lifecycle before backend implementation. |
 | G8/G9 release evidence and independent approval | Probe, Sentinel; Chief consolidates | `team/log` | todo | Record actual output and unresolved risks; no merge/deploy without Arnold. |
 
@@ -693,3 +693,11 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 - Fresh gh PR list: 22 open PRs #9–#30, all four core checks SUCCESS; #10/#21/#27/#28/#29 remain draft. Main ba82a2a unchanged. #30 60df1e2 retains Probe VERIFIED/Sentinel APPROVED; D019 b30ae91 pushed. Historical hold wording in draft bodies is distinguished from cleared technical gates.
 - Found local inert-profile ee2cfbe (clean worktree), not a completed verified task; no invented test result. Prism recovery and Sentinel contract review are next independent handoffs.
 - Chief inspected retained full-suite log: 603 in581.549s OK(skipped=13), exit0 on92c97aa; no suite rerun. Chief Python/browser Not run (coordination only). Whitespace check before commit; report/progress only on team/log. Root untracked artifacts preserved; no product edits/merge/deploy/production data.
+
+
+## Inert-profile recovery — 6 November 22:07
+
+- Prism recovered unchanged ee2cfbe0b2c89b5de89fbfb8709cf5bc909d2021/tree cad8f4d267a7dd05dc72e601ee63c420f5263fac, base ba82a2a, three files/660 additions. Clean and committed bytes match per Prism. No original log recovered; prior command/count/time/exit unverified. Recovery ran no tests; read-only syntax/identity/whitespace/no-production-import checks passed per owner. No fixture started or source/ref change.
+- Prism flags _locked reclaiming locks older than 180s despite live recorded PID. Chief source read confirms age sets stale and successful PID probe does not clear it; runtime consequences require independent reproduction and Sentinel technical disposition. No fix authorized by Chief.
+- Probe next: exact-head smallest targeted unittest module and independent lock/retirement/permission checks; actual output/provenance and negative control, no full-suite duplication or source edits. Then Sentinel bounded ruling/final review before any builder correction or PR. Native Windows ACL/reparse/locking remains unavailable; Forge ownership contract and separate G2 required before production use. Declared accounts confer no seat authority.
+- Chief Python/browser Not run (coordination-only); whitespace check before commit. Daily report remains the 22:03 snapshot, pushed at9b3bd56. No product edits/main merge/deploy/production data.
