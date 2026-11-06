@@ -302,3 +302,23 @@ then Probe exact-new-head verifies and Sentinel reviews e08a971..new-head. All o
 passed Sentinel read-only review (no tests run), including v25. Privacy notice release blocker,
 D-019 ADR amended audit+holder-only wording pending writer slot, inherited stack/logout holds remain.
 No UI/outbound/OAuth/sync/secrets/sharing/admin writes/deps/schema/production/merge/deploy.
+
+
+## Final test/document pins — Sentinel, 6 November 04:26
+
+763d4bf/tree49bbc80 APPROVED WITH CONDITIONS (F1 delta correct; prior full-delta areas remain
+accepted). Before PR, tests/V2-only commit on763d4bf, no gateway/schema/UI changes.
+Required limit regression: seatid1 and newer individualids2/3; owner/govern/money/combined each
+get exactly[1] with limit1/2/3, repeated with tool/statusactive filters. Port Probe limit fixture,
+mutate away SQL seat filter and record failing test. Required delete parity: admin-added tool with
+only individual vs one with only seat returns same409/code/message; both tools/records survive.
+Targeted registry and full suite each once/raw exits, clean whitespace, then Probe newest artifact
+and Sentinel tests/doc-only delta confirmation, no repeated full security audit.
+
+Tool-delete residual accepted Low: govern actor can learn some account exists for admin-added tool
+by destructive audited delete attempt, no person/route/count/time. Builtins refuse earlier. Both409
+paths must remain identical; preserve FK/data retention. No runtime fix. V2 replace overbroad
+'No count or aggregate includes one' with precise no-list/read/count disclosure plus accepted409
+existence channel and no person/route/count/time. D-019 later records audit wording/holder-only/
+residual; staff Privacy notice requires general named-change audit disclosure, not this residual.
+Privacy release notice and stack/logout holds unchanged; no merge/deploy/production authorized.
