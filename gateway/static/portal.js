@@ -6,7 +6,7 @@
   const { el, icon, fmt, toast, copy } = SUI;
   const app = document.getElementById("app");
   const S = { me: null, studio: null, filter: { q: "", cat: "all", sort: "recommended", show: "all" } };
-  let pausedRefresh = null, pausedRender = 0, loading = 0, identityGeneration = 0;
+  let pausedRefresh = null, pausedRender = 0, loading = 0, identityGeneration = 0, signingOut = false;
   const isPaused = () => !!S.me?.paused_view;
   const pausedCall = (method, path) => method === "POST" && path === "/logout" || method === "GET" &&
     (path === "/me" || path === "/hub/notifications" || /^\/hub\/reports(?:\/[1-9]\d{0,14}|\?limit=30&offset=\d+)?$/.test(path));
@@ -30,7 +30,9 @@
     try { res = await fetch(GATEWAY + "/api" + path, opts); }
     catch (e) { throw new ApiError(0, "Swangz AI Hub can't be reached. Check your connection and try again."); }
     let data = null;
-    try { data = await res.json(); } catch (e) { /* empty */ }
+    try { data = await res.json(); } catch (e) {
+      if (method === "POST" && path === "/logout") throw new ApiError(res.status, "Couldn't confirm sign-out. Try again.");
+    }
     if (!res.ok) {
       if (data?.code === "person_paused" && path !== "/me") {
         if (pausedRefresh) await pausedRefresh;
@@ -39,7 +41,8 @@
       throw new ApiError(res.status, (data && data.error) || "Something went wrong. Try again.", data?.code);
     }
     // A response started before suspension must not restore active data after the identity changed.
-    if (generation !== identityGeneration) throw new ApiError(403, "Your access is paused.", "person_paused");
+    if (generation !== identityGeneration && !(method === "POST" && path === "/logout" && res.ok))
+      throw new ApiError(403, "Your access is paused.", "person_paused");
     return data;
   }
 
@@ -1256,8 +1259,11 @@
   }
 
   async function signOut() {
+    if (signingOut) return;
+    signingOut = true;
     // Offline or a server error: the session may still be live, so say so and stay signed in rather than pretend.
-    try { await api("POST", "/logout"); } catch (e) { toast("Couldn't sign out. Try again.", true); return; }
+    try { await api("POST", "/logout"); } catch (e) { signingOut = false; toast("Couldn't sign out. Try again.", true); return; }
+    identityGeneration++; loading++;
     S.me = null; S.studio = null;
     try { localStorage.removeItem("swangz-studio-purpose"); } catch (e) { /* no storage */ }
     // Start a fresh page, so nothing the last person loaded (drafts, catalogue, Studio) stays in memory on a shared phone

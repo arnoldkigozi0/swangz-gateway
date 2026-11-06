@@ -162,6 +162,7 @@ function runSignOut(apiResult) {
   const calls = { api: [], toasts: [], replaced: [], removed: [] };
   const store = new Map([["swangz-studio-purpose", "marketing"], ["swangz-theme", "light"]]);
   const ctx = {
+    signingOut: false, identityGeneration: 4, loading: 7,
     S: { me: { email: "a@swangzavenue.com" }, studio: { items: [1] } },
     api: async (method, p) => { calls.api.push([method, p]); return apiResult(); },
     toast: (m, bad) => calls.toasts.push([m, !!bad]),
@@ -180,6 +181,8 @@ test("sign-out success ends the session, forgets the Studio purpose, then reload
   assert.deepEqual(t.calls.toasts, []);
   assert.equal(t.ctx.S.me, null);
   assert.equal(t.ctx.S.studio, null);
+  assert.equal(t.ctx.identityGeneration, 5);
+  assert.equal(t.ctx.loading, 8);
   assert.equal(t.store.has("swangz-studio-purpose"), false);
   assert.equal(t.store.get("swangz-theme"), "light", "theme preference kept");
 });
@@ -192,6 +195,8 @@ for (const [label, fail] of [["offline", { status: 0, message: "Swangz AI Hub ca
     assert.deepEqual(t.calls.toasts, [["Couldn't sign out. Try again.", true]]);
     assert.deepEqual(t.calls.replaced, [], "no reload");
     assert.ok(t.ctx.S.me, "still signed in on screen");
+    assert.equal(t.ctx.identityGeneration, 4);
+    assert.equal(t.ctx.loading, 7);
     assert.equal(t.store.get("swangz-studio-purpose"), "marketing");
   });
 }
