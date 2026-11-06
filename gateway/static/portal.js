@@ -1105,7 +1105,7 @@
         el("p", { class: "muted" }, !pv.store_bodies ? "Only a summary is kept — not the full contents of requests."
           : pv.bodies_days ? `Full request contents are kept for ${pv.bodies_days} days, then only the summary stays.` : "Full request contents are kept for that time, so the exact request can be checked if something goes wrong."),
         pv.site_days || pv.launch_days ? el("p", { class: "muted" }, [pv.site_days ? `AI website visits: ${pv.site_days} days.` : null, pv.launch_days ? `Tools opened from here: ${pv.launch_days} days.` : null].filter(Boolean).join(" ")) : null,
-        el("p", null, "Subscription records and their values are kept, even after you end them. Audit log entries are kept for at least a year.")]],
+        el("p", null, "Subscription records and their values are kept even after you end them. Audit log entries are kept for at least a year.")]],
       ["help", "Using it well, and help", icon("info"), [
         el("p", null, "Swangz AI Hub is for your work at Swangz. Don't paste passwords, other people's personal details, or anything you wouldn't put in a work email."),
         el("details", null, el("summary", null, "Weekly reporting and your declarations"),
