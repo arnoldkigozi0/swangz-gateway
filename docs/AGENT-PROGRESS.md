@@ -1,6 +1,6 @@
 # Agent progress
 
-Last updated: 2026-11-06 07:35 (integration artifact). Coordination branch: `team/log`. Product baseline: main
+Last updated: 2026-11-06 07:46 (QA rejection). Coordination branch: `team/log`. Product baseline: main
 `ba82a2ad0c1516db9877263e9cac6eb01825618a`.
 
 | Task | Owner | Branch | Status | Next step |
@@ -20,7 +20,7 @@ Last updated: 2026-11-06 07:35 (integration artifact). Coordination branch: `tea
 | Paused-screen visual check (G5 part 2) | Prism | `feature/paused-view-check` from b0d7c99 | PR | Draft #27 on #26, 4aaccf8/tree 87b8862: Probe VERIFIED, Sentinel APPROVED. Hold for #24/#25 logout integration, renewed review/tests and CI. |
 | Amendment 01 manual provider registry | Forge; Probe QA; Sentinel review | feature/provider-registry 18217ce (tree 06e9940) | PR #28 | Probe VERIFIED + Sentinel APPROVED18217ce; all4 CI SUCCESS. D019 verified locally, push blocked; stack/logout holds remain. |
 | Provider declaration Privacy notice | Prism; Probe QA; Sentinel review | feature/provider-privacy-notice 9354a25 (tree 609c206) | PR #29 | Probe VERIFIED + Sentinel APPROVED9354a25; all4 CI SUCCESS. D019 remote push and stack/logout holds remain. |
-| Paused/logout composition | Prism; Probe QA; Sentinel review | feature/paused-logout-integration 8462c6b (tree1b81008) | review | Built; Probe exacthead verification next, then Sentinel finalreview and Chief PR. |
+| Paused/logout composition | Prism; Probe QA; Sentinel review | feature/paused-logout-integration 8462c6b (tree1b81008) | review | Probe REJECTED late person_paused redraw; Sentinel bounded ruling next, owner fix then QA/finalreview. |
 | D-019 permanent registry decision record | Sentinel; Probe QA | docs/architecture-review b30ae91 (tree 3d498b9), LOCAL only | verified | Probe VERIFIED; remote remains bf8ebfc after blocked push. Arnold push or explicit permission resolution required; no retry. |
 | Restored QA queue and CI reconciliation | Probe | existing feature refs (read-only) | verified | Probe found no outstanding agy-only checks; open PR heads unchanged, all four CI jobs green at 5 Nov 23:5x. #10 and #21 remain draft; #26 held for presentation correction. |
 | G8/G9 release evidence and independent approval | Probe, Sentinel; Chief consolidates | `team/log` | todo | Record actual output and unresolved risks; no merge/deploy without Arnold. |
@@ -599,3 +599,9 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 
 - Prism pushed8462c6b9395ea9554ce8fbdfcbeafdc71661f4d4/tree1b81008cf51f9544f4bd34042f68264875d0b021 on separate merge232480914185704d78d6e157a0287aef97d63e64. Chief confirms head/tree/parents and onlyportal.js,paused.cjs,pwa.cjs fixdelta172+/9-,whitespaceclean. Evidence /tmp/prism-logout-integration-evidence.json:60paused/11PWA/syntax25 pass,7negativecontrols rejected; raw parentpatches differ metadata, normalized payloads equal perbuilder, merge-tree exact. These composition claims await independent verification.
 - Evidence records head_during_checks2324809 (precommit workingtree), with source digest; Probe must bind tested bytes to8462c6b rather than assume exacthead provenance. Prism cleanworktree/existingrefs preserved/remote verified/stopped reported. Realbrowser/cookies/phones/Python/newCI Notrun. Probe independent exacthead composition and targeted browser/logout QA next, then Sentinel finalreview; no newapproval/PR yet. D019push/mergeorder/productionholds unchanged. Chief coordination-only, no product changes.
+
+## Probe rejects logout integration — 6 November 07:46
+
+- Probe REJECTED8462c6b/tree1b81008: after successful logout, held prior request returning403person_paused runs refreshPaused before stale-generation check, repopulates identity and redraws (2DOMmutations/GETme). Scratch and realbrowser reproduction; Low transient impact, cookie invalid after navigation. Chief source confirms error branch precedes generation guard. Proposed generation===identityGeneration condition awaits Sentinel ruling; no owner fix yet.
+- Probe independently confirms merge-tree identity/normalized parentpatch composition and unchanged blobs; exacthead60paused/11PWA/syntax25 pass. Realbrowser synthetic fixture1280 active503 preservescookie/purpose, doubleclick200onePOST/navigation clearspurpose/cookie401; suspended1280/390503preserves/200clears,390nooverflow. Existing60checks miss late error responses. Same-vendorGPT advisory also suggests consumer microtask gap after api generationcheck before Studioawait continuation; Probe did not reproduce inbrowser, theoreticalLow, sent to Sentinel for technical disposition.
+- Probe cleanup complete/no sourcewrites; root evidence preserved. Notrun360/realbrowserended/truephone/startuperrorsbeforeload/check.cjs/fullPython/newCI. Sentinel bounded read-only defect/race ruling next, then Prism correction and Probe deltaQA; no PR/approval. Chief coordination-only; D019push/mergeorder/deploymentholds unchanged.
