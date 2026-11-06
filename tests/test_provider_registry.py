@@ -852,7 +852,9 @@ class MigrationTests(unittest.TestCase):
             with mock.patch.object(dbmod, "SCHEMA", SCHEMA[:23]):
                 DB(path).close()
             with mock.patch.object(dbmod, "SCHEMA", SCHEMA[:23] + [broken]):
-                with self.assertRaises(sqlite3.Error):
+                # Python 3.10 and 3.11 raise sqlite3.Warning for an element that holds two statements; 3.12 and later raise
+                # sqlite3.ProgrammingError. Warning is not a sqlite3.Error, so both are named, as in the test above.
+                with self.assertRaises((sqlite3.Error, sqlite3.Warning)):
                     DB(path)
             raw = sqlite3.connect(path)
             self.assertEqual(raw.execute("SELECT v FROM meta WHERE k = 'schema'").fetchone()[0], "23")
