@@ -1,6 +1,6 @@
 # Agent progress
 
-Last updated: 2026-11-06 05:40 (review handoff). Coordination branch: `team/log`. Product baseline: main
+Last updated: 2026-11-06 06:06 (review completion). Coordination branch: `team/log`. Product baseline: main
 `ba82a2ad0c1516db9877263e9cac6eb01825618a`.
 
 | Task | Owner | Branch | Status | Next step |
@@ -18,8 +18,9 @@ Last updated: 2026-11-06 05:40 (review handoff). Coordination branch: `team/log`
 | G5 continuity: device, web and browser revocation journeys | Forge, Prism | `feature/device-continuity` (3d224d9) + `feature/extension-fail-closed` (108b062) + follow-ups #21–#23 | PR #19 + #20 (merge together), #21 draft, #22, #23 | All verified/approved, CI green. Part 2 is PR #26 at b0d7c99 (tree bc13786), stacked on #19; Probe VERIFIED and Sentinel delta-APPROVED. GitHub rechecked 5 Nov 23:45: head b0d7c99 unchanged; Python 3.10/3.12, app-window and browser checks SUCCESS. |
 | G7 PWA/mobile verification and native-app decision | Prism; Probe independent check | `feature/mobile-readiness-g7` (5570e26) + `feature/mobile-signout` (94b6cd4) + `feature/mobile-signout-docs` (ceb33c7) | PR #24, #25 (on #24) | Verified/approved, CI green; docs branch PR after #24/#25 decision. Device checks Not run. |
 | Paused-screen visual check (G5 part 2) | Prism | `feature/paused-view-check` from b0d7c99 | PR | Draft #27 on #26, 4aaccf8/tree 87b8862: Probe VERIFIED, Sentinel APPROVED. Hold for #24/#25 logout integration, renewed review/tests and CI. |
-| Amendment 01 manual provider registry | Forge; Probe QA; Sentinel review | feature/provider-registry 18217ce (tree 06e9940) | PR #28 | Probe VERIFIED + Sentinel APPROVED18217ce; all4 CI checks SUCCESS. D019/stack/logout holds remain. Prior approval bound to92c97aa. D019/stack holds remain; notice PR29 approved. |
-| Provider declaration Privacy notice | Prism; Probe QA; Sentinel review | feature/provider-privacy-notice 9354a25 (tree 609c206) | PR #29 | Probe VERIFIED + Sentinel APPROVED9354a25. CI running; D019/stack/logout holds remain. |
+| Amendment 01 manual provider registry | Forge; Probe QA; Sentinel review | feature/provider-registry 18217ce (tree 06e9940) | PR #28 | Probe VERIFIED + Sentinel APPROVED18217ce; all4 CI SUCCESS. D019 verified locally, push blocked; stack/logout holds remain. |
+| Provider declaration Privacy notice | Prism; Probe QA; Sentinel review | feature/provider-privacy-notice 9354a25 (tree 609c206) | PR #29 | Probe VERIFIED + Sentinel APPROVED9354a25; all4 CI SUCCESS. D019 remote push and stack/logout holds remain. |
+| D-019 permanent registry decision record | Sentinel; Probe QA | docs/architecture-review b30ae91 (tree 3d498b9), LOCAL only | verified | Probe VERIFIED; remote remains bf8ebfc after blocked push. Arnold push or explicit permission resolution required; no retry. |
 | Restored QA queue and CI reconciliation | Probe | existing feature refs (read-only) | verified | Probe found no outstanding agy-only checks; open PR heads unchanged, all four CI jobs green at 5 Nov 23:5x. #10 and #21 remain draft; #26 held for presentation correction. |
 | G8/G9 release evidence and independent approval | Probe, Sentinel; Chief consolidates | `team/log` | todo | Record actual output and unresolved risks; no merge/deploy without Arnold. |
 
@@ -568,3 +569,9 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 
 - Sentinel locally committedb30ae915b2cac8f51ba487b8f4fa04bac5ea1e37/tree3d498b9a4fc8916fb52285e61324840c765312fb,parent97531fe,onlyDECISIONS+25/-14. Chief confirmsmetadata/scope. Fullbranchbf8ebfc..b30ae91 adds92lines inDECISIONS/SECURITY. Required403/404,address/Securityview,routeinference,tooldelete409/502rationale andfinalnotice corrections reportedcomplete;SECURITYre-readunchanged. No suite fordocsonly;diffcheckclean perowner.
 - Probe assigned independent finaldocreview againstregistry18217ce andnotice9354a25, no repeatedbackendQA. DocsremainLOCAL;blockedpushnotretried. D012-18pointeronly,versioncommentdeferred,stack/logoutholdsunchanged. Productbranches/root/artifactsuntouched,writerreleased,no production/mainmerge/deploy.
+
+## Registry, notice and D019 review completion — 6 November 06:06
+
+- Probe VERIFIED localD019b30ae915b2cac8f51ba487b8f4fa04bac5ea1e37/tree3d498b9a4fc8916fb52285e61324840c765312fb, fullDECISIONS/SECURITYreadagainstregistry18217ce/notice9354a25. No factualdefect/blocker; no secondopinion for directcodefacts, no suite/writes. Precisionnotes:502mayendopenturns beforeworkspaceclosefails, though tool/rowsarenotdeleted;92c97aaapprovalpinishistorical. No neweditneeded. Remote docspush remainsblocked/notretried; Arnoldpush orpermissionresolution stillneeded.
+- ChiefGitHubrefresh confirms28exact18217ce/run42152453925 and29exact9354a25/run42153412408 ALL4SUCCESS:Python3.10,Python3.12,browser,appwindow. Both ProbeVERIFIED/SentinelAPPROVED.29description updated currenthead/mergeevidence/CI/remainingholds. Prior failedCI evidence retained above.
+- Notice anddocumentation review gates complete locally; no further duplicateQAassigned. Remaining remoteD019push, inheritedstack/logoutcompositionholds andArnoldnamedmergeapproval. Order27then28then29 subjecttostackgates. No mainmerge/deploy/production; fixturemobileloaderror/realphone/touchlimitationsremain. Chiefcoordinationwhitespaceonly.
