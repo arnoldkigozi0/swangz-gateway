@@ -1,6 +1,6 @@
 # Agent progress
 
-Last updated: 2026-11-06 22:20 EAT (corrective profile gate). Coordination branch: `team/log`. Product baseline: main `ba82a2a`.
+Last updated: 2026-11-06 23:29 EAT (corrected profile independent QA). Coordination branch: `team/log`. Product baseline: main `ba82a2a`.
 
 | Task | Owner | Branch | Status | Next step |
 |---|---|---|---|---|
@@ -22,7 +22,7 @@ Last updated: 2026-11-06 22:20 EAT (corrective profile gate). Coordination branc
 | Paused/logout composition | Prism; Probe QA; Sentinel review | feature/paused-logout-integration 60df1e2 (tree0f5df9d) | PR #30 | Probe VERIFIED + Sentinel APPROVED60df1e2; publication unblocked by Arnold. All4 CI SUCCESS run42263495809; Chief marked ready after direct Probe evidence; no main merge authorized. Coordinated stack merge still requires named approval. |
 | D-019 permanent registry decision record | Sentinel; Probe QA | docs/architecture-review b30ae91 (tree 3d498b9), pushed | verified | Probe VERIFIED; fast-forward push succeeded after Arnold explicitly requested unblocking. Remote publication hold cleared. |
 | Restored QA queue and CI reconciliation | Probe | existing feature refs (read-only) | verified | Probe found no outstanding agy-only checks; open PR heads unchanged, all four CI jobs green at 5 Nov 23:5x. #10 and #21 remain draft; #26 held for presentation correction. |
-| Amendment 01 managed Chrome inert slice | Prism; Probe QA; Sentinel review | `feature/browser-profiles-inert` ee2cfbe | doing | Sentinel BLOCKED ee2cfbe and withdrew earlier approval; Prism sole builder for OS-held persistent lock/Windows deletion refusal per roadmap. Probe delta QA then Sentinel final review. No production integration. |
+| Amendment 01 managed Chrome inert slice | Prism; Probe QA; Sentinel review | `feature/browser-profiles-inert` 801d007 | review | Probe VERIFIED corrected head; Sentinel final review and Windows empty-batch side-effect ruling pending. Old ee2cfbe remains blocked. No production integration. |
 | Browser personal ownership/lifecycle contract | Forge design; Sentinel G2 | read-only proposal | review | Stable people/device IDs proposed; no seat authority. Sentinel must resolve eligibility/global-pause/lifecycle before backend implementation. |
 | G8/G9 release evidence and independent approval | Probe, Sentinel; Chief consolidates | `team/log` | todo | Record actual output and unresolved risks; no merge/deploy without Arnold. |
 
@@ -717,3 +717,12 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 - Sentinel BLOCKED ee2cfbe/cad8f4d and withdrew earlier21:28 approval. F1 High live-owner takeover reproduced; F2 Medium lock check/unlink race and F3 Medium Windows junction deletion code-read/unreproduced. Supersedes preliminary Low severity, no production use authorized.
 - Corrective threat note and ten required regressions preserved in IMPLEMENTATION-ROADMAP. Prism sole builder: persistent OS-held flock/msvcrt lock never deleted, Windows purge/retirement refuse before mutation, only three original files/new commit. No liveness-only workaround. Probe targeted+full milestone via approved runner/CI, independent delta QA, then Sentinel final approval before PR.
 - Sentinel ran no tests; Probe31/2.020s OK exit0 remains executed evidence on old head, not final security approval. Chief Python/browser Not run (coordination only), whitespace checked. Prior two status commits remain local after DNS failures; no repeated network loop. Daily report9b3bd56 already pushed. No product edits/mainmerge/deploy/production data.
+
+
+## Corrected profiles independent QA — 6 November 23:29
+
+- Probe VERIFIED exact801d007cde932c751b2b18d927176812768abe60/tree bf7942fda96cf2a9454be2300fc1e9b8b35e2320. No written Prism release found: Probe checked clean/stable builder head and no builder process, ran from a git archive in /tmp without workspace edits. Verdict covers exact head only.
+- Probe Python3.14.4 targeted tests.test_browser_profiles: Ran42 tests in2.922s, OK, skipped0, exit0. Full `python3 -m unittest discover -s tests -t .` once: Ran468 tests in401.6s, OK(skipped=13), exit0. Local outside Codex, not CI. Workspace-agent thread ValueError/read-of-closed-file and Docker-daemon noise occurred; baseline comparison not checked. Native Windows/macOS and Python3.10–3.12/browser checks Not run: unavailable/not part of this run.
+- Independent aged10000s live holder refuses prepare/retire_all as busy; killed holder releases within0.001s; inode persists; FIFO/unsafe permissions refused; four processes/515 sections had no interleaving. Original ee2cfbe negative control overlaps; corrected head busy. Windows mocked lock/retirement refusal and no existing-tree change passed; mocks are not native evidence. GPT second opinion found no bypass/fd leak/outside deletion/production import.
+- Low reproduced: Windows empty retire_owner/all creates empty browser-profiles directory and zero-byte .lock before refusal. No profile rename/list/delete; Sentinel must rule whether allowed locking satisfies prior refuse-before-mutation condition. No Chief fix authorization. Final exact-head Sentinel review next; no PR until approval.
+- Probe removed archive/scripts; about12 fake-data temp directories remain after automatic cleanup refusal. Nothing left running; no source edits. Chief will not retry cleanup or request unrelated deletion. Prior team/log backlog pushed successfully4b64381 at23:18; PR30 ready/open heads unchanged on fresh GitHub check. Chief tests Not run: coordination only; reuses independent exact-head results. No main merge/deploy/production.
