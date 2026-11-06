@@ -1,6 +1,6 @@
 # Agent progress
 
-Last updated: 2026-11-06 22:07 EAT (profile recovery). Coordination branch: `team/log`. Product baseline: main `ba82a2a`.
+Last updated: 2026-11-06 22:14 EAT (profile QA). Coordination branch: `team/log`. Product baseline: main `ba82a2a`.
 
 | Task | Owner | Branch | Status | Next step |
 |---|---|---|---|---|
@@ -22,7 +22,7 @@ Last updated: 2026-11-06 22:07 EAT (profile recovery). Coordination branch: `tea
 | Paused/logout composition | Prism; Probe QA; Sentinel review | feature/paused-logout-integration 60df1e2 (tree0f5df9d) | PR #30 | Probe VERIFIED + Sentinel APPROVED60df1e2; publication unblocked by Arnold. All4 CI SUCCESS run42263495809; Chief marked ready after direct Probe evidence; no main merge authorized. Coordinated stack merge still requires named approval. |
 | D-019 permanent registry decision record | Sentinel; Probe QA | docs/architecture-review b30ae91 (tree 3d498b9), pushed | verified | Probe VERIFIED; fast-forward push succeeded after Arnold explicitly requested unblocking. Remote publication hold cleared. |
 | Restored QA queue and CI reconciliation | Probe | existing feature refs (read-only) | verified | Probe found no outstanding agy-only checks; open PR heads unchanged, all four CI jobs green at 5 Nov 23:5x. #10 and #21 remain draft; #26 held for presentation correction. |
-| Amendment 01 managed Chrome inert slice | Prism; Probe QA; Sentinel review | `feature/browser-profiles-inert` ee2cfbe | doing | Artifact recovered clean; original tests unverified. Probe targeted QA next, including live-PID stale-lock concern, then Sentinel ruling/review. Tests-only, no production integration. |
+| Amendment 01 managed Chrome inert slice | Prism; Probe QA; Sentinel review | `feature/browser-profiles-inert` ee2cfbe | doing | Probe VERIFIED inert artifact: 31 tests OK; live-PID lock race reproduced. Sentinel ruling on lock recovery and Windows deletion required before owner correction/PR. No production integration. |
 | Browser personal ownership/lifecycle contract | Forge design; Sentinel G2 | read-only proposal | review | Stable people/device IDs proposed; no seat authority. Sentinel must resolve eligibility/global-pause/lifecycle before backend implementation. |
 | G8/G9 release evidence and independent approval | Probe, Sentinel; Chief consolidates | `team/log` | todo | Record actual output and unresolved risks; no merge/deploy without Arnold. |
 
@@ -701,3 +701,12 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 - Prism flags _locked reclaiming locks older than 180s despite live recorded PID. Chief source read confirms age sets stale and successful PID probe does not clear it; runtime consequences require independent reproduction and Sentinel technical disposition. No fix authorized by Chief.
 - Probe next: exact-head smallest targeted unittest module and independent lock/retirement/permission checks; actual output/provenance and negative control, no full-suite duplication or source edits. Then Sentinel bounded ruling/final review before any builder correction or PR. Native Windows ACL/reparse/locking remains unavailable; Forge ownership contract and separate G2 required before production use. Declared accounts confer no seat authority.
 - Chief Python/browser Not run (coordination-only); whitespace check before commit. Daily report remains the 22:03 snapshot, pushed at9b3bd56. No product edits/main merge/deploy/production data.
+
+
+## Profile independent QA returned — 6 November 22:14
+
+- Probe VERIFIED inert tests-only ee2cfbe/tree cad8f4d (base ba82a2a), head/tree unchanged start/end, clean detached worktree and identical tracked digest. Ran `python3 -m unittest tests.test_browser_profiles -v` on Python3.14.4 outside Codex: `Ran 31 tests in 2.020s`, `OK`, exit0, no skips (wall2.98s). Chief did not rerun; earlier original-builder test provenance remains unknown.
+- Probe scratch reproduces aged (>180s) lock reclaim with genuinely live PID, overlapping critical sections, second owner removing lock and retire_all retiring a profile while first owner is active. Fresh live-owner control returns busy. Real defect, Low while inert; not production-ready. Scratch POSIX liveness fix retains31pass and refuses aged-live-owner; not committed/approved and PID-reuse availability tradeoff remains.
+- Independent GPT second opinion agrees. Additional code-read concerns NOT reproduced: stale-lock check/unlink race can remove another reclaimer's new lock; Windows directory-to-junction swap before purge enumeration could redirect deletion. POSIX nofollow/inode descent has no equivalent defect found. Native Windows ACL/reparse/locking unavailable; mocked coverage is not native evidence. No full suite/Python3.10–3.12/browser/provider run.
+- Probe stopped sleep/codex fixtures, removed detached worktree/scratch, left source/refs/root untracked evidence untouched. Sentinel bounded technical ruling next: explicit accept-or-fix and smallest safe lock/Windows fail-closed design before owner correction. No production imports/browser launch/authority integration authorized; Forge ownership contract remains separate G2.
+- Chief coordination-only whitespace check; Python/browser Not run. Prior4979c3b push failed GitHub DNS; save this checkpoint and retry team/log once. No main merge/deploy/production data.
