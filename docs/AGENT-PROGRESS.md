@@ -1,6 +1,6 @@
 # Agent progress
 
-Last updated: 2026-11-06 23:31 EAT (profiles approved; publication blocked). Coordination branch: `team/log`. Product baseline: main `ba82a2a`.
+Last updated: 2026-11-07 01:35 EAT (restored model rules; ownership G2 and CI reconciliation starting). Coordination branch: `team/log`. Product baseline: main `ba82a2a`.
 
 | Task | Owner | Branch | Status | Next step |
 |---|---|---|---|---|
@@ -22,8 +22,8 @@ Last updated: 2026-11-06 23:31 EAT (profiles approved; publication blocked). Coo
 | Paused/logout composition | Prism; Probe QA; Sentinel review | feature/paused-logout-integration 60df1e2 (tree0f5df9d) | PR #30 | Probe VERIFIED + Sentinel APPROVED60df1e2; publication unblocked by Arnold. All4 CI SUCCESS run42263495809; Chief marked ready after direct Probe evidence; no main merge authorized. Coordinated stack merge still requires named approval. |
 | D-019 permanent registry decision record | Sentinel; Probe QA | docs/architecture-review b30ae91 (tree 3d498b9), pushed | verified | Probe VERIFIED; fast-forward push succeeded after Arnold explicitly requested unblocking. Remote publication hold cleared. |
 | Restored QA queue and CI reconciliation | Probe | existing feature refs (read-only) | verified | Probe found no outstanding agy-only checks; open PR heads unchanged, all four CI jobs green at 5 Nov 23:5x. #10 and #21 remain draft; #26 held for presentation correction. |
-| Amendment 01 managed Chrome inert slice | Prism; Probe QA; Sentinel review | `feature/browser-profiles-inert` 801d007 | review | Probe VERIFIED + Sentinel APPROVED exact corrected head; Windows empty-batch side effect accepted. Automatic approval review blocked feature push/PR publication; explicit Arnold authorization needed. No production integration. |
-| Browser personal ownership/lifecycle contract | Forge design; Sentinel G2 | read-only proposal | review | Stable people/device IDs proposed; no seat authority. Sentinel must resolve eligibility/global-pause/lifecycle before backend implementation. |
+| Amendment 01 managed Chrome inert slice | Prism; Probe QA; Sentinel review | `feature/browser-profiles-inert` 801d007 | PR #31 | Published at unchanged 801d007 under Arnold authorization; Probe VERIFIED + Sentinel APPROVED. Probe to reconcile CI; native platform limits remain. No production integration. |
+| Browser personal ownership/lifecycle contract | Forge design; Sentinel G2 | read-only proposal | review | Sentinel bounded G2/threat note starting: resolve eligibility/global-pause/lifecycle and define smallest Forge task before implementation. Stable people/device IDs; declarations confer no seat authority. |
 | G8/G9 release evidence and independent approval | Probe, Sentinel; Chief consolidates | `team/log` | todo | Record actual output and unresolved risks; no merge/deploy without Arnold. |
 
 ## Baseline and audit evidence
@@ -739,3 +739,12 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 
 - Arnold explicitly requested "push and make everything automatic". Chief successfully pushed unchanged reviewed801d007/treebf7942f to origin/feature/browser-profiles-inert and opened PR31 https://github.com/arnoldkigozi0/swangz-gateway/pull/31 against main. Previous publication rejection resolved by explicit human authorization. Probe VERIFIED and Sentinel APPROVED evidence reused; no duplicate local tests.
 - Automatic feature pushes/tests/review PR workflow continues within standing scope; no main merge/deployment authorization inferred. CI verification follows PR publication; native platform/version limits remain until actual job evidence. Chief coordination only, whitespace check; no product edits.
+
+
+## Restored model work start — 7 November 01:35 EAT
+
+- Arnold restored Chief/Prism GPT-6.1 Sol, Sentinel Claude Opus 5.5, Forge/Probe Claude Sonnet 5.5. agy/Antigravity removed. Probe uses GPT-6.1 Sol second opinion via `codex exec -s read-only`; on Prism work Probe's own Claude review supplies independence. No agy-only checks remain in current board; any found during reconciliation return to Probe, without reopening completed evidence.
+- Read STATE (historical), working-tree progress (uncommitted paused-view evidence), and canonical team/log progress. Preserved all root untracked evidence. Corrected stale PR31 publication blocker using recorded successful 00:26 publication; fresh GitHub CI read failed connecting to api.github.com, so no new green claim.
+- Starting Sentinel bounded read-only ownership/lifecycle G2 ruling, building on Forge's existing proposal: stable people/device IDs, personal-only contract, no inferred seat authority, eligibility/global pause/lifecycle unresolved. Forge remains next sole builder only after approved threat note; no backend implementation dispatched before G2. Probe continues PR31 CI/QA reconciliation and reports exact-head checks or unavailable access.
+- Keep work within remaining shift; at 02:00 EAT stop at clean point, no new work during rest. No merge/deploy; Arnold alone names merges. No new product decision needed for these read-only tasks.
+- Chief changed coordination text only. Not run: Python/browser suites (no product changes; existing exact-head evidence retained). Whitespace check before commit.
