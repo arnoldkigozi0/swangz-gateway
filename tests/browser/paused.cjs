@@ -14,7 +14,7 @@ function element(tag, attrs, ...children) {
   return { tag, attrs: attrs || {}, children: children.flat(Infinity).filter(x => x != null), disabled: false,
     append(...xs) { this.children.push(...xs.flat(Infinity).filter(x => x != null)); },
     replaceChildren(...xs) { this.children = xs.flat(Infinity).filter(x => x != null); },
-    replaceWith() {}, focus() {}, setAttribute(k, v) { this.attrs[k] = v; }, remove() { this.removed = true; } };
+    replaceWith() {}, focus() {}, setAttribute(k, v) { this.attrs[k] = v; }, remove() { this.removed = true; }, addEventListener() {} };
 }
 const nodes = n => typeof n === 'object' ? [n, ...n.children.flatMap(nodes)] : [];
 const text = n => typeof n === 'object' ? n.children.map(text).join(' ') : String(n);
@@ -24,7 +24,7 @@ function matches(n, selector) {
 }
 function deferred() { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; }
 
-async function boot({ hash = '#/', search = '', me = paused, request } = {}) {
+async function boot({ hash = '#/', search = '', me = paused, request, sui = {} } = {}) {
   const app = element('app'), calls = [], listeners = {}, keys = [], replacements = [], pushes = [], overlays = [];
   let guardCalls = 0;
   const c = { URLSearchParams, setTimeout: () => {},
@@ -38,7 +38,7 @@ async function boot({ hash = '#/', search = '', me = paused, request } = {}) {
     SUI: { ICONS: {}, el: (...args) => {
       const n = element(...args); n.focus = () => { c.document.activeElement = n; }; return n;
     }, icon: name => element('svg', { name }), fmt: { stamp: x => String(x) },
-      themeButton: () => element('button', { 'aria-label': 'Theme' }), setGatewayOffset() {}, toast() {} },
+      themeButton: () => element('button', { 'aria-label': 'Theme' }), setGatewayOffset() {}, toast() {}, ...sui },
     HubUI: { guard() { guardCalls++; return true; } },
     fetch: async (url, opts = {}) => {
       const method = opts.method || 'GET'; calls.push([method, url]);
@@ -248,6 +248,53 @@ module.exports = async function run() {
       assert.ok(nodes(t.app).includes(focused));
       assert.equal(focused.attrs.class, 'paused-content'); assert.equal(focused.attrs.tabindex, '-1');
     }
+  });
+  await check('Privacy notice states provider declarations with the approved static copy and no registry call', async () => {
+    const active = { name: 'Ada', email: 'ada@swangzavenue.com', active: true, catalog: [], keys: [], privacy: {}, hub_unread: 0 };
+    const t = await boot({ hash: '#/privacy', me: active, sui: { avatar: name => element('span', { class: 'avatar' }, name) },
+      request: url => url === '/api/studio' ? response(null) : undefined });
+    const all = nodes(t.app);
+    const sections = all.filter(n => n.tag === 'section' && n.attrs.class === 'trust-card').map(n => n.attrs.id);
+    assert.deepEqual(sections, ['p-recorded', 'p-not-recorded', 'p-purpose', 'p-who', 'p-kept', 'p-help'], 'six sections, same order');
+    const index = all.find(n => n.tag === 'nav' && n.attrs.class === 'p-index');
+    assert.deepEqual(nodes(index).filter(n => n.tag === 'button').map(text),
+      ['What is recorded', 'What is not recorded', 'Purpose and location', 'Who can see it', "How long it's kept", 'Using it well, and help']);
+    const section = id => all.find(n => n.attrs.id === 'p-' + id);
+    // Each approved sentence is one whole text child of an element: static text, never markup.
+    const leaf = (root, tag, str) => nodes(root).find(n => n.tag === tag && n.children.length === 1 && n.children[0] === str);
+    const more = (root, str) => {
+      const p = leaf(root, 'p', str); assert.ok(p, 'More text: ' + str);
+      const d = nodes(root).find(n => n.tag === 'details' && n.children.includes(p));
+      assert.ok(d, 'inside a disclosure: ' + str);
+      assert.ok(d.children.some(c => c.tag === 'summary' && text(c) === 'More about this'));
+    };
+    const rec = section('recorded');
+    assert.ok(leaf(rec, 'strong', 'Subscriptions you tell us about'));
+    assert.ok(leaf(rec, 'p', "If you record an AI subscription you hold, Swangz AI Hub keeps what you enter: the tool, whether it's personal or a seat on the company plan, who pays, an optional label, and any plan, quota, period end date, price or credit you add. It's your own declaration: nobody checks it with the provider, and it doesn't change which tools you can use."));
+    more(rec, "You can end a record but not delete it. Values can't be edited; adding a new one keeps the earlier one in the record's history.");
+    const not = section('not-recorded');
+    assert.ok(leaf(not, 'p', 'Only your access through Swangz AI Hub is recorded, plus any subscription you choose to record yourself.'));
+    assert.ok(!all.some(n => n.children.includes('Only access through Swangz AI Hub is recorded.')), 'old unqualified sentence gone');
+    for (const old of [
+      "If you record an AI subscription you hold, Swangz AI Hub keeps what you enter: the tool, whether it's personal or a seat on the company plan, and any plan, quota, renewal date or price you add. It's your own declaration. Nobody checks it with the provider, and it doesn't change which tools you can use.",
+      "You can end a record but not delete it, and each value you add is kept as you entered it.",
+      "Details of a personal subscription are shown only to you in Swangz AI Hub. For a seat on the company plan, administrators who manage tools also see its plan and quota, and those who manage spending see its price and credit. Whenever you add, update or end a subscription record, the audit log notes your name, the change, the time, your network address and a record number. Any administrator can see that entry, but it never includes the tool, plan, price or anything else you entered.",
+      "As with every record here, the people who run the Swangz server and its backups can reach the stored data."])
+      assert.ok(!all.some(n => n.children.includes(old)), 'superseded copy gone: ' + old.slice(0, 40));
+    const who = section('who');
+    assert.ok(leaf(who, 'p', 'Swangz AI Hub shows the details of a personal subscription you record only to you. For a seat on the company plan, control-room users who manage tools or spending see its tool, status, dates, holder, payer and label; those who manage tools also see its plan, quota and period end, and those who manage spending see its price and credit. Whenever you add a subscription record, add a value to it or end it, the audit log notes your name, the change, the time, your network address and a record number. Everyone with control-room access, including read-only users, can see that entry. It never includes the tool, plan, price or anything else you entered.'));
+    more(who, "From that entry, control-room users who manage tools or spending can tell whether the change was to a personal subscription or a company seat; for a personal subscription, they still can't see which tool. As with every record here, the people who run the Swangz server and its backups can reach the stored data.");
+    assert.ok(leaf(section('kept'), 'p', 'Subscription records and their values are kept even after you end them. Audit log entries are kept for at least a year.'));
+    const page = text(t.app);
+    for (const phrase of ['renewal date', 'kept as you entered it', 'add, update or end', 'Any administrator can see that entry', 'kept, even after', 'but not which tool'])
+      assert.ok(!page.includes(phrase), 'page excludes: ' + phrase);
+    assert.ok(nodes(section('recorded')).some(n => n.tag === 'svg' && n.attrs.name === 'wallet'), 'wallet icon on the subscriptions item');
+    const whoMore = nodes(who).filter(n => n.tag === 'details');
+    assert.equal(whoMore.length, 1, 'one disclosure in Who can see it');
+    assert.equal(whoMore[0].children.filter(c => c.tag === 'p').length, 1, 'audience More is one paragraph');
+    assert.equal(all.filter(n => ['form', 'input', 'textarea', 'select'].includes(n.tag)).length, 0, 'no form or Save control');
+    assert.ok(all.every(n => !('innerHTML' in n.attrs)), 'no innerHTML');
+    assert.ok(t.calls.every(([, url]) => !url.includes('provider-accounts') && !url.includes('/hub/registry')), 'no registry request');
   });
   console.log(`PASS paused behavior: ${count} checks; no browser/layout/server-authorization coverage claimed`);
   return count;
