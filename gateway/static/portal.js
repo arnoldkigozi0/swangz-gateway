@@ -6,7 +6,7 @@
   const { el, icon, fmt, toast, copy } = SUI;
   const app = document.getElementById("app");
   const S = { me: null, studio: null, filter: { q: "", cat: "all", sort: "recommended", show: "all" } };
-  let pausedRefresh = null, pausedRender = 0, loading = 0, identityGeneration = 0;
+  let pausedRefresh = null, pausedRender = 0, loading = 0, identityGeneration = 0, signingOut = false, signedOut = false;
   const isPaused = () => !!S.me?.paused_view;
   const pausedCall = (method, path) => method === "POST" && path === "/logout" || method === "GET" &&
     (path === "/me" || path === "/hub/notifications" || /^\/hub\/reports(?:\/[1-9]\d{0,14}|\?limit=30&offset=\d+)?$/.test(path));
@@ -19,6 +19,7 @@
   const gurl = (path) => GATEWAY + path;
 
   async function api(method, path, body) {
+    if (signedOut) throw new ApiError(401, "You're signed out.", "signed_out");
     if (isPaused() && !pausedCall(method, path)) throw new ApiError(403, "Your access is paused.", "person_paused");
     const generation = identityGeneration;
     const opts = { method, credentials: "include", headers: { "x-swangz-app": "1" } };
@@ -30,20 +31,24 @@
     try { res = await fetch(GATEWAY + "/api" + path, opts); }
     catch (e) { throw new ApiError(0, "Swangz AI Hub can't be reached. Check your connection and try again."); }
     let data = null;
-    try { data = await res.json(); } catch (e) { /* empty */ }
+    try { data = await res.json(); } catch (e) {
+      if (method === "POST" && path === "/logout") throw new ApiError(res.status, "Couldn't confirm sign-out. Try again.");
+    }
     if (!res.ok) {
-      if (data?.code === "person_paused" && path !== "/me") {
+      if (!signedOut && !signingOut && generation === identityGeneration && data?.code === "person_paused" && path !== "/me") {
         if (pausedRefresh) await pausedRefresh;
         else if (!isPaused()) await refreshPaused();
       }
       throw new ApiError(res.status, (data && data.error) || "Something went wrong. Try again.", data?.code);
     }
     // A response started before suspension must not restore active data after the identity changed.
-    if (generation !== identityGeneration) throw new ApiError(403, "Your access is paused.", "person_paused");
+    if (generation !== identityGeneration && !(method === "POST" && path === "/logout" && res.ok))
+      throw new ApiError(403, "Your access is paused.", "person_paused");
     return data;
   }
 
   function refreshPaused() {
+    if (signedOut) return;
     if (!pausedRefresh) {
       identityGeneration++;
       S.me = { paused_view: true };
@@ -71,6 +76,7 @@
   }
 
   function dialog(title, body, actions) {
+    if (signedOut) return el("dialog");
     const id = "d-" + Math.random().toString(36).slice(2, 7);
     const d = el("dialog", { "aria-labelledby": id }, el("div", { class: "d-body" }, el("h2", { id }, title), typeof body === "string" ? el("p", null, body) : body),
       el("div", { class: "d-actions" }, actions(() => d.close())));
@@ -177,6 +183,7 @@
   }
 
   function showSignIn() {
+    if (signedOut) return;
     document.title = "Sign in · Swangz AI Hub";
     const email = el("input", { class: "input", type: "email", autocomplete: "email", required: true, placeholder: "you@swangzavenue.com", id: "si-email" });
     const pw = passwordInput("current-password", "si-pass");
@@ -206,15 +213,18 @@
   }
 
   async function showWelcome(token) {
+    if (signedOut) return;
     let invite;
     try {
       invite = await api("GET", "/welcome/" + encodeURIComponent(token));
     } catch (e) {
+      if (signedOut) return;
       const form = el("form", null, el("div", { class: "eyebrow" }, "Sign-in link"), el("h2", null, "This link has run out"),
         el("p", { class: "muted" }, e.message), el("a", { class: "btn", href: "#/" }, "Go to sign in"));
       app.replaceChildren(gateFrame(form));
       return;
     }
+    if (signedOut) return;
     const pw = passwordInput("new-password", "w-pass");
     const again = passwordInput("new-password", "w-again");
     const err = el("div", { class: "form-error", role: "alert" });
@@ -275,6 +285,7 @@
   }
 
   function frame(title, content, opts) {
+    if (signedOut) return;
     if (isPaused()) return renderPaused();
     opts = opts || {};
     const me = S.me;
@@ -1170,12 +1181,14 @@
   // Paused identities never enter the active portal or Hub report wizard. These views use only
   // the existing read-only routes and text nodes; notification destinations are deliberately ignored.
   function pausedHome() {
+    if (signedOut) return;
     history.replaceState(null, "", location.pathname + "#/");
     previousRoute = "#/";
     return renderPaused();
   }
 
   async function renderPaused() {
+    if (signedOut) return;
     const ticket = ++pausedRender, me = S.me;
     document.title = "Access paused · Swangz AI Hub";
     S.studio = null;
@@ -1256,9 +1269,19 @@
   }
 
   async function signOut() {
-    try { await api("POST", "/logout"); } catch (e) { /* signed out anyway */ }
-    S.me = null;
-    showSignIn();
+    if (signedOut || signingOut) return;
+    signingOut = true;
+    // Offline or a server error: the session may still be live, so say so and stay signed in rather than pretend.
+    try { await api("POST", "/logout"); } catch (e) { signingOut = false; toast("Couldn't sign out. Try again.", true); return; }
+    signedOut = true; identityGeneration++; loading++;
+    S.me = null; S.studio = null;
+    app.replaceChildren();
+    document.documentElement.style.display = "none";
+    document.querySelectorAll("dialog, .hub-side-sheet, .hub-sheet-scrim, .toast").forEach((n) => n.remove());
+    try { localStorage.removeItem("swangz-studio-purpose"); } catch (e) { /* no storage */ }
+    // Start a fresh page, so nothing the last person loaded (drafts, catalogue, Studio) stays in memory on a shared phone
+    // or installed window, and the next sign-in runs the newest release.
+    location.replace("/");
   }
 
   // ------------------------------------------------------------------ start
@@ -1267,6 +1290,7 @@
     [/^#\/requests$/, pageRequests], [/^#\/privacy$/, pagePrivacy]];
 
   function render() {
+    if (signedOut) return;
     if (isPaused()) return renderPaused();
     document.querySelectorAll(".drawer, .scrim").forEach((n) => n.remove());
     const [path, query] = (location.hash || "#/").split("?");
@@ -1278,20 +1302,21 @@
   }
 
   async function load() {
+    if (signedOut) return;
     const ticket = ++loading;
     try {
       const me = await api("GET", "/me");
-      if (ticket !== loading) return;
+      if (signedOut || ticket !== loading) return;
       if (me.paused_view && !isPaused()) identityGeneration++;
       S.me = me;
       if (me.paused_view) return renderPaused();
       SUI.setGatewayOffset(180);
       // the device count on each coding tool's tile
       me.catalog.forEach((t) => { if (t.kind === "dev") t.connected = me.keys.filter((k) => !k.revoked && k.client === t.name).length; });
-      try { const studio = await api("GET", "/studio"); if (S.me !== me) return; S.studio = studio; } catch (e) { if (S.me !== me) return; S.studio = null; }
+      try { const studio = await api("GET", "/studio"); if (signedOut || S.me !== me) return; S.studio = studio; } catch (e) { if (signedOut || S.me !== me) return; S.studio = null; }
       render();
     } catch (e) {
-      if (ticket !== loading) return;
+      if (signedOut || ticket !== loading) return;
       if (e.status === 401) { S.me = null; S.studio = null; showSignIn(); }
       else app.replaceChildren(el("main", { class: "gate" }, gateArt(), el("section", { class: "gate-form" },
         el("form", null, el("div", { class: "eyebrow" }, "Connection"), el("h2", null, "Swangz AI Hub is temporarily unavailable"), el("p", { class: "muted" }, e.message),
@@ -1300,6 +1325,7 @@
   }
 
   function route() {
+    if (signedOut) return;
     if (isPaused()) return renderPaused();
     const m = (location.hash || "").match(/^#\/welcome\/([A-Za-z0-9_\-]+)$/);
     if (m) return showWelcome(m[1]);
@@ -1323,6 +1349,7 @@
   window.SWP = { S, api, gurl, frame, sectionHead, viewTabs, load, render, rememberRoute: () => { previousRoute = location.hash; }, page: (rx, fn) => ROUTES.push([rx, fn]) };
   let previousRoute = location.hash;
   window.addEventListener("hashchange", () => {
+    if (signedOut) return;
     if (isPaused()) { previousRoute = location.hash; return renderPaused(); }
     if (window.HubUI && !HubUI.guard()) { history.pushState(null, "", previousRoute || "#/"); return; }
     previousRoute = location.hash; route();

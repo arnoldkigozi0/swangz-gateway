@@ -7,54 +7,105 @@ const vm = require('node:vm');
 const source = fs.readFileSync(path.join(__dirname, '../../gateway/static/portal.js'), 'utf8');
 const flush = () => new Promise(resolve => setImmediate(resolve));
 const paused = { paused_view: true, name: 'Sam <script>', status: 'paused', reason: 'Talk to your admin.', support_contact: 'help@swangzavenue.com' };
+const active = { name: 'Ada', email: 'ada@swangzavenue.com', active: true, catalog: [], keys: [], privacy: {}, hub_unread: 0 };
 const response = (data, status = 200) => ({ ok: status < 400, status, json: async () => data });
 const report = { id: 7, tool_name: '<img src=x onerror=alert(1)>', kind: 'weekly', state: 'returned',
   week_start: '2026-10-26', version: 1, currency: 'USD', reason: '<script>do not execute</script>', impact: 'Staff estimate' };
 function element(tag, attrs, ...children) {
-  return { tag, attrs: attrs || {}, children: children.flat(Infinity).filter(x => x != null), disabled: false,
-    append(...xs) { this.children.push(...xs.flat(Infinity).filter(x => x != null)); },
-    replaceChildren(...xs) { this.children = xs.flat(Infinity).filter(x => x != null); },
-    replaceWith() {}, focus() {}, setAttribute(k, v) { this.attrs[k] = v; }, remove() { this.removed = true; }, addEventListener() {} };
+  const changed = (node, kind) => { while (node) { if (node.observeMutation) node.observeMutation(kind); node = node.parent; } };
+  const n = { tag, attrs: attrs || {}, children: [], disabled: false, style: {},
+    append(...xs) { for (const x of xs.flat(Infinity).filter(x => x != null)) { if (typeof x === 'object') x.parent = this; this.children.push(x); } changed(this, 'append'); },
+    prepend(...xs) { const old = this.children.slice(); this.replaceChildren(...xs, ...old); },
+    replaceChildren(...xs) {
+      for (const child of this.children) if (typeof child === 'object') child.parent = null;
+      this.children = [];
+      for (const x of xs.flat(Infinity).filter(x => x != null)) { if (typeof x === 'object') x.parent = this; this.children.push(x); }
+      changed(this, 'replaceChildren');
+    },
+    replaceWith() {}, focus() {},
+    setAttribute(k, v) { this.attrs[k] = v; changed(this, 'attribute'); },
+    removeAttribute(k) { delete this.attrs[k]; changed(this, 'attribute'); },
+    remove() { this.removed = true; if (this.parent) { const p = this.parent; p.children = p.children.filter(c => c !== this); this.parent = null; changed(p, 'remove'); } },
+    querySelectorAll(selector) { return nodes(this).slice(1).filter(child => matches(child, selector)); },
+    querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }, addEventListener() {}, removeEventListener() {} };
+  Object.defineProperty(n, 'parent', { value: null, writable: true });
+  Object.defineProperty(n, 'isConnected', { get() { let root = this; while (root.parent) root = root.parent; return root.tag === 'app' || root.tag === 'body'; } });
+  Object.defineProperty(n, 'className', { get() { return this.attrs.class || ''; }, set(value) { this.attrs.class = value; } });
+  if (tag === 'dialog') {
+    n.showModal = () => { n.open = true; n.attrs.open = true; };
+    n.close = () => { n.open = false; delete n.attrs.open; };
+  }
+  Object.defineProperty(n, 'textContent', { get() { return text(this); }, set(value) { this.replaceChildren(String(value)); } });
+  const classes = () => new Set((n.attrs.class || '').split(/\s+/).filter(Boolean));
+  n.classList = { contains: c => classes().has(c),
+    add(c) { n.attrs.class = [...classes().add(c)].join(' '); changed(n, 'attribute'); },
+    remove(c) { const cs = classes(); cs.delete(c); n.attrs.class = [...cs].join(' '); changed(n, 'attribute'); },
+    toggle(c, on) { if (on === undefined) on = !classes().has(c); this[on ? 'add' : 'remove'](c); } };
+  n.dataset = Object.fromEntries(Object.entries(n.attrs).filter(([k]) => k.startsWith('data-')).map(([k, v]) => [k.slice(5), v]));
+  n.append(...children);
+  return n;
 }
 const nodes = n => typeof n === 'object' ? [n, ...n.children.flatMap(nodes)] : [];
 const text = n => typeof n === 'object' ? n.children.map(text).join(' ') : String(n);
 function matches(n, selector) {
   if (selector.startsWith('.')) return (n.attrs.class || '').split(/\s+/).includes(selector.slice(1));
+  if (selector === '[role=tab]') return n.attrs.role === 'tab';
+  if (selector === 'dialog') return n.tag === 'dialog';
   return selector === 'dialog[open]' && n.tag === 'dialog' && n.attrs.open;
 }
 function deferred() { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; }
 
-async function boot({ hash = '#/', search = '', me = paused, request, sui = {} } = {}) {
+async function boot({ hash = '#/', search = '', me = paused, request, sui = {}, storageThrows = false, studio = null } = {}) {
   const app = element('app'), calls = [], listeners = {}, keys = [], replacements = [], pushes = [], overlays = [];
+  const body = element('body', null, app), documentElement = element('html');
+  const navigations = [], toasts = [], removed = [], store = new Map([['swangz-studio-purpose', 'marketing'], ['swangz-theme', 'light']]);
+  // Track only mutations to the attached #app subtree; detached async handlers remain observable separately.
+  const mutations = [];
+  const dialogs = [];
+  Object.defineProperty(app, 'observeMutation', { value: kind => mutations.push({ kind, text: text(app), children: app.children.length }) });
   let guardCalls = 0;
   const c = { URLSearchParams, setTimeout: () => {},
-    location: { hash, search, pathname: '/' },
+    location: { hash, search, pathname: '/', replace(url) {
+      assert.equal(c.SWP.S.me, null); assert.equal(c.SWP.S.studio, null);
+      assert.equal(app.children.length, 0, 'attached app cleared before navigation');
+      assert.equal(documentElement.style.display, 'none', 'document hidden before navigation');
+      assert.deepEqual(removed, ['swangz-studio-purpose']);
+      navigations.push(url);
+    } },
+    localStorage: { getItem: key => store.get(key) || null, setItem: (key, value) => store.set(key, value),
+      removeItem(key) { removed.push(key); if (storageThrows) throw Error('Storage unavailable'); store.delete(key); } },
     history: {
       replaceState(_a, _b, url) { replacements.push(url); c.location.hash = url.slice(url.indexOf('#')); c.location.search = ''; },
       pushState(_a, _b, url) { pushes.push(url); c.location.hash = url; } },
-    document: { getElementById: id => id === 'app' ? app : nodes(app).find(n => n.attrs.id === id),
-      querySelectorAll: selector => overlays.filter(n => !n.removed && selector.split(',').some(s => matches(n, s.trim()))), querySelector: () => null,
-      addEventListener: (type, fn, capture) => { if (type === 'keydown') keys.push({ fn, capture }); }, activeElement: null },
+    document: { body, documentElement, getElementById: id => id === 'app' ? app : nodes(body).find(n => n.attrs.id === id),
+      querySelectorAll: selector => [...new Set([...overlays, ...nodes(body).slice(1)])].filter(n => !n.removed && selector.split(',').some(s => matches(n, s.trim()))), querySelector: () => null,
+      createElement: tag => element(tag), createElementNS: (_ns, tag) => element(tag), createTextNode: value => String(value), dispatchEvent() {},
+      addEventListener: (type, fn, capture) => { if (type === 'keydown') keys.push({ fn, capture }); }, removeEventListener() {}, activeElement: null },
     SUI: { ICONS: {}, el: (...args) => {
-      const n = element(...args); n.focus = () => { c.document.activeElement = n; }; return n;
+      const n = element(...args); if (n.tag === 'dialog') dialogs.push(n); n.focus = () => { c.document.activeElement = n; }; return n;
     }, icon: name => element('svg', { name }), fmt: { stamp: x => String(x) },
-      themeButton: () => element('button', { 'aria-label': 'Theme' }), setGatewayOffset() {}, toast() {}, ...sui },
+      themeButton: () => element('button', { 'aria-label': 'Theme' }), setGatewayOffset() {},
+      avatar: name => element('span', { class: 'avatar' }, name), toast: (...args) => toasts.push(args), ...sui },
     HubUI: { guard() { guardCalls++; return true; } },
     fetch: async (url, opts = {}) => {
       const method = opts.method || 'GET'; calls.push([method, url]);
       const custom = request && await request(url, method);
       if (custom) return custom;
       if (url === '/api/me') return response(me);
+      if (url === '/api/studio') return response(studio);
       if (url === '/api/hub/reports?limit=30&offset=0') return response({ items: [report], total: 1 });
       if (url === '/api/hub/reports/7') return response(report);
       if (url === '/api/hub/notifications') return response({ items: [{ title: '<b>Update</b>', href: 'javascript:alert(1)', created: 123 }] });
       if (url === '/auth/options') return response({ google: false });
       throw Error('Unexpected request: ' + method + ' ' + url);
-    }, addEventListener: (type, fn) => { listeners[type] = fn; }, scrollTo() {} };
+    }, addEventListener: (type, fn) => { listeners[type] = fn; }, removeEventListener() {}, requestAnimationFrame: () => {}, scrollTo() {},
+    CustomEvent: class { constructor(type, props) { this.type = type; this.detail = props.detail; } },
+    Node: class { static [Symbol.hasInstance](node) { return !!node && typeof node === 'object' && 'tag' in node; } } };
   c.window = c;
   vm.runInNewContext(source, c, { filename: 'gateway/static/portal.js' });
   await flush();
-  return { c, app, calls, overlays, replacements, pushes, get guardCalls() { return guardCalls; },
+  return { c, app, body, dialogs, calls, overlays, replacements, pushes, navigations, toasts, removed, store, mutations, get guardCalls() { return guardCalls; },
+    script(name) { vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../gateway/static', name), 'utf8'), c, { filename: name }); },
     async navigate(hash) { c.location.hash = hash; await listeners.hashchange(); await flush(); },
     key(key, mods = {}) {
       const e = { key, ...mods, prevented: false, stopped: false, preventDefault() { this.prevented = true; }, stopImmediatePropagation() { this.stopped = true; } };
@@ -63,9 +114,37 @@ async function boot({ hash = '#/', search = '', me = paused, request, sui = {} }
     } };
 }
 
+function signOutButton(t) {
+  const button = nodes(t.app).find(n => n.tag === 'button' && text(n).trim() === 'Sign out');
+  assert.ok(button, 'actual rendered Sign out button');
+  return button;
+}
+const clickSignOut = t => signOutButton(t).attrs.onclick();
+const logoutOptions = (me, extra = {}) => ({ me, hash: me.paused_view ? '#/paused/updates' : '#/privacy', ...extra });
+function assertSignedOut(t) {
+  assert.equal(t.c.SWP.S.me, null); assert.equal(t.c.SWP.S.studio, null);
+  assert.equal(t.app.children.length, 0); assert.equal(text(t.app), '');
+  assert.equal(t.c.document.documentElement.style.display, 'none');
+  assert.deepEqual(t.navigations, ['/']); assert.deepEqual(t.toasts, []);
+  assert.deepEqual(t.calls.filter(([method, url]) => method === 'POST'), [['POST', '/api/logout']]);
+  assert.deepEqual(t.removed, ['swangz-studio-purpose']); assert.equal(t.store.get('swangz-theme'), 'light');
+}
+async function withoutUnhandled(fn) {
+  const errors = [], collect = error => errors.push(error);
+  process.on('unhandledRejection', collect);
+  try { await fn(); await flush(); assert.deepEqual(errors, [], 'no unhandled rejection'); }
+  finally { process.removeListener('unhandledRejection', collect); }
+}
+
 module.exports = async function run() {
   let count = 0;
-  async function check(name, fn) { await fn(); count++; console.log('PASS paused: ' + name); }
+  async function check(name, fn) {
+    let timer;
+    try {
+      await Promise.race([fn(), new Promise((_, reject) => { timer = setTimeout(() => reject(Error('Timed out: ' + name)), 10000); })]);
+    } finally { clearTimeout(timer); }
+    count++; console.log('PASS paused: ' + name);
+  }
   await check('initial paused deep link uses only /me; own name/contact, no full state', async () => {
     const t = await boot({ hash: '#/tools' });
     assert.match(text(t.app), /Sam <script>, your access is paused/); assert.match(text(t.app), /help@swangzavenue.com/);
@@ -225,9 +304,10 @@ module.exports = async function run() {
     } });
     t.c.SWP.S.me = { catalog: [], keys: [] };
     const a = t.c.SWP.api('GET', '/a'), b = t.c.SWP.api('GET', '/b');
+    const settled = Promise.allSettled([a, b]);
     await flush(); assert.equal(meCalls, 2);
     refreshed.resolve(response(paused));
-    const result = await Promise.allSettled([a, b]);
+    const result = await settled;
     assert.ok(result.every(r => r.status === 'rejected' && r.reason.code === 'person_paused'));
     assert.equal(meCalls, 2); assert.equal(t.c.SWP.S.me, paused);
   });
@@ -249,6 +329,312 @@ module.exports = async function run() {
       assert.equal(focused.attrs.class, 'paused-content'); assert.equal(focused.attrs.tabindex, '-1');
     }
   });
+  for (const [identity, me] of [['active', active], ['suspended', paused], ['ended', { ...paused, status: 'access_ended', name: 'Ended person' }]]) {
+    await check(identity + ' button success clears state and purpose before exactly one clean-page navigation', async () => {
+      const t = await boot(logoutOptions(me, { request: url => url === '/api/logout' ? response({ ok: true }) : undefined }));
+      if (!me.paused_view) t.c.SWP.S.studio = { private: 'old Studio' };
+      const before = t.mutations.length;
+      await clickSignOut(t);
+      assertSignedOut(t); assert.equal(t.store.has('swangz-studio-purpose'), false);
+      assert.deepEqual(t.mutations.slice(before), [{ kind: 'replaceChildren', text: '', children: 0 }], 'one terminal app clear');
+    });
+    for (const [failure, result] of [
+      ['rejected fetch', () => { throw Error('Offline'); }],
+      ['503', () => response({ error: 'Unavailable' }, 503)],
+      ['500', () => response({ error: 'Failed' }, 500)],
+      ['unreadable 200', () => ({ ok: true, status: 200, json: async () => { throw Error('Unreadable body'); } })],
+      ['unreadable 500', () => ({ ok: false, status: 500, json: async () => { throw Error('Unreadable body'); } })],
+    ]) {
+      await check(identity + ' button failure (' + failure + ') retains identity, purpose and view and permits retry', async () => {
+        let fail = true;
+        const t = await boot(logoutOptions(me, { request: url => url === '/api/logout' ? (fail ? result() : response({ ok: true })) : undefined }));
+        const beforeMe = t.c.SWP.S.me, beforeStudio = t.c.SWP.S.studio, dom = JSON.stringify(t.app), hash = t.c.location.hash;
+        await clickSignOut(t);
+        assert.equal(t.c.SWP.S.me, beforeMe); assert.equal(t.c.SWP.S.studio, beforeStudio);
+        assert.equal(JSON.stringify(t.app), dom); assert.equal(t.c.location.hash, hash);
+        assert.equal(t.store.get('swangz-studio-purpose'), 'marketing'); assert.deepEqual(t.removed, []);
+        assert.deepEqual(t.navigations, []); assert.deepEqual(t.toasts, [["Couldn't sign out. Try again.", true]]);
+        fail = false; await clickSignOut(t);
+        assert.deepEqual(t.navigations, ['/']); assert.equal(t.c.SWP.S.me, null);
+        assert.equal(t.calls.filter(([, url]) => url === '/api/logout').length, 2);
+      });
+    }
+    await check(identity + ' button success navigates even when purpose removal throws', async () => {
+      const t = await boot(logoutOptions(me, { storageThrows: true, request: url => url === '/api/logout' ? response({ ok: true }) : undefined }));
+      await clickSignOut(t); assertSignedOut(t);
+    });
+    await check(identity + ' double click shares a pending logout and never navigates or errors twice', async () => {
+      const held = deferred();
+      const t = await boot(logoutOptions(me, { request: url => url === '/api/logout' ? held.promise : undefined }));
+      const button = signOutButton(t);
+      const first = button.attrs.onclick(), second = button.attrs.onclick();
+      await flush(); assert.equal(t.calls.filter(([, url]) => url === '/api/logout').length, 1);
+      held.resolve(response({ ok: true })); await Promise.all([first, second]);
+      await button.attrs.onclick(); assertSignedOut(t);
+    });
+  }
+  for (const via of ['refreshPaused', 'load paused /me']) {
+    await check('held logout 200 remains authoritative with ' + (via === 'refreshPaused' ? 'automatic pause refresh suppressed' : 'load /me generation change'), async () => {
+      const held = deferred(); let meCalls = 0;
+      const t = await boot(logoutOptions(active, { request: url => {
+        if (url === '/api/me') return response(++meCalls === 1 ? active : paused);
+        if (url === '/api/logout') return held.promise;
+        if (url === '/api/pause-trigger') return response({ code: 'person_paused', error: 'Paused' }, 403);
+      } }));
+      const logout = clickSignOut(t); await flush();
+      if (via === 'refreshPaused') await assert.rejects(t.c.SWP.api('GET', '/pause-trigger'), e => e.code === 'person_paused');
+      else await t.c.SWP.load();
+      assert.equal(t.c.SWP.S.me, via === 'refreshPaused' ? active : paused);
+      assert.equal(meCalls, via === 'refreshPaused' ? 1 : 2, 'pending logout suppresses automatic pause refresh only');
+      held.resolve(response({ ok: true })); await logout; assertSignedOut(t);
+    });
+  }
+  for (const [failure, result] of [
+    ['rejected fetch', () => { throw Error('Offline'); }],
+    ['503', () => response({ error: 'Unavailable' }, 503)],
+    ['500', () => response({ error: 'Failed' }, 500)],
+    ['unreadable 200', () => ({ ok: true, status: 200, json: async () => { throw Error('Unreadable body'); } })],
+  ]) {
+    await check('generation change cannot turn held logout failure (' + failure + ') into success', async () => {
+      const held = deferred(); let meCalls = 0;
+      const t = await boot(logoutOptions(active, { request: async url => {
+        if (url === '/api/me') return response(++meCalls === 1 ? active : paused);
+        if (url === '/api/logout') { await held.promise; return result(); }
+      } }));
+      const logout = clickSignOut(t); await flush(); await t.c.SWP.load();
+      const dom = JSON.stringify(t.app);
+      held.resolve(); await logout;
+      assert.equal(t.c.SWP.S.me, paused); assert.equal(JSON.stringify(t.app), dom);
+      assert.deepEqual(t.navigations, []); assert.deepEqual(t.removed, []);
+      assert.equal(t.store.get('swangz-studio-purpose'), 'marketing');
+      assert.deepEqual(t.toasts, [["Couldn't sign out. Try again.", true]]);
+    });
+  }
+  for (const late of ['me', 'studio', 'reports', 'notifications']) {
+    await check('late ' + late + ' response after logout cannot mutate state, DOM, focus or history', async () => {
+      const held = deferred(); let armed = false;
+      const url = { me: '/api/me', studio: '/api/studio', reports: '/api/hub/reports?limit=30&offset=0', notifications: '/api/hub/notifications' }[late];
+      const me = late === 'me' || late === 'studio' ? active : paused;
+      const t = await boot(logoutOptions(me, { request: path => {
+        if (armed && path === url) return held.promise;
+        if (path === '/api/logout') return response({ ok: true });
+      } }));
+      armed = true;
+      const pending = late === 'me' || late === 'studio' ? t.c.SWP.load()
+        : t.navigate(late === 'reports' ? '#/paused/reports' : '#/paused/updates');
+      await flush(); await clickSignOut(t); assertSignedOut(t);
+      const dom = JSON.stringify(t.app), focus = t.c.document.activeElement, calls = t.calls.length;
+      const history = JSON.stringify([t.replacements, t.pushes]);
+      held.resolve(response(late === 'me' ? { ...active, name: 'OLD PERSON' } : late === 'studio' ? { private: 'OLD PERSON' }
+        : { items: [{ ...report, title: 'OLD PERSON' }], total: 1 }));
+      await pending; await flush();
+      assertSignedOut(t); assert.equal(t.calls.length, calls, 'no retry or follow-up request');
+      assert.equal(JSON.stringify(t.app), dom); assert.equal(t.c.document.activeElement, focus);
+      assert.equal(JSON.stringify([t.replacements, t.pushes]), history);
+    });
+  }
+  for (const [method, path] of [['GET', '/old'], ['GET', '/logout'], ['POST', '/logout/'], ['POST', '/logout?x=1']]) {
+    await check(method + ' ' + path + ' retains stale-generation refusal across logout', async () => {
+      const held = deferred();
+      const t = await boot(logoutOptions(active, { request: (url, requestedMethod) => {
+        if (url === '/api' + path && requestedMethod === method) return held.promise;
+        if (url === '/api/logout') return response({ ok: true });
+      } }));
+      const pending = t.c.SWP.api(method, path);
+      const refused = assert.rejects(pending, e => e.code === 'person_paused');
+      await flush(); await clickSignOut(t);
+      held.resolve(response({ private: 'OLD PERSON' })); await refused;
+      assert.deepEqual(t.navigations, ['/']); assert.deepEqual(t.toasts, []);
+    });
+  }
+  await check('paused nonlogout writes and logout path near-misses remain blocked before fetch', async () => {
+    const t = await boot(), before = t.calls.length;
+    for (const path of ['/hub/reports/7/submit', '/logout/', '/logout?x=1'])
+      await assert.rejects(t.c.SWP.api('POST', path, {}), e => e.code === 'person_paused');
+    assert.equal(t.calls.length, before);
+  });
+  for (const [identity, me] of [['active', active], ['suspended', paused]]) {
+    for (const read of ['reports', 'notifications']) {
+      await check(identity + ' late 403 person_paused from ' + read + ' cannot refresh, fetch or mutate the cleared app', async () => {
+        const held = deferred(); let armed = false;
+        const url = read === 'reports' ? '/api/hub/reports?limit=30&offset=0' : '/api/hub/notifications';
+        const t = await boot(logoutOptions(me, { request: path => {
+          if (armed && path === url) return held.promise;
+          if (path === '/api/logout') return response({ ok: true });
+        } }));
+        armed = true;
+        const pending = me.paused_view ? t.navigate(read === 'reports' ? '#/paused/reports' : '#/paused/updates')
+          : assert.rejects(t.c.SWP.api('GET', url.slice(4)), e => e.code === 'person_paused');
+        await flush(); await clickSignOut(t); assertSignedOut(t);
+        const calls = t.calls.length, mutations = t.mutations.length;
+        held.resolve(response({ code: 'person_paused', error: 'Paused' }, 403));
+        await pending; await flush(); assertSignedOut(t);
+        assert.equal(t.calls.length, calls, 'no identity refresh or follow-up fetch');
+        assert.equal(t.mutations.length, mutations, 'no attached subtree mutation after clear');
+      });
+    }
+  }
+  const studio = { image: true, purposes: [], recent: [] };
+  for (const endpoint of ['POST /studio/generate', 'GET /studio in load']) {
+    for (const order of [['studio', 'logout'], ['logout', 'studio']]) {
+      await check(endpoint + ' and logout resolve in one task (' + order.join(' then ') + ') without resurrection', () => withoutUnhandled(async () => {
+        const heldStudio = deferred(), heldLogout = deferred(); let armed = false;
+        const target = endpoint.startsWith('POST') ? '/api/studio/generate' : '/api/studio';
+        const t = await boot({ hash: '#/studio?view=create', me: active, studio,
+          sui: { fmt: { stamp: x => String(x), ago: () => 'Just now' } }, request: url => {
+            if (url === '/api/logout') return heldLogout.promise;
+            if (armed && url === target) return heldStudio.promise;
+          } });
+        assert.match(text(t.app), /Studio/);
+        armed = true;
+        const form = nodes(t.app).find(n => n.tag === 'form' && n.attrs.class === 'studio-form');
+        assert.ok(form, 'actual Studio form');
+        nodes(form).find(n => n.tag === 'textarea').value = 'OLD PERSON PROMPT';
+        const pending = endpoint.startsWith('POST') ? form.attrs.onsubmit({ preventDefault() {}, currentTarget: form }) : t.c.SWP.load();
+        await flush(); const logout = clickSignOut(t); await flush();
+        const made = { id: 99, type: 'image', outcome: 'ok', urls: ['https://fixture.invalid/old-person.png'], prompt: 'OLD PERSON', ts: 123 };
+        // No await between resolves: both response orders run in the same JavaScript task.
+        for (const name of order) {
+          if (name === 'studio') heldStudio.resolve(response(endpoint.startsWith('POST') ? made : studio));
+          else heldLogout.resolve(response({ ok: true }));
+        }
+        await Promise.all([pending, logout]); await flush();
+        assert.equal(t.c.SWP.S.me, null); assert.equal(t.c.SWP.S.studio, null);
+        assert.equal(text(t.app), ''); assert.equal(t.app.children.length, 0);
+        assert.deepEqual(t.navigations, ['/']); assert.deepEqual(t.toasts, []);
+        const clear = t.mutations.findLastIndex(m => m.children === 0);
+        assert.ok(clear >= 0); assert.equal(clear, t.mutations.length - 1, 'no attached mutation after terminal clear');
+        assert.equal(t.calls.filter(([method, url]) => method === 'POST' && url === '/api/logout').length, 1);
+        const calls = t.calls.length;
+        await form.attrs.onsubmit({ preventDefault() {}, currentTarget: form });
+        assert.equal(t.calls.length, calls, 'leftover form handler cannot fetch');
+        assert.equal(t.mutations.length, clear + 1, 'leftover handler writes detached nodes only');
+      }));
+    }
+  }
+  for (const [identity, me] of [['active', active], ['suspended', paused]]) {
+    await check(identity + ' terminal API, dispatchers and leftover buttons cannot fetch or reattach old content', async () => {
+      const t = await boot(logoutOptions(me, { hash: me.paused_view ? '#/paused/reports' : '#/privacy', request: url => {
+        if (url.includes('/api/hub/reports?')) return response({ error: 'Unavailable' }, 503);
+        if (url === '/api/logout') return response({ ok: true });
+      } }));
+      const button = signOutButton(t);
+      const retry = nodes(t.app).find(n => n.tag === 'button' && text(n) === 'Try again');
+      await button.attrs.onclick(); assertSignedOut(t);
+      const calls = t.calls.length, mutations = t.mutations.length;
+      for (const [method, path] of [['GET', '/me'], ['GET', '/hub/notifications'], ['POST', '/studio/generate'], ['POST', '/logout']])
+        await assert.rejects(t.c.SWP.api(method, path), e => e.code === 'signed_out');
+      await button.attrs.onclick(); if (retry) await retry.attrs.onclick();
+      await t.c.SWP.load(); await t.c.SWP.render();
+      await assert.doesNotReject(async () => t.c.SWP.frame('Old identity', element('p', null, 'OLD PERSON')));
+      await t.navigate('#/paused/reports'); await t.navigate('#/welcome/old-invite'); await t.navigate('#/tools');
+      assertSignedOut(t); assert.equal(t.calls.length, calls); assert.equal(t.mutations.length, mutations);
+    });
+  }
+  for (const status of [200, 401, 503]) {
+    await check('late welcome response ' + status + ' cannot invoke either signed-out gate writer', () => withoutUnhandled(async () => {
+      const held = deferred();
+      const t = await boot(logoutOptions(active, { request: url => {
+        if (url === '/api/welcome/held') return held.promise;
+        if (url === '/api/logout') return response({ ok: true });
+      } }));
+      const button = signOutButton(t);
+      await t.navigate('#/welcome/held'); await button.attrs.onclick(); assertSignedOut(t);
+      const mutations = t.mutations.length, calls = t.calls.length;
+      held.resolve(response({ name: 'OLD PERSON', email: 'old@swangzavenue.com', error: 'Old response' }, status));
+      await flush(); await flush(); assertSignedOut(t);
+      assert.equal(t.mutations.length, mutations); assert.equal(t.calls.length, calls);
+    }));
+  }
+  for (const [identity, me] of [['active', active], ['suspended', paused]]) {
+    for (const read of ['reports', 'notifications']) {
+      await check(identity + ' logout 200 with held JSON suppresses prior ' + read + ' pause error before terminal cleanup', async () => {
+        const old = deferred(), logoutBody = deferred(); let armed = false;
+        const url = read === 'reports' ? '/api/hub/reports?limit=30&offset=0' : '/api/hub/notifications';
+        const t = await boot(logoutOptions(me, { request: path => {
+          if (armed && path === url) return old.promise;
+          if (path === '/api/logout') return { ok: true, status: 200, json: () => logoutBody.promise };
+        } }));
+        armed = true;
+        const pending = assert.rejects(t.c.SWP.api('GET', url.slice(4)), e => e.code === 'person_paused');
+        const logout = clickSignOut(t); await flush();
+        const calls = t.calls.length, writes = t.mutations.length, beforeMe = t.c.SWP.S.me;
+        old.resolve(response({ code: 'person_paused', error: 'Paused' }, 403)); await pending; await flush();
+        assert.equal(t.c.SWP.S.me, beforeMe); assert.equal(t.calls.length, calls, 'no /me refresh during held logout body');
+        assert.equal(t.mutations.length, writes); assert.deepEqual(t.navigations, []);
+        assert.equal(t.c.document.documentElement.style.display, undefined);
+        logoutBody.resolve({ ok: true }); await logout; assertSignedOut(t);
+      });
+    }
+    await check(identity + ' held logout 503 resets pending guard and later pause refusals behave normally', async () => {
+      const old = deferred(), logoutBody = deferred(); let armed = false, meCalls = 0, later = false;
+      const t = await boot(logoutOptions(me, { request: path => {
+        if (path === '/api/me') return response(++meCalls === 1 ? me : paused);
+        if (armed && path === '/api/hub/reports?limit=30&offset=0') return later ? response({ code: 'person_paused', error: 'Paused' }, 403) : old.promise;
+        if (path === '/api/logout') return { ok: false, status: 503, json: () => logoutBody.promise };
+      } }));
+      armed = true;
+      const pending = assert.rejects(t.c.SWP.api('GET', '/hub/reports?limit=30&offset=0'), e => e.code === 'person_paused');
+      const logout = clickSignOut(t); await flush();
+      const writes = t.mutations.length, beforeMe = t.c.SWP.S.me;
+      old.resolve(response({ code: 'person_paused', error: 'Paused' }, 403)); await pending;
+      assert.equal(meCalls, 1); assert.equal(t.mutations.length, writes);
+      logoutBody.resolve({ error: 'Unavailable' }); await logout;
+      assert.equal(t.c.SWP.S.me, beforeMe); assert.equal(t.c.document.documentElement.style.display, undefined);
+      assert.deepEqual(t.navigations, []); assert.equal(t.store.get('swangz-studio-purpose'), 'marketing');
+      assert.deepEqual(t.toasts, [["Couldn't sign out. Try again.", true]]);
+      later = true;
+      await assert.rejects(t.c.SWP.api('GET', '/hub/reports?limit=30&offset=0'), e => e.code === 'person_paused');
+      assert.equal(meCalls, me.paused_view ? 1 : 2, 'active refusal can refresh after failed logout');
+      assert.equal(t.c.SWP.S.me, paused);
+    });
+  }
+  await check('actual business project consumer, body toast and portal dialog stay hidden and network-blocked after logout', () => withoutUnhandled(async () => {
+    const consumer = deferred(); let accepted = false;
+    const project = { report_id: 7, position: 0, name: 'OLD PRIVATE PROJECT', description: 'OLD PRIVATE DESCRIPTION', tool_name: 'Fixture', department: 'QA', state: 'submitted' };
+    const data = { projects: [project], company: { drive_folder: '' } };
+    const t = await boot(logoutOptions(active, { request: path => {
+      if (path.startsWith('/api/hub/business?')) return response(data);
+      if (path === '/api/logout') return response({ ok: true });
+    } }));
+    const policy = nodes(t.app).find(n => n.tag === 'button' && text(n) === 'Read the usage policy');
+    assert.ok(policy); policy.attrs.onclick();
+    assert.equal(t.c.document.querySelectorAll('dialog[open]').length, 1, 'actual portal dialog opens before logout');
+    const existingDialog = t.dialogs.at(-1);
+    // Load complete unchanged source scripts. Only the native DOM APIs are fixture objects.
+    t.script('ui.js'); t.script('hub-ui.js');
+    const actualUI = t.c.SUI;
+    actualUI.toast('PREEXISTING PRIVATE TOAST');
+    const register = t.c.SWP.page, api = t.c.SWP.api, pages = [];
+    t.c.SWP.page = (rx, fn) => { pages.push([rx, fn]); register(rx, fn); };
+    // Force the accepted API-result/consumer gap while retaining the actual API wrapper and route consumer.
+    t.c.SWP.api = async (...args) => { const value = await api(...args); accepted = true; await consumer.promise; return value; };
+    t.script('business-ui.js'); t.c.SWP.api = api; t.c.SWP.page = register;
+    const projects = pages.find(([rx]) => rx.test('#/projects'))[1];
+    const pending = projects(new URLSearchParams('project=7:0')); await flush(); assert.ok(accepted);
+    const oldSheet = actualUI.el('aside', { class: 'hub-side-sheet' }, 'PREEXISTING PRIVATE SHEET');
+    const oldScrim = actualUI.el('div', { class: 'hub-sheet-scrim' });
+    t.body.append(oldSheet, oldScrim);
+    assert.equal(t.c.document.querySelectorAll('.toast').length, 1);
+    await clickSignOut(t); assertSignedOut(t);
+    assert.equal(existingDialog.isConnected, false); assert.equal(oldSheet.isConnected, false); assert.equal(oldScrim.isConnected, false);
+    assert.equal(t.c.document.querySelectorAll('dialog, .hub-side-sheet, .hub-sheet-scrim, .toast').length, 0, 'all preexisting overlays removed');
+    const calls = t.calls.length;
+    consumer.resolve(); await pending; await flush();
+    const sheets = t.c.document.querySelectorAll('.hub-side-sheet');
+    assert.equal(sheets.length, 1, 'actual late projectDetail/staffSheet body attachment exercised');
+    assert.match(text(sheets[0]), /OLD PRIVATE PROJECT/);
+    actualUI.toast('LATE PRIVATE TOAST');
+    assert.equal(t.c.document.querySelectorAll('.toast').length, 1, 'actual body-level toast exercised');
+    assert.doesNotThrow(() => policy.attrs.onclick());
+    const lateDialog = t.dialogs.at(-1);
+    assert.notEqual(lateDialog, existingDialog); assert.equal(lateDialog.parent, null); assert.ok(!lateDialog.open);
+    assert.doesNotThrow(() => lateDialog.close(), 'detached unopened dialog retains native close contract');
+    assert.equal(t.c.document.querySelectorAll('dialog[open]').length, 0);
+    assert.equal(t.c.document.documentElement.style.display, 'none'); assert.equal(t.calls.length, calls);
+    await assert.rejects(api('GET', '/me'), e => e.code === 'signed_out'); assert.equal(t.calls.length, calls);
+    assertSignedOut(t);
+  }));
   await check('Privacy notice states provider declarations with the approved static copy and no registry call', async () => {
     const active = { name: 'Ada', email: 'ada@swangzavenue.com', active: true, catalog: [], keys: [], privacy: {}, hub_unread: 0 };
     const t = await boot({ hash: '#/privacy', me: active, sui: { avatar: name => element('span', { class: 'avatar' }, name) },
