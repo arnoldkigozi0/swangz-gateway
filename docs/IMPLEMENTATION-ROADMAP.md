@@ -348,3 +348,35 @@ Prism builder then Probe independent browser QA then Sentinel delta review. Keep
 with actual read-only console audience; report factual issue to Sentinel instead of inventing copy.
 No production/provider/dependency/merge/deploy; inherited stack/logout/CI holds remain. Doc branch
 push remains permission-blocked, no retry or alternate transport.
+
+
+## Sentinel corrective threat note — inert profiles, 6 November 22:20
+
+Source: returned Sentinel read-only ruling on ee2cfbe0b2c89b5de89fbfb8709cf5bc909d2021/tree cad8f4d267a7dd05dc72e601ee63c420f5263fac. BLOCKED; Sentinel explicitly withdraws its earlier21:28 APPROVED. No tests run by Sentinel. Probe31tests2.020s OK exit0 remains real executed evidence, not security approval.
+
+Findings: F1 live-owner age takeover High (reproduced); F2 check/unlink lock replacement Medium (code-read); F3 Windows path-based junction deletion Medium (code-read, not reproduced/native untested). These severities supersede preliminary Probe Low classification. Assets: owned profile folders and outside files. Entry points: concurrent prepare/retire/cleanup and planted locks/links/junctions. Threats: overlapping mutation, lock replacement/denial of service, outside-root deletion. POSIX dir_fd/nofollow purge accepted unchanged. Liveness-only fix rejected.
+
+Bounded owner: Prism, new commit on feature/browser-profiles-inert ee2cfbe, only browser_profiles.py, test_browser_profiles.py, CLIENT.md. No production imports/callers/browser launch/policy/session/provider/dependencies or authority integration. Forge ownership contract remains separately gated.
+
+Required lock controls:
+- Persistent .lock, never unlinked/truncated/written. os.open O_RDWR|O_CREAT|O_NOFOLLOW mode0600, no O_EXCL. Post-open fstat regular, nlink1, POSIX uid and exact0600; lstat neither symlink/reparse and same inode. Close/refuse unsafe_link/type/hardlink/permissions on invalid object, never delete it. Keep fd noninheritable.
+- POSIX fcntl.flock LOCK_EX|LOCK_NB (not lockf). Windows seek0 then msvcrt.locking LK_NBLCK length1; exit seek0/LK_UNLCK/close. BlockingIOError or Windows EACCES/EDEADLOCK -> busy; other OSError or missing locking implementation -> lock_unavailable. All errors close fd before any mutation; finally unlock/close.
+- Remove ownerJSON/nonce/kill/reclaim loop and lock age use. STALE only for tmp cleanup. Reuse old JSON lock contents untouched, ignored.
+
+Windows fail-closed controls:
+- Module _WINDOWS flag patchable in tests. _purge raises unsupported_platform before listing, remove Windows path-based deletion branch. _retire refuses before rename. retire raises; retire_owner/all list all candidates skipped unsupported_platform and complete=False. _cleanup leaves tmp/retired entries untouched. Prepare/locking allowed; no native safety claim.
+- CLIENT.md: OS lock released on process exit; Windows prepare mock-only; retirement/purge refused until native handle-based design/Actions/new ruling. Retain 'ACL not verified by the app.' and 'Native Windows behavior: Not run: needs Actions'.
+
+Required regressions:
+1. Fork holder ages lock10000s, contender busy while held, succeeds after release; pipe enter/exit markers prove no overlap. Skip where no fork.
+2. SIGKILL holder releases lock immediately without age wait.
+3. Lock dev/inode unchanged through prepare/retire/all/contention/killed holder.
+4. Old JSON live/dead pid locks acquired unchanged, never removed.
+5. Unsafe symlink/outside target unchanged, directory, hardlink, POSIX0644 refused with exact error; no cleanup/retirement/deletion.
+6. Nested same-process lock busy.
+7. flock ENOLCK -> lock_unavailable, fd closed/no cleanup.
+8. Held fd noninheritable.
+9. Mock Windows seek/length1 nonblocking lock/unlock, PermissionError busy, retire no rename/byte changes, batch all skipped/incomplete, tmp/retired survive prepare, purge never lists.
+10. Rewrite obsolete stale-lock removal expectation; existing two-process/rest suite stays green. Meaningful F1 negative must fail on original code.
+
+Validation: targeted module and full discovery with exact counts/time/skips/exit/head/tree via approved runner or CI (Codex must not run port-dependent full suite). Probe delta QA then Sentinel exact-new-head final review. Native Windows Actions if available; otherwise explicit unavailable, never label mocks native. CI must cover Python3.10–3.12/macOS before support claims. Accept Low: advisory lock/same OS user trust, unsupported network filesystems, Windows crash-release busy and accumulated tmp folders while inert, ancestors outside data unchecked. No PR before verification/approval; no merge/deploy.
