@@ -12,7 +12,7 @@ const response = (data, status = 200) => ({ ok: status < 400, status, json: asyn
 const report = { id: 7, tool_name: '<img src=x onerror=alert(1)>', kind: 'weekly', state: 'returned',
   week_start: '2026-10-26', version: 1, currency: 'USD', reason: '<script>do not execute</script>', impact: 'Staff estimate' };
 function element(tag, attrs, ...children) {
-  const changed = (node, kind) => { while (node.parent) node = node.parent; if (node.observeMutation) node.observeMutation(kind); };
+  const changed = (node, kind) => { while (node) { if (node.observeMutation) node.observeMutation(kind); node = node.parent; } };
   const n = { tag, attrs: attrs || {}, children: [], disabled: false, style: {},
     append(...xs) { for (const x of xs.flat(Infinity).filter(x => x != null)) { if (typeof x === 'object') x.parent = this; this.children.push(x); } changed(this, 'append'); },
     prepend(...xs) { const old = this.children.slice(); this.replaceChildren(...xs, ...old); },
@@ -27,9 +27,14 @@ function element(tag, attrs, ...children) {
     removeAttribute(k) { delete this.attrs[k]; changed(this, 'attribute'); },
     remove() { this.removed = true; if (this.parent) { const p = this.parent; p.children = p.children.filter(c => c !== this); this.parent = null; changed(p, 'remove'); } },
     querySelectorAll(selector) { return nodes(this).slice(1).filter(child => matches(child, selector)); },
-    querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }, addEventListener() {} };
+    querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }, addEventListener() {}, removeEventListener() {} };
   Object.defineProperty(n, 'parent', { value: null, writable: true });
-  Object.defineProperty(n, 'isConnected', { get() { let root = this; while (root.parent) root = root.parent; return root.tag === 'app'; } });
+  Object.defineProperty(n, 'isConnected', { get() { let root = this; while (root.parent) root = root.parent; return root.tag === 'app' || root.tag === 'body'; } });
+  Object.defineProperty(n, 'className', { get() { return this.attrs.class || ''; }, set(value) { this.attrs.class = value; } });
+  if (tag === 'dialog') {
+    n.showModal = () => { n.open = true; n.attrs.open = true; };
+    n.close = () => { n.open = false; delete n.attrs.open; };
+  }
   Object.defineProperty(n, 'textContent', { get() { return text(this); }, set(value) { this.replaceChildren(String(value)); } });
   const classes = () => new Set((n.attrs.class || '').split(/\s+/).filter(Boolean));
   n.classList = { contains: c => classes().has(c),
@@ -45,21 +50,25 @@ const text = n => typeof n === 'object' ? n.children.map(text).join(' ') : Strin
 function matches(n, selector) {
   if (selector.startsWith('.')) return (n.attrs.class || '').split(/\s+/).includes(selector.slice(1));
   if (selector === '[role=tab]') return n.attrs.role === 'tab';
+  if (selector === 'dialog') return n.tag === 'dialog';
   return selector === 'dialog[open]' && n.tag === 'dialog' && n.attrs.open;
 }
 function deferred() { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; }
 
 async function boot({ hash = '#/', search = '', me = paused, request, sui = {}, storageThrows = false, studio = null } = {}) {
   const app = element('app'), calls = [], listeners = {}, keys = [], replacements = [], pushes = [], overlays = [];
+  const body = element('body', null, app), documentElement = element('html');
   const navigations = [], toasts = [], removed = [], store = new Map([['swangz-studio-purpose', 'marketing'], ['swangz-theme', 'light']]);
   // Track only mutations to the attached #app subtree; detached async handlers remain observable separately.
   const mutations = [];
+  const dialogs = [];
   Object.defineProperty(app, 'observeMutation', { value: kind => mutations.push({ kind, text: text(app), children: app.children.length }) });
   let guardCalls = 0;
   const c = { URLSearchParams, setTimeout: () => {},
     location: { hash, search, pathname: '/', replace(url) {
       assert.equal(c.SWP.S.me, null); assert.equal(c.SWP.S.studio, null);
       assert.equal(app.children.length, 0, 'attached app cleared before navigation');
+      assert.equal(documentElement.style.display, 'none', 'document hidden before navigation');
       assert.deepEqual(removed, ['swangz-studio-purpose']);
       navigations.push(url);
     } },
@@ -68,11 +77,12 @@ async function boot({ hash = '#/', search = '', me = paused, request, sui = {}, 
     history: {
       replaceState(_a, _b, url) { replacements.push(url); c.location.hash = url.slice(url.indexOf('#')); c.location.search = ''; },
       pushState(_a, _b, url) { pushes.push(url); c.location.hash = url; } },
-    document: { getElementById: id => id === 'app' ? app : nodes(app).find(n => n.attrs.id === id),
-      querySelectorAll: selector => overlays.filter(n => !n.removed && selector.split(',').some(s => matches(n, s.trim()))), querySelector: () => null,
-      addEventListener: (type, fn, capture) => { if (type === 'keydown') keys.push({ fn, capture }); }, activeElement: null },
+    document: { body, documentElement, getElementById: id => id === 'app' ? app : nodes(body).find(n => n.attrs.id === id),
+      querySelectorAll: selector => [...new Set([...overlays, ...nodes(body).slice(1)])].filter(n => !n.removed && selector.split(',').some(s => matches(n, s.trim()))), querySelector: () => null,
+      createElement: tag => element(tag), createElementNS: (_ns, tag) => element(tag), createTextNode: value => String(value), dispatchEvent() {},
+      addEventListener: (type, fn, capture) => { if (type === 'keydown') keys.push({ fn, capture }); }, removeEventListener() {}, activeElement: null },
     SUI: { ICONS: {}, el: (...args) => {
-      const n = element(...args); n.focus = () => { c.document.activeElement = n; }; return n;
+      const n = element(...args); if (n.tag === 'dialog') dialogs.push(n); n.focus = () => { c.document.activeElement = n; }; return n;
     }, icon: name => element('svg', { name }), fmt: { stamp: x => String(x) },
       themeButton: () => element('button', { 'aria-label': 'Theme' }), setGatewayOffset() {},
       avatar: name => element('span', { class: 'avatar' }, name), toast: (...args) => toasts.push(args), ...sui },
@@ -88,11 +98,14 @@ async function boot({ hash = '#/', search = '', me = paused, request, sui = {}, 
       if (url === '/api/hub/notifications') return response({ items: [{ title: '<b>Update</b>', href: 'javascript:alert(1)', created: 123 }] });
       if (url === '/auth/options') return response({ google: false });
       throw Error('Unexpected request: ' + method + ' ' + url);
-    }, addEventListener: (type, fn) => { listeners[type] = fn; }, scrollTo() {} };
+    }, addEventListener: (type, fn) => { listeners[type] = fn; }, removeEventListener() {}, requestAnimationFrame: () => {}, scrollTo() {},
+    CustomEvent: class { constructor(type, props) { this.type = type; this.detail = props.detail; } },
+    Node: class { static [Symbol.hasInstance](node) { return !!node && typeof node === 'object' && 'tag' in node; } } };
   c.window = c;
   vm.runInNewContext(source, c, { filename: 'gateway/static/portal.js' });
   await flush();
-  return { c, app, calls, overlays, replacements, pushes, navigations, toasts, removed, store, mutations, get guardCalls() { return guardCalls; },
+  return { c, app, body, dialogs, calls, overlays, replacements, pushes, navigations, toasts, removed, store, mutations, get guardCalls() { return guardCalls; },
+    script(name) { vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../gateway/static', name), 'utf8'), c, { filename: name }); },
     async navigate(hash) { c.location.hash = hash; await listeners.hashchange(); await flush(); },
     key(key, mods = {}) {
       const e = { key, ...mods, prevented: false, stopped: false, preventDefault() { this.prevented = true; }, stopImmediatePropagation() { this.stopped = true; } };
@@ -111,6 +124,7 @@ const logoutOptions = (me, extra = {}) => ({ me, hash: me.paused_view ? '#/pause
 function assertSignedOut(t) {
   assert.equal(t.c.SWP.S.me, null); assert.equal(t.c.SWP.S.studio, null);
   assert.equal(t.app.children.length, 0); assert.equal(text(t.app), '');
+  assert.equal(t.c.document.documentElement.style.display, 'none');
   assert.deepEqual(t.navigations, ['/']); assert.deepEqual(t.toasts, []);
   assert.deepEqual(t.calls.filter(([method, url]) => method === 'POST'), [['POST', '/api/logout']]);
   assert.deepEqual(t.removed, ['swangz-studio-purpose']); assert.equal(t.store.get('swangz-theme'), 'light');
@@ -360,7 +374,7 @@ module.exports = async function run() {
     });
   }
   for (const via of ['refreshPaused', 'load paused /me']) {
-    await check('held logout 200 remains authoritative across ' + via + ' generation change', async () => {
+    await check('held logout 200 remains authoritative with ' + (via === 'refreshPaused' ? 'automatic pause refresh suppressed' : 'load /me generation change'), async () => {
       const held = deferred(); let meCalls = 0;
       const t = await boot(logoutOptions(active, { request: url => {
         if (url === '/api/me') return response(++meCalls === 1 ? active : paused);
@@ -370,7 +384,8 @@ module.exports = async function run() {
       const logout = clickSignOut(t); await flush();
       if (via === 'refreshPaused') await assert.rejects(t.c.SWP.api('GET', '/pause-trigger'), e => e.code === 'person_paused');
       else await t.c.SWP.load();
-      assert.equal(t.c.SWP.S.me, paused);
+      assert.equal(t.c.SWP.S.me, via === 'refreshPaused' ? active : paused);
+      assert.equal(meCalls, via === 'refreshPaused' ? 1 : 2, 'pending logout suppresses automatic pause refresh only');
       held.resolve(response({ ok: true })); await logout; assertSignedOut(t);
     });
   }
@@ -531,6 +546,95 @@ module.exports = async function run() {
       assert.equal(t.mutations.length, mutations); assert.equal(t.calls.length, calls);
     }));
   }
+  for (const [identity, me] of [['active', active], ['suspended', paused]]) {
+    for (const read of ['reports', 'notifications']) {
+      await check(identity + ' logout 200 with held JSON suppresses prior ' + read + ' pause error before terminal cleanup', async () => {
+        const old = deferred(), logoutBody = deferred(); let armed = false;
+        const url = read === 'reports' ? '/api/hub/reports?limit=30&offset=0' : '/api/hub/notifications';
+        const t = await boot(logoutOptions(me, { request: path => {
+          if (armed && path === url) return old.promise;
+          if (path === '/api/logout') return { ok: true, status: 200, json: () => logoutBody.promise };
+        } }));
+        armed = true;
+        const pending = assert.rejects(t.c.SWP.api('GET', url.slice(4)), e => e.code === 'person_paused');
+        const logout = clickSignOut(t); await flush();
+        const calls = t.calls.length, writes = t.mutations.length, beforeMe = t.c.SWP.S.me;
+        old.resolve(response({ code: 'person_paused', error: 'Paused' }, 403)); await pending; await flush();
+        assert.equal(t.c.SWP.S.me, beforeMe); assert.equal(t.calls.length, calls, 'no /me refresh during held logout body');
+        assert.equal(t.mutations.length, writes); assert.deepEqual(t.navigations, []);
+        assert.equal(t.c.document.documentElement.style.display, undefined);
+        logoutBody.resolve({ ok: true }); await logout; assertSignedOut(t);
+      });
+    }
+    await check(identity + ' held logout 503 resets pending guard and later pause refusals behave normally', async () => {
+      const old = deferred(), logoutBody = deferred(); let armed = false, meCalls = 0, later = false;
+      const t = await boot(logoutOptions(me, { request: path => {
+        if (path === '/api/me') return response(++meCalls === 1 ? me : paused);
+        if (armed && path === '/api/hub/reports?limit=30&offset=0') return later ? response({ code: 'person_paused', error: 'Paused' }, 403) : old.promise;
+        if (path === '/api/logout') return { ok: false, status: 503, json: () => logoutBody.promise };
+      } }));
+      armed = true;
+      const pending = assert.rejects(t.c.SWP.api('GET', '/hub/reports?limit=30&offset=0'), e => e.code === 'person_paused');
+      const logout = clickSignOut(t); await flush();
+      const writes = t.mutations.length, beforeMe = t.c.SWP.S.me;
+      old.resolve(response({ code: 'person_paused', error: 'Paused' }, 403)); await pending;
+      assert.equal(meCalls, 1); assert.equal(t.mutations.length, writes);
+      logoutBody.resolve({ error: 'Unavailable' }); await logout;
+      assert.equal(t.c.SWP.S.me, beforeMe); assert.equal(t.c.document.documentElement.style.display, undefined);
+      assert.deepEqual(t.navigations, []); assert.equal(t.store.get('swangz-studio-purpose'), 'marketing');
+      assert.deepEqual(t.toasts, [["Couldn't sign out. Try again.", true]]);
+      later = true;
+      await assert.rejects(t.c.SWP.api('GET', '/hub/reports?limit=30&offset=0'), e => e.code === 'person_paused');
+      assert.equal(meCalls, me.paused_view ? 1 : 2, 'active refusal can refresh after failed logout');
+      assert.equal(t.c.SWP.S.me, paused);
+    });
+  }
+  await check('actual business project consumer, body toast and portal dialog stay hidden and network-blocked after logout', () => withoutUnhandled(async () => {
+    const consumer = deferred(); let accepted = false;
+    const project = { report_id: 7, position: 0, name: 'OLD PRIVATE PROJECT', description: 'OLD PRIVATE DESCRIPTION', tool_name: 'Fixture', department: 'QA', state: 'submitted' };
+    const data = { projects: [project], company: { drive_folder: '' } };
+    const t = await boot(logoutOptions(active, { request: path => {
+      if (path.startsWith('/api/hub/business?')) return response(data);
+      if (path === '/api/logout') return response({ ok: true });
+    } }));
+    const policy = nodes(t.app).find(n => n.tag === 'button' && text(n) === 'Read the usage policy');
+    assert.ok(policy); policy.attrs.onclick();
+    assert.equal(t.c.document.querySelectorAll('dialog[open]').length, 1, 'actual portal dialog opens before logout');
+    const existingDialog = t.dialogs.at(-1);
+    // Load complete unchanged source scripts. Only the native DOM APIs are fixture objects.
+    t.script('ui.js'); t.script('hub-ui.js');
+    const actualUI = t.c.SUI;
+    actualUI.toast('PREEXISTING PRIVATE TOAST');
+    const register = t.c.SWP.page, api = t.c.SWP.api, pages = [];
+    t.c.SWP.page = (rx, fn) => { pages.push([rx, fn]); register(rx, fn); };
+    // Force the accepted API-result/consumer gap while retaining the actual API wrapper and route consumer.
+    t.c.SWP.api = async (...args) => { const value = await api(...args); accepted = true; await consumer.promise; return value; };
+    t.script('business-ui.js'); t.c.SWP.api = api; t.c.SWP.page = register;
+    const projects = pages.find(([rx]) => rx.test('#/projects'))[1];
+    const pending = projects(new URLSearchParams('project=7:0')); await flush(); assert.ok(accepted);
+    const oldSheet = actualUI.el('aside', { class: 'hub-side-sheet' }, 'PREEXISTING PRIVATE SHEET');
+    const oldScrim = actualUI.el('div', { class: 'hub-sheet-scrim' });
+    t.body.append(oldSheet, oldScrim);
+    assert.equal(t.c.document.querySelectorAll('.toast').length, 1);
+    await clickSignOut(t); assertSignedOut(t);
+    assert.equal(existingDialog.isConnected, false); assert.equal(oldSheet.isConnected, false); assert.equal(oldScrim.isConnected, false);
+    assert.equal(t.c.document.querySelectorAll('dialog, .hub-side-sheet, .hub-sheet-scrim, .toast').length, 0, 'all preexisting overlays removed');
+    const calls = t.calls.length;
+    consumer.resolve(); await pending; await flush();
+    const sheets = t.c.document.querySelectorAll('.hub-side-sheet');
+    assert.equal(sheets.length, 1, 'actual late projectDetail/staffSheet body attachment exercised');
+    assert.match(text(sheets[0]), /OLD PRIVATE PROJECT/);
+    actualUI.toast('LATE PRIVATE TOAST');
+    assert.equal(t.c.document.querySelectorAll('.toast').length, 1, 'actual body-level toast exercised');
+    assert.doesNotThrow(() => policy.attrs.onclick());
+    const lateDialog = t.dialogs.at(-1);
+    assert.notEqual(lateDialog, existingDialog); assert.equal(lateDialog.parent, null); assert.ok(!lateDialog.open);
+    assert.doesNotThrow(() => lateDialog.close(), 'detached unopened dialog retains native close contract');
+    assert.equal(t.c.document.querySelectorAll('dialog[open]').length, 0);
+    assert.equal(t.c.document.documentElement.style.display, 'none'); assert.equal(t.calls.length, calls);
+    await assert.rejects(api('GET', '/me'), e => e.code === 'signed_out'); assert.equal(t.calls.length, calls);
+    assertSignedOut(t);
+  }));
   await check('Privacy notice states provider declarations with the approved static copy and no registry call', async () => {
     const active = { name: 'Ada', email: 'ada@swangzavenue.com', active: true, catalog: [], keys: [], privacy: {}, hub_unread: 0 };
     const t = await boot({ hash: '#/privacy', me: active, sui: { avatar: name => element('span', { class: 'avatar' }, name) },

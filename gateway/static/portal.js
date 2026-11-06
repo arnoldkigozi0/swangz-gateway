@@ -35,7 +35,7 @@
       if (method === "POST" && path === "/logout") throw new ApiError(res.status, "Couldn't confirm sign-out. Try again.");
     }
     if (!res.ok) {
-      if (!signedOut && generation === identityGeneration && data?.code === "person_paused" && path !== "/me") {
+      if (!signedOut && !signingOut && generation === identityGeneration && data?.code === "person_paused" && path !== "/me") {
         if (pausedRefresh) await pausedRefresh;
         else if (!isPaused()) await refreshPaused();
       }
@@ -76,6 +76,7 @@
   }
 
   function dialog(title, body, actions) {
+    if (signedOut) return el("dialog");
     const id = "d-" + Math.random().toString(36).slice(2, 7);
     const d = el("dialog", { "aria-labelledby": id }, el("div", { class: "d-body" }, el("h2", { id }, title), typeof body === "string" ? el("p", null, body) : body),
       el("div", { class: "d-actions" }, actions(() => d.close())));
@@ -1275,6 +1276,8 @@
     signedOut = true; identityGeneration++; loading++;
     S.me = null; S.studio = null;
     app.replaceChildren();
+    document.documentElement.style.display = "none";
+    document.querySelectorAll("dialog, .hub-side-sheet, .hub-sheet-scrim, .toast").forEach((n) => n.remove());
     try { localStorage.removeItem("swangz-studio-purpose"); } catch (e) { /* no storage */ }
     // Start a fresh page, so nothing the last person loaded (drafts, catalogue, Studio) stays in memory on a shared phone
     // or installed window, and the next sign-in runs the newest release.

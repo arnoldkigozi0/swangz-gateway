@@ -164,6 +164,7 @@ function runSignOut(apiResult) {
   const ctx = {
     signingOut: false, signedOut: false, identityGeneration: 4, loading: 7,
     app: { replaceChildren() { assert.equal(ctx.signedOut, true); assert.equal(ctx.identityGeneration, 5); assert.equal(ctx.loading, 8); assert.equal(ctx.S.me, null); assert.equal(ctx.S.studio, null); calls.cleared++; } },
+    document: { documentElement: { style: {} }, querySelectorAll: () => [] },
     S: { me: { email: "a@swangzavenue.com" }, studio: { items: [1] } },
     api: async (method, p) => { calls.api.push([method, p]); return apiResult(); },
     toast: (m, bad) => calls.toasts.push([m, !!bad]),
@@ -186,6 +187,7 @@ test("sign-out success ends the session, forgets the Studio purpose, then reload
   assert.equal(t.ctx.loading, 8);
   assert.equal(t.ctx.signedOut, true);
   assert.equal(t.calls.cleared, 1);
+  assert.equal(t.ctx.document.documentElement.style.display, 'none');
   assert.equal(t.store.has("swangz-studio-purpose"), false);
   assert.equal(t.store.get("swangz-theme"), "light", "theme preference kept");
 });
@@ -202,6 +204,7 @@ for (const [label, fail] of [["offline", { status: 0, message: "Swangz AI Hub ca
     assert.equal(t.ctx.loading, 7);
     assert.equal(t.ctx.signedOut, false);
     assert.equal(t.calls.cleared, 0);
+    assert.equal(t.ctx.document.documentElement.style.display, undefined);
     assert.equal(t.store.get("swangz-studio-purpose"), "marketing");
   });
 }
