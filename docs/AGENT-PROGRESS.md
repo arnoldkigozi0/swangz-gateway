@@ -1,6 +1,6 @@
 # Agent progress
 
-Last updated: 2026-11-07 01:35 EAT (restored model rules; ownership G2 and CI reconciliation starting). Coordination branch: `team/log`. Product baseline: main `ba82a2a`.
+Last updated: 2026-11-07 01:42 EAT (ownership G2 corrected; Forge implementation handoff). Coordination branch: `team/log`. Product baseline: main `ba82a2a`.
 
 | Task | Owner | Branch | Status | Next step |
 |---|---|---|---|---|
@@ -23,7 +23,8 @@ Last updated: 2026-11-07 01:35 EAT (restored model rules; ownership G2 and CI re
 | D-019 permanent registry decision record | Sentinel; Probe QA | docs/architecture-review b30ae91 (tree 3d498b9), pushed | verified | Probe VERIFIED; fast-forward push succeeded after Arnold explicitly requested unblocking. Remote publication hold cleared. |
 | Restored QA queue and CI reconciliation | Probe | existing feature refs (read-only) | verified | Probe found no outstanding agy-only checks; open PR heads unchanged, all four CI jobs green at 5 Nov 23:5x. #10 and #21 remain draft; #26 held for presentation correction. |
 | Amendment 01 managed Chrome inert slice | Prism; Probe QA; Sentinel review | `feature/browser-profiles-inert` 801d007 | PR #31 | Published at unchanged 801d007 under Arnold authorization; Probe VERIFIED + Sentinel APPROVED. Probe confirms all four Hub jobs SUCCESS run42296908412; native platform limits remain. No production integration. |
-| Browser personal ownership/lifecycle contract | Forge design; Sentinel G2 | read-only proposal | review | Sentinel bounded G2/threat note starting: resolve eligibility/global-pause/lifecycle and define smallest Forge task before implementation. Stable people/device IDs; declarations confer no seat authority. |
+| Browser personal ownership/lifecycle contract | Forge; Probe QA; Sentinel review | `feature/browser-contract-v1` from ec83d59 (PR12) | doing | Corrected G2 approved; Forge sole builder for negotiated manifest only. Probe exact-head QA then Sentinel review; stacked PR after gates, merge after PR12. |
+| Device authentication domain recheck finding | Forge after separate Sentinel threat note | pending | todo | Code-read finding on ec83d59; assess full identify/auth chain and reproduce first. No auth changes in browser contract slice; resolve before release. |
 | G8/G9 release evidence and independent approval | Probe, Sentinel; Chief consolidates | `team/log` | todo | Record actual output and unresolved risks; no merge/deploy without Arnold. |
 
 ## Baseline and audit evidence
@@ -755,3 +756,11 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 - Probe live GitHub reconciliation confirms PR31 open/non-draft, exact801d007/treebf7942f unchanged; all four Hub jobs SUCCESS run42296908412. Python3.10: Ran468 in349.7s OK(skipped=13); Python3.12: Ran468 in349.1s OK(skipped=13). App-window/browser passed. Native Windows/macOS remain untested; prior local workspace-agent noise remains unexplained. No suite rerun. No agy-only holds found; Probe owns any recovered QA.
 - Sentinel APPROVED WITH CONDITIONS negotiated personal browser manifest contract v1; read-only ruling, no tests/code changes. Chief found base mismatch before builder handoff: ruling says off main but requires device_key_auth and rotation behavior absent from main ba82a2a. Request Sentinel changed-point ruling on approved PR12 base ec83d59, or explicit bounded alternative, before Forge starts. No builder active.
 - Keep exact-head Probe verification, critical Sentinel final review, Chief PR, named Arnold merge gate. Chief coordination whitespace only; Python/browser Not run (no product edits).
+
+
+## Corrected G2 accepted and Forge handoff — 7 November 01:42 EAT
+
+- Sentinel corrected ruling after reading ec83d59: build feature/browser-contract-v1 from approved PR12 ec83d5951cc8592cbc453d997c2bf8c09ccb7bd1/tree2b13167, PR base feature/device-lifecycle-v22. Chief confirmed local ref and existing device_key_auth/rotation code. Do not merge before PR12; if its base changes, fresh branch/carry commits, no force-push/shared rebase. Other scope/conditions unchanged.
+- Invalid-email contract negative: enrol allowed synthetic identity then mutate email in test DB; expect unchanged existing auth/manifest behavior and profiles:[] under negotiated block. This is not authorization to widen account access. Sentinel reports absent explicit email_allowed check in device_key_auth; Chief read confirms absence there, but has not reproduced full identify/auth-chain bypass. Separate critical triage queued; do not fix authentication in manifest slice.
+- Forge sole builder now dispatched with full G2 conditions; preserve root untracked paused-view evidence, use isolated worktree under team clone. At 02:00 clean-point stop; unfinished work committed/pushed WIP with actual checks/unavailable reasons and exact next step. No new tests/work during rest. Probe verification and Sentinel final review still pending on finished artifact; no PR or completion claim for manifest yet.
+- Coordination-only whitespace check; Python/browser Not run by Chief. No product edits/main merge/deploy.
