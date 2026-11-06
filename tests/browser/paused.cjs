@@ -283,10 +283,10 @@ module.exports = async function run() {
       assert.ok(!all.some(n => n.children.includes(old)), 'superseded copy gone: ' + old.slice(0, 40));
     const who = section('who');
     assert.ok(leaf(who, 'p', 'Swangz AI Hub shows the details of a personal subscription you record only to you. For a seat on the company plan, control-room users who manage tools or spending see its tool, status, dates, holder, payer and label; those who manage tools also see its plan, quota and period end, and those who manage spending see its price and credit. Whenever you add a subscription record, add a value to it or end it, the audit log notes your name, the change, the time, your network address and a record number. Everyone with control-room access, including read-only users, can see that entry. It never includes the tool, plan, price or anything else you entered.'));
-    more(who, 'From that entry, control-room users who manage tools or spending can tell whether the change was to a personal subscription or a company seat, but not which tool. As with every record here, the people who run the Swangz server and its backups can reach the stored data.');
+    more(who, "From that entry, control-room users who manage tools or spending can tell whether the change was to a personal subscription or a company seat; for a personal subscription, they still can't see which tool. As with every record here, the people who run the Swangz server and its backups can reach the stored data.");
     assert.ok(leaf(section('kept'), 'p', 'Subscription records and their values are kept even after you end them. Audit log entries are kept for at least a year.'));
     const page = text(t.app);
-    for (const phrase of ['renewal date', 'kept as you entered it', 'add, update or end', 'Any administrator can see that entry', 'kept, even after'])
+    for (const phrase of ['renewal date', 'kept as you entered it', 'add, update or end', 'Any administrator can see that entry', 'kept, even after', 'but not which tool'])
       assert.ok(!page.includes(phrase), 'page excludes: ' + phrase);
     assert.ok(nodes(section('recorded')).some(n => n.tag === 'svg' && n.attrs.name === 'wallet'), 'wallet icon on the subscriptions item');
     const whoMore = nodes(who).filter(n => n.tag === 'details');
