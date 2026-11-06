@@ -322,3 +322,29 @@ paths must remain identical; preserve FK/data retention. No runtime fix. V2 repl
 existence channel and no person/route/count/time. D-019 later records audit wording/holder-only/
 residual; staff Privacy notice requires general named-change audit disclosure, not this residual.
 Privacy release notice and stack/logout holds unchanged; no merge/deploy/production authorized.
+
+
+## Privacy notice implementation gate — Sentinel, 6 November 05:06
+
+D019 corrected local97531fe/tree773d7f0, independent doc review pending. Tool-delete409 acceptedLow
+on corrected rationale (refusals unaudited; govern-only, empty-tool probe deletes/audits, builtins denied;
+auditing refusals could broaden tool existence disclosure). Backend92c97aa approval remains.
+Privacy notice must accompany registry API reachability in same release. Static unconditional text
+in existing pagePrivacy only; feature/provider-privacy-notice from92c97aa, stacked onPR28. No new
+form/endpoint/registry network request/CSP or auth change. el()/textContent only. Exact approved copy:
+
+What is recorded item title: Subscriptions you tell us about
+Text: If you record an AI subscription you hold, Swangz AI Hub keeps what you enter: the tool, whether it's personal or a seat on the company plan, and any plan, quota, renewal date or price you add. It's your own declaration. Nobody checks it with the provider, and it doesn't change which tools you can use.
+More: You can end a record but not delete it, and each value you add is kept as you entered it.
+What is not recorded, Your personal accounts replacement: Only your access through Swangz AI Hub is recorded, plus any subscription you choose to record yourself.
+Who can see it paragraph: Details of a personal subscription are shown only to you in Swangz AI Hub. For a seat on the company plan, administrators who manage tools also see its plan and quota, and those who manage spending see its price and credit. Whenever you add, update or end a subscription record, the audit log notes your name, the change, the time, your network address and a record number. Any administrator can see that entry, but it never includes the tool, plan, price or anything else you entered.
+More: As with every record here, the people who run the Swangz server and its backups can reach the stored data.
+How long it's kept: Subscription records and their values are kept even after you end them. Audit log entries are kept for at least a year.
+
+Retention365 verified by Sentinel. Browser acceptance fixture-only: exact text visible via disclosure
+controls desktop/mobile light/dark, no old unqualified only-access-recorded sentence, no console errors,
+unchanged CSP/six-section index/rest of page; no registry API calls. No future save-button form added.
+Prism builder then Probe independent browser QA then Sentinel delta review. Keep language aligned
+with actual read-only console audience; report factual issue to Sentinel instead of inventing copy.
+No production/provider/dependency/merge/deploy; inherited stack/logout/CI holds remain. Doc branch
+push remains permission-blocked, no retry or alternate transport.
