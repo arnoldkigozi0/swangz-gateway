@@ -12,30 +12,59 @@ const response = (data, status = 200) => ({ ok: status < 400, status, json: asyn
 const report = { id: 7, tool_name: '<img src=x onerror=alert(1)>', kind: 'weekly', state: 'returned',
   week_start: '2026-10-26', version: 1, currency: 'USD', reason: '<script>do not execute</script>', impact: 'Staff estimate' };
 function element(tag, attrs, ...children) {
-  return { tag, attrs: attrs || {}, children: children.flat(Infinity).filter(x => x != null), disabled: false,
-    append(...xs) { this.children.push(...xs.flat(Infinity).filter(x => x != null)); },
-    replaceChildren(...xs) { this.children = xs.flat(Infinity).filter(x => x != null); },
-    replaceWith() {}, focus() {}, setAttribute(k, v) { this.attrs[k] = v; }, remove() { this.removed = true; }, addEventListener() {} };
+  const changed = (node, kind) => { while (node.parent) node = node.parent; if (node.observeMutation) node.observeMutation(kind); };
+  const n = { tag, attrs: attrs || {}, children: [], disabled: false, style: {},
+    append(...xs) { for (const x of xs.flat(Infinity).filter(x => x != null)) { if (typeof x === 'object') x.parent = this; this.children.push(x); } changed(this, 'append'); },
+    prepend(...xs) { const old = this.children.slice(); this.replaceChildren(...xs, ...old); },
+    replaceChildren(...xs) {
+      for (const child of this.children) if (typeof child === 'object') child.parent = null;
+      this.children = [];
+      for (const x of xs.flat(Infinity).filter(x => x != null)) { if (typeof x === 'object') x.parent = this; this.children.push(x); }
+      changed(this, 'replaceChildren');
+    },
+    replaceWith() {}, focus() {},
+    setAttribute(k, v) { this.attrs[k] = v; changed(this, 'attribute'); },
+    removeAttribute(k) { delete this.attrs[k]; changed(this, 'attribute'); },
+    remove() { this.removed = true; if (this.parent) { const p = this.parent; p.children = p.children.filter(c => c !== this); this.parent = null; changed(p, 'remove'); } },
+    querySelectorAll(selector) { return nodes(this).slice(1).filter(child => matches(child, selector)); },
+    querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }, addEventListener() {} };
+  Object.defineProperty(n, 'parent', { value: null, writable: true });
+  Object.defineProperty(n, 'isConnected', { get() { let root = this; while (root.parent) root = root.parent; return root.tag === 'app'; } });
+  Object.defineProperty(n, 'textContent', { get() { return text(this); }, set(value) { this.replaceChildren(String(value)); } });
+  const classes = () => new Set((n.attrs.class || '').split(/\s+/).filter(Boolean));
+  n.classList = { contains: c => classes().has(c),
+    add(c) { n.attrs.class = [...classes().add(c)].join(' '); changed(n, 'attribute'); },
+    remove(c) { const cs = classes(); cs.delete(c); n.attrs.class = [...cs].join(' '); changed(n, 'attribute'); },
+    toggle(c, on) { if (on === undefined) on = !classes().has(c); this[on ? 'add' : 'remove'](c); } };
+  n.dataset = Object.fromEntries(Object.entries(n.attrs).filter(([k]) => k.startsWith('data-')).map(([k, v]) => [k.slice(5), v]));
+  n.append(...children);
+  return n;
 }
 const nodes = n => typeof n === 'object' ? [n, ...n.children.flatMap(nodes)] : [];
 const text = n => typeof n === 'object' ? n.children.map(text).join(' ') : String(n);
 function matches(n, selector) {
   if (selector.startsWith('.')) return (n.attrs.class || '').split(/\s+/).includes(selector.slice(1));
+  if (selector === '[role=tab]') return n.attrs.role === 'tab';
   return selector === 'dialog[open]' && n.tag === 'dialog' && n.attrs.open;
 }
 function deferred() { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; }
 
-async function boot({ hash = '#/', search = '', me = paused, request, sui = {}, storageThrows = false } = {}) {
+async function boot({ hash = '#/', search = '', me = paused, request, sui = {}, storageThrows = false, studio = null } = {}) {
   const app = element('app'), calls = [], listeners = {}, keys = [], replacements = [], pushes = [], overlays = [];
   const navigations = [], toasts = [], removed = [], store = new Map([['swangz-studio-purpose', 'marketing'], ['swangz-theme', 'light']]);
+  // Track only mutations to the attached #app subtree; detached async handlers remain observable separately.
+  const mutations = [];
+  Object.defineProperty(app, 'observeMutation', { value: kind => mutations.push({ kind, text: text(app), children: app.children.length }) });
   let guardCalls = 0;
   const c = { URLSearchParams, setTimeout: () => {},
     location: { hash, search, pathname: '/', replace(url) {
       assert.equal(c.SWP.S.me, null); assert.equal(c.SWP.S.studio, null);
+      assert.equal(app.children.length, 0, 'attached app cleared before navigation');
       assert.deepEqual(removed, ['swangz-studio-purpose']);
       navigations.push(url);
     } },
-    localStorage: { removeItem(key) { removed.push(key); if (storageThrows) throw Error('Storage unavailable'); store.delete(key); } },
+    localStorage: { getItem: key => store.get(key) || null, setItem: (key, value) => store.set(key, value),
+      removeItem(key) { removed.push(key); if (storageThrows) throw Error('Storage unavailable'); store.delete(key); } },
     history: {
       replaceState(_a, _b, url) { replacements.push(url); c.location.hash = url.slice(url.indexOf('#')); c.location.search = ''; },
       pushState(_a, _b, url) { pushes.push(url); c.location.hash = url; } },
@@ -53,7 +82,7 @@ async function boot({ hash = '#/', search = '', me = paused, request, sui = {}, 
       const custom = request && await request(url, method);
       if (custom) return custom;
       if (url === '/api/me') return response(me);
-      if (url === '/api/studio') return response(null);
+      if (url === '/api/studio') return response(studio);
       if (url === '/api/hub/reports?limit=30&offset=0') return response({ items: [report], total: 1 });
       if (url === '/api/hub/reports/7') return response(report);
       if (url === '/api/hub/notifications') return response({ items: [{ title: '<b>Update</b>', href: 'javascript:alert(1)', created: 123 }] });
@@ -63,7 +92,7 @@ async function boot({ hash = '#/', search = '', me = paused, request, sui = {}, 
   c.window = c;
   vm.runInNewContext(source, c, { filename: 'gateway/static/portal.js' });
   await flush();
-  return { c, app, calls, overlays, replacements, pushes, navigations, toasts, removed, store, get guardCalls() { return guardCalls; },
+  return { c, app, calls, overlays, replacements, pushes, navigations, toasts, removed, store, mutations, get guardCalls() { return guardCalls; },
     async navigate(hash) { c.location.hash = hash; await listeners.hashchange(); await flush(); },
     key(key, mods = {}) {
       const e = { key, ...mods, prevented: false, stopped: false, preventDefault() { this.prevented = true; }, stopImmediatePropagation() { this.stopped = true; } };
@@ -81,9 +110,16 @@ const clickSignOut = t => signOutButton(t).attrs.onclick();
 const logoutOptions = (me, extra = {}) => ({ me, hash: me.paused_view ? '#/paused/updates' : '#/privacy', ...extra });
 function assertSignedOut(t) {
   assert.equal(t.c.SWP.S.me, null); assert.equal(t.c.SWP.S.studio, null);
+  assert.equal(t.app.children.length, 0); assert.equal(text(t.app), '');
   assert.deepEqual(t.navigations, ['/']); assert.deepEqual(t.toasts, []);
   assert.deepEqual(t.calls.filter(([method, url]) => method === 'POST'), [['POST', '/api/logout']]);
   assert.deepEqual(t.removed, ['swangz-studio-purpose']); assert.equal(t.store.get('swangz-theme'), 'light');
+}
+async function withoutUnhandled(fn) {
+  const errors = [], collect = error => errors.push(error);
+  process.on('unhandledRejection', collect);
+  try { await fn(); await flush(); assert.deepEqual(errors, [], 'no unhandled rejection'); }
+  finally { process.removeListener('unhandledRejection', collect); }
 }
 
 module.exports = async function run() {
@@ -254,9 +290,10 @@ module.exports = async function run() {
     } });
     t.c.SWP.S.me = { catalog: [], keys: [] };
     const a = t.c.SWP.api('GET', '/a'), b = t.c.SWP.api('GET', '/b');
+    const settled = Promise.allSettled([a, b]);
     await flush(); assert.equal(meCalls, 2);
     refreshed.resolve(response(paused));
-    const result = await Promise.allSettled([a, b]);
+    const result = await settled;
     assert.ok(result.every(r => r.status === 'rejected' && r.reason.code === 'person_paused'));
     assert.equal(meCalls, 2); assert.equal(t.c.SWP.S.me, paused);
   });
@@ -282,10 +319,10 @@ module.exports = async function run() {
     await check(identity + ' button success clears state and purpose before exactly one clean-page navigation', async () => {
       const t = await boot(logoutOptions(me, { request: url => url === '/api/logout' ? response({ ok: true }) : undefined }));
       if (!me.paused_view) t.c.SWP.S.studio = { private: 'old Studio' };
-      const dom = JSON.stringify(t.app), focus = t.c.document.activeElement;
+      const before = t.mutations.length;
       await clickSignOut(t);
       assertSignedOut(t); assert.equal(t.store.has('swangz-studio-purpose'), false);
-      assert.equal(JSON.stringify(t.app), dom, 'no DOM rendering after success'); assert.equal(t.c.document.activeElement, focus);
+      assert.deepEqual(t.mutations.slice(before), [{ kind: 'replaceChildren', text: '', children: 0 }], 'one terminal app clear');
     });
     for (const [failure, result] of [
       ['rejected fetch', () => { throw Error('Offline'); }],
@@ -401,6 +438,99 @@ module.exports = async function run() {
       await assert.rejects(t.c.SWP.api('POST', path, {}), e => e.code === 'person_paused');
     assert.equal(t.calls.length, before);
   });
+  for (const [identity, me] of [['active', active], ['suspended', paused]]) {
+    for (const read of ['reports', 'notifications']) {
+      await check(identity + ' late 403 person_paused from ' + read + ' cannot refresh, fetch or mutate the cleared app', async () => {
+        const held = deferred(); let armed = false;
+        const url = read === 'reports' ? '/api/hub/reports?limit=30&offset=0' : '/api/hub/notifications';
+        const t = await boot(logoutOptions(me, { request: path => {
+          if (armed && path === url) return held.promise;
+          if (path === '/api/logout') return response({ ok: true });
+        } }));
+        armed = true;
+        const pending = me.paused_view ? t.navigate(read === 'reports' ? '#/paused/reports' : '#/paused/updates')
+          : assert.rejects(t.c.SWP.api('GET', url.slice(4)), e => e.code === 'person_paused');
+        await flush(); await clickSignOut(t); assertSignedOut(t);
+        const calls = t.calls.length, mutations = t.mutations.length;
+        held.resolve(response({ code: 'person_paused', error: 'Paused' }, 403));
+        await pending; await flush(); assertSignedOut(t);
+        assert.equal(t.calls.length, calls, 'no identity refresh or follow-up fetch');
+        assert.equal(t.mutations.length, mutations, 'no attached subtree mutation after clear');
+      });
+    }
+  }
+  const studio = { image: true, purposes: [], recent: [] };
+  for (const endpoint of ['POST /studio/generate', 'GET /studio in load']) {
+    for (const order of [['studio', 'logout'], ['logout', 'studio']]) {
+      await check(endpoint + ' and logout resolve in one task (' + order.join(' then ') + ') without resurrection', () => withoutUnhandled(async () => {
+        const heldStudio = deferred(), heldLogout = deferred(); let armed = false;
+        const target = endpoint.startsWith('POST') ? '/api/studio/generate' : '/api/studio';
+        const t = await boot({ hash: '#/studio?view=create', me: active, studio,
+          sui: { fmt: { stamp: x => String(x), ago: () => 'Just now' } }, request: url => {
+            if (url === '/api/logout') return heldLogout.promise;
+            if (armed && url === target) return heldStudio.promise;
+          } });
+        assert.match(text(t.app), /Studio/);
+        armed = true;
+        const form = nodes(t.app).find(n => n.tag === 'form' && n.attrs.class === 'studio-form');
+        assert.ok(form, 'actual Studio form');
+        nodes(form).find(n => n.tag === 'textarea').value = 'OLD PERSON PROMPT';
+        const pending = endpoint.startsWith('POST') ? form.attrs.onsubmit({ preventDefault() {}, currentTarget: form }) : t.c.SWP.load();
+        await flush(); const logout = clickSignOut(t); await flush();
+        const made = { id: 99, type: 'image', outcome: 'ok', urls: ['https://fixture.invalid/old-person.png'], prompt: 'OLD PERSON', ts: 123 };
+        // No await between resolves: both response orders run in the same JavaScript task.
+        for (const name of order) {
+          if (name === 'studio') heldStudio.resolve(response(endpoint.startsWith('POST') ? made : studio));
+          else heldLogout.resolve(response({ ok: true }));
+        }
+        await Promise.all([pending, logout]); await flush();
+        assert.equal(t.c.SWP.S.me, null); assert.equal(t.c.SWP.S.studio, null);
+        assert.equal(text(t.app), ''); assert.equal(t.app.children.length, 0);
+        assert.deepEqual(t.navigations, ['/']); assert.deepEqual(t.toasts, []);
+        const clear = t.mutations.findLastIndex(m => m.children === 0);
+        assert.ok(clear >= 0); assert.equal(clear, t.mutations.length - 1, 'no attached mutation after terminal clear');
+        assert.equal(t.calls.filter(([method, url]) => method === 'POST' && url === '/api/logout').length, 1);
+        const calls = t.calls.length;
+        await form.attrs.onsubmit({ preventDefault() {}, currentTarget: form });
+        assert.equal(t.calls.length, calls, 'leftover form handler cannot fetch');
+        assert.equal(t.mutations.length, clear + 1, 'leftover handler writes detached nodes only');
+      }));
+    }
+  }
+  for (const [identity, me] of [['active', active], ['suspended', paused]]) {
+    await check(identity + ' terminal API, dispatchers and leftover buttons cannot fetch or reattach old content', async () => {
+      const t = await boot(logoutOptions(me, { hash: me.paused_view ? '#/paused/reports' : '#/privacy', request: url => {
+        if (url.includes('/api/hub/reports?')) return response({ error: 'Unavailable' }, 503);
+        if (url === '/api/logout') return response({ ok: true });
+      } }));
+      const button = signOutButton(t);
+      const retry = nodes(t.app).find(n => n.tag === 'button' && text(n) === 'Try again');
+      await button.attrs.onclick(); assertSignedOut(t);
+      const calls = t.calls.length, mutations = t.mutations.length;
+      for (const [method, path] of [['GET', '/me'], ['GET', '/hub/notifications'], ['POST', '/studio/generate'], ['POST', '/logout']])
+        await assert.rejects(t.c.SWP.api(method, path), e => e.code === 'signed_out');
+      await button.attrs.onclick(); if (retry) await retry.attrs.onclick();
+      await t.c.SWP.load(); await t.c.SWP.render();
+      await assert.doesNotReject(async () => t.c.SWP.frame('Old identity', element('p', null, 'OLD PERSON')));
+      await t.navigate('#/paused/reports'); await t.navigate('#/welcome/old-invite'); await t.navigate('#/tools');
+      assertSignedOut(t); assert.equal(t.calls.length, calls); assert.equal(t.mutations.length, mutations);
+    });
+  }
+  for (const status of [200, 401, 503]) {
+    await check('late welcome response ' + status + ' cannot invoke either signed-out gate writer', () => withoutUnhandled(async () => {
+      const held = deferred();
+      const t = await boot(logoutOptions(active, { request: url => {
+        if (url === '/api/welcome/held') return held.promise;
+        if (url === '/api/logout') return response({ ok: true });
+      } }));
+      const button = signOutButton(t);
+      await t.navigate('#/welcome/held'); await button.attrs.onclick(); assertSignedOut(t);
+      const mutations = t.mutations.length, calls = t.calls.length;
+      held.resolve(response({ name: 'OLD PERSON', email: 'old@swangzavenue.com', error: 'Old response' }, status));
+      await flush(); await flush(); assertSignedOut(t);
+      assert.equal(t.mutations.length, mutations); assert.equal(t.calls.length, calls);
+    }));
+  }
   await check('Privacy notice states provider declarations with the approved static copy and no registry call', async () => {
     const active = { name: 'Ada', email: 'ada@swangzavenue.com', active: true, catalog: [], keys: [], privacy: {}, hub_unread: 0 };
     const t = await boot({ hash: '#/privacy', me: active, sui: { avatar: name => element('span', { class: 'avatar' }, name) },
