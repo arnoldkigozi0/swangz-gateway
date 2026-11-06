@@ -1,6 +1,6 @@
 # Agent progress
 
-Last updated: 2026-11-06 07:16 (heartbeat). Coordination branch: `team/log`. Product baseline: main
+Last updated: 2026-11-06 07:23 (integration plan). Coordination branch: `team/log`. Product baseline: main
 `ba82a2ad0c1516db9877263e9cac6eb01825618a`.
 
 | Task | Owner | Branch | Status | Next step |
@@ -581,3 +581,9 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 - Git log reviewed for the last three hours; latest coordination fa6ec5c, D019 b30ae91, registry18217ce and notice9354a25 unchanged. GitHub PR9–29 heads refreshed: all reported checks SUCCESS or external NEUTRAL; no failing/pending checks. Initial sandbox GitHub connection failed; authorized network refresh succeeded. Existing verified/approved work awaits named merge approval; no duplicate QA assigned.
 - Stalled stack/logout integration restarted: Prism accepted read-only composition planning for #24/#25 into paused-view #27 and descendants #28/#29 (delegation850b034a-8445-4c60-af0c-ccd05660faae). Next: exact proposed branch/base/order, signOut overlap, smallest edits and targeted checks; Chief routes critical delta to Sentinel before a builder starts. No active code writer; waiting on Prism plan. D019 local verified, remote push permission block unchanged; no retry. Other product/signing decisions remain with Arnold.
 - Chief changed coordination text only; whitespace check required before commit. Not run: Python/browser tests (no product changes; existing CI reused). Root untracked progress/screenshots preserved. No main merge, deployment or production access.
+
+## Logout composition plan — 6 November 07:23
+
+- Prism completed read-only planning: proposed feature/paused-logout-integration from9354a25, normal merge94b6cd4 (includes5570e26), fixed existing refs and new PR against29. Only intersecting path portal.js; no trial merge, conflicts not yet proven absent. Proposed paused Sign out tests exercise real API wrapper; existing pwa.cjs tests only isolated logout body. No files/refs/fixtures changed or tests run by planner.
+- Prism identified successful logout/identityGeneration race; Chief confirms generation guard and logout allowlist in9354a25. Sentinel assigned bounded read-only pre-implementation ruling on branch strategy (prior note required24/25main), narrow success exception, preserved stale-response guards and required race/negative checks. No builder authorized; waiting on Sentinel. Then Prism builder, Probe QA, Sentinel final review and exact-head CI. Existing D019 push/mainmerge/deployment holds unchanged.
+- Chief coordination-only whitespace check; Not run: Python/browser tests (planning only). No product changes or production access.
