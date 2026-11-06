@@ -1,6 +1,6 @@
 # Agent progress
 
-Last updated: 2026-11-06 08:00 (corrected artifact). Coordination branch: `team/log`. Product baseline: main
+Last updated: 2026-11-06 08:09 (QA and residual review). Coordination branch: `team/log`. Product baseline: main
 `ba82a2ad0c1516db9877263e9cac6eb01825618a`.
 
 | Task | Owner | Branch | Status | Next step |
@@ -20,7 +20,7 @@ Last updated: 2026-11-06 08:00 (corrected artifact). Coordination branch: `team/
 | Paused-screen visual check (G5 part 2) | Prism | `feature/paused-view-check` from b0d7c99 | PR | Draft #27 on #26, 4aaccf8/tree 87b8862: Probe VERIFIED, Sentinel APPROVED. Hold for #24/#25 logout integration, renewed review/tests and CI. |
 | Amendment 01 manual provider registry | Forge; Probe QA; Sentinel review | feature/provider-registry 18217ce (tree 06e9940) | PR #28 | Probe VERIFIED + Sentinel APPROVED18217ce; all4 CI SUCCESS. D019 verified locally, push blocked; stack/logout holds remain. |
 | Provider declaration Privacy notice | Prism; Probe QA; Sentinel review | feature/provider-privacy-notice 9354a25 (tree 609c206) | PR #29 | Probe VERIFIED + Sentinel APPROVED9354a25; all4 CI SUCCESS. D019 remote push and stack/logout holds remain. |
-| Paused/logout composition | Prism; Probe QA; Sentinel review | feature/paused-logout-integration 6416eca (treee0b19a7) | review | Terminal correction pushed; Probe deltaQA next, then Sentinel finalreview and Chief PR. |
+| Paused/logout composition | Prism; Probe QA; Sentinel review | feature/paused-logout-integration 6416eca (treee0b19a7) | review | Probe VERIFIED stated requirements6416eca; Sentinel finalreview incl cross-file residual ruling pending; PR held. |
 | D-019 permanent registry decision record | Sentinel; Probe QA | docs/architecture-review b30ae91 (tree 3d498b9), LOCAL only | verified | Probe VERIFIED; remote remains bf8ebfc after blocked push. Arnold push or explicit permission resolution required; no retry. |
 | Restored QA queue and CI reconciliation | Probe | existing feature refs (read-only) | verified | Probe found no outstanding agy-only checks; open PR heads unchanged, all four CI jobs green at 5 Nov 23:5x. #10 and #21 remain draft; #26 held for presentation correction. |
 | G8/G9 release evidence and independent approval | Probe, Sentinel; Chief consolidates | `team/log` | todo | Record actual output and unresolved risks; no merge/deploy without Arnold. |
@@ -615,3 +615,9 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 
 - Prism pushed6416ecad8fc7402da5123f404e7f9aaa38ccbded/treee0b19a7ec9e9ff84c41b5cf68c9fa8f6da5a4c0c on8462c6b. Chief confirms metadata, three-file169+/20- delta and cleanwhitespace. Commit records seven rootwriter sites plus terminal entry guards. Builder reports73paused/11PWA/syntax25 pass,10negativecontrols reject, testedbytesmatchcommit, cleanworktree/existingrefs/merge2324809 preserved and stopped.
 - Evidence /tmp/prism-logout-terminal-evidence.json; realbrowser/MutationObserver/phones/Python/newCI Notrun, Studioordering Nodefixtures only. Probe exacthead deltaQA and realbrowserlate403 active/suspended1280/390 next; previous composition evidence reused. No VERIFIED/APPROVED onnewhead yet, then Sentinel finalreview/ChiefPRagainst29. Prior8462c6b rejection remains historical. Chief coordination-only testsNotrun; D019push/mergeorder/deployholds unchanged.
+
+## Terminal logout QA and residuals — 6 November 08:09
+
+- Probe VERIFIED stated terminal requirements at6416eca/treee0b19a7, independent exacthead73paused/11PWA/syntax25 pass; fixture servedidenticalbytes, cleanbefore/after. Unchangedmerge2324809 proof reused. Scratchnegatives3of4fail; removingonlypause-errorguard passes due redundantrefreshentryguard, disclosed. Realbrowser active/suspended1280/390 actualbutton, heldreports+notifications403 afterterminalclear: no subsequentappwrites/fetch, signin/purposeremoved/cookie401. Width390desktop popup only. Fixtures/worktree/scratch stopped/removed, source/refs/rootartifacts untouched.
+- Residual review required BEFOREPR: beforeterminalflag, late403 canrefreshpaused~40ms/GETme401 (browserreproduced; unreadablelogoutbody mustremainfailure). Cross-file consumerescape: business-ui projects/staffSheet appends privateprojectdetails tobody after guardedframe returns; portal-hub completion canassignme afterawait; hub-ui toastbody append. Probe code-read, samevendorGPT Nodereproduction, notProbe browserreproduced. Tinywindow/cookieinvalid doesnot establishacceptance. Sentinel finalreview assigned with explicit accept-or-fix ruling on both, no furtherbuilder yet.
+- Limits: no realphone/touch/preloaderrorcapture; Studioorder Nodeonly; freshfailure/retrybrowser not repeated (prior503evidence+Node), fullPython/check.cjs/registrymatrix/newCI Notrun. Chief coordinationonly; D019push/mergeorder/productionholds unchanged.
