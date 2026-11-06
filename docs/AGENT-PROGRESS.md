@@ -1,6 +1,6 @@
 # Agent progress
 
-Last updated: 2026-11-07 01:42 EAT (ownership G2 corrected; Forge implementation handoff). Coordination branch: `team/log`. Product baseline: main `ba82a2a`.
+Last updated: 2026-11-07 01:58 EAT (Forge contract built; independent gates next shift). Coordination branch: `team/log`. Product baseline: main `ba82a2a`.
 
 | Task | Owner | Branch | Status | Next step |
 |---|---|---|---|---|
@@ -23,8 +23,8 @@ Last updated: 2026-11-07 01:42 EAT (ownership G2 corrected; Forge implementation
 | D-019 permanent registry decision record | Sentinel; Probe QA | docs/architecture-review b30ae91 (tree 3d498b9), pushed | verified | Probe VERIFIED; fast-forward push succeeded after Arnold explicitly requested unblocking. Remote publication hold cleared. |
 | Restored QA queue and CI reconciliation | Probe | existing feature refs (read-only) | verified | Probe found no outstanding agy-only checks; open PR heads unchanged, all four CI jobs green at 5 Nov 23:5x. #10 and #21 remain draft; #26 held for presentation correction. |
 | Amendment 01 managed Chrome inert slice | Prism; Probe QA; Sentinel review | `feature/browser-profiles-inert` 801d007 | PR #31 | Published at unchanged 801d007 under Arnold authorization; Probe VERIFIED + Sentinel APPROVED. Probe confirms all four Hub jobs SUCCESS run42296908412; native platform limits remain. No production integration. |
-| Browser personal ownership/lifecycle contract | Forge; Probe QA; Sentinel review | `feature/browser-contract-v1` from ec83d59 (PR12) | doing | Corrected G2 approved; Forge sole builder for negotiated manifest only. Probe exact-head QA then Sentinel review; stacked PR after gates, merge after PR12. |
-| Device authentication domain recheck finding | Forge after separate Sentinel threat note | pending | todo | Code-read finding on ec83d59; assess full identify/auth chain and reproduce first. No auth changes in browser contract slice; resolve before release. |
+| Browser personal ownership/lifecycle contract | Forge; Probe QA; Sentinel review | `feature/browser-contract-v1` 1c06e0b from ec83d59 (PR12) | review | Built/pushed, clean; Forge reports 20 targeted and 488 full passing. At 04:00 Probe exact-head QA then Sentinel ruling on scope/email-test deviations; no PR yet. |
+| Device authentication domain recheck finding | Forge reproduction; Chief source check; Sentinel confirmation pending | `feature/browser-contract-v1` 1c06e0b | review | Forge HTTP test returns401 device_unknown for disallowed email; Chief confirms identify checks domain. Suspected bypass not reproduced; Sentinel must correct unreachable200/empty-profile G2 expectation. |
 | G8/G9 release evidence and independent approval | Probe, Sentinel; Chief consolidates | `team/log` | todo | Record actual output and unresolved risks; no merge/deploy without Arnold. |
 
 ## Baseline and audit evidence
@@ -764,3 +764,12 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 - Invalid-email contract negative: enrol allowed synthetic identity then mutate email in test DB; expect unchanged existing auth/manifest behavior and profiles:[] under negotiated block. This is not authorization to widen account access. Sentinel reports absent explicit email_allowed check in device_key_auth; Chief read confirms absence there, but has not reproduced full identify/auth-chain bypass. Separate critical triage queued; do not fix authentication in manifest slice.
 - Forge sole builder now dispatched with full G2 conditions; preserve root untracked paused-view evidence, use isolated worktree under team clone. At 02:00 clean-point stop; unfinished work committed/pushed WIP with actual checks/unavailable reasons and exact next step. No new tests/work during rest. Probe verification and Sentinel final review still pending on finished artifact; no PR or completion claim for manifest yet.
 - Coordination-only whitespace check; Python/browser Not run by Chief. No product edits/main merge/deploy.
+
+
+## Forge handoff checked; independent gates deferred — 7 November 01:58 EAT
+
+- Forge pushed 1c06e0bae2b5ff737b821aeaa51e1cc3f0bd3098/tree6d2fa7456b7b0d683290fb29b5bd8c5b8c84cce7, parent ec83d59, on feature/browser-contract-v1. Chief confirmed exact head/tree/parent, clean worktree, clean whitespace and no attribution trailer. Three-file diff +329/-5: enroll.py, test_browser_contract.py, CLIENT.md. Remote push is Forge-reported; no new remote read by Chief.
+- Forge reports targeted `python3 -m unittest tests.test_browser_contract`:20 OK/about23s; full `python3 -m unittest discover -s tests -t .`:488 in463s OK(skipped=13), exit0. Not independently verified; raw log not inspected by Chief. Docker-daemon noise present; skip list not itemised. Browser/CI/Python3.10 checks Not run. No test rerun by Chief.
+- Implementation uses two new private helpers and constants alongside build_manifest, beyond literal G2 restriction to two function bodies. Sentinel must explicitly accept or request bounded correction before PR. Also G2 disallowed-email HTTP200 expectation was incorrect: Forge test observes401 device_unknown, preserving existing auth, and tests empty profiles helper directly. Chief confirms Gateway.identify checks person_email with email_allowed before returning key (server.py around142). Suspected domain bypass not reproduced; do not weaken auth to meet original test expectation. Probe to independently check chain/test and Sentinel to reconcile ruling.
+- Forge reports stopped/clean, nothing running; no active builder. Exact next step at04:00: send Probe finished1c06e0b artifact for independent targeted QA, including negotiation/identity/privacy/lifecycle and negative control; then Sentinel exact-head review with explicit helper-scope/email-test dispositions. Reuse Forge full milestone evidence unless failure/new change justifies rerun; CI required before merge readiness. No review/test/delegation starts in the remaining two minutes or rest. No PR opened before gates; no merge/deploy.
+- Chief coordination-only whitespace check; Python/browser Not run (no product edits). Existing root evidence preserved.
