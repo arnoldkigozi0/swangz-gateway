@@ -305,3 +305,67 @@ instead, existing sessions with expiry > 14 days from creation become `extension
 `devices`: `key_storage TEXT`, `rotated REAL`. New table `device_handoffs(secret_hash PK, key_id, person_id,
 next, ip, created, expires, used)`. `packages`: `statement TEXT`, `signature TEXT`, `signer TEXT`.
 `tools`: `shared_terms_ref TEXT` (F-12). One migration; never edit v1–v21.
+
+---
+
+> D-012 to D-018 (Amendment 01 operating model: holder and payer, personal workspaces, sharing, browser profiles, OAuth
+> client, account-sync evidence) were issued on 2 November 2026 and are summarised in `CLAUDE.md` on
+> `docs/blueprint-amendment-01`. Their full records are not yet in this file; D-019 does not restate or change them.
+
+## D-019 | 2026-11-06 | Provider-account registry: who sees what, and what the audit log says
+
+**Context.** Amendment 01 task 1 (PR #28, `feature/provider-registry`, approved at `92c97aa`, tree `b8927fe`) lets a
+person declare the AI subscriptions they hold (v24 `provider_accounts`, `provider_account_values`; v25 NULL-safe guards).
+A personal subscription is the person's own business: the company may need to know *that* it is accounted for, never
+which tool a named person pays for privately. Seats on the company plan are company business. The audit log is
+readable by every console user, viewers included, so anything written there is effectively public inside the console.
+
+**Decision.**
+
+1. *Visibility.* What a console user sees is the record kind's field ceiling intersected with the areas they hold,
+   then the union across those areas. The ceiling binds the owner too. Console routes are read-only,
+   `area=("govern","money")`; viewer, security, emergency-only and admin-only users get 403. There is no break-glass
+   read, and no search, Timeline, insight, notification, CSV or export path to these tables.
+
+   | Fields | holder | govern | money |
+   |---|---|---|---|
+   | Individual account: every field and value | yes | no | no |
+   | Seat: id, tool, route, status, created, ended, holder, payer, assertion, confirmed, label | yes | yes | yes |
+   | Seat: plan, quota_limit, quota_used, period_end | yes | yes | no |
+   | Seat: credit_balance, monthly_price | yes | no | yes |
+
+2. *Individual accounts are holder-only (F1).* No console list, read, filter or count includes one. The list filters
+   `route = 'seat'` in SQL before `ORDER BY ... LIMIT`, so the limit cannot reveal individual rows; reading an
+   individual id answers the same 404 as a missing id, to every console user. Even an id, status and timestamps were
+   enough to match against the audit log's named actor and time.
+3. *Audit (R3).* Registry audit entries carry the holder's name as actor, the time, one of `registered a provider
+   account`, `recorded a provider account value`, `ended a provider account`, target and correlation
+   `provider_account:<id>`, and before/after holding a status or a value id only. Never the tool, route, kind, payer,
+   label or value. The correlation is not `person:<id>`, so these entries never appear in a person's Timeline.
+4. *Accepted residuals (Low).*
+   - Every console user can see that a named person changed a provider-account declaration, and when. A
+     `provider_account:<id>` that is not a listed seat id implies an individual account changed, never which tool,
+     route or contents.
+   - A govern user deleting an admin-added tool that any registry row points at gets 409 `has_provider_accounts`.
+     That shows someone has declared an account for the tool, not who, the route, how many or when. Accepted because
+     it needs govern, each probe is a real audited delete attempt, built-in tools are refused earlier with 400, and
+     the alternatives either break the RESTRICT foreign keys and permanent retention or remove tool deletion. The
+     answer must be identical across routes *within* each path: the pre-check and the foreign-key fallback may word
+     their message differently, because which path answers depends on timing, not on the route.
+   - Databases first created by the pre-release `48cc003` form of v24 lack `CHECK (id > 0)`. Only direct SQL can
+     store id 0 or -1 there, and the effect is that later automatic inserts are refused (fails closed, no data lost).
+     No v26. If a non-fixture database in that form is ever found, the repair is an additive migration: an AFTER
+     INSERT abort on `NEW.id <= 0` and `NEW.id > 0 AND` before the `no_replace` id check.
+5. *Release condition.* The staff Privacy page must state item 3 in plain words before the registry is released.
+   The tool-delete residual needs no staff notice.
+
+**Alternatives rejected.** Govern seeing individual id, tool, route and times (the earlier draft): re-identifies
+personal holdings through the audit log. An opaque or hashed audit reference instead: adds key management and still
+leaves the named actor and time. A seat-only tool-delete check: moves the same 409 into the foreign-key fallback.
+Silent archive, deleting registry rows, or forbidding deletion of every registrable tool: each is worse than an
+existence-only signal behind govern.
+
+**Consequences.** Admin-side review of personal subscriptions is not possible in task 1; any later need (counts,
+incident access) needs a new record, Arnold's yes and its own threat note. Tests pinning this:
+`tests/test_provider_registry.py` (field matrix, holder-only list and read, `FinalPinTests` limit and 409 parity,
+audit leak markers). This record authorises no later Amendment 01 task, and no merge or deploy.
