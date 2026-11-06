@@ -4,6 +4,7 @@ Directories separate accidental sessions, not people sharing an OS login or admi
 Windows reparse points are refused; ACL not verified by the app.
 """
 import json
+import errno
 import math
 import os
 import re
@@ -21,6 +22,7 @@ FOLDER = re.compile(r"[0-9a-f]{32}\Z")
 SPECIAL = re.compile(r"\.(tmp|retired)-[0-9a-f]{32}\Z")
 MARKER = ".swangz-profile.json"
 STALE = 180
+_WINDOWS = os.name == "nt"
 FLAGS = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_DIRECTORY", 0)
 
 
@@ -54,7 +56,7 @@ def _origin(value):
 
 
 def _os_user():
-    if os.name == "nt":
+    if _WINDOWS:
         domain, user = os.environ.get("USERDOMAIN"), os.environ.get("USERNAME")
         if not domain or not user:
             raise ProfileError("os_user_unavailable")
@@ -86,7 +88,7 @@ def _check(path, directory=True, data=False):
         raise ProfileError("unsafe_link")
     if not (stat.S_ISDIR(info.st_mode) if directory else stat.S_ISREG(info.st_mode)):
         raise ProfileError("unsafe_type")
-    if os.name != "nt":
+    if not _WINDOWS:
         mode = stat.S_IMODE(info.st_mode)
         if info.st_uid != os.getuid() or (mode & 0o022 if data else mode != (0o700 if directory else 0o600)):
             raise ProfileError("unsafe_permissions")
@@ -117,29 +119,46 @@ def _purge_fd(fd):
 
 
 def _purge(path):
+    if _WINDOWS:
+        raise ProfileError("unsupported_platform")
     info = _check(path)
-    if os.name != "nt":
-        fd = os.open(path, FLAGS)
-        try:
-            if not _same(info, os.fstat(fd)):
-                raise ProfileError("path_changed")
-            _purge_fd(fd)
-        finally:
-            os.close(fd)
-    else:
-        # Junctions are removed as entries, never traversed. Native Windows coverage is required.
-        for entry in path.iterdir():
-            child = entry.lstat()
-            if _reparse(child) or stat.S_ISLNK(child.st_mode):
-                if stat.S_ISDIR(child.st_mode):
-                    entry.rmdir()
-                else:
-                    entry.unlink()
-            elif stat.S_ISDIR(child.st_mode):
-                _purge(entry)
-            else:
-                entry.unlink()
+    fd = os.open(path, FLAGS)
+    try:
+        if not _same(info, os.fstat(fd)):
+            raise ProfileError("path_changed")
+        _purge_fd(fd)
+    finally:
+        os.close(fd)
     path.rmdir()
+
+
+def _lock_os(fd, acquire):
+    """The OS owns lock lifetime; the persistent file's contents and age are irrelevant."""
+    try:
+        if _WINDOWS:
+            import msvcrt
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_NBLCK if acquire else msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB if acquire else fcntl.LOCK_UN)
+    except (ImportError, AttributeError):
+        raise ProfileError("lock_unavailable") from None
+    except OSError as exc:
+        if acquire and (isinstance(exc, BlockingIOError) or _WINDOWS and exc.errno in (errno.EACCES, errno.EDEADLOCK)):
+            raise ProfileError("busy") from None
+        raise ProfileError("lock_unavailable") from None
+
+
+def _lock_info(info):
+    if stat.S_ISLNK(info.st_mode) or _reparse(info):
+        raise ProfileError("unsafe_link")
+    if not stat.S_ISREG(info.st_mode):
+        raise ProfileError("unsafe_type")
+    if info.st_nlink != 1:
+        raise ProfileError("unsafe_hardlink")
+    if not _WINDOWS and (info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o600):
+        raise ProfileError("unsafe_permissions")
 
 
 class Profiles:
@@ -190,53 +209,49 @@ class Profiles:
     def _locked(self):
         self._root()
         path = self.root / ".lock"
-        mine = json.dumps({"pid": os.getpid(), "at": time.time(), "nonce": secrets.token_hex(16)}).encode()
-        for _ in range(3):
-            try:
-                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
-            except FileExistsError:
-                info = _check(path, directory=False)
-                seen = self._read_file(path)
-                stale = time.time() - info.st_mtime > STALE
-                try:
-                    owner = json.loads(seen)
-                    if type(owner["pid"]) is int and owner["pid"] > 0 and os.name != "nt":
-                        try:
-                            os.kill(owner["pid"], 0)
-                        except ProcessLookupError:
-                            stale = True
-                        except PermissionError:
-                            pass
-                except (ValueError, KeyError, TypeError):
-                    pass
-                if not stale:
-                    raise ProfileError("busy")
-                if _same(info, path.lstat()) and self._read_file(path) == seen:
-                    path.unlink()
-                continue
-            with os.fdopen(fd, "wb") as f:
-                f.write(mine)
-                f.flush()
-                os.fsync(f.fileno())
-            break
-        else:
-            raise ProfileError("busy")
+        fd, held = None, False
         try:
+            try:
+                _lock_info(path.lstat())
+            except FileNotFoundError:
+                pass
+            fd = os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+            os.set_inheritable(fd, False)
+            info = os.fstat(fd)
+            _lock_info(info)
+            named = path.lstat()
+            _lock_info(named)
+            if not _same(info, named):
+                raise ProfileError("path_changed")
+            _lock_os(fd, True)
+            held = True
             _check(self.data, data=True)
             _check(self.root)
+        except OSError as exc:
+            if fd is not None:
+                os.close(fd)
+            raise ProfileError("unsafe_link" if exc.errno == errno.ELOOP else "lock_unavailable") from None
+        except BaseException:
+            if fd is not None:
+                os.close(fd)
+            raise
+        try:
             yield
         finally:
             try:
-                if self._read_file(path) == mine:
-                    path.unlink()
-            except (OSError, ProfileError):
-                pass
+                if held:
+                    _lock_os(fd, False)
+            finally:
+                os.close(fd)
 
     def _cleanup(self):
         skipped = []
         for path in self.root.iterdir():
             match = SPECIAL.fullmatch(path.name)
             if not match:
+                continue
+            if _WINDOWS:
+                skipped.append({"name": path.name, "reason": "unsupported_platform"})
                 continue
             try:
                 info = _check(path)
@@ -300,12 +315,16 @@ class Profiles:
             return target
 
     def _retire(self, path):
+        if _WINDOWS:
+            raise ProfileError("unsupported_platform")
         _check(path)
         retired = self.root / (".retired-" + secrets.token_hex(16))
         os.rename(path, retired)
         _purge(retired)
 
     def retire(self, profile_id, expected_owner):
+        if _WINDOWS:
+            raise ProfileError("unsupported_platform")
         if not isinstance(profile_id, str) or not FOLDER.fullmatch(profile_id):
             raise ProfileError("profile_invalid")
         fields = self._owner(expected_owner)
@@ -334,6 +353,8 @@ class Profiles:
                 try:
                     if not FOLDER.fullmatch(path.name):
                         raise ProfileError("unknown_entry")
+                    if _WINDOWS:
+                        raise ProfileError("unsupported_platform")
                     _check(path)
                     if fields is not None:
                         m = self._marker(path)
@@ -343,4 +364,4 @@ class Profiles:
                     retired.append(path.name)
                 except (ProfileError, OSError) as exc:
                     skipped.append({"name": path.name, "reason": getattr(exc, "code", "retire_failed")})
-        return {"retired": retired, "skipped": skipped, "complete": not skipped}
+        return {"retired": retired, "skipped": skipped, "complete": not skipped and not _WINDOWS}

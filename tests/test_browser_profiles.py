@@ -1,16 +1,19 @@
 """Port-free tests for inert profile preparation; never touch a real browser profile."""
 import ast
+import errno
 import json
 import os
 import select
 import shutil
+import signal
 import stat
 import tempfile
 import time
+import sys
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 from swangz_client import browser_profiles as bp
 
@@ -216,14 +219,171 @@ class ProfileTests(unittest.TestCase):
         retired = a.parent / (".retired-" + "e" * 32); a.rename(retired)
         self.profiles.prepare(self.owner); self.assertFalse(retired.exists())
 
-    def test_lock_busy_stale_and_release_only_own(self):
+    def test_nested_lock_and_old_json_preserved(self):
         with self.profiles._locked():
             self.error("busy", self.profiles.prepare, self.owner)
-        lock = self.profiles.root / ".lock"; lock.write_text("incomplete"); lock.chmod(0o600)
-        os.utime(lock, (time.time() - 200,) * 2)
-        self.profiles.prepare(self.owner); self.assertFalse(lock.exists())
-        with self.profiles._locked(): lock.write_text("replacement")
-        self.assertEqual(lock.read_text(), "replacement")
+        lock = self.profiles.root / ".lock"
+        before = lock.stat()
+        for pid in (os.getpid(), 999999999):
+            raw = json.dumps({"pid": pid, "at": 1, "nonce": "old-format"}).encode()
+            lock.write_bytes(raw)
+            os.utime(lock, (1, 1))
+            self.profiles.prepare(self.owner)
+            self.assertEqual(lock.read_bytes(), raw)
+            self.assertEqual((lock.stat().st_dev, lock.stat().st_ino), (before.st_dev, before.st_ino))
+
+    @unittest.skipUnless(hasattr(os, "fork"), "needs POSIX fork")
+    def test_aged_live_holder_stays_exclusive(self):
+        ready_r, ready_w = os.pipe(); stop_r, stop_w = os.pipe()
+        pid = os.fork()
+        if pid == 0:
+            try:
+                with self.profiles._locked():
+                    os.utime(self.profiles.root / ".lock", (time.time() - 10000,) * 2)
+                    os.write(ready_w, b"enter\n"); os.read(stop_r, 1)
+                os.write(ready_w, b"exit\n"); os._exit(0)
+            except BaseException: os._exit(1)
+        try:
+            self.assertTrue(select.select([ready_r], [], [], 5)[0])
+            self.assertEqual(os.read(ready_r, 100), b"enter\n")
+            before = (self.profiles.root / ".lock").stat()
+            with self.assertRaises(bp.ProfileError) as caught:
+                with self.profiles._locked(): self.fail("overlapping critical sections")
+            self.assertEqual(caught.exception.code, "busy")
+        finally:
+            os.write(stop_w, b"x")
+            _, status = os.waitpid(pid, 0)
+            exited = os.read(ready_r, 100)
+            for fd in (ready_r, ready_w, stop_r, stop_w): os.close(fd)
+        self.assertEqual(status, 0); self.assertEqual(exited, b"exit\n")
+        with self.profiles._locked():
+            after = (self.profiles.root / ".lock").stat()
+            self.assertEqual((before.st_dev, before.st_ino), (after.st_dev, after.st_ino))
+
+    @unittest.skipUnless(hasattr(os, "fork"), "needs POSIX SIGKILL")
+    def test_killed_holder_releases_without_age_wait(self):
+        r, w = os.pipe()
+        pid = os.fork()
+        if pid == 0:
+            try:
+                with self.profiles._locked():
+                    os.write(w, b"held")
+                    while True: signal.pause()
+            except BaseException: os._exit(1)
+        try:
+            self.assertTrue(select.select([r], [], [], 5)[0]); self.assertEqual(os.read(r, 4), b"held")
+            before = (self.profiles.root / ".lock").stat()
+        finally:
+            os.kill(pid, signal.SIGKILL); os.waitpid(pid, 0); os.close(r); os.close(w)
+        with self.profiles._locked():
+            after = (self.profiles.root / ".lock").stat()
+            self.assertEqual((before.st_dev, before.st_ino), (after.st_dev, after.st_ino))
+
+    def test_lock_inode_survives_all_operations(self):
+        a = self.profiles.prepare(self.owner)
+        lock = self.profiles.root / ".lock"; before = lock.stat()
+        self.profiles.retire(a.name, self.owner)
+        self.profiles.prepare(self.owner); self.profiles.retire_all()
+        after = lock.stat()
+        self.assertEqual((before.st_dev, before.st_ino), (after.st_dev, after.st_ino))
+        self.assertEqual(lock.read_bytes(), b"")
+
+    @unittest.skipIf(os.name == "nt", "POSIX objects")
+    def test_unsafe_lock_objects_refused_without_cleanup(self):
+        for kind, code in (("symlink", "unsafe_link"), ("directory", "unsafe_type"), ("hardlink", "unsafe_hardlink"), ("mode", "unsafe_permissions")):
+            with self.subTest(kind=kind):
+                data = self.base / kind; data.mkdir(mode=0o700); profiles = bp.Profiles(data)
+                p = profiles.prepare(self.owner); lock = profiles.root / ".lock"; lock.unlink()
+                outside = data / "outside"; outside.write_bytes(b"untouched"); outside.chmod(0o600)
+                if kind == "symlink": lock.symlink_to(outside)
+                elif kind == "directory": lock.mkdir(mode=0o700)
+                elif kind == "hardlink": os.link(outside, lock)
+                else: lock.write_bytes(b"old"); lock.chmod(0o644)
+                self.error(code, profiles.retire_all)
+                self.assertTrue(p.exists()); self.assertEqual(outside.read_bytes(), b"untouched")
+                self.assertTrue(lock.exists())
+
+    @unittest.skipIf(os.name == "nt", "POSIX flock")
+    def test_enolck_closes_descriptor_before_mutation(self):
+        import fcntl
+        p = self.profiles.prepare(self.owner); seen = []
+        def unavailable(fd, flags):
+            seen.append(fd); raise OSError(errno.ENOLCK, "no locks")
+        with patch.object(fcntl, "flock", side_effect=unavailable), patch.object(self.profiles, "_cleanup") as cleanup:
+            self.error("lock_unavailable", self.profiles.retire_all); cleanup.assert_not_called()
+        self.assertTrue(p.exists()); self.assertEqual(len(seen), 1)
+        with self.assertRaises(OSError): os.fstat(seen[0])
+
+    def test_lock_descriptor_is_noninheritable(self):
+        original = bp._lock_os; seen = []
+        def inspect(fd, acquire):
+            if acquire: seen.append(os.get_inheritable(fd))
+            return original(fd, acquire)
+        with patch.object(bp, "_lock_os", side_effect=inspect):
+            with self.profiles._locked(): pass
+        self.assertEqual(seen, [False])
+
+    @unittest.skipIf(os.name == "nt", "POSIX inode validation")
+    def test_post_open_inode_mismatch_closes_descriptor(self):
+        self.profiles.prepare(self.owner)
+        real_stat, real_open = Path.lstat, os.open
+        count, opened = [], []
+        def replaced(path):
+            info = real_stat(path)
+            if path.name == '.lock':
+                count.append(1)
+                if len(count) == 2:
+                    values = list(info); values[1] += 1; return os.stat_result(values)
+            return info
+        def opened_fd(path, *args, **kwargs):
+            fd = real_open(path, *args, **kwargs)
+            if Path(path).name == '.lock': opened.append(fd)
+            return fd
+        with patch.object(Path, 'lstat', replaced), patch.object(bp.os, 'open', opened_fd), patch.object(self.profiles, '_cleanup') as cleanup:
+            self.error('path_changed', self.profiles.retire_all); cleanup.assert_not_called()
+        self.assertEqual(len(opened), 1)
+        with self.assertRaises(OSError): os.fstat(opened[0])
+
+    @unittest.skipIf(os.name == "nt", "POSIX backend unavailable")
+    def test_missing_lock_backend_refuses_without_cleanup(self):
+        with patch.dict(sys.modules, {'fcntl': None}), patch.object(self.profiles, '_cleanup') as cleanup:
+            self.error('lock_unavailable', self.profiles.prepare, self.owner)
+            cleanup.assert_not_called()
+        with self.profiles._locked(): pass
+
+    def test_mock_windows_lock_api_and_busy(self):
+        calls = []
+        win = SimpleNamespace(LK_NBLCK=1, LK_UNLCK=2, locking=lambda fd, action, length: calls.append((action, length, os.lseek(fd, 0, os.SEEK_CUR))))
+        with patch.object(bp, "_WINDOWS", True), patch.dict(sys.modules, {"msvcrt": win}):
+            with self.profiles._locked(): pass
+            self.assertEqual(calls, [(1, 1, 0), (2, 1, 0)])
+            win.locking = Mock(side_effect=PermissionError(errno.EACCES, "busy"))
+            with self.assertRaises(bp.ProfileError) as caught:
+                with self.profiles._locked(): self.fail("busy lock entered")
+            self.assertEqual(caught.exception.code, "busy")
+
+    def test_mock_windows_retirement_refuses_without_mutation(self):
+        p = self.profiles.prepare(self.owner)
+        temp = self.profiles.root / (".tmp-" + "d" * 32); temp.mkdir(mode=0o700); os.utime(temp, (1, 1))
+        retired = self.profiles.root / (".retired-" + "e" * 32); retired.mkdir(mode=0o700)
+        before = {str(x.relative_to(self.profiles.root)): x.read_bytes() for x in self.profiles.root.rglob("*") if x.is_file()}
+        with patch.object(bp, "_WINDOWS", True), patch.object(bp, "_os_user", return_value=self.owner.fields["os_user"]), patch.object(bp, "_lock_os"), patch.object(bp.os, "rename") as rename:
+            self.error("unsupported_platform", self.profiles.retire, p.name, self.owner)
+            for operation in (self.profiles.retire_all, lambda: self.profiles.retire_owner(self.owner)):
+                result = operation(); self.assertFalse(result["complete"])
+                self.assertEqual(result["retired"], []); self.assertEqual({v["reason"] for v in result["skipped"]}, {"unsupported_platform"})
+            self.profiles.prepare(self.owner)
+            rename.assert_not_called()
+            with patch.object(Path, "iterdir", side_effect=AssertionError("must not enumerate")):
+                self.error("unsupported_platform", bp._purge, p)
+        self.assertTrue(temp.exists() and retired.exists() and p.exists())
+        after = {str(x.relative_to(self.profiles.root)): x.read_bytes() for x in self.profiles.root.rglob("*") if x.is_file()}
+        self.assertEqual(before, after)
+
+    def test_mock_windows_empty_batch_is_incomplete(self):
+        with patch.object(bp, '_WINDOWS', True), patch.object(bp, '_lock_os'):
+            result = self.profiles.retire_all()
+        self.assertEqual(result, {'retired': [], 'skipped': [], 'complete': False})
 
     @unittest.skipUnless(hasattr(os, "fork"), "native Windows locking requires Actions")
     def test_two_process_lock_has_exactly_one_winner(self):
