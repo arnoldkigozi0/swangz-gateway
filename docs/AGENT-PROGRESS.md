@@ -1,6 +1,6 @@
 # Agent progress
 
-Last updated: 2026-11-06 09:16 (heartbeat). Coordination branch: `team/log`. Product baseline: main
+Last updated: 2026-11-06 20:34 (human-requested work resumed). Coordination branch: `team/log`. Product baseline: main
 `ba82a2ad0c1516db9877263e9cac6eb01825618a`.
 
 | Task | Owner | Branch | Status | Next step |
@@ -23,6 +23,7 @@ Last updated: 2026-11-06 09:16 (heartbeat). Coordination branch: `team/log`. Pro
 | Paused/logout composition | Prism; Probe QA; Sentinel review | feature/paused-logout-integration 60df1e2 (tree0f5df9d) | review | Probe VERIFIED + Sentinel APPROVED60df1e2; PR creation blocked by automatic review of routine no-publish restriction; explicit Arnold permission required. |
 | D-019 permanent registry decision record | Sentinel; Probe QA | docs/architecture-review b30ae91 (tree 3d498b9), LOCAL only | verified | Probe VERIFIED; remote remains bf8ebfc after blocked push. Arnold push or explicit permission resolution required; no retry. |
 | Restored QA queue and CI reconciliation | Probe | existing feature refs (read-only) | verified | Probe found no outstanding agy-only checks; open PR heads unchanged, all four CI jobs green at 5 Nov 23:5x. #10 and #21 remain draft; #26 held for presentation correction. |
+| Amendment 01 managed Chrome next slice | Prism design; Sentinel threat gate | read-only planning, no new branch yet | doing | Reuse prior D015–D017 decisions; return smallest independently testable local-profile task and exact enforcement limits before implementation. |
 | G8/G9 release evidence and independent approval | Probe, Sentinel; Chief consolidates | `team/log` | todo | Record actual output and unresolved risks; no merge/deploy without Arnold. |
 
 ## Baseline and audit evidence
@@ -649,3 +650,9 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 - Sentinel APPROVED60df1e2743cf5004bb09bcedbf82fb2bf47694f7/tree0f5df9d27326e1e59b3fafe3dfd7cbb1c0094ee6 after bounded read-only delta review; no tests rerun. Probe verification carries. Explicitly accepts listed Low residuals (dropped pending pause after failure, preexisting hung request/no timeout, inflight requests, drawer close and transient me reassignment) and evidence limits. Later separately reviewed logout timeout suggested, not assigned now.
 - Chief prepared PR title/body with exacthead/tests/limits/mergeholds at /tmp/chief-logout-pr-body.md. gh pr create against29 was REJECTED by automatic approval review: opening PR publishes externally and routine explicitly says do not publish. No PR created; no workaround/retry. Explicit Arnold approval needed for this PR publication; exacthead CI remains next gate after opening. Composition merge order/same-sitting/no-deploy constraints and D019 blocked push unchanged.
 - Chief checked clean feature worktree, exacthead and whitespace; coordination-only commit, Python/browser Not run (existing independent evidence reused). No product edits/mainmerge/deployment/production access.
+
+## Human-requested continuation — 6 November 20:34
+
+- Arnold requested "continue with work please". Reconciled current STATE (historical), team/log board and prior publication notes. Logout60df1e2 remains independently verified and approved; no duplicate QA needed. Prior routine-specific automatic review rejected PR publication and D019 push; neither retried or bypassed here. Read-only GitHub refresh with network permission failed connecting to api.github.com; no new CI status claimed.
+- Move independent Amendment 01 managed Chrome planning forward rather than wait for merges/publication. Prism read-only task: recover previous design and D015–D017 decisions first, return smallest local-profile implementation specification, test plan, dependencies and enforcement limits; no product/system changes. Sentinel bounded threat note follows proposed slice before builder starts. No purchase/dependencies/provider keys/browser fleet or production account changes authorized.
+- Chief coordination whitespace only; Python/browser tests Not run (no product edits). Root untracked evidence preserved. No merge/deploy or production access.
