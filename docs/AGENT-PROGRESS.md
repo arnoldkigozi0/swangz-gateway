@@ -186,3 +186,40 @@ actual logs: Ubuntu 24.04.5, CPython 3.12.15, PR merge SHA
 reported, successful step/job (exit 0). No Tk callback traceback appeared in the log. This verifies
 the corrected sign-in and cleanup retry GUI fixture on Linux. GUI/test files are unchanged by the
 Python 3.10 expectation follow-up; final-head full CI and Probe/Sentinel reviews remain required.
+
+## Glass R1 review correction — 7 November 2026
+
+Branch `feature/glass-r1`, worktree `.worktrees/glass-r1`, draft PR #38.
+Probe rejected initial head `1e0a319`: its actual browser check reproduced KPI
+overflow from Jakarta font metrics, mobile catalogue label clipping and the
+decorative scene printing behind black text. Chief confirmed no Forge/R3 shared
+CSS work had started and reserved the bounded correction for Prism.
+
+Kept Arnold-authorized self-hosted Plus Jakarta Sans. Raised `.kpi .value`
+line-height to 1.3; allowed `.tr-sub` metadata to wrap; hid `body::before` in
+print. Added metadata overflow detection to the existing CI browser harness;
+extended the focused glass harness to check all three defects. No auth/product
+logic, dependencies, production services, providers, merge or deployment changed.
+
+Actual corrected-tree checks (synthetic local fixtures, socket access enabled):
+
+- `UI_WIDTH=<1440|390> UI_THEME=<dark|light> UI_PAGES_ONLY=1
+  UI_OUTPUT=/tmp/prism-glass-r1-<theme><width> node tests/browser/check.cjs`:
+  four separate runs, each `PASS principal pages 27 interaction assertions;
+  25 screen checks`, exit 0. Total 108 assertions/100 screens, no browser errors,
+  axe findings, KPI clipping or tool metadata clipping. Deliberate Studio 400 is
+  expected; no unexpected API failures. Full role matrix stays on Actions.
+- `node docs/screenshots/glass-r1/check.cjs`: `PASS 81 targeted checks;
+  8 screenshots; 20 contrast bounds`, exit 0; minimum contrast bound 4.63:1.
+- `python3 -m unittest tests.test_portal tests.test_hub`: `Ran 56 tests in
+  30.576s`, `OK`, exit 0. Only fake upstream; no full suite repeated locally.
+- `python3 tests/browser/syntax.py`: `Checked 23 JavaScript files`, exit 0.
+- `git diff --check`: exit 0.
+
+Screenshots and result summaries: `docs/screenshots/glass-r1/`. Inspected all
+four exact 1440×900/390×844 admin screenshots and both new staff metadata
+screenshots. Print checks use Chromium media emulation, not physical output or
+a report PDF. Not run: real devices, Safari/Firefox, screen readers, full local
+role matrix/full suite, 60fps/CLS/MotionScore. Earlier Actions Python/app-window
+success applies only to `1e0a319`; browser failed there. Corrected-head CI and
+Probe re-verification are pending. No processes left running after checks.
