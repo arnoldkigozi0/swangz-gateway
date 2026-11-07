@@ -26,8 +26,12 @@ screenshots per the brief §8. Keep files apart when Forge and Prism build at th
 | R13 | Phone layouts pass (rail → bottom bar, stacks) | Prism | admin.css, portal.css | R2–R12 | todo |
 | R14 | Light "Porcelain" glass theme pass | Forge | tokens.css, ui.css | R1–R12 | todo |
 
-Decisions for Arnold (ask once in the daily report, keep building): a geometric display font instead of Archivo; real
-Swangz photos for the background layer.
+Arnold DECIDED (7 Nov 08:50), do not ask again:
+- Font: **Plus Jakarta Sans** (SIL OFL), self-hosted variable woff2 latin subset + OFL.txt in gateway/static/fonts/, replacing
+  Archivo for UI and headings (part of R1). Numbers use tabular figures.
+- Photos: Swangz's own artwork/photos first (the existing *-welcome.webp); where a screen needs a closer match to the
+  references, freely licensed photos (Unsplash/Pexels licence) of warm, softly lit interiors, WebP ≤ 200 KB, each listed in
+  docs/design/ASSETS.md with source URL, author and licence. Never the reference creator's photos, logos or names.
 
 | Task | Owner | Branch | Status | Next step |
 |---|---|---|---|---|
@@ -940,3 +944,9 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 - Probe VERIFIED PR32 exact6c6a2c5986585977b32c7b2e23c626585b25b311/tree2e742c77a64883960801b4a761a06b4653ad1859, conditional remainingHubgreen, nofindings.69targetedOK2.17s cleanarchive Python3.14.4; parents7d4fd6a/13f9a37, profilecorrection/test/workflow bytes equalpriorverified, credential/settings/docs bytes equalmain13f9a37. Sixnative logs independentlyread allSUCCESS, unchanged14WindowsPOSIXskips. Origincomposition/default/nondefault/punycode/refusals checked, existingacceptedport0Low retained. Prior mutation/native evidence reused by byteidentity; no secondopinion/full local suite. Cleaned/stopped perProbe.
 - Chief live confirms exacthead/draft/main/MERGEABLE; Hub42343196100 python3.10/.12/browser stillIN_PROGRESS, appwindowSUCCESS; sixnativeSUCCESS. Main moved7356e067a70b425cd2420ecfe856f1c9e68af545 via merged36; Chief compare confirms onlyCLAUDE.md/designBRIEF/referenceimages/videos since13f9a37, no runtime/tests/config. This merge was observed, not performed in this thread.
 - Standing post-merge rule requires behindbranch backtoowner: Prism assigned docs-only currentmain refresh/retest before finalQA/Sentinel approval; avoid finalsecurityreview on about-to-changehead. Probe evidence reusable as historical byteidentity evidence, but finalhead gates stillrequired. No newbuildtask; no merge/deployment. Chief tests Not run: coordinationonly.
+
+
+## Documentation-base refresh delivered — 7 November 08:42 EAT
+
+- Native profile correction | Prism; Probe QA; Sentinel review | feature/browser-profiles-ci PR32 015c285871e43d47c7093eba05c0b8fc1ef50329/tree2d1c805fab7ce740b9f84f281432ee0a4b431b79 | review | Prism mergedmain7356e067 cleanly/no forcepush;25docs/referencefiles added,209othertrackedfiles byte-identical6c6a2c5.69targetedOK2.463s/noskips/exit0, whitespace/bytechecks pass. Native42343690509 allsixgreen: Linux43OK.468/.446s, macOS43OK.298/.333s, Windows43OK14skips.485/.781s. Evidence /tmp/prism-pr32-main7356-evidence.json reported, not inspected byChief. Hubpending onreturn; remainsdraft/clean/stopped, noqueuedbuildstarted in this task.
+- Probe fresh docs-only merge delta QA assigned on015c285; historical69test/negativecontrol/origincomposition evidence reusable by verifiedbyteidentity, no repeatedfullaudit/full localsuite. Sentinel finalapproval afterQA. ExistingWindowsretirement/reparse/contention/busy limitations retained. Chief tests Not run: coordinationonly; no merge/deploy. Separate R1 design delegation from otherthread retained, not duplicated here.
