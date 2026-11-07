@@ -1,0 +1,78 @@
+{
+  "checks": [
+    "synthetic owner login",
+    "dark1440 real app: no overflow",
+    "dark1440 fixed scene loads",
+    "dark1440 tabular figures",
+    "dark1440 Jakarta variable face loaded",
+    "dark1440 KPI values fit font metrics",
+    "dark1440 four real KPI values",
+    "dark1440 values fit",
+    "dark1440 four columns or phone two",
+    "dark1440 main axe",
+    "dark390 real app: no overflow",
+    "dark390 fixed scene loads",
+    "dark390 tabular figures",
+    "dark390 Jakarta variable face loaded",
+    "dark390 KPI values fit font metrics",
+    "dark390 four real KPI values",
+    "dark390 values fit",
+    "dark390 four columns or phone two",
+    "dark390 main axe",
+    "light1440 real app: no overflow",
+    "light1440 fixed scene loads",
+    "light1440 tabular figures",
+    "light1440 Jakarta variable face loaded",
+    "light1440 KPI values fit font metrics",
+    "light1440 four real KPI values",
+    "light1440 values fit",
+    "light1440 four columns or phone two",
+    "light1440 main axe",
+    "light390 real app: no overflow",
+    "light390 fixed scene loads",
+    "light390 tabular figures",
+    "light390 Jakarta variable face loaded",
+    "light390 KPI values fit font metrics",
+    "light390 four real KPI values",
+    "light390 values fit",
+    "light390 four columns or phone two",
+    "light390 main axe",
+    "request KPI matches existing API",
+    "hover lift uses transform",
+    "reduced motion removes lift",
+    "summary failure renders honest error",
+    "zero activity remains zero",
+    "no invented zero-baseline percentage",
+    "no browser exceptions"
+  ],
+  "errors": [],
+  "screenshots": [
+    "admin-1440-dark.png",
+    "admin-390-dark.png",
+    "admin-1440-light.png",
+    "admin-390-light.png"
+  ],
+  "contrast": [],
+  "accessibility": [
+    {
+      "theme": "dark",
+      "width": 1440,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "violations": []
+    }
+  ]
+}
