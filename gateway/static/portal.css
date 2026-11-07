@@ -366,14 +366,90 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
 .spinner { width: 16px; height: 16px; border: 2px solid var(--ink-4); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ------------------------------------------------------------ footer */
+/* ------------------------------------------------------------ footer: liquid glass (R11)
+   No backdrop blur: a live blur over a scrolling page stalled frames (3 runs: 9 frames over 50 ms), so the milky panel is a layered
+   translucent gradient instead. The link card is a lighter well. The wordmark is cut out of the glass by
+   painting the same scene, scrim included, through the letters. Reveal animates transform and opacity only. */
 
-.foot { margin-top: var(--s9); border-top: 1px solid var(--line); background: var(--ink-1); }
-.foot .inner { max-width: var(--shell); margin: 0 auto; padding: var(--s5) var(--gutter); display: flex; justify-content: space-between; gap: var(--s4); color: var(--tx-2); font-size: var(--t-small); flex-wrap: wrap; align-items: center; }
-.foot .brandline { display: inline-flex; align-items: center; gap: var(--s2); }
-.foot .brandline img { width: 20px; height: 20px; }
-.foot-links { display: inline-flex; gap: var(--s4); }
-.foot a, .foot button { background: none; border: 0; color: var(--tx-2); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 0; font-size: inherit; }
+.foot.glass-foot { margin-top: var(--s9); border: 0; background: none; padding: 0 var(--gutter) var(--s6); }
+.gf-wrap { max-width: var(--shell); margin: 0 auto; container-type: inline-size; }
+.gf-panel {
+  --gf-ink: var(--tx-1); --gf-ink-2: var(--tx-2); --gf-cut-a: rgba(255, 246, 232, .46); --gf-cut-b: rgba(255, 246, 232, .24); --gf-cut-rim: rgba(255, 255, 255, .34);
+  position: relative; border-radius: 28px; padding: clamp(20px, 3vw, 36px) clamp(18px, 3vw, 36px) 0; overflow: hidden;
+  background: linear-gradient(180deg, rgba(48, 41, 37, .78), rgba(26, 22, 20, .84)); border: 1px solid var(--glass-rim); box-shadow: var(--glass-highlight), var(--glass-shadow); color: var(--gf-ink);
+}
+html[data-theme="light"] .gf-panel { --gf-cut-a: rgba(255, 250, 244, 0); --gf-cut-b: rgba(255, 250, 244, 0); --gf-cut-rim: rgba(255, 255, 255, .9); background: linear-gradient(180deg, rgba(250, 246, 240, .74), rgba(245, 240, 234, .58)); }
+.gf-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(20px, 3vw, 40px); align-items: start; }
+.gf-brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; letter-spacing: -.01em; }
+.gf-brand img { width: 26px; height: 26px; }
+.gf-line { margin: var(--s5) 0 var(--s5); font-size: clamp(1.6rem, 2.6vw, 2.25rem); line-height: 1.1; font-weight: 750; letter-spacing: -.03em; max-width: 12ch; text-wrap: balance; }
+.gf-ask { display: flex; align-items: center; gap: 6px; padding: 5px; border-radius: 999px; background: rgba(20, 17, 15, .38); border: 1px solid rgba(255, 255, 255, .42); max-width: 440px; }
+html[data-theme="light"] .gf-ask { background: rgba(60, 44, 30, .10); border-color: rgba(60, 44, 30, .6); }
+.gf-input { flex: 1; min-width: 0; height: 40px; padding: 0 16px; border: 0; background: transparent; color: var(--gf-ink); font: 500 14px/1 var(--font); outline: none; border-radius: 999px; }
+.gf-input::placeholder { color: var(--gf-ink-2); opacity: 1; }
+.gf-ask:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.gf-btn, .gf-ask-link { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 20px; border-radius: 999px; border: 0; cursor: pointer; font: 650 14px/1 var(--font);
+  background: #15110e; color: #fff; text-decoration: none; transition: transform var(--dur-1) var(--ease-out), opacity var(--dur-1); }
+html[data-theme="light"] .gf-btn, html[data-theme="light"] .gf-ask-link { background: #1d1813; color: #fff; }
+.gf-ask-link svg { width: 16px; height: 16px; }
+.gf-btn:hover, .gf-ask-link:hover { transform: translateY(-2px); }
+.gf-note { margin: var(--s3) 0 0 var(--s3); font-size: 12.5px; color: var(--gf-ink-2); max-width: 44ch; }
+.gf-note a { color: var(--gf-ink); text-decoration: underline; text-underline-offset: 3px; }
+.gf-card { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s5); padding: clamp(16px, 2vw, 26px); border-radius: 20px;
+  background: rgba(255, 255, 255, .07); border: 1px solid var(--glass-rim); box-shadow: var(--glass-highlight); }
+html[data-theme="light"] .gf-card { background: rgba(255, 255, 255, .42); }
+.gf-col h2 { margin: 0 0 var(--s3); font-size: 12px; font-weight: 650; letter-spacing: .02em; color: var(--gf-ink-2); }
+.gf-col ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.foot .gf-col a, .foot .gf-col button { display: inline-flex; align-items: center; min-height: 40px; font: 600 14px/1.3 var(--font); color: var(--gf-ink); text-decoration: none; background: none; border: 0; padding: 0; cursor: pointer; border-radius: 6px; }
+.foot .gf-col a:hover, .foot .gf-col button:hover { text-decoration: underline; text-underline-offset: 4px; }
+@media (pointer: coarse) { .foot .gf-col a, .foot .gf-col button { min-height: 44px; } }
+.gf-panel :is(a, button):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.gf-meta { display: flex; align-items: center; justify-content: space-between; gap: var(--s4); flex-wrap: wrap; margin-top: clamp(20px, 3vw, 36px); font-size: 13px; color: var(--gf-ink-2); }
+.gf-status { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: var(--gf-ink); }
+.gf-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tx-3); }
+.gf-dot[data-state="ok"] { background: var(--ok, #3ddc97); box-shadow: 0 0 0 3px rgba(61, 220, 151, .22); }
+.gf-dot[data-state="bad"] { background: var(--bad, #ff6b6b); box-shadow: 0 0 0 3px rgba(255, 107, 107, .22); }
+.gf-theme-wrap { margin-left: auto; }
+.gf-theme { width: 40px; height: 40px; border-radius: 999px; display: inline-grid; place-items: center; cursor: pointer; color: var(--gf-ink); background: rgba(20, 17, 15, .30); border: 1px solid var(--glass-rim); }
+html[data-theme="light"] .gf-theme { background: rgba(60, 44, 30, .10); }
+.gf-theme svg { width: 18px; height: 18px; }
+.gf-word { margin: clamp(4px, 1vw, 12px) calc(-1 * clamp(18px, 3vw, 36px)) 0; padding: 0 clamp(18px, 3vw, 36px); user-select: none; }
+.gf-word { font: 800 clamp(64px, 22vw, 300px)/1 var(--font); }
+@supports (container-type: inline-size) { .gf-word { font-size: 23.5cqw; } }
+.gf-word {
+  letter-spacing: -.05em; padding-bottom: .11em; text-align: center; color: transparent; -webkit-text-fill-color: transparent;
+  background: linear-gradient(180deg, var(--gf-cut-a), var(--gf-cut-b)), var(--scene-image) center / cover fixed no-repeat; -webkit-background-clip: text; background-clip: text;
+  /* the rim is a drop-shadow of the painted shape: a text stroke would also draw the variable font's overlapping inner contours */
+  filter: drop-shadow(0 1px 0 var(--gf-cut-rim));
+}
+
+/* The reveal: only when armed (observer present, motion allowed); otherwise the footer is simply there.
+   The glass panel never moves or fades: a blurred layer that animates is re-blurred every frame, which is what made the first
+   version stall. Only the content on top rises and fades in (opacity and transform), and the wordmark fades in place. */
+.gf-armed :is(.gf-grid, .gf-meta) { opacity: 0; transform: translateY(14px); transition: opacity var(--dur-3) var(--ease-out) 120ms, transform 700ms var(--ease-out) 120ms; }
+.gf-armed .gf-word { opacity: 0; transition: opacity 900ms var(--ease-out) 320ms; }
+.gf-armed.gf-in :is(.gf-grid, .gf-meta, .gf-word) { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gf-armed :is(.gf-grid, .gf-meta, .gf-word) { transform: none; transition: opacity var(--dur-2) linear; }
+  .gf-btn:hover, .gf-ask-link:hover { transform: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .gf-panel { background: var(--ink-2); }
+  .gf-card { background: var(--ink-3); }
+}
+@media (max-width: 900px) {
+  .gf-grid { grid-template-columns: minmax(0, 1fr); }
+  .gf-line { max-width: 18ch; }
+  .gf-ask { max-width: none; }
+}
+@media (max-width: 520px) {
+  .foot.glass-foot { padding-left: 12px; padding-right: 12px; }
+  .gf-card { grid-template-columns: minmax(0, 1fr); }
+  .gf-meta { gap: var(--s3); }
+  .gf-theme-wrap { margin-left: 0; }
+}
+@media print { .glass-foot { display: none; } }
 
 /* Sign in with Google */
 .google-box { display: flex; flex-direction: column; gap: var(--s4); }

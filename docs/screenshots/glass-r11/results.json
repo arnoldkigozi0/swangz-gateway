@@ -1,0 +1,32 @@
+{
+ "checks": [
+  "real health shows the gateway running",
+  "footer links reuse existing routes",
+  "no horizontal overflow",
+  "settled: no transform, full opacity",
+  "footer link targets are at least 40px tall",
+  "the glass panel has no live backdrop blur (it stalled frames)",
+  "unmatched tool: message stays on the footer and the page does not navigate away",
+  "health 503 with a body says the database is the problem, not that the gateway is silent",
+  "focusing a footer control reveals the footer, so nothing focusable is left invisible",
+  "reduced motion: the hover lift is off",
+  "wordmark is decorative",
+  "Ask opens the existing request dialog for Social Insider",
+  "no text stroke on the wordmark (dark 1440)",
+  "no text stroke on the wordmark (light 1440)",
+  "no text stroke on the wordmark (dark 390)",
+  "no horizontal overflow at 390 dark",
+  "no text stroke on the wordmark (light 390)",
+  "no horizontal overflow at 390 light",
+  "reduced motion: reveal not armed, footer opaque"
+ ],
+ "shots": [
+  "dark-1440x900.png",
+  "light-1440x900.png",
+  "dark-390x844.png",
+  "light-390x844.png",
+  "reveal-mid"
+ ],
+ "errors": [],
+ "cls": 0
+}
