@@ -21,6 +21,14 @@
 
   // ------------------------------------------------------------------ Overview
 
+  function overviewKpi(options) {
+    const card = A.kpi(options);
+    card.classList.add("u-glass-kpi");
+    if (options.neutralDelta) card.querySelector(".u-delta")?.classList.remove("good", "bad");
+    card.append(el("span", { class: "u-kpi-arrow", "aria-hidden": "true" }, icon(["M7 17L17 7", "M7 7h10v10"])));
+    return card;
+  }
+
   /* The overview leads with one summary strip; the detail sits in tabs, one question each:
      what's happening now, how use and spend are moving, who and what lead, where licences leak. */
   async function pageOverview(params) {
@@ -40,14 +48,17 @@
       const change = tr.previous.cost ? (tr.current.cost - tr.previous.cost) / tr.previous.cost : null;
       const secCount = sec ? sec.events.filter((e) => e.severity !== "info").length : null;
       const subs = licence ? licence.summary.subscriptions_month : 0;
-      kpis = el("div", { class: "kpis three" },
-        A.kpi({ label: "AI spend · 30 days", icon: "wallet", value: fmt.money(tr.current.cost), tone: "gold hero",
+      kpis = el("div", { class: "kpis four u-overview-kpis" },
+        overviewKpi({ label: "AI spend · 30 days", icon: "wallet", value: fmt.money(tr.current.cost), tone: "gold hero",
           tip: "Metered use through the gateway, priced from the model price table when each request ran. Company plans are a fixed monthly cost on top.",
           foot: SUI.delta(change, { vs: "vs the 30 days before" }), note: subs ? `+ ${fmt.moneyShort(subs)}/mo in plans` : "vs the 30 days before",
           spark: SUI.sparkline(days.map((d) => d.cost)), href: "#/licences?tab=spend&range=30d" }),
-        A.kpi({ label: "Active today", icon: "people", value: String(today.people), note: `${tr.current.people} in 30 days`,
+        overviewKpi({ label: "Active today", icon: "people", value: String(today.people), note: `${tr.current.people} in 30 days`,
           tip: "People who made an AI request, opened a tool from the portal, or visited an approved AI website.", href: "#/activity?tab=usage" }),
-        A.kpi({ label: "Security · 7 days", icon: "shield", value: secCount === null ? "—" : String(secCount),
+        overviewKpi({ label: "AI requests · 30 days", neutralDelta: true, icon: "activity", value: String(tr.current.requests),
+          foot: SUI.delta(tr.previous.requests ? (tr.current.requests - tr.previous.requests) / tr.previous.requests : null, { vs: "vs the 30 days before" }),
+          note: "vs the 30 days before", href: "#/activity?tab=ai&range=30d" }),
+        overviewKpi({ label: "Security · 7 days", icon: "shield", value: secCount === null ? "—" : String(secCount),
           tone: sec && sec.posture !== "healthy" ? "alert" : null,
           foot: sec ? SUI.status(sec.posture, { healthy: "Healthy", watch: "Worth a look", elevated: "Elevated" }[sec.posture], { plain: true }) : null,
           href: "#/security" }));
@@ -123,7 +134,7 @@
         : SUI.stateBox({ icon: "calendar", compact: true, title: "No renewals soon", text: "Nothing renews in the next 30 days." })));
 
     const urgent = att ? att.filter((i) => i.severity === "high" || i.severity === "medium").length : 0;
-    A.frame({ title: "Overview", lede: `Swangz AI Hub at a glance — ${fmt.weekday(Date.now() / 1000)}. Times in ${SUI.tzLabel()}.`,
+    A.frame({ title: "Overview", lead: el("span", { class: "u-overview-emblem", "aria-hidden": "true" }, icon("overview")), lede: `Swangz AI Hub at a glance — ${fmt.weekday(Date.now() / 1000)}. Times in ${SUI.tzLabel()}.`,
       actions: [el("a", { class: "btn", href: "#/activity" }, icon("activity"), "Activity"), el("a", { class: "btn primary", href: "#/live" }, icon("live"), "Open Live")] },
     [kpis, A.pageTabs("#/", params, [
       ["now", "Right now", nowTab, urgent || null],
@@ -164,7 +175,7 @@
       el("div", { class: "grid cols-2" },
         el("div", { class: "grid" },
           A.panel("In flight", "requests waiting on a model or streaming back", stream),
-          A.panel("Just finished", el("a", { class: "btn small quiet", href: "#/activity?tab=ai" }, "Search everything", icon("chevronRight")), finished)),
+          A.panel("Just finished", el("a", { class: "btn small quiet", href: "#/activity?tab=ai&range=30d" }, "Search everything", icon("chevronRight")), finished)),
         el("div", { class: "grid" },
           sharedPanel,
           A.panel("Opened from the portal", "today", opens),
