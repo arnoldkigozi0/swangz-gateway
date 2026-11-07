@@ -117,6 +117,7 @@ describes what the app may prepare; no client, browser launch or UI exists for i
 
 - **Negotiation is strict.** Exactly one `browser_contract` parameter whose value is exactly `1`. Missing, `2`,
   `01`, `true`, empty or repeated: no `browser` key, and the manifest is byte-for-byte what older apps get.
+- **Reading the query.** Percent-escapes are decoded first and the value must then be exactly `1`, so `%31` negotiates but `+`, a space, `%00`, a repeated name (however it is spelled) or a full-width digit does not; `personal` means bound to the person, so a company-owned device gets the same block and still reports `owner_kind: company`.
 - **Identity is origin + `person_id` + `device_id`.** `person_id` is `str(people.id)` (`^[1-9][0-9]*$`); person ids
   can be reused by a different database, so the server origin is part of the identity. `device_id` is the stored
   `devices.device_id` (`^[A-Za-z0-9_-]{1,64}$`) and stays the same when the key is rotated. Both come from the
