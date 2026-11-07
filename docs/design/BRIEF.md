@@ -29,7 +29,7 @@ cross-fade with a blur, the footer fills like liquid.
 
 ## 2. Design tokens (define once in `tokens.css`, use everywhere)
 Keep the Hub's brand: the reference's warm amber maps onto our existing `--primary` gold (#F5B32B) and
-`--accent` champagne. Keep Archivo (already shipped, no new font). Add:
+`--accent` champagne. Use the approved self-hosted Plus Jakarta Sans for UI text and headings (see §9). Add:
 
 ```css
 --glass-bg:        rgba(28, 24, 22, .52);   /* smoked warm glass, dark theme */

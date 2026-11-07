@@ -52,10 +52,12 @@ async function layout(p, name, axe = false) {
       if (!r.width || e.closest('.ptabs,.vtabs,.u-seg,.chips-row,.u-table-wrap')) return false;
       return r.right > innerWidth + 1 || r.left < -1 || e.scrollWidth > e.clientWidth + 3;
     }).map(e => e.textContent.trim()),
-    clippedValues: [...document.querySelectorAll('.kpi .value:not(.text)')].filter(e => e.scrollWidth > e.clientWidth + 1 || e.scrollHeight > e.clientHeight + 1).map(e => e.textContent.trim()) }));
+    clippedValues: [...document.querySelectorAll('.kpi .value:not(.text)')].filter(e => e.scrollWidth > e.clientWidth + 1 || e.scrollHeight > e.clientHeight + 1).map(e => e.textContent.trim()),
+    clippedToolMetadata: [...document.querySelectorAll('.tr-sub')].filter(e => e.scrollWidth > e.clientWidth + 1).map(e => e.textContent.trim()) }));
   assert.equal(metrics.overflow, false, name + ': horizontal overflow');
   assert.deepEqual(metrics.buttons, [], name + ': clipped controls');
   assert.deepEqual(metrics.clippedValues, [], name + ': clipped summary values');
+  assert.deepEqual(metrics.clippedToolMetadata, [], name + ': clipped tool metadata');
   const violations = axe ? (await new AxeBuilder({ page: p }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations : [];
   results.screens.push({ name, ...metrics, violations: violations.map(v => ({ id: v.id, targets: v.nodes.map(n => n.target) })) });
   if (axe) assert.deepEqual(violations.map(v => v.id), [], name + ': accessibility findings');

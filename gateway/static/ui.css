@@ -2,6 +2,70 @@
    Status indicators, skeletons, empty and error states, tooltips, charts, tables, the time range
    control and the command menu. Every class starts with u- so it never collides with an app's own. */
 
+/* ------------------------------------------------------------ architectural scene and glass
+   One fixed image/scrim plane, without a full-screen blur or animation. App shells may
+   override --scene-image. Utilities are opt-in; page-specific composition follows separately. */
+body { min-height: 100vh; isolation: isolate; background: transparent; }
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(var(--scene-scrim), var(--scene-scrim)), var(--scene-image) center / cover no-repeat;
+}
+body:has(.topbar) { --scene-image: url("/static/home-welcome.webp"); }
+body:has(.gate) { --scene-image: url("/static/login-welcome.webp"); }
+@media print {
+  body::before { display: none; }
+}
+
+:is(.u-glass, .u-glass-strong, .u-glass-accent) {
+  background: var(--glass-bg); border: 1px solid var(--glass-rim);
+  border-radius: var(--radius-card);
+  box-shadow: var(--glass-highlight), var(--glass-shadow);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  color: var(--tx-1);
+}
+.u-glass-strong { background: var(--glass-bg-strong); }
+.u-glass-accent {
+  background: var(--glass-bg-accent);
+  /* Gold needs full-contrast copy, including labels that use supporting tokens. */
+  --tx-2: var(--tx-1); --tx-3: var(--tx-1);
+}
+.u-glass-pill { border-radius: var(--radius-pill); }
+/* An inset surface is a tint only. This also guards accidental nested utility use. */
+.u-glass-well,
+:is(.u-glass, .u-glass-strong, .u-glass-accent) :is(.u-glass, .u-glass-strong, .u-glass-accent) {
+  background: var(--glass-bg-strong); border: 1px solid var(--glass-rim);
+  border-radius: var(--r-md); box-shadow: var(--glass-highlight);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+.u-glass-lift { transition: transform var(--dur-2) var(--ease-out); }
+@media (hover: hover) and (pointer: fine) {
+  .u-glass-lift:hover { transform: var(--lift); border-color: var(--glass-rim-hover); }
+}
+.u-glass-lift:focus-within { border-color: var(--glass-rim-hover); }
+
+/* Solid surfaces are the baseline when blur is unavailable or unwanted. Change the
+   tokens too, so future consumers inherit the same fallback without repeating selectors. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root, :root[data-theme] { --glass-bg: var(--ink-2); --glass-bg-strong: var(--ink-2); --glass-bg-accent: var(--ink-2); --glass-blur: none; --glass: var(--ink-2); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root, :root[data-theme] { --glass-bg: var(--ink-2); --glass-bg-strong: var(--ink-2); --glass-bg-accent: var(--ink-2); --glass-blur: none; --glass: var(--ink-2); }
+  body::before { background: var(--ink-0); }
+  html body * { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --lift: none; }
+  .u-glass-lift, .u-glass-lift:hover { transform: none; transition: none; }
+  html .u-enter { animation: none; }
+}
+@media (forced-colors: active) {
+  body::before { background: Canvas; }
+  :is(.u-glass, .u-glass-strong, .u-glass-accent, .u-glass-well) {
+    background: Canvas; color: CanvasText; border-color: CanvasText;
+    -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
+  }
+}
+
 /* ------------------------------------------------------------ text helpers */
 
 .u-sr { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
