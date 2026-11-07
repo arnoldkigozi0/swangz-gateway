@@ -106,6 +106,42 @@ revoked is not activity.
 as "reported by the app", flags `file`, and shows older apps as "Not reported (older app)". It is a report, never evidence, and
 never an input to an access decision. Moving to `file` is audited once.
 
+## Personal browser contract v1 (server side only; nothing in the app uses it yet)
+
+`GET /api/device/manifest?browser_contract=1` adds one block to the manifest. It is **inert**: the server only
+describes what the app may prepare; no client, browser launch or UI exists for it.
+
+```json
+"browser": {"contract": 1, "person_id": "7", "device_id": "a1b2c3d4e5f6", "profiles": [{"kind": "personal"}]}
+```
+
+- **Negotiation is strict.** Exactly one `browser_contract` parameter whose value is exactly `1`. Missing, `2`,
+  `01`, `true`, empty or repeated: no `browser` key, and the manifest is byte-for-byte what older apps get.
+- **Identity is origin + `person_id` + `device_id`.** `person_id` is `str(people.id)` (`^[1-9][0-9]*$`); person ids
+  can be reused by a different database, so the server origin is part of the identity. `device_id` is the stored
+  `devices.device_id` (`^[A-Za-z0-9_-]{1,64}$`) and stays the same when the key is rotated. Both come from the
+  authenticated key only; anything the request says about them is ignored.
+- **No secrets or personal data.** No email, name, key, hint or token. No provider account, registry entry or seat
+  inference; the only kind is `personal`.
+- **Auth is not changed.** The block is built only after the existing checks pass (revoked or rotated key, paused
+  person, ended access, global pause, not enrolled), so every refusal code carries no block. If the account rule
+  does not allow the person's email, `profiles` is `[]`; today the existing key check already answers
+  `401 device_unknown` for such a person, so the empty list is a second line of defence, not a new refusal.
+- **What the app must do with it (lifecycle, for the separate client work):**
+
+| Server says | The app may |
+|---|---|
+| block with a profile | prepare that personal profile |
+| `profiles: []` | retire this owner's browser data |
+| no block | do nothing |
+| `device_revoked`, `device_unknown` | retire all |
+| `device_key_rotated` | never retire; load the newer key |
+| `paused` (everyone) or `person_paused` | keep what is on disk; do not prepare or launch |
+| `access_ended` | retire all |
+| paused and ended together | the server answers `person_paused`: keep what is on disk |
+
+Client integration needs its own review before it is built.
+
 ## Disconnecting
 
 If the server says a device was disconnected (`401 device_revoked`), the app removes everything it installed
