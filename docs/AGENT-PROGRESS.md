@@ -959,6 +959,13 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 - Sentinel finalcriticaldelta review assigned exact015c285, including original one-lineerrno fallback/platformrefusalassertions/workflow and mergecomposition. Keepdraft/no merge until exactapproval and allcurrentCIgreen; no repeatProbe task. Chief tests Not run: coordinationonly; no deploy.
 
 
+## Glass R1 correction ownership — 7 November 09:12 EAT
+
+- Glass R1 corrections | Prism | feature/glass-r1 PR38, starting head 1e0a319e623665af33c382c56fbaa03ecc9c7820/tree bed2617d212897d4ee40aeef82c580f16dcfa18a | doing | Exclusive ownership reserved for admin.css KPI line-height, portal.css .tr-sub wrap, ui.css print scene suppression, bounded regression checks and screenshots. Existing draft stays blocked pending fixes, real browser regression evidence and Probe re-verification of the new exact head. Retain approved self-hosted Plus Jakarta Sans.
+- R3 floating top bar | Forge | no branch/worktree started | todo | Forge explicitly confirms no R3 edits and releases all three shared CSS files; holds R3 until Chief release after PR38 merges, then fresh branch from main. R2/R3 shared files remain serialized.
+- Forge reports earlier provider-registry paused-navigation commits touch portal.css away from .tr-sub; merge compatibility remains untested. No live shared-file writer conflict reported. No product edits or tests by Chief: coordination only. No merge/deployment or Arnold decision.
+
+
 ## Shift end — 7 November 10:00 EAT
 
 - PRs opened 08:00–10:00 EAT: 7 (#32 #33 #34 #35 #36 #37 #38), verified from live gh createdAt timestamps (05:00–07:00 UTC). Merged during shift: #31 at05:06:12Z, #11 at05:30:17Z, #36 at05:35:25Z. Search returned older entries too; counted timestamps within window only. Two-shift minimum met by this shift alone. No merge started at shift end.
@@ -968,3 +975,14 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 - Sentinel: last reported PR32 approval at015c285; next step is Chief current-head gate check next shift. No new review assigned.
 - Visible peer threads idle/closed; no active teammate thread exposed by list_threads. Prism contacted because latest known R1 assignment could still be active; consultation converted to asynchronous response. Existing-thread message targeting is unavailable in exposed peer tools. No new build/review delegation.
 - Rest until12:00 EAT. Arnold decisions: none newly identified. Tests Not run: shift-end coordination only. No product files, production, deployment or releases changed.
+
+
+## Shift start — 7 November 12:00 EAT
+
+- merged #38 3cdb8ec98a2832db7a4fc977d13c855e6fa40a15. Current head7b648ea, main base, MERGEABLE, Probe VERIFIED exact head per retained handoff/PR evidence; four Actions SUCCESS; noncritical CSS/font corrections, no WIP/blocker/open product question. Chief marked ready, merged with matched head, reread MERGED and fetched origin.
+- R2 icon rail | Prism | feature/glass-r2 / .worktrees/glass-r2 | doing (delegation accepted) | Build one draft PR from new main; exclusive admin.css/admin.js navigation; targeted/browser evidence and four reference screenshots.
+- R11 staff liquid footer | Forge | feature/glass-r11 / .worktrees/glass-r11 | doing (delegation accepted) | Independent portal.css/portal.js footer only; existing Requests/health paths, no backend/security changes; one draft PR with UI evidence. R3 was waiting, never started; reassigned independent R11 to avoid shared admin files.
+- Builder queues: Prism R4 header/KPIs (ui.css/admin-monitor.js); Forge R3 topbar (admin.css/admin.js) only after R2 merge/ownership release. Chief releases whichever fits as the third new build; at most three starts this shift, other item remains queued. Each uses separate feature branch/worktree and one draft PR.
+- Probe readiness triage | Probe | existing PR37/32 refs | review (delegation accepted) | Confirm exact-head doc37 QA and next eligible merge; queue independent R2/R11 reference/accessibility/performance verification when artifacts exist. No duplicate R1 audit. Sentinel not woken: no new critical build released.
+- PR32 old exact015c285 has prior QA/security approval and green current CI, but now behind main3cdb8ec: waiting for builder refresh/retest and renewed exact-head gates; no merge. Other stacked PRs retain bottom-up retarget/fresh-CI holds. No WIP commits found in inspected five-hour history.
+- Prior shift seven new PRs met two-shift target; aim three new this shift. Arnold: no new decision needed. Chief tests Not run: coordination only; actual PR38 CI checked. No deployment, production, release or product-code edits. Existing uncommitted 09:12 coordination entry preserved.
