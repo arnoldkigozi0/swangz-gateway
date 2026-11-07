@@ -539,6 +539,8 @@
   /* A line with a soft area under it, a crosshair that finds the day, and the latest value at its end. */
   function line(o) {
     o = { height: 170, format: fmt.num, ...o };
+    // No days at all is not a flat line at zero: say so, and skip the chart and its table toggle
+    if (!Array.isArray(o.data) || !o.data.length) return stateBox({ icon: "info", compact: true, title: "No data yet", text: o.emptyText || "Nothing to chart for this period." });
     return chartFrame(o, (w) => {
       const h = o.height, pad = { t: 12, r: o.endLabel === false ? 8 : 52, b: 22, l: 44 };
       const max = niceMax(Math.max(...o.data.map((d) => d.value || 0)));
