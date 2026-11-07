@@ -86,6 +86,47 @@ pip install pyinstaller && python3 packaging/build.py
 
 See `packaging/README.md` for installers and signing.
 
+## Inert browser-profile preparation (tests only)
+
+`swangz_client/browser_profiles.py` prepares empty app-owned directories beneath an explicitly supplied
+`<data>/browser-profiles/`. It has no production callers, browser launch, GUI/CLI integration, extension
+installation, provider login, policy installation or session data. Forge's ownership/manifest contract
+and a separate G2 security approval are required before real use. This is not a managed browser rollout.
+
+Owners use normalized Hub origin, stable person/device identifiers, OS user and an optional seat ID plus
+generation. No email, name, token or key is stored. Random folder IDs and versioned markers support exact
+owner reuse; duplicates and changed seat generations fail closed. A persistent `.lock` file holds an
+OS-managed nonblocking lock: POSIX `flock`, or Windows `msvcrt.locking` over one byte at offset zero.
+The file is never written, truncated or removed, and old JSON contents are ignored and preserved.
+The noninheritable descriptor is validated for type, permissions, ownership, link count and inode.
+The OS releases the lock on process exit; neither PID probing nor file age permits takeover.
+Contention reports `busy`; an unavailable locking mechanism reports `lock_unavailable` without cleanup.
+Age applies only to interrupted temporary folders: on POSIX those older than 180 seconds are discarded,
+not resumed, and structurally safe retired folders are purged on the next locked operation.
+
+`retire(id, owner)` requires a valid matching marker. `retire_owner(owner)` touches only exact owners.
+Explicit `retire_all()` removes structurally safe profile folders even if their markers are corrupt or
+missing; unsafe and unknown entries remain and are reported in `skipped`, with `complete=False`.
+There are no real sign-out/revocation hooks. POSIX purge never follows links into their targets.
+
+POSIX directories are 0700 and markers 0600, owned by the current uid. The supplied data directory must
+already exist, be owned by that uid and not be writable by group/others; it is never chmodded. Ancestors
+above it are outside the module's checks. Windows rejects reparse points from data downward:
+**ACL not verified by the app.** Native Windows behavior: **Not run: needs Actions**.
+Windows preparation and locking have mocked coverage only. Retirement and purge refuse with
+`unsupported_platform` before renaming or deleting; batch retirement reports candidates as skipped
+and incomplete. Temporary/retired folders are retained on Windows, including during preparation.
+Windows deletion requires a separately reviewed native handle-based design, Actions evidence and a
+new security ruling. The app makes no native safety claim. Advisory locks assume the same OS-user
+trust boundary and supported local filesystems; network filesystem locking is unsupported.
+
+Personal-device profiles are advisory (D-015b). A shared OS login is not isolation (D-014), and local
+administrators remain outside this boundary. Company policy enforcement is separate (D-015a).
+Existing personal browsing, files, histories, agent environments and automations remain untouched.
+
+Port-free checks: `python3 -m unittest tests.test_browser_profiles -v`. Browser and provider checks
+are inapplicable to this inert slice; cross-platform behavior still needs independent QA and review.
+
 ## Not built yet (in rough priority)
 
 - **Signed installers** for Windows (`.msi`/`.exe`, Authenticode) and macOS (`.dmg`, Developer ID + notarization),
