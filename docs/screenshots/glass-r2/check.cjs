@@ -15,7 +15,7 @@ async function start(){
  fixture=spawn('python3',['tests/browser/demo.py'],{cwd:root,stdio:['ignore','pipe','pipe']});
  return new Promise((resolve,reject)=>{let output='',err='';const timer=setTimeout(()=>reject(Error('Fixture timeout '+err)),30000);fixture.stderr.on('data',d=>err+=d);fixture.stdout.on('data',d=>{output+=d;if(output.includes('\n')){clearTimeout(timer);resolve(JSON.parse(output.split('\n')[0]));}});fixture.on('exit',c=>{clearTimeout(timer);if(c)reject(Error(err));});});
 }
-async function loaded(p){await p.locator('main h1').waitFor();await p.waitForFunction(()=>document.querySelector('main h1')?.textContent);await p.evaluate(()=>document.fonts.ready);await p.waitForTimeout(700);}
+async function loaded(p){await p.locator('main h1').waitFor();await p.waitForFunction(()=>window.SWA?.S.route===location.hash&&document.querySelector('main h1')?.textContent);await p.evaluate(()=>document.fonts.ready);await p.waitForTimeout(700);}
 async function shot(p,name){await p.mouse.move(1400,8);await p.evaluate(()=>SUI.hideTip());await p.screenshot({path:path.join(out,name+'.png'),animations:'disabled'});result.screenshots.push(name+'.png');}
 async function audit(p,name,include){const scan=await new AxeBuilder({page:p}).include(include).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();result.accessibility.push({name,violations:scan.violations.map(v=>({id:v.id,targets:v.nodes.map(n=>n.target)}))});check(name+' axe navigation',scan.violations.length===0);}
 (async()=>{
@@ -46,7 +46,7 @@ async function audit(p,name,include){const scan=await new AxeBuilder({page:p}).i
   check(theme+' expand retains focus',await p.evaluate(()=>document.activeElement.getAttribute('aria-label')==='Hide navigation labels'));
   check(theme+' labels shown',await p.locator('.side.expanded .nl').first().isVisible());
   await p.reload();await loaded(p);check(theme+' labelled preference survives reload',await p.locator('.shell > .side.expanded').count()===1);
-  await p.locator('.side .group-toggle').filter({hasText:'Govern'}).click();
+  const govern=p.locator('.side .group-toggle').filter({hasText:'Govern'});if(await govern.getAttribute('aria-expanded')==='false')await govern.click();
   await p.locator('.side .nav a[href="#/tools"]').click();await loaded(p);
   check(theme+' active group stays visible',await p.locator('.side .nav-group.here .nav-links').isVisible());
   await shot(p,'expanded-1440-'+theme);
@@ -70,7 +70,7 @@ async function audit(p,name,include){const scan=await new AxeBuilder({page:p}).i
   await p.keyboard.press('Escape');await p.locator('.side.drawer').waitFor({state:'detached'});
   check(theme+' Escape returns focus to More',await p.evaluate(()=>document.activeElement.getAttribute('aria-label')==='More navigation'));
   await p.getByRole('button',{name:'More navigation',exact:true}).click();await p.locator('.side.drawer.in').waitFor();
-  await p.locator('.drawer .group-toggle').filter({hasText:'Reporting'}).click();
+  const reporting=p.locator('.drawer .group-toggle').filter({hasText:'Reporting'});if(await reporting.getAttribute('aria-expanded')==='false')await reporting.click();
   await p.locator('.drawer .nav a[href="#/business"]').click();await loaded(p);await p.locator('.side.drawer').waitFor({state:'detached'});
   check(theme+' More reaches long-label destination',await p.locator('main h1').innerText()==='Business value');
   check(theme+' More marks non-shortcut page',await p.locator('.rail-mobile button.on').count()===1);
@@ -81,9 +81,11 @@ async function audit(p,name,include){const scan=await new AxeBuilder({page:p}).i
  }
  await p.setViewportSize({width:1440,height:900});await p.reload();await loaded(p);
  await p.emulateMedia({reducedMotion:'reduce'});await p.setViewportSize({width:390,height:844});await p.getByRole('button',{name:'More navigation',exact:true}).click();await p.locator('.side.drawer.in').waitFor();
- check('reduced motion removes drawer transition',await p.locator('.side.drawer').evaluate(e=>getComputedStyle(e).transitionDuration==='0s'));
+ check('reduced motion removes drawer transition',await p.locator('.side.drawer').evaluate(e=>getComputedStyle(e).transitionProperty==='none'));
  await p.keyboard.press('Escape');await p.locator('.side.drawer').waitFor({state:'detached'});
  const cdp=await c.newCDPSession(p);await cdp.send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-transparency',value:'reduce'}]});
+ await p.waitForTimeout(700);
+ result.transparency=await p.locator('.rail-mobile').evaluate(e=>({blur:getComputedStyle(e).backdropFilter,bg:getComputedStyle(e).backgroundColor,matches:matchMedia('(prefers-reduced-transparency: reduce)').matches}));
  check('reduced transparency solid quick bar',await p.locator('.rail-mobile').evaluate(e=>getComputedStyle(e).backdropFilter==='none'&&!getComputedStyle(e).backgroundColor.startsWith('rgba')));
  await cdp.send('Emulation.setEmulatedMedia',{features:[]});
  await p.emulateMedia({media:'print'});check('navigation omitted from print',!await p.locator('.rail-mobile').isVisible());await p.emulateMedia({media:'screen'});

@@ -1,69 +1,57 @@
-# Glass R2 — unfinished shift-end handoff
+# Glass R2 — control-room navigation
 
-7 November 2026, 14:01 EAT. Branch `feature/glass-r2`, isolated worktree
-`.worktrees/glass-r2`, based on merged R1 `3cdb8ec`. Parked as WIP at shift end.
-Not ready for a draft PR: the targeted browser check has not completed successfully.
+Branch `feature/glass-r2`, isolated worktree `.worktrees/glass-r2`, based on merged
+R1 `3cdb8ec`. Product changes are limited to `admin.css` and navigation in
+`admin.js`. Existing Plus Jakarta Sans, imagery and shared glass tokens are reused.
 
-## Implemented so far
+The floating rail has a white active circle, real count badges, all five existing
+navigation groups, pinned Help/Settings and a labelled view remembered alongside
+existing group folds. Arrow keys, Home/End, focus tooltips and visible focus rings
+support keyboard use. The middle rail scrolls to accommodate the real catalogue
+of admin destinations. The existing emergency, theme and sign-out controls remain.
 
-- Floating glass rail, white active circle, existing five navigation groups and
-  real count badges, pinned Help and Settings.
-- Labelled view preference alongside the existing group-fold preference.
-- Arrow/Home/End navigation and existing shared focus/hover tooltips.
-- Phone quick bar with five shortcuts plus More and a labelled navigation drawer.
-- Navigation refresh preserves scroll/focus; drawer closes before focus returns.
-- Existing emergency/theme/sign-out controls retained, with print, reduced
-  motion/transparency and forced-colour navigation styles.
+At phone width, five shortcuts and More lead to a labelled drawer, with unique
+control IDs, focus trapping and focus restored after the drawer closes. Background
+navigation is hidden while the drawer covers it. Print, forced colours, reduced
+motion/transparency and the existing unsupported-blur token fallback are retained.
 
-Only `admin.css` and navigation portions of `admin.js` changed in product code.
-No tokens, shared UI, portal, auth, dependencies, providers or deployment changes.
+## Actual checks
 
-## Actual partial verification
+- `UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules node docs/screenshots/glass-r2/check.cjs`:
+  `PASS 75 navigation checks; 8 screenshots; 6 axe scans`, exit 0. Existing pinned
+  tooling only; synthetic gateway/fake upstream. Zero browser exceptions or axe
+  findings in the scoped navigation scans. These are not whole-app accessibility
+  certification or real-device checks.
+- `UI_WIDTH=1440 UI_THEME=light UI_PAGES_ONLY=1 UI_OUTPUT=/tmp/prism-r2-desktop node tests/browser/check.cjs` and the separate `UI_WIDTH=390 UI_THEME=dark UI_PAGES_ONLY=1 UI_OUTPUT=/tmp/prism-r2-phone` selection (with `NODE_PATH` pointing to the same existing tooling): each `PASS principal pages 27 interaction assertions; 25 screen checks`, exit 0. Total 54 assertions/50 screens; no exceptions or axe findings. Only the intentionally rejected Studio request returned 400. These are bounded selections, not the full role matrix.
+- `python3 -m unittest tests.test_portal tests.test_hub`: `Ran 56 tests in 30.169s`, `OK`, exit 0.
+- `python3 tests/browser/syntax.py`: `Checked 23 JavaScript files`, exit 0.
+- `git diff --check`: exit 0.
 
-Existing tooling invocation (no dependency install):
+The bounded CI-harness summaries are in `regression-results.json`. Independent QA and Actions results are pending.
 
-```sh
-UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules node docs/screenshots/glass-r2/check.cjs
-```
+`results.json` contains the assertions, scoped axe results and measured reduced
+transparency styles. The harness first needed corrections for persisted group
+state, asynchronous route settling, the shared 1ms reduced-motion duration override
+and background-transition settling. Earlier WIP partial results are superseded by
+this complete final-tree run. No product changes were needed during this resumption.
 
-The latest run exited 1 after 52 assertions. It passed dark desktop/phone/drawer
-checks and the early light desktop checks; it then timed out clicking the hidden
-Tools link after the test toggled the already-open Govern group closed. The
-group preference persisted from the dark pass. Correct the harness to open a
-group only when `aria-expanded` is false; Reporting has the same assumption.
-Do not treat these partial results as a passing final-tree check. The last run
-also crossed a small navigation tooltip-position edit; rerun the complete check
-on the finished source after resuming. Raw partial results are in `results.json`.
+## Screenshots and reference differences
 
-Earlier iterations found and corrected two implementation defects: group folding
-affected the labelled preference override, and the drawer tried returning focus
-while More was still hidden. The latest dark pass covers these fixes, but final
-verification is still pending. Earlier `node --check gateway/static/admin.js`
-invocations passed; no new tests were started at shift end.
+All required exact viewport images were inspected: `admin-1440-dark.png`,
+`admin-1440-light.png`, `admin-390-dark.png`, `admin-390-light.png`. Additional
+labelled-view and mobile-drawer images cover both themes. Matching dashboard and
+Porcelain reference stills are alongside them.
 
-Five partial screenshots are present: dark desktop, labelled desktop, phone and
-drawer, plus light desktop. The required light 390×844 screenshot is missing.
-These are synthetic Chromium viewport checks, not real-device checks.
+- The rail scrolls because the real Hub has five groups and more destinations than the reference.
+- Existing search, notifications, emergency and account controls remain in the rail pending their separately assigned passes.
+- The rail is 76px wide to preserve 44px control targets with internal spacing.
+- Light mode uses the approved milky Porcelain material; the dashboard reference is dark only.
+- Phone quick navigation is an accessible adaptation of the desktop reference.
+- Page headers, KPI/data panels and charts retain their current composition; separate PRs own those changes.
+- Existing Swangz architecture and the approved font replace the reference photograph and typography.
 
-## Exact next step
-
-1. Correct the two group-opening assumptions in `check.cjs`, finish the bounded
-   navigation/fallback checks, then rerun it against an unchanged final tree.
-2. Inspect all four required screenshots and document remaining reference
-   differences. Check mobile keyboard focus, long labels and refresh behavior.
-3. Run appropriate targeted Python tests, syntax/whitespace checks and bounded
-   existing CI browser selections. Full matrices stay on Actions.
-4. Commit/push the finished correction, open one draft R2 PR, and hand it to Probe
-   and Chief. Only after that clean handoff, refresh existing PR #37 on its own
-   branch and correct the stale Archivo sentence. R4 has not started.
-
-Remaining visual differences: the Hub has five groups and more destinations than
-the reference, so its middle rail scrolls; existing search, notification, emergency
-and account controls remain until their assigned passes. Other page content is
-unchanged. Detailed final visual comparison is pending.
-
-Not run: final passing navigation check, targeted Python tests, CI browser
-regressions, full suite/matrices, real devices, Safari/Firefox, screen readers,
-60fps/CLS/MotionScore. Chrome DevTools, Motion and mounted browser actions were
-not exposed; the task uses the existing supported Playwright harness. Peer
-coordination tools were also unavailable in this resumed build session.
+Not run: full local suite/role matrix (Actions), real devices, Safari/Firefox,
+screen readers, native OS settings, performance traces/60fps/CLS/MotionScore.
+Chrome DevTools, Motion, mounted browser actions and peer coordination tools were
+not exposed in this build session; the existing supported browser harness was used.
+No deployment, providers, new dependencies, auth logic or production data changed.

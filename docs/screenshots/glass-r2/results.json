@@ -51,14 +51,40 @@
     "light Escape dismisses tooltip",
     "light expand retains focus",
     "light labels shown",
-    "light labelled preference survives reload"
+    "light labelled preference survives reload",
+    "light active group stays visible",
+    "light compact preference survives reload",
+    "light desktop rail hidden on phone",
+    "light five shortcuts and More",
+    "light mobile targets at least 44px",
+    "light quick bar fits viewport",
+    "light mobile no horizontal overflow",
+    "light phone axe navigation",
+    "light More opens labelled drawer",
+    "light drawer focus starts at close",
+    "light unique navigation control IDs",
+    "light quick bar hidden beneath drawer",
+    "light drawer traps reverse Tab",
+    "light drawer axe navigation",
+    "light Escape returns focus to More",
+    "light More reaches long-label destination",
+    "light More marks non-shortcut page",
+    "light quick link navigates",
+    "light Back restores previous page",
+    "reduced motion removes drawer transition",
+    "reduced transparency solid quick bar",
+    "navigation omitted from print",
+    "no browser exceptions"
   ],
   "screenshots": [
     "admin-1440-dark.png",
     "expanded-1440-dark.png",
     "admin-390-dark.png",
     "drawer-390-dark.png",
-    "admin-1440-light.png"
+    "admin-1440-light.png",
+    "expanded-1440-light.png",
+    "admin-390-light.png",
+    "drawer-390-light.png"
   ],
   "errors": [],
   "accessibility": [
@@ -77,7 +103,19 @@
     {
       "name": "light desktop",
       "violations": []
+    },
+    {
+      "name": "light phone",
+      "violations": []
+    },
+    {
+      "name": "light drawer",
+      "violations": []
     }
   ],
-  "failure": "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.side .nav a[href=\"#/tools\"]')\u001b[22m\n\u001b[2m    - locator resolved to <a href=\"#/tools\" aria-label=\"Tools\" data-tip=\"Tools · Govern\">…</a>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    25 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is not visible\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m  - element was detached from the DOM, retrying\u001b[22m\n\u001b[2m    - locator resolved to <a href=\"#/tools\" aria-label=\"Tools\" data-tip=\"Tools · Govern\">…</a>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    28 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is not visible\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m  - element was detached from the DOM, retrying\u001b[22m\n\u001b[2m    - locator resolved to <a href=\"#/tools\" aria-label=\"Tools\" data-tip=\"Tools · Govern\">…</a>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 500ms\u001b[22m\n\n    at /home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r2/docs/screenshots/glass-r2/check.cjs:50:51"
+  "transparency": {
+    "blur": "none",
+    "bg": "rgb(250, 249, 246)",
+    "matches": true
+  }
 }
