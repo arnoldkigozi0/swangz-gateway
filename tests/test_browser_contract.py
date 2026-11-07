@@ -253,5 +253,57 @@ class SourceTests(Base):
         self.assertEqual(len(SCHEMA), 22)
 
 
+class NegotiationSemanticsTests(Base):
+    """The query is read like any URL query: percent-escapes decode first, then the value must be exactly `1`.
+    `+` is a space in a query, so it never makes a `1`. Nothing here changes who is refused or what a refusal says."""
+
+    def test_percent_encoded_one_is_one_and_encoded_name_is_the_name(self):
+        for q in ("?browser_contract=%31", "?browser%5Fcontract=1", "?browser%5fcontract=%31"):
+            self.assertEqual((self.block(q) or {}).get("contract"), 1, q)
+
+    def test_plus_spaces_nul_and_odd_escapes_never_negotiate(self):
+        plain = {k: v for k, v in self.get("")[1].items() if k != "generated"}
+        for q in ("?browser_contract=1+", "?browser_contract=+1", "?browser_contract=%2B1", "?browser_contract=1%2B",
+                  "?browser_contract=%201", "?browser_contract=1%00", "?browser_contract=1%0A", "?browser_contract=%0D1",
+                  "?browser_contract=1%", "?browser_contract=%3", "?browser_contract=1;x", "?browser_contract=1?x",
+                  "?browser_contract=%EF%BC%91", "?+browser_contract=1", "?browser_contract+=1"):
+            status, out = self.get(q)
+            self.assertEqual(status, 200, q)
+            self.assertNotIn("browser", out, q)
+            self.assertEqual({k: v for k, v in out.items() if k != "generated"}, plain, q)
+
+    def test_the_same_name_spelled_two_ways_is_repeated_and_does_not_negotiate(self):
+        for q in ("?browser_contract=1&browser%5Fcontract=1", "?browser%5Fcontract=%31&browser_contract=1"):
+            status, out = self.get(q)
+            self.assertEqual(status, 200, q)
+            self.assertNotIn("browser", out, q)
+
+    def test_encoded_forms_keep_the_refusals_and_ignore_extra_identity(self):
+        status, out = self.get("?browser_contract=%31&person_id=999&device_id=x")
+        self.assertEqual((status, out["browser"]["person_id"], out["browser"]["device_id"]),
+                         (200, str(self.rig.person_id), self.device["device_id"]))
+        self.db.set_setting("paused", "1")
+        for q in ("?browser_contract=%31", "?browser_contract=1+"):
+            status, out = self.get(q)
+            self.assertEqual((status, out["code"]), (403, "paused"), q)
+            self.assertNotIn("browser", out, q)
+
+    def test_a_company_owned_device_keeps_its_owner_kind_and_gets_the_same_personal_block(self):
+        """`personal` means bound to the person, not to a personal device: owner_kind is reported as it is and the
+        block does not depend on it."""
+        company = self.enrol(owner="company", name="Office desktop")
+        status, out = self.get(key=company["key"])
+        self.assertEqual(status, 200, out)
+        self.assertEqual(out["device"]["owner_kind"], "company")
+        self.assertEqual(out["browser"], {"contract": 1, "person_id": str(self.rig.person_id),
+                                          "device_id": company["device_id"], "profiles": [{"kind": "personal"}]})
+        plain = self.get("", key=company["key"])[1]
+        self.assertEqual(plain["device"]["owner_kind"], "company")
+        self.assertNotIn("browser", plain)
+        mine = self.block()  # the personal device is unaffected and has its own device id
+        self.assertEqual(mine["profiles"], out["browser"]["profiles"])
+        self.assertNotEqual(mine["device_id"], out["browser"]["device_id"])
+
+
 if __name__ == "__main__":
     unittest.main()
