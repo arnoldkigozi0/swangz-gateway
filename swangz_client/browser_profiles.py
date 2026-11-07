@@ -145,7 +145,7 @@ def _lock_os(fd, acquire):
     except (ImportError, AttributeError):
         raise ProfileError("lock_unavailable") from None
     except OSError as exc:
-        if acquire and (isinstance(exc, BlockingIOError) or _WINDOWS and exc.errno in (errno.EACCES, errno.EDEADLOCK)):
+        if acquire and (isinstance(exc, BlockingIOError) or _WINDOWS and exc.errno in (errno.EACCES, getattr(errno, "EDEADLOCK", errno.EDEADLK))):
             raise ProfileError("busy") from None
         raise ProfileError("lock_unavailable") from None
 
