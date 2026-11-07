@@ -31,13 +31,35 @@ const ok = (label, v) => { assert.ok(v, label); results.checks.push(label); };
       await page.evaluate(() => document.querySelector('.glass-foot').scrollIntoView({ block: 'end' }));
       await page.waitForFunction(() => document.querySelector('.glass-foot').classList.contains('gf-in'));
       await page.waitForTimeout(1800);
-      await page.waitForFunction(() => /Gateway (running|not answering)/.test(document.querySelector('.gf-status').textContent));
+      await page.waitForFunction(() => /Gateway (running|up|not answering)/.test(document.querySelector('.gf-status').textContent));
       if (w === 1440 && theme === 'dark') {
         ok('real health shows the gateway running', /Gateway running/.test(await page.textContent('.gf-status')));
         ok('footer links reuse existing routes', JSON.stringify(await page.$$eval('.gf-card a', a => a.map(x => x.getAttribute('href')))) === JSON.stringify(['#/tools', '#/devices', '#/requests', '#/privacy', '#/privacy']));
         ok('no horizontal overflow', await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
         const props = await page.evaluate(() => { const n = document.querySelector('.gf-panel'); const cs = getComputedStyle(n); return [cs.transform, cs.opacity]; });
         ok('settled: no transform, full opacity', props[0] === 'none' && props[1] === '1');
+        // R11 corrections (Probe on 172c77a)
+        ok('footer link targets are at least 40px tall', (await page.$$eval('.gf-col a, .gf-col button', a => a.map(x => x.getBoundingClientRect().height))).every(v => v >= 40));
+        ok('the glass panel has no live backdrop blur (it stalled frames)', await page.evaluate(() => { const c = getComputedStyle(document.querySelector('.gf-panel')); return (c.backdropFilter || 'none') === 'none'; }));
+        await page.fill('.gf-input', 'zzzz-no-such-tool'); await page.press('.gf-input', 'Enter'); await page.waitForTimeout(400);
+        const um = await page.evaluate(() => ({ hash: location.hash, text: document.querySelector('.gf-note').textContent, link: !!document.querySelector('.gf-note a') }));
+        ok('unmatched tool: message stays on the footer and the page does not navigate away', um.hash === '#/tools' && /No locked tool matches/.test(um.text) && um.link);
+        const p2 = await ctx.newPage();
+        await p2.route('**/healthz', r => r.fulfill({ status: 503, contentType: 'application/json', body: '{"ok":false}' }));
+        await p2.goto(info.url + '/#/tools'); await p2.waitForSelector('.glass-foot');
+        await p2.waitForFunction(() => /Gateway (running|up|not answering)/.test(document.querySelector('.gf-status').textContent));
+        ok('health 503 with a body says the database is the problem, not that the gateway is silent', /database not responding/.test(await p2.textContent('.gf-status')));
+        const tabbed = await p2.evaluate(() => { const f = document.querySelector('.glass-foot'); const before = f.classList.contains('gf-in'); document.querySelector('.gf-col a').focus({ preventScroll: true }); return [before, f.classList.contains('gf-in')]; });
+        ok('focusing a footer control reveals the footer, so nothing focusable is left invisible', tabbed[0] === false && tabbed[1] === true);
+        await p2.close();
+        const rm = await browser.newContext({ viewport: { width: w, height: h }, reducedMotion: 'reduce' });
+        await rm.addInitScript(() => localStorage.setItem('swangz-theme', 'dark'));
+        await rm.request.post(info.url + '/api/login', { headers: { 'x-swangz-app': '1' }, data: { email: 'grace@swangzavenue.com', password: 'demo-password' } });
+        const p3 = await rm.newPage(); await p3.goto(info.url + '/#/tools'); await p3.waitForSelector('.gf-btn');
+        await p3.evaluate(() => document.querySelector('.gf-btn').scrollIntoView({ block: 'center' }));
+        await p3.hover('.gf-btn'); await p3.waitForTimeout(400);
+        ok('reduced motion: the hover lift is off', await p3.evaluate(() => getComputedStyle(document.querySelector('.gf-btn')).transform === 'none'));
+        await rm.close();
         ok('wordmark is decorative', await page.getAttribute('.gf-word', 'aria-hidden') === 'true');
         // the ask form opens the existing request dialog for a locked tool
         const tool = await page.evaluate(() => document.querySelector('#gf-tools option')?.value);

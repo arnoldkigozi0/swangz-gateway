@@ -311,8 +311,9 @@
   let healthCache = null;
   function gatewayHealth(set) {
     if (healthCache && Date.now() - healthCache.at < 60000) return set(healthCache.ok);
-    fetch(gurl("/healthz"), { cache: "no-store" }).then((r) => r.json().then((j) => !!(r.ok && j && j.ok)), () => false)
-      .catch(() => false).then((ok) => { healthCache = { ok, at: Date.now() }; set(ok); });
+    // "up" = healthy; "db" = the gateway answered but says its database is not (503 with a body); "down" = no usable answer
+    fetch(gurl("/healthz"), { cache: "no-store" }).then((r) => r.json().then((j) => (r.ok && j && j.ok ? "up" : j && j.ok === false ? "db" : "down"), () => "down"))
+      .catch(() => "down").then((ok) => { healthCache = { ok, at: Date.now() }; set(ok); });
   }
   function glassFooter() {
     const me = S.me;
@@ -326,8 +327,8 @@
         const q = input.value.trim().toLowerCase();
         const t = q && (requestable.find((x) => x.name.toLowerCase() === q) || requestable.find((x) => x.name.toLowerCase().includes(q)));
         if (t) { input.value = ""; note.textContent = "An admin sees your request. Nothing is turned on until they agree."; return requestAccess(t); }
-        note.textContent = q ? "No locked tool matches that. Browse every tool to find it." : "Type the name of a tool you do not have yet.";
-        if (q) location.hash = "#/tools?q=" + encodeURIComponent(input.value.trim());
+        if (!q) { note.textContent = "Type the name of a tool you do not have yet."; return; }
+        note.replaceChildren("No locked tool matches that. ", el("a", { href: "#/tools?q=" + encodeURIComponent(input.value.trim()) }, "Search every tool for it"), ".");
       };
       return [el("form", { class: "gf-ask", onsubmit: send }, input, el("datalist", { id: listId }, requestable.map((t) => el("option", { value: t.name }))),
         el("button", { class: "gf-btn", type: "submit" }, "Ask")), note];
@@ -336,12 +337,11 @@
     const dot = el("span", { class: "gf-dot", "data-state": "checking", "aria-hidden": "true" });
     const word = el("span", null, "Checking gateway");
     const status = el("span", { class: "gf-status", role: "status" }, dot, word);
-    gatewayHealth((ok) => { dot.dataset.state = ok ? "ok" : "bad"; word.textContent = ok ? "Gateway running" : "Gateway not answering"; });
+    gatewayHealth((st) => { dot.dataset.state = st === "up" ? "ok" : "bad"; word.textContent = st === "up" ? "Gateway running" : st === "db" ? "Gateway up, database not responding" : "Gateway not answering"; });
     const col = (title, links) => el("div", { class: "gf-col" }, el("h2", null, title), el("ul", null, links.map((l) => el("li", null, l))));
     const theme = SUI.themeButton("gf-theme");
     const f = el("footer", { class: "foot glass-foot" }, el("div", { class: "gf-wrap" },
       el("div", { class: "gf-panel" },
-        el("span", { class: "gf-crest", "aria-hidden": "true" }),
         el("div", { class: "gf-grid" },
           el("div", { class: "gf-lead" },
             el("span", { class: "gf-brand" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz AI Hub"),
@@ -353,7 +353,10 @@
         el("div", { class: "gf-word", "aria-hidden": "true" }, "Swangz"))));
     if ("IntersectionObserver" in window && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
       f.classList.add("gf-armed");
-      const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { f.classList.add("gf-in"); io.disconnect(); } }, { threshold: 0.15 });
+      const show = () => { f.classList.add("gf-in"); io.disconnect(); };
+      const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) show(); }, { threshold: 0.15 });
+      // keyboard users can tab into the footer before it scrolls into view: reveal it the moment a control inside is focused
+      f.addEventListener("focusin", show, { once: true });
       requestAnimationFrame(() => io.observe(f));
     }
     return f;
