@@ -1138,8 +1138,10 @@
 
   async function signOut() {
     try { await api("POST", "/logout"); } catch (e) { /* signed out anyway */ }
-    S.me = null;
-    showSignIn();
+    S.me = null; S.studio = null;
+    // Start a fresh page, so nothing the last person loaded (drafts, catalogue, Studio) stays in memory on a shared phone
+    // or installed window, and the next sign-in runs the newest release.
+    location.replace("/");
   }
 
   // ------------------------------------------------------------------ start
