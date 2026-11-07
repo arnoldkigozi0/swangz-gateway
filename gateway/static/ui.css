@@ -176,6 +176,32 @@ button[data-tip], a[data-tip] { cursor: pointer; }
 .u-chart .col { fill: var(--viz-1); transition: opacity var(--d-fast); }
 .u-chart.tone-2 .col { fill: var(--viz-2); }
 .u-chart .col.zero { fill: var(--viz-muted); }
+
+/* Glass tube bars (R5): translucent rounded columns, the current one accent-lit with a floating value label.
+   Colours live here once; motion is transform and opacity only. */
+.u-tubes { --tube-a: rgba(255, 255, 255, .42); --tube-b: rgba(255, 255, 255, .08); --tube-rim: rgba(255, 255, 255, .26); --tube-hi: rgba(255, 255, 255, .55);
+  --tube-sel-a: #F7C25A; --tube-sel-b: rgba(190, 110, 22, .62); --pill-bg: #F4EFE8; --pill-tx: #1A1612; }
+html[data-theme="light"] .u-tubes { --tube-a: rgba(70, 56, 40, .46); --tube-b: rgba(70, 56, 40, .13); --tube-rim: rgba(70, 56, 40, .30); --tube-hi: rgba(255, 255, 255, .7);
+  --tube-sel-a: #E8A92A; --tube-sel-b: rgba(176, 100, 18, .72); --pill-bg: #1A1612; --pill-tx: #FBF6EE; }
+.u-tubes .tube-a { stop-color: var(--tube-a); } .u-tubes .tube-b { stop-color: var(--tube-b); }
+.u-tubes .tube-sel-a { stop-color: var(--tube-sel-a); } .u-tubes .tube-sel-b { stop-color: var(--tube-sel-b); }
+.u-chart .u-tubes .col { stroke: var(--tube-rim); stroke-width: 1; }
+.u-chart .u-tubes .col.on { stroke: var(--tube-sel-a); }
+.u-chart .u-tubes .col-hi { fill: var(--tube-hi); opacity: .55; pointer-events: none; }
+.u-tubes .u-pill { pointer-events: none; opacity: 1; }
+.u-tubes .u-pill.none { opacity: 0; }
+.u-tubes .u-pill.ready { transition: transform var(--dur-2) var(--ease-out), opacity var(--dur-1) linear; }
+.u-tubes .pill { fill: var(--pill-bg); }
+.u-tubes .pill-t { fill: var(--pill-tx); font: 700 11px var(--font); font-variant-numeric: tabular-nums; dominant-baseline: auto; transform: translateY(0); }
+.u-tubes.grow .tube { opacity: 0; transform: scaleY(0); transform-origin: 50% 100%; transform-box: fill-box; }
+.u-tubes.grow .u-pill { opacity: 0; }
+.u-tubes.grow.in .tube { opacity: 1; transform: none; transition: transform 760ms var(--ease-out) calc(var(--i) * 26ms), opacity 360ms linear calc(var(--i) * 26ms); }
+.u-tubes.grow.in .u-pill:not(.none) { opacity: 1; transition: transform var(--dur-2) var(--ease-out), opacity 300ms linear 600ms; }
+@media (prefers-reduced-motion: reduce) {
+  .u-tubes.grow .tube, .u-tubes.grow.in .tube { opacity: 1; transform: none; transition: none; }
+  .u-tubes .u-pill.ready, .u-tubes.grow .u-pill, .u-tubes.grow.in .u-pill:not(.none) { transition: none; opacity: 1; }
+  .u-tubes .u-pill.none, .u-tubes.grow .u-pill.none { opacity: 0; }
+}
 .u-chart .hit { fill: transparent; cursor: default; outline: none; }
 .u-chart .hit:focus-visible + .col, .u-chart .hit:hover + .col { opacity: .78; }
 .u-chart .hit:focus-visible { stroke: var(--accent); stroke-width: 1.5; }

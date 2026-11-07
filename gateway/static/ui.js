@@ -506,68 +506,197 @@
     svg.addEventListener("focus", () => show(active < 0 ? n - 1 : active));
   }
 
-  /* Columns over time — one series, so no legend: the title names it. data: [{label, short, value, note}] */
+  let tubeSeq = 0;
+  const calmMotion = () => !(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+  /* Columns over time, drawn as glass tubes: a rounded translucent bar with a soft cap. The current bar (the
+     latest, or the one being read) is accent-lit and carries its value in a floating label; every value is also in
+     the tooltip, the arrow-key reading and the table view. One series, so no legend: the title names it.
+     data: [{label, short, value, note}] */
   function columns(o) {
     o = { height: 170, format: fmt.num, ...o };
+    const uid = "u-tube-" + (++tubeSeq);
+    let shown = false;   // bars grow from zero once, the first time the chart is in view
     return chartFrame(o, (w) => {
-      const h = o.height, pad = { t: 10, r: 4, b: 22, l: 44 };
+      const h = o.height, pad = { t: 30, r: 6, b: 22, l: 44 };
+      const n = o.data.length;
+      const peakAt = o.data.reduce((m, d, i) => ((d.value || 0) > (o.data[m].value || 0) ? i : m), 0);
+      const summary = ` Latest ${o.data[n - 1].label}: ${o.format(o.data[n - 1].value || 0)}. Highest ${o.data[peakAt].label}: ${o.format(o.data[peakAt].value || 0)}.`;
       const max = niceMax(Math.max(...o.data.map((d) => d.value || 0)));
-      const svg = s("svg", { width: w, height: h, role: "img", tabindex: "0", "aria-label": o.label + ". Use the left and right arrow keys to read each day." });
+      const svg = s("svg", { width: w, height: h, role: "img", tabindex: "0", class: "u-tubes", "aria-label": o.label + "." + summary + " Use the left and right arrow keys to read each day, or show the chart as a table." });
+      const defs = s("defs");
+      const stops = (id, cls, y2) => {
+        const gr = s("linearGradient", { id, x1: 0, y1: 0, x2: 0, y2 });
+        [[0, "a"], [1, "b"]].forEach(([off, k]) => gr.append(s("stop", { offset: off, class: cls + "-" + k })));
+        return gr;
+      };
+      defs.append(stops(uid + "-g", "tube", 1), stops(uid + "-s", "tube-sel", 1));
       const g = s("g");
       const ax = axes(g, o, w, h, pad, max);
-      const n = o.data.length;
       const band = (w - pad.l - pad.r) / n;
-      const bw = Math.max(2, Math.min(24, band * 0.64));
+      const bw = Math.max(4, Math.min(18, band * 0.5));
       const xs = (i) => pad.l + band * i + band / 2;
       const base = h - pad.b;
-      const bars = [];
+      const tubes = s("g", { class: "tubes" });
+      const bars = [], hi = [];
       o.data.forEach((d, i) => {
         const v = d.value || 0;
-        const bh = v > 0 ? Math.max(2, (base - pad.t) * v / max) : 0;
-        const x = xs(i) - bw / 2, y = base - bh, r = Math.min(4, bw / 2, bh);
-        const path = s("path", { class: "col", d: bh ? `M${x},${base}V${y + r}Q${x},${y} ${x + r},${y}H${x + bw - r}Q${x + bw},${y} ${x + bw},${y + r}V${base}Z` : "" });
-        bars.push(path);
-        g.append(path);
+        const bh = v > 0 ? Math.max(bw, (base - pad.t) * v / max) : 0;
+        const x = xs(i) - bw / 2;
+        const bar = s("rect", { class: "col", x, y: base - bh, width: bw, height: bh, rx: bw / 2 });
+        bar.style.fill = `url(#${uid}-g)`;
+        const glow = s("rect", { class: "col-hi", x: x + bw * 0.22, y: base - bh + bw * 0.28, width: Math.max(1, bw * 0.18), height: Math.max(0, bh - bw * 0.56), rx: Math.max(.5, bw * 0.09) });
+        const wrap = s("g", { class: "tube" });
+        wrap.append(bar, glow);
+        wrap.style.setProperty("--i", i);   // CSSOM, not a style attribute: the page CSP refuses inline style attributes
+        if (!bh) wrap.setAttribute("aria-hidden", "true");
+        bars.push(bar); hi.push(glow);
+        tubes.append(wrap);
       });
       xLabels(ax, o, w, h, pad, xs);
-      svg.append(g);
-      interact(svg, o, xs, n, (i) => bars.forEach((b, j) => { b.style.opacity = i < 0 || i === j ? "" : ".45"; }));
+      // the floating value label for the current bar
+      const labelText = s("text", { class: "pill-t", "text-anchor": "middle", y: 0 });
+      const labelBg = s("rect", { class: "pill", height: 18, rx: 9, y: -13 });
+      const label = s("g", { class: "u-pill", "aria-hidden": "true" });
+      label.append(labelBg, labelText);
+      g.append(tubes, label);
+      svg.append(defs, g);
+      let cur = -1;
+      const select = (i) => {
+        const at = i < 0 ? n - 1 : i;
+        if (at === cur) return;
+        if (cur >= 0) bars[cur].classList.remove("on"), bars[cur].style.fill = `url(#${uid}-g)`;
+        cur = at;
+        bars[at].classList.add("on"); bars[at].style.fill = `url(#${uid}-s)`;
+        const d = o.data[at], t = o.format(d.value || 0);
+        labelText.textContent = t;
+        const pw = Math.max(34, t.length * 6.6 + 16);
+        labelBg.setAttribute("width", pw); labelBg.setAttribute("x", -pw / 2);
+        const top = Number(bars[at].getAttribute("y"));
+        const px = Math.max(pad.l + pw / 2, Math.min(w - pad.r - pw / 2, xs(at)));
+        label.style.transform = `translate(${px}px, ${Math.max(14, top - 8)}px)`;
+        label.classList.toggle("none", !d.value);
+      };
+      select(-1);
+      requestAnimationFrame(() => requestAnimationFrame(() => label.classList.add("ready")));
+      interact(svg, o, xs, n, select);
+      if (!shown) {
+        if (typeof IntersectionObserver !== "undefined" && calmMotion()) {
+          svg.classList.add("grow");
+          const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { shown = true; svg.classList.add("in"); io.disconnect(); } }, { threshold: 0.2 });
+          io.observe(svg);
+        } else shown = true;
+      }
       return svg;
     });
   }
 
-  /* A line with a soft area under it, a crosshair that finds the day, and the latest value at its end. */
+  /* Monotone cubic path through the points (Fritsch-Carlson): smooth like the reference, and it never overshoots
+     a real value, so a curve can't dip below zero or rise above the day it is showing. Returns the "C" segments. */
+  function smoothPath(pts) {
+    const n = pts.length;
+    if (n < 3) return pts.slice(1).map((p) => `L${p[0].toFixed(1)},${p[1].toFixed(1)}`).join("");
+    const dx = [], sl = [];
+    for (let i = 0; i < n - 1; i++) { dx.push(pts[i + 1][0] - pts[i][0]); sl.push((pts[i + 1][1] - pts[i][1]) / (dx[i] || 1)); }
+    const m = [sl[0]];
+    for (let i = 1; i < n - 1; i++) m.push(sl[i - 1] * sl[i] <= 0 ? 0 : (sl[i - 1] + sl[i]) / 2);
+    m.push(sl[n - 2]);
+    for (let i = 0; i < n - 1; i++) {
+      if (sl[i] === 0) { m[i] = 0; m[i + 1] = 0; continue; }
+      const a = m[i] / sl[i], b = m[i + 1] / sl[i], r = a * a + b * b;
+      if (r > 9) { const k = 3 / Math.sqrt(r); m[i] = k * a * sl[i]; m[i + 1] = k * b * sl[i]; }
+    }
+    let d = "";
+    for (let i = 0; i < n - 1; i++) {
+      const h = dx[i] / 3;
+      d += `C${(pts[i][0] + h).toFixed(1)},${(pts[i][1] + m[i] * h).toFixed(1)} ${(pts[i + 1][0] - h).toFixed(1)},${(pts[i + 1][1] - m[i + 1] * h).toFixed(1)} ${pts[i + 1][0].toFixed(1)},${pts[i + 1][1].toFixed(1)}`;
+    }
+    return d;
+  }
+
+  let lineSeq = 0;
+
+  /* A glass line: a smooth curve with a soft glow, a gradient area that fades to nothing, dot markers on the days the
+     axis names, a crosshair that finds the day, and the latest value lit at its end. Every value is still in the
+     tooltip, the arrow-key reading and the table view. The curve draws in once, the first time it is in view.
+     data: [{label, short, value, note}] */
   function line(o) {
     o = { height: 170, format: fmt.num, ...o };
+    const uid = "u-line-" + (++lineSeq);
+    const hue = o.tone === 2 ? "var(--viz-2)" : "var(--viz-1)";
+    let shown = false;
     return chartFrame(o, (w) => {
       const h = o.height, pad = { t: 12, r: o.endLabel === false ? 8 : 52, b: 22, l: 44 };
       const max = niceMax(Math.max(...o.data.map((d) => d.value || 0)));
-      const svg = s("svg", { width: w, height: h, role: "img", tabindex: "0", "aria-label": o.label + ". Use the left and right arrow keys to read each day." });
+      const n = o.data.length;
+      const peakAt = o.data.reduce((m, d, i) => ((d.value || 0) > (o.data[m].value || 0) ? i : m), 0);
+      const summary = ` Latest ${o.data[n - 1].label}: ${o.format(o.data[n - 1].value || 0)}. Highest ${o.data[peakAt].label}: ${o.format(o.data[peakAt].value || 0)}.`;
+      const svg = s("svg", { width: w, height: h, role: "img", tabindex: "0", class: "u-glassline", "aria-label": o.label + "." + summary + " Use the left and right arrow keys to read each day, or show the chart as a table." });
+      // colours come from the page's own tokens, so the light theme and the two series tones follow them
+      const defs = s("defs");
+      const fade = s("linearGradient", { id: uid + "-a", x1: 0, y1: 0, x2: 0, y2: 1 });
+      [[0, .52], [.55, .17], [1, 0]].forEach(([off, op]) => { const st = s("stop", { offset: off, "stop-opacity": op }); st.style.setProperty("stop-color", hue); fade.append(st); });
+      const clip = s("clipPath", { id: uid + "-c" });
+      const reveal = s("rect", { x: 0, y: -8, width: w, height: h + 16 });
+      clip.append(reveal);
+      defs.append(fade, clip);
       const g = s("g");
       const ax = axes(g, o, w, h, pad, max);
-      const n = o.data.length;
       const xs = (i) => pad.l + (n === 1 ? (w - pad.l - pad.r) / 2 : (w - pad.l - pad.r) * i / (n - 1));
       const base = h - pad.b;
       const ys = (v) => base - (base - pad.t) * (v || 0) / max;
       const pts = o.data.map((d, i) => [xs(i), ys(d.value)]);
-      const dLine = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + "," + p[1].toFixed(1)).join("");
-      g.append(s("path", { class: "area", d: dLine + `L${pts[n - 1][0]},${base}L${pts[0][0]},${base}Z` }), s("path", { class: "line", d: dLine }));
+      const dLine = "M" + pts[0][0].toFixed(1) + "," + pts[0][1].toFixed(1) + smoothPath(pts);
+      const plot = s("g", { "clip-path": `url(#${uid}-c)` });
+      const area = s("path", { class: "glass-area", d: dLine + `L${pts[n - 1][0].toFixed(1)},${base}L${pts[0][0].toFixed(1)},${base}Z` });
+      area.style.fill = `url(#${uid}-a)`;
+      const glow = s("path", { class: "glass-glow", d: dLine, fill: "none", "stroke-width": 7, "stroke-opacity": 0.16, "stroke-linejoin": "round", "stroke-linecap": "round" });
+      glow.style.stroke = hue;
+      plot.append(area, glow, s("path", { class: "line", d: dLine }));
+      // dot markers on the days the axis labels, so the curve has anchors without 30 beads
+      const room = Math.max(1, Math.floor((w - pad.l - pad.r) / 64));
+      const step = Math.max(1, Math.ceil(n / room));
+      const marks = s("g", { class: "glass-marks" });
+      o.data.forEach((d, i) => {
+        if (n > 1 && i % step !== 0) return;
+        if (i === n - 1) return;   // the last point is the lit end dot
+        const c = s("circle", { class: "glass-mark", cx: pts[i][0], cy: pts[i][1], r: 3, "stroke-width": 1.5 });
+        c.style.fill = "var(--ink-1)"; c.style.stroke = hue;
+        marks.append(c);
+      });
+      plot.append(marks);
       const cross = s("line", { class: "cross", y1: pad.t, y2: base });
+      const halo = s("circle", { class: "glass-halo", r: 9, cx: pts[n - 1][0], cy: pts[n - 1][1], "fill-opacity": 0.2 });
+      halo.style.fill = hue;
       const dot = s("circle", { class: "end", r: 4.5, cx: pts[n - 1][0], cy: pts[n - 1][1] });
-      g.append(cross, dot);
+      g.append(plot, cross, halo, dot);
       if (o.endLabel !== false) {
         const t = s("text", { class: "end-label", x: pts[n - 1][0] + 9, y: pts[n - 1][1] + 4 });
         t.textContent = (o.tick || o.format)(o.data[n - 1].value || 0);
         g.append(t);
       }
       xLabels(ax, o, w, h, pad, xs);
-      svg.append(g);
+      svg.append(defs, g);
       interact(svg, o, xs, n, (i) => {
         cross.classList.toggle("on", i >= 0);
         const at = i < 0 ? n - 1 : i;
         cross.setAttribute("x1", pts[at][0]); cross.setAttribute("x2", pts[at][0]);
-        dot.setAttribute("cx", pts[at][0]); dot.setAttribute("cy", pts[at][1]);
+        for (const c of [dot, halo]) { c.setAttribute("cx", pts[at][0]); c.setAttribute("cy", pts[at][1]); }
       });
+      // draw in once, left to right: a clip that opens (transform only), then the lit end dot fades up
+      if (!shown) {
+        if (typeof IntersectionObserver !== "undefined" && calmMotion() && reveal.animate) {
+          reveal.style.setProperty("transform-box", "fill-box"); reveal.style.setProperty("transform-origin", "0 50%"); reveal.style.transform = "scaleX(0)";
+          for (const e of [dot, halo]) e.style.opacity = "0";
+          const io = new IntersectionObserver((es) => {
+            if (!es.some((e) => e.isIntersecting)) return;
+            shown = true; io.disconnect();
+            reveal.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: 1000, easing: "cubic-bezier(.22,1,.36,1)", fill: "forwards" });
+            for (const e of [dot, halo]) e.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: 760, fill: "forwards" });
+          }, { threshold: 0.2 });
+          io.observe(svg);
+        } else shown = true;
+      }
       return svg;
     });
   }
