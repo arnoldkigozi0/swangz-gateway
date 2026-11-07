@@ -44,6 +44,7 @@ const ok = (label, v) => { assert.ok(v, label); results.checks.push(label); };
         if (tool) { await page.fill('.gf-input', tool); await page.click('.gf-btn'); await page.waitForSelector('dialog, [role=dialog]', { timeout: 3000 }); ok('Ask opens the existing request dialog for ' + tool, true); await page.keyboard.press('Escape'); }
         results.cls = clsBefore;
       }
+      ok(`no text stroke on the wordmark (${theme} ${w})`, await page.evaluate(() => { const s = getComputedStyle(document.querySelector('.gf-word')); return parseFloat(s.webkitTextStrokeWidth || '0') === 0 && s.filter.includes('drop-shadow'); }));
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
       await page.waitForTimeout(300);
       const f = `${theme}-${w}x${h}.png`; await page.screenshot({ path: path.join(out, 'footer-' + f) }); results.shots.push(f);

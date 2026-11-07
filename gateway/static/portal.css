@@ -373,12 +373,12 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
 .foot.glass-foot { margin-top: var(--s9); border: 0; background: none; padding: 0 var(--gutter) var(--s6); }
 .gf-wrap { max-width: var(--shell); margin: 0 auto; container-type: inline-size; }
 .gf-panel {
-  --gf-ink: var(--tx-1); --gf-ink-2: var(--tx-2); --gf-cut: rgba(12, 10, 9, .08); --gf-cut-rim: rgba(255, 255, 255, .30);
+  --gf-ink: var(--tx-1); --gf-ink-2: var(--tx-2); --gf-cut-a: rgba(255, 246, 232, .46); --gf-cut-b: rgba(255, 246, 232, .24); --gf-cut-rim: rgba(255, 255, 255, .34);
   position: relative; border-radius: 28px; padding: clamp(20px, 3vw, 36px) clamp(18px, 3vw, 36px) 0; overflow: hidden;
   background: var(--glass-bg); border: 1px solid var(--glass-rim); box-shadow: var(--glass-highlight), var(--glass-shadow);
   -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); color: var(--gf-ink);
 }
-html[data-theme="light"] .gf-panel { --gf-cut: rgba(255, 250, 244, 0); --gf-cut-rim: rgba(255, 255, 255, .85); background: linear-gradient(180deg, rgba(250, 246, 240, .74), rgba(245, 240, 234, .58)); }
+html[data-theme="light"] .gf-panel { --gf-cut-a: rgba(255, 250, 244, 0); --gf-cut-b: rgba(255, 250, 244, 0); --gf-cut-rim: rgba(255, 255, 255, .9); background: linear-gradient(180deg, rgba(250, 246, 240, .74), rgba(245, 240, 234, .58)); }
 .gf-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(20px, 3vw, 40px); align-items: start; }
 .gf-brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; letter-spacing: -.01em; }
 .gf-brand img { width: 26px; height: 26px; }
@@ -416,8 +416,9 @@ html[data-theme="light"] .gf-theme { background: rgba(60, 44, 30, .10); }
 @supports (container-type: inline-size) { .gf-word { font-size: 23.5cqw; } }
 .gf-word {
   letter-spacing: -.05em; padding-bottom: .11em; text-align: center; color: transparent; -webkit-text-fill-color: transparent;
-  background: linear-gradient(var(--gf-cut), var(--gf-cut)), var(--scene-image) center / cover fixed no-repeat; -webkit-background-clip: text; background-clip: text;
-  -webkit-text-stroke: 1px var(--gf-cut-rim);
+  background: linear-gradient(180deg, var(--gf-cut-a), var(--gf-cut-b)), var(--scene-image) center / cover fixed no-repeat; -webkit-background-clip: text; background-clip: text;
+  /* the rim is a drop-shadow of the painted shape: a text stroke would also draw the variable font's overlapping inner contours */
+  filter: drop-shadow(0 1px 0 var(--gf-cut-rim));
 }
 .gf-crest { display: none; }
 

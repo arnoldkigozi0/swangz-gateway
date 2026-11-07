@@ -6,7 +6,11 @@
   "settled: no transform, full opacity",
   "wordmark is decorative",
   "Ask opens the existing request dialog for Social Insider",
+  "no text stroke on the wordmark (dark 1440)",
+  "no text stroke on the wordmark (light 1440)",
+  "no text stroke on the wordmark (dark 390)",
   "no horizontal overflow at 390 dark",
+  "no text stroke on the wordmark (light 390)",
   "no horizontal overflow at 390 light",
   "reduced motion: reveal not armed, footer opaque"
  ],

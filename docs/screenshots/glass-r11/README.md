@@ -8,7 +8,7 @@ Real data only: health is the public `/healthz` (cached 60 s), "Ask" reuses the 
 
 ## Differences still left versus the reference
 - The panel's top edge settles straight; the reference keeps a wavy liquid edge. The wave (`.gf-crest`) is visible only during the reveal.
-- Wordmark letters over the dark part of the scene ("Swa" in dark theme) show the photo at low brightness, so they read faint. The cut-out follows the fixed scene, not a brighter picture.
+- In dark theme the wordmark is the fixed scene lifted by a warm light layer, so "Swa" reads as soft grey while "ngz" shows more of the photo; the reference letters are brighter still. The rim is a drop-shadow, not a text stroke (a stroke drew the variable font's overlapping inner contours).
 - The "g" descender runs into the panel's bottom edge on purpose (cut-off wordmark); the reference shows the full letter.
 - Light theme panel is a flatter cream than the reference's frosted white; there is only one blur layer by design.
 - `background-attachment: fixed` is ignored on iOS Safari, so the cut-out falls back to the scene scaled to the wordmark box.
