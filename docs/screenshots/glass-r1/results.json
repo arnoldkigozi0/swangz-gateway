@@ -1,0 +1,210 @@
+{
+  "checks": [
+    "synthetic owner login",
+    "dark1440 real app: no overflow",
+    "dark1440 fixed scene loads",
+    "dark1440 tabular figures",
+    "dark1440 Jakarta variable face loaded",
+    "dark390 real app: no overflow",
+    "dark390 fixed scene loads",
+    "dark390 tabular figures",
+    "dark390 Jakarta variable face loaded",
+    "light1440 real app: no overflow",
+    "light1440 fixed scene loads",
+    "light1440 tabular figures",
+    "light1440 Jakarta variable face loaded",
+    "light390 real app: no overflow",
+    "light390 fixed scene loads",
+    "light390 tabular figures",
+    "light390 Jakarta variable face loaded",
+    "synthetic staff login",
+    "dark1440 staff catalogue no overflow",
+    "dark1440 staff uses own artwork",
+    "dark390 staff catalogue no overflow",
+    "dark390 staff uses own artwork",
+    "light1440 staff catalogue no overflow",
+    "light1440 staff uses own artwork",
+    "light390 staff catalogue no overflow",
+    "light390 staff uses own artwork",
+    "dark utilities: no overflow",
+    "dark blur enabled once",
+    "dark 0 scene supporting text >=4.5",
+    "dark 0 glass supporting text >=4.5",
+    "dark 0 strong supporting text >=4.5",
+    "dark 0 accent0 supporting text >=4.5",
+    "dark 0 accent1 supporting text >=4.5",
+    "dark 255 scene supporting text >=4.5",
+    "dark 255 glass supporting text >=4.5",
+    "dark 255 strong supporting text >=4.5",
+    "dark 255 accent0 supporting text >=4.5",
+    "dark 255 accent1 supporting text >=4.5",
+    "dark visible focus ring",
+    "dark utility axe scan",
+    "dark reduced transparency removes blur and image",
+    "dark reduced transparency solid surface",
+    "dark reduced motion prevents lift",
+    "dark reduced motion disables translated entrance",
+    "light utilities: no overflow",
+    "light blur enabled once",
+    "light 0 scene supporting text >=4.5",
+    "light 0 glass supporting text >=4.5",
+    "light 0 strong supporting text >=4.5",
+    "light 0 accent0 supporting text >=4.5",
+    "light 0 accent1 supporting text >=4.5",
+    "light 255 scene supporting text >=4.5",
+    "light 255 glass supporting text >=4.5",
+    "light 255 strong supporting text >=4.5",
+    "light 255 accent0 supporting text >=4.5",
+    "light 255 accent1 supporting text >=4.5",
+    "light visible focus ring",
+    "light utility axe scan",
+    "light reduced transparency removes blur and image",
+    "light reduced transparency solid surface",
+    "light reduced motion prevents lift",
+    "light reduced motion disables translated entrance",
+    "dark forced unsupported branch is solid with no blur",
+    "light forced unsupported branch is solid with no blur",
+    "no browser exceptions"
+  ],
+  "errors": [],
+  "screenshots": [
+    "admin-1440-dark.png",
+    "admin-390-dark.png",
+    "admin-1440-light.png",
+    "admin-390-light.png",
+    "utilities-390-dark.png",
+    "utilities-390-light.png"
+  ],
+  "contrast": [
+    {
+      "theme": "dark",
+      "photo": 0,
+      "surface": "scene",
+      "ratio": 9.04
+    },
+    {
+      "theme": "dark",
+      "photo": 0,
+      "surface": "glass",
+      "ratio": 8.55
+    },
+    {
+      "theme": "dark",
+      "photo": 0,
+      "surface": "strong",
+      "ratio": 8.6
+    },
+    {
+      "theme": "dark",
+      "photo": 0,
+      "surface": "accent0",
+      "ratio": 7.8
+    },
+    {
+      "theme": "dark",
+      "photo": 0,
+      "surface": "accent1",
+      "ratio": 15.36
+    },
+    {
+      "theme": "dark",
+      "photo": 255,
+      "surface": "scene",
+      "ratio": 4.67
+    },
+    {
+      "theme": "dark",
+      "photo": 255,
+      "surface": "glass",
+      "ratio": 6.34
+    },
+    {
+      "theme": "dark",
+      "photo": 255,
+      "surface": "strong",
+      "ratio": 7.2
+    },
+    {
+      "theme": "dark",
+      "photo": 255,
+      "surface": "accent0",
+      "ratio": 4.63
+    },
+    {
+      "theme": "dark",
+      "photo": 255,
+      "surface": "accent1",
+      "ratio": 8.85
+    },
+    {
+      "theme": "light",
+      "photo": 0,
+      "surface": "scene",
+      "ratio": 4.65
+    },
+    {
+      "theme": "light",
+      "photo": 0,
+      "surface": "glass",
+      "ratio": 5.41
+    },
+    {
+      "theme": "light",
+      "photo": 0,
+      "surface": "strong",
+      "ratio": 6.11
+    },
+    {
+      "theme": "light",
+      "photo": 0,
+      "surface": "accent0",
+      "ratio": 11.33
+    },
+    {
+      "theme": "light",
+      "photo": 0,
+      "surface": "accent1",
+      "ratio": 11.86
+    },
+    {
+      "theme": "light",
+      "photo": 255,
+      "surface": "scene",
+      "ratio": 6.19
+    },
+    {
+      "theme": "light",
+      "photo": 255,
+      "surface": "glass",
+      "ratio": 6.14
+    },
+    {
+      "theme": "light",
+      "photo": 255,
+      "surface": "strong",
+      "ratio": 6.41
+    },
+    {
+      "theme": "light",
+      "photo": 255,
+      "surface": "accent0",
+      "ratio": 13.96
+    },
+    {
+      "theme": "light",
+      "photo": 255,
+      "surface": "accent1",
+      "ratio": 15.08
+    }
+  ],
+  "accessibility": [
+    {
+      "theme": "dark",
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "violations": []
+    }
+  ]
+}
