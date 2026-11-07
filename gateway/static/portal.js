@@ -299,13 +299,65 @@
     const tabbar = el("nav", { class: "tabbar", "aria-label": "Swangz AI Hub" }, nav.map(([href, label, ic]) =>
       el("a", { href, class: href === active ? "on" : null, "aria-current": href === active ? "page" : null }, icon(ic), el("span", null, label),
         href === "#/requests" && count ? el("i", { class: "dot-count" }, String(count)) : null)));
-    const foot = el("footer", { class: "foot" }, el("div", { class: "inner" },
-      el("span", { class: "brandline" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz Avenue · Swangz AI Hub"),
-      el("span", { class: "foot-links" }, el("a", { href: "#/privacy" }, "How Swangz AI Hub works"), el("button", { type: "button", onclick: policy }, "Usage policy"))));
+    const foot = glassFooter();
     app.replaceChildren(el("a", { class: "skip", href: "#main", onclick: (e) => { e.preventDefault(); document.getElementById("main").focus(); } }, "Skip to content"),
       el("div", { class: "hub-staff-app" }, side, el("div", { class: "hub-staff-main" }, topbar, el("main", { id: "main", tabindex: "-1", class: opts.cls || null }, content), foot)));
   }
   document.addEventListener("click", () => { const m = document.querySelector(".menu.open"); if (m) { m.classList.remove("open"); document.querySelector(".me-btn")?.setAttribute("aria-expanded", "false"); } });
+
+  /* The staff footer: milky glass, a nested link card, the real gateway health, and the existing access-request path
+     ("Ask for a tool" opens the same request dialog as Tools). Reveal and wordmark are CSS; nothing here fetches data
+     other than /healthz, which the gateway already serves. */
+  let healthCache = null;
+  function gatewayHealth(set) {
+    if (healthCache && Date.now() - healthCache.at < 60000) return set(healthCache.ok);
+    fetch(gurl("/healthz"), { cache: "no-store" }).then((r) => r.json().then((j) => !!(r.ok && j && j.ok)), () => false)
+      .catch(() => false).then((ok) => { healthCache = { ok, at: Date.now() }; set(ok); });
+  }
+  function glassFooter() {
+    const me = S.me;
+    const link = (href, text) => el("a", { href }, text);
+    const requestable = ((me && me.catalog) || []).filter((t) => t.state !== "enabled" && t.state !== "suspended" && !t.pending);
+    const ask = me && me.active && requestable.length ? (() => {
+      const listId = "gf-tools", input = el("input", { class: "gf-input", type: "text", list: listId, autocomplete: "off", placeholder: "Name a tool, e.g. " + requestable[0].name, "aria-label": "Ask for a tool: type its name" });
+      const note = el("p", { class: "gf-note", role: "status" }, "An admin sees your request. Nothing is turned on until they agree.");
+      const send = (e) => {
+        e.preventDefault();
+        const q = input.value.trim().toLowerCase();
+        const t = q && (requestable.find((x) => x.name.toLowerCase() === q) || requestable.find((x) => x.name.toLowerCase().includes(q)));
+        if (t) { input.value = ""; note.textContent = "An admin sees your request. Nothing is turned on until they agree."; return requestAccess(t); }
+        note.textContent = q ? "No locked tool matches that. Browse every tool to find it." : "Type the name of a tool you do not have yet.";
+        if (q) location.hash = "#/tools?q=" + encodeURIComponent(input.value.trim());
+      };
+      return [el("form", { class: "gf-ask", onsubmit: send }, input, el("datalist", { id: listId }, requestable.map((t) => el("option", { value: t.name }))),
+        el("button", { class: "gf-btn", type: "submit" }, "Ask")), note];
+    })() : [el("a", { class: "gf-ask-link", href: "#/requests?view=access" }, icon("send"), "See your access requests"),
+      el("p", { class: "gf-note" }, "Your tools and requests are tracked on the Requests page.")];
+    const dot = el("span", { class: "gf-dot", "data-state": "checking", "aria-hidden": "true" });
+    const word = el("span", null, "Checking gateway");
+    const status = el("span", { class: "gf-status", role: "status" }, dot, word);
+    gatewayHealth((ok) => { dot.dataset.state = ok ? "ok" : "bad"; word.textContent = ok ? "Gateway running" : "Gateway not answering"; });
+    const col = (title, links) => el("div", { class: "gf-col" }, el("h2", null, title), el("ul", null, links.map((l) => el("li", null, l))));
+    const theme = SUI.themeButton("gf-theme");
+    const f = el("footer", { class: "foot glass-foot" }, el("div", { class: "gf-wrap" },
+      el("div", { class: "gf-panel" },
+        el("span", { class: "gf-crest", "aria-hidden": "true" }),
+        el("div", { class: "gf-grid" },
+          el("div", { class: "gf-lead" },
+            el("span", { class: "gf-brand" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz AI Hub"),
+            el("p", { class: "gf-line" }, "Need another tool? Ask for it."), ask),
+          el("nav", { class: "gf-card", "aria-label": "Footer" },
+            col("Your workspace", [link("#/tools", "My tools"), link("#/devices", "Devices"), link("#/requests", "Requests")]),
+            col("Trust and help", [link("#/privacy", "How Swangz AI Hub works"), link("#/privacy", "Privacy and help"), el("button", { type: "button", onclick: policy }, "Usage policy")]))),
+        el("div", { class: "gf-meta" }, el("span", { class: "gf-copy" }, "\u00a9 " + new Date().getFullYear() + " Swangz Avenue"), status, el("span", { class: "gf-theme-wrap" }, theme)),
+        el("div", { class: "gf-word", "aria-hidden": "true" }, "Swangz"))));
+    if ("IntersectionObserver" in window && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      f.classList.add("gf-armed");
+      const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { f.classList.add("gf-in"); io.disconnect(); } }, { threshold: 0.15 });
+      requestAnimationFrame(() => io.observe(f));
+    }
+    return f;
+  }
 
   function sectionHead(eyebrow, title, text, action) {
     return el("div", { class: "section-head" }, el("div", null, eyebrow ? el("div", { class: "eyebrow" }, eyebrow) : null, el("h1", null, title), text ? el("p", null, text) : null), action || null);

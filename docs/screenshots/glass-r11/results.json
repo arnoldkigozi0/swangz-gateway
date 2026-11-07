@@ -1,0 +1,22 @@
+{
+ "checks": [
+  "real health shows the gateway running",
+  "footer links reuse existing routes",
+  "no horizontal overflow",
+  "settled: no transform, full opacity",
+  "wordmark is decorative",
+  "Ask opens the existing request dialog for Social Insider",
+  "no horizontal overflow at 390 dark",
+  "no horizontal overflow at 390 light",
+  "reduced motion: reveal not armed, footer opaque"
+ ],
+ "shots": [
+  "dark-1440x900.png",
+  "light-1440x900.png",
+  "dark-390x844.png",
+  "light-390x844.png",
+  "reveal-mid"
+ ],
+ "errors": [],
+ "cls": 0
+}
