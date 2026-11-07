@@ -116,6 +116,8 @@ class App:
         if isinstance(exc, core.Revoked):
             self.error = "This device was disconnected from Swangz AI Hub, so Swangz has been removed from it."
             self.show("signin")
+        elif isinstance(exc, core.NeedsReconnect):
+            self.say(str(exc), bad=True)  # nothing was removed
         elif isinstance(exc, core.NotSignedIn):
             self.show("signin")
         else:
@@ -233,6 +235,9 @@ class App:
         hour = time.localtime().tm_hour
         self.label(f, f"Good {'morning' if hour < 12 else 'afternoon' if hour < 18 else 'evening'}{', ' + name if name else ''}", 24, bold=True).pack(anchor="w")
         self.label(f, f"Signed in to {st.get('server') or ''}  ·  last synced {clock(st.get('last_sync'))}", 10, color="muted").pack(anchor="w", pady=(2, 20))
+        if st.get("reconnect"):
+            self.label(f, core.RECONNECT, 10, color="bad", wrap=700).pack(anchor="w", pady=(0, 10))
+            self.button(f, "Reconnect this device", self.sign_out).pack(anchor="w", pady=(0, 14))
         installed = st["installed"]
         agents = [(k, n) for k, n in (("claude-code", "Claude Code"), ("codex", "Codex")) if k in installed]
         card = self.card(f)

@@ -20,6 +20,7 @@ import threading
 import urllib.error
 import urllib.parse
 import urllib.request
+from contextlib import contextmanager
 from pathlib import Path
 
 from . import __version__, agents, bundles, keystore, shell
@@ -27,6 +28,10 @@ from . import __version__, agents, bundles, keystore, shell
 TIMEOUT = 30
 MAX_DOWNLOAD = 150 * 1024 * 1024
 LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1", "[::1]")
+HEARTBEAT_SECONDS = 15 * 60  # the window's sync/check-in interval; a refused key is not retried faster than this
+ROTATE_AFTER_DAYS = 30  # used when the manifest does not say
+ROTATE_LOCK_STALE = 180  # a rotation is two short calls; a lock older than this is from a hung or dead process
+SESSION_MAX_AGE = 7 * 86400  # a session marker older than this is not believed, even if its pid is alive again
 
 
 class ApiFailure(Exception):
@@ -37,6 +42,17 @@ class ApiFailure(Exception):
 
 class Revoked(ApiFailure):
     """The server explicitly revoked this device."""
+
+
+class KeyRotated(ApiFailure):
+    """401 device_key_rotated: *this key* was replaced by a newer one on the same device. Never a reason to wipe."""
+
+    used = None  # the key that was refused
+
+
+class NeedsReconnect(Exception):
+    """This device's only key was replaced and no newer one reached the app. Nothing is removed; the person
+    reconnects the device."""
 
 
 class NotSignedIn(Exception):
@@ -74,6 +90,70 @@ class Paths:
 
 def write_private(path, text):
     keystore.write_private(path, text)
+
+
+class RotationLock:
+    """One rotation at a time on this data folder, across processes (the window and `swangz sync` share it).
+    The file is created exclusively; a lock whose owner is gone, or that is older than ROTATE_LOCK_STALE, is
+    taken over. Not re-entrant: a second holder in the same process is refused like any other."""
+
+    def __init__(self, path, alive, stale=ROTATE_LOCK_STALE):
+        self.path, self.alive, self.stale = Path(path), alive, stale
+        self._mine = None
+
+    def _read(self):
+        try:
+            return self.path.read_text(encoding="utf-8")
+        except OSError:
+            return None
+
+    def _is_stale(self, text):
+        try:
+            owner = json.loads(text)
+            pid, at = owner["pid"], float(owner["at"])
+            if isinstance(pid, bool) or not isinstance(pid, int):
+                raise ValueError
+        except (TypeError, ValueError, KeyError):
+            try:  # unreadable or half-written: judge it by the file's age alone
+                return time.time() - self.path.stat().st_mtime > self.stale
+            except OSError:
+                return False
+        return time.time() - at > self.stale or not self.alive(pid)
+
+    def acquire(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        text = json.dumps({"pid": os.getpid(), "at": time.time()})
+        for _ in range(2):
+            try:
+                fd = os.open(str(self.path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            except FileExistsError:
+                seen = self._read()
+                if seen is None or not self._is_stale(seen):
+                    if seen is None:
+                        continue  # it vanished between the two calls; try to create it again
+                    return False
+                if self._read() == seen:  # break it only if it is still the same stale lock
+                    try:
+                        self.path.unlink()
+                    except FileNotFoundError:
+                        pass
+                continue
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(text)
+            self._mine = text
+            return True
+        return False
+
+    def release(self):
+        mine, self._mine = self._mine, None
+        if mine is not None and self._read() == mine:  # never remove a lock somebody else took over
+            self.path.unlink(missing_ok=True)
+
+    def __enter__(self):
+        return self.acquire()
+
+    def __exit__(self, *exc):
+        self.release()
 
 
 class Store:
@@ -182,6 +262,85 @@ class Store:
             self._store_key(info, keystore.check_secret(key))
             self.migration_attempted = True
 
+    # ---- rotation: a new key is written here, and verified, before it is ever used
+
+    def staged(self):
+        """-> (key_id, secret) of a key written by a rotation and not yet current, or None."""
+        with self.lock:
+            info = self.device()
+            if not info or info.get("cleanup_pending") or not info.get("next_key_id"):
+                return None
+            if info.get("next_key_storage") == "keychain":
+                secret = self.credentials.get(info["server"], info["next_key_id"])
+            else:
+                try:
+                    secret = keystore.check_secret((self.paths.data / "device.key.next").read_text(encoding="utf-8").strip())
+                except FileNotFoundError:
+                    secret = None
+            return (info["next_key_id"], secret) if secret else None
+
+    def stage(self, key_id, secret):
+        """Write the new key next to the current one and read it back. Only identity is journalled in device.json."""
+        keystore.check_secret(secret)
+        keystore.account(self.device()["server"], key_id)  # rejects a malformed id
+        with self.lock:
+            info = self.device()
+            info.update(next_key_id=key_id, next_key_storage="file")
+            self._save_info(info)  # a restart can find the item even if we stop before using it
+            if self.device().get("key_storage") == "keychain":
+                try:
+                    self.credentials.put(info["server"], key_id, secret)
+                    back = self.credentials.get(info["server"], key_id)
+                    if back and hmac.compare_digest(secret, back):
+                        info["next_key_storage"] = "keychain"
+                        self._save_info(info)
+                        return
+                except keystore.KeyStoreError:
+                    pass
+                self._forget_item(info["server"], key_id)  # the put may have stored something we could not read back
+            nxt = self.paths.data / "device.key.next"
+            write_private(nxt, secret)
+            if nxt.read_text(encoding="utf-8") != secret:
+                raise keystore.KeyStoreError("The new device credential could not be verified.")
+
+    def _forget_item(self, server, key_id):
+        """Remove a keychain item we are not going to use; if that cannot be confirmed, remember it for wipe()."""
+        try:
+            self.credentials.delete(server, key_id)
+            if self.credentials.get(server, key_id) is None:
+                return
+        except keystore.KeyStoreError:
+            pass
+        now = self.device()
+        now["stale_key_ids"] = (now.get("stale_key_ids") or []) + [key_id]
+        self._save_info(now)
+
+    def promote(self):
+        """Make the staged key the current one. The old one is deleted afterwards (and retried at sign-out if that fails)."""
+        with self.lock:
+            staged = self.staged()
+            if not staged:
+                return False
+            nid, secret = staged
+            info = self.device()
+            old_id, old_storage, next_storage = info["key_id"], info.get("key_storage"), info.get("next_key_storage")
+            new = {k: v for k, v in info.items() if k not in ("next_key_id", "next_key_storage", "reconnect")}
+            new.update(key_id=nid, key_issued=time.time())
+            if next_storage == "keychain":
+                new.update(key_storage="keychain", keychain_pending=False)
+                self._save_info(new)  # the pointer moves only after the new item was read back
+            else:
+                self._store_key(new, secret)  # keychain if it works now, else the protected file
+            keystore.erase_file(self.paths.data / "device.key.next")
+            if old_storage == "keychain":
+                try:
+                    self.credentials.delete(info["server"], old_id)
+                except keystore.KeyStoreError:
+                    now = self.device()
+                    now["stale_key_ids"] = (now.get("stale_key_ids") or []) + [old_id]
+                    self._save_info(now)
+            return True
+
     def state(self):
         s = self._read("state.json", {})
         s.setdefault("installed", {})
@@ -207,9 +366,18 @@ class Store:
                     self.credentials.delete(info["server"], info["key_id"])
                     if self.credentials.get(info["server"], info["key_id"]) is not None:
                         raise keystore.KeyStoreError("Keychain removal is incomplete. Retry signing out.")
+                # a staged (not yet current) key and any old item that could not be deleted at rotation
+                extra = list(info.get("stale_key_ids") or [])
+                if info.get("next_key_id") and info.get("next_key_storage") == "keychain":
+                    extra.append(info["next_key_id"])
+                for key_id in extra:
+                    self.credentials.delete(info["server"], key_id)
+                    if self.credentials.get(info["server"], key_id) is not None:
+                        raise keystore.KeyStoreError("Keychain removal is incomplete. Retry signing out.")
             for root in reversed(self.roots()):
                 keystore.erase_file(root / "device.key")
-                for name in ("state.json", "manifest.json", "device.json", "credential-access.log"):
+                keystore.erase_file(root / "device.key.next")
+                for name in ("state.json", "manifest.json", "device.json", "credential-access.log", "rotate.lock"):
                     (root / name).unlink(missing_ok=True)
 
 
@@ -259,6 +427,9 @@ class PinnedRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         same_origin_url(newurl, self.server)
         return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+RECONNECT = "Reconnect this device: its key was renewed and the new one did not reach this app. Nothing was removed."
 
 
 def version_tuple(text):
@@ -319,6 +490,10 @@ class Api:
             code, message = out.get("code", ""), out.get("error") or f"The server answered {status}."
             if status == 401 and code == "device_revoked":
                 raise Revoked(status, code, message)
+            if status == 401 and code == "device_key_rotated":
+                exc = KeyRotated(status, code, message)
+                exc.used = self.key
+                raise exc
             if status == 401 and code == "device_unknown":
                 message = "The Hub no longer recognises this device. Local data was kept. Retry, or sign out and reconnect."
             raise ApiFailure(status, code, message)
@@ -336,6 +511,10 @@ class Api:
                 err = {}
             if status == 401 and err.get("code") == "device_revoked":
                 raise Revoked(status, err.get("code"), err.get("error") or "")
+            if status == 401 and err.get("code") == "device_key_rotated":
+                exc = KeyRotated(status, err.get("code"), err.get("error") or "")
+                exc.used = self.key
+                raise exc
             raise ApiFailure(status, err.get("code", ""), err.get("error") or f"The download failed ({status}).")
         if len(raw) > limit:
             raise ApiFailure(0, "too_large", "That download is larger than Swangz allows.")
@@ -437,7 +616,7 @@ class Client:
                 raise
             # The address the person entered is the pin; response metadata cannot replace it.
             info = {"server": server, "key_id": out["key_id"], "owner_kind": out["owner_kind"],
-                    "name": name or device_name(), "person": out["person"], "signed_in": time.time()}
+                    "name": name or device_name(), "person": out["person"], "signed_in": time.time(), "key_issued": time.time()}
             self.store.save_device(info, out["key"])
             self.store.save_state({"installed": {}, "last_sync": None})
             return info
@@ -446,11 +625,52 @@ class Client:
     # ------------------------------------------------------------ what is offered, and putting it here
 
     def _guard(self, fn):
-        try:
-            return fn()
-        except Revoked:
-            self.remove_everything()
-            raise
+        """Run a device call. Revoked -> remove everything. KeyRotated -> reload the key from the store and try
+        once more; with no newer key, say the device needs reconnecting. A rotated key never removes anything."""
+        if self._reconnect_pending():
+            raise NeedsReconnect(RECONNECT)
+        for attempt in (0, 1):
+            try:
+                return fn()
+            except Revoked:
+                self.remove_everything()
+                raise
+            except KeyRotated as exc:
+                if attempt or not self._adopt_newer_key(exc.used):
+                    self._mark_reconnect()
+                    raise NeedsReconnect(RECONNECT) from None
+
+    def _adopt_newer_key(self, used):
+        """After device_key_rotated: is there a newer key in the store than the one that was refused?"""
+        with self.store.lock:
+            staged = self.store.staged()
+            if staged and staged[1] != used:
+                return self.store.promote()
+            try:
+                current = self.store.key()
+            except keystore.KeyStoreError:
+                return False
+            return bool(current) and current != used
+
+    def _mark_reconnect(self):
+        with self.store.lock:
+            info = self.store.device()
+            if info and not info.get("cleanup_pending"):
+                info["reconnect"] = {"key_id": info["key_id"], "at": time.time()}
+                self.store._save_info(info)
+
+    def _reconnect_pending(self):
+        """True while a refused-key device should wait: calls are not retried faster than the heartbeat."""
+        with self.store.lock:
+            info = self.store.device()
+            mark = (info or {}).get("reconnect")
+            if not mark:
+                return False
+            if mark.get("key_id") != info.get("key_id") or info.get("next_key_id"):
+                info.pop("reconnect", None)  # a newer key arrived (another window, a staged rotation)
+                self.store._save_info(info)
+                return False
+            return time.time() - float(mark.get("at") or 0) < HEARTBEAT_SECONDS
 
     def refresh(self):
         """Ask what this device is offered now (no changes made). -> the manifest, also kept for the window."""
@@ -500,7 +720,7 @@ class Client:
         state["latest_client"] = manifest.get("client", {}).get("latest")
         self.store.save_state(state)
         self.heartbeat()
-        return {"results": results, "manifest": manifest}
+        return {"results": results, "manifest": manifest, "rotation": self.maintain_credential()}
 
     def _install(self, api, pkg, key, device):
         install = pkg.get("install") or {}
@@ -550,18 +770,26 @@ class Client:
         for pid, record in list(state["installed"].items()):
             self._uninstall(pid, record)
         for root in self.store.roots():
-            for sub in ("packages", "extension", "backups"):
+            for sub in ("packages", "extension", "backups", "sessions"):
                 try:
                     shutil.rmtree(root / sub)
                 except FileNotFoundError:
                     pass
         self.store.wipe()
 
+    def _heartbeat_body(self):
+        state = self.store.state()
+        storage = (self.store.device() or {}).get("key_storage", "file")
+        body = {**system_facts(), "key_storage": storage,
+                "packages": [{"id": pid, "version": r.get("version", "?")} for pid, r in state["installed"].items()]}
+        if storage == "keychain":  # which native store holds it; a file has no backend to name
+            body["key_backend"] = keystore.backend_name()
+        return body
+
     def heartbeat(self):
         state = self.store.state()
         self.store.key()
-        body = {**system_facts(), "key_storage": (self.store.device() or {}).get("key_storage", "file"),
-                "packages": [{"id": pid, "version": r.get("version", "?")} for pid, r in state["installed"].items()]}
+        body = self._heartbeat_body()
         try:
             out = self._guard(lambda: self.api().call("POST", "/device/heartbeat", body))
         except ApiFailure as exc:
@@ -572,6 +800,152 @@ class Client:
             state["latest_client"] = out["latest_client"]
             self.store.save_state(state)
         return out
+
+    # ------------------------------------------------------------ the device key: rotation
+
+    @staticmethod
+    def _pid_alive(pid):
+        if pid == os.getpid():
+            return True
+        if sys.platform == "win32":
+            import ctypes
+
+            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel.OpenProcess.restype = ctypes.c_void_p
+            handle = kernel.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+            if not handle:
+                return False
+            try:
+                code = ctypes.c_ulong()
+                return bool(kernel.GetExitCodeProcess(ctypes.c_void_p(handle), ctypes.byref(code))) and code.value == 259
+            finally:
+                kernel.CloseHandle(ctypes.c_void_p(handle))
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        except OSError:
+            return False
+        return True
+
+    @contextmanager
+    def _session(self):
+        """A coding-agent run holds the key in its environment, so the key must not change under it."""
+        folder = self.paths.data / "sessions"
+        folder.mkdir(parents=True, exist_ok=True)
+        marker = folder / f"{os.getpid()}-{time.time_ns()}"
+        marker.write_text(json.dumps({"pid": os.getpid(), "started": time.time()}), encoding="utf-8")
+        try:
+            yield
+        finally:
+            marker.unlink(missing_ok=True)
+
+    @staticmethod
+    def _read_marker(marker):
+        """-> (pid, start time). Older markers only have the pid in the name; their start is the file's age."""
+        try:
+            data = json.loads(marker.read_text(encoding="utf-8"))
+            pid, started = data["pid"], data["started"]
+            if isinstance(pid, int) and not isinstance(pid, bool) and isinstance(started, (int, float)):
+                return pid, float(started)
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+        try:
+            pid = int(marker.name.split("-")[0])
+        except ValueError:
+            return None, None
+        try:
+            return pid, marker.stat().st_mtime
+        except OSError:
+            return pid, None
+
+    def in_session(self):
+        """Is a coding agent started by this app running (in this or another Swangz process)?"""
+        live = False
+        try:
+            markers = list((self.paths.data / "sessions").iterdir())
+        except FileNotFoundError:
+            return False
+        for marker in markers:
+            pid, started = self._read_marker(marker)
+            if pid is None:
+                continue
+            if started is not None and time.time() - started > SESSION_MAX_AGE:
+                marker.unlink(missing_ok=True)  # far too old to be believed: its pid has likely been reused
+            elif self._pid_alive(pid):
+                live = True
+            else:
+                marker.unlink(missing_ok=True)  # the run ended without cleaning up
+        return live
+
+    def rotation_due(self, now=None):
+        info, manifest = self.store.device() or {}, self.store.manifest() or {}
+        cred = manifest.get("credential") if isinstance(manifest.get("credential"), dict) else {}
+        days = cred.get("rotate_after_days")
+        days = days if isinstance(days, int) and not isinstance(days, bool) and 1 <= days <= 365 else ROTATE_AFTER_DAYS
+        issued = next((v for v in (info.get("key_issued"), cred.get("issued"), info.get("signed_in"))
+                       if isinstance(v, (int, float)) and not isinstance(v, bool)), None)
+        if issued is None:
+            return False  # nothing to measure from; the next login or rotation records it
+        return (time.time() if now is None else now) - issued >= days * 86400
+
+    def maintain_credential(self, now=None):
+        """Called at the end of a sync (start-up and every idle check-in): finish a rotation that was started, or
+        start one if the key is old. Never while a coding agent started by this app is running, and a failure
+        here never fails the sync. -> "rotated" | None."""
+        info = self.store.device()
+        if not info or info.get("cleanup_pending") or self.in_session():
+            return None
+        lock = RotationLock(self.paths.data / "rotate.lock", self._pid_alive)
+        if not lock.acquire():
+            return None  # another Swangz process on this device is rotating; it will finish or time out
+        try:
+            staged = self.store.staged()
+            if staged:
+                return self._confirm_staged(staged)
+            if self.rotation_due(now):
+                return self._rotate()
+        except Revoked:
+            raise
+        except NeedsReconnect:
+            raise
+        except (ApiFailure, keystore.KeyStoreError, OSError):
+            return None  # try again at the next check-in; the current key still works
+        finally:
+            lock.release()
+        return None
+
+    def _rotate(self):
+        try:
+            out = self.api().call("POST", "/device/rotate", {})
+        except Revoked:
+            self.remove_everything()
+            raise
+        except KeyRotated as exc:
+            if self._adopt_newer_key(exc.used):
+                return None
+            self._mark_reconnect()
+            raise NeedsReconnect(RECONNECT) from None
+        key_id, key = out.get("key_id"), out.get("key")
+        if not isinstance(key_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", key_id):
+            raise ApiFailure(0, "invalid_response", "The Hub returned an invalid key.")
+        self.store.stage(key_id, key)  # on disk and read back BEFORE the first use
+        return self._confirm_staged((key_id, key))
+
+    def _confirm_staged(self, staged):
+        """One device call with the new key (a check-in). Only after it succeeds does the new key become current."""
+        key_id, key = staged
+        device = self.store.device()
+        try:
+            self._api_factory(device["server"], key).call("POST", "/device/heartbeat", self._heartbeat_body())
+        except Revoked:
+            self.remove_everything()
+            raise
+        except ApiFailure:
+            return None  # stays staged; the old key works until its grace ends, then the store's newer key is used
+        return "rotated" if self.store.promote() else None
 
     def logout(self):
         """Tell the server, then take Swangz off this device. The server is told first; if it can't be reached the
@@ -602,7 +976,8 @@ class Client:
                 "client_version": __version__, "recording": (manifest or {}).get("recording"),
                 "autostart": shell.autostart_enabled(self.paths), "key_storage": (device or {}).get("key_storage"),
                 "credential_warning": credential_error or (device or {}).get("credential_warning"),
-                "cleanup_pending": bool((device or {}).get("cleanup_pending"))}
+                "cleanup_pending": bool((device or {}).get("cleanup_pending")),
+                "reconnect": bool((device or {}).get("reconnect"))}
 
     def packages(self):
         """Every package this device is offered, with where it stands here."""
@@ -644,7 +1019,8 @@ class Client:
         if not shutil.which(argv[0]):
             hint = {"claude": "npm install -g @anthropic-ai/claude-code", "codex": "npm install -g @openai/codex"}[argv[0]]
             raise FileNotFoundError(f"{argv[0]} isn't installed on this device. Install it first ({hint}), then run this again.")
-        return self.run(argv, env=env).returncode
+        with self._session():
+            return self.run(argv, env=env).returncode
 
     def helper_key(self, tool):
         if tool not in ("claude-code", "codex") or tool not in self.store.state()["installed"]:
