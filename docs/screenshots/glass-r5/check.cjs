@@ -42,6 +42,22 @@ const ok = (label, v) => { assert.ok(v, label); results.checks.push(label); };
           rounded: cols.every(c => Math.abs(Number(c.getAttribute('rx')) - Math.min(Number(c.getAttribute('width')), Number(c.getAttribute('height'))) / 2) < 0.01), overflow: document.documentElement.scrollWidth <= innerWidth,
           settled: [...svg.querySelectorAll('.tube')].every(t => getComputedStyle(t).opacity === '1' && getComputedStyle(t).transform === 'none') };
       });
+      // WCAG 1.4.11: the tube's rim and the current bar's edge must reach 3:1 against what is really behind the chart
+      const con = await page.evaluate(() => {
+        const svg = document.querySelector('.u-tubes');
+        const parse = c => { const m = c.match(/[\d.]+/g).map(Number); return { r: m[0], g: m[1], b: m[2], a: m.length > 3 ? m[3] : 1 }; };
+        const over = (f, b) => ({ r: f.r * f.a + b.r * (1 - f.a), g: f.g * f.a + b.g * (1 - f.a), b: f.b * f.a + b.b * (1 - f.a), a: 1 });
+        const chain = []; for (let e = svg; e; e = e.parentElement) { const c = parse(getComputedStyle(e).backgroundColor); if (c.a > 0) chain.push(c); if (c.a === 1) break; }
+        let bg = chain.length && chain[chain.length - 1].a === 1 ? chain.pop() : { r: 255, g: 255, b: 255, a: 1 };
+        while (chain.length) bg = over(chain.pop(), bg);
+        const lum = c => { const f = v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }; return .2126 * f(c.r) + .7152 * f(c.g) + .0722 * f(c.b); };
+        const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
+        const cols = [...svg.querySelectorAll('.col')]; const on = svg.querySelector('.col.on'), off = cols.find(c => !c.classList.contains('on'));
+        return { rim: ratio(over(parse(getComputedStyle(off).stroke), bg), bg), cur: ratio(over(parse(getComputedStyle(on).stroke), bg), bg), bg: `rgb(${bg.r | 0},${bg.g | 0},${bg.b | 0})` };
+      });
+      ok(`${w}x${h} ${theme}: tube rim contrast ${con.rim.toFixed(2)}:1 against ${con.bg} is at least 3:1`, con.rim >= 3);
+      ok(`${w}x${h} ${theme}: current bar edge contrast ${con.cur.toFixed(2)}:1 is at least 3:1`, con.cur >= 3);
+      results.contrast = results.contrast || {}; results.contrast[`${w}x${h}-${theme}`] = { rim: +con.rim.toFixed(2), current: +con.cur.toFixed(2), bg: con.bg };
       ok(`${w}x${h} ${theme}: 30 tubes, one current`, q.n === 30 && q.on === 1);
       ok(`${w}x${h} ${theme}: caps are rounded to each bar's own size`, q.rounded);
       ok(`${w}x${h} ${theme}: tubes at least 8px wide and chart at least 200px tall (${q.bw.toFixed(1)} x ${q.h})`, q.bw >= (w === 390 ? 5 : 8) && q.h >= 200);
