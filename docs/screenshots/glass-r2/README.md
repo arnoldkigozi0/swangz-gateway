@@ -55,3 +55,21 @@ screen readers, native OS settings, performance traces/60fps/CLS/MotionScore.
 Chrome DevTools, Motion, mounted browser actions and peer coordination tools were
 not exposed in this build session; the existing supported browser harness was used.
 No deployment, providers, new dependencies, auth logic or production data changed.
+
+## Main refresh — 7 November, 16:38 handoff
+
+Merged main `f898ebfe5f56eb95a70f98481d3e0fa5996bd924` normally, without resolution
+edits. Navigation CSS/JS are byte-identical to prior PR head `ca834fc`; no shared
+admin source edits were made during this refresh. The browser harness regenerated
+its eight synthetic screenshots.
+
+Fresh checks: the focused invocation above again passed `75 navigation checks;
+8 screenshots; 6 axe scans`, exit 0. `python3 -m unittest tests.test_browser_profiles
+tests.test_portal tests.test_hub` reported `Ran 99 tests in 39.773s`, `OK`, exit 0.
+The fake-fixture run emitted socket ResourceWarnings; there were no test failures.
+Both working and merge-index `git diff --check` passed. Full CI and renewed
+independent QA must cover the refreshed head; old verdicts do not transfer.
+
+R4 remains at `8cdc8ea` and its `ui.css` ownership is explicitly released to
+Chief/Forge. R4 integration is not verified while corrected dependency #40 is
+pending. This refresh did not change or merge the R4 worktree.
