@@ -93,7 +93,11 @@ rather than reopening this.
   (from which price or rate) or *unpriced*, a platform comes *from the user agent*, a place is a *named
   network*, *approximate* (offline table) or just the address type, a purpose is *declared*, *from the
   tool* or *inferred* with its confidence — never present an inference as a fact.
-- **The finish follows Swangz Avenue Bookings** (`arnoldkigozi0/swangz-avenue-bookings-uiux`, Arnold's
+- **Visual design (Nov 7, 2026): the "Glass" redesign in `docs/design/BRIEF.md` is the target** — Arnold's three
+  reference videos (glass dashboard + CRM, glass login, liquid glass footer) define the look and motion. Where the
+  older rules below (tight radii, imagery kept apart from controls) disagree with the brief, the brief wins; the
+  structure rules in `docs/UI.md` (one home per kind of information, tabs, URLs) still apply.
+- **Earlier finish (Oct 7), superseded where the brief differs:** The finish follows Swangz Avenue Bookings (`arnoldkigozi0/swangz-avenue-bookings-uiux`, Arnold's
   reference, Oct 7, 2026): tight radii, sentence-case buttons that are outlines by default, one primary
   per place (off-white, gold sweeps in on hover), danger outlined. Page actions sit on the title's line
   at the right; panel actions in the header (add) or footer (save), right-aligned; Cancel before the
