@@ -135,3 +135,18 @@ not Probe's original unavailable script, do not reproduce its original absolute
 numbers, and do not establish 60fps or eliminate scheduling noise/other builders.
 No MotionScore or device-performance claim. Renewed independent judgment of the
 performance gate is required; no extra sampling is used to hide the mixed result.
+
+### Final documentation-baseline integration
+
+Normally merged main `9f326992bbd63a6beefb2d1acbce297c9917b511` after the correction.
+Only `docs/design/BRIEF.md` arrived from main; no wording-nit edits or conflict
+resolutions were made. Product, test and workflow files match `4a0a68f` exactly.
+SHA-256 checks confirm the performance comparison still describes these files;
+it was not rerun to seek a better outcome. Its mixed result and independent gate
+remain unchanged.
+
+Fresh retest: focused harness `PASS 75 navigation checks; 8 screenshots; 6 axe
+scans`, exit 0; `python3 -m unittest tests.test_browser_profiles tests.test_portal
+tests.test_hub`: `Ran 99 tests in 32.501s`, `OK`, exit 0. Fake-fixture socket
+ResourceWarnings remain non-failing. Both working/merge-index whitespace checks
+passed. QA and CI must cover this final refreshed head, not an earlier head.
