@@ -33,14 +33,22 @@ async function start() {
   const metrics=await p.evaluate(()=>({overflow:document.documentElement.scrollWidth>innerWidth+1,scene:getComputedStyle(document.body,'::before').backgroundImage,font:getComputedStyle(document.body).fontFamily,numbers:getComputedStyle(document.body).fontVariantNumeric}));
   check(theme+width+' real app: no overflow',!metrics.overflow);check(theme+width+' fixed scene loads',metrics.scene.includes('admin-welcome.webp'));check(theme+width+' tabular figures',metrics.numbers.includes('tabular-nums'));
   check(theme+width+' Jakarta variable face loaded',metrics.font.includes('Plus Jakarta Sans')&&await p.evaluate(()=>document.fonts.check('650 16px "Plus Jakarta Sans"')));
+  check(theme+width+' KPI values fit font metrics',await p.locator('.kpi .value:not(.text)').evaluateAll(es=>es.length>0&&es.every(e=>e.scrollHeight<=e.clientHeight+1&&e.scrollWidth<=e.clientWidth+1)));
   const file=`admin-${width}-${theme}.png`;await p.screenshot({path:path.join(out,file),animations:'disabled'});result.screenshots.push(file);
  }
  check('synthetic staff login', (await context.request.post(url+'/api/login',{headers:{'x-swangz-app':'1'},data:{email:'grace@swangzavenue.com',password:'demo-password'}})).status()===200);
  for(const theme of ['dark','light'])for(const [width,height]of [[1440,900],[390,844]]){
   await p.setViewportSize({width,height});await p.goto(url+'/#/tools');await p.locator('main h1').waitFor();
   await p.evaluate(t=>document.documentElement.dataset.theme=t,theme);await p.evaluate(()=>document.fonts.ready);
+  await p.waitForTimeout(600);
   check(theme+width+' staff catalogue no overflow',await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   check(theme+width+' staff uses own artwork',await p.evaluate(()=>getComputedStyle(document.body,'::before').backgroundImage.includes('home-welcome.webp')));
+  check(theme+width+' staff tool metadata fits',await p.locator('.tr-sub').evaluateAll(es=>es.length>0&&es.every(e=>e.scrollWidth<=e.clientWidth+1)));
+  if(width===390){await p.locator('.tool-row').filter({hasText:'Adobe Premiere'}).first().scrollIntoViewIfNeeded();const file=`staff-tools-${width}-${theme}.png`;await p.screenshot({path:path.join(out,file),animations:'disabled'});result.screenshots.push(file);}
+  await p.emulateMedia({media:'print'});
+  check(theme+width+' print hides architectural scene',await p.evaluate(()=>getComputedStyle(document.body,'::before').display==='none'));
+  check(theme+width+' print retains white paper and black text',await p.evaluate(()=>getComputedStyle(document.body).backgroundColor==='rgb(255, 255, 255)'&&getComputedStyle(document.body).color==='rgb(0, 0, 0)'));
+  await p.emulateMedia({media:'screen'});
  }
  await p.route('**/r1-utilities',route=>route.fulfill({contentType:'text/html',body:`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Glass R1 utility verification</title><link rel="stylesheet" href="/static/tokens.css"><link rel="stylesheet" href="/static/ui.css"><style>main{max-width:960px;margin:auto;padding:24px;display:grid;gap:24px}.u-glass,.u-glass-strong,.u-glass-accent{padding:24px}.muted{color:var(--tx-3)}button{padding:12px 20px;min-height:44px}h1,h2{margin:0 0 12px}.u-glass-well{padding:16px;margin-top:16px}</style><main><h1>Glass foundation</h1><section class="u-glass u-glass-lift"><h2>Smoked glass</h2><p class="muted">Utility verification using synthetic content.</p><button class="u-glass u-glass-pill">Keyboard focus</button><div class="u-glass-well">Inset well: no second blur</div></section><section class="u-glass-strong"><h2>Dense text surface</h2><p class="muted">Strong glass keeps supporting text readable.</p></section><section class="u-glass-accent"><h2>Warm accent surface</h2><p class="muted">123,456.78 — tabular figures</p></section></main></html>`}));
  await p.goto(url+'/r1-utilities');

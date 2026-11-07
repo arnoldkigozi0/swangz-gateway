@@ -86,3 +86,43 @@ contact sheets, with full-size dashboard/footer stills for material detail.
 
 No production service, real provider, deployment or merge was used. Browser and
 fixture processes terminate in the check's cleanup handler.
+
+## Independent review corrections
+
+Probe rejected initial head `1e0a319` after reproducing the CI browser failure:
+Jakarta's font metrics exceed the KPI value's former 1.12 line height. Probe also
+found mobile catalogue metadata clipping and the scene printing behind black
+text. The initial focused checks above passed but did not cover these defects.
+
+The correction raises KPI value line height to 1.3, wraps catalogue metadata,
+and hides the decorative scene when printing. The CI harness now checks catalogue
+metadata overflow; the focused check also measures KPI fit, catalogue metadata
+and the print scene/paper/text styles. The font and its licence stay unchanged.
+Chief confirmed Forge's R3 shared-style work has not started and reserved these
+bounded corrections for R1.
+
+Corrected-tree results, all exit 0:
+
+- `UI_WIDTH=<1440|390> UI_THEME=<dark|light> UI_PAGES_ONLY=1
+  UI_OUTPUT=/tmp/prism-glass-r1-<theme><width> node tests/browser/check.cjs`,
+  executed separately for each of the four combinations: `PASS principal pages
+  27 interaction assertions; 25 screen checks` each. Total 108 assertions and
+  100 screen checks, zero browser exceptions or axe findings, no KPI or metadata
+  overflow. Each run includes the deliberately rejected Studio voice request;
+  no unexpected API failures. The role matrix remains on Actions, so these are
+  bounded selections of the CI harness, not a complete local CI job.
+- `node docs/screenshots/glass-r1/check.cjs`: `PASS 81 targeted checks;
+  8 screenshots; 20 contrast bounds`. Print media emulation hides the scene and
+  preserves white paper/black body text in both themes/viewports. This is not a
+  physical printer or full report PDF check. Contrast bounds remain ≥4.63:1.
+- `python3 -m unittest tests.test_portal tests.test_hub`:
+  `Ran 56 tests in 30.576s`, `OK`.
+- `python3 tests/browser/syntax.py`: `Checked 23 JavaScript files`.
+- `git diff --check`: exit 0.
+
+`regression-results.json` records the four CI-harness selections and counts.
+The four required admin screenshots were refreshed and visually inspected;
+`staff-tools-390-dark.png` and `staff-tools-390-light.png` show the full labels
+in the Adobe Premiere and CapCut rows. The wrapping makes those rows taller;
+the page layout and other reference differences listed above remain intentional.
+Independent re-verification and corrected-head Actions results are pending.

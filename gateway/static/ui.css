@@ -12,6 +12,9 @@ body::before {
 }
 body:has(.topbar) { --scene-image: url("/static/home-welcome.webp"); }
 body:has(.gate) { --scene-image: url("/static/login-welcome.webp"); }
+@media print {
+  body::before { display: none; }
+}
 
 :is(.u-glass, .u-glass-strong, .u-glass-accent) {
   background: var(--glass-bg); border: 1px solid var(--glass-rim);
