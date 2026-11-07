@@ -1,6 +1,33 @@
 # Agent progress
 
-Last updated: 2026-11-07 04:08 EAT (Probe verified contract; Sentinel gate pending). Coordination branch: `team/log`. Product baseline: main `ba82a2a`.
+Last updated: 2026-11-07 08:40 EAT (Arnold's Glass UI redesign queue added; earlier: Probe verified contract, Sentinel gate pending). Coordination branch: `team/log`. Product baseline: main `ba82a2a`.
+
+## Arnold's priority — Glass UI redesign (7 Nov 2026, 08:30)
+Arnold sent three reference videos and said: "this is the exact design I want; they can improve where necessary."
+Brief + videos + stills: `docs/design/BRIEF.md` and `docs/design/references/` (PR #36, docs only; merge it first,
+then branch every redesign task from main). This is now the main build queue and the source of the 3-PRs-per-2-shifts
+target. Reviews, verification and gated merges of the open PRs continue alongside. One PR per row, 30–60 min each,
+screenshots per the brief §8. Keep files apart when Forge and Prism build at the same time.
+
+| # | Task | Suggested owner | Files (main ones) | Depends on | Status |
+|---|---|---|---|---|---|
+| R1 | Glass tokens, background layer, glass utilities, blur/transparency fallbacks | Prism | tokens.css, ui.css | PR #36 | todo |
+| R2 | Icon rail sidebar (control room) | Prism | admin.css, admin.js (nav) | R1 | todo |
+| R3 | Floating top bar: search pill, clock, bell, avatar | Forge | admin.css (top bar block), admin.js (header) | R1 | todo |
+| R4 | Page header + KPI glass cards + hover lift | Prism | ui.css (.kpis), admin-monitor.js | R1 | todo |
+| R5 | Glass tube bar chart | Forge | ui.js (charts), ui.css | R1 | todo |
+| R6 | Donut, gauge, line chart | Forge | ui.js (charts) | R5 | todo |
+| R7 | Glass table, segmented filters, progress bars | Prism | ui.css, ui.js (tables) | R1 | todo |
+| R8 | Person profile glass header card | Prism | admin-govern.js, admin.css | R4 | todo |
+| R9 | Page transition (blur cross-fade), count-up, reduced motion | Forge | admin.js (router), ui.css | R2 | todo |
+| R10 | Sign-in split glass card + panel swap (CRITICAL: Sentinel reviews; visual only) | Prism | index.html/admin sign-in, portal.css | R1 | todo |
+| R11 | Liquid glass footer + cut-out wordmark + theme switch | Forge | portal.css, portal.js | R1 | todo |
+| R12 | Staff app shell adopts the system | Prism | index.html, portal.css, portal.js | R2–R4 | todo |
+| R13 | Phone layouts pass (rail → bottom bar, stacks) | Prism | admin.css, portal.css | R2–R12 | todo |
+| R14 | Light "Porcelain" glass theme pass | Forge | tokens.css, ui.css | R1–R12 | todo |
+
+Decisions for Arnold (ask once in the daily report, keep building): a geometric display font instead of Archivo; real
+Swangz photos for the background layer.
 
 | Task | Owner | Branch | Status | Next step |
 |---|---|---|---|---|
