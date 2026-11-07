@@ -986,3 +986,9 @@ Plan for 5 November. Each task can start without Arnold's merges; anything that 
 - Probe readiness triage | Probe | existing PR37/32 refs | review (delegation accepted) | Confirm exact-head doc37 QA and next eligible merge; queue independent R2/R11 reference/accessibility/performance verification when artifacts exist. No duplicate R1 audit. Sentinel not woken: no new critical build released.
 - PR32 old exact015c285 has prior QA/security approval and green current CI, but now behind main3cdb8ec: waiting for builder refresh/retest and renewed exact-head gates; no merge. Other stacked PRs retain bottom-up retarget/fresh-CI holds. No WIP commits found in inspected five-hour history.
 - Prior shift seven new PRs met two-shift target; aim three new this shift. Arnold: no new decision needed. Chief tests Not run: coordination only; actual PR38 CI checked. No deployment, production, release or product-code edits. Existing uncommitted 09:12 coordination entry preserved.
+
+## Readiness triage returned — 7 November 12:04 EAT
+
+- Probe read-only triage: PR37 c0ce42b main/non-draft/MERGEABLE/green, content matches shipped font/photo decisions; Low stale Archivo sentence at BRIEF line32. Behind main3cdb8ec: Chief retains mandatory owner refresh despite clean merge. Prism assigned bounded existing-PR37 refresh and one-line correction after R2 clean handoff, before queued R4; renewed exact-head QA/CI required. No merge37.
+- PR32 behind new main remains waiting for owner refresh and exact-head gates; stacked PRs retain ordered main retarget/CI holds. UI artifacts not yet available; Probe stopped with no edits/tests/processes and will receive new-head QA on delivery. No duplicate QA requested.
+- Chief verified main3cdb8ec Hub checks IN_PROGRESS, prior main7356e06 SUCCESS; no further merge. Confirmed remote team/log6446ab1 from ls-remote; previous push completed. Chief tests Not run: coordination-only. No new Arnold decision.
