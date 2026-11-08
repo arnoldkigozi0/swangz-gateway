@@ -1433,3 +1433,22 @@ Forge next existing57ui.jssplitGate/exact-signin.css/signin.cjs/READMEonly under
 Forge reports pushed3cee0cf4cee2e99ca4422571772bd13a1fac3012/tree6e32013391fe795fb88c8e8adc45e58a284f11b9 (9dc→3cee). Filesui.jssplitGate/exact-signin.css/signin.cjs/READMEonly. Revealfontlatchedall5weights/alwayshold/fullgatehidden/optionssettledonlyslot. Phoneformstretchminwidthfix362→356px withinG2CSS. Builder48matrixcellsPASS/zeroafterrevealwholegateentries/raw0.000000/title-fields-button<1px/reveal174–1221ms; off/abortheight0/lateexactlink/lateoff-failB→Agapclear/fallbackunclipped. Negativecontrolfires. Syntax27/PWA/hub/lists/charts/check383assertions289screens/SHOTSsigninPASS reported; Python/business/stagingNotrunlocally. ReportedCIpython/browserpending/appwindowpreviewgreen; Chief freshquerypendingnetwork. PriorProbe+Sentinel9dcverdictsNOTcurrent.
 
 ReferenceacceptanceNOTclaimed: Probeoldoverlays/tmp/probe-s57/out uncommitted and reported~30pxoffsetneedsdiagnosis; committedstaffphone390darkpredateswidthfix. NextProbeindependent3ceeactualQA+referenceoverlay/offsetruling+performance; Sentinel9dc→3ceeboundeddelta. FreezeproductheadwhileQA; authorizeForgeevidencerefreshonlyonceProbeidentifiescorrectreferencealignment, thenrenewfinalheadgates. No merge/deploy. ChieftestsNotruncoordinationonly.
+
+
+## Shift start — 2026-11-09 00:00 Africa/Kampala
+
+Goal: repair exact-match blockers and deliver independently testable draft PRs during 00–02 shift. Current routine resumes previously paused work. Read team/log, STATE, project/mission instructions, recent all-branch history and live open PRs; fetch succeeded. No recent WIP head found. Root untracked files preserved.
+
+| Task | Owner | Branch | Status | Next step |
+| --- | --- | --- | --- | --- |
+| #57 late Google/Get access phone jump | Forge | feature/exact-signin-v2 (.worktrees/exact-signin-v2) | doing | Accepted delegation queued: reproduce at3cee0cf, confirm retained G2 with Sentinel, smallest fix and targeted checks; existing draft. Four core Actions and preview green at3cee0cf, current acceptance absent. |
+| #56 publish local corrections | Prism | feature/exact-staff-shell-v2 | doing | Accepted delegation queued: local19d0ef4 clean, remote77fa893; reconcile evidence/tests then batch push. Old rejection remains until new-head QA. |
+| Late options transition regression, new draft1 | Forge | feature/signin-options-regressions, separate worktree | todo | After57 blocker: one30–60min missing regression behavior, no duplicate coverage, draft PR; stack explicitly if dependent. |
+| Staff phone shell, new draft2 | Prism | feature/exact-staff-phone, separate worktree | todo | After56 push: update from corrected shell; phone/reference/AA/CLS checks with desktop nonregression, one draft. |
+| Staff footer, queued third build | Prism | feature/exact-staff-footer, separate worktree | todo | Next independent30–60min reference footer; Chief allocates third slot after builder result. Old39 remains HOLD. |
+| Sign-in review lows, alternate queue | Forge | feature/signin-review-lows, separate worktree | todo | Only after57 merge/G2 and Chief allocation; max three new builds total. |
+| #57 then #56 final acceptance | Probe | exact currentheads read-only | review | Accepted delegation queued: late Google/Get access jump, whole-gate/global CLS0, correctly aligned overlays, axe/performance; wait corrected56 push; exacthead VERIFIED/BLOCKED. |
+| #57 delta and repair G2 | Sentinel | feature/exact-signin-v2 read-only | review | Accepted delegation queued:9dc→3cee security verdict, bounded preimplementation transition threat ruling, renew after changes. |
+| Older drafts and stacked PRs | owners | existing branches | review | Waiting current-main exacthead gates; obsolete visual drafts HOLD; no eligible merge established. |
+
+Merged: none. Ready: none; no current-head complete gate set. No Arnold decision identified. PR target three new this shift; repairs do not count. Delegations accepted, execution begins after Chief turn; completion not claimed. Chief tests Not run: coordination documents only; validation git diff --check. No deployment, production data, dependency or system changes.
