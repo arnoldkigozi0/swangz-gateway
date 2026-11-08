@@ -11,7 +11,7 @@
 }
 
 /* The reference has one look: a dark glass card over dark angular architecture, in both themes. */
-body:has(.xgate) { --scene-image: url("/static/login-welcome.webp"); --scene-scrim: rgba(12, 10, 9, .42); }
+body:has(.xgate) { --scene-image: url("/static/login-welcome.webp"); --scene-scrim: rgba(12, 10, 9, .42); background-color: #0c0a09; } /* the photo is a ::before plane that checkers cannot see, so the page colour under it is dark too */
 
 .xgate {
   --xg-font: "Inter", "Helvetica Neue", Arial, sans-serif;
