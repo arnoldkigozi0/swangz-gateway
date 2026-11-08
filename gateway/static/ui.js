@@ -942,11 +942,70 @@
     return show;
   }
 
+  /* The reference sign-in (BRIEF §10.3, login-02/05): one glass card split by a slanted seam. One side holds a form,
+     the other a big uppercase greeting with a ghost pill; the pill swaps the two sides with a slide. The Hub has no
+     self sign-up, so the second mode is "how to get access" rather than "create account".
+     o: { a: {title, body:[nodes], focus}, b: {title, body:[nodes]}, helloA: {h, p, btn}, helloB: {h, p, btn}, brand }
+     Visual only: the forms keep their own submit handlers. Only the form pane that is showing is reachable
+     (the others are inert), exactly one of the two form titles is the page's h1, a password never stays revealed
+     across a submit or a swap, and nothing here sets focus on first paint (the caller does that). */
+  const secretFields = new WeakMap();   // password input -> its eye button, so the gate can hide it again
+  function hideSecret(input, clear) {
+    const eye = secretFields.get(input);
+    input.type = "password";
+    if (clear) input.value = "";
+    if (eye) { eye.setAttribute("aria-pressed", "false"); eye.setAttribute("aria-label", "Show password"); }
+  }
+  function splitGate(o) {
+    const card = el("div", { class: "xgate-card", "data-mode": "a" });
+    const hello = (h, which) => el("section", { class: "xg-hello xg-hello-" + which },
+      el("h2", { class: "xg-big" }, h.h.split("\n").map((l, i) => [i ? el("br") : null, l])), el("p", null, h.p),
+      el("button", { class: "xg-ghost", type: "button", onclick: () => swap(which === "a" ? "b" : "a", true) }, h.btn, " →"));
+    const pane = (x, which) => el("section", { class: "xg-form xg-form-" + which, "aria-label": x.title }, el("h2", { class: "xg-title" }, x.title), x.body);
+    const parts = { formA: pane(o.a, "a"), formB: pane(o.b, "b"), helloA: hello(o.helloA, "a"), helloB: hello(o.helloB, "b") };
+    let timer = 0;
+    const secrets = () => [...card.querySelectorAll("input")].filter((i) => secretFields.has(i));
+    function swap(mode, focus) {
+      clearTimeout(timer);                                  // a pending focus from an earlier swap must never land late
+      card.dataset.mode = mode;
+      secrets().forEach((i) => hideSecret(i, true));        // hide the pane you leave: no revealed or typed password behind it
+      const on = mode === "a" ? [parts.formA, parts.helloA] : [parts.formB, parts.helloB];
+      Object.values(parts).forEach((n) => { const vis = on.includes(n); n.inert = !vis; n.setAttribute("aria-hidden", vis ? "false" : "true"); });
+      // One h1 on the page, and it is the title you can see: the showing form's, the other is an h2 in a hidden pane.
+      [parts.formA, parts.formB].forEach((n) => { const t = n.querySelector(".xg-title"), h = on.includes(n) ? "h1" : "h2";
+        if (t.localName !== h) t.replaceWith(el(h, { class: "xg-title" }, t.textContent)); });
+      if (!focus) return;                                   // first paint: nothing moves focus, the caller decides
+      const form = mode === "a" ? parts.formA : parts.formB;
+      const f = (mode === "a" ? o.a.focus : o.b.focus) || form.querySelector("input,button,a");
+      if (f) timer = setTimeout(() => { if (card.isConnected && card.dataset.mode === mode) f.focus({ preventScroll: true }); }, calmMotion() ? 320 : 0);
+    }
+    // A submitted form never leaves its password on screen, whether the sign-in works or not.
+    card.addEventListener("submit", () => secrets().forEach((i) => hideSecret(i, false)), true);
+    card.append(el("div", { class: "xg-pane xg-pane-form", "aria-hidden": "true" }), el("div", { class: "xg-pane xg-pane-hello", "aria-hidden": "true" }),
+      parts.formA, parts.helloA, parts.formB, parts.helloB);
+    swap("a", false);
+    return { node: el("main", { class: "xgate" }, o.brand || null, card, o.foot || null), swap: (m) => swap(m, true) };
+  }
+  function eyeToggle(input) {
+    const b = el("button", { type: "button", class: "xg-eye", "aria-label": "Show password", "aria-pressed": "false", onclick: () => {
+      if (input.type === "text") { hideSecret(input, false); return; }
+      input.type = "text";
+      b.setAttribute("aria-pressed", "true"); b.setAttribute("aria-label", "Hide password"); } }, icon("eye"));
+    secretFields.set(input, b);
+    return b;
+  }
+  // The label belongs to the input alone; the eye (a button) sits beside it, never inside the label.
+  let xfieldSeq = 0;
+  function xfield(iconName, label, input, extra) {
+    if (!input.id) input.id = "xf-" + (++xfieldSeq);
+    return el("div", { class: "xfield" }, icon(iconName), el("label", { class: "u-sr", for: input.id }, label), input, extra || null);
+  }
+
   window.SUI = {
     el, s, icon, ICONS, theme, applyTheme, themeButton,
     tz, setGatewayOffset, setTzMode, tzLabel, startOfDay, startOfMonth, dateInput, fromDateInput, presetRange, fmt,
     initials, plural, debounce, gateway, avatar, logo, status, badge, delta, evidence,
     skeleton, stateBox, errorBox, load, toast, copy, showTip, hideTip, infoTip,
-    columns, line, sparkline, barList, table, segmented, searchPill, progress, star, listPanel, rangeControl, trapFocus, commandMenu,
+    columns, line, sparkline, barList, table, segmented, searchPill, progress, star, listPanel, rangeControl, trapFocus, commandMenu, splitGate, xfield, eyeToggle,
   };
 })();
