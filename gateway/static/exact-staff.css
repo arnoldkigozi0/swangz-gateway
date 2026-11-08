@@ -93,7 +93,7 @@ html[data-theme="light"] .staff-exact {
 .staff-exact .section-head { margin-top: 0; margin-bottom: 18px; }
 .staff-exact .section-head > div > .eyebrow { display: none; }
 .staff-exact .section-head h1 { color: var(--staff-tx); font: 600 24px/1.25 var(--font); margin: 0; padding-left: 5px; }
-.staff-exact .section-head p { color: var(--staff-muted); font-size: 11px; margin-top: 3px; }
+.staff-exact .section-head p { color: var(--staff-muted); font-size: 11px; margin-top: 3px; padding-left: 5px; }
 /* Home content stays the existing real launchpad, separate from this shell pass (§10.1.4). */
 .staff-exact .home-hero { background: transparent; border: 0; }
 .hub-staff-app.staff-exact .home-hero::before { display: block; background: var(--staff-hero-scrim); }
