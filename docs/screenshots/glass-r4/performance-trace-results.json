@@ -1,0 +1,76 @@
+{
+  "checks": [
+    "exact requested source HEAD",
+    "main fixture login",
+    "r4 fixture login",
+    "no browser exceptions"
+  ],
+  "errors": [],
+  "screenshots": [],
+  "contrast": [],
+  "accessibility": [],
+  "layouts": [],
+  "tabBounds": [],
+  "provenance": {
+    "head": "d89f3e778d350bbf8148cb734d3b92109a6ce569",
+    "baseline": "6ee3ed3aeaa5244cb88df8302b1435546112d524",
+    "viewport": [
+      1440,
+      900
+    ],
+    "theme": "dark",
+    "cpuThrottle": 1,
+    "rounds": 1,
+    "limitations": "One trace per variant, synthetic backend, shared laptop/software-rendered headless Chromium; tracing overhead and scheduling noise uncontrolled; no 60fps/GPU/device claim"
+  },
+  "gpu": [
+    {
+      "vendorString": "Google Inc. (Google)",
+      "deviceString": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver-5.0.0)"
+    }
+  ],
+  "traces": [
+    {
+      "name": "main",
+      "ref": "6ee3ed3aeaa5244cb88df8302b1435546112d524",
+      "file": "trace-main.json.gz",
+      "sha256": "9ec2a43f5bf1610d783ba773540df9221d882366c2bfe1c0511949d679db32b0",
+      "bytes": 132613,
+      "events": 8458,
+      "frame": {
+        "frames": 190,
+        "over50": 0,
+        "max": 33.30000000000018
+      },
+      "metrics": {
+        "TaskDuration": 0.5347850000000001,
+        "ScriptDuration": 0.043499,
+        "LayoutDuration": 0,
+        "RecalcStyleDuration": 0.020671,
+        "LayoutCount": 0,
+        "RecalcStyleCount": 56
+      }
+    },
+    {
+      "name": "r4",
+      "ref": "d89f3e778d350bbf8148cb734d3b92109a6ce569",
+      "file": "trace-r4.json.gz",
+      "sha256": "8c982a00d83da2d526b32aeba0932003c394cf313326e39b2c8e3afa88a28553",
+      "bytes": 89220,
+      "events": 5091,
+      "frame": {
+        "frames": 78,
+        "over50": 22,
+        "max": 416.6999999999998
+      },
+      "metrics": {
+        "TaskDuration": 1.191918,
+        "ScriptDuration": 0.050021,
+        "LayoutDuration": 0.005194,
+        "RecalcStyleDuration": 0.281196,
+        "LayoutCount": 1,
+        "RecalcStyleCount": 17
+      }
+    }
+  ]
+}

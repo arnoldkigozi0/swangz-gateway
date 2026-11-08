@@ -462,3 +462,39 @@ released; previous unmerged-dependency statements above are historical. No new
 source changes, PR/build or repeated diagnosis. Fresh CI/exact-head Probe QA
 remain required. Full local suite/matrix, real devices, other engines/screen
 readers and new hardware performance/CLS/MotionScore: Not run.
+
+
+## Exact-head Chrome traces and legacy Netlify diagnosis — 8 November 09:50
+
+Captured actual Chrome DevTools Protocol performance traces of requested
+head d89f3e778d350bbf8148cb734d3b92109a6ce569 versus main6ee3ed3.
+`UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules node docs/screenshots/glass-r4/performance-trace.cjs`: exit0, two traces saved, no browser exceptions.
+Exact source comparison overrides only main/candidate ui.css and admin-monitor.js
+on the same synthetic fixture; all other product source is shared. One run each,
+1440x900 dark, unthrottled, six KPI hovers plus scroll down/back twice.
+Renderer: ANGLE Vulkan SwiftShader (software), no GPU/device/60fps claim.
+Raw Chrome traceEvents JSON is gzip-compressed in trace-main.json.gz and
+trace-r4.json.gz; hashes, event counts and provenance in performance-trace-results.json.
+Decompress before importing into DevTools if compressed import is unsupported.
+The script guards product/fixture blob identity so evidence-only commits can rerun it.
+
+Observed rAF frames>50ms/max: main0/33.3ms, R4 22/416.7ms. Main TaskDuration
+0.534785s vs R4 1.191918s; RecalcStyleDuration0.020671s vs0.281196s.
+This single trace pair exposes a performance concern and DOES NOT clear the
+performance gate. Shared-laptop scheduling, tracing overhead, source/UI count
+differences and software rendering limit inference; no extra sampling or product
+fix attempted in the bounded window. Probe must assess/route bounded follow-up.
+
+Read-only GitHub check/status inspection: all four Hub checks SUCCESS on d89f3e7.
+Legacy swangz-ai Header/Pages/Redirect checks all say Deploy failed for deploy
+6af017fc8610934220af7902, annotations0; they do not report independent rule errors.
+Old-site same-head header succeeded (1 rule), redirects succeeded (9 rules),
+pages neutral (already uploaded), preview success. Public Netlify deploy API
+HTTP200 reports state error/summary unavailable; exact build6af017fc8610934220af7900
+API returns Access Denied. App/log web reads unavailable. No credential-store
+inspection, Netlify execution, deploy/configuration or spending action.
+Verified underlying layer: one failed preview fans out to all three checks.
+Exact build trigger remains UNKNOWN; next step is authorized read-only build-log
+access, not a rerun. Do not infer missing SWANGZ_GATEWAY or credits from history.
+Details: netlify-diagnosis.json. Performance comparison and authenticated Netlify
+log diagnosis remain open gates. Product source is unchanged; local processes stopped.

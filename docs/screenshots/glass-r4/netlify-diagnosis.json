@@ -1,0 +1,90 @@
+{
+  "head": "d89f3e778d350bbf8148cb734d3b92109a6ce569",
+  "failed_deploy": "6af017fc8610934220af7902",
+  "build": "6af017fc8610934220af7900",
+  "deploy_metadata_http": 200,
+  "deploy_state": "error",
+  "deploy_summary": "unavailable",
+  "build_metadata": "Access Denied",
+  "checks": [
+    {
+      "conclusion": "success",
+      "details_url": "https://app.netlify.com/projects/swangz-ai-old/deploys/6af017fc84e2710d94db8beb",
+      "id": 128652962424,
+      "name": "Redirect rules - swangz-ai-old",
+      "output": {
+        "annotations_count": 0,
+        "annotations_url": "https://api.github.com/repos/arnoldkigozi0/swangz-gateway/check-runs/128652962424/annotations",
+        "summary": "All redirect rules processed without errors.",
+        "text": null,
+        "title": "9 redirect rules processed"
+      }
+    },
+    {
+      "conclusion": "failure",
+      "details_url": "https://app.netlify.com/projects/swangz-ai/deploys/6af017fc8610934220af7902",
+      "id": 128652962128,
+      "name": "Redirect rules - swangz-ai",
+      "output": {
+        "annotations_count": 0,
+        "annotations_url": "https://api.github.com/repos/arnoldkigozi0/swangz-gateway/check-runs/128652962128/annotations",
+        "summary": "Please check [the logs](https://app.netlify.com/projects/swangz-ai/deploys/6af017fc8610934220af7902).",
+        "text": null,
+        "title": "Deploy failed"
+      }
+    },
+    {
+      "conclusion": "success",
+      "details_url": "https://app.netlify.com/projects/swangz-ai-old/deploys/6af017fc84e2710d94db8beb",
+      "id": 128652961276,
+      "name": "Header rules - swangz-ai-old",
+      "output": {
+        "annotations_count": 0,
+        "annotations_url": "https://api.github.com/repos/arnoldkigozi0/swangz-gateway/check-runs/128652961276/annotations",
+        "summary": "All header rules processed without errors.",
+        "text": null,
+        "title": "1 header rule processed"
+      }
+    },
+    {
+      "conclusion": "failure",
+      "details_url": "https://app.netlify.com/projects/swangz-ai/deploys/6af017fc8610934220af7902",
+      "id": 128652961047,
+      "name": "Header rules - swangz-ai",
+      "output": {
+        "annotations_count": 0,
+        "annotations_url": "https://api.github.com/repos/arnoldkigozi0/swangz-gateway/check-runs/128652961047/annotations",
+        "summary": "Please check [the logs](https://app.netlify.com/projects/swangz-ai/deploys/6af017fc8610934220af7902).",
+        "text": null,
+        "title": "Deploy failed"
+      }
+    },
+    {
+      "conclusion": "neutral",
+      "details_url": "https://app.netlify.com/projects/swangz-ai-old/deploys/6af017fc84e2710d94db8beb",
+      "id": 128652960112,
+      "name": "Pages changed - swangz-ai-old",
+      "output": {
+        "annotations_count": 0,
+        "annotations_url": "https://api.github.com/repos/arnoldkigozi0/swangz-gateway/check-runs/128652960112/annotations",
+        "summary": "All files already uploaded by a previous deploy with the same commits.",
+        "text": null,
+        "title": "All files already uploaded"
+      }
+    },
+    {
+      "conclusion": "failure",
+      "details_url": "https://app.netlify.com/projects/swangz-ai/deploys/6af017fc8610934220af7902",
+      "id": 128652959943,
+      "name": "Pages changed - swangz-ai",
+      "output": {
+        "annotations_count": 0,
+        "annotations_url": "https://api.github.com/repos/arnoldkigozi0/swangz-gateway/check-runs/128652959943/annotations",
+        "summary": "Please check [the logs](https://app.netlify.com/projects/swangz-ai/deploys/6af017fc8610934220af7902).",
+        "text": null,
+        "title": "Deploy failed"
+      }
+    }
+  ],
+  "conclusion": "All three failed swangz-ai checks fan out from one failed deploy; no rule-specific diagnostic. Exact build trigger remains unknown without authorized build log. Old site processed header/redirects successfully. No build/deploy/configuration action performed."
+}
