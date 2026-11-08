@@ -9,6 +9,7 @@
     "dark1440 four real KPI values",
     "dark1440 values fit",
     "dark1440 four columns or phone two",
+    "dark1440 KPI labels/values/context stay inside cards",
     "dark1440 main axe",
     "dark390 real app: no overflow",
     "dark390 fixed scene loads",
@@ -18,7 +19,13 @@
     "dark390 four real KPI values",
     "dark390 values fit",
     "dark390 four columns or phone two",
+    "dark390 KPI labels/values/context stay inside cards",
     "dark390 main axe",
+    "dark phone four overview tabs",
+    "dark phone tab fully readable on focus: Right now",
+    "dark phone tab fully readable on focus: Trends",
+    "dark phone tab fully readable on focus: Top tools & people",
+    "dark phone tab fully readable on focus: Licences3",
     "light1440 real app: no overflow",
     "light1440 fixed scene loads",
     "light1440 tabular figures",
@@ -27,6 +34,7 @@
     "light1440 four real KPI values",
     "light1440 values fit",
     "light1440 four columns or phone two",
+    "light1440 KPI labels/values/context stay inside cards",
     "light1440 main axe",
     "light390 real app: no overflow",
     "light390 fixed scene loads",
@@ -36,7 +44,13 @@
     "light390 four real KPI values",
     "light390 values fit",
     "light390 four columns or phone two",
+    "light390 KPI labels/values/context stay inside cards",
     "light390 main axe",
+    "light phone four overview tabs",
+    "light phone tab fully readable on focus: Right now",
+    "light phone tab fully readable on focus: Trends",
+    "light phone tab fully readable on focus: Top tools & people",
+    "light phone tab fully readable on focus: Licences3",
     "request KPI matches existing API",
     "hover lift uses transform",
     "reduced motion removes lift",
@@ -49,8 +63,10 @@
   "screenshots": [
     "admin-1440-dark.png",
     "admin-390-dark.png",
+    "tabs-390-dark.png",
     "admin-1440-light.png",
-    "admin-390-light.png"
+    "admin-390-light.png",
+    "tabs-390-light.png"
   ],
   "contrast": [],
   "accessibility": [
@@ -73,6 +89,530 @@
       "theme": "light",
       "width": 390,
       "violations": []
+    }
+  ],
+  "layouts": [
+    {
+      "theme": "dark",
+      "width": 1440,
+      "cards": [
+        {
+          "text": "AI SPEND · 30 DAYS\n$0.0054\nno earlier data\n+ $120/mo in plans",
+          "width": 301,
+          "height": 240.15625,
+          "content": [
+            {
+              "text": "AI spend · 30 days",
+              "fits": true
+            },
+            {
+              "text": "$0.0054",
+              "fits": true
+            },
+            {
+              "text": "no earlier data+ $120/mo in plans",
+              "fits": true
+            },
+            {
+              "text": "+ $120/mo in plans",
+              "fits": true
+            }
+          ]
+        },
+        {
+          "text": "ACTIVE TODAY\n1\n1 in 30 days",
+          "width": 301,
+          "height": 240.15625,
+          "content": [
+            {
+              "text": "Active today",
+              "fits": true
+            },
+            {
+              "text": "1",
+              "fits": true
+            },
+            {
+              "text": "1 in 30 days",
+              "fits": true
+            },
+            {
+              "text": "1 in 30 days",
+              "fits": true
+            }
+          ]
+        },
+        {
+          "text": "AI REQUESTS · 30 DAYS\n3\nno earlier data\nvs the 30 days before",
+          "width": 301,
+          "height": 240.15625,
+          "content": [
+            {
+              "text": "AI requests · 30 days",
+              "fits": true
+            },
+            {
+              "text": "3",
+              "fits": true
+            },
+            {
+              "text": "no earlier datavs the 30 days before",
+              "fits": true
+            },
+            {
+              "text": "vs the 30 days before",
+              "fits": true
+            }
+          ]
+        },
+        {
+          "text": "SECURITY · 7 DAYS\n0\nHealthy",
+          "width": 301,
+          "height": 240.15625,
+          "content": [
+            {
+              "text": "Security · 7 days",
+              "fits": true
+            },
+            {
+              "text": "0",
+              "fits": true
+            },
+            {
+              "text": "Healthy",
+              "fits": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "cards": [
+        {
+          "text": "AI SPEND · 30 DAYS\n$0.0054\nno earlier data\n+ $120/mo in plans",
+          "width": 173,
+          "height": 228.625,
+          "content": [
+            {
+              "text": "AI spend · 30 days",
+              "fits": true
+            },
+            {
+              "text": "$0.0054",
+              "fits": true
+            },
+            {
+              "text": "no earlier data+ $120/mo in plans",
+              "fits": true
+            },
+            {
+              "text": "+ $120/mo in plans",
+              "fits": true
+            }
+          ]
+        },
+        {
+          "text": "ACTIVE TODAY\n1\n1 in 30 days",
+          "width": 173,
+          "height": 228.625,
+          "content": [
+            {
+              "text": "Active today",
+              "fits": true
+            },
+            {
+              "text": "1",
+              "fits": true
+            },
+            {
+              "text": "1 in 30 days",
+              "fits": true
+            },
+            {
+              "text": "1 in 30 days",
+              "fits": true
+            }
+          ]
+        },
+        {
+          "text": "AI REQUESTS · 30 DAYS\n3\nno earlier data\nvs the 30 days before",
+          "width": 173,
+          "height": 190,
+          "content": [
+            {
+              "text": "AI requests · 30 days",
+              "fits": true
+            },
+            {
+              "text": "3",
+              "fits": true
+            },
+            {
+              "text": "no earlier datavs the 30 days before",
+              "fits": true
+            },
+            {
+              "text": "vs the 30 days before",
+              "fits": true
+            }
+          ]
+        },
+        {
+          "text": "SECURITY · 7 DAYS\n0\nHealthy",
+          "width": 173,
+          "height": 190,
+          "content": [
+            {
+              "text": "Security · 7 days",
+              "fits": true
+            },
+            {
+              "text": "0",
+              "fits": true
+            },
+            {
+              "text": "Healthy",
+              "fits": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "cards": [
+        {
+          "text": "AI SPEND · 30 DAYS\n$0.0054\nno earlier data\n+ $120/mo in plans",
+          "width": 301,
+          "height": 240.15625,
+          "content": [
+            {
+              "text": "AI spend · 30 days",
+              "fits": true
+            },
+            {
+              "text": "$0.0054",
+              "fits": true
+            },
+            {
+              "text": "no earlier data+ $120/mo in plans",
+              "fits": true
+            },
+            {
+              "text": "+ $120/mo in plans",
+              "fits": true
+            }
+          ]
+        },
+        {
+          "text": "ACTIVE TODAY\n1\n1 in 30 days",
+          "width": 301,
+          "height": 240.15625,
+          "content": [
+            {
+              "text": "Active today",
+              "fits": true
+            },
+            {
+              "text": "1",
+              "fits": true
+            },
+            {
+              "text": "1 in 30 days",
+              "fits": true
+            },
+            {
+              "text": "1 in 30 days",
+              "fits": true
+            }
+          ]
+        },
+        {
+          "text": "AI REQUESTS · 30 DAYS\n3\nno earlier data\nvs the 30 days before",
+          "width": 301,
+          "height": 240.15625,
+          "content": [
+            {
+              "text": "AI requests · 30 days",
+              "fits": true
+            },
+            {
+              "text": "3",
+              "fits": true
+            },
+            {
+              "text": "no earlier datavs the 30 days before",
+              "fits": true
+            },
+            {
+              "text": "vs the 30 days before",
+              "fits": true
+            }
+          ]
+        },
+        {
+          "text": "SECURITY · 7 DAYS\n0\nHealthy",
+          "width": 301,
+          "height": 240.15625,
+          "content": [
+            {
+              "text": "Security · 7 days",
+              "fits": true
+            },
+            {
+              "text": "0",
+              "fits": true
+            },
+            {
+              "text": "Healthy",
+              "fits": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "cards": [
+        {
+          "text": "AI SPEND · 30 DAYS\n$0.0054\nno earlier data\n+ $120/mo in plans",
+          "width": 173,
+          "height": 228.625,
+          "content": [
+            {
+              "text": "AI spend · 30 days",
+              "fits": true
+            },
+            {
+              "text": "$0.0054",
+              "fits": true
+            },
+            {
+              "text": "no earlier data+ $120/mo in plans",
+              "fits": true
+            },
+            {
+              "text": "+ $120/mo in plans",
+              "fits": true
+            }
+          ]
+        },
+        {
+          "text": "ACTIVE TODAY\n1\n1 in 30 days",
+          "width": 173,
+          "height": 228.625,
+          "content": [
+            {
+              "text": "Active today",
+              "fits": true
+            },
+            {
+              "text": "1",
+              "fits": true
+            },
+            {
+              "text": "1 in 30 days",
+              "fits": true
+            },
+            {
+              "text": "1 in 30 days",
+              "fits": true
+            }
+          ]
+        },
+        {
+          "text": "AI REQUESTS · 30 DAYS\n3\nno earlier data\nvs the 30 days before",
+          "width": 173,
+          "height": 190,
+          "content": [
+            {
+              "text": "AI requests · 30 days",
+              "fits": true
+            },
+            {
+              "text": "3",
+              "fits": true
+            },
+            {
+              "text": "no earlier datavs the 30 days before",
+              "fits": true
+            },
+            {
+              "text": "vs the 30 days before",
+              "fits": true
+            }
+          ]
+        },
+        {
+          "text": "SECURITY · 7 DAYS\n0\nHealthy",
+          "width": 173,
+          "height": 190,
+          "content": [
+            {
+              "text": "Security · 7 days",
+              "fits": true
+            },
+            {
+              "text": "0",
+              "fits": true
+            },
+            {
+              "text": "Healthy",
+              "fits": true
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "tabBounds": [
+    {
+      "theme": "dark",
+      "text": "Right now",
+      "scrollWidth": 68,
+      "clientWidth": 68,
+      "left": 16,
+      "right": 84,
+      "top": 402.375,
+      "bottom": 445.625,
+      "parentLeft": 16,
+      "parentRight": 374,
+      "navTop": 774,
+      "scrollLeft": 0,
+      "barScrollWidth": 358,
+      "barClientWidth": 358,
+      "mask": "none",
+      "fits": true
+    },
+    {
+      "theme": "dark",
+      "text": "Trends",
+      "scrollWidth": 45,
+      "clientWidth": 45,
+      "left": 91,
+      "right": 136,
+      "top": 402.375,
+      "bottom": 445.625,
+      "parentLeft": 16,
+      "parentRight": 374,
+      "navTop": 774,
+      "scrollLeft": 0,
+      "barScrollWidth": 358,
+      "barClientWidth": 358,
+      "mask": "none",
+      "fits": true
+    },
+    {
+      "theme": "dark",
+      "text": "Top tools & people",
+      "scrollWidth": 123,
+      "clientWidth": 123,
+      "left": 144,
+      "right": 267,
+      "top": 402.375,
+      "bottom": 445.625,
+      "parentLeft": 16,
+      "parentRight": 374,
+      "navTop": 774,
+      "scrollLeft": 0,
+      "barScrollWidth": 358,
+      "barClientWidth": 358,
+      "mask": "none",
+      "fits": true
+    },
+    {
+      "theme": "dark",
+      "text": "Licences3",
+      "scrollWidth": 87,
+      "clientWidth": 87,
+      "left": 273,
+      "right": 360,
+      "top": 402.375,
+      "bottom": 445.625,
+      "parentLeft": 16,
+      "parentRight": 374,
+      "navTop": 774,
+      "scrollLeft": 0,
+      "barScrollWidth": 358,
+      "barClientWidth": 358,
+      "mask": "none",
+      "fits": true
+    },
+    {
+      "theme": "light",
+      "text": "Right now",
+      "scrollWidth": 68,
+      "clientWidth": 68,
+      "left": 16,
+      "right": 84,
+      "top": 402.375,
+      "bottom": 445.625,
+      "parentLeft": 16,
+      "parentRight": 374,
+      "navTop": 774,
+      "scrollLeft": 0,
+      "barScrollWidth": 358,
+      "barClientWidth": 358,
+      "mask": "none",
+      "fits": true
+    },
+    {
+      "theme": "light",
+      "text": "Trends",
+      "scrollWidth": 45,
+      "clientWidth": 45,
+      "left": 91,
+      "right": 136,
+      "top": 402.375,
+      "bottom": 445.625,
+      "parentLeft": 16,
+      "parentRight": 374,
+      "navTop": 774,
+      "scrollLeft": 0,
+      "barScrollWidth": 358,
+      "barClientWidth": 358,
+      "mask": "none",
+      "fits": true
+    },
+    {
+      "theme": "light",
+      "text": "Top tools & people",
+      "scrollWidth": 123,
+      "clientWidth": 123,
+      "left": 144,
+      "right": 267,
+      "top": 402.375,
+      "bottom": 445.625,
+      "parentLeft": 16,
+      "parentRight": 374,
+      "navTop": 774,
+      "scrollLeft": 0,
+      "barScrollWidth": 358,
+      "barClientWidth": 358,
+      "mask": "none",
+      "fits": true
+    },
+    {
+      "theme": "light",
+      "text": "Licences3",
+      "scrollWidth": 87,
+      "clientWidth": 87,
+      "left": 273,
+      "right": 360,
+      "top": 402.375,
+      "bottom": 445.625,
+      "parentLeft": 16,
+      "parentRight": 374,
+      "navTop": 774,
+      "scrollLeft": 0,
+      "barScrollWidth": 358,
+      "barClientWidth": 358,
+      "mask": "none",
+      "fits": true
     }
   ]
 }

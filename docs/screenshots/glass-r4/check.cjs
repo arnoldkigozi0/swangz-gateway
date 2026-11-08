@@ -8,7 +8,7 @@ const {AxeBuilder} = require(path.join(process.env.UI_TOOLING || path.join(root,
 const out = path.join(root, 'docs/screenshots/glass-r4');
 fs.mkdirSync(out, {recursive:true});
 let fixture, browser;
-const result = {checks:[], errors:[], screenshots:[], contrast:[], accessibility:[]};
+const result = {checks:[], errors:[], screenshots:[], contrast:[], accessibility:[], layouts:[], tabBounds:[]};
 function check(name, ok) {assert.ok(ok,name); result.checks.push(name);}
 async function start() {
  fixture=spawn('python3',['tests/browser/demo.py'],{cwd:root,stdio:['ignore','pipe','pipe']});
@@ -33,8 +33,35 @@ async function start() {
   check(theme+width+' four real KPI values',await p.locator('.u-overview-kpis .kpi').count()===4);
   check(theme+width+' values fit',await p.locator('.u-overview-kpis .value').evaluateAll(es=>es.every(e=>e.scrollWidth<=e.clientWidth+1&&e.scrollHeight<=e.clientHeight+1)));
   check(theme+width+' four columns or phone two',await p.locator('.u-overview-kpis').evaluate((e,w)=>getComputedStyle(e).gridTemplateColumns.split(' ').length===(w===1440?4:2),width));
+  const cards = await p.locator('.u-overview-kpis .kpi').evaluateAll(es => es.map(card => {
+    const bounds = card.getBoundingClientRect();
+    return {text:card.innerText, width:bounds.width, height:bounds.height,
+      content:[...card.querySelectorAll('.label,.value,.foot,.kpi-note')].map(e => {
+        const r=e.getBoundingClientRect();return {text:e.textContent.trim(),
+          fits:e.scrollWidth<=e.clientWidth+1 && e.scrollHeight<=e.clientHeight+1 &&
+            r.left>=bounds.left-1 && r.right<=bounds.right+1 && r.bottom<=bounds.bottom+1};
+      })};
+  }));
+  result.layouts.push({theme,width,cards});
+  check(theme+width+' KPI labels/values/context stay inside cards',cards.length===4 && cards.every(c=>c.content.every(e=>e.fits)));
   const violations=(await new AxeBuilder({page:p}).include('main').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations;result.accessibility.push({theme,width,violations:violations.map(v=>({id:v.id,targets:v.nodes.map(n=>n.target)}))});check(theme+width+' main axe',violations.length===0);
+  await p.evaluate(()=>{document.activeElement?.blur();SUI.hideTip();});
   const file=`admin-${width}-${theme}.png`;await p.screenshot({path:path.join(out,file),animations:'disabled'});result.screenshots.push(file);
+  if(width===390){
+    const tabs=p.locator('main .ptabs').first();
+    const buttons=tabs.getByRole('tab');check(theme+' phone four overview tabs',await buttons.count()===4);
+    await buttons.first().evaluate(e=>e.focus());
+    for(let i=0;i<await buttons.count();i++){
+      const button=buttons.nth(i);if(i>0)await p.keyboard.press('ArrowRight');
+      await p.waitForFunction(i=>document.querySelectorAll('main .ptabs [role=tab]')[i]?.getAttribute('aria-selected')==='true',i);
+      await p.waitForTimeout(120);
+      const bounds=await button.evaluate(e=>{const r=e.getBoundingClientRect(),p=e.parentElement.getBoundingClientRect();const nav=document.querySelector('.rail-mobile')?.getBoundingClientRect();return {text:e.textContent.trim(),scrollWidth:e.scrollWidth,clientWidth:e.clientWidth,left:r.left,right:r.right,top:r.top,bottom:r.bottom,parentLeft:p.left,parentRight:p.right,navTop:nav?.top,scrollLeft:e.parentElement.scrollLeft,barScrollWidth:e.parentElement.scrollWidth,barClientWidth:e.parentElement.clientWidth,mask:getComputedStyle(e.parentElement).maskImage,fits:e.scrollWidth<=e.clientWidth+1 && r.left>=p.left-1 && r.right<=p.right+1 && r.left>=0 && r.right<=innerWidth && r.top>=0 && r.bottom<=Math.min(innerHeight,nav?.top??innerHeight)};});
+      result.tabBounds.push({theme,...bounds});
+      if(!bounds.fits)await p.screenshot({path:path.join(out,'phone-tabs-before-fix.png'),animations:'disabled'});
+      check(theme+' phone tab fully readable on focus: '+bounds.text,bounds.fits);
+    }
+    const file=`tabs-${width}-${theme}.png`;await p.screenshot({path:path.join(out,file),animations:'disabled'});result.screenshots.push(file);
+  }
  }
  const tr=await (await context.request.get(url+'/admin/api/trends?days=30')).json();
  check('request KPI matches existing API',await p.locator('.kpi-link[href="#/activity?tab=ai&range=30d"]').getAttribute('aria-label')==='AI requests · 30 days: '+tr.current.requests);

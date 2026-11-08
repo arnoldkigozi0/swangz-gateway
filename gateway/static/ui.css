@@ -460,6 +460,9 @@ html[data-theme="light"] .u-tubes { --tube-a: rgba(70, 56, 40, .46); --tube-b: r
 @media (hover:hover) and (pointer:fine) { .shell .u-overview-kpis .u-glass-kpi:hover { transform: var(--lift); } }
 @media (max-width:1100px) { .shell .u-overview-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width:700px) {
+  /* Keep Overview keyboard focus clear of the fixed phone navigation. */
+  html:has(.route-overview) { scroll-padding-bottom: calc(var(--rail-control) + var(--rail-inset) * 2 + env(safe-area-inset-bottom)); }
+  .route-overview .ptabs { flex-wrap: wrap; gap: var(--s1) var(--s2); }
   .shell .u-overview-kpis { gap: 12px; }
   .shell .u-overview-kpis .u-glass-kpi { padding: 16px 12px; min-height: 190px; }
   .shell .u-glass-kpi .label { padding-right: 22px; min-height: 48px; }

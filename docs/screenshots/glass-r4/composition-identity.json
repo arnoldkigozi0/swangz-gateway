@@ -1,0 +1,29 @@
+{
+  "main": "a0dbcfe140dfcde4e7d1e4e1904b75c014abd222",
+  "dependency": "4698dcc06a2fceca2d5204ca5c0b399d8e57ad4c",
+  "previous_r4": "09c27e166da67c4edcbabfe600a15166433e6914",
+  "conflicts": [],
+  "r5_css_is_exact_prefix": true,
+  "r5_ui_js_identical": true,
+  "r4_admin_monitor_identical": true,
+  "shared_browser_harness_matches_main": true,
+  "own_css_delta": "Original 51-line R4 block plus Overview-only phone scroll padding and wrapping; no other R5/main shared style edits",
+  "files": [
+    {
+      "path": "gateway/static/ui.css",
+      "sha256": "4646134af5b3d0376f85c6803f5c054755a7f3583128e6368869bb7a9f0fc956"
+    },
+    {
+      "path": "gateway/static/ui.js",
+      "sha256": "55521d9a6e882a49df2cd1779e4917992a299f482a14e56aae14ddb9d7db5b86"
+    },
+    {
+      "path": "gateway/static/admin-monitor.js",
+      "sha256": "7fd8b3eb8ff3f3502c475e8eb5df82ef1779632f12d0b0e961f2565aa0eba931"
+    },
+    {
+      "path": "docs/screenshots/glass-r4/check.cjs",
+      "sha256": "9f192910d056d08236b0856bae2c5d2c9c4f733911ce866c65876c92c335e7ca"
+    }
+  ]
+}

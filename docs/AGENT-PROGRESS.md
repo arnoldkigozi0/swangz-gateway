@@ -404,3 +404,45 @@ by PR50, not included in this branch. R8 not started: dependency and three-new-
 build cap remain constraints. Full local suite/matrix, real devices/other engines,
 screen readers and hardware performance/CLS/MotionScore: Not run. All local
 checks finished. No new draft/build for R4, deployment or merge to main.
+
+
+## Existing PR44 corrected R5 composition and phone tab visibility — 8 November
+
+Integrated maina0dbcfe, then released corrected R5 `4698dcc` normally, no
+conflicts. Dependency merge commit `f5833a8c32a4da882c97fdfc4db7c2af5dfbb450`.
+No hand resolution of shared code. R5 ui.js is byte-identical; its whole ui.css
+is an exact prefix of the composed file. Removing only the three new phone-
+scoped lines leaves the previous R4 CSS block byte-identical; admin-monitor.js
+also matches previous R4 head09c27e1. Proof/hashes: `composition-identity.json`.
+The earlier ownership/dependency blocker is now resolved as a composition;
+parent PR40 still must land before this PR can be ready.
+
+New geometry checks reproduced a phone tab visibility failure. Native focus
+placed Right now at y778.375–821.625 behind navigation starting y774; recorded
+in `composition-before-fix.json/png`. Arrow-key selection also exposed the
+last Licences tab/count beyond the right edge; `phone-tabs-before-fix.png`
+records that intermediate horizontal failure. Initial direct-focus probes were
+replaced with native focus/real Arrow-key selection before final validation.
+
+Added Overview-only phone scroll clearance using existing rail tokens/safe-area
+inset, and responsive tab wrapping/gaps using --s1/--s2. No shared pageTabs JS
+behavior changed. All four selected tabs now fit horizontally and sit above
+fixed navigation in both themes. KPI labels/values/context fit every card;
+existing KPI size/material/spacing remain unchanged.
+
+`UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules node docs/screenshots/glass-r4/check.cjs`:
+`PASS 58 focused checks; 6 screenshots`, exit0; four main-content axe scans,
+zero findings/browser exceptions. Four exact1440x900/390x844 dark/light main
+screens plus tabs-390-dark/light.png were regenerated and inspected alongside
+existing references. Required visible difference: phone tab gaps are tighter
+and labels may wrap on narrow widths; focused tabs clear fixed navigation.
+Desktop and KPI presentation stay as in the composed reference treatment.
+
+`python3 -m unittest tests.test_portal tests.test_hub`: `Ran 56 tests in 43.712s`,
+`OK`, exit0. `node --check docs/screenshots/glass-r4/check.cjs` and working/staged
+whitespace checks pass. Tests retain API-summary error/zero/missing-prior-data
+assertions, reduced-motion/hover checks and real API KPI comparison. Full local
+suite/matrix, real devices/other engines/screen readers, new hardware
+performance/CLS/MotionScore: Not run. Fresh final-head Actions, parent40 gates
+and independent exact-head Probe QA remain required; no approval waiver.
+All local processes finished. No new PR/build, merge to main or deployment.
