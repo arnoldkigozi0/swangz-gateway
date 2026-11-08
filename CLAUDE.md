@@ -94,7 +94,8 @@ rather than reopening this.
   network*, *approximate* (offline table) or just the address type, a purpose is *declared*, *from the
   tool* or *inferred* with its confidence — never present an inference as a fact.
 - **Visual design (Nov 7, 2026): the "Glass" redesign in `docs/design/BRIEF.md` is the target** — Arnold's three
-  reference videos (glass dashboard + CRM, glass login, liquid glass footer) define the look and motion. Where the
+  reference videos (glass dashboard + CRM, glass login, liquid glass footer) define the look and motion, and since
+  Nov 8 they must be matched **exactly** (BRIEF §10: measured values + overlay acceptance check). Where the
   older rules below (tight radii, imagery kept apart from controls) disagree with the brief, the brief wins; the
   structure rules in `docs/UI.md` (one home per kind of information, tabs, URLs) still apply.
 - **Earlier finish (Oct 7), superseded where the brief differs:** The finish follows Swangz Avenue Bookings (`arnoldkigozi0/swangz-avenue-bookings-uiux`, Arnold's
