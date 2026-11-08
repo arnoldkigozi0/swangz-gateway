@@ -1,8 +1,8 @@
 # Glass R3 — floating control-room toolbar
 
-Dependency: draft PR #42, exact `d31bfe81ba28736cc70d00b27accda4e9307f1d5`.
+Dependency: draft PR #42, exact `1b8c8d913b7c7612abe67e122d0275e978415ed5`.
 Branch `feature/glass-r3` originally started at `4f6cf7e`; the corrected dependency
-and main `7ce5407` are now normally integrated. Against that dependency, product edits are
+and main `2b30af5` are now normally integrated. Against that dependency, product edits are
 limited to the header construction in `admin.js` and header-only selectors in
 `admin.css`. Against main, the PR also contains inherited R2 navigation until
 #42 merges. No shared UI, portal, authentication, backend or dependency changes.
@@ -78,3 +78,24 @@ No rules, thresholds or assertions were removed.
 Integrated-tree results: `UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules node docs/screenshots/glass-r3/check.cjs`: `PASS 63 header checks; 4 screenshots; 4 axe scans`, exit0. `NODE_PATH=<same tooling> UI_WIDTH=1440 UI_THEME=light UI_PAGES_ONLY=1 UI_OUTPUT=/tmp/prism-r48-integrated node tests/browser/check.cjs`: `PASS principal pages 27 interaction assertions; 25 screen checks`, exit0; zero browser errors/axe/unexpected API findings, summary in `integration-regression-results.json`. `python3 -m unittest tests.test_browser_profiles tests.test_portal tests.test_hub`: `Ran 99 tests in 62.813s`, `OK`, exit0 (non-failing fixture socket ResourceWarnings). Syntax:23 JavaScript files checked; eight text contrast bounds min5.64; working/staged whitespace checks passed. All local check processes finished. Full final-head
 Actions/independent exact-head QA remain required; earlier screenshots and
 performance evidence do not establish those gates.
+
+
+## Main2b30af5 integration for final QA — 8 November
+
+Normally integrated refreshed PR42 `1b8c8d913b7c7612abe67e122d0275e978415ed5`,
+including main `2b30af5f0c47c6bf447671a8de2f91742fec6ff6`, into existing PR48.
+Only append-only progress records conflicted; retained both complete records.
+No product/test resolution edits. Main adds the reviewed negotiated browser
+manifest contract in enroll.py plus its documentation and tests.
+
+Five byte-identity comparisons against previous PR48 head
+`1af8d0f9a828a8770ecdc62aca090d73329605a1` passed: admin.css, admin.js,
+tests/browser/check.cjs and shared ui.css/ui.js. Baseline Git blob IDs/current
+SHA256s recorded in `docs/screenshots/glass-r3/main-refresh-identity.json`.
+Earlier transition-wait assertions, diagnosis and mixed R2 performance evidence
+are unchanged; no repeated diagnosis/performance sampling.
+
+Latest integrated-tree results: `python3 -m unittest tests.test_browser_contract tests.test_browser_profiles tests.test_portal tests.test_hub`: `Ran 119 tests in 61.188s`, `OK`, exit0; non-failing fixture socket ResourceWarnings appeared. `UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules node docs/screenshots/glass-r3/check.cjs`: `PASS 63 header checks; 4 screenshots; 4 axe scans`, exit0. Five own/shared source byte-identity comparisons and working/staged whitespace checks passed. All local check processes finished. Full local
+suite/role matrix, hardware performance/CLS/MotionScore, real devices/other
+engines/screen readers: Not run. Final-head Actions and independent Probe QA
+remain required. No new build/PR, shared UI edits, merge to main or deployment.
