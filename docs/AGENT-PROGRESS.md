@@ -446,3 +446,19 @@ suite/matrix, real devices/other engines/screen readers, new hardware
 performance/CLS/MotionScore: Not run. Fresh final-head Actions, parent40 gates
 and independent exact-head Probe QA remain required; no approval waiver.
 All local processes finished. No new PR/build, merge to main or deployment.
+
+
+## Final bottom-up refresh after40 merged — 8 November 09:30
+
+Normally merged main `6ee3ed3aeaa5244cb88df8302b1435546112d524` as
+`031b58bb690931008192e8c48d6a306a8c66f2f6`, no conflicts. Incoming delta from
+previous75d80bc is main's two-line empty-chart fix and chart tests. Own
+admin-monitor.js, ui.css including phone scroll clearance/wrapping, focused R4
+harness and tokens are byte-identical to75d80bc. Shared ui.js matches main and
+main's whole CSS is an exact prefix. Proof: `docs/screenshots/glass-r4/parent40-merged-identity.json`.
+
+Fresh checks: `UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules node docs/screenshots/glass-r4/check.cjs`: `PASS 58 focused checks; 6 screenshots`, exit0, four main-content axe scans without findings, no browser exceptions. All phone tab/native Arrow-key focus bounds and KPI content bounds pass. `python3 -m unittest tests.test_portal tests.test_hub`: `Ran 56 tests in 46.351s`, `OK`, exit0. Source identities and working/staged whitespace checks pass. All local checks finished. Parent40 gate is
+released; previous unmerged-dependency statements above are historical. No new
+source changes, PR/build or repeated diagnosis. Fresh CI/exact-head Probe QA
+remain required. Full local suite/matrix, real devices, other engines/screen
+readers and new hardware performance/CLS/MotionScore: Not run.

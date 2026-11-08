@@ -1,0 +1,35 @@
+{
+  "baseline": "75d80bc0a620bd21d8c8a4753fed95dfdba94f9b",
+  "integrated_main": "6ee3ed3aeaa5244cb88df8302b1435546112d524",
+  "merge_commit": "031b58bb690931008192e8c48d6a306a8c66f2f6",
+  "conflicts": [],
+  "files": [
+    {
+      "path": "gateway/static/admin-monitor.js",
+      "baseline_blob": "eaf1fda6ceff78c76900004c3ae3713bb0ecc30d",
+      "sha256": "7fd8b3eb8ff3f3502c475e8eb5df82ef1779632f12d0b0e961f2565aa0eba931",
+      "identical": true
+    },
+    {
+      "path": "gateway/static/ui.css",
+      "baseline_blob": "d8c73f931c405497531d86c46138345d6f0ab8a5",
+      "sha256": "4646134af5b3d0376f85c6803f5c054755a7f3583128e6368869bb7a9f0fc956",
+      "identical": true
+    },
+    {
+      "path": "docs/screenshots/glass-r4/check.cjs",
+      "baseline_blob": "5370a22d0c1c86d60ec0e95e60db127b6b55639f",
+      "sha256": "9f192910d056d08236b0856bae2c5d2c9c4f733911ce866c65876c92c335e7ca",
+      "identical": true
+    },
+    {
+      "path": "gateway/static/tokens.css",
+      "baseline_blob": "bcc94617334cd8d642b54e747d6eddcdbfcb2f25",
+      "sha256": "f5c9815fed62c3cf832a1cf01ace027dbc2376b5a41854026ee8aa4ca0aac399",
+      "identical": true
+    }
+  ],
+  "phone_fix_preserved": true,
+  "shared_ui_js_matches_main": true,
+  "main_css_exact_prefix": true
+}

@@ -1,13 +1,11 @@
 # Glass R4 — Overview header and KPI cards
 
-Dependency: PR #40 at corrected `4698dcc06a2fceca2d5204ca5c0b399d8e57ad4c`.
-Composed with current main `a0dbcfe140dfcde4e7d1e4e1904b75c014abd222` after
-Forge's explicit shared-file release. Both normal merges were conflict-free.
-R5 is not yet merged: keep this PR draft until its dependency lands, bottom-up
-fresh CI and independent exact-head QA clear. Product changes against that
-parent remain admin-monitor.js and the R4 header/KPI/Overview-phone CSS block.
-Shared ui.js exactly matches R5; R5's complete ui.css is an unchanged prefix.
-R2/R3 from main are present in current screenshots.
+Parent PR #40 is merged. Normally integrated main
+`6ee3ed3aeaa5244cb88df8302b1435546112d524` without conflicts. R4 overview code,
+CSS (including the phone focus/wrapping fix) and focused harness remain byte-
+identical to previous head `75d80bc`. The product diff against current main is
+R4's admin-monitor.js and scoped header/KPI/phone styles. Fresh final-head CI
+and independent exact-head Probe QA are still required before readiness.
 
 Overview keeps its title, navigation, price context, source periods, security
 posture and existing links. The existing trends API supplies a fourth card,
@@ -133,3 +131,19 @@ suite/matrix, real devices/other engines/screen readers, new hardware
 performance/CLS/MotionScore: Not run. Fresh final-head Actions, parent40 gates
 and independent exact-head Probe QA remain required; no approval waiver.
 All local processes finished. No new PR/build, merge to main or deployment.
+
+
+## Final bottom-up refresh after40 merged — 8 November 09:30
+
+Normally merged main `6ee3ed3aeaa5244cb88df8302b1435546112d524` as
+`031b58bb690931008192e8c48d6a306a8c66f2f6`, no conflicts. Incoming delta from
+previous75d80bc is main's two-line empty-chart fix and chart tests. Own
+admin-monitor.js, ui.css including phone scroll clearance/wrapping, focused R4
+harness and tokens are byte-identical to75d80bc. Shared ui.js matches main and
+main's whole CSS is an exact prefix. Proof: `parent40-merged-identity.json`.
+
+Fresh checks: `UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules node docs/screenshots/glass-r4/check.cjs`: `PASS 58 focused checks; 6 screenshots`, exit0, four main-content axe scans without findings, no browser exceptions. All phone tab/native Arrow-key focus bounds and KPI content bounds pass. `python3 -m unittest tests.test_portal tests.test_hub`: `Ran 56 tests in 46.351s`, `OK`, exit0. Source identities and working/staged whitespace checks pass. All local checks finished. Parent40 gate is
+released; previous unmerged-dependency statements above are historical. No new
+source changes, PR/build or repeated diagnosis. Fresh CI/exact-head Probe QA
+remain required. Full local suite/matrix, real devices, other engines/screen
+readers and new hardware performance/CLS/MotionScore: Not run.
