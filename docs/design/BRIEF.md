@@ -29,7 +29,7 @@ cross-fade with a blur, the footer fills like liquid.
 
 ## 2. Design tokens (define once in `tokens.css`, use everywhere)
 Keep the Hub's brand: the reference's warm amber maps onto our existing `--primary` gold (#F5B32B) and
-`--accent` champagne. Keep Archivo (already shipped, no new font). Add:
+`--accent` champagne. Use the approved self-hosted Plus Jakarta Sans for UI text and headings (see §9). Add:
 
 ```css
 --glass-bg:        rgba(28, 24, 22, .52);   /* smoked warm glass, dark theme */
@@ -130,6 +130,12 @@ image. Never use the reference's photos.
 Each UI PR: screenshots at 390×844 and 1440×900, light and dark, in `docs/screenshots/<task>/`, next to the
 matching reference still, with one line per difference that remains.
 
-## 9. Decisions for Arnold (ask once, keep building meanwhile)
-- A geometric display face closer to the reference (e.g. Poppins) instead of Archivo — costs a font file.
-- Real Swangz photos for the background layer.
+## 9. Decisions (Arnold, 7 Nov 2026)
+- **Font: Plus Jakarta Sans** (SIL Open Font License) for all UI text and headings, replacing Archivo. Self-host
+  the variable woff2, latin subset only, with its `OFL.txt`, in `gateway/static/fonts/` (strict CSP: no Google Fonts
+  link). Weights 400–800. Numbers in KPIs, tables and charts use `font-variant-numeric: tabular-nums`. Done in R1.
+- **Photos:** Swangz's own artwork and photos first (`*-welcome.webp`, and any photos Arnold adds later). Where a
+  screen needs a closer match to the references, use freely licensed photos (Unsplash or Pexels licence) of warm,
+  softly lit interiors like the dashboard and footer references, or dark angular 3D surfaces like the login
+  reference. Optimise to WebP ≤ 200 KB, and record each in `docs/design/ASSETS.md` (file, source URL, author,
+  licence, date). Never use the reference creator's photos, logos, names or copy.
