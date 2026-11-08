@@ -499,7 +499,14 @@ class Client:
         state["last_sync"] = time.time()
         state["latest_client"] = manifest.get("client", {}).get("latest")
         self.store.save_state(state)
-        self.heartbeat()
+        heartbeat = self.heartbeat()
+        try:
+            if heartbeat is not None and not any(outcome == "failed" for _, outcome, _ in results):
+                self.updater().synced()
+            if state.get("latest_client") and version_tuple(state["latest_client"]) > version_tuple(__version__):
+                self.updater().check()  # hint triggers a check; signed bytes alone select a file
+        except (ValueError, ApiFailure, OSError):
+            pass  # update cleanup/checks never stop ordinary work, including lock contention
         return {"results": results, "manifest": manifest}
 
     def _install(self, api, pkg, key, device):
@@ -586,6 +593,10 @@ class Client:
 
     # ------------------------------------------------------------ what the window shows
 
+    def updater(self):
+        from .updater import Updater
+        return Updater(self)
+
     def status(self):
         credential_error = None
         try:
@@ -595,10 +606,10 @@ class Client:
         except (keystore.KeyStoreError, agents.AgentConfigError, OSError) as exc:
             credential_error = str(exc)
         device, state, manifest = self.store.device(), self.store.state(), self.store.manifest()
-        latest = state.get("latest_client")
+        updates = self.updater().status()
         return {"signed_in": self.signed_in(), "server": (device or {}).get("server"), "person": (device or {}).get("person"),
                 "device": device, "installed": state["installed"], "last_sync": state.get("last_sync"),
-                "update_available": bool(latest and version_tuple(latest) > version_tuple(__version__)),
+                "update_available": updates["status"] == "staged", "updates": updates,
                 "client_version": __version__, "recording": (manifest or {}).get("recording"),
                 "autostart": shell.autostart_enabled(self.paths), "key_storage": (device or {}).get("key_storage"),
                 "credential_warning": credential_error or (device or {}).get("credential_warning"),

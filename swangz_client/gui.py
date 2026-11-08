@@ -314,6 +314,8 @@ class App:
         for k, v in (("Name", d.get("name")), ("Kind", "Company-owned" if d.get("owner_kind") == "company" else "Personal"),
                      ("Signed in as", f"{(st.get('person') or {}).get('name', '')}  ({(st.get('person') or {}).get('email', '')})"),
                      ("Server", st.get("server")), ("Swangz version", st.get("client_version")),
+                     ("Updates", (st.get("updates") or {}).get("message", "Updates unavailable")),
+                     ("Platform signature", (st.get("updates") or {}).get("platform_signature", "not checked")),
                      ("Key storage", st.get("key_storage")), ("Last synced", clock(st.get("last_sync")))):
             row = tk.Frame(card, bg=C["panel"])
             row.pack(fill="x", pady=2)
