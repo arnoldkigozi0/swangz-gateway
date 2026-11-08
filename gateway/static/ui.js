@@ -486,7 +486,8 @@
       onActive(i);
       const r = svg.getBoundingClientRect();
       const x = clientX !== undefined ? clientX : r.left + xs(i);
-      showTip(svg, chartTipContent(o.data[i], o), x, clientY !== undefined ? clientY : r.top + 12);
+      const anchor = o.tipY ? r.top + o.tipY(i) : clientY !== undefined ? clientY : r.top + 12;
+      showTip(svg, chartTipContent(o.data[i], o), x, anchor);
     };
     const hide = () => { active = -1; onActive(-1); hideTip(svg); };
     svg.addEventListener("pointermove", (e) => {
@@ -515,7 +516,8 @@
      the tooltip, the arrow-key reading and the table view. One series, so no legend: the title names it.
      data: [{label, short, value, note}] */
   function columns(o) {
-    o = { height: 170, format: fmt.num, ...o };
+    o = { height: 210, format: fmt.num, ...o };
+    if (!o.data || !o.data.length) return stateBox({ icon: "info", compact: true, title: "No data yet", text: o.emptyText || "Nothing to chart for this period." });
     const uid = "u-tube-" + (++tubeSeq);
     let shown = false;   // bars grow from zero once, the first time the chart is in view
     return chartFrame(o, (w) => {
@@ -535,18 +537,22 @@
       const g = s("g");
       const ax = axes(g, o, w, h, pad, max);
       const band = (w - pad.l - pad.r) / n;
-      const bw = Math.max(4, Math.min(18, band * 0.5));
+      const bw = Math.max(4, Math.min(24, band * 0.66));
       const xs = (i) => pad.l + band * i + band / 2;
       const base = h - pad.b;
       const tubes = s("g", { class: "tubes" });
       const bars = [], hi = [];
       o.data.forEach((d, i) => {
         const v = d.value || 0;
-        const bh = v > 0 ? Math.max(bw, (base - pad.t) * v / max) : 0;
+        // height is exactly proportional to the value (a 1px floor only so a non-zero day can be seen); the cap is
+        // rounded to the bar's own size so a short bar is a small rounded stub, not a taller one
+        const bh = v > 0 ? Math.max(1, (base - pad.t) * v / max) : 0;
         const x = xs(i) - bw / 2;
-        const bar = s("rect", { class: "col", x, y: base - bh, width: bw, height: bh, rx: bw / 2 });
+        const rr = Math.min(bw / 2, bh / 2);
+        const bar = s("rect", { class: "col", x, y: base - bh, width: bw, height: bh, rx: rr });
         bar.style.fill = `url(#${uid}-g)`;
-        const glow = s("rect", { class: "col-hi", x: x + bw * 0.22, y: base - bh + bw * 0.28, width: Math.max(1, bw * 0.18), height: Math.max(0, bh - bw * 0.56), rx: Math.max(.5, bw * 0.09) });
+        const glow = s("rect", { class: "col-hi", x: x + bw * 0.22, y: base - bh + rr * 0.6, width: Math.max(1, bw * 0.18), height: Math.max(0, bh - rr * 1.2), rx: Math.max(.5, bw * 0.09) });
+        if (bh < bw * 1.3) glow.setAttribute("display", "none");
         const wrap = s("g", { class: "tube" });
         wrap.append(bar, glow);
         wrap.style.setProperty("--i", i);   // CSSOM, not a style attribute: the page CSP refuses inline style attributes
@@ -580,7 +586,7 @@
       };
       select(-1);
       requestAnimationFrame(() => requestAnimationFrame(() => label.classList.add("ready")));
-      interact(svg, o, xs, n, select);
+      interact(svg, { ...o, tipY: (i) => Math.max(14, Number(bars[i < 0 ? n - 1 : i].getAttribute("y")) - 8) - 13 - 2 }, xs, n, select);
       if (!shown) {
         if (typeof IntersectionObserver !== "undefined" && calmMotion()) {
           svg.classList.add("grow");

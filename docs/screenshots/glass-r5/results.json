@@ -1,32 +1,54 @@
 {
  "checks": [
+  "1440x900 dark: tube rim contrast 6.20:1 against rgb(18,18,20) is at least 3:1",
+  "1440x900 dark: current bar edge contrast 11.42:1 is at least 3:1",
   "1440x900 dark: 30 tubes, one current",
-  "1440x900 dark: tubes fully rounded",
-  "1440x900 dark: pill shows a real value (12)",
+  "1440x900 dark: caps are rounded to each bar's own size",
+  "1440x900 dark: tubes at least 8px wide and chart at least 200px tall (11.6 x 210)",
+  "1440x900 dark: CLS measured and 0 (0)",
+  "1440x900 dark: pill shows a real value (10)",
   "1440x900 dark: aria-label has latest and highest",
   "1440x900 dark: bars settled after growing",
   "1440x900 dark: no horizontal overflow",
   "hover makes the hovered tube current",
+  "hover tooltip does not cover the floating value label (false)",
   "keyboard Home selects the first tube",
   "table view lists 30 days",
+  "bar heights are proportional to the table values (max error 0.00px)",
+  "empty data renders an empty state and does not throw (No data yetNothing to chart for this period.)",
+  "1440x900 light: tube rim contrast 3.90:1 against rgb(255,255,255) is at least 3:1",
+  "1440x900 light: current bar edge contrast 4.44:1 is at least 3:1",
   "1440x900 light: 30 tubes, one current",
-  "1440x900 light: tubes fully rounded",
-  "1440x900 light: pill shows a real value (12)",
+  "1440x900 light: caps are rounded to each bar's own size",
+  "1440x900 light: tubes at least 8px wide and chart at least 200px tall (11.6 x 210)",
+  "1440x900 light: CLS measured and 0 (0)",
+  "1440x900 light: pill shows a real value (10)",
   "1440x900 light: aria-label has latest and highest",
   "1440x900 light: bars settled after growing",
   "1440x900 light: no horizontal overflow",
   "hover makes the hovered tube current",
+  "hover tooltip does not cover the floating value label (false)",
   "keyboard Home selects the first tube",
   "table view lists 30 days",
+  "bar heights are proportional to the table values (max error 0.00px)",
+  "empty data renders an empty state and does not throw (No data yetNothing to chart for this period.)",
+  "390x844 dark: tube rim contrast 6.20:1 against rgb(18,18,20) is at least 3:1",
+  "390x844 dark: current bar edge contrast 11.42:1 is at least 3:1",
   "390x844 dark: 30 tubes, one current",
-  "390x844 dark: tubes fully rounded",
-  "390x844 dark: pill shows a real value (12)",
+  "390x844 dark: caps are rounded to each bar's own size",
+  "390x844 dark: tubes at least 8px wide and chart at least 200px tall (5.9 x 210)",
+  "390x844 dark: CLS measured and 0 (0)",
+  "390x844 dark: pill shows a real value (10)",
   "390x844 dark: aria-label has latest and highest",
   "390x844 dark: bars settled after growing",
   "390x844 dark: no horizontal overflow",
+  "390x844 light: tube rim contrast 3.90:1 against rgb(255,255,255) is at least 3:1",
+  "390x844 light: current bar edge contrast 4.44:1 is at least 3:1",
   "390x844 light: 30 tubes, one current",
-  "390x844 light: tubes fully rounded",
-  "390x844 light: pill shows a real value (12)",
+  "390x844 light: caps are rounded to each bar's own size",
+  "390x844 light: tubes at least 8px wide and chart at least 200px tall (5.9 x 210)",
+  "390x844 light: CLS measured and 0 (0)",
+  "390x844 light: pill shows a real value (10)",
   "390x844 light: aria-label has latest and highest",
   "390x844 light: bars settled after growing",
   "390x844 light: no horizontal overflow",
@@ -40,5 +62,27 @@
   "growing"
  ],
  "errors": [],
- "cls": null
+ "contrast": {
+  "1440x900-dark": {
+   "rim": 6.2,
+   "current": 11.42,
+   "bg": "rgb(18,18,20)"
+  },
+  "1440x900-light": {
+   "rim": 3.9,
+   "current": 4.44,
+   "bg": "rgb(255,255,255)"
+  },
+  "390x844-dark": {
+   "rim": 6.2,
+   "current": 11.42,
+   "bg": "rgb(18,18,20)"
+  },
+  "390x844-light": {
+   "rim": 3.9,
+   "current": 4.44,
+   "bg": "rgb(255,255,255)"
+  }
+ },
+ "cls": 0
 }

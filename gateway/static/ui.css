@@ -179,10 +179,10 @@ button[data-tip], a[data-tip] { cursor: pointer; }
 
 /* Glass tube bars (R5): translucent rounded columns, the current one accent-lit with a floating value label.
    Colours live here once; motion is transform and opacity only. */
-.u-tubes { --tube-a: rgba(255, 255, 255, .42); --tube-b: rgba(255, 255, 255, .08); --tube-rim: rgba(255, 255, 255, .26); --tube-hi: rgba(255, 255, 255, .55);
+.u-tubes { --tube-a: rgba(255, 255, 255, .42); --tube-b: rgba(255, 255, 255, .08); --tube-rim: rgba(255, 255, 255, .55); --tube-hi: rgba(255, 255, 255, .55);
   --tube-sel-a: #F7C25A; --tube-sel-b: rgba(190, 110, 22, .62); --pill-bg: #F4EFE8; --pill-tx: #1A1612; }
-html[data-theme="light"] .u-tubes { --tube-a: rgba(70, 56, 40, .46); --tube-b: rgba(70, 56, 40, .13); --tube-rim: rgba(70, 56, 40, .30); --tube-hi: rgba(255, 255, 255, .7);
-  --tube-sel-a: #E8A92A; --tube-sel-b: rgba(176, 100, 18, .72); --pill-bg: #1A1612; --pill-tx: #FBF6EE; }
+html[data-theme="light"] .u-tubes { --tube-a: rgba(70, 56, 40, .46); --tube-b: rgba(70, 56, 40, .13); --tube-rim: rgba(70, 56, 40, .64); --tube-hi: rgba(255, 255, 255, .7);
+  --tube-sel-a: #A86A06; --tube-sel-b: rgba(120, 66, 8, .78); --pill-bg: #1A1612; --pill-tx: #FBF6EE; }
 .u-tubes .tube-a { stop-color: var(--tube-a); } .u-tubes .tube-b { stop-color: var(--tube-b); }
 .u-tubes .tube-sel-a { stop-color: var(--tube-sel-a); } .u-tubes .tube-sel-b { stop-color: var(--tube-sel-b); }
 .u-chart .u-tubes .col { stroke: var(--tube-rim); stroke-width: 1; }
