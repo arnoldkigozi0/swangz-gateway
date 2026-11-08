@@ -62,6 +62,8 @@ jobs:
         run: node tests/browser/staging.cjs
       - name: Tracker parity and responsive matrix
         run: node tests/browser/business.cjs
+      - name: Glass list primitives (panel, segmented control, search pill, progress, star)
+        run: node tests/browser/lists.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
