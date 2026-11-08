@@ -158,7 +158,7 @@ html[data-theme="light"] .staff-exact {
   backdrop-filter: var(--x-blur); -webkit-backdrop-filter: var(--x-blur);
   color: var(--staff-tx);
 }
-.staff-exact main > :is(.section.first,.hub-page) { margin-top: 16px; }
+.staff-exact main > :is(.section.first,.hub-page) { margin-top: 0; padding-top: 0; }
 .staff-exact main > :is(.section.first,.hub-page) .section-head { margin-left: calc(-1 * var(--staff-panel-pad)); }
 .staff-exact .home-hero { margin-top: 16px; }
 .hub-staff-app.staff-exact .home-hero::before { display: none; }
