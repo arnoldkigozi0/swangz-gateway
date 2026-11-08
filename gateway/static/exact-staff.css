@@ -6,6 +6,8 @@
 
 /* Staff shell, BRIEF §10. Geometry at 1440×852; shell tokens are isolated here; no seed exact.css is imported.
    Imported by portal.css before it paints; selectors are scoped to the signed-in staff shell. */
+.hub-staff-app.staff-exact { display: block; grid-template-columns: none; }
+
 .staff-exact {
   --font: "Swangz Staff Poppins", "Helvetica Neue", Arial, sans-serif;
   font-family: var(--font);
@@ -15,12 +17,14 @@
   --staff-right: 97px; --staff-pill-h: 38px; --staff-icon-step: 45px;
   --staff-rail-bg: rgba(30,26,24,.80); --staff-active-bg: #F2EEEC; --staff-active-tx: #1C1816;
   --staff-tx: #FFF8F2; --staff-muted: #E2D6CC; --staff-pill-bg: rgba(38,30,26,.82);
+  --staff-hero-scrim: rgba(28,24,22,.88);
   --staff-rim: rgba(255,255,255,.20); --staff-danger: #B51E33;
   display: block; min-height: 100dvh; padding: 0 var(--staff-right) 32px var(--staff-content-x);
   background: linear-gradient(rgba(12,10,9,.32), rgba(12,10,9,.32)), url('/static/room-warm.webp') center / cover fixed;
 }
 html[data-theme="light"] .staff-exact {
   --staff-rail-bg: rgba(252,248,242,.92); --staff-active-bg: #1C1816; --staff-active-tx: #F2EEEC;
+  --staff-hero-scrim: rgba(252,248,242,.94);
   --staff-tx: #1C1816; --staff-muted: #4B3527; --staff-pill-bg: rgba(252,248,242,.92); --staff-rim: rgba(82,60,44,.28);
   background-image: linear-gradient(rgba(250,244,236,.42),rgba(250,244,236,.42)),url('/static/room-warm.webp');
 }
@@ -89,10 +93,12 @@ html[data-theme="light"] .staff-exact {
 .staff-exact .section-head p { color: var(--staff-muted); font-size: 11px; margin-top: 3px; }
 /* Home content stays the existing real launchpad, separate from this shell pass (§10.1.4). */
 .staff-exact .home-hero { background: transparent; border: 0; }
-.staff-exact .home-hero::before { display: none; }
+.hub-staff-app.staff-exact .home-hero::before { display: block; background: var(--staff-hero-scrim); }
+/* The staff scene supplies the photo; remove the old doorway over the text area. */
+.staff-exact .home-hero::after { display: none; }
 .staff-exact .home-hero .shell { padding-top: 6px; }
 .staff-exact .home-hero h1 { font-size: 24px; color: var(--staff-tx); }
-.staff-exact .home-hero .lede, .staff-exact .home-hero .hero-meta { color: var(--staff-muted); }
+.staff-exact .home-hero .home-lede, .staff-exact .home-hero .hero-meta { color: var(--staff-muted); }
 /* Keep native hidden behaviour when the navigation's display rule is active. */
 .drawer .hub-staff-nav > a[hidden] { display: none; }
 @media (max-width: 1250px) {
