@@ -375,3 +375,25 @@ local suite/role matrix, new hardware performance/CLS/MotionScore, real devices,
 other engines and screen readers: Not run. Fresh final-head Actions and Probe
 QA remain required. Parent42 is now merged; PR48's diff is header/task evidence
 only. No scope expansion, new build/PR, deployment or merge to main.
+
+
+## Bell badge WCAG correction — 8 November 08:00 shift
+
+Branch feature/bell-badge-contrast from main4cf653b, isolated matching worktree.
+Confirmed original dark badge white/#FF5D52 at3.026119928029301:1 via expected
+failing assertion; changed only admin.css `.bell-n` foreground to existing
+`--on-bad`. Actual computed ratios: dark6.361659258042617:1, light4.736397633724517:1
+at1440x900 and390x844. Reference fill/shape maintained; dark numeral is the
+necessary contrast difference. Existing header harness adds four measured
+contrast assertions and task output routing; shared check.cjs/ui.css/ui.js and
+workflows untouched. G2 boundaries unchanged: presentation/token reuse only,
+no new architecture/security behavior or approval claimed.
+
+Actual commands/output and complete measurements/negative control/references:
+`docs/screenshots/bell-badge-contrast/README.md`, baseline-results.json/results.json.
+Focused existing admin harness:67checks,4screenshots,4axe scans, exit0, no
+exceptions/scoped findings. Python portal+hub:56tests in52.014s, OK/exit0.
+Node syntax and whitespace checks passed. Inspected all four exact screenshots.
+Full local suite/matrix, real devices/other engines/screen readers, hardware
+performance/CLS/MotionScore: Not run; Actions/independent QA remain required.
+No new fonts/dependencies, providers, auth/data changes, merge or deployment.
