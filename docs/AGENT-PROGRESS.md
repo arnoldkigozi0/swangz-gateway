@@ -1388,3 +1388,17 @@ Goal: unblock exact-match drafts, then deliver independent PR-sized slices; targ
 | Older drafts/stacked PRs | respective owners | existing branches | review | Waiting renewed current-main exact-head evidence; no candidate proven to satisfy all gates. Old visual drafts remain section10 HOLD. |
 
 Merged this shift: none. Ready: none; no PR proven eligible. #56 mergeability UNKNOWN; #57 browser red. No Arnold decision identified. Delegations accepted/queued, execution begins after Chief turn; no build/review completion claimed. Chief tests Not run: coordination documents only. No production access, deployment or release.
+
+
+## Arnold-requested continuation — 2026-11-08 18:25 EAT
+
+Arnold explicitly requested continuation during scheduled rest. Resume existing exact-reference goal; no blanket merge clearance. Chief live GitHub check: #57 remains draft at 5d184f6bc52806e698fc95ea50370218274b0f6f with browser FAILURE; both Python jobs and app-window SUCCESS. #56 remains draft at 77fa89334fc9641997728f08300e1c9163c35296, four core checks SUCCESS, overall visual HOLD. No newer implementation result found in recent conversation search.
+
+| Task | Owner | Branch | Status | Next step |
+| --- | --- | --- | --- | --- |
+| #57 browser repair | Forge | feature/exact-signin-v2 | todo | Resume actual failing-job diagnosis, bounded G2 repair, targeted tests, batch push. |
+| Restore authoritative design brief | Prism | feature/exact-brief-sync | todo | Docs-only fresh branch from main; copy latest approved BRIEF §10/10.7 from design/exact-match-brief, preserve source seed unmerged; draft PR. |
+| #56 final acceptance, then repaired #57 | Probe | existing heads read-only | review | Actual reference stills/50% overlays, colour/motion, axe/CLS/perf; exact head VERIFIED or concrete BLOCKED. |
+| #57 delta security verdict | Sentinel | existing head read-only | review | Reuse current retained ruling if present; final repaired head needs bounded delta review. |
+
+Authoritative update is PR53 9ceae8f; working branches carry older BRIEF lacking §10. Do not equate partial source adaptation with complete updated-script use. No product edits by Chief. Chief tests Not run: coordination-only record. No merge, deploy, production access or dependency change. Handoffs pending acceptance at this checkpoint.
