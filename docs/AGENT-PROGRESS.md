@@ -223,3 +223,37 @@ a report PDF. Not run: real devices, Safari/Firefox, screen readers, full local
 role matrix/full suite, 60fps/CLS/MotionScore. Earlier Actions Python/app-window
 success applies only to `1e0a319`; browser failed there. Corrected-head CI and
 Probe re-verification are pending. No processes left running after checks.
+
+
+## PR42 browser CI diagnosis and main refresh — 8 November 2026
+
+Branch `feature/glass-r2`, `.worktrees/glass-r2`. Inspected actual failed
+GitHub run42382080869/job128431709285 and downloaded the synthetic artifact:
+first light1440 staff Home axe scan flagged Canva/ChatGPT/Claude launch links.
+`ci-failure.json` retains the artifact summary. Staff portal/shared UI files are
+identical to main; R2 had not modified those files.
+
+Task diagnostic `docs/screenshots/glass-r2/ci-contrast.cjs` freezes native colour
+transitions at30ms for CPU-independent inspection: reproduced all three targets
+at3.04:1 (#979391 on white). Fully settled page passes. Existing harness now
+awaits fonts and finite theme transitions before auditing. No accessibility
+assertions/thresholds/rules disabled; no retries or product styling changes.
+This does not assert that transient theme colours themselves meet AA.
+
+Normally merged main7ce5407 conflict-free as4423482. No edits to inherited
+backend/device files; admin.css/admin.js byte-identical to4f6cf7e and recorded
+performance SHA256s, so prior mixed performance result/limitations still stand.
+Actual synthetic local checks with existing R1 pinned tooling and ports enabled:
+
+- Focused navigation: `PASS 75 navigation checks; 8 screenshots; 6 axe scans`, exit0.
+- Prior review regressions: `PASS 23 review regression checks`, exit0.
+- `python3 -m unittest tests.test_browser_profiles tests.test_portal tests.test_hub`: `Ran 99 tests in 60.789s`, `OK`, exit0. Fixture socket ResourceWarnings appeared without failures.
+- `python3 tests/browser/syntax.py`: `Checked 23 JavaScript files`, exit0.
+- `NODE_PATH=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules UI_WIDTH=1440 UI_THEME=light UI_PAGES_ONLY=1 UI_OUTPUT=/tmp/prism-r42-corrected node tests/browser/check.cjs`: `PASS principal pages 27 interaction assertions; 25 screen checks`, exit0, no browser/axe/unexpected API findings. `ci-regression-results.json` retains the summary. Updated `UI_TOOLING=<same existing R1 tooling> node docs/screenshots/glass-r2/ci-contrast.cjs`: `PASS 3 CI contrast diagnosis checks; native 30ms state fails, settled state passes`, exit0; after reproduction it resumes and awaits real transitions rather than force-finishing them. `git diff --check`: exit0. All local processes finished. Independent exact-head QA and final-head CI pending.
+
+Regenerated navigation screenshots; inspected desktop light and phone dark
+drawer for unchanged selection/readability. References and existing differences
+remain in the task README. Full local matrix/suite, real devices/other engines,
+screen readers, new performance/CLS/MotionScore: Not run; bounded test correction,
+full suite/matrix stay on Actions. Independent exact-head QA remains required.
+No shared ui.css/ui.js, production, providers, dependencies, merge to main or deploy.
