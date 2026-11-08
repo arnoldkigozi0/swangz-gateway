@@ -23,7 +23,8 @@ body:has(.xgate) { --scene-image: url("/static/login-welcome.webp"); --scene-scr
   --xg-form: rgba(20, 20, 24, .55);
   --xg-hello: rgba(70, 74, 78, .35);
   --xg-bad: #FFB4AB;
-  --xg-dur: 600ms;
+  --xg-dur: 570ms;                                  /* the seam planes: login-03/04 settle in about 570ms */
+  --xg-out: 140ms; --xg-in: 200ms; --xg-in-delay: 190ms;  /* the words: out in ~4 frames, a beat of bare glass, in over ~5 frames (frames 48-60 of glass-login.mp4 at 30fps) */
   --xg-ease: cubic-bezier(.4, 0, .2, 1);
   /* the seam, as a share of the card width: top edge, bottom edge (login-05: 420→490 of 1150; login-02: 535→610) */
   --xg-a-top: 36.5%; --xg-a-bot: 42.6%; --xg-b-top: 46.5%; --xg-b-bot: 53%;
@@ -56,9 +57,9 @@ body:has(.xgate) { --scene-image: url("/static/login-welcome.webp"); --scene-scr
 .xgate [data-mode="a"] > .xg-pane::before, .xgate [data-mode="b"] > .xg-pane::after { opacity: 1; }
 
 /* ---- the four sections share one grid cell, so the card grows with the tallest (long errors, big text, zoom) */
-.xgate .xg-form, .xgate .xg-hello { position: relative; z-index: 1; grid-area: 1 / 1; align-self: center; margin-block: 56px; padding-top: 40px; min-width: 0;
+.xgate .xg-form, .xgate .xg-hello { position: relative; z-index: 1; grid-area: 1 / 1; align-self: center; margin-block: 56px; padding-top: 32px; min-width: 0;
   opacity: 1; transform: none;
-  transition: opacity var(--xg-dur) var(--xg-ease), transform var(--xg-dur) var(--xg-ease), visibility 0s linear 0s; }
+  transition: opacity var(--xg-in) ease-out var(--xg-in-delay), transform var(--xg-in) ease-out var(--xg-in-delay), visibility 0s linear 0s; }
 .xgate .xg-form { width: 33.4%; }
 .xgate .xg-hello { width: 28%; max-width: 330px; }
 .xgate .xg-form-a  { margin-left: 7.3%; }
@@ -67,7 +68,7 @@ body:has(.xgate) { --scene-image: url("/static/login-welcome.webp"); --scene-scr
 .xgate .xg-form-b  { margin-left: 59%; }
 /* the section that is not showing: out of sight, out of reach (the script also makes it inert), parked to its own side */
 .xgate .xg-form[aria-hidden="true"], .xgate .xg-hello[aria-hidden="true"] { opacity: 0; visibility: hidden; pointer-events: none;
-  transition: opacity var(--xg-dur) var(--xg-ease), transform var(--xg-dur) var(--xg-ease), visibility 0s linear var(--xg-dur); }
+  transition: opacity var(--xg-out) ease-out 0s, transform var(--xg-out) ease-out 0s, visibility 0s linear var(--xg-out); }
 .xgate .xg-form-a[aria-hidden="true"], .xgate .xg-hello-b[aria-hidden="true"] { transform: translateX(-56px); }
 .xgate .xg-form-b[aria-hidden="true"], .xgate .xg-hello-a[aria-hidden="true"] { transform: translateX(56px); }
 
@@ -92,8 +93,13 @@ body:has(.xgate) { --scene-image: url("/static/login-welcome.webp"); --scene-scr
 .xgate .xg-eye:hover { color: #fff; background: rgba(255, 255, 255, .08); }
 .xgate .xg-eye[aria-pressed="true"] { color: #fff; }
 
-/* ---- the alert row keeps its room, so an error appearing moves nothing; a long one wraps and the card grows */
-.xgate [role="alert"] { display: block; min-height: 40px; margin: 0; font: 500 14px/1.5 var(--xg-font); color: var(--xg-bad); overflow-wrap: anywhere; word-break: break-word; }
+/* ---- the alert row keeps 30px (the reference's gap between the password and the button), so a one-line error moves nothing;
+   a longer one wraps and the card grows, never clipped */
+.xgate [role="alert"] { display: block; min-height: 28px; margin: 0; font: 500 14px/1.5 var(--xg-font); color: var(--xg-bad); overflow-wrap: anywhere; word-break: break-word; }
+
+/* ---- until the server has said whether Google is offered, the card is not painted: the Google button and its divider
+   arrive with that answer, and showing the card first would move everything under it (no layout shift) */
+.xgate.xg-wait .xgate-card { visibility: hidden; }
 
 /* ---- buttons: primary = full-width 56px translucent pill; ghost = 230 x 54 with a rim and an arrow */
 .xgate .xg-primary { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 56px; padding: 0 24px; border-radius: 999px; text-decoration: none;

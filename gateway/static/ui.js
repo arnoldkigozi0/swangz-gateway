@@ -945,7 +945,7 @@
   /* The reference sign-in (BRIEF §10.3, login-02/05): one glass card split by a slanted seam. One side holds a form,
      the other a big uppercase greeting with a ghost pill; the pill swaps the two sides with a slide. The Hub has no
      self sign-up, so the second mode is "how to get access" rather than "create account".
-     o: { a: {title, body:[nodes], focus}, b: {title, body:[nodes]}, helloA: {h, p, btn}, helloB: {h, p, btn}, brand }
+     o: { a: {title, body:[nodes], focus}, b: {title, body:[nodes]}, helloA: {h, p, btn}, helloB: {h, p, btn}, brand, ready }
      Visual only: the forms keep their own submit handlers. Only the form pane that is showing is reachable
      (the others are inert), exactly one of the two form titles is the page's h1, a password never stays revealed
      across a submit or a swap, and nothing here sets focus on first paint (the caller does that). */
@@ -984,7 +984,24 @@
     card.append(el("div", { class: "xg-pane xg-pane-form", "aria-hidden": "true" }), el("div", { class: "xg-pane xg-pane-hello", "aria-hidden": "true" }),
       parts.formA, parts.helloA, parts.formB, parts.helloB);
     swap("a", false);
-    return { node: el("main", { class: "xgate" }, o.brand || null, card, o.foot || null), swap: (m) => swap(m, true) };
+    const node = el("main", { class: "xgate" }, o.brand || null, card, o.foot || null);
+    // o.ready (a promise the caller already has, e.g. "does the server offer Google?"): the card is not painted until it settles,
+    // so what it adds cannot move what is on screen. It never blocks sign-in: a failed answer counts as an answer, and after
+    // 1.2s the card shows anyway. Showing it moves focus to the form only if nothing else has focus (an event, not a timer race).
+    if (o.ready) {
+      node.classList.add("xg-wait");
+      let cap = 0;
+      const show = () => {
+        clearTimeout(cap);
+        if (!node.classList.contains("xg-wait")) return;
+        node.classList.remove("xg-wait");
+        const f = o.a.focus;
+        if (f && card.isConnected && card.dataset.mode === "a" && (!document.activeElement || document.activeElement === document.body)) f.focus({ preventScroll: true });
+      };
+      cap = setTimeout(show, 1200);
+      Promise.resolve(o.ready).then(show, show);
+    }
+    return { node, swap: (m) => swap(m, true) };
   }
   function eyeToggle(input) {
     const b = el("button", { type: "button", class: "xg-eye", "aria-label": "Show password", "aria-pressed": "false", onclick: () => {

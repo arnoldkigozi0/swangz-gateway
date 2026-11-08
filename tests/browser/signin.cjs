@@ -72,7 +72,7 @@ async function newPage(browser, info, app, w, h, o = {}) {
   page.on('console', (m) => m.type() === 'error' && !/401|Failed to load resource/.test(m.text()) && results.errors.push(m.text()));
   await page.route('**/auth/options', (r) => r.fulfill({ json: { google: !!o.google } }));
   await page.goto(info.url + app.start + (o.query || ''));
-  await page.waitForSelector('.xgate .xgate-card');
+  await page.waitForSelector('.xgate:not(.xg-wait) .xgate-card');
   return { ctx, page };
 }
 
@@ -139,7 +139,7 @@ async function gateChecks(browser, info, key, app) {
     ok(V('Tab reaches the form and the hello button'), seen.some((s) => s && s.part === 'xg-form-a') && seen.some((s) => s && s.part === 'xg-hello-a'));
     ok(V('the inactive panes ignore the pointer'), await page.evaluate(() => [...document.querySelectorAll('.xgate-card > .xg-pane-form, .xgate-card > .xg-pane-hello')].every((p) => getComputedStyle(p).pointerEvents === 'none')));
 
-    // wrong password: the message appears, the reserved space does not move anything, the password hides again
+    // wrong password: a one-line message lands in the reserved row and moves nothing, the password hides again
     const before = { btn: await box(page, `${part('a')} .xg-primary`), card: await box(page, '.xgate-card') };
     await page.locator(`${part('a')} input[type=email]`).fill(app.user);
     await pw.fill(app.wrong);
@@ -149,8 +149,8 @@ async function gateChecks(browser, info, key, app) {
     await page.waitForFunction((s) => document.querySelector(s) && document.querySelector(s).textContent.trim().length > 0, `${part('a')} [role=alert]`);
     ok(V('wrong password shows an error'), (await alert.innerText()).trim().length > 0);
     const after = { btn: await box(page, `${part('a')} .xg-primary`), card: await box(page, '.xgate-card') };
-    eq(V('error appearing moves nothing (button y)'), Math.round(after.btn.y), Math.round(before.btn.y));
-    eq(V('error appearing moves nothing (card height)'), Math.round(after.card.height), Math.round(before.card.height));
+    eq(V('a one-line error moves nothing (button y)'), Math.round(after.btn.y), Math.round(before.btn.y));
+    eq(V('a one-line error moves nothing (card height)'), Math.round(after.card.height), Math.round(before.card.height));
     eq(V('wrong password: the field is hidden again'), await pw.getAttribute('type'), 'password');
     eq(V('wrong password: the eye is reset'), await eye.getAttribute('aria-pressed'), 'false');
     ok(V('wrong password: the button works again'), await page.locator(`${part('a')} .xg-primary`).isEnabled());
@@ -197,6 +197,12 @@ async function gateChecks(browser, info, key, app) {
     await page.waitForTimeout(300);
     eq(T('Google off: no Google link anywhere'), await page.locator('a[href*="/auth/google/"]').count(), 0);
     eq(T('Google off: no divider'), await page.locator('.xgate .or').count(), 0);
+    // positions against glass-login.mp4 / login-05 (card top y=5): within 4px (BRIEF 10.2). The still's values are relative to the card top.
+    const P = await page.evaluate(() => { const c = document.querySelector('.xgate-card').getBoundingClientRect(); const f = document.querySelector('.xg-form-a');
+      const r = (s) => f.querySelector(s).getBoundingClientRect(); const fs = f.querySelectorAll('.xfield'); const L = r('.xg-links');
+      return { email: fs[0].getBoundingClientRect().bottom - c.top, pass: fs[1].getBoundingClientRect().bottom - c.top, btnTop: r('.xg-primary').top - c.top, btnBottom: r('.xg-primary').bottom - c.top, links: (L.top + L.bottom) / 2 - c.top }; });
+    [['email underline', P.email, 286], ['password underline', P.pass, 347], ['Login button top', P.btnTop, 374], ['Login button bottom', P.btnBottom, 432], ['links centre', P.links, 476]]
+      .forEach(([n, got, want]) => ok(T(`reference position: ${n} ${got.toFixed(1)} vs ${want} (±4)`), Math.abs(got - want) <= 4));
     await ctx.close();
   }
 
@@ -227,6 +233,10 @@ async function gateChecks(browser, info, key, app) {
       const d = document.documentElement; return { aL: a.left, aR: a.right, cL: c.left, cR: c.right, sw: d.scrollWidth, cw: d.clientWidth }; });
     ok(T(`${label}: long error stays inside the card (${Math.round(m.aL)}..${Math.round(m.aR)} in ${Math.round(m.cL)}..${Math.round(m.cR)})`), m.aL >= m.cL - 1 && m.aR <= m.cR + 1);
     ok(T(`${label}: no sideways scrolling (${m.sw} <= ${m.cw})`), m.sw <= m.cw);
+    const g = await page.evaluate(() => { const a = document.querySelector('.xg-form-a [role=alert]'); const b = document.querySelector('.xg-form-a .xg-primary').getBoundingClientRect(); const r = a.getBoundingClientRect();
+      return { h: r.height, scroll: a.scrollHeight, client: a.clientHeight, clipped: getComputedStyle(a).overflow, gap: b.top - r.bottom }; });
+    ok(T(`${label}: the alert grew past its reserve (${Math.round(g.h)}px) and is not clipped (scroll ${g.scroll} <= client ${g.client})`), g.h > 30 && g.scroll <= g.client + 1 && g.clipped !== 'hidden');
+    ok(T(`${label}: the Login button starts below the grown alert (gap ${Math.round(g.gap)}px)`), g.gap >= 0);
     const prim = await box(page, '.xg-form-a .xg-primary');
     ok(T(`${label}: the Login button is still reachable and on screen width`), prim && prim.x >= 0 && prim.x + prim.width <= m.cw + 1);
     await ctx.close();
@@ -241,6 +251,63 @@ async function gateChecks(browser, info, key, app) {
     await page.waitForFunction(() => !document.querySelector('.xgate') && document.querySelector('main h1'), null, { timeout: 15000 });
     ok(T('correct password leaves the gate'), (await page.locator('.xgate').count()) === 0);
     ok(T('no CSP violation after signing in'), (await page.evaluate(() => window.__csp)).length === 0);
+    await ctx.close();
+  }
+}
+
+/* The swap's timing, frame by frame (30fps), against glass-login.mp4: the old words are gone by frame 4-5 (stills 51-52), the glass is bare for a
+   beat, the new words begin at frame 6 (still 54) and are in by 12 (still 60). Animations are paused and set to each frame's time, so the laptop's
+   slow rendering cannot change the answer. Then reduced motion (everything instant) and a 400ms-late /auth/options (CLS). */
+async function motionChecks(browser, info, app) {
+  const T = (s) => `${app.name}: ${s}`;
+  {
+    const { ctx, page } = await newPage(browser, info, app, 1440, 852);
+    await page.waitForTimeout(1200);
+    const rows = await page.evaluate(async () => {
+      const g = (e) => { const s = getComputedStyle(e); return s.visibility === 'hidden' ? 0 : +(+s.opacity).toFixed(2); };
+      const ids = ['.xg-form-a', '.xg-hello-a', '.xg-form-b', '.xg-hello-b'].map((s) => document.querySelector(s));
+      document.querySelector('.xg-hello-a .xg-ghost').click();
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const an = document.getAnimations(); an.forEach((a) => a.pause());
+      const out = [];
+      for (let f = 0; f <= 14; f++) { an.forEach((a) => { a.currentTime = f * 1000 / 30; }); out.push(ids.map(g)); }
+      return out;
+    });
+    const at = (f) => rows[f];
+    ok(T('swap frame 0: only the old words are showing'), at(0)[0] === 1 && at(0)[1] === 1 && at(0)[2] === 0 && at(0)[3] === 0);
+    ok(T('swap frames 1-3: the old words fade while the new are still absent'), [1, 2, 3].every((f) => at(f)[0] < at(f - 1)[0] && at(f)[2] === 0 && at(f)[3] === 0));
+    ok(T('swap: the old words are gone by frame 5 (±2 of the still at 3)'), at(5)[0] === 0 && at(5)[1] === 0);
+    ok(T('swap: bare glass at frames 4-5 (nothing showing)'), [4, 5].every((f) => at(f).every((v) => v === 0)));
+    ok(T('swap: the new words begin at frame 6-7 (still 54 = 6, ±2)'), at(5)[2] === 0 && at(7)[2] > 0 && at(7)[3] > 0 && at(8)[2] > at(7)[2]);
+    ok(T('swap: the new words are in by frame 12 (still 60, ±2)'), at(12)[2] >= 0.99 && at(12)[3] >= 0.99 && at(10)[2] < 1);
+    ok(T('swap: the old and the new are never both visible (no cross-fade)'), rows.every((r) => !((r[0] > 0 || r[1] > 0) && (r[2] > 0 || r[3] > 0))));
+    await ctx.close();
+  }
+  { // reduced motion: instant
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 852 }, reducedMotion: 'reduce' });
+    const page = await ctx.newPage();
+    await page.route('**/auth/options', (r) => r.fulfill({ json: { google: false } }));
+    await page.goto(info.url + app.start); await page.waitForSelector('.xgate:not(.xg-wait) .xgate-card');
+    await page.locator('.xg-hello-a .xg-ghost').click();
+    const d = await page.evaluate(() => [...document.querySelectorAll('.xgate .xg-form, .xgate .xg-hello')].map((e) => getComputedStyle(e).transitionDuration + '/' + getComputedStyle(e).transitionDelay));
+    ok(T('reduced motion: every transition is 0s with no delay'), d.every((x) => /^(0s,? ?)+\/(0s,? ?)+$/.test(x)));
+    await ctx.close();
+  }
+  // CLS with a 400ms-late /auth/options: the Google row and divider must not move anything the person can see
+  for (const [w, h, vname] of VIEWS) {
+    const ctx = await browser.newContext({ viewport: { width: w, height: h } });
+    await ctx.addInitScript(() => { window.__cls = 0; new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) { const src = e.sources || []; if (src.length && src.every((s) => s.node && s.node.parentElement && !s.node.parentElement.closest('.xgate-card'))) continue; window.__cls += e.value; } }).observe({ type: 'layout-shift', buffered: true }); });
+    const page = await ctx.newPage();
+    await page.route('**/auth/options', async (r) => { await new Promise((x) => setTimeout(x, 400)); r.fulfill({ json: { google: true } }); });
+    await page.goto(info.url + app.start);
+    await page.waitForSelector('.xgate:not(.xg-wait) .xgate-card');
+    const first = await box(page, '.xg-form-a .xg-primary');
+    await page.waitForTimeout(1800);
+    const last = await box(page, '.xg-form-a .xg-primary');
+    ok(T(`${vname}: Google arrives late, the Login button never moves once the card shows (${Math.round(first.y)} -> ${Math.round(last.y)})`), Math.abs(first.y - last.y) < 1);
+    ok(T(`${vname}: the Google link is there after the late answer`), (await page.locator('.xg-form-a a[href*="/auth/google/"]').count()) === 1);
+    const cls = await page.evaluate(() => window.__cls);
+    ok(T(`${vname}: layout shift with a 400ms-late /auth/options is under 0.0001 (${cls.toFixed(6)}); only the brand wordmark outside the card (a web-font swap) is counted out`), cls < 0.0001);
     await ctx.close();
   }
 }
@@ -282,7 +349,9 @@ async function welcomeChecks(browser, info) {
       demo.on('exit', (c) => c && rej(new Error('demo exit ' + c))); });
     browser = await chromium.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome' });
     await gateChecks(browser, info, 'admin', APPS.admin);
+    await motionChecks(browser, info, APPS.admin);
     if (staffPorted) await gateChecks(browser, info, 'staff', APPS.staff);
+    if (staffPorted) await motionChecks(browser, info, APPS.staff);
     else results.checks.push('Not run: staff sign-in checks (portal.js showSignIn is not on the split gate yet)');
     await welcomeChecks(browser, info);
     ok('no console or page errors', results.errors.length === 0);

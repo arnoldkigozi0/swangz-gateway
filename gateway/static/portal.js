@@ -161,7 +161,7 @@
     const google = el("div");
     const googleB = el("div", { class: "xg-gB" });
     // Google is offered only when the server says so; mode B reuses the same link (no divider there)
-    googleButton("staff", "Continue with Google").then((b) => {
+    const optionsKnown = googleButton("staff", "Continue with Google").then((b) => {
       google.replaceWith(b);
       const link = b.querySelector("a[href]");
       if (link) {
@@ -187,6 +187,7 @@
     err, go,
     el("p", { class: "xg-links" }, "First time here? ", el("button", { type: "button", class: "xg-link", onclick: () => gate.swap("b") }, "Get access")));
     gate = SUI.splitGate({
+      ready: optionsKnown,
       brand: el("a", { class: "xg-brand", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz ", el("b", null, "AI Hub")),
       a: { title: "Login", body: [google, form], focus: email },
       b: { title: "Get access", body: [el("div", { class: "xg-fields" },

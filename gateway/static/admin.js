@@ -600,8 +600,9 @@
     if (code) history.replaceState(null, "", location.pathname + location.hash);
     const err = el("div", { class: "err", role: "alert" }, code ? (AUTH_ERRORS[code] || "Sign-in didn't work. Try again.") : "");
     const google = el("div", { class: "google-box" });
+    let optionsKnown;
     if (!GATEWAY) {
-      fetch("/auth/options", { credentials: "include" }).then((r) => (r.ok ? r.json() : {})).then((opt) => {
+      optionsKnown = fetch("/auth/options", { credentials: "include" }).then((r) => (r.ok ? r.json() : {})).then((opt) => {
         if (opt.google) google.append(el("a", { class: "btn google", href: "/auth/google/start?app=admin" }, googleMark(), "Continue with Google"),
           el("div", { class: "or" }, el("span", null, "or with your account email")));
       }).catch(() => { /* no Google button */ });
@@ -631,6 +632,7 @@
     err, go,
     el("p", { class: "xg-links" }, "Not a console user? ", el("button", { type: "button", class: "xg-link", onclick: () => gate.swap("b") }, "Get access")));
     gate = SUI.splitGate({
+      ready: optionsKnown,
       brand: el("a", { class: "xg-brand", href: "/admin" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz ", el("b", null, "AI Hub"), el("small", null, "Control room")),
       a: { title: "Login", body: [google, form], focus: user },
       b: { title: "Get access", body: [el("div", { class: "xg-fields" },
