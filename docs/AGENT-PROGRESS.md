@@ -223,3 +223,36 @@ a report PDF. Not run: real devices, Safari/Firefox, screen readers, full local
 role matrix/full suite, 60fps/CLS/MotionScore. Earlier Actions Python/app-window
 success applies only to `1e0a319`; browser failed there. Corrected-head CI and
 Probe re-verification are pending. No processes left running after checks.
+
+
+## Glass R3 floating toolbar — 8 November 2026
+
+Resumed `feature/glass-r3` in `.worktrees/glass-r3` from R2 head
+`4f6cf7e5cb5fae63b1642e9e30f5766ecbb6e5f5`, preserving existing uncommitted
+admin.css/admin.js and task screenshots. Header-only product changes provide
+workspace navigation, centered existing command search, timezone-aware real clock,
+existing notifications and the signed-in account link. No shared UI/backend/auth
+changes. No global New action or invented online presence. R2 PR42 remains an
+open dependency; inherited navigation is included against main.
+
+Actual checks on the resumed tree (synthetic fixtures, authorized local ports):
+
+- `UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules node docs/screenshots/glass-r3/check.cjs`: `PASS 63 header checks; 4 screenshots; 4 axe scans`, exit 0, no browser exceptions/scoped axe findings. Includes keyboard/focus, clock tick/timezone, real destinations, viewer identity, 44px controls and 320/768/1280 widths, print/reduced-motion/no-blur checks. Initial invocation without tooling failed `MODULE_NOT_FOUND`; no packages installed.
+- `python3 -m unittest tests.test_portal tests.test_hub`: `Ran 56 tests in 38.042s`, `OK`, exit 0.
+- `python3 tests/browser/syntax.py`: `Checked 23 JavaScript files`, exit 0.
+- `python3 docs/screenshots/glass-r3/contrast.py`: `PASS 8 text contrast bounds; minimum 5.64`, exit 0. Bounds cover strong-pill primary text and scene secondary area text, over black/white photographs with shipped scrim. Initial ad-hoc parser failed by matching a comment; saved script matches the actual rule.
+- `NODE_PATH=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules UI_WIDTH=<1440|390> UI_THEME=<dark|light> UI_PAGES_ONLY=1 UI_OUTPUT=/tmp/prism-r3-<theme>-<width> node tests/browser/check.cjs`: four separate runs each `PASS principal pages 27 interaction assertions; 25 screen checks`, exit 0. Total 108 assertions/100 screens; zero browser errors, axe findings or unexpected API failures. The deliberately rejected Studio request is expected. Summaries: `regression-results.json`.
+
+Inspected exact 1440x900/390x844 dark/light screenshots alongside the dashboard
+reference; differences and artifacts are in `docs/screenshots/glass-r3/`.
+Not run: full local suite/role matrix (Actions), real devices, other engines,
+screen readers, native OS settings, hardware performance/60fps/CLS/MotionScore.
+Mounted browser, Chrome DevTools and Motion tools unavailable. Independent QA and
+new-head CI pending; no merge or deployment.
+
+Queue preflight: R4 PR44 remains open at `8cdc8ea`, built on old PR40
+`42ce9b7`; PR40 is open at corrected `cb4a5ba`. Read-only merge-tree confirms
+refresh includes shared ui.css/ui.js changes. Those files remain Forge-owned;
+no R4 integration performed or R8 worktree started pending dependency clearance.
+
+R3 final whitespace check passed. All local check processes finished. Peer coordination tools were not exposed on this turn; independent Probe review is requested in the final handoff, not claimed as performed.
