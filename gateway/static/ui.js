@@ -964,9 +964,13 @@
     const pane = (x, which) => el("section", { class: "xg-form xg-form-" + which, "aria-label": x.title }, el("h2", { class: "xg-title" }, x.title), x.body);
     const parts = { formA: pane(o.a, "a"), formB: pane(o.b, "b"), helloA: hello(o.helloA, "a"), helloB: hello(o.helloB, "b") };
     let timer = 0;
+    // Read by the first swap, so they are declared before it runs: did the server's Google answer arrive, and was Inter loaded when the card was revealed.
+    let optionsSettled = !o.ready, fontLoaded = false, node = null;
     const secrets = () => [...card.querySelectorAll("input")].filter((i) => secretFields.has(i));
     function swap(mode, focus) {
       clearTimeout(timer);                                  // a pending focus from an earlier swap must never land late
+      // The room held for a Google row that never came (answer after the cap, then off or failed) is given back going B to A, while sign-in A is hidden.
+      if (mode === "a" && card.dataset.mode === "b" && optionsSettled && node) node.classList.remove("xg-late");
       card.dataset.mode = mode;
       secrets().forEach((i) => hideSecret(i, true));        // hide the pane you leave: no revealed or typed password behind it
       const on = mode === "a" ? [parts.formA, parts.helloA] : [parts.formB, parts.helloB];
@@ -984,27 +988,34 @@
     card.append(el("div", { class: "xg-pane xg-pane-form", "aria-hidden": "true" }), el("div", { class: "xg-pane xg-pane-hello", "aria-hidden": "true" }),
       parts.formA, parts.helloA, parts.formB, parts.helloB);
     swap("a", false);
-    const node = el("main", { class: "xgate" }, o.brand || null, card, o.foot || null);
-    // o.ready (a promise the caller already has, e.g. "does the server offer Google?"): the card is not painted until it settles,
-    // so what it adds cannot move what is on screen. It never blocks sign-in: a failed answer counts as an answer, and after
-    // 1.2s the card shows anyway. Showing it moves focus to the form only if nothing else has focus (an event, not a timer race).
-    if (o.ready) {
-      node.classList.add("xg-wait");
-      let cap = 0;
-      const show = () => {
-        clearTimeout(cap);
-        if (!node.classList.contains("xg-wait")) return;
-        node.classList.remove("xg-wait");
-        const f = o.a.focus;
-        if (f && card.isConnected && card.dataset.mode === "a" && (!document.activeElement || document.activeElement === document.body)) f.focus({ preventScroll: true });
-      };
-      // the answer is late: show the card now but keep the room a Google button and divider would take (CSS .xg-late), so a late answer fills it without moving anything
-      cap = setTimeout(() => { node.classList.add("xg-late"); show(); }, 1200);
-      // The card also waits for its typeface (Inter, font-display: swap): a swap after the card shows re-wraps the title and labels on a phone.
-      // Same cap, and a failed or missing font counts as loaded, so a slow font never blocks sign-in.
-      const fontReady = () => { try { return document.fonts && document.fonts.load ? document.fonts.load('600 16px "Inter"').catch(() => {}) : Promise.resolve(); } catch (e) { return Promise.resolve(); } };
-      Promise.all([Promise.resolve(o.ready).catch(() => {}), fontReady()]).then(show, show);
-    }
+    node = el("main", { class: "xgate xg-wait" }, o.brand || null, card, o.foot || null);
+    // Nothing in the gate (brand and footer included) is painted until the first answer or the cap, whichever is first. The hold always runs, also
+    // with no o.ready (the Netlify console), because the typeface needs it too. It never blocks sign-in: a failed answer or font counts as settled,
+    // and after 1.2s the card shows anyway. Showing it moves focus to the form only if nothing else has focus (an event, not a timer race).
+    //  - Typeface: Inter is latched on, once, at the reveal, and only if every face was loaded by then (class xg-inter). A font that comes later, or
+    //    never, is ignored for the life of this view and the system sans stays (BRIEF 10.1 (3), a performance fallback): so no text re-wraps after reveal.
+    //  - Google: the room of a Google button and divider is held (class xg-late) only when the answer is still outstanding at the reveal; a late "yes"
+    //    fills that room in place, a late "no" leaves a quiet gap that goes at the next B to A swap. An answer that already said no holds nothing.
+    const show = () => {
+      clearTimeout(cap);
+      if (!node.classList.contains("xg-wait")) return;
+      node.classList.remove("xg-wait");
+      if (fontLoaded) node.classList.add("xg-inter");
+      if (!optionsSettled) node.classList.add("xg-late");
+      const f = o.a.focus;
+      if (f && card.isConnected && card.dataset.mode === "a" && (!document.activeElement || document.activeElement === document.body)) f.focus({ preventScroll: true });
+    };
+    const cap = setTimeout(show, 1200);
+    const answered = Promise.resolve(o.ready).then(() => { optionsSettled = true; }, () => { optionsSettled = true; });
+    const fontReady = () => {
+      try {
+        if (!document.fonts || !document.fonts.load) return Promise.resolve(false);
+        return Promise.all([400, 500, 600, 700, 800].map((w) => document.fonts.load(w + ' 16px "Inter"')))
+          .then((sets) => sets.every((faces) => faces.length > 0 && faces.every((f) => f.status === "loaded")), () => false);
+      } catch (e) { return Promise.resolve(false); }
+    };
+    const typeface = fontReady().then((ok) => { fontLoaded = ok; }, () => {});
+    Promise.all([answered, typeface]).then(show, show);
     return { node, swap: (m) => swap(m, true) };
   }
   function eyeToggle(input) {

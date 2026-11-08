@@ -312,30 +312,98 @@ async function motionChecks(browser, info, app) {
   }
 }
 
-/* Google's answer after the 1.2s cap (1500ms), never (hung, then dropped) or refused: the card is already showing, so the room a Google row
-   would take is held open and nothing visible moves. The raw, unfiltered layout-shift total is reported too (the brand wordmark's web-font swap
-   is real and is the only part left). */
+/* The reveal matrix (Sentinel G2 ruling, Nov 8): the gate is not painted until Google's answer AND the typeface are in, or 1.2s has passed.
+   Inter is latched on once at the reveal only if it was loaded then (a late or missing font is ignored for the view: the system sans stays, a
+   documented BRIEF 10.1 (3) performance fallback); the Google row's room is held only if the answer was still outstanding at the reveal.
+   Every run records ALL layout-shift entries (text nodes and null nodes included) with the reveal time, from a MutationObserver on the mount and
+   on the removal of .xg-wait. After the reveal there must be NO entry inside .xgate (not a threshold: none), the title, the fields and the Login
+   button must not move by 1px, and the raw global total is reported with the old threshold. A non-font remainder must be reported with its source,
+   never relaxed. */
+const FONT_URL = '**/fonts/Inter-latin.woff2';
+const MATRIX = [
+  // opt: [answer, delay ms] (hung = dropped at 4.5s)           font: [kind, ms]
+  { n: 'fast+font-fast',      opt: ['on', 0],     font: ['fast'],      inter: true,  google: 'link' },
+  { n: 'font-800ms',          opt: ['on', 0],     font: ['delay', 800], inter: true,  google: 'link' },
+  { n: 'font-2.5s',           opt: ['on', 0],     font: ['delay', 2500], inter: false, google: 'link' },
+  { n: 'font-404',            opt: ['on', 0],     font: ['404'],       inter: false, google: 'link' },
+  { n: 'font-hung',           opt: ['on', 0],     font: ['hung'],      inter: false, google: 'link' },
+  { n: 'off+font-2.5s',       opt: ['off', 0],    font: ['delay', 2500], inter: false, google: 'none' },
+  { n: 'abort+font-2.5s',     opt: ['abort', 0],  font: ['delay', 2500], inter: false, google: 'none' },
+  { n: 'late-on',             opt: ['on', 1500],  font: ['fast'],      inter: true,  google: 'link', late: true },
+  { n: 'late-off',            opt: ['off', 1500], font: ['fast'],      inter: true,  google: 'gap', late: true },
+  { n: 'late-fail',           opt: ['abort', 1500], font: ['fast'],    inter: true,  google: 'gap', late: true },
+  { n: 'hung',                opt: ['hung', 0],   font: ['fast'],      inter: true,  google: 'gap', late: true },
+  { n: 'abort',               opt: ['abort', 0],  font: ['fast'],      inter: true,  google: 'none' },
+];
 async function lateGoogleChecks(browser, info, app) {
   const T = (s) => `${app.name}: ${s}`;
-  for (const [w, h, vname] of VIEWS) for (const mode of ['late', 'hung', 'abort', 'font']) {
+  for (const [w, h, vname] of VIEWS) for (const m of MATRIX) {
+    const L = (s) => T(`${vname} ${m.n}: ${s}`);
     const ctx = await browser.newContext({ viewport: { width: w, height: h } });
-    await ctx.addInitScript(() => { window.__raw = 0; window.__card = 0; new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) { window.__raw += e.value;
-      if ((e.sources || []).some((s) => s.node && s.node.parentElement && s.node.parentElement.closest('.xgate-card'))) window.__card += e.value; } }).observe({ type: 'layout-shift', buffered: true }); });
+    await ctx.addInitScript(() => {
+      const st = window.__ls = { entries: [], mount: null, reveal: null };
+      const inside = (e) => !e.sources || !e.sources.length || e.sources.some((x) => { const n = x.node; if (!n) return true; const el = n.nodeType === 1 ? n : n.parentElement; return !el || !!el.closest('.xgate'); });
+      new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) st.entries.push({ t: e.startTime, v: e.value, inside: inside(e),
+        src: (e.sources || []).map((x) => (x.node ? (x.node.nodeType === 1 ? x.node.tagName + '.' + x.node.className : '#text in ' + (x.node.parentElement ? x.node.parentElement.tagName + '.' + x.node.parentElement.className : '?')) : 'null')) }); }).observe({ type: 'layout-shift', buffered: true });
+      const look = () => { const g = document.querySelector('.xgate'); if (!g) return; const now = performance.now();
+        if (st.mount == null) st.mount = now; if (st.reveal == null && !g.classList.contains('xg-wait')) st.reveal = now; };
+      new MutationObserver(look).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+    });
     const page = await ctx.newPage();
-    // 'font': Google never answers (refused) and Inter arrives 800ms late, as on a cold phone: the card must wait for the font (inside the 1.2s cap), not swap it in under the person's eyes
-    if (mode === 'font') await page.route('**/fonts/Inter-latin.woff2', async (r) => { await new Promise((x) => setTimeout(x, 800)); r.continue(); });
-    await page.route('**/auth/options', async (r) => { if (mode === 'abort' || mode === 'font') return r.abort(); if (mode === 'hung') { await new Promise((x) => setTimeout(x, 4500)); return r.abort(); }
-      await new Promise((x) => setTimeout(x, 1500)); r.fulfill({ json: { google: true } }); });
+    const [kind, d] = m.font;
+    if (kind === 'delay') await page.route(FONT_URL, async (r) => { await new Promise((x) => setTimeout(x, d)); r.continue().catch(() => {}); });
+    if (kind === '404') await page.route(FONT_URL, (r) => r.fulfill({ status: 404, body: 'no' }));
+    if (kind === 'hung') await page.route(FONT_URL, async (r) => { await new Promise((x) => setTimeout(x, 6000)); r.abort().catch(() => {}); });
+    const [ans, delay] = m.opt;
+    await page.route('**/auth/options', async (r) => {
+      if (ans === 'hung') { await new Promise((x) => setTimeout(x, 4500)); return r.abort().catch(() => {}); }
+      if (delay) await new Promise((x) => setTimeout(x, delay));
+      if (ans === 'abort') return r.abort().catch(() => {});
+      r.fulfill({ json: { google: ans === 'on' } }).catch(() => {});
+    });
     await page.goto(info.url + app.start);
     await page.waitForSelector('.xgate:not(.xg-wait) .xgate-card', { timeout: 6000 });
-    const first = await box(page, '.xg-form-a .xg-primary');
-    await page.waitForTimeout(mode === 'late' ? 1800 : mode === 'font' ? 1200 : 600);
-    const last = await box(page, '.xg-form-a .xg-primary');
-    const m = await page.evaluate(() => ({ raw: window.__raw, card: window.__card }));
-    ok(T(`${vname} ${mode}: the Login button does not move after the card shows (${Math.round(first.y)} -> ${Math.round(last.y)})`), Math.abs(first.y - last.y) < 1);
-    ok(T(`${vname} ${mode}: no layout shift inside the card (${m.card.toFixed(6)}); raw unfiltered total ${m.raw.toFixed(6)}`), m.card < 0.0001 && m.raw < 0.001);
-    if (mode === 'late') ok(T(`${vname} late: Google appears and is reachable`), (await page.locator('.xg-form-a a[href*="/auth/google/"]').count()) === 1);
-    else eq(T(`${vname} ${mode}: no Google link, the form still works`), await page.locator('a[href*="/auth/google/"]').count(), 0);
+    const sel = { title: '.xg-form-a .xg-title', email: '.xg-form-a .xfield >> nth=0', pass: '.xg-form-a .xfield >> nth=1', go: '.xg-form-a .xg-primary' };
+    const grab = async () => { const o = {}; for (const k of Object.keys(sel)) o[k] = await page.locator(sel[k]).first().boundingBox(); return o; };
+    const first = await grab();
+    await page.waitForTimeout(3600);                               // past the 2.5s font, the 1.5s answer and the 4.5s drop's first half
+    const last = await grab();
+    const st = await page.evaluate(() => {
+      const g = document.querySelector('.xgate'); const t = document.querySelector('.xg-form-a .xg-title'); const box = document.querySelector('.xg-form-a .google-box');
+      return { ...window.__ls, inter: g.classList.contains('xg-inter'), lateCls: g.classList.contains('xg-late'), fam: getComputedStyle(t).fontFamily, boxH: box ? Math.round(box.getBoundingClientRect().height) : 0,
+        links: [...document.querySelectorAll('.xg-form-a a[href*="/auth/google/"]')].map((a) => a.getAttribute('href')),
+        allLinks: document.querySelectorAll('a[href*="/auth/google/"]').length, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        cardOver: (() => { const c = document.querySelector('.xgate-card'); return c.scrollWidth - c.clientWidth; })() };
+    });
+    const after = st.entries.filter((e) => st.reveal != null && e.t >= st.reveal - 1);
+    const inAfter = after.filter((e) => e.inside);
+    const raw = st.entries.reduce((a, e) => a + e.v, 0);
+    results.checks.push(L(`entries: ${st.entries.length} total, ${after.length} after reveal (${inAfter.length} inside .xgate); raw ${raw.toFixed(6)}; reveal ${Math.round(st.reveal - st.mount)}ms after mount`));
+    ok(L(`reveal within 1200ms + tolerance of the mount (${Math.round(st.reveal - st.mount)}ms)`), st.reveal != null && st.reveal - st.mount <= 1200 + 350);
+    eq(L('Inter is latched on exactly when it was loaded at the reveal'), st.inter, m.inter);
+    if (!m.inter) ok(L(`the fallback stays for the view even after the font arrives (${st.fam})`), !/Inter/.test(st.fam));
+    else ok(L(`Inter is in use (${st.fam})`), /^"?Inter/.test(st.fam));
+    ok(L(`zero layout-shift entries inside .xgate after the reveal ${JSON.stringify(inAfter.map((e) => [e.v, e.src]))}`), inAfter.length === 0);
+    const insideSum = st.entries.filter((e) => e.inside).reduce((x, e) => x + e.v, 0);
+    ok(L(`layout shift inside .xgate across the whole run ${insideSum.toFixed(6)} < 0.0001; raw global ${raw.toFixed(6)} < 0.001 (outside entries: ${JSON.stringify(st.entries.filter((e) => !e.inside).map((e) => [e.v, e.src]))})`), insideSum < 0.0001 && raw < 0.001);
+    for (const k of Object.keys(sel)) ok(L(`${k} does not move after the reveal (${Math.round(first[k].y)} -> ${Math.round(last[k].y)}, x ${Math.round(first[k].x)} -> ${Math.round(last[k].x)})`),
+      Math.abs(first[k].y - last[k].y) < 1 && Math.abs(first[k].x - last[k].x) < 1 && Math.abs(first[k].height - last[k].height) < 1);
+    if (m.google === 'link') {
+      eq(L('exactly one Google link, the correct one'), st.links, [app.googleHref]);
+    } else {
+      eq(L('no Google link'), st.allLinks, 0);
+      if (m.google === 'none') eq(L('no room held for Google (the box is 0px tall)'), st.boxH, 0);
+      else ok(L(`the room for the unanswered Google row is held as a quiet gap (${st.boxH}px)`), st.boxH >= 90 && st.lateCls);
+    }
+    if (m.late) ok(L('the reveal held the room for the outstanding answer (xg-late) unless it had already come'), st.lateCls === (m.google !== 'none' || ans === 'hung'));
+    else ok(L('no xg-late when the answer was in before the reveal'), !st.lateCls);
+    if (m.google === 'gap') { // the gap goes at the next B to A swap, while sign-in A is hidden
+      await page.locator('.xg-hello-a .xg-ghost').click(); await page.waitForTimeout(900);
+      await page.locator('.xg-hello-b .xg-ghost').click(); await page.waitForTimeout(900);
+      const after2 = await page.evaluate(() => { const g = document.querySelector('.xgate'); const b = document.querySelector('.xg-form-a .google-box'); return { late: g.classList.contains('xg-late'), h: b ? Math.round(b.getBoundingClientRect().height) : 0 }; });
+      ok(L(`B to A clears the gap once the answer has settled (${after2.h}px, xg-late ${after2.late})`), after2.h === 0 && !after2.late);
+    }
+    if (vname === 'mobile') ok(L(`no horizontal overflow on a phone (page ${st.overflow}px, card ${st.cardOver}px)`), st.overflow <= 0 && st.cardOver <= 0);
     await ctx.close();
   }
 }
