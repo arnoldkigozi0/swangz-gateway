@@ -26,6 +26,9 @@ const ok = (label, v) => { assert.ok(v, label); results.checks.push(label); };
     page.on('console', m => m.type() === 'error' && results.errors.push(m.text()));
     await page.goto(info.url + '/admin#/?tab=trends');
     await page.evaluate(t => { document.documentElement.dataset.theme = t; }, theme);
+    await page.waitForSelector('.u-tubes .col', { state: 'attached' });
+    // the bars grow in the first time the chart is in view; with the newer toolbar it can sit below the fold on a phone, so bring it into view first
+    await page.locator('.u-tubes').first().scrollIntoViewIfNeeded();
     await page.waitForSelector('.u-tubes .col');
     return { ctx, page };
   };
