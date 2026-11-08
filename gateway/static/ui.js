@@ -486,7 +486,8 @@
       onActive(i);
       const r = svg.getBoundingClientRect();
       const x = clientX !== undefined ? clientX : r.left + xs(i);
-      showTip(svg, chartTipContent(o.data[i], o), x, clientY !== undefined ? clientY : r.top + 12);
+      const anchor = o.tipY ? r.top + o.tipY(i) : clientY !== undefined ? clientY : r.top + 12;
+      showTip(svg, chartTipContent(o.data[i], o), x, anchor);
     };
     const hide = () => { active = -1; onActive(-1); hideTip(svg); };
     svg.addEventListener("pointermove", (e) => {
@@ -507,32 +508,92 @@
     svg.addEventListener("focus", () => show(active < 0 ? n - 1 : active));
   }
 
-  /* Columns over time — one series, so no legend: the title names it. data: [{label, short, value, note}] */
+  let tubeSeq = 0;
+  const calmMotion = () => !(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+  /* Columns over time, drawn as glass tubes: a rounded translucent bar with a soft cap. The current bar (the
+     latest, or the one being read) is accent-lit and carries its value in a floating label; every value is also in
+     the tooltip, the arrow-key reading and the table view. One series, so no legend: the title names it.
+     data: [{label, short, value, note}] */
   function columns(o) {
-    o = { height: 170, format: fmt.num, ...o };
+    o = { height: 210, format: fmt.num, ...o };
+    if (!o.data || !o.data.length) return stateBox({ icon: "info", compact: true, title: "No data yet", text: o.emptyText || "Nothing to chart for this period." });
+    const uid = "u-tube-" + (++tubeSeq);
+    let shown = false;   // bars grow from zero once, the first time the chart is in view
     return chartFrame(o, (w) => {
-      const h = o.height, pad = { t: 10, r: 4, b: 22, l: 44 };
+      const h = o.height, pad = { t: 30, r: 6, b: 22, l: 44 };
+      const n = o.data.length;
+      const peakAt = o.data.reduce((m, d, i) => ((d.value || 0) > (o.data[m].value || 0) ? i : m), 0);
+      const summary = ` Latest ${o.data[n - 1].label}: ${o.format(o.data[n - 1].value || 0)}. Highest ${o.data[peakAt].label}: ${o.format(o.data[peakAt].value || 0)}.`;
       const max = niceMax(Math.max(...o.data.map((d) => d.value || 0)));
-      const svg = s("svg", { width: w, height: h, role: "img", tabindex: "0", "aria-label": o.label + ". Use the left and right arrow keys to read each day." });
+      const svg = s("svg", { width: w, height: h, role: "img", tabindex: "0", class: "u-tubes", "aria-label": o.label + "." + summary + " Use the left and right arrow keys to read each day, or show the chart as a table." });
+      const defs = s("defs");
+      const stops = (id, cls, y2) => {
+        const gr = s("linearGradient", { id, x1: 0, y1: 0, x2: 0, y2 });
+        [[0, "a"], [1, "b"]].forEach(([off, k]) => gr.append(s("stop", { offset: off, class: cls + "-" + k })));
+        return gr;
+      };
+      defs.append(stops(uid + "-g", "tube", 1), stops(uid + "-s", "tube-sel", 1));
       const g = s("g");
       const ax = axes(g, o, w, h, pad, max);
-      const n = o.data.length;
       const band = (w - pad.l - pad.r) / n;
-      const bw = Math.max(2, Math.min(24, band * 0.64));
+      const bw = Math.max(4, Math.min(24, band * 0.66));
       const xs = (i) => pad.l + band * i + band / 2;
       const base = h - pad.b;
-      const bars = [];
+      const tubes = s("g", { class: "tubes" });
+      const bars = [], hi = [];
       o.data.forEach((d, i) => {
         const v = d.value || 0;
-        const bh = v > 0 ? Math.max(2, (base - pad.t) * v / max) : 0;
-        const x = xs(i) - bw / 2, y = base - bh, r = Math.min(4, bw / 2, bh);
-        const path = s("path", { class: "col", d: bh ? `M${x},${base}V${y + r}Q${x},${y} ${x + r},${y}H${x + bw - r}Q${x + bw},${y} ${x + bw},${y + r}V${base}Z` : "" });
-        bars.push(path);
-        g.append(path);
+        // height is exactly proportional to the value (a 1px floor only so a non-zero day can be seen); the cap is
+        // rounded to the bar's own size so a short bar is a small rounded stub, not a taller one
+        const bh = v > 0 ? Math.max(1, (base - pad.t) * v / max) : 0;
+        const x = xs(i) - bw / 2;
+        const rr = Math.min(bw / 2, bh / 2);
+        const bar = s("rect", { class: "col", x, y: base - bh, width: bw, height: bh, rx: rr });
+        bar.style.fill = `url(#${uid}-g)`;
+        const glow = s("rect", { class: "col-hi", x: x + bw * 0.22, y: base - bh + rr * 0.6, width: Math.max(1, bw * 0.18), height: Math.max(0, bh - rr * 1.2), rx: Math.max(.5, bw * 0.09) });
+        if (bh < bw * 1.3) glow.setAttribute("display", "none");
+        const wrap = s("g", { class: "tube" });
+        wrap.append(bar, glow);
+        wrap.style.setProperty("--i", i);   // CSSOM, not a style attribute: the page CSP refuses inline style attributes
+        if (!bh) wrap.setAttribute("aria-hidden", "true");
+        bars.push(bar); hi.push(glow);
+        tubes.append(wrap);
       });
       xLabels(ax, o, w, h, pad, xs);
-      svg.append(g);
-      interact(svg, o, xs, n, (i) => bars.forEach((b, j) => { b.style.opacity = i < 0 || i === j ? "" : ".45"; }));
+      // the floating value label for the current bar
+      const labelText = s("text", { class: "pill-t", "text-anchor": "middle", y: 0 });
+      const labelBg = s("rect", { class: "pill", height: 18, rx: 9, y: -13 });
+      const label = s("g", { class: "u-pill", "aria-hidden": "true" });
+      label.append(labelBg, labelText);
+      g.append(tubes, label);
+      svg.append(defs, g);
+      let cur = -1;
+      const select = (i) => {
+        const at = i < 0 ? n - 1 : i;
+        if (at === cur) return;
+        if (cur >= 0) bars[cur].classList.remove("on"), bars[cur].style.fill = `url(#${uid}-g)`;
+        cur = at;
+        bars[at].classList.add("on"); bars[at].style.fill = `url(#${uid}-s)`;
+        const d = o.data[at], t = o.format(d.value || 0);
+        labelText.textContent = t;
+        const pw = Math.max(34, t.length * 6.6 + 16);
+        labelBg.setAttribute("width", pw); labelBg.setAttribute("x", -pw / 2);
+        const top = Number(bars[at].getAttribute("y"));
+        const px = Math.max(pad.l + pw / 2, Math.min(w - pad.r - pw / 2, xs(at)));
+        label.style.transform = `translate(${px}px, ${Math.max(14, top - 8)}px)`;
+        label.classList.toggle("none", !d.value);
+      };
+      select(-1);
+      requestAnimationFrame(() => requestAnimationFrame(() => label.classList.add("ready")));
+      interact(svg, { ...o, tipY: (i) => Math.max(14, Number(bars[i < 0 ? n - 1 : i].getAttribute("y")) - 8) - 13 - 2 }, xs, n, select);
+      if (!shown) {
+        if (typeof IntersectionObserver !== "undefined" && calmMotion()) {
+          svg.classList.add("grow");
+          const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { shown = true; svg.classList.add("in"); io.disconnect(); } }, { threshold: 0.2 });
+          io.observe(svg);
+        } else shown = true;
+      }
       return svg;
     });
   }
