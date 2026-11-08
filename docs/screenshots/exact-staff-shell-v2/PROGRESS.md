@@ -1,0 +1,19 @@
+# Isolated staff shell — 8 November 2026
+
+Base: main a3ff895ad5854d583ef8d7abf1b31ec61d6bc60d. Branch feature/exact-staff-shell-v2 supersedes the seed-based #55. Only staff-frame code was transplanted. Main showSignIn, signOut, startup and every byte outside that frame section are unchanged (source-identity.json). No inherited console, Overview, splitGate or authentication bundle. No HTML/ui.js/admin changes.
+
+The offending #53 global `.shell` console grid is excluded: exact.css is neither present nor loaded. The staff CSS scopes Home grid columns to .staff-exact and preserves main’s normal desktop/phone columns, so a generic staff .shell never receives a 129px console column. The focused browser harness additionally checks 1440px Home grid width/columns and visible, fitting metadata in both themes.
+
+Actual checks: `python3 -m unittest tests.test_portal tests.test_hub`: Ran 56 tests in 34.802s, OK. `node tests/browser/exact-staff-shell-model.cjs`: 18 checks PASS against actual main ui.js + transplanted portal.js in a synthetic DOM. `python3 tests/browser/syntax.py`: Checked 28 JavaScript files. `git diff --check`: passed. Source identity checks passed for main auth/outside-frame and ui.js, HTML, admin.js, admin-monitor.js; no generic console grid rule.
+
+Not run: browser/Chrome DevTools actions are not exposed in this conversation; no shell-launched replacement browser was used. No light-1440 rendered metadata result, full browser-job success, screenshots, overlays, axe, contrast, CLS or performance result is claimed. Existing GitHub full browser job must pass; provided focused harness is syntax-checked only. Full Python suite delegated to existing CI to avoid concurrent heavy local runs.
+
+Dependencies and tagged differences against BRIEF 10:
+- §10.1.1: Swangz staff words/routes/real counts replace CRM data; no invented presence dot or emergency authority. Admin Stop all AI/Resume routes are untouched.
+- §10.1.2 / §10.5 DEPENDENCY: current main lacks #53 room-warm.webp and Poppins files. This bounded branch uses main’s home-welcome.webp and existing font; approved room/font assets need a separate scoped delivery or explicit ownership expansion. It does not depend on the seed’s auth/console bundle. Exact-match acceptance remains blocked by these visible differences.
+- §10.1.3: light surfaces, keyboard focus/menu keys, reduced-motion/transparency fallbacks, basic phone drawer and 44px phone targets. Opacity and contrast still need browser measurements.
+- §10.1.4: Staff launchpad body remains the real existing workflow, not the admin Overview; help/policy remain in account routes and liquid footer work remains separate. Studio still depends on server availability. New links to existing request/adoption workflows only.
+
+Any untagged rendered difference is a defect. Missing browser evidence is not an allowed visual difference.
+
+Next: run full browser CI and focused exact-staff-shell.cjs on this exact head, especially light 1440 Home metadata and both theme/size cells; inspect overlays and fix any measured defects. Keep draft until independent verification and asset dependencies are resolved. portal.js is released to Forge at the pushed commit; Prism must not edit it during Forge sign-in work. CSS-only phone follow-up is separately queued. No merge/deploy, production sign-in, new dependencies, #44/#50 edits or shared-file changes.

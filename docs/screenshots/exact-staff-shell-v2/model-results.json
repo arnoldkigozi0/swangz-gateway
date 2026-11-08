@@ -1,0 +1,5 @@
+{
+  "checks": 18,
+  "result": "PASS",
+  "coverage": "Synthetic DOM behavior only; no rendered layout, contrast, browser or screen-reader claim."
+}
