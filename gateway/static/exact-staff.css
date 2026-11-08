@@ -1,6 +1,14 @@
+@font-face { font-family: "Swangz Staff Poppins"; src: url("/static/fonts/Poppins-400-latin.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Swangz Staff Poppins"; src: url("/static/fonts/Poppins-500-latin.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Swangz Staff Poppins"; src: url("/static/fonts/Poppins-600-latin.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "Swangz Staff Poppins"; src: url("/static/fonts/Poppins-700-latin.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Swangz Staff Poppins"; src: url("/static/fonts/Poppins-800-latin.woff2") format("woff2"); font-weight: 800; font-display: swap; }
+
 /* Staff shell, BRIEF §10. Geometry at 1440×852; shell tokens are isolated here; no seed exact.css is imported.
    Imported by portal.css before it paints; selectors are scoped to the signed-in staff shell. */
 .staff-exact {
+  --font: "Swangz Staff Poppins", "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font);
   --accent-pill: linear-gradient(180deg,#F7AE62,#EE8F3E);
   --on-primary: #2A170A; --x-blur: blur(18px) saturate(130%);
   --staff-rail-w: 62px; --staff-rail-x: 67px; --staff-content-x: 173px;
@@ -9,12 +17,12 @@
   --staff-tx: #FFF8F2; --staff-muted: #E2D6CC; --staff-pill-bg: rgba(38,30,26,.82);
   --staff-rim: rgba(255,255,255,.20); --staff-danger: #B51E33;
   display: block; min-height: 100dvh; padding: 0 var(--staff-right) 32px var(--staff-content-x);
-  background: linear-gradient(rgba(12,10,9,.32), rgba(12,10,9,.32)), url('/static/home-welcome.webp') center / cover fixed;
+  background: linear-gradient(rgba(12,10,9,.32), rgba(12,10,9,.32)), url('/static/room-warm.webp') center / cover fixed;
 }
 html[data-theme="light"] .staff-exact {
   --staff-rail-bg: rgba(252,248,242,.92); --staff-active-bg: #1C1816; --staff-active-tx: #F2EEEC;
   --staff-tx: #1C1816; --staff-muted: #4B3527; --staff-pill-bg: rgba(252,248,242,.92); --staff-rim: rgba(82,60,44,.28);
-  background-image: linear-gradient(rgba(250,244,236,.42),rgba(250,244,236,.42)),url('/static/home-welcome.webp');
+  background-image: linear-gradient(rgba(250,244,236,.42),rgba(250,244,236,.42)),url('/static/room-warm.webp');
 }
 .staff-exact .hub-staff-main { min-width: 0; }
 .staff-exact .hub-staff-side.staff-rail {

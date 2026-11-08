@@ -17,3 +17,11 @@ Dependencies and tagged differences against BRIEF 10:
 Any untagged rendered difference is a defect. Missing browser evidence is not an allowed visual difference.
 
 Next: run full browser CI and focused exact-staff-shell.cjs on this exact head, especially light 1440 Home metadata and both theme/size cells; inspect overlays and fix any measured defects. Keep draft until independent verification and asset dependencies are resolved. portal.js is released to Forge at the pushed commit; Prism must not edit it during Forge sign-in work. CSS-only phone follow-up is separately queued. No merge/deploy, production sign-in, new dependencies, #44/#50 edits or shared-file changes.
+
+## Approved asset correction — local review checkpoint, 12:25 Kampala
+
+Chief authorized copying #53's existing approved fonts and room photo without inheriting its bundle. Five Poppins latin weights (400–800), Poppins-OFL.txt and room-warm.webp were copied byte-identically from 9ceae8f; asset-identity.json records all seven blobs and byte sizes (69,629 bytes total). exact-staff.css registers a staff-specific font-family and sets --font only on .staff-exact, then uses the room photo in both themes. The asset dependency described above is resolved locally; it is not yet pushed.
+
+Recheck: 56 Python tests in 34.679s, OK; 18 synthetic-DOM checks PASS; git diff --check passes. portal.js remains byte-identical to the released e6f13f0 version. No auth/shared files changed. The baseline CI browser failure remains “Choose a tool” clipped at light 1440; Probe's rendered bounds/styles are pending. No speculative clipping fix, browser workaround or weakened test was introduced. These assets will be batched with the evidence-based CSS correction, respecting at least 30 minutes since the previous branch push. Fresh full browser CI and independent overlays/axe/trace remain required after that batch.
+
+Correction to whitespace result: the earlier unstaged CSS diff check passed, but the staged asset check reports pre-existing trailing whitespace at Poppins-OFL.txt:21. The licence is deliberately preserved byte-for-byte as authorized; no whitespace cleanup was applied. Excluding that unchanged upstream licence, the correction diff check passes. A fresh GitHub status read failed with an API connection error; no additional CI result is claimed.
