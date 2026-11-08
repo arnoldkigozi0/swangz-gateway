@@ -1,0 +1,40 @@
+{
+  "seed": "9ceae8faea223337b8fc4ee66d936d5f3812a9b6",
+  "owned_product_files": [
+    "gateway/static/portal.css",
+    "gateway/static/portal.js",
+    "gateway/static/exact-staff.css"
+  ],
+  "shared_identity": [
+    {
+      "path": "gateway/static/ui.js",
+      "seed_blob": "c4b4e2b947a6c146bb7be8ff0ccb6f02744c989a",
+      "working_blob": "c4b4e2b947a6c146bb7be8ff0ccb6f02744c989a",
+      "unchanged": true
+    },
+    {
+      "path": "gateway/static/index.html",
+      "seed_blob": "6f3566450d8f36796721fa0300243bd6fc7f7c97",
+      "working_blob": "6f3566450d8f36796721fa0300243bd6fc7f7c97",
+      "unchanged": true
+    },
+    {
+      "path": "gateway/static/admin.html",
+      "seed_blob": "26e258ee447a21a272e7b979010fa0c34d0ab024",
+      "working_blob": "26e258ee447a21a272e7b979010fa0c34d0ab024",
+      "unchanged": true
+    },
+    {
+      "path": "gateway/static/exact.css",
+      "seed_blob": "b535741fba056f8808d70211e57f2bf7e2393939",
+      "working_blob": "b535741fba056f8808d70211e57f2bf7e2393939",
+      "unchanged": true
+    },
+    {
+      "path": "gateway/static/admin.js",
+      "seed_blob": "39c7f4bfb07c0c04c841c19edcc3d9c0a8d95848",
+      "working_blob": "39c7f4bfb07c0c04c841c19edcc3d9c0a8d95848",
+      "unchanged": true
+    }
+  ]
+}
