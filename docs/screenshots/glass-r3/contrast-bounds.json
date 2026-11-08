@@ -1,0 +1,50 @@
+[
+  {
+    "theme": "dark",
+    "photo": 0,
+    "text": "pill text",
+    "ratio": 17.6
+  },
+  {
+    "theme": "dark",
+    "photo": 0,
+    "text": "area context",
+    "ratio": 11.86
+  },
+  {
+    "theme": "dark",
+    "photo": 255,
+    "text": "pill text",
+    "ratio": 14.74
+  },
+  {
+    "theme": "dark",
+    "photo": 255,
+    "text": "area context",
+    "ratio": 6.12
+  },
+  {
+    "theme": "light",
+    "photo": 0,
+    "text": "pill text",
+    "ratio": 16.1
+  },
+  {
+    "theme": "light",
+    "photo": 0,
+    "text": "area context",
+    "ratio": 5.64
+  },
+  {
+    "theme": "light",
+    "photo": 255,
+    "text": "pill text",
+    "ratio": 16.9
+  },
+  {
+    "theme": "light",
+    "photo": 255,
+    "text": "area context",
+    "ratio": 7.5
+  }
+]
