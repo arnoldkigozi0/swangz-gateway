@@ -738,22 +738,59 @@
     reload();
   }
 
-  /* The four areas, each a group that can be folded away. The active group starts open; other groups stay compact. What someone folds is
-     remembered in this browser, but the group holding the page you're on always shows. */
+  /* All five areas stay available in the rail. In labelled mode, groups retain their
+     saved folds while the area holding the active page stays open. */
   const NAV_KEY = "swangz-gateway-nav-folded";
+  const NAV_LABELS_KEY = "swangz-gateway-nav-labels";
+  let navLabelsOverride;
+  function navLabels() {
+    if (navLabelsOverride !== undefined) return navLabelsOverride;
+    try { return localStorage.getItem(NAV_LABELS_KEY) === "1"; } catch (e) { return false; }
+  }
+  function navKeys(e) {
+    if (!["ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) return;
+    const items = [...e.currentTarget.querySelectorAll('a[href], button:not([disabled])')].filter(n => n.getClientRects().length);
+    const index = items.indexOf(document.activeElement);
+    if (index < 0) return;
+    e.preventDefault();
+    const next = e.key === "Home" ? 0 : e.key === "End" ? items.length - 1 : (index + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+    items[next].focus();
+  }
+  function railTip(e) {
+    const side = e.currentTarget, owner = e.target.closest("[data-tip]");
+    if (!owner || (!side.classList.contains("compact") && !owner.classList.contains("rail-toggle"))) return;
+    requestAnimationFrame(() => {
+      const tip = document.getElementById("u-tip");
+      if (!owner.isConnected || !tip?.classList.contains("in") || (document.activeElement !== owner && !owner.matches(":hover"))) return;
+      const r = owner.getBoundingClientRect();
+      SUI.showTip(owner, owner.dataset.tip, side.getBoundingClientRect().right + 12 + tip.offsetWidth / 2, r.top + r.height / 2 + tip.offsetHeight / 2 + 10);
+    });
+  }
   function foldedGroups() {
     try { return new Set(JSON.parse(localStorage.getItem(NAV_KEY) || JSON.stringify(NAV.map(g => g[0])))); } catch (e) { return new Set(NAV.map(g => g[0])); }
   }
-  function sidebar(active, onNavigate) {
+  function sidebar(active, onNavigate, drawer = false) {
+    const labelled = drawer || navLabels();
     const folded = foldedGroups();
-    const nav = el("nav", { class: "nav", "aria-label": "Control room" }, NAV.map(([group, links, about]) => {
+    const groupCount = links => {
+      const counts = links.map(([href]) => navCounts(href)).filter(Boolean);
+      const n = counts.reduce((sum, node) => sum + Number(node.textContent.trim()), 0);
+      return n ? el("span", { class: "count " + (counts.some(n => n.classList.contains("bad")) ? "bad" : counts.some(n => n.classList.contains("warn")) ? "warn" : "live"), "aria-label": n + " indicators" }, String(n)) : null;
+    };
+    const navLink = (href, label, ic, group) => {
+      const count = navCounts(href);
+      return el("a", { href, class: href === active ? "on" : null, "aria-current": href === active ? "page" : null,
+        "aria-label": label + (count ? ", " + count.getAttribute("aria-label") : ""), "data-tip": group ? `${label} · ${group}` : label, onclick: onNavigate || null },
+      icon(ic), el("span", { class: "nl" }, label), count);
+    };
+    const nav = el("nav", { class: "nav", "aria-label": "Control room", onkeydown: navKeys }, NAV.map(([group, allLinks, about]) => {
+      const links = allLinks.filter(([href]) => href !== "#/settings");
       const holdsActive = links.some(([href]) => href === active);
-      const open = holdsActive || !folded.has(group);
-      const listId = "nav-" + group.toLowerCase();
+      const open = !labelled || holdsActive || !folded.has(group);
+      const listId = (drawer ? "drawer-nav-" : "nav-") + group.toLowerCase();
       const items = el("div", { class: "nav-links", id: listId, hidden: !open },
-        links.map(([href, label, ic]) => el("a", { href, class: href === active ? "on" : null, "aria-current": href === active ? "page" : null, onclick: onNavigate || null },
-          icon(ic), el("span", { class: "nl" }, label), navCounts(href))));
-      const label = [el("span", { class: "gt-l" }, group), el("span", { class: "gt-about" }, about)];
+        links.map(([href, label, ic]) => navLink(href, label, ic, group)));
+      const label = [el("span", { class: "gt-l" }, group), el("span", { class: "gt-about" }, about), groupCount(links)];
       // the group holding the page you're on stays open, so its heading is a plain label
       const heading = holdsActive ? el("div", { class: "group-toggle static" }, label) : el("button", { class: "group-toggle", type: "button", "aria-expanded": open ? "true" : "false", "aria-controls": listId,
         onclick: () => {
@@ -766,33 +803,74 @@
           try { localStorage.setItem(NAV_KEY, JSON.stringify([...set])); } catch (e) { /* the preference is optional */ }
         } },
       label, icon("chevronDown"));
-      const groupNode = el("div", { class: "nav-group" + (open ? "" : " collapsed") + (holdsActive ? " here" : "") }, heading, items);
+      const groupNode = el("div", { class: "nav-group" + (open ? "" : " collapsed") + (holdsActive ? " here" : ""), role: "group", "aria-label": group }, heading, items);
       return groupNode;
     }));
     const paused = S.overview && S.overview.paused;
-    return el("aside", { class: "side" },
-      el("a", { class: "brand", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }),
+    const side = el("aside", { class: "side " + (labelled ? "expanded" : "compact"), onfocusin: railTip, onpointerover: railTip },
+      el("a", { class: "brand", href: "#/", "aria-label": "Swangz AI Hub overview", "data-tip": "Swangz AI Hub" }, el("img", { src: "/static/icon.svg", alt: "" }),
         el("div", null, el("span", { class: "bn" }, "Swangz ", el("b", null, "AI Hub")), el("small", null, "Control room"))),
+      !drawer ? el("button", { class: "rail-toggle", type: "button", "aria-label": labelled ? "Hide navigation labels" : "Show navigation labels", "aria-expanded": String(labelled), "data-tip": labelled ? "Hide navigation labels" : "Show navigation labels",
+        onclick: () => {
+          navLabelsOverride = !labelled;
+          try { localStorage.setItem(NAV_LABELS_KEY, labelled ? "0" : "1"); } catch (e) { /* preference storage is optional */ }
+          const next = sidebar(active);
+          side.replaceWith(next);
+          next.querySelector(".rail-toggle").focus();
+        } }, icon(labelled ? "chevronLeft" : "chevronRight"), el("span", null, "Navigation labels")) : null,
       el("div", { class: "side-tools" },
-        el("button", { class: "side-search", type: "button", onclick: () => openCommand(), "aria-label": "Search or jump to a page" }, icon("search"), el("span", null, "Search…"),
+        el("button", { class: "side-search", type: "button", onclick: () => openCommand(), "aria-label": "Search or jump to a page", "data-tip": "Search or jump to a page" }, icon("search"), el("span", null, "Search…"),
           el("span", { class: "u-kbd" }, navigator.platform && /Mac/.test(navigator.platform) ? "⌘K" : "Ctrl K")),
         bell()),
+      el("button", { class: "rail-pages", type: "button", "aria-label": "All pages and account controls", "aria-haspopup": "dialog", onclick: () => openDrawer(active) }, icon("menu"), el("span", null, "All pages"), groupCount(NAV.filter(([g]) => g === "Trust").flatMap(([,links]) => links))),
+      el("div", { class: "rail-groups", "aria-label": "Jump to an area" }, NAV.map(([group,links]) => el("button", { type: "button", "data-tip": group, "aria-label": "Show " + group + " pages", onclick: () => {
+        const target = nav.querySelector("#" + (drawer ? "drawer-nav-" : "nav-") + group.toLowerCase());
+        if (target.hidden) target.previousElementSibling.click();
+        nav.scrollTop += target.parentElement.getBoundingClientRect().top - nav.getBoundingClientRect().top;
+        target.querySelector("a")?.focus();
+      } }, el("span", null, group === "Reporting" ? "Reports" : group), groupCount(links)))),
       nav,
-      el("div", { class: "side-grow" }),
+      el("button", { class: "rail-scroll", type: "button", "aria-label": "Scroll to more pages", onclick: () => { nav.scrollTop += Math.max(88, nav.clientHeight / 2); } }, "More ↓"),
+      el("nav", { class: "rail-foot nav", "aria-label": "Help and settings", onkeydown: navKeys },
+        el("a", { href: "/#/privacy", target: "_blank", rel: "noopener", "aria-label": "Help (opens in a new tab)", "data-tip": "Help · opens in a new tab" }, icon("info"), el("span", { class: "nl" }, "Help")),
+        navLink("#/settings", "Settings", "settings")),
       can("emergency") ? el("div", { class: "estop" + (paused ? " on" : "") },
         paused ? [el("div", { class: "estop-t" }, SUI.status("blocked", "AI paused"), el("span", null, "for everyone")),
-          el("button", { class: "btn small primary", onclick: () => setPaused(false) }, "Resume")]
+          el("button", { class: "btn small primary", "aria-label": "Resume AI access", "data-tip": "Resume AI access", onclick: async () => { if (onNavigate) await onNavigate(); setPaused(false); } }, icon("play"), el("span", null, "Resume"))]
           : [el("div", { class: "estop-t" }, el("span", { class: "u-label" }, "Emergency"), el("span", null, "Cut every request now")),
-            el("button", { class: "btn small danger", onclick: () => setPaused(true) }, icon("stop"), "Stop all AI")]) : null,
+            el("button", { class: "btn small danger", "aria-label": "Stop all AI", "data-tip": "Stop all AI", onclick: async () => { if (onNavigate) await onNavigate(); setPaused(true); } }, icon("stop"), el("span", null, "Stop all AI"))]) : null,
       el("div", { class: "who" }, SUI.avatar(S.me.username),
         el("div", { class: "id" }, el("strong", null, S.me.username), el("span", null, roleLabel() + (isOwner() || (S.me.can || []).length ? "" : " · read-only"))),
         SUI.themeButton(),
         el("button", { class: "theme-btn", type: "button", onclick: signOut, "aria-label": "Sign out", "data-tip": "Sign out" }, icon("logout"))));
+    if (!labelled) requestAnimationFrame(() => nav.querySelector("a.on")?.scrollIntoView({ block: "nearest" }));
+    return side;
+  }
+
+  function mobileNav(active) {
+    const links = [NAV[0][1][0], NAV[0][1][1], NAV[1][1][0], NAV[1][1][2], NAV[4][1][4]];
+    const direct = links.some(([href]) => href === active);
+    return el("nav", { class: "rail-mobile", "aria-label": "Quick navigation" },
+      links.map(([href, label, ic]) => el("a", { href, "aria-current": href === active ? "page" : null }, icon(ic), el("span", null, label))),
+      el("button", { type: "button", "aria-label": "More navigation", "aria-haspopup": "dialog", class: direct ? null : "on", onclick: () => openDrawer(active) }, icon("menu"), el("span", null, "More")));
+  }
+
+  function refreshSidebar(side) {
+    const focused = side.contains(document.activeElement) ? document.activeElement : null;
+    const href = focused?.getAttribute("href"), label = focused?.getAttribute("aria-label"), control = focused?.getAttribute("aria-controls");
+    const scroll = side.querySelector(".nav:not(.rail-foot)")?.scrollTop || 0;
+    const next = sidebar(side.querySelector("a.on")?.getAttribute("href") || "#/");
+    side.replaceWith(next);
+    requestAnimationFrame(() => {
+      next.querySelector(".nav:not(.rail-foot)").scrollTop = scroll;
+      if (focused) [...next.querySelectorAll("a,button")].find(n => href ? n.getAttribute("href") === href : control ? n.getAttribute("aria-controls") === control : label !== null && n.getAttribute("aria-label") === label)?.focus({ preventScroll: true });
+    });
   }
 
   /* Every page sits in the same frame: the sidebar (a drawer on phones), then a header saying where
      you are, why the page exists, and what you can do here. */
   function frame(o, content) {
+    SUI.hideTip();
     const here = (location.hash || "#/").split("?")[0];
     const section = here === "#/" || here === "" ? "#/" : "#/" + here.split("/")[1];
     const active = SECTION_OF[section] || section;
@@ -817,27 +895,28 @@
       o.lede ? el("p", { class: "lede" }, o.lede) : null);
     const routeSlug = (section === "#/" ? "overview" : section.slice(2)).replace(/[^a-z0-9-]/gi, "-");
     app.replaceChildren(el("div", { class: "shell route-" + routeSlug }, side,
-      el("div", { class: "main" }, appbar, banner, el("main", { id: "main", tabindex: "-1" }, top, el("div", { class: "page" + (o.wide ? " wide" : "") }, content)))));
+      el("div", { class: "main" }, appbar, banner, el("main", { id: "main", tabindex: "-1" }, top, el("div", { class: "page" + (o.wide ? " wide" : "") }, content))), mobileNav(active)));
   }
 
   function openDrawer(active) {
+    if (document.querySelector(".side.drawer")) return;
     const scrim = el("div", { class: "scrim" });
-    const side = sidebar(active, () => close());
+    const side = sidebar(active, () => close(), true);
     side.classList.add("drawer");
     side.setAttribute("role", "dialog");
     side.setAttribute("aria-modal", "true");
     side.setAttribute("aria-label", "Navigation");
     const closeBtn = el("button", { class: "btn quiet icon-only drawer-close", type: "button", "aria-label": "Close navigation", onclick: () => close() }, icon("x"));
     side.prepend(closeBtn);
-    let closed = false;
+    let closed = false, closing;
     const release = SUI.trapFocus(side);
     function close() {
-      if (closed) return;
+      if (closed) return closing;
       closed = true;
       side.classList.remove("in"); scrim.classList.remove("in");
       document.removeEventListener("keydown", onKey);
-      setTimeout(() => { side.remove(); scrim.remove(); }, 260);
-      if (release) release();
+      closing = new Promise(resolve => setTimeout(() => { side.remove(); scrim.remove(); if (release) release(); resolve(); }, 260));
+      return closing;
     }
     function onKey(e) { if (e.key === "Escape") close(); }
     scrim.addEventListener("click", close);
@@ -929,7 +1008,7 @@
     SUI.setGatewayOffset(S.me ? S.me.tz_offset_minutes : 180);
     setupCommand();
     purposeIndex();
-    render().then(() => Promise.all([refreshAttention(), refreshNotes()]).then(() => { const n = document.querySelector(".side"); if (n && S.me) n.replaceWith(sidebar(n.querySelector("a.on")?.getAttribute("href") || "#/")); }));
+    render().then(() => Promise.all([refreshAttention(), refreshNotes()]).then(() => { const n = document.querySelector(".shell > .side"); if (n && S.me) refreshSidebar(n); }));
   }
 
   /* Moving between tabs of the page that is already showing (Back, Forward, or a link that only changes the
@@ -983,8 +1062,7 @@
     if (S.overview && S.overview.paused !== before) { render(); return; }
     const side = document.querySelector(".shell > .side");
     if (side) {
-      const active = side.querySelector("a.on");
-      side.replaceWith(sidebar(active ? active.getAttribute("href") : "#/"));
+      refreshSidebar(side);
     }
   }, 15000);
   setInterval(() => { if (S.me && document.visibilityState === "visible") { refreshAttention(); refreshNotes(); } }, 60000);
