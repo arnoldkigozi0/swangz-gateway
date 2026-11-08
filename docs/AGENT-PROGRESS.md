@@ -257,3 +257,25 @@ remain in the task README. Full local matrix/suite, real devices/other engines,
 screen readers, new performance/CLS/MotionScore: Not run; bounded test correction,
 full suite/matrix stay on Actions. Independent exact-head QA remains required.
 No shared ui.css/ui.js, production, providers, dependencies, merge to main or deploy.
+
+
+## New-main integration before final QA — 8 November 2026
+
+Normally merged main `2b30af5f0c47c6bf447671a8de2f91742fec6ff6` into
+`feature/glass-r2` without conflicts. Main delta from7ce5407 is limited to
+docs/CLIENT.md, gateway/enroll.py and tests/test_browser_contract.py: negotiated
+`browser_contract=1` adds an inert authenticated person/device browser block to
+the manifest; non-negotiating clients retain their original manifest shape.
+No hand edits to inherited implementation or tests.
+
+Own-source verification against `d31bfe81ba28736cc70d00b27accda4e9307f1d5`:
+admin.css, admin.js and tests/browser/check.cjs are byte-identical. Shared
+ui.css/ui.js also unchanged. Five exact comparisons, baseline Git blob IDs and
+current SHA256s recorded in `docs/screenshots/glass-r2/main-refresh-identity.json`.
+Earlier transition diagnosis, all assertions, reference differences and mixed
+performance evidence remain unchanged; no CI diagnosis repeated.
+
+Fresh results: `python3 -m unittest tests.test_browser_contract tests.test_browser_profiles tests.test_portal tests.test_hub`: `Ran 119 tests in 95.128s`, `OK`, exit0; a non-failing fixture socket ResourceWarning appeared. `UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules node docs/screenshots/glass-r2/check.cjs`: `PASS 75 navigation checks; 8 screenshots; 6 axe scans`, exit0. `python3 tests/browser/syntax.py`: `Checked 23 JavaScript files`, exit0. Five byte-identity comparisons and working/staged whitespace checks passed. Local checks finished. Full local
+suite/role matrix, new performance/CLS/MotionScore, real devices, other engines
+and screen readers: Not run. Fresh final-head Actions and independent Probe QA
+remain required. No new build/PR, shared UI edits, merge to main or deployment.
