@@ -199,7 +199,7 @@ button[data-tip], a[data-tip] { cursor: pointer; }
 .u-chart.refreshing { opacity: .55; transition: opacity var(--d-base); }
 
 .u-spark { display: block; width: 100%; height: 28px; overflow: visible; }
-.u-spark .line { fill: none; stroke: var(--viz-muted); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.u-spark .line { fill: none; stroke: var(--pc-spark, #8C857D); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
 .u-spark .area { fill: var(--viz-1); opacity: .08; }
 .u-spark .end { fill: var(--viz-1); stroke: var(--ink-1); stroke-width: 2; }
 .u-spark.tone-2 .end { fill: var(--viz-2); }
@@ -219,7 +219,8 @@ button[data-tip], a[data-tip] { cursor: pointer; }
 
 /* Porcelain (light) chart ink. The shared --viz colours are tuned for the dark scene; on milky light glass the
    spend line (2.74:1) and the muted sparkline (1.22:1) fell under the 3:1 non-text limit, so the light theme draws
-   its lines, columns and bars one step deeper. Same hues, measured by tests/browser/porcelain.cjs. */
+   its lines, columns and bars one step deeper. Same hues, measured by tests/browser/porcelain.cjs.
+   The sparkline stroke was --viz-muted (#3A3A42) in dark too, 1.40:1; it now defaults to #8C857D (dark) and --pc-spark in light. */
 :root[data-theme="light"] {
   --pc-1: #96690C; --pc-2: #1A70AC; --pc-spark: #6F675D;
 }

@@ -31,14 +31,19 @@ Each number is the element's own colour against the worst pixel actually painted
 | panel heading | 16.18 | 4.5 |
 
 Before: spend line 2.74 (fail), sparkline 1.22 (fail), spend columns 3.22 and bar fill 3.10 (pass, thin), tone-2 line 3.19.
-Change: light-theme-only block in `ui.css` (`--pc-1` #96690C, `--pc-2` #1A70AC, `--pc-spark` #6F675D) for lines, columns, areas, end dots and bar fills, plus a visible bar track. Dark theme and `tokens.css` untouched.
+Change: light-theme-only block in `ui.css` (`--pc-1` #96690C, `--pc-2` #1A70AC, `--pc-spark` #6F675D) for lines, columns, areas, end dots and bar fills, plus a visible bar track. `tokens.css` untouched.
 
 Decorative, not asserted (a number or table repeats them):
 - grid line (decorative, not asserted): 1.07
 - bar list track (decorative, not asserted): 1.27
 
 ## Left over
-- **Dark sparkline stroke is 1.40:1** (limit 3). Out of this task's light-theme scope; not changed. Fix is a one-line dark override of `.u-spark .line`.
+- **Dark sparkline stroke** was 1.40:1 (limit 3). Fixed: `.u-spark .line` now uses `#8C857D` in dark (light keeps `--pc-spark`). Measured 4.34:1 on the dark glass panel; `porcelain.cjs` now asserts dark as well as light, so a regression fails.
+
+## CI correction (run 42433154182, browser job)
+- Failure: axe on staff Home, quiet-button links (canva / chatgpt / claude) read at about 1.68:1. Cause: the theme flip starts 160-280 ms colour transitions and axe sampled the in-between colours. A race, not a contrast defect; the settled colour is `rgb(77,77,85)`. Reproduced by freezing the transitions at 0% and 10%.
+- Fix: `settle()` in `tests/browser/check.cjs` waits for every finite animation and transition to finish before an axe pass. Endless animations are not waited for. No check was removed or loosened. (`check.cjs` is outside the files first listed for this task; it is the shared check where the failure happened.)
+- Verified locally: `check.cjs` (UI_WIDTH=1440 UI_THEME=light) PASS 383 interaction assertions, 289 screen checks.
 - Light gridlines are 1.07:1 by design (decorative; axis labels carry the values).
 - The end-dot ring colour and glass tube columns (PR #40) are not covered here; the check mounts `SUI.columns` as it exists on this branch (no tube).
 - Frame rate not measured.

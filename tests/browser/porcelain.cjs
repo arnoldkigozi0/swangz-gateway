@@ -1,4 +1,4 @@
-/* Chart and list contrast on the glass panel (R14a), measured on what is painted. Light "Porcelain" is the target; dark is checked too.
+/* Chart and list contrast on the glass panel (R14a), measured on what is painted. Light "Porcelain" is the target; dark is asserted too (the sparkline stroke was 1.40:1 there).
    Mounts SUI.columns / line / sparkline / barList and a SUI.listPanel inside .u-glass-strong in the real console (tests/browser/demo.py).
    The numbers are fixtures (invented values, example.test names): this checks colour, not data. SHOTS=<dir> saves screenshots.
    NODE_PATH must reach a tooling dir with playwright. */
@@ -8,7 +8,7 @@ const fs = require('node:fs');
 const { spawn } = require('node:child_process');
 const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '../..');
-const results = { checks: [], measured: [], advisory: [], errors: [] }; // advisory: dark theme, outside this task's scope, reported not asserted
+const results = { checks: [], measured: [], errors: [] };
 const SHOTS = process.env.SHOTS;
 const REPORT_ONLY = (process.env.REPORT_ONLY || '') === '1';
 const fails = [];
@@ -74,7 +74,7 @@ async function measure(page, sel, label, min, kind, nth = 0) {
     return worst;
   }, { b64: png.toString('base64'), color: info.color, op: info.op });
   const row = { label, ratio: +ratio.toFixed(2), min }; results.measured.push(row);
-  if (ratio < min) (label.startsWith('light') ? fails : results.advisory).push(`${label}: ${ratio.toFixed(2)} < ${min}`);
+  if (ratio < min) fails.push(`${label}: ${ratio.toFixed(2)} < ${min}`);
 }
 
 (async () => {
