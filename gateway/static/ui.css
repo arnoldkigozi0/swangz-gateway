@@ -217,6 +217,24 @@ button[data-tip], a[data-tip] { cursor: pointer; }
 .u-bars .track i { display: block; height: 100%; border-radius: 0 2px 2px 0; background: var(--viz-1); }
 .u-bars.tone-2 .track i { background: var(--viz-2); }
 
+/* Porcelain (light) chart ink. The shared --viz colours are tuned for the dark scene; on milky light glass the
+   spend line (2.74:1) and the muted sparkline (1.22:1) fell under the 3:1 non-text limit, so the light theme draws
+   its lines, columns and bars one step deeper. Same hues, measured by tests/browser/porcelain.cjs. */
+:root[data-theme="light"] {
+  --pc-1: #96690C; --pc-2: #1A70AC; --pc-spark: #6F675D;
+}
+:root[data-theme="light"] .u-chart .col, :root[data-theme="light"] .u-chart .area, :root[data-theme="light"] .u-chart .end,
+:root[data-theme="light"] .u-spark .area, :root[data-theme="light"] .u-spark .end, :root[data-theme="light"] .u-bars .track i { fill: var(--pc-1); }
+:root[data-theme="light"] .u-bars .track i { fill: none; background: var(--pc-1); }
+:root[data-theme="light"] .u-chart .line { stroke: var(--pc-1); }
+:root[data-theme="light"] .u-chart.tone-2 .col, :root[data-theme="light"] .u-chart.tone-2 .area, :root[data-theme="light"] .u-chart.tone-2 .end,
+:root[data-theme="light"] .u-spark.tone-2 .area, :root[data-theme="light"] .u-spark.tone-2 .end { fill: var(--pc-2); }
+:root[data-theme="light"] .u-chart.tone-2 .line { stroke: var(--pc-2); }
+:root[data-theme="light"] .u-bars.tone-2 .track i { background: var(--pc-2); }
+:root[data-theme="light"] .u-chart .col.zero { fill: var(--viz-muted); }
+:root[data-theme="light"] .u-spark .line { stroke: var(--pc-spark); }
+:root[data-theme="light"] .u-bars .track { background: rgba(70, 56, 40, .14); }
+
 /* ------------------------------------------------------------ tables: sortable, sticky, cards on phones */
 
 .u-table-wrap { overflow-x: auto; max-width: 100%; }
