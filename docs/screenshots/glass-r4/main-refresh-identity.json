@@ -1,0 +1,32 @@
+{
+  "baseline": "8cdc8eaae29a1229bb79c4ae6faef9d8d472ea76",
+  "main": "a0f7dad941f44f79e87b1439cff0ddbcbbc426d1",
+  "files": [
+    {
+      "path": "gateway/static/ui.css",
+      "baseline_blob": "b056794bcb86a636d47aaa36ae134cafd7eb5df8",
+      "sha256": "a696d360ec71494713e7c41c4095d577a37c58d7baa81678f8b922f75eded540",
+      "identical": true
+    },
+    {
+      "path": "gateway/static/ui.js",
+      "baseline_blob": "7061829a5fff7693c5b4b856348b6e8fef8263be",
+      "sha256": "5d191609eb829a7291b28032ac8628dd2216957b54d04a9b7fe752799bb6ea0e",
+      "identical": true
+    },
+    {
+      "path": "gateway/static/admin-monitor.js",
+      "baseline_blob": "eaf1fda6ceff78c76900004c3ae3713bb0ecc30d",
+      "sha256": "7fd8b3eb8ff3f3502c475e8eb5df82ef1779632f12d0b0e961f2565aa0eba931",
+      "identical": true
+    },
+    {
+      "path": "docs/screenshots/glass-r4/check.cjs",
+      "baseline_blob": "166a6c9384c39df54bd83422b3cf9001cfc73fb9",
+      "sha256": "558552dc98e5ff72bacaa43e4a571a48350e6c62ed4b5ec94cbaec74b0062d13",
+      "identical": true
+    }
+  ],
+  "harness_matches_main": true,
+  "conflicts": []
+}

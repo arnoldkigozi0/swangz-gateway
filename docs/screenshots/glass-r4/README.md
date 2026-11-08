@@ -3,8 +3,7 @@
 Dependency: PR #40, exact `42ce9b7e98c1152878cf094dbf588c3d75684db6`.
 Branch `feature/glass-r4` starts there; relative product changes are limited to
 `gateway/static/ui.css` header/KPI selectors and `admin-monitor.js`. The PR is
-against main and includes inherited R5 chart changes until #40 merges. R2 and
-R3 are separate and are not present in these screenshots.
+against main and includes inherited R5 chart changes until #40 merges. R2/R3 are now on main and present in the refreshed screenshots.
 
 Overview keeps its title, navigation, price context, source periods, security
 posture and existing links. The existing trends API supplies a fourth card,
@@ -48,7 +47,7 @@ The four exact viewport screenshots are `admin-1440-dark.png`,
 - Approved Swangz architecture replaces the reference room photograph; stronger material protects contrast.
 - Porcelain retains the existing dark primary-action token while dark mode uses gold.
 - Phones use two columns and wrapped period labels; the reference has no phone layout.
-- Sidebar/top bar and non-KPI data panels remain as on dependency #40; their redesigns are separate.
+- Sidebar/top bar now come from refreshed main; non-KPI panels retain their existing presentation.
 - No count-up, page cross-fade or new chart behavior is included in this bounded treatment.
 
 Not run: full local suite/role matrix (Actions), real devices, Safari/Firefox,
@@ -59,3 +58,32 @@ current axe scans cover these synthetic screens, not all future content.
 Chrome DevTools/Motion/mounted browser actions and peer coordination tools were
 not exposed; the existing supported browser harness was used. Independent QA and
 new-head CI remain pending. Nothing deployed or merged.
+
+
+## Current-main refresh while shared files remain reserved — 8 November
+
+Normally merged main `a0f7dad941f44f79e87b1439cff0ddbcbbc426d1` without
+conflicts as `2d57ae95b0c0c3ea26cca73e82e2e6bf5509a11b`. Before merging,
+confirmed main had no ui.css/ui.js changes relative to the common ancestor.
+After merging, exact comparisons prove both shared files, admin-monitor.js and
+the focused R4 harness are byte-identical to old R4 head
+`8cdc8eaae29a1229bb79c4ae6faef9d8d472ea76`. The inherited shared browser
+harness matches main; no hand edits to it or workflows. Identity evidence:
+`main-refresh-identity.json`. No product source edits or conflict resolutions.
+
+`UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules node docs/screenshots/glass-r4/check.cjs`:
+`PASS 44 focused checks; 4 screenshots`, exit0; four main-content axe scans
+with zero findings, no browser exceptions. `python3 -m unittest tests.test_portal
+tests.test_hub`: `Ran 56 tests in 51.811s`, `OK`, exit0. `git diff --check`:
+exit0. Inspected all four regenerated exact desktop/phone light/dark screenshots.
+
+Dependency integration remains BLOCKED: R4 still contains old R5 base42ce9b7;
+PR40 is open at corrected `f25b65c7366a6cba0001b5f0e6a3a9810dcb4df2`, whose
+ui.css/ui.js differ. Those files remain Forge-reserved, so no corrected-R5 merge
+was performed. Existing R4 phone spacing gaps remain untouched in shared CSS.
+Keep draft until corrected dependency integration, renewed targeted checks, fresh
+CI and independent exact-head QA clear. Bell badge Low is separately addressed
+by PR50, not included in this branch. R8 not started: dependency and three-new-
+build cap remain constraints. Full local suite/matrix, real devices/other engines,
+screen readers and hardware performance/CLS/MotionScore: Not run. All local
+checks finished. No new draft/build for R4, deployment or merge to main.
