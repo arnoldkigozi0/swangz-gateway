@@ -115,7 +115,9 @@ body:has(.xgate) { --scene-image: url("/static/login-welcome.webp"); --scene-scr
 .xgate .xg-note { margin: 0 0 18px; font: 400 15px/1.6 var(--xg-font); color: var(--xg-ink-2); }
 
 /* ---- Google, where the server offers it: the same rim as the ghost pill, with its divider */
-.xgate .google-box { display: flex; flex-direction: column; gap: 6px; margin: 0 0 4px; }
+.xgate .google-box { display: flex; flex-direction: column; gap: 6px; margin: 14px 0 4px; }
+.xgate .xg-gB { margin: 0 0 16px; }
+.xgate .xg-gB:empty { display: none; }
 .xgate .google-box:empty { display: none; }
 .xgate .google-box .btn, .xgate .xg-gB .btn { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; min-height: 52px; padding: 0 20px; border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, .30); background: rgba(255, 255, 255, .08); color: #fff; font: 600 15px/1 var(--xg-font); text-decoration: none; letter-spacing: 0; text-transform: none; }
