@@ -397,3 +397,22 @@ Node syntax and whitespace checks passed. Inspected all four exact screenshots.
 Full local suite/matrix, real devices/other engines/screen readers, hardware
 performance/CLS/MotionScore: Not run; Actions/independent QA remain required.
 No new fonts/dependencies, providers, auth/data changes, merge or deployment.
+
+
+## PR50 latest-main integration after46 — 8 November
+
+Normally merged exact main `a0dbcfe140dfcde4e7d1e4e1904b75c014abd222` as
+`68f23bdf2dbe415ede16b126ed3c27fc5c37249a`, no conflicts. Main contributes
+reviewed shared list/UI code and browser-contract tests/docs. No hand edits to
+shared source or any harness. Own admin.css and focused admin assertion harness
+remain byte-identical to previous PR50 head
+`1048e6f91b2540c2db9e308766a460d0f37d7b60`; tokens.css and shared browser
+harness also identical. Shared ui.css/ui.js exactly match integrated main.
+Baseline Git blob IDs/current SHA256s: `docs/screenshots/bell-badge-contrast/main-refresh-identity.json`.
+
+Fresh commands/results: `UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules UI_OUTPUT=docs/screenshots/bell-badge-contrast node docs/screenshots/glass-r3/check.cjs`: `PASS 67 header checks; 4 screenshots; 4 axe scans`, exit0. Zero browser exceptions/scoped axe findings. Actual contrast at both widths: dark6.361659258042617:1, light4.736397633724517:1. `python3 -m unittest tests.test_portal tests.test_hub`: `Ran 56 tests in 38.514s`, `OK`, exit0. Four source identity comparisons, inherited shared UI/main equality and working/staged whitespace checks passed. All local check processes finished. No new PR/build or
+repeated diagnosis. Full local suite/matrix, real devices, other engines/screen
+readers and new hardware performance/CLS/MotionScore: Not run. Fresh final-head
+CI and independent Probe QA remain required. PR44 stays queued; no shared-file
+release assumed or corrected40 integration performed. Peer tools unavailable;
+final exact-head handoff is returned to Chief for Probe routing.
