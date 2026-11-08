@@ -1000,7 +1000,10 @@
       };
       // the answer is late: show the card now but keep the room a Google button and divider would take (CSS .xg-late), so a late answer fills it without moving anything
       cap = setTimeout(() => { node.classList.add("xg-late"); show(); }, 1200);
-      Promise.resolve(o.ready).then(show, show);
+      // The card also waits for its typeface (Inter, font-display: swap): a swap after the card shows re-wraps the title and labels on a phone.
+      // Same cap, and a failed or missing font counts as loaded, so a slow font never blocks sign-in.
+      const fontReady = () => { try { return document.fonts && document.fonts.load ? document.fonts.load('600 16px "Inter"').catch(() => {}) : Promise.resolve(); } catch (e) { return Promise.resolve(); } };
+      Promise.all([Promise.resolve(o.ready).catch(() => {}), fontReady()]).then(show, show);
     }
     return { node, swap: (m) => swap(m, true) };
   }

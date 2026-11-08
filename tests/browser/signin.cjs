@@ -317,17 +317,19 @@ async function motionChecks(browser, info, app) {
    is real and is the only part left). */
 async function lateGoogleChecks(browser, info, app) {
   const T = (s) => `${app.name}: ${s}`;
-  for (const [w, h, vname] of VIEWS) for (const mode of ['late', 'hung', 'abort']) {
+  for (const [w, h, vname] of VIEWS) for (const mode of ['late', 'hung', 'abort', 'font']) {
     const ctx = await browser.newContext({ viewport: { width: w, height: h } });
     await ctx.addInitScript(() => { window.__raw = 0; window.__card = 0; new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) { window.__raw += e.value;
       if ((e.sources || []).some((s) => s.node && s.node.parentElement && s.node.parentElement.closest('.xgate-card'))) window.__card += e.value; } }).observe({ type: 'layout-shift', buffered: true }); });
     const page = await ctx.newPage();
-    await page.route('**/auth/options', async (r) => { if (mode === 'abort') return r.abort(); if (mode === 'hung') { await new Promise((x) => setTimeout(x, 4500)); return r.abort(); }
+    // 'font': Google never answers (refused) and Inter arrives 800ms late, as on a cold phone: the card must wait for the font (inside the 1.2s cap), not swap it in under the person's eyes
+    if (mode === 'font') await page.route('**/fonts/Inter-latin.woff2', async (r) => { await new Promise((x) => setTimeout(x, 800)); r.continue(); });
+    await page.route('**/auth/options', async (r) => { if (mode === 'abort' || mode === 'font') return r.abort(); if (mode === 'hung') { await new Promise((x) => setTimeout(x, 4500)); return r.abort(); }
       await new Promise((x) => setTimeout(x, 1500)); r.fulfill({ json: { google: true } }); });
     await page.goto(info.url + app.start);
     await page.waitForSelector('.xgate:not(.xg-wait) .xgate-card', { timeout: 6000 });
     const first = await box(page, '.xg-form-a .xg-primary');
-    await page.waitForTimeout(mode === 'late' ? 1800 : 600);
+    await page.waitForTimeout(mode === 'late' ? 1800 : mode === 'font' ? 1200 : 600);
     const last = await box(page, '.xg-form-a .xg-primary');
     const m = await page.evaluate(() => ({ raw: window.__raw, card: window.__card }));
     ok(T(`${vname} ${mode}: the Login button does not move after the card shows (${Math.round(first.y)} -> ${Math.round(last.y)})`), Math.abs(first.y - last.y) < 1);
