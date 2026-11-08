@@ -285,20 +285,102 @@ html[data-theme="light"] .u-tubes { --tube-a: rgba(70, 56, 40, .46); --tube-b: r
   .u-table.cards td.hide-sm { display: none; }
 }
 
+/* ------------------------------------------------------------ glass lists: panel, search pill, progress, favourite */
+
+.u-list { overflow: hidden; }
+/* The panel is large and its rows change, so a live backdrop blur here was repainted on every hover and filter (software p95 100-683 ms,
+   against 33-67 ms with it off). A denser tint carries the glass look instead; rim, highlight and shadow come from .u-glass-strong. */
+.u-list { --list-bg: rgba(22, 19, 17, .86); -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--list-bg); }
+:root[data-theme="light"] .u-list { --list-bg: rgba(250, 247, 242, .94); }
+@media (prefers-reduced-transparency: reduce) { .u-list, :root[data-theme="light"] .u-list { --list-bg: var(--ink-2); } }
+.u-list > header { display: flex; align-items: center; justify-content: space-between; gap: 12px 18px; flex-wrap: wrap; padding: 16px 20px; border-bottom: 1px solid var(--glass-rim); }
+.u-list-title h2 { margin: 0; font-size: 16px; font-weight: 680; letter-spacing: -.01em; color: var(--tx-1); }
+.u-list-title p { margin: 2px 0 0; font-size: 12.5px; color: var(--tx-2); }
+.u-list-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; margin-left: auto; }
+.u-search { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px; border-radius: var(--radius-pill); background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-rim); box-shadow: var(--glass-highlight); color: var(--tx-2); min-width: 0; transition: border-color var(--dur-1) var(--ease-out); }
+.u-search:hover { border-color: var(--glass-rim-hover); }
+.u-search:focus-within { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 1px; }
+.u-search svg { width: 15px; height: 15px; flex: none; }
+.u-search input[type="search"] { all: unset; box-sizing: border-box; width: 190px; min-width: 0; height: auto; min-height: 0; padding: 0; margin: 0; border: 0; border-radius: 0; background: none; box-shadow: none; font-size: 13px; color: var(--tx-1); }
+.u-search input[type="search"]::placeholder { color: var(--tx-3); opacity: 1; }
+.u-search input[type="search"]:focus-visible { outline: 0; box-shadow: none; border: 0; }
+.u-search input::-webkit-search-cancel-button { appearance: none; }
+
+/* The table inside a glass list: translucent, hairline rows, no blur on any row. */
+.u-list .u-table thead th { background: transparent; position: static; color: var(--tx-2); padding-top: 12px; padding-bottom: 10px; }
+.u-list .u-table th, .u-list .u-table td { border-bottom-color: var(--glass-rim); }
+.u-list .u-table td { color: var(--tx-1); }
+.u-list .u-table td:has(> .u-star) { width: 1%; padding-right: 0; }
+.u-list .u-table .sub { color: var(--tx-2); }
+.u-list .u-table tbody tr:hover td, .u-list .u-table tbody tr.click:hover td, .u-list .u-table tbody tr.click:focus-within td { background: var(--glass-row-hover, rgba(255, 255, 255, .06)); }
+:root[data-theme="light"] .u-list .u-table tbody tr:hover td { background: rgba(255, 255, 255, .55); }
+.u-list .u-table-more { border-top-color: var(--glass-rim); }
+.u-list .u-table.cards tr { border-bottom-color: var(--glass-rim); }
+
+.u-progress { display: inline-flex; align-items: center; gap: 10px; min-width: 120px; width: 100%; max-width: 220px; }
+.u-progress .bar { position: relative; flex: 1 1 auto; height: 6px; border-radius: var(--radius-pill); overflow: hidden; background: rgba(255, 255, 255, .18); }
+:root[data-theme="light"] .u-progress .bar { background: rgba(70, 56, 40, .14); }
+:root[data-theme="light"] .u-progress .bar i { background: linear-gradient(90deg, #8A600C, #A26F0F); }
+:root[data-theme="light"] .u-progress.tone-2 .bar i { background: var(--viz-2); }
+.u-progress .bar i { position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(90deg, var(--viz-1), var(--accent)); transform-origin: left center;
+  transform: scaleX(var(--p, 0)); animation: u-fill var(--dur-3) var(--ease-out) both; }
+.u-progress.tone-2 .bar i { background: var(--viz-2); }
+.u-progress .v { flex: none; min-width: 3.2ch; text-align: right; font-size: 12.5px; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--tx-1); }
+@keyframes u-fill { from { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) { .u-progress .bar i { animation: none; } }
+
+.u-star { all: unset; box-sizing: border-box; display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; color: var(--tx-3);
+  transition: color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out); }
+.u-star svg { width: 17px; height: 17px; }
+.u-star:hover { color: var(--tx-1); background: var(--glass-rim); }
+.u-star:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.u-star[aria-pressed="true"] { color: var(--accent-tx); }
+.u-star[aria-pressed="true"] svg { fill: currentColor; }
+@media (pointer: coarse) { .u-star { width: 44px; height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .u-star { transition: none; } }
+
+@media (max-width: 760px) {
+  .u-list > header { padding: 14px 16px; }
+  .u-list-tools { margin-left: 0; width: 100%; }
+  .u-list-tools .u-seg { width: 100%; flex-wrap: nowrap; overflow-x: auto; }
+  .u-list-tools .u-seg button { flex: 0 0 auto; white-space: nowrap; }
+  .u-search { width: 100%; }
+  .u-search input[type="search"] { width: 100%; }
+  .u-progress { max-width: none; }
+  /* in card mode the favourite sits in the card's top-right corner instead of taking a row */
+  .u-list .u-table.cards tr { position: relative; }
+  .u-list .u-table.cards td:has(> .u-star) { position: absolute; top: 6px; right: 8px; display: block; width: auto; padding: 0; }
+}
+
 /* ------------------------------------------------------------ the time machine */
 
 .u-range { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
 .u-seg::-webkit-scrollbar { display: none; }
 .u-seg { scrollbar-width: none; }
-.u-seg { display: inline-flex; min-width: 0; padding: 3px; gap: 2px; background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--r-sm); max-width: 100%; overflow-x: auto; }
-.u-seg button { border: 0; background: none; padding: 5px 11px; border-radius: 6px; font-weight: 600; font-size: 12.5px; color: var(--tx-2); cursor: pointer; white-space: nowrap;
-  transition: background var(--d-fast), color var(--d-fast); }
+/* Filter pills: a glass track, the pressed pill lighter. Tint only, no blur of their own. */
+.u-seg { --seg-on: rgba(255, 255, 255, .10); --seg-on-rim: rgba(255, 255, 255, .5);
+  display: inline-flex; min-width: 0; padding: 3px; gap: 2px; background: var(--glass-bg-strong); border: 1px solid var(--glass-rim); border-radius: var(--radius-pill);
+  box-shadow: var(--glass-highlight); max-width: 100%; overflow-x: auto; }
+:root[data-theme="light"] .u-seg { --seg-on: rgba(255, 255, 255, .95); --seg-on-rim: rgba(120, 86, 15, .38); }
+.u-seg button { border: 1px solid transparent; background: none; padding: 5px 13px; min-height: 30px; border-radius: var(--radius-pill); font-weight: 600; font-size: 12.5px; color: var(--tx-2); cursor: pointer; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 7px; transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out); }
 .u-seg button:hover { color: var(--tx-1); }
-.u-seg button[aria-pressed="true"] { background: var(--ink-4); color: var(--tx-1); box-shadow: var(--shadow-sm); }
+.u-seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.u-seg button[aria-pressed="true"] { background: var(--seg-on); border-color: var(--seg-on-rim); color: var(--tx-1); box-shadow: var(--glass-highlight); }
+.u-seg button .n { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 11.5px; color: var(--tx-3); }
+.u-seg button[aria-pressed="true"] .n { color: var(--tx-2); }
 @media (max-width: 640px) {
   .u-seg { flex-wrap: wrap; overflow: visible; }
   .u-seg button { flex: 1 0 auto; min-height: 36px; max-width: 100%; white-space: normal; }
 }
+@media (pointer: coarse) { .u-seg button { min-height: 40px; } }
+@media (prefers-reduced-motion: reduce) { .u-seg button { transition: none; } }
+@media (forced-colors: active) {
+  .u-seg, .u-seg button { border-color: CanvasText; }
+  .u-seg button[aria-pressed="true"] { background: Highlight; color: HighlightText; }
+}
+
 .u-range .custom { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--tx-2); }
 .u-range .custom input { min-height: 32px; padding: 3px 8px; width: auto; font-size: 12.5px; }
 .u-range .tz { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font-size: 12px; color: var(--tx-3); }

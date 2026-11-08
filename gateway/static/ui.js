@@ -60,6 +60,7 @@
     checkCircle: [C(12, 12, 9), "M8.5 12.5l2.5 2.5l4.5-5"],
     x: ["M6 6l12 12", "M18 6L6 18"],
     search: ["M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14z", "M20 20l-4-4"],
+    star: ["M12 3.8l2.5 5.1l5.6.8l-4.05 3.95l.95 5.6L12 16.6l-5 2.65l.95-5.6L3.9 9.7l5.6-.8z"],
     command: ["M9 6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3z"],
     bot: ["M5 8h14v11H5z", "M12 4v4", "M9 13v1.5", "M15 13v1.5", "M2.5 12v4", "M21.5 12v4"],
     server: ["M4 4h16v6H4z", "M4 14h16v6H4z", "M8 7h.01", "M8 17h.01"],
@@ -703,6 +704,65 @@
     return el("div", { class: "u-table-wrap", tabindex: "0", role: "region", "aria-label": o.caption || "Data table" }, t);
   }
 
+
+  // ------------------------------------------------------------------ glass lists: filters, search, progress, favourite
+
+  /* A row of filter pills (one is pressed). options: [{ id, label, count? }]. onChange(id). Arrow keys move between pills. */
+  function segmented(o) {
+    let cur = o.value;
+    const seg = el("div", { class: "u-seg", role: "group", "aria-label": o.label || "Filter" });
+    /* The buttons are built once and only aria-pressed changes, so a keyboard user's focus stays on the pill they pressed. */
+    const btns = o.options.map((x) => el("button", { type: "button", "data-id": x.id, "aria-pressed": "false",
+      onclick: () => { if (cur === x.id) return; cur = x.id; draw(); o.onChange && o.onChange(x.id); } },
+      x.label, x.count === undefined || x.count === null ? null : el("span", { class: "n" }, String(x.count))));
+    seg.append(...btns);
+    function draw() { btns.forEach((b, i) => b.setAttribute("aria-pressed", cur === o.options[i].id ? "true" : "false")); }
+    seg.addEventListener("keydown", (e) => {
+      if (e.key !== "ArrowRight" && e.key !== "ArrowLeft" && e.key !== "Home" && e.key !== "End") return;
+      const bs = [...seg.querySelectorAll("button")];
+      const i = bs.indexOf(document.activeElement);
+      if (i < 0) return;
+      e.preventDefault();
+      const next = e.key === "Home" ? 0 : e.key === "End" ? bs.length - 1 : (i + (e.key === "ArrowRight" ? 1 : -1) + bs.length) % bs.length;
+      bs[next].focus();
+    });
+    draw();
+    return seg;
+  }
+
+  /* A search pill. onInput(text) is called as the person types. */
+  function searchPill(o) {
+    const input = el("input", { type: "search", placeholder: o.placeholder || "Search", "aria-label": o.label || "Search", autocomplete: "off", value: o.value || "" });
+    input.addEventListener("input", () => o.onInput && o.onInput(input.value));
+    return el("label", { class: "u-search" }, icon("search"), input);
+  }
+
+  /* A slim bar with its number beside it. The number is always shown, so the bar is never the only carrier. */
+  function progress(value, o) {
+    o = o || {};
+    const max = o.max || 100;
+    const v = Number.isFinite(value) ? Math.max(0, Math.min(max, value)) : 0;
+    const bar = el("span", { class: "bar", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": String(max), "aria-valuenow": String(v), "aria-label": o.label || "Progress" }, el("i"));
+    bar.firstChild.style.setProperty("--p", String(v / max));
+    return el("span", { class: "u-progress" + (o.tone ? " tone-" + o.tone : "") }, bar, el("span", { class: "v" }, o.text || String(Math.round(v)) + (max === 100 ? "%" : "")));
+  }
+
+  /* A favourite toggle. name is who or what it marks, for the screen reader. */
+  function star(pressed, name, onToggle) {
+    const b = el("button", { type: "button", class: "u-star", "aria-pressed": pressed ? "true" : "false", "aria-label": "Favourite " + name }, icon("star"));
+    b.addEventListener("click", () => { const on = b.getAttribute("aria-pressed") !== "true"; b.setAttribute("aria-pressed", on ? "true" : "false"); onToggle && onToggle(on); });
+    return b;
+  }
+
+  /* The glass list panel: a title, filter pills and a search pill on one line, then the table. One blur layer (the panel), none on rows.
+     o: { title, sub, filters: segmented options, search: searchPill options, body: node } */
+  function listPanel(o) {
+    const tools = el("div", { class: "u-list-tools" }, o.filters ? segmented(o.filters) : null, o.search ? searchPill(o.search) : null);
+    const heading = o.title ? el("div", { class: "u-list-title" }, el("h2", null, o.title), o.sub ? el("p", null, o.sub) : null) : null;
+    return el("section", { class: "u-list u-glass-strong", "aria-label": o.title || "List" },
+      heading || tools.childNodes.length ? el("header", null, heading, tools.childNodes.length ? tools : null) : null, o.body);
+  }
+
   // ------------------------------------------------------------------ the time machine
 
   const PRESETS = [["today", "Today"], ["yesterday", "Yesterday"], ["7d", "7 days"], ["30d", "30 days"], ["month", "This month"], ["custom", "Custom"]];
@@ -735,16 +795,16 @@
       const r = presetRange(cur.preset, cur);
       o.onChange({ ...cur, ...r });
     }
-    function drawSeg() {
-      seg.replaceChildren(...presets.map(([id, label]) => el("button", { type: "button", "aria-pressed": cur.preset === id ? "true" : "false",
-        onclick: () => {
-          cur.preset = id;
-          if (id === "custom" && !from.value) { from.value = dateInput(Date.now() / 1000 - 6 * 86400); to.value = dateInput(Date.now() / 1000); }
-          cur.from = from.value; cur.to = to.value;
-          custom.hidden = id !== "custom";
-          drawSeg(); fire();
-        } }, label)));
-    }
+    const presetBtns = presets.map(([id, label]) => el("button", { type: "button", "aria-pressed": "false",
+      onclick: () => {
+        cur.preset = id;
+        if (id === "custom" && !from.value) { from.value = dateInput(Date.now() / 1000 - 6 * 86400); to.value = dateInput(Date.now() / 1000); }
+        cur.from = from.value; cur.to = to.value;
+        custom.hidden = id !== "custom";
+        drawSeg(); fire();
+      } }, label));
+    seg.append(...presetBtns);
+    function drawSeg() { presetBtns.forEach((b, i) => b.setAttribute("aria-pressed", cur.preset === presets[i][0] ? "true" : "false")); }
     [from, to].forEach((i) => i.addEventListener("change", () => { cur.from = from.value; cur.to = to.value; fire(); }));
     drawSeg();
     const zone = el("select", { "aria-label": "Show times in" },
@@ -879,6 +939,6 @@
     tz, setGatewayOffset, setTzMode, tzLabel, startOfDay, startOfMonth, dateInput, fromDateInput, presetRange, fmt,
     initials, plural, debounce, gateway, avatar, logo, status, badge, delta, evidence,
     skeleton, stateBox, errorBox, load, toast, copy, showTip, hideTip, infoTip,
-    columns, line, sparkline, barList, table, rangeControl, trapFocus, commandMenu,
+    columns, line, sparkline, barList, table, segmented, searchPill, progress, star, listPanel, rangeControl, trapFocus, commandMenu,
   };
 })();
