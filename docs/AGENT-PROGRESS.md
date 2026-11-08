@@ -1290,3 +1290,21 @@ PRs this shift: 3 (#50 #51 #52). GitHub creation query from 2026-11-08T05:00:00Z
 | Critical review | Sentinel | existing PR branches | todo | Stopped; no new critical review assigned at shift end. |
 
 Prism final checkpoint received 10:02: #44 and #50 clean and tracking branches synchronized (#50 470467423fef20d0ba1736c4aca600be121ed458); no unfinished changes requiring WIP, no new tests or reviews run. All teammates stopped; no reported uncommitted WIP. Nobody starts new work until 12:00 Kampala. No Arnold product decision identified; legacy CI failures and remaining evidence are team blockers, not permission requests. Tests Not run: shift-end coordination only; no build, review, deployment or release started.
+
+
+## Shift start — 2026-11-08 12:00 Africa/Kampala
+
+Goal: complete exact-match UI in independently testable draft PRs; target three new PRs, two builders maximum. Read team/log, STATE, project instructions, mission/gates, recent all-branch commits and live PR list; fetched origin/main 1b9c44f and exact-match brief 9ceae8f. No teammate WIP requiring recovery reported at last checkpoint. Root untracked files preserved.
+
+| Task | Owner | Branch | Status | Next step |
+| --- | --- | --- | --- | --- |
+| Split sign-in CSS and browser regression repair | Forge | feature/exact-signin | todo | Start from #53 in .worktrees/exact-signin; first obtain Sentinel visual/auth boundary threat note. Own new exact-signin.css, ui.js splitGate only, index.html/admin.html and login-focused tests. One 30–60 minute draft PR; no auth semantics change. |
+| Staff app exact shell | Prism | feature/exact-staff-shell | todo | Start from #53 in .worktrees/exact-staff-shell; own portal.css/portal.js and new exact-staff.css only. One 30–60 minute draft PR, reference overlays and accessible retained navigation. No shared files with Forge. |
+| Queued sign-in browser CI coverage | Forge | feature/exact-signin-checks | todo | After first delivery, third new PR slot: focused login harness/CI coverage, independent of Prism files. Preserve existing checks; prerequisite stack explicit. |
+| Queued staff phone shell pass | Prism | feature/exact-staff-phone | todo | Ready next independent task after shell; defer if Forge takes third build slot (maximum three builds this shift). |
+| #52 then #51 CI-only verification | Probe | feature/list-check-ci / feature/chart-check-ci | review | Independently verify exact current heads and own diffs, current CI and main compatibility; #52 57f2dbe has all four Actions green, mergeability UNKNOWN. No merge until VERIFIED and live gates. |
+| Sign-in critical boundary | Sentinel | feature/exact-signin | todo | Bounded pre-implementation threat note/G2, then exact-head final approval when available. No routine UI reviews. |
+| #53 seed | Forge/Prism | design/exact-match-brief | review | Browser CI FAILURE, Python/app-window green at 9ceae8f; isolate failures and finish branch in scoped children. Not mergeable as-is. |
+| Older visual drafts #39/#44/#47/#43/#50 | owners | existing branches | review | Section 10 supersedes old acceptance; #39 performance BLOCKED, #44 performance HOLD. Rebase onto exact work or close with evidence; do not merge contradictory designs. #49 and older critical PRs waiting refreshed independent exact-head gates. |
+
+No ready/merge performed: independent exact-head verdicts/current-main gates pending. No Arnold product decision identified. Chief tests Not run: coordination only. No deployment, release, settings changes or production access. Handoffs dispatched below; automatic peer outcomes resume coordination.
