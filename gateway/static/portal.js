@@ -351,6 +351,7 @@
             col("Trust and help", [link("#/privacy", "How Swangz AI Hub works"), link("#/privacy", "Privacy and help"), el("button", { type: "button", onclick: policy }, "Usage policy")]))),
         el("div", { class: "gf-meta" }, el("span", { class: "gf-copy" }, "\u00a9 " + new Date().getFullYear() + " Swangz Avenue"), status, el("span", { class: "gf-theme-wrap" }, theme)),
         el("div", { class: "gf-word", "aria-hidden": "true" }, "Swangz"))));
+    wordmarkScene(f);
     if ("IntersectionObserver" in window && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
       f.classList.add("gf-armed");
       const show = () => { f.classList.add("gf-in"); io.disconnect(); };
@@ -361,6 +362,42 @@
     }
     return f;
   }
+
+  /* The wordmark's letters are windows onto the scene photo behind the milky panel. The scene is one fixed plane (body::before,
+     centre / cover); a fixed background on the letters would be repainted on every scroll step, so the letters get an ordinary
+     background laid out once to line up with that plane where the footer comes to rest (page scrolled to the end). It is measured
+     on load and on resize, never on scroll. Before the photo is known the CSS falls back to a plain gradient. */
+  function wordmarkScene(f) {
+    const word = f.querySelector(".gf-word");
+    let ratio = 0, frame = 0;
+    const place = () => {
+      frame = 0;
+      if (!ratio || !word.isConnected) return;
+      const vw = document.documentElement.clientWidth, vh = window.innerHeight;
+      const scale = Math.max(vw / ratio[0], vh / ratio[1]), bw = ratio[0] * scale, bh = ratio[1] * scale;
+      const box = word.getBoundingClientRect();
+      const rest = Math.max(0, document.documentElement.scrollHeight - vh);   // where the page ends up when the footer is fully shown
+      const left = box.left, top = box.top + window.scrollY - rest;
+      const st = word.style;
+      st.setProperty("--gf-bw", bw.toFixed(1) + "px"); st.setProperty("--gf-bh", bh.toFixed(1) + "px");
+      st.setProperty("--gf-bx", ((vw - bw) / 2 - left).toFixed(1) + "px"); st.setProperty("--gf-by", ((vh - bh) / 2 - top).toFixed(1) + "px");
+      f.classList.add("gf-photo");
+    };
+    const queue = () => { if (!frame) frame = requestAnimationFrame(place); };
+    wordmarkQueue = queue;   // the pages rebuild the footer; one listener below serves whichever footer is current
+    const m = /url\(["']?([^"')]+)["']?\)/.exec(getComputedStyle(document.body, "::before").backgroundImage || "");
+    if (!m) return;
+    const img = new Image();
+    img.onload = () => { ratio = [img.naturalWidth, img.naturalHeight]; queue(); };
+    img.src = m[1];
+    if (!wordmarkWatching) {
+      wordmarkWatching = true;
+      const again = () => { if (wordmarkQueue) wordmarkQueue(); };
+      window.addEventListener("resize", again);
+      if ("ResizeObserver" in window) new ResizeObserver(again).observe(document.body);   // the page grew or shrank above the footer
+    }
+  }
+  let wordmarkQueue = null, wordmarkWatching = false;
 
   function sectionHead(eyebrow, title, text, action) {
     return el("div", { class: "section-head" }, el("div", null, eyebrow ? el("div", { class: "eyebrow" }, eyebrow) : null, el("h1", null, title), text ? el("p", null, text) : null), action || null);

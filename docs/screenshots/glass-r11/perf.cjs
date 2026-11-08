@@ -2,11 +2,15 @@
    machine, not for absolute numbers. OLDWORD=1 puts the previous wordmark (scene photo, fixed attachment, drop-shadow filter) back with an
    injected rule, so the same build is measured both ways. Each run loads Tools, scrolls to the footer in steps and records requestAnimationFrame
    intervals from the first step until 1.6 s after the footer reaches the bottom. NODE_PATH must reach a tooling dir with playwright.
-   Usage: [OLDWORD=1] [RUNS=4] [THEME=dark|light] node docs/screenshots/glass-r11/perf.cjs */
+   SAME DISTANCE: ROOT=<other checkout> runs that checkout's server and page (for example current main, whose footer is the plain .foot with no
+   reveal), and DISTANCE=<px> makes every arm scroll exactly that far: a spacer is added above the footer when the page is shorter, so the footer
+   ends at the bottom of the viewport in every arm. Steps (24, 30 ms apart) and the 1.6 s rest after the last step are the same in every arm.
+   EXTRACSS=<css> injects a rule, to switch one part off and see what it costs (for example the reveal, or the letters' photo).
+   Usage: [EXTRACSS=css] [ROOT=dir] [DISTANCE=845] [OLDWORD=1] [RUNS=4] [THEME=dark|light] node docs/screenshots/glass-r11/perf.cjs */
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { chromium } = require('playwright');
-const root = path.resolve(__dirname, '../../..');
+const root = path.resolve(process.env.ROOT || path.join(__dirname, '../../..')), DISTANCE = Number(process.env.DISTANCE || 0);
 const RUNS = Number(process.env.RUNS || 4), OLD = process.env.OLDWORD === '1', THEME = process.env.THEME || 'dark';
 const pct = (a, p) => { const s = [...a].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(p * s.length))]; };
 const OLDCSS = '.gf-word{background:linear-gradient(180deg,rgba(255,246,232,.46),rgba(255,246,232,.24)),var(--scene-image) center / cover fixed no-repeat!important;-webkit-background-clip:text!important;background-clip:text!important;filter:drop-shadow(0 1px 0 rgba(255,255,255,.34))!important}';
@@ -23,10 +27,13 @@ const OLDCSS = '.gf-word{background:linear-gradient(180deg,rgba(255,246,232,.46)
       const r = await ctx.request.post(info.url + '/api/login', { headers: { 'x-swangz-app': '1' }, data: { email: 'grace@swangzavenue.com', password: 'demo-password' } });
       if (r.status() !== 200) throw new Error('login ' + r.status());
       const page = await ctx.newPage();
-      await page.goto(info.url + '/#/tools'); await page.waitForSelector('.glass-foot'); await page.waitForTimeout(900);
+      await page.goto(info.url + '/#/tools'); await page.waitForSelector('.glass-foot, footer.foot'); await page.waitForTimeout(900);
+      if (DISTANCE) await page.evaluate(d => { const have = document.documentElement.scrollHeight - innerHeight; if (have < d) { const sp = document.createElement('div'); sp.style.height = (d - have) + 'px'; sp.setAttribute('data-spacer', '1'); const foot = document.querySelector('.glass-foot, footer.foot'); foot.parentNode.insertBefore(sp, foot); } }, DISTANCE);
       if (OLD) await page.addStyleTag({ content: OLDCSS });
+      if (process.env.EXTRACSS) await page.addStyleTag({ content: process.env.EXTRACSS });
       await page.evaluate(() => { window.__f = []; let last = performance.now(); const tick = (n) => { window.__f.push(n - last); last = n; window.__raf = requestAnimationFrame(tick); }; window.__raf = requestAnimationFrame(tick); });
       const max = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight);
+      if (DISTANCE && Math.abs(max - DISTANCE) > 1) throw new Error('distance ' + max + ' != ' + DISTANCE);
       for (let y = 0; y <= max; y += Math.max(60, Math.ceil(max / 24))) { await page.evaluate(v => window.scrollTo(0, v), y); await page.waitForTimeout(30); }
       await page.evaluate(v => window.scrollTo(0, v), max); await page.waitForTimeout(1600);
       const f = (await page.evaluate(() => { cancelAnimationFrame(window.__raf); return window.__f; })).slice(2);
@@ -34,6 +41,6 @@ const OLDCSS = '.gf-word{background:linear-gradient(180deg,rgba(255,246,232,.46)
       console.log(JSON.stringify(out[out.length - 1]));
       await ctx.close();
     }
-    console.log(JSON.stringify({ oldWordmark: OLD, theme: THEME, p95: out.map(o => o.p95), over50: out.map(o => o.over50) }));
+    console.log(JSON.stringify({ root: path.basename(root), distance: DISTANCE || 'natural', oldWordmark: OLD, extra: process.env.EXTRACSS || null, theme: THEME, p95: out.map(o => o.p95), over50: out.map(o => o.over50) }));
   } finally { await browser.close(); demo.kill(); }
 })().catch(e => { console.error(e); process.exit(1); });
