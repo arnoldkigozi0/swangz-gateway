@@ -433,7 +433,7 @@ html[data-theme="light"] .gf-theme { background: rgba(60, 44, 30, .10); }
    The glass panel never moves or fades: a blurred layer that animates is re-blurred every frame, which is what made the first
    version stall. Only the content on top rises and fades in (opacity and transform), and the wordmark fades in place. */
 .gf-armed :is(.gf-grid, .gf-meta) { opacity: 0; transform: translateY(14px); transition: opacity var(--dur-3) var(--ease-out) 120ms, transform 700ms var(--ease-out) 120ms; }
-.gf-armed .gf-word { opacity: 0; transition: opacity 900ms var(--ease-out) 320ms; }
+.gf-armed .gf-word { opacity: 0; transition: opacity 900ms var(--ease-out) 320ms; will-change: opacity; } /* its own layer: the clipped photo is rasterised once, the fade runs on the compositor (measured, README) */
 .gf-armed.gf-in :is(.gf-grid, .gf-meta, .gf-word) { opacity: 1; transform: none; }
 
 @media (prefers-reduced-motion: reduce) {

@@ -51,6 +51,24 @@ const ok = (label, v) => { assert.ok(v, label); results.checks.push(label); };
         ok('health 503 with a body says the database is the problem, not that the gateway is silent', /database not responding/.test(await p2.textContent('.gf-status')));
         const tabbed = await p2.evaluate(() => { const f = document.querySelector('.glass-foot'); const before = f.classList.contains('gf-in'); document.querySelector('.gf-col a').focus({ preventScroll: true }); return [before, f.classList.contains('gf-in')]; });
         ok('focusing a footer control reveals the footer, so nothing focusable is left invisible', tabbed[0] === false && tabbed[1] === true);
+        { // real keyboard: Tab from the top of a fresh page until focus lands in the footer; it must be revealed and visible by then
+          const p4 = await ctx.newPage(); await p4.goto(info.url + '/#/tools'); await p4.waitForSelector('.glass-foot'); await p4.waitForTimeout(500);
+          const before = await p4.evaluate(() => document.querySelector('.glass-foot').classList.contains('gf-in'));
+          let inFoot = false; for (let i = 0; i < 80 && !inFoot; i++) { await p4.keyboard.press('Tab'); inFoot = await p4.evaluate(() => !!document.activeElement?.closest('.glass-foot')); }
+          await p4.waitForTimeout(1300);
+          const st = await p4.evaluate(() => { const a = document.activeElement, r = a.getBoundingClientRect(), f = document.querySelector('.glass-foot'); return { inFoot: !!a.closest('.glass-foot'), revealed: f.classList.contains('gf-in'), opacity: getComputedStyle(a.closest('.gf-grid, .gf-meta, .gf-panel') || a).opacity, onScreen: r.bottom > 0 && r.top < innerHeight }; });
+          ok('keyboard Tab into the footer reveals it, opaque and on screen (was ' + (before ? 'already revealed' : 'hidden') + ')', inFoot && st.inFoot && st.revealed && st.opacity === '1' && st.onScreen);
+          await p4.close();
+        }
+        { // axe on the settled footer, both themes via the current one
+          const axeSrc = require('fs').readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
+          const p5 = await ctx.newPage(); await p5.goto(info.url + '/#/tools'); await p5.waitForSelector('.glass-foot');
+          await p5.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight)); await p5.waitForTimeout(1500);
+          await p5.evaluate(axeSrc);
+          const ax = await p5.evaluate(async () => { const r = await axe.run('.glass-foot', { runOnly: ['wcag2a', 'wcag2aa'] }); return r.violations.map(v => v.id + ':' + v.nodes.length); });
+          ok('axe (wcag2a/aa) on the footer: no violations ' + JSON.stringify(ax), ax.length === 0);
+          await p5.close();
+        }
         await p2.close();
         const rm = await browser.newContext({ viewport: { width: w, height: h }, reducedMotion: 'reduce' });
         await rm.addInitScript(() => localStorage.setItem('swangz-theme', 'dark'));

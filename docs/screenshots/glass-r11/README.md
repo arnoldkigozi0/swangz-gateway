@@ -72,3 +72,23 @@ Earlier traces compared scroll distances of 845 px (branch) and 256 px (main); t
 | branch, previous fixed-photo wordmark with filter | 8 | 10.4 | 7 to 14 |
 
 Reading: the arms overlap a lot and the p95 swings from 50 to 180 ms between rounds even on main, so this is noise-limited. What it supports: the photo in the letters costs nothing measurable over the flat gradient (10.3 against 10.1); the branch is about two slow frames per run above main, and that gap closes when the reveal is switched off (8.0 against 8.2), so the extra frames belong to the reveal animation main does not have (opacity and transform only). It does not show the old wordmark was worse, so the earlier "gain" claim is also not repeated here. **No parity with main is claimed.** Not run: a real GPU, a Chrome performance-trace file, light theme (not repeated), a reveal-free variant on a device. Reproduce: `DISTANCE=845 node docs/screenshots/glass-r11/perf.cjs`, `ROOT=<main checkout> DISTANCE=845 ...`, `EXTRACSS='...'`, `OLDWORD=1`.
+
+## Raster correction: the wordmark gets its own layer (`will-change: opacity` while armed)
+Probe's remaining finding: dark slow frames 11.2 against main 6.3, light 11.3 against 11, with raster time 500-1014 ms against main's 9-21 ms and hiding the wordmark taking it to 236-315 ms. Tried, one at a time, as injected CSS on the same page (`EXTRACSS`), every arm scrolling exactly 860 px (`DISTANCE=860`: the branch page is now 847 px long, so all arms, main included, are padded to the same distance), 3 runs per arm per round, arms interleaved, headless Chrome `--disable-gpu`. Raw runs are saved in `trace-variants.ndjson` (every arm) and `trace-final.ndjson` (the shipped head against main); summarise with the per-run fields `over50`, `p95`, `max`, `taskMs` (main-thread task time over the run, from CDP `Performance.getMetrics`).
+
+| Arm (mean per run) | Dark: slow frames / p95 / task ms | Light: slow frames / p95 / task ms |
+|---|---|---|
+| branch before this change | 9.5 / 72 / 263 (n=15) | 8.7 / 80 / 268 (n=9) |
+| `.gf-word { will-change: opacity }` (kept) | 6.5 / 61 / 229 (n=15) | 7.8 / 63 / 240 (n=9) |
+| `.gf-word { contain: paint }` | 6.3 / 59 / 248 (n=15) | 7.4 / 65 / 242 (n=9) |
+| both together | 8.2 / 69 / 268 (n=6, dark only) | not run |
+| `.glass-foot { content-visibility: auto }` | 10.0 / 83 / 333 (n=3; a second run failed the equal-distance guard because the height changes) | not run |
+| main (plain footer, no reveal) | 5.4 / 54 / 145 (n=9) | 4.6 / 54 / 123 (n=9) |
+
+Shipped head, final interleaved trace (`trace-final.ndjson`, n=6 per cell): dark 6.5 slow frames, p95 64, task 229 ms against main 4.3, 56, 134; light 6.7, 56, 221 against main 4.5, 56, 123.
+
+Decision: keep `will-change: opacity` on the armed wordmark only (so reduced motion, which never arms, gets no layer): the clipped photo is rasterised once and the 900 ms fade runs on the compositor. It cuts slow frames by about a third in dark and about one in ten in light, with no clipping risk. `contain: paint` measured the same but clips ink that overflows the box (the "g" descender and the first and last letters' side bearings), so it is not shipped. `content-visibility: auto` is not shipped: no gain, and it moves the page height (a CLS risk). Both together were no better than either.
+
+Honest reading: **still not at parity with main.** Main-thread task time is about 1.7 times main's and about two extra slow frames per run remain in both themes; those are the footer's own painting (the milky panel gradients, the clipped photo and the reveal), which main does not have. Software render, noisy (n = 6 to 15 per cell), not a GPU: I make no GPU claim and no waiver claim. I did not get a Chrome trace file or separate raster-thread numbers; `taskMs` is main-thread only.
+
+Checks on this head (`check.cjs`, exit 0, both themes at 1440x900 and 390x844): no clipping or CLS (CLS 0), the existing focus reveal, a new real-keyboard Tab into the footer (revealed, opacity 1, on screen), axe wcag2a/aa on the settled footer (no violations), reduced motion (reveal not armed, footer opaque, hover lift off), the four theme/size cells for the wordmark assertions and no console errors.

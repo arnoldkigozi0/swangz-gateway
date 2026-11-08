@@ -9,6 +9,8 @@
   "unmatched tool: message stays on the footer and the page does not navigate away",
   "health 503 with a body says the database is the problem, not that the gateway is silent",
   "focusing a footer control reveals the footer, so nothing focusable is left invisible",
+  "keyboard Tab into the footer reveals it, opaque and on screen (was hidden)",
+  "axe (wcag2a/aa) on the footer: no violations []",
   "reduced motion: the hover lift is off",
   "wordmark is decorative",
   "Ask opens the existing request dialog for Social Insider",
