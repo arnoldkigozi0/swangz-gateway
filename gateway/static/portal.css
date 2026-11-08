@@ -368,17 +368,17 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
 
 /* ------------------------------------------------------------ footer: liquid glass (R11)
    No backdrop blur: a live blur over a scrolling page stalled frames (3 runs: 9 frames over 50 ms), so the milky panel is a layered
-   translucent gradient instead. The link card is a lighter well. The wordmark is cut out of the glass by
-   painting the same scene, scrim included, through the letters. Reveal animates transform and opacity only. */
+   translucent gradient instead. The link card is a lighter well. The wordmark is a clipped translucent gradient (no photo, no fixed
+   background, no filter: those repainted a 300px layer on every scroll step). Reveal animates transform and opacity only. */
 
 .foot.glass-foot { margin-top: var(--s9); border: 0; background: none; padding: 0 var(--gutter) var(--s6); }
 .gf-wrap { max-width: var(--shell); margin: 0 auto; container-type: inline-size; }
 .gf-panel {
-  --gf-ink: var(--tx-1); --gf-ink-2: var(--tx-2); --gf-cut-a: rgba(255, 246, 232, .46); --gf-cut-b: rgba(255, 246, 232, .24); --gf-cut-rim: rgba(255, 255, 255, .34);
+  --gf-ink: var(--tx-1); --gf-ink-2: var(--tx-2); --gf-cut-a: rgba(255, 246, 232, .34); --gf-cut-b: rgba(255, 246, 232, .08);
   position: relative; border-radius: 28px; padding: clamp(20px, 3vw, 36px) clamp(18px, 3vw, 36px) 0; overflow: hidden;
   background: linear-gradient(180deg, rgba(48, 41, 37, .78), rgba(26, 22, 20, .84)); border: 1px solid var(--glass-rim); box-shadow: var(--glass-highlight), var(--glass-shadow); color: var(--gf-ink);
 }
-html[data-theme="light"] .gf-panel { --gf-cut-a: rgba(255, 250, 244, 0); --gf-cut-b: rgba(255, 250, 244, 0); --gf-cut-rim: rgba(255, 255, 255, .9); background: linear-gradient(180deg, rgba(250, 246, 240, .74), rgba(245, 240, 234, .58)); }
+html[data-theme="light"] .gf-panel { --gf-cut-a: rgba(150, 108, 50, .30); --gf-cut-b: rgba(150, 108, 50, .08); background: linear-gradient(180deg, rgba(250, 246, 240, .74), rgba(245, 240, 234, .58)); }
 .gf-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(20px, 3vw, 40px); align-items: start; }
 .gf-brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; letter-spacing: -.01em; }
 .gf-brand img { width: 26px; height: 26px; }
@@ -418,9 +418,9 @@ html[data-theme="light"] .gf-theme { background: rgba(60, 44, 30, .10); }
 @supports (container-type: inline-size) { .gf-word { font-size: 23.5cqw; } }
 .gf-word {
   letter-spacing: -.05em; padding-bottom: .11em; text-align: center; color: transparent; -webkit-text-fill-color: transparent;
-  background: linear-gradient(180deg, var(--gf-cut-a), var(--gf-cut-b)), var(--scene-image) center / cover fixed no-repeat; -webkit-background-clip: text; background-clip: text;
-  /* the rim is a drop-shadow of the painted shape: a text stroke would also draw the variable font's overlapping inner contours */
-  filter: drop-shadow(0 1px 0 var(--gf-cut-rim));
+  /* A plain gradient clipped to the letters: no photo and no fixed attachment (a fixed background is repainted on every scroll step),
+     and no filter layer. Etched-glass letters from two translucent tints. */
+  background: linear-gradient(180deg, var(--gf-cut-a), var(--gf-cut-b)); -webkit-background-clip: text; background-clip: text;
 }
 
 /* The reveal: only when armed (observer present, motion allowed); otherwise the footer is simply there.
