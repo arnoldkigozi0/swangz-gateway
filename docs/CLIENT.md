@@ -94,6 +94,83 @@ any file that would land outside the package's folder (`..`, absolute or drive p
 count, and unpacks beside the final place before moving it in, so a failure never leaves half a package. It
 only downloads from the server it signed in to, so a manifest can never send the key elsewhere.
 
+## Device credentials: rotation, idle expiry, key-storage report (schema v22)
+
+A device is one `devices` row with a stable `device_id` (the id of its first key). Over its life it holds several
+gateway keys (`keys.device_id`); `devices.key_id` points at the current one. Device keys are accepted by the proxy and
+`/api/device/*` only, never by the staff app or the console.
+
+**Error codes on `/api/device/*`.** `device_revoked`: the device was disconnected (person, admin, app sign-out, idle) —
+remove everything. `device_key_rotated`: *this key* was replaced by a newer one on the same device — reload the key
+from the keystore and retry; **never wipe**. `device_unknown`: ask the person. The proxy answers a rotated key with 403
+"this device key was renewed".
+
+**`POST /api/device/rotate`** (device key; no body needed). Returns `{key, key_id, device_id, old_key_valid_until,
+rotate_after_days}`; the response is `no-store` and the key is shown once. The app rotates every `rotate_after_days`
+(30; also in the manifest as `credential.rotate_after_days`): put the new key in the keystore, verify it, call any
+device endpoint (e.g. a check-in) with it, then delete the old item. The old key works until the new key's first call at a
+device endpoint (use through the proxy does not count) or 10 minutes after the rotate call, whichever is first. If the response
+is lost, the old key may call rotate again while that grace lasts and the new key was never used: the unused key is revoked
+(`device_key_rotated`) and a fresh one issued; the grace is never extended. Errors: `429 slow_down` (3 a
+device per hour), `409 rotation_pending` (already being replaced and the new key has been used). If the grace ends
+without the new key reaching the app, the app only has a rotated key (see below).
+
+**Lost response, after the grace.** Once the 10 minutes are up the old key answers `device_key_rotated` and cannot
+rotate again. So the app must write the new key to its store before it calls any endpoint with it. If the app gets
+`device_key_rotated` and its store holds no newer key, it shows "Reconnect this device", never wipes, and retries no
+faster than the heartbeat interval. The hourly idle job ends the orphaned device (refused retries do not count as
+activity), and the person reconnects with a new code.
+
+**What retirement cuts.** The 10-minute retirement of an old key does not cut requests already in flight on it; it is
+routine rotation. If a key is believed compromised, revoke the device (person, administrator or app sign-out): that ends
+every key of the device and cuts everything in flight.
+
+**Idle expiry.** A device with no activity for `device_idle_days` (console setting, 7–365, default 60) is revoked by the hourly
+job, audited as `system`. Activity is the newest of the app's last check-in, enrolment and any of its keys being used
+at the proxy, so a device in daily use through Claude Code is never idle. An attempt refused because the key was already
+revoked is not activity.
+
+**Key-storage report.** Heartbeat bodies may carry `key_storage` (`keychain` or `file`) and `key_backend`
+(`credential-manager`, `keychain`, `secret-service`; optional). Anything else is stored as `unknown` / empty. The console shows it
+as "reported by the app", flags `file`, and shows older apps as "Not reported (older app)". It is a report, never evidence, and
+never an input to an access decision. Moving to `file` is audited once.
+
+## Personal browser contract v1 (server side only; nothing in the app uses it yet)
+
+`GET /api/device/manifest?browser_contract=1` adds one block to the manifest. It is **inert**: the server only
+describes what the app may prepare; no client, browser launch or UI exists for it.
+
+```json
+"browser": {"contract": 1, "person_id": "7", "device_id": "a1b2c3d4e5f6", "profiles": [{"kind": "personal"}]}
+```
+
+- **Negotiation is strict.** Exactly one `browser_contract` parameter whose value is exactly `1`. Missing, `2`,
+  `01`, `true`, empty or repeated: no `browser` key, and the manifest is byte-for-byte what older apps get.
+- **Identity is origin + `person_id` + `device_id`.** `person_id` is `str(people.id)` (`^[1-9][0-9]*$`); person ids
+  can be reused by a different database, so the server origin is part of the identity. `device_id` is the stored
+  `devices.device_id` (`^[A-Za-z0-9_-]{1,64}$`) and stays the same when the key is rotated. Both come from the
+  authenticated key only; anything the request says about them is ignored.
+- **No secrets or personal data.** No email, name, key, hint or token. No provider account, registry entry or seat
+  inference; the only kind is `personal`.
+- **Auth is not changed.** The block is built only after the existing checks pass (revoked or rotated key, paused
+  person, ended access, global pause, not enrolled), so every refusal code carries no block. If the account rule
+  does not allow the person's email, `profiles` is `[]`; today the existing key check already answers
+  `401 device_unknown` for such a person, so the empty list is a second line of defence, not a new refusal.
+- **What the app must do with it (lifecycle, for the separate client work):**
+
+| Server says | The app may |
+|---|---|
+| block with a profile | prepare that personal profile |
+| `profiles: []` | retire this owner's browser data |
+| no block | do nothing |
+| `device_revoked`, `device_unknown` | retire all |
+| `device_key_rotated` | never retire; load the newer key |
+| `paused` (everyone) or `person_paused` | keep what is on disk; do not prepare or launch |
+| `access_ended` | retire all |
+| paused and ended together | the server answers `person_paused`: keep what is on disk |
+
+Client integration needs its own review before it is built.
+
 ## Disconnecting
 
 If the server says a device was disconnected (`401 device_revoked`), the app removes everything it installed

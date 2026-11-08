@@ -13,7 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import admin, catalog, geo, google, icons, notify, policy, pricing, proxy, purpose, security, staff, store
 from . import hub_api, reporting, hub_delivery, hub_export
-from . import business, departments, enroll
+from . import business, credentials, departments, enroll
 from .db import DB
 from .live import Live
 from .workspace import Workspaces
@@ -141,6 +141,13 @@ class Gateway:
         )
         if not row or not self.settings.email_allowed(row["person_email"]) or not security.secret_matches(secret, row["secret_hash"]):
             return None, key_id
+        if row["retire_at"] and not row["revoked"] and row["retire_at"] <= time.time():
+            # the 10-minute grace of a rotated key is over: end it once, at the moment it was due (D-002)
+            when = row["retire_at"]
+            self.db.x("UPDATE keys SET revoked = ?, revoked_by = 'system: rotated' WHERE id = ? AND revoked IS NULL", (when, key_id))
+            row = self.db.one("SELECT k.*, p.name AS person_name, p.status AS person_status, p.allowed_models, p.allowed_services,"
+                              " p.email AS person_email, p.department, p.daily_budget, p.monthly_budget, p.access_until FROM keys k"
+                              " JOIN people p ON p.id = k.person_id WHERE k.id = ?", (key_id,))
         return row, key_id
 
     def identify_internal(self, h):
@@ -182,6 +189,9 @@ class Gateway:
         if provider is not None and provider.name in (self.db.get_setting("disabled_providers", "") or "").split(","):
             return 403, "permission_error", f"{provider.label} is switched off by an administrator for now.", "provider switched off"
         if key["revoked"]:
+            if key.get("revoked_by") in credentials.ROTATED:
+                return 403, "permission_error", ("this device key was renewed. The Swangz app picks up the new one by itself; "
+                                                 "if this keeps happening, reconnect the device."), "key renewed"
             return 403, "permission_error", "this key was revoked by an administrator.", "key revoked"
         if key["person_status"] != "active":
             return 403, "permission_error", "your AI access is suspended. Talk to an administrator.", "suspended"
@@ -294,6 +304,12 @@ class Gateway:
             self.log("retention: removed " + ", ".join(parts))
             self.audit("system", "purged old records", "retention", "; ".join(parts),
                        after={"requests": removed, "bodies_unreferenced": orphans, **other}, area="admin")
+        try:  # its own try: a failure here must not stop the notifications below, nor they it
+            idle = credentials.expire_idle(self)
+            if idle:
+                self.log(f"devices: revoked {idle} idle device(s)")
+        except Exception as exc:  # noqa: BLE001
+            self.log(f"idle devices: sweep failed: {exc!r}")
         self.db.set_setting("maintenance_last", str(time.time()))
         try:
             notify.refresh(self)

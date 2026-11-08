@@ -1,0 +1,37 @@
+{
+  "checks": [
+    "synthetic owner login",
+    "compact has explicit All pages entry",
+    "compact has visible scroll cue",
+    "compact utilities are available through full navigator",
+    "offscreen serious incident is summarised in compact rail",
+    "all five area shortcuts visible at 1366",
+    "Monitor reachable from pinned area index",
+    "Govern reachable from pinned area index",
+    "Reporting reachable from pinned area index",
+    "Money reachable from pinned area index",
+    "Trust reachable from pinned area index",
+    "Trust summary retains red severity",
+    "Trust toggle survives live count refresh",
+    "labels tooltip stays clear of brand",
+    "light selection has dark state ring",
+    "selection ring contrast at least 3:1",
+    "rail removes backdrop repaint cost",
+    "phone Stop all AI is at least 44px tall",
+    "confirmation closes navigator before acting",
+    "cancel keeps fake gateway unpaused",
+    "confirmed pause reaches fake gateway",
+    "resume reaches fake gateway",
+    "no browser exceptions"
+  ],
+  "screenshots": [
+    "alerts-1366.png"
+  ],
+  "errors": [],
+  "accessibility": [],
+  "selection": {
+    "shadow": "rgb(33, 29, 25) 0px 0px 0px 2px inset",
+    "bg": "rgb(255, 255, 255)",
+    "contrast": 16.7404045536042
+  }
+}
