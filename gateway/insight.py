@@ -425,7 +425,22 @@ def _device_state(k, now):
 
 
 KEY_COLUMNS = ("k.id, k.label, k.hint, k.person_id, p.name AS person, p.department, p.status AS person_status,"
-               " k.created, k.created_by, k.revoked, k.revoked_by, k.last_used")
+               " k.created, k.created_by, k.revoked, k.revoked_by, k.last_used, k.device_id")
+
+# a key replaced by rotation, or issued but not yet taken up, is not a device of its own
+HIDDEN_KEYS = ("COALESCE(k.revoked_by, '') NOT IN ('system: rotated', 'system: reissued')"
+               " AND NOT (k.rotated_from IS NOT NULL AND k.confirmed IS NULL)")
+
+
+def key_storage_report(d):
+    """How the app says it keeps the device key. Reported by the app, never verified by the server."""
+    value = (d or {}).get("key_storage") or ""
+    label = {"keychain": "In the system keychain", "file": "In a protected file (no working keychain)",
+             "unknown": "Reported, but not understood"}.get(value, "Not reported (older app)")
+    return {"key_storage": value or None, "key_backend": (d or {}).get("key_backend") or None,
+            "key_storage_label": label, "key_storage_source": "reported by the app",
+            "key_storage_flag": value == "file", "key_storage_at": (d or {}).get("key_storage_at")}
+
 
 
 @route("GET", r"/devices")
@@ -434,7 +449,7 @@ def devices(ctx):
     last used for and from where; plus the browsers staff opened tools from in the portal."""
     db = ctx.db
     now = time.time()
-    keys = db.q(f"SELECT {KEY_COLUMNS} FROM keys k JOIN people p ON p.id = k.person_id"
+    keys = db.q(f"SELECT {KEY_COLUMNS} FROM keys k JOIN people p ON p.id = k.person_id WHERE {HIDDEN_KEYS}"
                 " ORDER BY k.revoked IS NOT NULL, COALESCE(k.last_used, k.created) DESC")
     stats = {r["key_id"]: r for r in db.q(
         "SELECT key_id, COUNT(*) AS requests, COALESCE(SUM(cost), 0) AS cost, COUNT(DISTINCT client_ip) AS ips"
@@ -451,16 +466,18 @@ def devices(ctx):
                           place=ip_kind(l.get("client_ip")) if l.get("client_ip") else None,
                           requests_30d=s.get("requests", 0), cost_30d=s.get("cost", 0.0), ips_30d=s.get("ips", 0)))
     # devices enrolled through the Swangz app carry facts the user agent can't give: app version, what is installed
-    enrolled = {r["key_id"]: r for r in db.q("SELECT * FROM devices")}
+    enrolled = {r["device_id"]: r for r in db.q("SELECT * FROM devices")}
     for item in items:
-        d = enrolled.get(item["id"])
+        d = enrolled.get(item["device_id"]) if item.get("device_id") else None
         if d:
+            item.update(key_storage_report(d))
             try:
                 installed = json.loads(d["packages_json"] or "[]")
             except ValueError:
                 installed = []
             item.update(app_version=d["app_version"] or None, owner_kind=d["owner_kind"], enrolled=d["enrolled"],
-                        last_seen=d["last_seen"], packages=installed, os=item["os"] or d["os"] or None)
+                        last_seen=d["last_seen"], packages=installed, os=item["os"] or d["os"] or None,
+                        key_rotations=d["rotations"], key_issued=d["key_issued"])
     browsers = {}
     for r in db.q("SELECT l.person_id, p.name, l.user_agent, l.ip, MAX(l.ts) AS last, COUNT(*) AS opens FROM launches l"
                   " JOIN people p ON p.id = l.person_id WHERE l.ts >= ? GROUP BY l.person_id, l.user_agent", (now - 90 * DAY,)):
@@ -856,7 +873,7 @@ def security_events(ctx, days):
                        "ip": r["ip"] or None, "place": ip_kind(r["ip"]), "href": "#/audit?q=failed%20sign-in",
                        "evidence": "Sign-in is throttled after repeated failures from one address."})
     for r in db.q("SELECT k.id, k.label, k.revoked, k.revoked_by, p.name AS person, k.person_id FROM keys k"
-                  " JOIN people p ON p.id = k.person_id WHERE k.revoked >= ? ORDER BY k.revoked DESC LIMIT 50", (since,)):
+                  " JOIN people p ON p.id = k.person_id WHERE k.revoked >= ? AND " + HIDDEN_KEYS + " ORDER BY k.revoked DESC LIMIT 50", (since,)):
         by_self = r["revoked_by"] == "self"
         events.append({"type": "revoked", "severity": "info", "ts": r["revoked"], "person_id": r["person_id"],
                        "person": r["person"], "title": "Key revoked",

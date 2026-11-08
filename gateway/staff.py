@@ -13,7 +13,7 @@ import ssl
 import time
 from urllib.parse import quote, unquote
 
-from . import guides, parse, proxy, security, store
+from . import credentials, guides, parse, proxy, security, store
 from .admin import ApiError, Ctx
 
 COOKIE = "sgw_staff"
@@ -204,7 +204,10 @@ def me(ctx):
     report_pending = reporting.pending(ctx.gw, p["id"])
     reports_by_tool = {r["tool_id"]: r for r in report_pending}
     day, month = proxy.period_starts(time.time(), ctx.gw.settings.tz_offset_minutes)
+    # a key replaced by rotation is not a device of its own: show the device once, by its current key
     keys = ctx.db.q("SELECT id, label, hint, created, last_used, revoked FROM keys WHERE person_id = ?"
+                    " AND COALESCE(revoked_by, '') NOT IN ('system: rotated', 'system: reissued')"
+                    " AND NOT (rotated_from IS NOT NULL AND confirmed IS NULL)"
                     " ORDER BY revoked IS NOT NULL, created DESC", (p["id"],))
     # which app each device is used with (Claude Code, Codex…) — the device's identity, never its activity
     apps = {r["key_id"]: r["client"] for r in ctx.db.q(
@@ -585,7 +588,7 @@ def add_key(ctx):
         raise ApiError(403, "Your access is paused. Talk to your admin.")
     if not _self_keys_allowed(ctx):
         raise ApiError(403, "Ask your admin to connect a new device for you.")
-    if ctx.db.scalar("SELECT COUNT(*) FROM keys WHERE person_id = ? AND revoked IS NULL", (p["id"],)) >= 10:
+    if credentials.active_device_count(ctx.db, p["id"]) >= 10:
         raise ApiError(400, "You have ten devices connected. Disconnect one you no longer use first.")
     from . import reporting
     scope = reporting.key_scope(ctx.db, p, ctx.body.get("tool_id"))
@@ -603,11 +606,11 @@ def revoke_key(ctx, kid):
     row = ctx.db.one("SELECT * FROM keys WHERE id = ? AND person_id = ?", (kid, ctx.person["id"]))
     if not row:
         raise ApiError(404, "No such device.")
-    if not row["revoked"]:
-        ctx.db.x("UPDATE keys SET revoked = ?, revoked_by = ? WHERE id = ?", (time.time(), "self", kid))
-        ctx.gw.live.cut("this device was disconnected.", key_id=kid)
+    ids, _ = credentials.revoke_device_keys(ctx.db, ctx.gw.live, kid, "self")  # every key of a device mid-rotation, not just this one
+    if ids:
         ctx.gw.audit(ctx.person["name"], "disconnected a device (revoked own key)", ctx.person["name"],
-                     f"{row['label']} ({row['hint']})", ctx.ip)
+                     f"{row['label']} ({row['hint']})", ctx.ip, before={"keys": ids} if len(ids) > 1 else None,
+                     correlation=f"device:{row['device_id'] or kid}")
     return {"ok": True}
 
 
