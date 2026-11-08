@@ -1370,3 +1370,21 @@ Stop/checkpoint messages queued via delegate_bot to the three live-roster active
 | #56 staff shell | Prism | feature/exact-staff-shell-v2 | review/HOLD | Already reported clean/pushed at 77fa893; await final acceptance next shift. |
 
 Arnold decisions: none identified. WIP parking acknowledgements pending, not claimed complete. Chief tests Not run: coordination-only checkpoint, shift-end explicitly prohibits test runs. Network outage blocks fresh GitHub count and may block checkpoint push; record actual push result separately. No production access, deploy, release or rest-period work started.
+
+
+## Shift start — 2026-11-08 16:00 Africa/Kampala
+
+Goal: unblock exact-match drafts, then deliver independent PR-sized slices; target three new PRs. Read team/log board, project instructions/STATE, all-branch five-hour history and live open PRs. No WIP head found in recent history. Root untracked files preserved.
+
+| Task | Owner | Branch | Status | Next step |
+| --- | --- | --- | --- | --- |
+| #57 browser CI repair | Forge | feature/exact-signin-v2, existing isolated worktree | doing | Accepted handoff; inspect browser FAILURE run42473838524/job128710630998 at5d184f6, targeted repair and batch push existing draft. Python3.10/3.12/app-window green; no readiness. |
+| Staff phone shell, one new draft | Prism | feature/exact-staff-phone, separate worktree from77fa893 | todo | Accepted handoff; CSS-only isolated phone pass, overlays/axe/desktop nonregression; no shared files with Forge. #56 frozen for QA unless defect requires owner correction. |
+| Sign-in review lows, next new draft | Forge | feature/signin-review-lows, separate worktree after57 repair | todo | Queue alpha contrast/staff skip/CLS filter/hung-abort regression; Sentinel G2 first for critical scope. |
+| Staff liquid footer, queued new draft | Prism | feature/exact-staff-footer, separate worktree | todo | Queue after phone; Chief releases third-new-build slot to first available builder; maximum three new builds total. |
+| Hung/abort standalone coverage, alternate queue | Forge | feature/signin-options-regressions | todo | Only if excluded from lows and Chief allocates third slot; never duplicate tests or start fourth build. |
+| #56 final acceptance then #57 renewed acceptance | Probe | existing heads read-only | review | Accepted handoff:56 77fa893 all4Actions SUCCESS but clipping-only VERIFIED/overall HOLD. Resume section10 overlays/axe/CLS/perf;57 finalhead after repair. |
+| #57 critical delta; followup G2 | Sentinel | existing57/read-only | review | Accepted handoff: review699ed41→5d184f6 and any repair; old approval invalid for currenthead. Give bounded followup G2. |
+| Older drafts/stacked PRs | respective owners | existing branches | review | Waiting renewed current-main exact-head evidence; no candidate proven to satisfy all gates. Old visual drafts remain section10 HOLD. |
+
+Merged this shift: none. Ready: none; no PR proven eligible. #56 mergeability UNKNOWN; #57 browser red. No Arnold decision identified. Delegations accepted/queued, execution begins after Chief turn; no build/review completion claimed. Chief tests Not run: coordination documents only. No production access, deployment or release.
