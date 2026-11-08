@@ -29,3 +29,10 @@ UI and headings use **Plus Jakarta Sans**, a geometric face selected after Arnol
 
 The two HTML preload links follow the replacement font. Archivo's existing file
 is retained for older cached pages. No library or font-loading script is added.
+
+**Poppins** (console + staff app) and **Inter** (sign-in), 8 Nov 2026, BRIEF §10.5 — replacing Plus Jakarta Sans.
+- Poppins 400/500/600/700/800, latin WOFF2 from Google Fonts v24 (`Poppins-<weight>-latin.woff2`, ~8 KB each). Copyright 2020
+  The Poppins Project Authors (Indian Type Foundry). Licence SIL OFL 1.1, text in `fonts/Poppins-OFL.txt`.
+- Inter variable 400–800, latin WOFF2 from Google Fonts v20 (`Inter-latin.woff2`, 48,256 bytes). Copyright 2020 The Inter
+  Project Authors (Rasmus Andersson). Licence SIL OFL 1.1, text in `fonts/Inter-OFL.txt`.
+- Self-hosted (strict CSP, no font requests to Google at runtime).

@@ -599,17 +599,22 @@
     const code = new URLSearchParams(location.search).get("auth_error");
     if (code) history.replaceState(null, "", location.pathname + location.hash);
     const err = el("div", { class: "err", role: "alert" }, code ? (AUTH_ERRORS[code] || "Sign-in didn't work. Try again.") : "");
-    const google = el("div", { class: "google-box" });
-    if (!GATEWAY) {
-      fetch("/auth/options", { credentials: "include" }).then((r) => (r.ok ? r.json() : {})).then((opt) => {
-        if (opt.google) google.append(el("a", { class: "btn google", href: "/auth/google/start?app=admin" }, googleMark(), "Continue with Google"),
-          el("div", { class: "or" }, el("span", null, "or with your account email")));
-      }).catch(() => { /* no Google button */ });
-    }
-    const user = el("input", { type: "email", placeholder: "name@swangzavenue.com", autocomplete: "username", required: true, id: "si-user" });
-    const pass = el("input", { type: "password", autocomplete: "current-password", required: true, id: "si-pass" });
-    const go = el("button", { class: "btn primary block", type: "submit" }, "Sign in");
+    const googleBox = () => {
+      const box = el("div", { class: "google-box" });
+      if (!GATEWAY) {
+        fetch("/auth/options", { credentials: "include" }).then((r) => (r.ok ? r.json() : {})).then((opt) => {
+          if (opt.google) box.append(el("a", { class: "btn google", href: "/auth/google/start?app=admin" }, googleMark(), "Continue with Google"),
+            el("div", { class: "or" }, el("span", null, "or with your account email")));
+        }).catch(() => { /* no Google button */ });
+      }
+      return box;
+    };
+    const user = el("input", { type: "email", placeholder: "Console email", autocomplete: "username", required: true, id: "si-user" });
+    const pass = el("input", { type: "password", placeholder: "Password", autocomplete: "current-password", required: true, id: "si-pass" });
+    const go = el("button", { class: "xg-primary", type: "submit" }, "Login");
+    let gate;
     const form = el("form", {
+      class: "xg-fields",
       onsubmit: async (e) => {
         e.preventDefault();
         go.disabled = true;
@@ -624,16 +629,21 @@
         }
       },
     },
-    el("div", { class: "signin-brand" }, el("img", { src: "/static/icon.svg", alt: "", width: 40, height: 40 }),
-      el("div", null, el("div", { class: "eyebrow" }, "Swangz AI Hub"), el("h1", null, "Control room"))),
-    el("p", { class: "muted" }, "Mission control for company AI: who is using what, what it costs, and the switches to govern it."),
-    google,
-    el("label", { class: "field", for: "si-user" }, "Email address", user),
-    el("label", { class: "field", for: "si-pass" }, "Password", pass),
+    SUI.xfield("user", "Email address", user),
+    SUI.xfield("lock", "Password", pass, SUI.eyeToggle(pass)),
     err, go,
-    el("p", { class: "hint" }, "Console users only. Staff sign in to Swangz AI Hub at the main address."));
-    app.replaceChildren(el("main", { class: "signin" }, el("div", { class: "signin-card" }, form),
-      el("div", { class: "signin-foot" }, SUI.themeButton())));
+    el("p", { class: "xg-links" }, "Not a console user? ", el("button", { type: "button", class: "xg-link", onclick: () => gate.swap("b") }, "Get access")));
+    gate = SUI.splitGate({
+      brand: el("a", { class: "xg-brand", href: "/admin" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz ", el("b", null, "AI Hub"), el("small", null, "Control room")),
+      a: { title: "Login", body: [googleBox(), form], focus: user },
+      b: { title: "Get access", body: [el("div", { class: "xg-fields" },
+        el("p", { class: "xg-note" }, "The control room is for console users only: an owner adds you under Settings → Console users, with your Google email as the username."),
+        el("p", { class: "xg-note" }, "Staff sign in to Swangz AI Hub at the main address."),
+        el("a", { class: "xg-primary", href: "/" }, "Go to Swangz AI Hub"))] },
+      helloA: { h: "HELLO,\nFRIEND!", p: "Mission control for company AI: who is using what, what it costs, and the switches to govern it.", btn: "Get access" },
+      helloB: { h: "WELCOME\nBACK!", p: "Already a console user? Please login with your credentials.", btn: "Sign In" },
+    });
+    app.replaceChildren(gate.node);
     user.focus();
   }
 
@@ -769,7 +779,32 @@
   function foldedGroups() {
     try { return new Set(JSON.parse(localStorage.getItem(NAV_KEY) || JSON.stringify(NAV.map(g => g[0])))); } catch (e) { return new Set(NAV.map(g => g[0])); }
   }
+  /* The reference rail (BRIEF §10.3): a slim floating pill, brand square, nine page icons, an
+     "All pages" icon for everything else (the labelled drawer), Help and Settings at the foot. */
+  const RAIL = [["#/", "Overview", "overview"], ["#/live", "Live", "live"], ["#/attention", "Needs attention", "attention"],
+    ["#/activity", "Activity", "activity"], ["#/people", "People", "people"], ["#/requests", "Access requests", "requests"],
+    ["#/tools", "Tools", "tools"], ["#/licences", "Licences & spend", "licences"], ["#/security", "Security", "shield"]];
+  function exactRail(active) {
+    const link = (href, label, ic) => {
+      const count = navCounts(href);
+      return el("a", { href, class: href === active ? "on" : null, "aria-current": href === active ? "page" : null,
+        "aria-label": label + (count ? ", " + count.getAttribute("aria-label") : ""), "data-tip": label }, icon(ic), count);
+    };
+    const elsewhere = !RAIL.some(([href]) => href === active) && active !== "#/settings";
+    const nav = el("nav", { class: "nav", "aria-label": "Control room", onkeydown: navKeys },
+      RAIL.map(([href, label, ic]) => link(href, label, ic)),
+      el("button", { type: "button", class: "rail-all" + (elsewhere ? " on" : ""), "aria-label": "All pages", "aria-haspopup": "dialog", "data-tip": "All pages",
+        onclick: () => openDrawer(active) }, icon("menu")));
+    return el("aside", { class: "side compact exact-rail", onfocusin: railTip, onpointerover: railTip },
+      el("a", { class: "brand", href: "#/", "aria-label": "Swangz AI Hub overview", "data-tip": "Swangz AI Hub" }, el("img", { src: "/static/icon.svg", alt: "" })),
+      nav,
+      el("nav", { class: "rail-foot nav", "aria-label": "Help and settings", onkeydown: navKeys },
+        el("a", { href: "/#/privacy", target: "_blank", rel: "noopener", "aria-label": "Help (opens in a new tab)", "data-tip": "Help" }, icon("info")),
+        link("#/settings", "Settings", "settings")));
+  }
+
   function sidebar(active, onNavigate, drawer = false) {
+    if (!drawer) return exactRail(active);
     const labelled = drawer || navLabels();
     const folded = foldedGroups();
     const groupCount = links => {
@@ -867,6 +902,53 @@
     });
   }
 
+  const PAGE_EMOJI = { "#/": "👋", "#/live": "⚡", "#/attention": "⚠️", "#/activity": "🕒", "#/health": "💚", "#/people": "👥",
+    "#/requests": "📥", "#/tools": "🧰", "#/models": "🧠", "#/policies": "📜", "#/weekly": "🗓️", "#/business": "💼", "#/procurement": "🛒",
+    "#/licences": "💳", "#/reports": "📊", "#/security": "🛡️", "#/incidents": "🚩", "#/devices": "💻", "#/audit": "🧾", "#/settings": "⚙️" };
+
+  /* Small anchored menus for the top bar's New and account buttons. */
+  function popMenu(anchor, items) {
+    document.querySelectorAll(".pop-menu").forEach((n) => n.remove());
+    const r = anchor.getBoundingClientRect();
+    const close = () => { menu.remove(); document.removeEventListener("pointerdown", outside, true); document.removeEventListener("keydown", key); anchor.setAttribute("aria-expanded", "false"); };
+    const menu = el("div", { class: "pop-menu", role: "menu" },
+      items.filter(Boolean).map((it) => it.sep ? el("div", { class: "pop-sep", role: "separator" }) :
+        el(it.href ? "a" : "button", { role: "menuitem", class: it.danger ? "danger" : null, href: it.href || null, type: it.href ? null : "button",
+          onclick: () => { close(); if (it.run) it.run(); } }, icon(it.icon), el("span", null, it.label))));
+    const outside = (e) => { if (!menu.contains(e.target) && !anchor.contains(e.target)) close(); };
+    const key = (e) => { if (e.key === "Escape") { close(); anchor.focus(); }
+      if (["ArrowDown", "ArrowUp"].includes(e.key)) { e.preventDefault(); const xs = [...menu.querySelectorAll("[role=menuitem]")]; const i = xs.indexOf(document.activeElement);
+        xs[(i + (e.key === "ArrowDown" ? 1 : -1) + xs.length) % xs.length].focus(); } };
+    menu.style.top = Math.round(r.bottom + 8) + "px"; menu.style.right = Math.round(innerWidth - r.right) + "px";   // CSSOM: the CSP refuses style attributes
+    document.body.append(menu); anchor.setAttribute("aria-expanded", "true");
+    document.addEventListener("pointerdown", outside, true); document.addEventListener("keydown", key);
+    menu.querySelector("[role=menuitem]")?.focus();
+  }
+  function newMenu(anchor) {
+    popMenu(anchor, [
+      can("govern") ? { label: "Add a person", icon: "user", href: "#/people?add=1" } : null,
+      can("govern") ? { label: "Add a tool", icon: "tools", href: "#/tools?add=1" } : null,
+      can("govern") ? { label: "Add a policy", icon: "rule", href: "#/policies?add=1" } : null,
+      can("trust") ? { label: "Open an incident", icon: "flag", href: "#/incidents?add=1" } : null,
+      { label: "Search everything", icon: "search", run: () => openCommand() },
+    ]);
+  }
+  function accountMenu(anchor) {
+    const paused = S.overview && S.overview.paused;
+    popMenu(anchor, [
+      { label: "Your account", icon: "user", href: "#/settings?tab=account" },
+      { label: SUI.theme() === "dark" ? "Daylight theme" : "Evening theme", icon: SUI.theme() === "dark" ? "sun" : "moon", run: () => { SUI.applyTheme(SUI.theme() === "dark" ? "light" : "dark", true); render(); } },
+      can("emergency") ? { sep: true } : null,
+      can("emergency") ? (paused ? { label: "Resume AI access", icon: "play", run: () => setPaused(false) } : { label: "Stop all AI", icon: "stop", danger: true, run: () => setPaused(true) }) : null,
+      { sep: true },
+      { label: "Sign out", icon: "logout", run: signOut },
+    ]);
+  }
+  function firstName() {
+    const local = String(S.me.username || "").split("@")[0].split(/[._-]/)[0].replace(/\d+$/, "");
+    return local ? local[0].toUpperCase() + local.slice(1) : "there";
+  }
+
   /* Every page sits in the same frame: the sidebar (a drawer on phones), then a header saying where
      you are, why the page exists, and what you can do here. */
   function frame(o, content) {
@@ -880,34 +962,38 @@
     const banner = paused ? el("div", { class: "banner", role: "alert" }, icon("stop"),
       el("span", null, el("strong", null, "AI access is paused for everyone. "), "Requests and tool launches are refused until an owner resumes."),
       can("emergency") ? el("button", { class: "btn small primary", onclick: () => setPaused(false) }, "Resume access") : null) : null;
-    const clockText = el("span");
-    const clock = el("time", { class: "console-clock" }, icon("clock"), clockText);
+    // The reference top bar (BRIEF §10.3): workspace pill › breadcrumb, centred search, then New, clock, bell, you.
+    const clockTime = el("strong"), clockDate = el("small");
+    const clock = el("time", { class: "console-clock" }, clockTime, clockDate);
     const tickClock = () => {
       const now = Date.now() / 1000;
-      clockText.textContent = fmt.clock(now);
+      clockTime.textContent = fmt.clock(now);
+      clockDate.textContent = new Date(now * 1000).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
       clock.dateTime = new Date(now * 1000).toISOString();
       clock.title = "Current time · " + SUI.tzLabel();
-      clock.setAttribute("aria-label", clockText.textContent + " · " + SUI.tzLabel());
+      clock.setAttribute("aria-label", clockTime.textContent + " · " + SUI.tzLabel());
     };
     tickClock();
     if (o.title) every(15000, () => { if (clock.isConnected) tickClock(); });
-    const area = NAV.find(([, links]) => links.some(([href]) => href === active))?.[0] || "Control room";
+    const place = NAV.map(([group, links]) => ({ group, item: links.find(([href]) => href === active) })).find((x) => x.item);
+    const pageName = place ? place.item[1] : (o.crumbTitle || o.title || "Control room");
     const appbar = el("header", { class: "appbar console-bar", "aria-label": "Control room toolbar" },
       el("div", { class: "console-context" },
-        el("button", { class: "console-workspace", type: "button", "aria-label": "Open navigation", "aria-haspopup": "dialog", onclick: () => openDrawer(active) },
-          el("img", { src: "/static/icon.svg", alt: "" }), el("span", null, "Swangz AI Hub"), icon("chevronDown")),
-        el("span", { class: "console-area", "aria-hidden": "true" }, area)),
+        el("button", { class: "console-workspace", type: "button", "aria-label": "All pages", "aria-haspopup": "dialog", onclick: () => openDrawer(active) },
+          el("span", { class: "ws-mark" }, el("img", { src: "/static/icon.svg", alt: "" })),
+          el("span", { class: "ws-id" }, el("strong", null, "Swangz AI Hub"), el("small", null, "Control room")), icon("chevronDown")),
+        el("nav", { class: "console-area", "aria-label": "You are here" }, icon("chevronRight"),
+          [].concat(o.crumbs || []).filter(Boolean).map((c) => [c, icon("chevronRight")]), el("span", null, pageName))),
       el("button", { class: "console-search", type: "button", "aria-label": "Search", onclick: () => openCommand() }, icon("search"),
         el("span", null, "Search pages, people, tools…"), el("span", { class: "u-kbd", "aria-hidden": "true" }, /Mac/.test(navigator.platform || "") ? "⌘K" : "Ctrl K")),
-      el("div", { class: "console-tools" }, clock, bell(),
-        el("a", { class: "console-account", href: "#/settings?tab=account", "aria-label": "Your account: " + S.me.username, "data-tip": S.me.username }, SUI.avatar(S.me.username))));
-    // Where you are: the area, then the pages above this one — never the page's own title again.
-    const place = NAV.map(([group, links]) => ({ group, item: links.find(([href]) => href === active) })).find((x) => x.item);
-    const trail = [place ? el("span", { class: "crumb-area" }, place.group) : null, ...[].concat(o.crumbs || []).filter(Boolean)].filter(Boolean);
-    const crumbs = trail.length ? el("nav", { class: "crumbs" + (o.crumbs ? "" : " area-only"), "aria-label": "You are here" },
-      trail.map((c, i) => [c, i < trail.length - 1 ? el("span", { class: "sep", "aria-hidden": "true" }, "/") : null])) : null;
-    const top = el("header", { class: "top" }, crumbs,
-      el("div", { class: "title-row" }, o.lead || null, el("h1", null, o.title), o.status || null),
+      el("div", { class: "console-tools" },
+        el("button", { class: "console-new", type: "button", "aria-haspopup": "menu", onclick: (e) => newMenu(e.currentTarget) }, icon("plus"), el("span", null, "New")),
+        clock, bell(),
+        el("button", { class: "console-account", type: "button", "aria-haspopup": "menu", "aria-label": "Your account: " + S.me.username, "data-tip": S.me.username,
+          onclick: (e) => accountMenu(e.currentTarget) }, SUI.avatar(S.me.username), el("i", { class: "presence", "aria-hidden": "true" }))));
+    // The page header: a big title with its emoji, one quiet line under it, actions on the same line at the right.
+    const top = el("header", { class: "top" },
+      el("div", { class: "title-row" }, o.lead || null, el("h1", null, o.title, PAGE_EMOJI[active] ? el("span", { class: "title-emoji", "aria-hidden": "true" }, PAGE_EMOJI[active]) : null), o.status || null),
       o.actions ? el("div", { class: "top-actions" }, o.actions) : null,
       o.lede ? el("p", { class: "lede" }, o.lede) : null);
     const routeSlug = (section === "#/" ? "overview" : section.slice(2)).replace(/[^a-z0-9-]/gi, "-");
@@ -1089,7 +1175,7 @@
     purposeChip, purposeIndex, purposeName, PURPOSE_SOURCE, refreshNotes, NOTE_SEV,
     toolIndex, toolFor, toolLogo, toolLink, personLink, deviceLink, where, actionsList, ACTION, outcomeStatus, flagBadges, agentBadges,
     totalTokens, units, reqEvent, eventItem, eventDays, launchList, rangeFrom, rangeQuery, keepParams, frame, render, page, setDirty, confirmLeave, isDirty,
-    setPaused, refreshOverview, refreshAttention, openCommand,
+    setPaused, refreshOverview, refreshAttention, openCommand, firstName,
   };
 
   document.addEventListener("DOMContentLoaded", () => {

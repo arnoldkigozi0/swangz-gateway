@@ -942,11 +942,44 @@
     return show;
   }
 
+  /* The reference sign-in (BRIEF §10.3, login-02/05): one glass card split by a slanted seam. One side holds a form,
+     the other a big uppercase greeting with a ghost pill; the pill swaps the two sides with a slide. The Hub has no
+     self sign-up, so the second mode is "how to get access" rather than "create account".
+     o: { a: {title, body:[nodes], focus}, b: {title, body:[nodes]}, helloA: {h, p, btn}, helloB: {h, p, btn}, brand } */
+  function splitGate(o) {
+    const card = el("div", { class: "xgate-card", "data-mode": "a" });
+    const hello = (h, which) => el("section", { class: "xg-hello xg-hello-" + which },
+      el("h2", { class: "xg-big" }, h.h.split("\n").map((l, i) => [i ? el("br") : null, l])), el("p", null, h.p),
+      el("button", { class: "xg-ghost", type: "button", onclick: () => swap(which === "a" ? "b" : "a") }, h.btn, " →"));
+    const pane = (x, which) => el("section", { class: "xg-form xg-form-" + which }, el("h2", { class: "xg-title" }, x.title), x.body);
+    const parts = { formA: pane(o.a, "a"), formB: pane(o.b, "b"), helloA: hello(o.helloA, "a"), helloB: hello(o.helloB, "b") };
+    function swap(mode) {
+      card.dataset.mode = mode;
+      const on = mode === "a" ? [parts.formA, parts.helloA] : [parts.formB, parts.helloB];
+      Object.values(parts).forEach((n) => { const vis = on.includes(n); n.inert = !vis; n.setAttribute("aria-hidden", vis ? "false" : "true"); });
+      const f = (mode === "a" ? o.a.focus : o.b.focus) || (mode === "a" ? parts.formA : parts.formB).querySelector("input,button,a");
+      if (f) setTimeout(() => f.focus({ preventScroll: true }), calmMotion() ? 320 : 0);
+    }
+    card.append(el("div", { class: "xg-pane xg-pane-form", "aria-hidden": "true" }), el("div", { class: "xg-pane xg-pane-hello", "aria-hidden": "true" }),
+      parts.formA, parts.helloA, parts.formB, parts.helloB);
+    swap("a");
+    return { node: el("main", { class: "xgate" }, o.brand || null, card, o.foot || null), swap };
+  }
+  function eyeToggle(input) {
+    const b = el("button", { type: "button", class: "xg-eye", "aria-label": "Show password", "aria-pressed": "false", onclick: () => {
+      const shown = input.type === "text"; input.type = shown ? "password" : "text";
+      b.setAttribute("aria-pressed", shown ? "false" : "true"); b.setAttribute("aria-label", shown ? "Show password" : "Hide password"); } }, icon("eye"));
+    return b;
+  }
+  function xfield(iconName, label, input, extra) {
+    return el("label", { class: "xfield" }, icon(iconName), el("span", { class: "u-sr" }, label), input, extra || null);
+  }
+
   window.SUI = {
     el, s, icon, ICONS, theme, applyTheme, themeButton,
     tz, setGatewayOffset, setTzMode, tzLabel, startOfDay, startOfMonth, dateInput, fromDateInput, presetRange, fmt,
     initials, plural, debounce, gateway, avatar, logo, status, badge, delta, evidence,
     skeleton, stateBox, errorBox, load, toast, copy, showTip, hideTip, infoTip,
-    columns, line, sparkline, barList, table, segmented, searchPill, progress, star, listPanel, rangeControl, trapFocus, commandMenu,
+    columns, line, sparkline, barList, table, segmented, searchPill, progress, star, listPanel, rangeControl, trapFocus, commandMenu, splitGate, xfield, eyeToggle,
   };
 })();

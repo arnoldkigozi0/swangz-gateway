@@ -190,13 +190,38 @@ re-checked against this section in **R15** (below), not re-opened one by one.
 | Delta up / down | `#7BC47F` on `rgba(123,196,127,.16)` / `#F07A7A` on `rgba(240,122,122,.16)` | always with the word |
 | Presence / status | `#3DDC84` | avatar dot, "All systems normal" |
 
-### 10.5 Typography
-The dashboard reference uses a geometric sans (Poppins-like); the login reference uses a neo-grotesque
-(Inter-like). Plus Jakarta Sans (§9) stays for now; sizes and weights in 10.3 are what must match. If Arnold asks
-for an exact font match, the swap is Poppins (OFL) for the console/staff app and Inter (OFL) for sign-in — one PR.
+### 10.5 Typography — DECIDED (Arnold, 8 Nov: "make everything exact")
+**Poppins** (OFL) for the console and staff app, **Inter** (OFL) for sign-in, replacing Plus Jakarta Sans. Self-hosted
+latin woff2 files are already in `gateway/static/fonts/` on the WIP branch (see 10.7) with their `*-OFL.txt`.
 
 ### 10.6 New round
 **R15 — exact-match pass** (after the open drafts merge): switch the scene to `room-warm.webp` with the §10.3 scrim,
 re-balance contrast for it (raise panel opacity locally where text fails, never the scrim back to .78), bring the
 rail and top bar to §10.3, and re-shoot R1–R7 against the stills with overlays. Then R10 (sign-in) and R11
 (footer) are reviewed against 10.3 before they merge.
+
+### 10.7 Decisions, 8 Nov 2026 (later) — Arnold: "make everything exact, drop the un-required"
+- **Who builds:** the OpenMaus team builds all of it. Claude only writes this brief and reviews against §10.
+- **Accent:** the reference's amber-orange everywhere the reference uses it (`--accent-pill`, §10.4). Gold only for
+  warnings. **Fonts:** §10.5.
+- **Drop the un-required:** anything on a screen that the reference does not have is removed *from that screen* —
+  not from the product. It stays reachable through the "All pages" drawer, the ⌘K menu or the avatar menu. Concretely:
+  - Rail: brand square + **9 page icons** (Overview, Live, Needs attention, Activity, People, Access requests, Tools,
+    Licences & spend, Security) + an **All pages** icon; Help + Settings at the foot. No labels toggle, no search/bell in
+    the rail, no "All pages"/"More" words, no group buttons, no emergency block, no account block in the rail.
+  - Theme switch, Sign out and **Stop all AI / Resume** move to the **avatar menu** in the top bar (emergency also stays in
+    ⌘K and Settings → Emergency — it must never become unreachable).
+  - Page header: no eyebrow/area crumb line; title + emoji, one 11px line, actions right. Breadcrumb lives in the top bar.
+  - Overview = dashboard-02 exactly: "Hello, <name>! 👋", 4 KPI cards (AI spend [amber], AI requests, Active people,
+    Security events), tube chart "AI usage" (8 days) left, two count cards (need attention · live requests), donut
+    "Uses by tool" with legend. The old Right now / Trends / Top tools / Licences tabs leave the Overview (each already
+    has its own page).
+  - Sign-in (both apps) = the split card only: no side art, no feature bullets, no "Swangz Avenue · Company access only"
+    footer. Mode A "Login" (underline fields with icons, eye toggle, Login pill, Google button when configured) ↔ mode B
+    "Get access" (no self sign-up exists: explains admin-made accounts); greeting panel "HELLO, FRIEND!" ↔ "WELCOME BACK!".
+  - Background: control room + staff app on `room-warm.webp`, scrim ≈ .16–.34; sign-in on `login-welcome.webp`.
+- **Starting point (WIP, not reviewed, not tested):** branch `design/exact-match-brief` (PR #53, draft) carries a first pass
+  by Claude: `static/exact.css` (tokens, rail, top bar, header, KPI/stat/donut, pop menus), `exactRail()` + top bar +
+  `popMenu/newMenu/accountMenu` in `admin.js`, the rebuilt Overview in `admin-monitor.js`, `SUI.splitGate/xfield/eyeToggle`
+  in `ui.js`, and both sign-ins switched to it — **the sign-in CSS is not written yet** and the browser suites have not
+  been re-run. Take it, finish it, or replace it; it must pass the full test suites and the §10.2 check before merge.
