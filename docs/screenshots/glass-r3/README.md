@@ -1,7 +1,8 @@
 # Glass R3 — floating control-room toolbar
 
-Dependency: draft PR #42, exact `4f6cf7e5cb5fae63b1642e9e30f5766ecbb6e5f5`.
-Branch `feature/glass-r3` starts there. Against that dependency, product edits are
+Dependency: draft PR #42, exact `d31bfe81ba28736cc70d00b27accda4e9307f1d5`.
+Branch `feature/glass-r3` originally started at `4f6cf7e`; the corrected dependency
+and main `7ce5407` are now normally integrated. Against that dependency, product edits are
 limited to the header construction in `admin.js` and header-only selectors in
 `admin.css`. Against main, the PR also contains inherited R2 navigation until
 #42 merges. No shared UI, portal, authentication, backend or dependency changes.
@@ -63,3 +64,17 @@ notification delivery outside the fake fixture, or analytical contrast bounds
 for inherited avatar/badge/icon styles. Chrome DevTools, Motion and mounted browser
 actions were unavailable; the existing supported Playwright harness was used.
 Independent QA and new-head CI remain pending. Nothing deployed or merged.
+
+
+## Corrected dependency integration — 8 November
+
+Integrated clean, pushed PR42 head `d31bfe8`, including main `7ce5407`. Only
+`docs/AGENT-PROGRESS.md` had an append conflict; both full records were retained.
+No product/test conflict resolution. Admin CSS/JS are byte-identical to R3
+`b5986c6`; shared ui.css/ui.js were not edited. The inherited CI test correction
+waits for real finite theme transitions/fonts before existing axe assertions.
+No rules, thresholds or assertions were removed.
+
+Integrated-tree results: `UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules node docs/screenshots/glass-r3/check.cjs`: `PASS 63 header checks; 4 screenshots; 4 axe scans`, exit0. `NODE_PATH=<same tooling> UI_WIDTH=1440 UI_THEME=light UI_PAGES_ONLY=1 UI_OUTPUT=/tmp/prism-r48-integrated node tests/browser/check.cjs`: `PASS principal pages 27 interaction assertions; 25 screen checks`, exit0; zero browser errors/axe/unexpected API findings, summary in `integration-regression-results.json`. `python3 -m unittest tests.test_browser_profiles tests.test_portal tests.test_hub`: `Ran 99 tests in 62.813s`, `OK`, exit0 (non-failing fixture socket ResourceWarnings). Syntax:23 JavaScript files checked; eight text contrast bounds min5.64; working/staged whitespace checks passed. All local check processes finished. Full final-head
+Actions/independent exact-head QA remain required; earlier screenshots and
+performance evidence do not establish those gates.

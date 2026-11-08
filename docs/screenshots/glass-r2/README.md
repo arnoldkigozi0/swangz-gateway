@@ -150,3 +150,32 @@ scans`, exit 0; `python3 -m unittest tests.test_browser_profiles tests.test_port
 tests.test_hub`: `Ran 99 tests in 32.501s`, `OK`, exit 0. Fake-fixture socket
 ResourceWarnings remain non-failing. Both working/merge-index whitespace checks
 passed. QA and CI must cover this final refreshed head, not an earlier head.
+
+
+### Browser CI theme-transition diagnosis — 8 November
+
+Inspected actual failed run `42382080869`, browser job `128431709285`, at
+head `4f6cf7e`. Downloaded its synthetic artifact; the failing first
+`light-1440-_` scan named staff Home launch links for Canva, ChatGPT and Claude.
+Summary retained in `ci-failure.json`. Staff portal/shared UI source is identical
+to main and unaffected by R2. The job changes theme immediately before axe.
+
+`ci-contrast.cjs` reproduces the same three links at their native 30ms text
+transition state, freezing time only so axe can inspect independently of CPU
+speed: foreground `#979391` on white measured 3.04:1. The fully settled page
+has zero findings. This is not an authorization/product regression or evidence
+that all transient theme colours meet AA. No product theme styling changed.
+
+The existing browser harness now waits for fonts and real finite theme
+transitions before scans; it neither disables transitions nor excludes rules,
+removes assertions, retries axe, or changes contrast thresholds. Infinite
+animations are excluded from the wait only, not from accessibility scans. The
+initial edit guard detected multiple matching theme setters and aborted without
+writing; a shared helper now covers all four theme-setting call sites.
+
+Normally merged current main `7ce5407` without conflicts. Admin CSS/JS are
+byte-identical to `4f6cf7e`; earlier performance evidence and limitations stand.
+Fresh targeted Python: 99 tests in 60.789s, OK, exit 0; fixture socket
+ResourceWarnings were non-failing. Syntax: 23 JavaScript files checked, exit 0.
+Focused navigation: 75 checks, eight screenshots, six axe scans, exit 0.
+`NODE_PATH=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules UI_WIDTH=1440 UI_THEME=light UI_PAGES_ONLY=1 UI_OUTPUT=/tmp/prism-r42-corrected node tests/browser/check.cjs`: `PASS principal pages 27 interaction assertions; 25 screen checks`, exit0, no browser/axe/unexpected API findings. `ci-regression-results.json` retains the summary. Updated `UI_TOOLING=<same existing R1 tooling> node docs/screenshots/glass-r2/ci-contrast.cjs`: `PASS 3 CI contrast diagnosis checks; native 30ms state fails, settled state passes`, exit0; after reproduction it resumes and awaits real transitions rather than force-finishing them. `git diff --check`: exit0. All local processes finished. Independent exact-head QA and final-head CI pending.

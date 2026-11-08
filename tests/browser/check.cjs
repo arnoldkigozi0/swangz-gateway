@@ -45,6 +45,17 @@ async function go(p, url, route) {
   await p.waitForFunction(() => !document.querySelector('main .u-skel-rows, main .u-skel-cards'));
 }
 async function screenshot(p, name, fullPage = true) { await p.screenshot({ path: path.join(output, name + '.png'), fullPage }); }
+async function setTheme(p, theme) {
+  await p.evaluate(async t => {
+    document.documentElement.dataset.theme = t;
+    localStorage.setItem('swangz-theme', t);
+    await document.fonts.ready;
+    // Wait for the real finite transitions; keep all axe rules enabled.
+    await Promise.all(document.getAnimations()
+      .filter(a => Number.isFinite(a.effect.getComputedTiming().endTime))
+      .map(a => a.finished.catch(() => {})));
+  }, theme);
+}
 async function layout(p, name, axe = false) {
   const metrics = await p.evaluate(() => ({ width: innerWidth, overflow: document.documentElement.scrollWidth > innerWidth + 1,
     buttons: [...document.querySelectorAll('main button, main .btn')].filter(e => {
@@ -117,7 +128,7 @@ async function layout(p, name, axe = false) {
       await ap.setViewportSize({ width, height });
       for (const route of ['/', '/admin']) {
         await ap.goto(url + route); await ready(ap);
-        await ap.evaluate(t => { document.documentElement.dataset.theme = t; localStorage.setItem('swangz-theme', t); }, theme);
+        await setTheme(ap, theme);
         const name = `signin-${theme}-${width}-${route === '/' ? 'staff' : 'admin'}`;
         await layout(ap, name, width === 1440 || width === 390);
         if (width === 1440 || width === 390) await screenshot(ap, name);
@@ -138,7 +149,7 @@ async function layout(p, name, axe = false) {
       await p.setViewportSize({ width, height });
       for (const route of ['/#/requests?view=access', '/admin#/requests', '/admin#/incidents/' + id, '/admin#/sessions/' + session]) {
         await go(p, url, route);
-        await p.evaluate(t => { document.documentElement.dataset.theme = t; localStorage.setItem('swangz-theme', t); }, theme);
+        await setTheme(p, theme);
         const name = `records-${theme}-${width}-${route.replace(/[^a-z0-9]/g, '_')}`;
         await layout(p, name, width === 1440 || width === 390);
         if (width === 1440 || width === 390) await screenshot(p, name);
@@ -178,7 +189,7 @@ async function layout(p, name, axe = false) {
     for (const theme of ['dark', 'light']) for (const [width, height] of [sizes[0], sizes[3], sizes[5]]) {
       await p.setViewportSize({ width, height });
       await p.goto(url + '/'); await ready(p);
-      await p.evaluate(t => { document.documentElement.dataset.theme = t; localStorage.setItem('swangz-theme', t); }, theme);
+      await setTheme(p, theme);
       for (const route of ['/#/devices', '/#/requests', '/#/studio', '/admin#/', '/admin#/activity', `/admin#/people/${person}`, `/admin#/devices/${key}`, '/admin#/licences', '/admin#/policies']) {
         await go(p, url, route);
         const tabs = p.locator('main [role="tablist"]').first();
@@ -341,7 +352,7 @@ async function layout(p, name, axe = false) {
       await p.setViewportSize({ width, height });
       for (const route of routes) {
         await go(p, url, route);
-        await p.evaluate(t => { document.documentElement.dataset.theme = t; localStorage.setItem('swangz-theme', t); }, theme);
+        await setTheme(p, theme);
         const name = `${theme}-${width}-${route.replace(/[^a-z0-9]/g, '_')}`;
         await layout(p, name, width === 1440 || width === 390);
         if (width === 1440 || width === 390) await screenshot(p, name);

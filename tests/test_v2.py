@@ -734,7 +734,8 @@ class V2PermissionTests(V2Base):
                ("DELETE", "/models/x"), ("POST", "/policies"), ("PUT", "/policies/1"), ("PATCH", "/policies/1"),
                ("DELETE", "/policies/1"), ("POST", "/media-rates"), ("DELETE", "/media-rates/1"), ("POST", "/networks"),
                ("PATCH", "/networks/1"), ("DELETE", "/networks/1"), ("POST", "/incidents"), ("PATCH", "/incidents/1"),
-               ("POST", "/incidents/1/notes"), ("POST", "/incidents/1/links"), ("DELETE", "/incidents/1/links/1")]
+               ("POST", "/incidents/1/notes"), ("POST", "/incidents/1/links"), ("DELETE", "/incidents/1/links/1"),
+               ("PUT", "/settings")]
 
     def test_viewers_read_every_v2_page_change_nothing_and_strangers_get_nothing(self):
         rig = self.rig
