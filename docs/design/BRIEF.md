@@ -1,8 +1,12 @@
 # Design brief — "Glass" redesign of Swangz AI Hub
 
 Arnold, 7 Nov 2026: *"This is the exact design I want. They can improve where necessary."*
-The three reference videos are the target look and motion. Match them closely; improve only where this
-brief says so (accessibility, performance, phone layouts, the Hub's real features and data).
+Arnold, 8 Nov 2026: *"My boss said it needs an interface exactly like that."*
+The three reference videos are the target look and motion. **Match them exactly** — same layout, sizes,
+spacing, radii, colours, transparency, type scale and motion. The only allowed differences are the ones listed
+in **§10 Exact match** (our words/data/brand, our licensed photos, and the accessibility, performance and phone
+rules in §7). §10 holds the measured values and the acceptance check every UI PR must pass; where §10 and an
+earlier section disagree, §10 wins.
 
 | Reference | Video | Stills | Becomes |
 |---|---|---|---|
@@ -139,3 +143,60 @@ matching reference still, with one line per difference that remains.
   softly lit interiors like the dashboard and footer references, or dark angular 3D surfaces like the login
   reference. Optimise to WebP ≤ 200 KB, and record each in `docs/design/ASSETS.md` (file, source URL, author,
   licence, date). Never use the reference creator's photos, logos, names or copy.
+
+## 10. Exact match (Arnold, 8 Nov 2026) — this section wins over everything above
+
+"Like the reference" is no longer enough: a reviewer puts the Hub screenshot next to the reference still and
+any difference that is not on the allowed list below is a defect. Rounds already merged (R1–R3, R5, R7) are
+re-checked against this section in **R15** (below), not re-opened one by one.
+
+### 10.1 Allowed differences (the only ones)
+1. **Words, data and brand:** Hub page names, real numbers from real endpoints, the Swangz "S" mark instead of
+   their logo, our names instead of "Lumen CRM" / "Vertix" / "Barbara". Same *positions, sizes and styles* though.
+2. **Photos:** ours, never theirs (§9). The control room and staff app use `static/room-warm.webp`; sign-in keeps
+   `login-welcome.webp` (dark angular, matches the login reference).
+3. **§7 improvements:** contrast ≥ 4.5:1, one blur layer, reduced motion/transparency fallbacks, phone layouts,
+   keyboard and ARIA. When one of these forces a change, the PR says which rule and by how much.
+4. **Features the reference has no room for** (more pages than its 10 rail icons, the Hub's sign-in modes):
+   solved in the reference's visual language, listed in the PR.
+
+### 10.2 Acceptance check (every UI PR)
+- Screenshot at **1440×852** (the stills' frame) dark theme, next to the matching still, plus a **50% overlay**
+  (`docs/screenshots/<task>/overlay-*.png`). Positions and sizes within **±4px**, radii within ±2px.
+- Colour: sample the same points the table below lists; each channel within **±16** of the reference sample
+  (video compression darkens the stills, so the targets below are already corrected — use those, not the jpg).
+- Motion: step the reference video frame by frame (`ffmpeg -ss <t> -i references/video/<file>.mp4 -vf fps=30
+  frames/%03d.png`) and match start, duration and easing of each transition within ±2 frames.
+- One line per remaining difference, each tagged with its §10.1 number. No tag = not mergeable.
+
+### 10.3 Measured layout, 1440×852 (from `dashboard-01/03/05`, `login-02/05`, `footer-04`)
+| Element | Exact values |
+|---|---|
+| **Scene** | Warm, mid-tone room filling the screen (`room-warm.webp`), scrim **rgba(12,10,9,.30–.40)** — not .78. Visible room around and through every panel is the point of the design; the background must read as a room, not as black. |
+| **Rail** | Floating pill x **67–129** (62 wide), y **22–832** (inset 22 top / 20 bottom), radius 31, `rgba(30,26,24,.80)`, 1px rim. Brand square 36×36 at y 30, radius 10. **Icons only, 18px, centres 45px apart** starting y 112; active = solid white circle **36px** with dark icon; badges 14px accent circles at the icon's top-right. Help + Settings at y 758 and 805. No visible words in the collapsed rail ("All pages", "More" become icons with tooltips — §10.1.4). Tooltip: dark pill right of the icon, 11px. |
+| **Top bar** | No bar background. All pills **38px tall**, centre y **38**. Workspace pill x 175–310 (avatar 24px + 2 text lines + chevron) → breadcrumb text x 325 → search pill x **588–933** (345 wide, ⌘K chip at its right) → accent **New** pill x 1082–1165 → clock pill x 1176–1252 (time + date, 2 lines) → bell x 1280 (red count dot) → avatar 36px x 1327 with green presence dot. |
+| **Page header** | Title x **178**, cap height ≈ 18px (24px, weight 600, white) + one emoji; subtitle 11px muted at y 117. Page actions right-aligned, right edge **1343**, centre y 101, pills 34px tall (ghost glass + accent). |
+| **KPI cards** | Row y **140–292** (152 tall), four cards 285 wide, 12px gaps, first at x 173. Radius **18**. Label 11px at (18, 22); arrow-in-circle 24px top-right; value 24px weight 700 bottom-left (baseline y 255); delta chip right of value; "vs last" caption 9px under. First card accent glass, others dark glass `rgba(28,24,22,.52)` — the room must stay visible through them. |
+| **Big panels** | Radius 22, padding 18; eyebrow 9px caps letter-spaced accent; title 15px weight 600; inner KPI groups separated by space, not lines. Segmented pill group (Q1–Q4) with a white selected pill. |
+| **Login card** | Centred, **1150 × ~640**, radius 24. Two panels split by a **slanted seam** (top x ≈ 595 → bottom x ≈ 665, ~6°). Form panel darker (`rgba(20,20,24,.55)`), heading panel lighter (`rgba(70,74,78,.35)`). Heading **40px, weight 800, uppercase, 2 lines**; body 16px. Underline inputs: 1px `rgba(255,255,255,.14)`, focused 2px white; leading 18px icon. Primary button full-width pill **56px**, translucent grey glass, white 16px weight 600; ghost pill 230×54 with 1px rim and "→". Panels swap by sliding (see video), ≈ 600ms ease-in-out. |
+| **Footer** | Milky warm glass panel x 30–1410, radius 28 (`rgba(235,220,205,.55)` over the room). Left: logo + 32px weight 600 two-line heading in near-black, input pill 380×46 with a dark button inside. Right: nested lighter card x 590–1375, y 157–378, radius 20 (`rgba(255,255,255,.30)`), 4 link columns (12px muted heading, 14px links, 28px rows). Bottom row y 434: © + green status dot · icon pill group · Evening switch. Giant cut-out wordmark ≈ 240px tall spanning the width. |
+
+### 10.4 Colour targets (corrected for video compression)
+| Token | Value | Use |
+|---|---|---|
+| `--accent-pill` | `linear-gradient(180deg, #F7AE62, #EE8F3E)`, text `#2A170A` | New, primary page action, selected bar, first KPI card tint — the reference's amber-orange. Keep `--primary` gold for the brand mark only. |
+| `--glass-bg` (dark) | `rgba(28,24,22,.52)` (unchanged) — correct **only** over the room at scrim .30–.40 | KPI cards, panels |
+| Active rail item | `#F2EEEC` circle, icon `#1C1816` | |
+| Delta up / down | `#7BC47F` on `rgba(123,196,127,.16)` / `#F07A7A` on `rgba(240,122,122,.16)` | always with the word |
+| Presence / status | `#3DDC84` | avatar dot, "All systems normal" |
+
+### 10.5 Typography
+The dashboard reference uses a geometric sans (Poppins-like); the login reference uses a neo-grotesque
+(Inter-like). Plus Jakarta Sans (§9) stays for now; sizes and weights in 10.3 are what must match. If Arnold asks
+for an exact font match, the swap is Poppins (OFL) for the console/staff app and Inter (OFL) for sign-in — one PR.
+
+### 10.6 New round
+**R15 — exact-match pass** (after the open drafts merge): switch the scene to `room-warm.webp` with the §10.3 scrim,
+re-balance contrast for it (raise panel opacity locally where text fails, never the scrim back to .78), bring the
+rail and top bar to §10.3, and re-shoot R1–R7 against the stills with overlays. Then R10 (sign-in) and R11
+(footer) are reviewed against 10.3 before they merge.
