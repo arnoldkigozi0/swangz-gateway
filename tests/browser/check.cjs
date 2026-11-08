@@ -45,7 +45,16 @@ async function go(p, url, route) {
   await p.waitForFunction(() => !document.querySelector('main .u-skel-rows, main .u-skel-cards'));
 }
 async function screenshot(p, name, fullPage = true) { await p.screenshot({ path: path.join(output, name + '.png'), fullPage }); }
+/* Let every finite animation and transition finish. The theme flip starts 160-280ms colour transitions; axe reads the in-between colours
+   (a quiet button at 1.68:1 early on), which failed CI on staff Home at random. Endless animations (pulses) are not waited for. */
+async function settle(p) {
+  await p.evaluate(async () => {
+    const finite = () => document.getAnimations().filter(a => { const t = a.effect && a.effect.getComputedTiming(); return t && Number.isFinite(t.iterations); });
+    for (let i = 0; i < 5 && finite().length; i++) await Promise.all(finite().map(a => a.finished.catch(() => {}))); // one that starts while waiting gets another pass
+  });
+}
 async function layout(p, name, axe = false) {
+  if (axe) await settle(p);
   const metrics = await p.evaluate(() => ({ width: innerWidth, overflow: document.documentElement.scrollWidth > innerWidth + 1,
     buttons: [...document.querySelectorAll('main button, main .btn')].filter(e => {
       const r = e.getBoundingClientRect();
