@@ -262,6 +262,11 @@ button[data-tip], a[data-tip] { cursor: pointer; }
 /* ------------------------------------------------------------ glass lists: panel, search pill, progress, favourite */
 
 .u-list { overflow: hidden; }
+/* The panel is large and its rows change, so a live backdrop blur here was repainted on every hover and filter (software p95 100-683 ms,
+   against 33-67 ms with it off). A denser tint carries the glass look instead; rim, highlight and shadow come from .u-glass-strong. */
+.u-list { --list-bg: rgba(22, 19, 17, .86); -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--list-bg); }
+:root[data-theme="light"] .u-list { --list-bg: rgba(250, 247, 242, .94); }
+@media (prefers-reduced-transparency: reduce) { .u-list, :root[data-theme="light"] .u-list { --list-bg: var(--ink-2); } }
 .u-list > header { display: flex; align-items: center; justify-content: space-between; gap: 12px 18px; flex-wrap: wrap; padding: 16px 20px; border-bottom: 1px solid var(--glass-rim); }
 .u-list-title h2 { margin: 0; font-size: 16px; font-weight: 680; letter-spacing: -.01em; color: var(--tx-1); }
 .u-list-title p { margin: 2px 0 0; font-size: 12.5px; color: var(--tx-2); }
