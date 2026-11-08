@@ -158,7 +158,7 @@
     const pw = passwordInput("current-password", "si-pass");
     pw.input.removeAttribute("class"); pw.input.setAttribute("placeholder", "Password");
     const err = el("div", { class: "form-error", role: "alert" }, authError());
-    const google = el("div");
+    const google = el("div", { class: "google-box" });
     const googleB = el("div", { class: "xg-gB" });
     // Google is offered only when the server says so; mode B reuses the same link (no divider there)
     const optionsKnown = googleButton("staff", "Continue with Google").then((b) => {

@@ -998,7 +998,8 @@
         const f = o.a.focus;
         if (f && card.isConnected && card.dataset.mode === "a" && (!document.activeElement || document.activeElement === document.body)) f.focus({ preventScroll: true });
       };
-      cap = setTimeout(show, 1200);
+      // the answer is late: show the card now but keep the room a Google button and divider would take (CSS .xg-late), so a late answer fills it without moving anything
+      cap = setTimeout(() => { node.classList.add("xg-late"); show(); }, 1200);
       Promise.resolve(o.ready).then(show, show);
     }
     return { node, swap: (m) => swap(m, true) };

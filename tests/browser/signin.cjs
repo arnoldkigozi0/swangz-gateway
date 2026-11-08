@@ -312,6 +312,32 @@ async function motionChecks(browser, info, app) {
   }
 }
 
+/* Google's answer after the 1.2s cap (1500ms), never (hung, then dropped) or refused: the card is already showing, so the room a Google row
+   would take is held open and nothing visible moves. The raw, unfiltered layout-shift total is reported too (the brand wordmark's web-font swap
+   is real and is the only part left). */
+async function lateGoogleChecks(browser, info, app) {
+  const T = (s) => `${app.name}: ${s}`;
+  for (const [w, h, vname] of VIEWS) for (const mode of ['late', 'hung', 'abort']) {
+    const ctx = await browser.newContext({ viewport: { width: w, height: h } });
+    await ctx.addInitScript(() => { window.__raw = 0; window.__card = 0; new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) { window.__raw += e.value;
+      if ((e.sources || []).some((s) => s.node && s.node.parentElement && s.node.parentElement.closest('.xgate-card'))) window.__card += e.value; } }).observe({ type: 'layout-shift', buffered: true }); });
+    const page = await ctx.newPage();
+    await page.route('**/auth/options', async (r) => { if (mode === 'abort') return r.abort(); if (mode === 'hung') { await new Promise((x) => setTimeout(x, 4500)); return r.abort(); }
+      await new Promise((x) => setTimeout(x, 1500)); r.fulfill({ json: { google: true } }); });
+    await page.goto(info.url + app.start);
+    await page.waitForSelector('.xgate:not(.xg-wait) .xgate-card', { timeout: 6000 });
+    const first = await box(page, '.xg-form-a .xg-primary');
+    await page.waitForTimeout(mode === 'late' ? 1800 : 600);
+    const last = await box(page, '.xg-form-a .xg-primary');
+    const m = await page.evaluate(() => ({ raw: window.__raw, card: window.__card }));
+    ok(T(`${vname} ${mode}: the Login button does not move after the card shows (${Math.round(first.y)} -> ${Math.round(last.y)})`), Math.abs(first.y - last.y) < 1);
+    ok(T(`${vname} ${mode}: no layout shift inside the card (${m.card.toFixed(6)}); raw unfiltered total ${m.raw.toFixed(6)}`), m.card < 0.0001 && m.raw < 0.001);
+    if (mode === 'late') ok(T(`${vname} late: Google appears and is reachable`), (await page.locator('.xg-form-a a[href*="/auth/google/"]').count()) === 1);
+    else eq(T(`${vname} ${mode}: no Google link, the form still works`), await page.locator('a[href*="/auth/google/"]').count(), 0);
+    await ctx.close();
+  }
+}
+
 async function welcomeChecks(browser, info) {
   const app = APPS.staff;
   for (const mode of ['valid', 'expired']) {
@@ -350,8 +376,10 @@ async function welcomeChecks(browser, info) {
     browser = await chromium.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome' });
     await gateChecks(browser, info, 'admin', APPS.admin);
     await motionChecks(browser, info, APPS.admin);
+    await lateGoogleChecks(browser, info, APPS.admin);
     if (staffPorted) await gateChecks(browser, info, 'staff', APPS.staff);
     if (staffPorted) await motionChecks(browser, info, APPS.staff);
+    if (staffPorted) await lateGoogleChecks(browser, info, APPS.staff);
     else results.checks.push('Not run: staff sign-in checks (portal.js showSignIn is not on the split gate yet)');
     await welcomeChecks(browser, info);
     ok('no console or page errors', results.errors.length === 0);
