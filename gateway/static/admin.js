@@ -880,10 +880,27 @@
     const banner = paused ? el("div", { class: "banner", role: "alert" }, icon("stop"),
       el("span", null, el("strong", null, "AI access is paused for everyone. "), "Requests and tool launches are refused until an owner resumes."),
       can("emergency") ? el("button", { class: "btn small primary", onclick: () => setPaused(false) }, "Resume access") : null) : null;
-    const appbar = el("div", { class: "appbar" },
-      el("button", { class: "btn quiet icon-only", type: "button", "aria-label": "Open navigation", onclick: () => openDrawer(active) }, icon("menu")),
-      el("a", { class: "brand mini", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }), "AI Hub"),
-      el("button", { class: "btn quiet icon-only", type: "button", "aria-label": "Search", onclick: () => openCommand() }, icon("search")), bell());
+    const clockText = el("span");
+    const clock = el("time", { class: "console-clock" }, icon("clock"), clockText);
+    const tickClock = () => {
+      const now = Date.now() / 1000;
+      clockText.textContent = fmt.clock(now);
+      clock.dateTime = new Date(now * 1000).toISOString();
+      clock.title = "Current time · " + SUI.tzLabel();
+      clock.setAttribute("aria-label", clockText.textContent + " · " + SUI.tzLabel());
+    };
+    tickClock();
+    if (o.title) every(15000, () => { if (clock.isConnected) tickClock(); });
+    const area = NAV.find(([, links]) => links.some(([href]) => href === active))?.[0] || "Control room";
+    const appbar = el("header", { class: "appbar console-bar", "aria-label": "Control room toolbar" },
+      el("div", { class: "console-context" },
+        el("button", { class: "console-workspace", type: "button", "aria-label": "Open navigation", "aria-haspopup": "dialog", onclick: () => openDrawer(active) },
+          el("img", { src: "/static/icon.svg", alt: "" }), el("span", null, "Swangz AI Hub"), icon("chevronDown")),
+        el("span", { class: "console-area", "aria-hidden": "true" }, area)),
+      el("button", { class: "console-search", type: "button", "aria-label": "Search", onclick: () => openCommand() }, icon("search"),
+        el("span", null, "Search pages, people, tools…"), el("span", { class: "u-kbd", "aria-hidden": "true" }, /Mac/.test(navigator.platform || "") ? "⌘K" : "Ctrl K")),
+      el("div", { class: "console-tools" }, clock, bell(),
+        el("a", { class: "console-account", href: "#/settings?tab=account", "aria-label": "Your account: " + S.me.username, "data-tip": S.me.username }, SUI.avatar(S.me.username))));
     // Where you are: the area, then the pages above this one — never the page's own title again.
     const place = NAV.map(([group, links]) => ({ group, item: links.find(([href]) => href === active) })).find((x) => x.item);
     const trail = [place ? el("span", { class: "crumb-area" }, place.group) : null, ...[].concat(o.crumbs || []).filter(Boolean)].filter(Boolean);
