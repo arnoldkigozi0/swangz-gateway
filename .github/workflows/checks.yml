@@ -64,6 +64,8 @@ jobs:
         run: node tests/browser/business.cjs
       - name: Glass list primitives (panel, segmented control, search pill, progress, star)
         run: node tests/browser/lists.cjs
+      - name: Chart empty-state and drawing checks
+        run: node tests/browser/charts.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
