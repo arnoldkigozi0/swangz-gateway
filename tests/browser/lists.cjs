@@ -112,7 +112,7 @@ async function contrastOf(page, sel, label, min, nonText) {
           starSize: document.querySelector('.u-star').getBoundingClientRect().width,
         };
       });
-      ok(T + 'one blur layer: the panel blurs, rows, pills and search do not', s.panelBlur !== 'none' && s.rowBlur === 'none' && s.segBlur === 'none');
+      ok(T + 'no live backdrop blur on the large list panel, rows, pills or search (it was repainted on every hover and filter)', s.panelBlur === 'none' && s.rowBlur === 'none' && s.segBlur === 'none');
       ok(T + 'panel uses the card radius, pills and search are fully round', s.radius === '22px' && parseFloat(s.segRadius) >= 100 && parseFloat(s.searchRadius) >= 100);
       ok(T + 'filter pills are a labelled group with exactly one pressed', s.group === 'group' && s.pressed === 1);
       ok(T + 'every progress bar has role, value and a name', s.bars.length >= 5 && s.bars.every(b => b[0] === 'progressbar' && b[1] !== null && b[2]));
@@ -141,6 +141,24 @@ async function contrastOf(page, sel, label, min, nonText) {
           ok(T + 'End goes to the last pill', (await page.evaluate(() => document.activeElement.dataset.id)) === 'paused');
           await page.keyboard.press('Home');
           ok(T + 'Home goes to the first pill', (await page.evaluate(() => document.activeElement.dataset.id)) === 'all');
+          // keyboard selection keeps focus on the pill that was pressed (the pills used to be rebuilt, dropping focus to the body)
+          const focused = () => page.evaluate(() => { const a = document.activeElement; return a && a.closest && a.closest('.u-seg') ? a.dataset.id + ':' + a.getAttribute('aria-pressed') : (a ? a.tagName : 'none'); });
+          await page.focus('.u-seg button[data-id="all"]');
+          await page.keyboard.press('ArrowRight'); await page.keyboard.press('Enter');
+          ok(T + 'arrow then Enter selects the pill and focus stays on it', (await focused()) === 'active:true');
+          await page.keyboard.press('ArrowRight'); await page.keyboard.press('Space');
+          ok(T + 'arrow then Space selects the pill and focus stays on it', (await focused()) === 'paused:true');
+          await page.keyboard.press('Home'); await page.keyboard.press('Enter');
+          ok(T + 'Home then Enter returns to All with focus kept', (await focused()) === 'all:true');
+          // a filter that leaves no rows must not drop focus either
+          await page.fill('.u-search input', 'zzz-no-such-person');
+          ok(T + 'a search with no matching rows leaves the typing focus in the search box', (await page.evaluate(() => document.activeElement === document.querySelector('.u-search input') && document.querySelectorAll('.u-list tbody tr').length === 0)));
+          await page.focus('.u-seg button[data-id="active"]'); await page.keyboard.press('Enter');
+          ok(T + 'selecting a pill while zero rows show keeps focus on the pill', (await focused()) === 'active:true' && (await page.locator('.u-list tbody tr').count()) === 0);
+          await page.keyboard.press('ArrowLeft'); await page.keyboard.press('Enter');
+          ok(T + 'and keeps it after moving on with zero rows', (await focused()) === 'all:true');
+          await page.fill('.u-search input', '');
+          ok(T + 'clearing the search brings the rows back', (await page.locator('.u-list tbody tr').count()) >= 5);
           const before = await page.getAttribute('.u-star', 'aria-pressed');
           await page.click('.u-star');
           ok(T + 'a star toggles its pressed state', (await page.getAttribute('.u-star', 'aria-pressed')) === (before === 'true' ? 'false' : 'true'));

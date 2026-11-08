@@ -656,11 +656,12 @@
   function segmented(o) {
     let cur = o.value;
     const seg = el("div", { class: "u-seg", role: "group", "aria-label": o.label || "Filter" });
-    function draw() {
-      seg.replaceChildren(...o.options.map((x) => el("button", { type: "button", "data-id": x.id, "aria-pressed": cur === x.id ? "true" : "false",
-        onclick: () => { if (cur === x.id) return; cur = x.id; draw(); o.onChange && o.onChange(x.id); } },
-        x.label, x.count === undefined || x.count === null ? null : el("span", { class: "n" }, String(x.count)))));
-    }
+    /* The buttons are built once and only aria-pressed changes, so a keyboard user's focus stays on the pill they pressed. */
+    const btns = o.options.map((x) => el("button", { type: "button", "data-id": x.id, "aria-pressed": "false",
+      onclick: () => { if (cur === x.id) return; cur = x.id; draw(); o.onChange && o.onChange(x.id); } },
+      x.label, x.count === undefined || x.count === null ? null : el("span", { class: "n" }, String(x.count))));
+    seg.append(...btns);
+    function draw() { btns.forEach((b, i) => b.setAttribute("aria-pressed", cur === o.options[i].id ? "true" : "false")); }
     seg.addEventListener("keydown", (e) => {
       if (e.key !== "ArrowRight" && e.key !== "ArrowLeft" && e.key !== "Home" && e.key !== "End") return;
       const bs = [...seg.querySelectorAll("button")];
@@ -739,16 +740,16 @@
       const r = presetRange(cur.preset, cur);
       o.onChange({ ...cur, ...r });
     }
-    function drawSeg() {
-      seg.replaceChildren(...presets.map(([id, label]) => el("button", { type: "button", "aria-pressed": cur.preset === id ? "true" : "false",
-        onclick: () => {
-          cur.preset = id;
-          if (id === "custom" && !from.value) { from.value = dateInput(Date.now() / 1000 - 6 * 86400); to.value = dateInput(Date.now() / 1000); }
-          cur.from = from.value; cur.to = to.value;
-          custom.hidden = id !== "custom";
-          drawSeg(); fire();
-        } }, label)));
-    }
+    const presetBtns = presets.map(([id, label]) => el("button", { type: "button", "aria-pressed": "false",
+      onclick: () => {
+        cur.preset = id;
+        if (id === "custom" && !from.value) { from.value = dateInput(Date.now() / 1000 - 6 * 86400); to.value = dateInput(Date.now() / 1000); }
+        cur.from = from.value; cur.to = to.value;
+        custom.hidden = id !== "custom";
+        drawSeg(); fire();
+      } }, label));
+    seg.append(...presetBtns);
+    function drawSeg() { presetBtns.forEach((b, i) => b.setAttribute("aria-pressed", cur.preset === presets[i][0] ? "true" : "false")); }
     [from, to].forEach((i) => i.addEventListener("change", () => { cur.from = from.value; cur.to = to.value; fire(); }));
     drawSeg();
     const zone = el("select", { "aria-label": "Show times in" },

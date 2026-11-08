@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from .hub_schema import MIGRATION as HUB_MIGRATION
 from .business_schema import MIGRATION as BUSINESS_MIGRATION
 from .device_schema import MIGRATION as DEVICE_MIGRATION
+from .device_schema import MIGRATION_22 as DEVICE_LIFECYCLE_MIGRATION
 
 SCHEMA = [
     # v1
@@ -503,6 +504,8 @@ SCHEMA = [
     BUSINESS_MIGRATION,
     # v21: the Swangz app on people's own devices, and the packages published to it.
     DEVICE_MIGRATION,
+    # v22: one device, many keys over its life: stable device id, rotation grace, reported key storage.
+    DEVICE_LIFECYCLE_MIGRATION,
 ]
 
 
