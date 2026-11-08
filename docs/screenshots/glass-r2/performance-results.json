@@ -1,0 +1,78 @@
+{
+  "checks": [
+    "synthetic owner login",
+    "no performance-run browser exceptions"
+  ],
+  "screenshots": [],
+  "errors": [],
+  "accessibility": [],
+  "runs": [
+    {
+      "round": 0,
+      "name": "main",
+      "frames": 214,
+      "over50": 3,
+      "max": 133.30000000000018
+    },
+    {
+      "round": 0,
+      "name": "reviewed",
+      "frames": 204,
+      "over50": 9,
+      "max": 100.09999999999991
+    },
+    {
+      "round": 0,
+      "name": "corrected",
+      "frames": 211,
+      "over50": 4,
+      "max": 133.29999999999973
+    },
+    {
+      "round": 1,
+      "name": "main",
+      "frames": 214,
+      "over50": 6,
+      "max": 100
+    },
+    {
+      "round": 1,
+      "name": "reviewed",
+      "frames": 198,
+      "over50": 9,
+      "max": 100.10000000000036
+    },
+    {
+      "round": 1,
+      "name": "corrected",
+      "frames": 215,
+      "over50": 4,
+      "max": 116.60000000000014
+    },
+    {
+      "round": 2,
+      "name": "main",
+      "frames": 214,
+      "over50": 3,
+      "max": 100.09999999999945
+    },
+    {
+      "round": 2,
+      "name": "reviewed",
+      "frames": 201,
+      "over50": 10,
+      "max": 133.4000000000001
+    },
+    {
+      "round": 2,
+      "name": "corrected",
+      "frames": 215,
+      "over50": 5,
+      "max": 83.29999999999927
+    }
+  ],
+  "sourceHashes": {
+    "admin.css": "97da145a8bd154d99573bf0715089cda69839533fa93db5e20c95ae76be65f4d",
+    "admin.js": "1a9a108e2a32bb082f154e8825b6ed887081e52b3612026c3b660424e786cfea"
+  }
+}
