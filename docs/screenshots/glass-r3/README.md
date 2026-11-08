@@ -1,11 +1,10 @@
 # Glass R3 — floating control-room toolbar
 
-Dependency: draft PR #42, exact `1b8c8d913b7c7612abe67e122d0275e978415ed5`.
-Branch `feature/glass-r3` originally started at `4f6cf7e`; the corrected dependency
-and main `2b30af5` are now normally integrated. Against that dependency, product edits are
-limited to the header construction in `admin.js` and header-only selectors in
-`admin.css`. Against main, the PR also contains inherited R2 navigation until
-#42 merges. No shared UI, portal, authentication, backend or dependency changes.
+Parent PR #42 is merged. Normally integrated main
+`743815ca836032385e5f14cd1e93516e4e745d95`; the product diff against main is
+limited to header construction in `admin.js` and header-only selectors in
+`admin.css`. R2 navigation and the transition-wait harness correction are already
+on main. No shared UI, portal, authentication, backend or dependency changes.
 
 The transparent toolbar holds a workspace navigation pill, area context, centered
 command-search pill and keyboard hint, actual clock, existing notifications and
@@ -99,3 +98,23 @@ Latest integrated-tree results: `python3 -m unittest tests.test_browser_contract
 suite/role matrix, hardware performance/CLS/MotionScore, real devices/other
 engines/screen readers: Not run. Final-head Actions and independent Probe QA
 remain required. No new build/PR, shared UI edits, merge to main or deployment.
+
+
+## PR48 refresh after parent42 merge — 8 November
+
+Normally merged exact main `743815ca836032385e5f14cd1e93516e4e745d95` as
+`d9ee991317f69382261530309fa597bf751e8e11`, no conflicts. Before evidence
+updates, the entire merge tree is byte-identical to previous verified48 head
+`b1a2544ab18ca156c4feeb5904055cb278129aaa`: tree
+`fbdb54a8d8d20fcfbf2301c0265c8edae4357429`. This merge changes ancestry only.
+
+Seven own/shared source comparisons passed: admin.css/admin.js, the existing
+browser harness, task check.cjs/contrast.py, and shared ui.css/ui.js. Git blob
+IDs and SHA256 evidence: `docs/screenshots/glass-r3/parent-merge-identity.json`.
+No harness changes outside the normal merge and no diagnosis repeated.
+
+Fresh results: `UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules node docs/screenshots/glass-r3/check.cjs`: `PASS 63 header checks; 4 screenshots; 4 axe scans`, exit0. `NODE_PATH=<same tooling> UI_WIDTH=1440 UI_THEME=light UI_PAGES_ONLY=1 UI_OUTPUT=/tmp/prism-r48-parent-merged node tests/browser/check.cjs`: `PASS principal pages 27 interaction assertions; 25 screen checks`, exit0; no browser exceptions, axe findings or unexpected API failures; summary in `parent-merge-regression-results.json`. `python3 -m unittest tests.test_portal tests.test_hub`: `Ran 56 tests in 36.926s`, `OK`, exit0. Seven source identity checks and working/staged whitespace checks passed. All local check processes finished. Full
+local suite/role matrix, new hardware performance/CLS/MotionScore, real devices,
+other engines and screen readers: Not run. Fresh final-head Actions and Probe
+QA remain required. Parent42 is now merged; PR48's diff is header/task evidence
+only. No scope expansion, new build/PR, deployment or merge to main.
