@@ -1570,3 +1570,11 @@ Merged: none. Ready: none this turn; docs9/10 green but independent verdicts not
 - Probeassigned50newheadQA afterexisting56/57/9queue; applicable10.9evidence required, noimplicitwaiver. Solelocaltestbrowser slotProbe.
 - Prismassignedexisting49 feature/browser-theme-stability/head3ad5457 CONFLICTING; filesonlycheck.cjs/repro.cjs. Resolvewithmainwithoutweakeningaxe/animationchecks orrecommendclosureifsuperseded; source/CIonly.43shared-ui.jsnotassigned.
 - Chief testsNotrun coordinationonly; diffcheckpassed. No additionalmerge/deployment/productionaccess.
+
+
+## Device one-line repair confirmed — 2026-11-10 00:57 EAT
+
+- Chief verified remote13head c7f08bebfed3061b8c2ab6436c3b32d47210fca4 and full diff a994f59..c7f08be: exactly1 insertion/1deletion in test_client_rotation.py, moving keep_something_installed() immediatelyafterrotation-syncassertion; allotherassertionsunchanged. Sentinel's explicit single-movepreapproval applies; no repeatsecurityreviewassigned.
+- Forge reports actual priorhead Python3.10log: Ran647tests,1failure,14skipped; finalbrand-promptsassertion failed aftersync removedunofferedfixture, confirmingpredictedorderbug. Prior3.12cancelled; otherprintedexceptions expected. No claimnewheadtestspassed.
+- Chieflivecheck newheadPython3.10/3.12/app-window/browserIN_PROGRESS, inertprofilesmixedSUCCESS/pending. Base stillfeature/device-credentials; retargetcapabilityblockunchanged. Musttargetmain+freshgreenCI+Probebeforemerge.16waiting. Forgecleanstopped, no localtestsrun.
+- Next: readnewCIwhencomplete; Probeacceptanceaftermainretarget; do notrepeatpreviousdeniedPATCH. Chief testsNotrun coordinationonly; diffcheckpassed. No additionalmerge/deployment/productionaccess.
