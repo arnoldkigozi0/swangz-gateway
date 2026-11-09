@@ -1586,3 +1586,11 @@ Merged: none. Ready: none this turn; docs9/10 green but independent verdicts not
 - ProbePASSaxe40cells/text>=4.99/nontext/fallback24screens/empty20/430businessboththemes31screens each. ResidualCLS<=0.00007 sourcefixneeded, Weeklyemptyactionmissing, currentheadoverlaysNotrun(old overlays eca2728). Evidence /tmp/probe-s56d-out retained; reportnoprocesses/slotreleased.
 - ChiefreadcanonicalBRIEF10.1(3): §7contrast/oneblur/reducedmotion-transparencyfallbacks permittedifdocumented. Authorizesnarrowmaterial/nonfixedphoto performancefallback preservinggeometry/colourwithtaggeddifferences, notwaiver. Prismassignednew56fix above49 (pause49clean), actualperf/CLS/currentoverlaysrequired.
 - EXCLUSIVE localbrowser/testslot transferredtoPrism forrepair. Probeexplicitlyinstructedhold57/50browserQA untilrelease, continuequeued9docs/sourceCIonly. No freshQAclaim; Chief testsNotrun coordination/evidencereadonly. No additionalmerge/deployment/productionaccess.
+
+
+## Research labels corrected — 2026-11-10 01:04 EAT
+
+- Chiefverified9 actualremote aa60bfe93e423d9b334c6d0f7f3f2d6aedbce5a5 feature/provider-compatibility, base main/MERGEABLE. Exactlyonefile23insertions23deletions. CompanyAPIshapeproposed/vendorconfirmation; CapCutbilling/Suno-UdioSSO/Jasperdeletion/Codexlearn-onlyclaimsqualified. Research-onlyconclusionspreserved.
+- Probe reports independentreadonlyGPT secondpassclearafterthreefirstpassgapsfixed; authorvalidation distinguishedfromindependentverdict. No localPython/browser/buildrun, docs-only. Sentinelassignednarrowchangedlabelsapprovalatnewhead, nofullvendoraudit.
+- Live9Python3.10/3.12/browserIN_PROGRESS, app-window/NetlifyPASS: notmergeeligibleyet.13c7f08bePython/browserpending, inertprofiles+app-windowSUCCESS; baseblockunchanged.
+- SlotPrism56repair; Probe57/50browserQAhelduntilrelease. Chief testsNotrun coordination/diffinspectiononly; diffcheckpassed. No additionalmerge/deployment/productionaccess.
