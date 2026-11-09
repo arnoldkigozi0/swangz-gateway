@@ -1452,3 +1452,15 @@ Goal: repair exact-match blockers and deliver independently testable draft PRs d
 | Older drafts and stacked PRs | owners | existing branches | review | Waiting current-main exacthead gates; obsolete visual drafts HOLD; no eligible merge established. |
 
 Merged: none. Ready: none; no current-head complete gate set. No Arnold decision identified. PR target three new this shift; repairs do not count. Delegations accepted, execution begins after Chief turn; completion not claimed. Chief tests Not run: coordination documents only; validation git diff --check. No deployment, production data, dependency or system changes.
+
+
+## Fourth design reference queued — 2026-11-09 23:40 EAT
+
+Arnold explicitly authorizes merging docs-only PR #59 as soon as CI is green. Live check: head 6b72dbe991256d5bbe9d7fed4073ec863de01721, base main, non-draft, MERGEABLE. app-window and Netlify preview/header/redirect checks passed; Python 3.10, Python 3.12 and browser IN_PROGRESS. Not merged while checks are pending. Next shift: re-check current head/base/checks and merge #59 first when green alongside the v18 docs queue.
+
+| Task | Owner | Branch | Status | Next step |
+| --- | --- | --- | --- | --- |
+| Merge fourth reference #59 | Chief | PR #59, base main | review | Confirm all Actions green, merge; record actual merge SHA. Explicit backlog exception to WIP limit. |
+| R16 Glassy Navigation tabs V7 | Prism | Not started | todo | AFTER v18 backlog lands. BRIEF §10.8: bar A white pill for in-page tabs in Evening; bar B black pill for same tabs in Daylight; bar C liquid-glass lens for both apps phone bottom tabs. Exact §10.2 screenshots/overlays and frame-stepped motion. |
+
+No R16 delegation or build started. Tests not run locally: coordination-only record; hosted checks above are actual live status. Product files and production untouched.
