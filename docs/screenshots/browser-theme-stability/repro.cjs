@@ -20,6 +20,7 @@ module.exports = async function themeStability({ browser, settle, layout, AxeBui
       window.themeFinite.currentTime = 0;
       window.themePulse = document.querySelector('#pulse').animate([{ opacity: 1 }, { opacity: .5 }], { duration: 2000, iterations: Infinity });
     });
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('#sample')).color === 'rgb(170, 170, 170)');
     const axe = selector => new AxeBuilder({ page }).include(selector).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
     check('mid-transition contrast defect is detected', (await axe('#fixture')).violations.some(v => v.id === 'color-contrast'));
     await page.evaluate(() => window.themeFinite.play());
