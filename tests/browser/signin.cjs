@@ -31,6 +31,53 @@ const APPS = {
 };
 const VIEWS = [[1440, 852, 'desktop'], [390, 844, 'mobile']];
 
+/* A late "yes" from /auth/options that lands while Get access (mode B) is showing: the showing pane must not grow under the reader (on a phone it is the
+   card's height, so the whole gate would jump). The staff link in B waits for the next swap; the Login side has the link in place after Back. */
+async function lateGoogleOnBChecks(browser, info, app) {
+  for (const [w, h, vname] of VIEWS) {
+    const L = (s) => `${app.name}: ${vname} late yes while on Get access: ${s}`;
+    const ctx = await browser.newContext({ viewport: { width: w, height: h } });
+    await ctx.addInitScript(() => {
+      const st = window.__lb = { entries: [], clickAt: null };
+      new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) st.entries.push({ t: e.startTime, v: e.value }); }).observe({ type: 'layout-shift', buffered: true });
+    });
+    const page = await ctx.newPage();
+    await page.route('**/auth/options', async (r) => { await new Promise((x) => setTimeout(x, 2600)); r.fulfill({ json: { google: true } }).catch(() => {}); });
+    await page.goto(info.url + app.start);
+    await page.waitForSelector('.xgate:not(.xg-wait) .xgate-card', { timeout: 6000 });   // the 1.2s cap; the answer is still outstanding
+    ok(L('the answer is outstanding at the reveal'), await page.evaluate(() => document.querySelector('.xgate').classList.contains('xg-late')));
+    await page.click('.xg-form-a .xg-link');
+    await page.waitForFunction(() => document.querySelector('.xgate-card').dataset.mode === 'b');
+    await page.waitForTimeout(900);                                   // past the swap's motion and before the answer
+    const geo = () => page.evaluate(() => {
+      const r = (q) => { const e = document.querySelector(q); if (!e) return null; const b = e.getBoundingClientRect(); return { y: b.y, h: b.height }; };
+      const card = r('.xgate-card'); const gB = document.querySelector('.xg-gB'); const link = document.querySelector('.xg-form-b a[href*="/auth/google/"]');
+      return { card, title: r('.xg-form-b .xg-title'), back: r('.xg-form-b .xg-primary'), hold: document.querySelector('.xgate').classList.contains('xg-hold-b'),
+        linkShown: !!link && link.getClientRects().length > 0 && getComputedStyle(link).visibility !== 'hidden', gBH: gB ? gB.getBoundingClientRect().height : 0,
+        shiftNow: window.__lb.entries.length, nowT: performance.now() };
+    });
+    const before = await geo();
+    ok(L('B has no Google link before the answer'), !before.linkShown);
+    await page.waitForFunction(() => document.querySelector('.xg-form-b a[href*="/auth/google/"]') !== null, null, { timeout: 8000 });   // it is in the DOM, held back
+    await page.waitForTimeout(600);
+    const after = await geo();
+    ok(L('the link was held back, not shown (xg-hold-b), height 0'), after.hold && !after.linkShown && after.gBH === 0);
+    for (const k of ['card', 'title', 'back']) ok(L(`${k} did not move or grow (${JSON.stringify(before[k])} -> ${JSON.stringify(after[k])})`),
+      Math.abs(before[k].y - after[k].y) < 1 && Math.abs(before[k].h - after[k].h) < 1);
+    ok(L(`no layout shift entries between the two readings (${before.shiftNow} -> ${after.shiftNow})`), after.shiftNow === before.shiftNow);
+    await page.click('.xg-form-b .xg-primary');                       // Back to login: Google is now in place on the Login side
+    await page.waitForFunction(() => document.querySelector('.xgate-card').dataset.mode === 'a');
+    await page.waitForTimeout(700);
+    eq(L('the Login side shows exactly one Google link'), await page.evaluate(() => [...document.querySelectorAll('.xg-form-a a[href*="/auth/google/"]')].filter((a) => a.getClientRects().length > 0).map((a) => a.getAttribute('href')), ), [app.googleHref]);
+    await page.click('.xg-form-a .xg-link');                          // Get access again: the held link shows with this swap
+    await page.waitForFunction(() => document.querySelector('.xgate-card').dataset.mode === 'b');
+    await page.waitForTimeout(700);
+    const again = await geo();
+    ok(L('on the next visit to B the hold is gone and the link shows'), !again.hold && again.linkShown && again.gBH > 0);
+    await ctx.close();
+  }
+}
+
 /* Worst contrast of an element's text against the pixels actually painted behind it (see lists.cjs). */
 async function contrastOf(page, sel, label, min) {
   const box = await page.evaluate((sel) => {
@@ -450,6 +497,7 @@ async function welcomeChecks(browser, info) {
     if (staffPorted) await gateChecks(browser, info, 'staff', APPS.staff);
     if (staffPorted) await motionChecks(browser, info, APPS.staff);
     if (staffPorted) await lateGoogleChecks(browser, info, APPS.staff);
+    if (staffPorted) await lateGoogleOnBChecks(browser, info, APPS.staff);
     else results.checks.push('Not run: staff sign-in checks (portal.js showSignIn is not on the split gate yet)');
     await welcomeChecks(browser, info);
     ok('no console or page errors', results.errors.length === 0);

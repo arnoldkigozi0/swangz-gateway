@@ -971,6 +971,7 @@
       clearTimeout(timer);                                  // a pending focus from an earlier swap must never land late
       // The room held for a Google row that never came (answer after the cap, then off or failed) is given back going B to A, while sign-in A is hidden.
       if (mode === "a" && card.dataset.mode === "b" && optionsSettled && node) node.classList.remove("xg-late");
+      if (node) node.classList.remove("xg-hold-b");         // a Google link held back while you were on B shows with the next visit to B
       card.dataset.mode = mode;
       secrets().forEach((i) => hideSecret(i, true));        // hide the pane you leave: no revealed or typed password behind it
       const on = mode === "a" ? [parts.formA, parts.helloA] : [parts.formB, parts.helloB];
@@ -1006,7 +1007,13 @@
       if (f && card.isConnected && card.dataset.mode === "a" && (!document.activeElement || document.activeElement === document.body)) f.focus({ preventScroll: true });
     };
     const cap = setTimeout(show, 1200);
-    const answered = Promise.resolve(o.ready).then(() => { optionsSettled = true; }, () => { optionsSettled = true; });
+    //  - A late "yes" that lands while the visible pane is B (Get access) must not grow it: on a phone the card is only as tall as the showing pane, so
+    //    the whole gate would jump. The link the caller put in B stays hidden (class xg-hold-b) until the next swap and shows with that swap.
+    const settle = () => {
+      optionsSettled = true;
+      if (!node.classList.contains("xg-wait") && card.dataset.mode === "b") node.classList.add("xg-hold-b");
+    };
+    const answered = Promise.resolve(o.ready).then(settle, settle);
     const fontReady = () => {
       try {
         if (!document.fonts || !document.fonts.load) return Promise.resolve(false);
