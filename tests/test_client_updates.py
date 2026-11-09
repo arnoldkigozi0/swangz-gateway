@@ -222,7 +222,7 @@ class UpdateTests(unittest.TestCase):
             self.client.api = Mock(return_value=api)
             with self.subTest(latest=latest), self.u.locked():
                 result = self.client.sync()
-                self.assertEqual(result, {"results": [], "manifest": manifest})
+                self.assertEqual(result, {"results": [], "manifest": manifest, "rotation": None})
                 self.assertTrue(self.client.store.state()["last_sync"])
                 # Sync must not release another updater's lock to make progress.
                 with self.assertRaises(OSError):

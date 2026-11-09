@@ -18,6 +18,7 @@ from unittest import mock
 
 from swangz_client import agents, cli, core, keystore
 
+from .test_client import ClientBase
 from .test_client_credentials import MemoryCredentials
 
 DAY = 86400
@@ -831,3 +832,97 @@ class FileStorage(RotationBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RealGatewayRotation(ClientBase):
+    """The same client against the real gateway (not the stand-in Hub above): rotation, the refused old key, and revocation."""
+
+    owner = "company"
+
+    def age(self, days=31):
+        info = self.client.store.device()
+        info["key_issued"] = time.time() - days * DAY
+        self.client.store._save_info(info)
+
+    def key_row(self, key_id):
+        return self.gw.db.one("SELECT revoked, revoked_by, confirmed, retire_at FROM keys WHERE id = ?", (key_id,))
+
+    def keep_something_installed(self):
+        state = self.client.store.state()
+        state["installed"]["brand-prompts"] = {"version": "1", "kind": "tool", "name": "Brand prompts"}
+        self.client.store.save_state(state)
+
+    def test_an_aged_key_is_rotated_and_the_old_one_is_then_refused_as_renewed_not_as_disconnected(self):
+        info = self.sign_in()
+        old_id, old_key = info["key_id"], self.client.store.key()
+        self.client.sync()
+        self.age()
+        out = self.client.sync()
+        self.assertEqual(out["rotation"], "rotated")
+        new_key = self.client.store.key()
+        self.assertNotEqual(new_key, old_key)
+        new_id = self.client.store.device()["key_id"]
+        self.assertNotEqual(new_id, old_id)
+        self.assertEqual(self.key_row(old_id)["revoked_by"], "system: rotated")
+        self.assertIsNotNone(self.key_row(new_id)["confirmed"])
+        # the old key on the real wire: renewed (load the newer key), never "disconnected" (wipe)
+        status, body, _ = self.api("GET", "/device/manifest", key=old_key)
+        self.assertEqual((status, body.get("code")), (401, "device_key_rotated"), body)
+        self.assertEqual(self.api("GET", "/device/manifest", key=new_key)[0], 200)
+        self.assertTrue(self.client.signed_in())
+
+    def test_a_call_made_with_the_old_key_picks_up_the_new_one_and_removes_nothing(self):
+        self.sign_in()
+        old_key = self.client.store.key()
+        self.keep_something_installed()
+        self.age()
+        self.assertEqual(self.client.sync()["rotation"], "rotated")
+        new_key = self.client.store.key()
+        real, calls = self.client.api, []
+
+        def stale_once():
+            api = real()
+            if not calls:
+                calls.append(1)
+                api.key = old_key  # a call that read the key just before the rotation finished
+            return api
+
+        self.client.api = stale_once
+        self.assertIn("packages", self.client.refresh())
+        self.assertEqual(calls, [1])
+        self.assertEqual(self.client.store.key(), new_key)
+        self.assertTrue(self.client.signed_in())
+        self.assertIn("brand-prompts", self.client.store.state()["installed"])
+
+    def test_with_the_new_key_lost_a_refused_old_key_says_reconnect_and_removes_nothing(self):
+        info = self.sign_in()
+        old_key = self.client.store.key()
+        self.keep_something_installed()
+        # the server rotates, but the response never reaches the app; then the 10 minutes of grace run out
+        status, issued, _ = self.api("POST", "/device/rotate", {}, key=old_key)
+        self.assertEqual(status, 200, issued)
+        self.gw.db.x("UPDATE keys SET retire_at = ? WHERE id = ?", (time.time() - 1, info["key_id"]))
+        with self.assertRaises(core.NeedsReconnect):
+            self.client.refresh()
+        self.assertTrue(self.client.signed_in())
+        self.assertEqual(self.client.store.key(), old_key)
+        self.assertIn("brand-prompts", self.client.store.state()["installed"])
+        self.assertTrue(self.client.status()["reconnect"])
+
+    def test_a_real_revoke_after_a_rotation_removes_the_app_from_the_device(self):
+        (self.home / ".codex").mkdir()
+        original = 'model = "o3"\n'
+        (self.home / ".codex" / "config.toml").write_text(original)
+        self.sign_in()
+        self.client.sync()
+        self.age()
+        self.assertEqual(self.client.sync()["rotation"], "rotated")
+        current_id = self.client.store.device()["key_id"]
+        self.assertEqual(self.rig.api("POST", f"/keys/{current_id}/revoke")[0], 200)
+        with self.assertRaises(core.Revoked):
+            self.client.sync()
+        self.assertFalse(self.client.signed_in())
+        self.assertFalse((self.data / "device.key").exists())
+        self.assertFalse((self.data / "packages").exists())
+        self.assertEqual((self.home / ".codex" / "config.toml").read_text(), original)
+
