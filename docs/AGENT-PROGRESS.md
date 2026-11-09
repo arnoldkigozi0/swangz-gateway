@@ -1594,3 +1594,10 @@ Merged: none. Ready: none this turn; docs9/10 green but independent verdicts not
 - Probe reports independentreadonlyGPT secondpassclearafterthreefirstpassgapsfixed; authorvalidation distinguishedfromindependentverdict. No localPython/browser/buildrun, docs-only. Sentinelassignednarrowchangedlabelsapprovalatnewhead, nofullvendoraudit.
 - Live9Python3.10/3.12/browserIN_PROGRESS, app-window/NetlifyPASS: notmergeeligibleyet.13c7f08bePython/browserpending, inertprofiles+app-windowSUCCESS; baseblockunchanged.
 - SlotPrism56repair; Probe57/50browserQAhelduntilrelease. Chief testsNotrun coordination/diffinspectiononly; diffcheckpassed. No additionalmerge/deployment/productionaccess.
+
+
+## Research security approval — 2026-11-10 01:05 EAT
+
+- Sentinel APPROVED #9 at aa60bfe93e423d9b334c6d0f7f3f2d6aedbce5a5/tree4972125 as research only, conditional on both Python jobs and browser passing at this head. Independent GPT re-review clear reported by Probe; no vendor permission implied, Model A remains proposed pending written confirmations.
+- Chief live check: main/MERGEABLE, app-window and preview checks passed; Python3.10/3.12/browser still IN_PROGRESS. No merge while pending. Follow-up docs should rename “Safe path today”/“Safe approved path” to “Proposed path”; nonblocking, keep reviewed head unchanged.
+- Chief tests Not run: coordination only; diff check passed. No additional merge or deployment.
