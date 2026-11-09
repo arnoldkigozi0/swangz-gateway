@@ -1,36 +1,53 @@
-/* Why check.cjs waits for finite animations before axe. Staff Home, theme flipped to light, then axe:
-   1. "frozen mid-transition": every finite animation is held at 0% (what a slow CI runner shows axe) -> axe reports color-contrast;
-   2. after the same wait check.cjs now does (play, then await finished) -> no violations.
-   Axe and its rules are unchanged. NODE_PATH must reach a tooling dir with playwright and @axe-core/playwright. Starts tests/browser/demo.py. */
-const path = require('node:path');
-const { spawn } = require('node:child_process');
-const { chromium } = require('playwright');
-const { AxeBuilder } = require('@axe-core/playwright');
-const root = path.resolve(__dirname, '../../..');
-const finite = `document.getAnimations().filter(a => { const t = a.effect && a.effect.getComputedTiming(); return t && Number.isFinite(t.iterations); })`;
-(async () => {
-  const demo = spawn('python3', [path.join(root, 'tests/browser/demo.py')], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
-  const info = await new Promise(r => { let b = ''; demo.stdout.on('data', d => { b += d; if (b.includes('\n')) r(JSON.parse(b.split('\n')[0])); }); });
-  const browser = await chromium.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome' });
-  const axe = async p => (await new AxeBuilder({ page: p }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations.map(v => v.id);
-  const out = { frozen: [], settled: [] };
+/* Invoked by tests/browser/check.cjs in the existing CI browser job, using its actual settle/layout helpers.
+   Controlled negative cases avoid relying on a natural race or on product-specific colours.
+   No product DOM, axe rule or animation is changed by the helper under test. No additional browser/server is started. */
+const assert = require('node:assert/strict');
+
+module.exports = async function themeStability({ browser, settle, layout, AxeBuilder }) {
+  const checks = [];
+  const check = (name, value) => { assert.ok(value, name); checks.push(name); };
+  const context = await browser.newContext({ viewport: { width: 800, height: 600 } });
   try {
-    for (let i = 0; i < 3; i++) {
-      const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-      await ctx.request.post(info.url + '/api/login', { headers: { 'x-swangz-app': '1' }, data: { email: 'grace@swangzavenue.com', password: 'demo-password' } });
-      const p = await ctx.newPage(); await p.goto(info.url + '/'); await p.locator('main h1').waitFor(); await p.waitForTimeout(100);
-      await p.evaluate(() => { document.documentElement.dataset.theme = 'light'; localStorage.setItem('swangz-theme', 'light'); });
-      await p.evaluate(`${finite}.forEach(a => { a.pause(); a.currentTime = 0; })`);
-      out.frozen.push(await axe(p));
-      await p.evaluate(`${finite}.forEach(a => a.play())`);
-      await p.evaluate(async () => { // the wait added to check.cjs
-        const finite = () => document.getAnimations().filter(a => { const t = a.effect && a.effect.getComputedTiming(); return t && Number.isFinite(t.iterations); });
-        for (let k = 0; k < 5 && finite().length; k++) await Promise.all(finite().map(a => a.finished.catch(() => {})));
-      });
-      out.settled.push(await axe(p));
-      await ctx.close();
-    }
-  } finally { await browser.close(); demo.kill(); }
-  console.log(JSON.stringify(out));
-  if (!out.frozen.every(v => v.includes('color-contrast')) || out.settled.some(v => v.length)) process.exit(1);
-})();
+    const page = await context.newPage();
+    await page.setContent('<!doctype html><html lang="en"><head><title>Theme settling regression</title></head><body><main><h1>Theme settling</h1><div id="fixture"><button id="sample">Contrast sample</button><span id="pulse" aria-hidden="true">*</span></div></main></body></html>');
+    await page.evaluate(() => {
+      const button = document.querySelector('#sample');
+      button.style.backgroundColor = '#fff';
+      button.style.color = '#111';
+      window.themeFinite = button.animate([{ color: '#fff' }, { color: '#111' }], { duration: 200, fill: 'forwards' });
+      window.themeFinite.pause();
+      window.themeFinite.currentTime = 0;
+      window.themePulse = document.querySelector('#pulse').animate([{ opacity: 1 }, { opacity: .5 }], { duration: 2000, iterations: Infinity });
+    });
+    const axe = selector => new AxeBuilder({ page }).include(selector).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+    check('mid-transition contrast defect is detected', (await axe('#fixture')).violations.some(v => v.id === 'color-contrast'));
+    await page.evaluate(() => window.themeFinite.play());
+    await settle(page);
+    check('settled fixture passes unchanged axe rules', (await axe('#fixture')).violations.length === 0);
+    const state = await page.evaluate(() => ({ finite: window.themeFinite.playState, infinite: window.themePulse.playState, colour: getComputedStyle(document.querySelector('#sample')).color }));
+    check('finite animation finishes naturally', state.finite === 'finished' && state.colour === 'rgb(17, 17, 17)');
+    check('endless animation remains running', state.infinite === 'running');
+
+    await page.evaluate(() => {
+      const bad = document.createElement('button');
+      bad.id = 'persistent'; bad.textContent = 'Persistent contrast defect';
+      bad.style.color = '#fff'; bad.style.backgroundColor = '#fff';
+      document.querySelector('#fixture').append(bad);
+    });
+    await settle(page);
+    check('persistent contrast defect survives settling', (await axe('#persistent')).violations.some(v => v.id === 'color-contrast'));
+    await page.evaluate(() => { document.querySelector('#fixture').style.width = '2000px'; });
+    await assert.rejects(() => layout(page, 'persistent overflow negative control'), /horizontal overflow/);
+    checks.push('persistent layout defect still fails the actual layout assertion');
+
+    await page.evaluate(() => {
+      window.themeStalled = document.querySelector('#sample').animate([{ opacity: 1 }, { opacity: .5 }], { duration: 200 });
+      window.themeStalled.pause();
+      window.themeStalled.currentTime = 0;
+    });
+    await assert.rejects(() => settle(page), /Timed out waiting for finite animations/);
+    check('stalled finite animation fails without being cancelled or advanced', await page.evaluate(() => window.themeStalled.playState === 'paused' && window.themeStalled.currentTime === 0));
+    console.log('PASS', checks.length, 'animation/axe regression checks');
+    return { checks };
+  } finally { await context.close(); }
+};

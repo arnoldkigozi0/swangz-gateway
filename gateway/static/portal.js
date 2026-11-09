@@ -1137,9 +1137,13 @@
   }
 
   async function signOut() {
-    try { await api("POST", "/logout"); } catch (e) { /* signed out anyway */ }
-    S.me = null;
-    showSignIn();
+    // Offline or a server error: the session may still be live, so say so and stay signed in rather than pretend.
+    try { await api("POST", "/logout"); } catch (e) { toast("Couldn't sign out. Try again.", true); return; }
+    S.me = null; S.studio = null;
+    try { localStorage.removeItem("swangz-studio-purpose"); } catch (e) { /* no storage */ }
+    // Start a fresh page, so nothing the last person loaded (drafts, catalogue, Studio) stays in memory on a shared phone
+    // or installed window, and the next sign-in runs the newest release.
+    location.replace("/");
   }
 
   // ------------------------------------------------------------------ start

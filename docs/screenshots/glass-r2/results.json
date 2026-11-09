@@ -1,0 +1,121 @@
+{
+  "checks": [
+    "synthetic owner login",
+    "dark icon-first default",
+    "dark floating rail inset",
+    "dark existing five groups preserved",
+    "dark every main destination present",
+    "dark white active circle",
+    "dark no page overflow",
+    "dark desktop axe navigation",
+    "dark keyboard tooltip names destination",
+    "dark ArrowDown focuses Live",
+    "dark focus ring",
+    "dark End reaches Audit log",
+    "dark Home returns Overview",
+    "dark Escape dismisses tooltip",
+    "dark expand retains focus",
+    "dark labels shown",
+    "dark labelled preference survives reload",
+    "dark active group stays visible",
+    "dark compact preference survives reload",
+    "dark desktop rail hidden on phone",
+    "dark five shortcuts and More",
+    "dark mobile targets at least 44px",
+    "dark quick bar fits viewport",
+    "dark mobile no horizontal overflow",
+    "dark phone axe navigation",
+    "dark More opens labelled drawer",
+    "dark drawer focus starts at close",
+    "dark unique navigation control IDs",
+    "dark quick bar hidden beneath drawer",
+    "dark drawer traps reverse Tab",
+    "dark drawer axe navigation",
+    "dark Escape returns focus to More",
+    "dark More reaches long-label destination",
+    "dark More marks non-shortcut page",
+    "dark quick link navigates",
+    "dark Back restores previous page",
+    "light icon-first default",
+    "light floating rail inset",
+    "light existing five groups preserved",
+    "light every main destination present",
+    "light white active circle",
+    "light no page overflow",
+    "light desktop axe navigation",
+    "light keyboard tooltip names destination",
+    "light ArrowDown focuses Live",
+    "light focus ring",
+    "light End reaches Audit log",
+    "light Home returns Overview",
+    "light Escape dismisses tooltip",
+    "light expand retains focus",
+    "light labels shown",
+    "light labelled preference survives reload",
+    "light active group stays visible",
+    "light compact preference survives reload",
+    "light desktop rail hidden on phone",
+    "light five shortcuts and More",
+    "light mobile targets at least 44px",
+    "light quick bar fits viewport",
+    "light mobile no horizontal overflow",
+    "light phone axe navigation",
+    "light More opens labelled drawer",
+    "light drawer focus starts at close",
+    "light unique navigation control IDs",
+    "light quick bar hidden beneath drawer",
+    "light drawer traps reverse Tab",
+    "light drawer axe navigation",
+    "light Escape returns focus to More",
+    "light More reaches long-label destination",
+    "light More marks non-shortcut page",
+    "light quick link navigates",
+    "light Back restores previous page",
+    "reduced motion removes drawer transition",
+    "reduced transparency solid quick bar",
+    "navigation omitted from print",
+    "no browser exceptions"
+  ],
+  "screenshots": [
+    "admin-1440-dark.png",
+    "expanded-1440-dark.png",
+    "admin-390-dark.png",
+    "drawer-390-dark.png",
+    "admin-1440-light.png",
+    "expanded-1440-light.png",
+    "admin-390-light.png",
+    "drawer-390-light.png"
+  ],
+  "errors": [],
+  "accessibility": [
+    {
+      "name": "dark desktop",
+      "violations": []
+    },
+    {
+      "name": "dark phone",
+      "violations": []
+    },
+    {
+      "name": "dark drawer",
+      "violations": []
+    },
+    {
+      "name": "light desktop",
+      "violations": []
+    },
+    {
+      "name": "light phone",
+      "violations": []
+    },
+    {
+      "name": "light drawer",
+      "violations": []
+    }
+  ],
+  "transparency": {
+    "blur": "none",
+    "bg": "rgb(250, 249, 246)",
+    "matches": true
+  }
+}

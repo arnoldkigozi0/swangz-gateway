@@ -45,13 +45,41 @@ async function go(p, url, route) {
   await p.waitForFunction(() => !document.querySelector('main .u-skel-rows, main .u-skel-cards'));
 }
 async function screenshot(p, name, fullPage = true) { await p.screenshot({ path: path.join(output, name + '.png'), fullPage }); }
-/* Let every finite animation and transition finish. The theme flip starts 160-280ms colour transitions; axe reads the in-between colours
-   (a quiet button at 1.68:1 early on), which failed CI on staff Home at random. Endless animations (pulses) are not waited for. */
+/* Audit settled colours after real finite transitions. Do not cancel/finish animations or change axe rules.
+   Infinite pulses keep running; a paused/stalled finite animation fails instead of hiding the problem. */
 async function settle(p) {
   await p.evaluate(async () => {
-    const finite = () => document.getAnimations().filter(a => { const t = a.effect && a.effect.getComputedTiming(); return t && Number.isFinite(t.iterations); });
-    for (let i = 0; i < 5 && finite().length; i++) await Promise.all(finite().map(a => a.finished.catch(() => {}))); // one that starts while waiting gets another pass
+    await document.fonts.ready;
+    const finite = () => document.getAnimations().filter(a => {
+      const timing = a.effect && a.effect.getComputedTiming();
+      return timing && Number.isFinite(timing.endTime) && a.playState !== 'finished';
+    });
+    let timer;
+    try {
+      await Promise.race([
+        (async () => {
+          for (let i = 0; i < 5; i++) {
+            const active = finite();
+            if (!active.length) return;
+            await Promise.all(active.map(a => a.finished.catch(() => {})));
+          }
+          if (finite().length) throw new Error('Finite animations did not settle after five passes');
+        })(),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Timed out waiting for finite animations')), 3000); })
+      ]);
+    } finally { clearTimeout(timer); }
   });
+}
+async function setTheme(p, theme) {
+  await p.evaluate(async t => {
+    document.documentElement.dataset.theme = t;
+    localStorage.setItem('swangz-theme', t);
+    await document.fonts.ready;
+    // Wait for the real finite transitions; keep all axe rules enabled.
+    await Promise.all(document.getAnimations()
+      .filter(a => Number.isFinite(a.effect.getComputedTiming().endTime))
+      .map(a => a.finished.catch(() => {})));
+  }, theme);
 }
 async function layout(p, name, axe = false) {
   if (axe) await settle(p);
@@ -74,6 +102,7 @@ async function layout(p, name, axe = false) {
 (async () => {
   const { url, person, key, session } = await fixture();
   browser = await chromium.launch({ executablePath: process.env.CHROME || undefined, headless: true, args: ['--no-sandbox'] });
+  results.themeStability = await require(path.join(root, 'docs/screenshots/browser-theme-stability/repro.cjs'))({ browser, settle, layout, AxeBuilder });
   const c = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   await login(c, url); await staffLogin(c, url);
   const p = await c.newPage();
@@ -126,7 +155,7 @@ async function layout(p, name, axe = false) {
       await ap.setViewportSize({ width, height });
       for (const route of ['/', '/admin']) {
         await ap.goto(url + route); await ready(ap);
-        await ap.evaluate(t => { document.documentElement.dataset.theme = t; localStorage.setItem('swangz-theme', t); }, theme);
+        await setTheme(ap, theme);
         const name = `signin-${theme}-${width}-${route === '/' ? 'staff' : 'admin'}`;
         await layout(ap, name, width === 1440 || width === 390);
         if (width === 1440 || width === 390) await screenshot(ap, name);
@@ -147,7 +176,7 @@ async function layout(p, name, axe = false) {
       await p.setViewportSize({ width, height });
       for (const route of ['/#/requests?view=access', '/admin#/requests', '/admin#/incidents/' + id, '/admin#/sessions/' + session]) {
         await go(p, url, route);
-        await p.evaluate(t => { document.documentElement.dataset.theme = t; localStorage.setItem('swangz-theme', t); }, theme);
+        await setTheme(p, theme);
         const name = `records-${theme}-${width}-${route.replace(/[^a-z0-9]/g, '_')}`;
         await layout(p, name, width === 1440 || width === 390);
         if (width === 1440 || width === 390) await screenshot(p, name);
@@ -187,7 +216,7 @@ async function layout(p, name, axe = false) {
     for (const theme of ['dark', 'light']) for (const [width, height] of [sizes[0], sizes[3], sizes[5]]) {
       await p.setViewportSize({ width, height });
       await p.goto(url + '/'); await ready(p);
-      await p.evaluate(t => { document.documentElement.dataset.theme = t; localStorage.setItem('swangz-theme', t); }, theme);
+      await setTheme(p, theme);
       for (const route of ['/#/devices', '/#/requests', '/#/studio', '/admin#/', '/admin#/activity', `/admin#/people/${person}`, `/admin#/devices/${key}`, '/admin#/licences', '/admin#/policies']) {
         await go(p, url, route);
         const tabs = p.locator('main [role="tablist"]').first();
@@ -350,7 +379,7 @@ async function layout(p, name, axe = false) {
       await p.setViewportSize({ width, height });
       for (const route of routes) {
         await go(p, url, route);
-        await p.evaluate(t => { document.documentElement.dataset.theme = t; localStorage.setItem('swangz-theme', t); }, theme);
+        await setTheme(p, theme);
         const name = `${theme}-${width}-${route.replace(/[^a-z0-9]/g, '_')}`;
         await layout(p, name, width === 1440 || width === 390);
         if (width === 1440 || width === 390) await screenshot(p, name);
