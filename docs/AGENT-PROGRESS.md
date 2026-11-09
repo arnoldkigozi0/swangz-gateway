@@ -1601,3 +1601,11 @@ Merged: none. Ready: none this turn; docs9/10 green but independent verdicts not
 - Sentinel APPROVED #9 at aa60bfe93e423d9b334c6d0f7f3f2d6aedbce5a5/tree4972125 as research only, conditional on both Python jobs and browser passing at this head. Independent GPT re-review clear reported by Probe; no vendor permission implied, Model A remains proposed pending written confirmations.
 - Chief live check: main/MERGEABLE, app-window and preview checks passed; Python3.10/3.12/browser still IN_PROGRESS. No merge while pending. Follow-up docs should rename “Safe path today”/“Safe approved path” to “Proposed path”; nonblocking, keep reviewed head unchanged.
 - Chief tests Not run: coordination only; diff check passed. No additional merge or deployment.
+
+
+## Badge accessibility fix merged — 2026-11-10 01:06 EAT
+
+- Probe independently VERIFIED50 a71e356: 67 headerchecks/fourscreens/fourtoolbaraxescans/zeroviolations. Browsercomputedopaquecontrast6.36dark/4.74light at1440and390. Colour-onlydelta; Probeexplicitlydocumentedphoto/perf/CLS/fallback/emptyDB/overlayN/A, scopedbadgeacceptancenotwholeapp. Evidence/tmp/probe-s50-out/.
+- Chiefreconfirmedmain/MERGEABLE/exacthead/all4Actions+previewrulePASS, markedreadyandmerged50. GitHubMERGEDconfirmed8aa97c1d06f38a1c4a3609909f3b0e0ebe9e45a8. Shiftmerges59/10/50;20open.
+- ghpreditdescriptionfailedProjects-classicGraphQL; postedauthoritativeacceptancecomment6752737283 supersedingoldHOLD, actualtestoutput/Notrun/NArationale retained. No APIworkaroundattempt.
+- ThisProbe50reportpredatesslottransfer: ownedprocessesstopped; currentEXCLUSIVE localQA slotremainsPrism56repair, notfreeforparallelProbeQA. Chief testsNotrun coordinationonly; diffcheckpassed. No manualdeployment/productionaccess.
