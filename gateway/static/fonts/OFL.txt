@@ -1,3 +1,9 @@
 Archivo — Copyright 2017 The Archivo Project Authors (https://github.com/Omnibus-Type/Archivo)
 Licensed under the SIL Open Font License, Version 1.1: https://openfontlicense.org
 Self-hosted here (latin subset, variable width 62–125 and weight 400–800) so the console loads nothing from third parties.
+
+Plus Jakarta Sans — Copyright 2020 The Plus Jakarta Sans Project Authors
+(https://github.com/tokotype/PlusJakartaSans).
+UI and headings use the self-hosted normal Latin subset, variable weight 200–800.
+The full SIL Open Font License 1.1 is in PlusJakartaSans-OFL.txt alongside the font.
+Archivo is retained for compatibility with older cached pages.

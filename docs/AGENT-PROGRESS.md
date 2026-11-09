@@ -186,3 +186,192 @@ actual logs: Ubuntu 24.04.5, CPython 3.12.15, PR merge SHA
 reported, successful step/job (exit 0). No Tk callback traceback appeared in the log. This verifies
 the corrected sign-in and cleanup retry GUI fixture on Linux. GUI/test files are unchanged by the
 Python 3.10 expectation follow-up; final-head full CI and Probe/Sentinel reviews remain required.
+
+## Glass R1 review correction — 7 November 2026
+
+Branch `feature/glass-r1`, worktree `.worktrees/glass-r1`, draft PR #38.
+Probe rejected initial head `1e0a319`: its actual browser check reproduced KPI
+overflow from Jakarta font metrics, mobile catalogue label clipping and the
+decorative scene printing behind black text. Chief confirmed no Forge/R3 shared
+CSS work had started and reserved the bounded correction for Prism.
+
+Kept Arnold-authorized self-hosted Plus Jakarta Sans. Raised `.kpi .value`
+line-height to 1.3; allowed `.tr-sub` metadata to wrap; hid `body::before` in
+print. Added metadata overflow detection to the existing CI browser harness;
+extended the focused glass harness to check all three defects. No auth/product
+logic, dependencies, production services, providers, merge or deployment changed.
+
+Actual corrected-tree checks (synthetic local fixtures, socket access enabled):
+
+- `UI_WIDTH=<1440|390> UI_THEME=<dark|light> UI_PAGES_ONLY=1
+  UI_OUTPUT=/tmp/prism-glass-r1-<theme><width> node tests/browser/check.cjs`:
+  four separate runs, each `PASS principal pages 27 interaction assertions;
+  25 screen checks`, exit 0. Total 108 assertions/100 screens, no browser errors,
+  axe findings, KPI clipping or tool metadata clipping. Deliberate Studio 400 is
+  expected; no unexpected API failures. Full role matrix stays on Actions.
+- `node docs/screenshots/glass-r1/check.cjs`: `PASS 81 targeted checks;
+  8 screenshots; 20 contrast bounds`, exit 0; minimum contrast bound 4.63:1.
+- `python3 -m unittest tests.test_portal tests.test_hub`: `Ran 56 tests in
+  30.576s`, `OK`, exit 0. Only fake upstream; no full suite repeated locally.
+- `python3 tests/browser/syntax.py`: `Checked 23 JavaScript files`, exit 0.
+- `git diff --check`: exit 0.
+
+Screenshots and result summaries: `docs/screenshots/glass-r1/`. Inspected all
+four exact 1440×900/390×844 admin screenshots and both new staff metadata
+screenshots. Print checks use Chromium media emulation, not physical output or
+a report PDF. Not run: real devices, Safari/Firefox, screen readers, full local
+role matrix/full suite, 60fps/CLS/MotionScore. Earlier Actions Python/app-window
+success applies only to `1e0a319`; browser failed there. Corrected-head CI and
+Probe re-verification are pending. No processes left running after checks.
+
+
+## Glass R3 floating toolbar — 8 November 2026
+
+Resumed `feature/glass-r3` in `.worktrees/glass-r3` from R2 head
+`4f6cf7e5cb5fae63b1642e9e30f5766ecbb6e5f5`, preserving existing uncommitted
+admin.css/admin.js and task screenshots. Header-only product changes provide
+workspace navigation, centered existing command search, timezone-aware real clock,
+existing notifications and the signed-in account link. No shared UI/backend/auth
+changes. No global New action or invented online presence. R2 PR42 remains an
+open dependency; inherited navigation is included against main.
+
+Actual checks on the resumed tree (synthetic fixtures, authorized local ports):
+
+- `UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules node docs/screenshots/glass-r3/check.cjs`: `PASS 63 header checks; 4 screenshots; 4 axe scans`, exit 0, no browser exceptions/scoped axe findings. Includes keyboard/focus, clock tick/timezone, real destinations, viewer identity, 44px controls and 320/768/1280 widths, print/reduced-motion/no-blur checks. Initial invocation without tooling failed `MODULE_NOT_FOUND`; no packages installed.
+- `python3 -m unittest tests.test_portal tests.test_hub`: `Ran 56 tests in 38.042s`, `OK`, exit 0.
+- `python3 tests/browser/syntax.py`: `Checked 23 JavaScript files`, exit 0.
+- `python3 docs/screenshots/glass-r3/contrast.py`: `PASS 8 text contrast bounds; minimum 5.64`, exit 0. Bounds cover strong-pill primary text and scene secondary area text, over black/white photographs with shipped scrim. Initial ad-hoc parser failed by matching a comment; saved script matches the actual rule.
+- `NODE_PATH=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules UI_WIDTH=<1440|390> UI_THEME=<dark|light> UI_PAGES_ONLY=1 UI_OUTPUT=/tmp/prism-r3-<theme>-<width> node tests/browser/check.cjs`: four separate runs each `PASS principal pages 27 interaction assertions; 25 screen checks`, exit 0. Total 108 assertions/100 screens; zero browser errors, axe findings or unexpected API failures. The deliberately rejected Studio request is expected. Summaries: `regression-results.json`.
+
+Inspected exact 1440x900/390x844 dark/light screenshots alongside the dashboard
+reference; differences and artifacts are in `docs/screenshots/glass-r3/`.
+Not run: full local suite/role matrix (Actions), real devices, other engines,
+screen readers, native OS settings, hardware performance/60fps/CLS/MotionScore.
+Mounted browser, Chrome DevTools and Motion tools unavailable. Independent QA and
+new-head CI pending; no merge or deployment.
+
+Queue preflight: R4 PR44 remains open at `8cdc8ea`, built on old PR40
+`42ce9b7`; PR40 is open at corrected `cb4a5ba`. Read-only merge-tree confirms
+refresh includes shared ui.css/ui.js changes. Those files remain Forge-owned;
+no R4 integration performed or R8 worktree started pending dependency clearance.
+
+R3 final whitespace check passed. All local check processes finished. Peer coordination tools were not exposed on this turn; independent Probe review is requested in the final handoff, not claimed as performed.
+## PR42 browser CI diagnosis and main refresh — 8 November 2026
+
+Branch `feature/glass-r2`, `.worktrees/glass-r2`. Inspected actual failed
+GitHub run42382080869/job128431709285 and downloaded the synthetic artifact:
+first light1440 staff Home axe scan flagged Canva/ChatGPT/Claude launch links.
+`ci-failure.json` retains the artifact summary. Staff portal/shared UI files are
+identical to main; R2 had not modified those files.
+
+Task diagnostic `docs/screenshots/glass-r2/ci-contrast.cjs` freezes native colour
+transitions at30ms for CPU-independent inspection: reproduced all three targets
+at3.04:1 (#979391 on white). Fully settled page passes. Existing harness now
+awaits fonts and finite theme transitions before auditing. No accessibility
+assertions/thresholds/rules disabled; no retries or product styling changes.
+This does not assert that transient theme colours themselves meet AA.
+
+Normally merged main7ce5407 conflict-free as4423482. No edits to inherited
+backend/device files; admin.css/admin.js byte-identical to4f6cf7e and recorded
+performance SHA256s, so prior mixed performance result/limitations still stand.
+Actual synthetic local checks with existing R1 pinned tooling and ports enabled:
+
+- Focused navigation: `PASS 75 navigation checks; 8 screenshots; 6 axe scans`, exit0.
+- Prior review regressions: `PASS 23 review regression checks`, exit0.
+- `python3 -m unittest tests.test_browser_profiles tests.test_portal tests.test_hub`: `Ran 99 tests in 60.789s`, `OK`, exit0. Fixture socket ResourceWarnings appeared without failures.
+- `python3 tests/browser/syntax.py`: `Checked 23 JavaScript files`, exit0.
+- `NODE_PATH=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules UI_WIDTH=1440 UI_THEME=light UI_PAGES_ONLY=1 UI_OUTPUT=/tmp/prism-r42-corrected node tests/browser/check.cjs`: `PASS principal pages 27 interaction assertions; 25 screen checks`, exit0, no browser/axe/unexpected API findings. `ci-regression-results.json` retains the summary. Updated `UI_TOOLING=<same existing R1 tooling> node docs/screenshots/glass-r2/ci-contrast.cjs`: `PASS 3 CI contrast diagnosis checks; native 30ms state fails, settled state passes`, exit0; after reproduction it resumes and awaits real transitions rather than force-finishing them. `git diff --check`: exit0. All local processes finished. Independent exact-head QA and final-head CI pending.
+
+Regenerated navigation screenshots; inspected desktop light and phone dark
+drawer for unchanged selection/readability. References and existing differences
+remain in the task README. Full local matrix/suite, real devices/other engines,
+screen readers, new performance/CLS/MotionScore: Not run; bounded test correction,
+full suite/matrix stay on Actions. Independent exact-head QA remains required.
+No shared ui.css/ui.js, production, providers, dependencies, merge to main or deploy.
+
+
+## PR48 corrected dependency integration — 8 November 2026
+
+After PR42 was tested, clean and pushed at
+`d31bfe81ba28736cc70d00b27accda4e9307f1d5`, normally integrated it (including
+main7ce5407) into `feature/glass-r3`, existing draft PR48. The only conflict was
+append-only progress records; retained both complete sections. No product/test
+conflict resolution. Admin CSS/JS match original R3b5986c6 exactly; no shared
+ui.css/ui.js edits. R2's original mixed performance gate is not cleared by this
+CI audit synchronization correction.
+
+Actual integrated-tree synthetic local checks, existing pinned R1 tooling:
+
+- `UI_TOOLING=<existing R1 tests/browser/node_modules> node docs/screenshots/glass-r3/check.cjs`: `PASS 63 header checks; 4 screenshots; 4 axe scans`, exit0.
+- `python3 -m unittest tests.test_browser_profiles tests.test_portal tests.test_hub`: `Ran 99 tests in 62.813s`, `OK`, exit0. Non-failing fixture socket ResourceWarnings recorded.
+- `python3 tests/browser/syntax.py`: `Checked 23 JavaScript files`, exit0.
+- `python3 docs/screenshots/glass-r3/contrast.py`: `PASS 8 text contrast bounds; minimum 5.64`, exit0.
+- Integrated-tree results: `UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules node docs/screenshots/glass-r3/check.cjs`: `PASS 63 header checks; 4 screenshots; 4 axe scans`, exit0. `NODE_PATH=<same tooling> UI_WIDTH=1440 UI_THEME=light UI_PAGES_ONLY=1 UI_OUTPUT=/tmp/prism-r48-integrated node tests/browser/check.cjs`: `PASS principal pages 27 interaction assertions; 25 screen checks`, exit0; zero browser errors/axe/unexpected API findings, summary in `integration-regression-results.json`. `python3 -m unittest tests.test_browser_profiles tests.test_portal tests.test_hub`: `Ran 99 tests in 62.813s`, `OK`, exit0 (non-failing fixture socket ResourceWarnings). Syntax:23 JavaScript files checked; eight text contrast bounds min5.64; working/staged whitespace checks passed. All local check processes finished.
+
+Regenerated four exact required viewport/theme screenshots; inspected desktop
+dark and phone light against preserved reference differences. Full local
+suite/role matrix, real devices, other engines, screen readers, fresh hardware
+performance/CLS/MotionScore: Not run. Actions and independent final exact-head
+Probe QA remain required. No new PR, shared UI source change, deployment or merge
+to main. Peer coordination tools unavailable; final handoff requests routing QA.
+## New-main integration before final QA — 8 November 2026
+
+Normally merged main `2b30af5f0c47c6bf447671a8de2f91742fec6ff6` into
+`feature/glass-r2` without conflicts. Main delta from7ce5407 is limited to
+docs/CLIENT.md, gateway/enroll.py and tests/test_browser_contract.py: negotiated
+`browser_contract=1` adds an inert authenticated person/device browser block to
+the manifest; non-negotiating clients retain their original manifest shape.
+No hand edits to inherited implementation or tests.
+
+Own-source verification against `d31bfe81ba28736cc70d00b27accda4e9307f1d5`:
+admin.css, admin.js and tests/browser/check.cjs are byte-identical. Shared
+ui.css/ui.js also unchanged. Five exact comparisons, baseline Git blob IDs and
+current SHA256s recorded in `docs/screenshots/glass-r2/main-refresh-identity.json`.
+Earlier transition diagnosis, all assertions, reference differences and mixed
+performance evidence remain unchanged; no CI diagnosis repeated.
+
+Fresh results: `python3 -m unittest tests.test_browser_contract tests.test_browser_profiles tests.test_portal tests.test_hub`: `Ran 119 tests in 95.128s`, `OK`, exit0; a non-failing fixture socket ResourceWarning appeared. `UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules node docs/screenshots/glass-r2/check.cjs`: `PASS 75 navigation checks; 8 screenshots; 6 axe scans`, exit0. `python3 tests/browser/syntax.py`: `Checked 23 JavaScript files`, exit0. Five byte-identity comparisons and working/staged whitespace checks passed. Local checks finished. Full local
+suite/role matrix, new performance/CLS/MotionScore, real devices, other engines
+and screen readers: Not run. Fresh final-head Actions and independent Probe QA
+remain required. No new build/PR, shared UI edits, merge to main or deployment.
+
+
+## Main2b30af5 integration for final QA — 8 November
+
+Normally integrated refreshed PR42 `1b8c8d913b7c7612abe67e122d0275e978415ed5`,
+including main `2b30af5f0c47c6bf447671a8de2f91742fec6ff6`, into existing PR48.
+Only append-only progress records conflicted; retained both complete records.
+No product/test resolution edits. Main adds the reviewed negotiated browser
+manifest contract in enroll.py plus its documentation and tests.
+
+Five byte-identity comparisons against previous PR48 head
+`1af8d0f9a828a8770ecdc62aca090d73329605a1` passed: admin.css, admin.js,
+tests/browser/check.cjs and shared ui.css/ui.js. Baseline Git blob IDs/current
+SHA256s recorded in `docs/screenshots/glass-r3/main-refresh-identity.json`.
+Earlier transition-wait assertions, diagnosis and mixed R2 performance evidence
+are unchanged; no repeated diagnosis/performance sampling.
+
+Latest integrated-tree results: `python3 -m unittest tests.test_browser_contract tests.test_browser_profiles tests.test_portal tests.test_hub`: `Ran 119 tests in 61.188s`, `OK`, exit0; non-failing fixture socket ResourceWarnings appeared. `UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules node docs/screenshots/glass-r3/check.cjs`: `PASS 63 header checks; 4 screenshots; 4 axe scans`, exit0. Five own/shared source byte-identity comparisons and working/staged whitespace checks passed. All local check processes finished. Full local
+suite/role matrix, hardware performance/CLS/MotionScore, real devices/other
+engines/screen readers: Not run. Final-head Actions and independent Probe QA
+remain required. No new build/PR, shared UI edits, merge to main or deployment.
+
+
+## PR48 refresh after parent42 merge — 8 November
+
+Normally merged exact main `743815ca836032385e5f14cd1e93516e4e745d95` as
+`d9ee991317f69382261530309fa597bf751e8e11`, no conflicts. Before evidence
+updates, the entire merge tree is byte-identical to previous verified48 head
+`b1a2544ab18ca156c4feeb5904055cb278129aaa`: tree
+`fbdb54a8d8d20fcfbf2301c0265c8edae4357429`. This merge changes ancestry only.
+
+Seven own/shared source comparisons passed: admin.css/admin.js, the existing
+browser harness, task check.cjs/contrast.py, and shared ui.css/ui.js. Git blob
+IDs and SHA256 evidence: `docs/screenshots/glass-r3/parent-merge-identity.json`.
+No harness changes outside the normal merge and no diagnosis repeated.
+
+Fresh results: `UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules node docs/screenshots/glass-r3/check.cjs`: `PASS 63 header checks; 4 screenshots; 4 axe scans`, exit0. `NODE_PATH=<same tooling> UI_WIDTH=1440 UI_THEME=light UI_PAGES_ONLY=1 UI_OUTPUT=/tmp/prism-r48-parent-merged node tests/browser/check.cjs`: `PASS principal pages 27 interaction assertions; 25 screen checks`, exit0; no browser exceptions, axe findings or unexpected API failures; summary in `parent-merge-regression-results.json`. `python3 -m unittest tests.test_portal tests.test_hub`: `Ran 56 tests in 36.926s`, `OK`, exit0. Seven source identity checks and working/staged whitespace checks passed. All local check processes finished. Full
+local suite/role matrix, new hardware performance/CLS/MotionScore, real devices,
+other engines and screen readers: Not run. Fresh final-head Actions and Probe
+QA remain required. Parent42 is now merged; PR48's diff is header/task evidence
+only. No scope expansion, new build/PR, deployment or merge to main.

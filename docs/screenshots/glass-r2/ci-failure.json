@@ -1,0 +1,32 @@
+{
+  "run": 42382080869,
+  "job": 128431709285,
+  "head": "4f6cf7e5cb5fae63b1642e9e30f5766ecbb6e5f5",
+  "screens": [
+    {
+      "name": "light-1440-_",
+      "width": 1440,
+      "overflow": false,
+      "buttons": [],
+      "clippedValues": [],
+      "clippedToolMetadata": [],
+      "violations": [
+        {
+          "id": "color-contrast",
+          "targets": [
+            [
+              "a[href$=\"canva\"]"
+            ],
+            [
+              "a[href$=\"chatgpt\"]"
+            ],
+            [
+              "a[href$=\"claude\"]"
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": []
+}

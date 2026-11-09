@@ -11,6 +11,9 @@
 
 import argparse
 import getpass
+import os
+from pathlib import Path
+import subprocess
 import sys
 import time
 
@@ -28,10 +31,11 @@ def when(ts):
 
 
 def main(argv=None, client=None):
-    argv = list(sys.argv[1:] if argv is None else argv)
+    command_argv = list(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(prog="swangz", description="Swangz AI Hub on this device")
     parser.add_argument("--version", action="version", version=f"swangz {__version__}")
     parser.add_argument("--background", action="store_true", help="open the window minimised (used when starting at login)")
+    parser.add_argument("--post-update", action="store_true", help=argparse.SUPPRESS)
     sub = parser.add_subparsers(dest="cmd")
     p = sub.add_parser("login")
     p.add_argument("--server")
@@ -53,7 +57,9 @@ def main(argv=None, client=None):
     p = sub.add_parser("key", help="credential helper for an installed coding agent (pipe only)")
     p.add_argument("--for", dest="tool", required=True, choices=("claude-code", "codex"))
     sub.add_parser("gui")
-    args = parser.parse_args(argv)
+    p = sub.add_parser("update", help="check, stage or apply an authenticated app release")
+    p.add_argument("action", choices=("status", "check", "apply"), nargs="?", default="status")
+    args = parser.parse_args(command_argv)
     client = client or core.Client()
     try:
         if args.cmd == "key":
@@ -62,12 +68,22 @@ def main(argv=None, client=None):
                 return 1
             try:
                 key = client.helper_key(args.tool)
-            except (core.NotSignedIn, keystore.KeyStoreError, OSError):
+            except (core.ApiFailure, core.NotSignedIn, core.ClientTooOld, keystore.KeyStoreError,
+                    agents.AgentConfigError, ValueError, OSError):
                 print("The credential helper could not read this device's key. Open Swangz to retry.", file=sys.stderr)
                 return 1
             sys.stdout.write(key)  # Bare token, no banner or newline; access record is a separate private file.
             sys.stdout.flush()
             return 0
+        if args.post_update or args.cmd in (None, "gui", "status", "sync", "update"):
+            updater = client.updater()
+            if args.post_update:
+                updater.post_update()
+                return 0  # acknowledgement probe exits; restart normally to open the updated app
+            if updater.recover():
+                subprocess.Popen([str(updater.target), *command_argv], env=dict(os.environ),
+                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return 1
         return run(args, client)
     except core.Revoked:
         say("This device was disconnected from Swangz AI Hub, so Swangz has been removed from it.")
@@ -79,7 +95,10 @@ def main(argv=None, client=None):
         say(str(exc) + "  Run: swangz login")
         return 2
     except (core.ApiFailure, core.ClientTooOld, keystore.KeyStoreError, agents.AgentConfigError, ValueError, OSError) as exc:
-        say(getattr(exc, "message", None) or str(exc))
+        if args.cmd == "key":
+            print("The credential helper could not complete. Open Swangz to retry.", file=sys.stderr)
+        else:
+            say(getattr(exc, "message", None) or str(exc))
         return 1
     except KeyboardInterrupt:
         return 130
@@ -108,6 +127,8 @@ def run(args, client):
         say(f"{s['person']['name']} on {s['server']}")
         say(f"This device: {s['device']['name']} ({s['device']['owner_kind']})   last synced: {when(s['last_sync'])}")
         say("Key storage: " + (s.get("key_storage") or "unknown"))
+        say(s["updates"]["message"])
+        say("Platform signature: " + s["updates"]["platform_signature"])
         if s.get("credential_warning"):
             say(s["credential_warning"])
         for pid, r in s["installed"].items():
@@ -117,6 +138,19 @@ def run(args, client):
         return 0
     if cmd == "sync":
         return sync_and_report(client, force=args.force)
+    if cmd == "update":
+        updater = client.updater()
+        if args.action == "check":
+            result = updater.check()
+        elif args.action == "apply":
+            if not getattr(sys, "frozen", False) or Path(sys.executable).absolute() != updater.target:
+                raise ValueError("Applying updates requires a portable executable installed in Swangz's app folder.")
+            result = updater.install()
+        else:
+            result = updater.status()
+        say(result["message"])
+        say("Platform signature: " + result["platform_signature"])
+        return 0
     if cmd == "packages":
         client.refresh()
         for r in client.packages():
