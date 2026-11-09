@@ -1,0 +1,33 @@
+Checking light-430-staff-home
+Checking light-430-staff-tools
+Checking light-430-staff-weekly
+Checking light-430-staff-weekly-wizard
+Checking light-430-staff-requests
+Checking light-430-staff-procurement
+Checking light-430-staff-history
+Checking light-430-staff-adoption
+Checking light-430-staff-projects
+Checking light-430-staff-departments
+Checking light-430-staff-department-requests
+Checking light-430-staff-tool-detail
+Checking light-430-staff-adoption-wizard
+Checking light-430-staff-adoption-detail
+Checking light-430-staff-project-detail
+Checking light-430-admin-overview
+Checking light-430-admin-weekly
+Checking light-430-admin-review
+Checking light-430-admin-people
+Checking light-430-admin-tools
+Checking light-430-admin-settings
+Checking light-430-admin-identity
+Checking light-430-admin-business
+Checking light-430-admin-business-finance
+Checking light-430-admin-business-management
+Checking light-430-admin-procurement
+Checking light-430-admin-procurement-detail
+Checking light-430-admin-allocations
+Checking light-430-admin-person-detail
+Checking light-430-admin-tool-detail
+Checking light-430-admin-report-detail
+Captured light 430 responsive matrix
+{"screens":31,"workflows":["Mobile catalogue category selection, keyboard focus, Back and refresh","Loading placeholders expose valid accessible status semantics","Adoption wizard, projects, 8-hour day, immutable submission","Staff amendment with retained versions","Admin business inbox and confirmation","Business deep link, refresh and Back","Four-step purchase wizard, persisted draft/refresh, project, 40-hour workweek","Procurement financial correction, original quote retention, approval","Scoped department-report request and governed approval","Delayed analytics does not overwrite a later page; unsaved purchase navigation stays guarded","Viewer remains read-only"],"errors":[],"failedRequests":[]}

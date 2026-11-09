@@ -183,3 +183,9 @@ html[data-theme="light"] .staff-exact {
   .staff-exact { --staff-panel-bg: #241F1C; }
   html[data-theme="light"] .staff-exact { --staff-panel-bg: #FCF8F2; }
 }
+
+/* §10.1(3): the fixed scene and backdrop filters caused severe scroll stalls in
+   software Chromium. Keep the same surfaces and scrims while allowing the
+   room to scroll and omitting live blur within the staff shell. */
+.staff-exact { background-attachment: scroll; }
+.staff-exact * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }

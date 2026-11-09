@@ -1,0 +1,1046 @@
+{
+ "dark/home": {
+  "geo": {
+   "rail": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "railRadius": "31px",
+   "railBg": "rgba(30, 26, 24, 0.8)",
+   "brand": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "icons": [],
+   "active": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "activeBg": "rgb(242, 238, 236)",
+   "workspace": [
+    28,
+    0,
+    135,
+    44
+   ],
+   "crumb": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "search": [
+    169,
+    0,
+    87,
+    44
+   ],
+   "newBtn": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "clock": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "bell": [
+    268,
+    0,
+    44,
+    44
+   ],
+   "account": [
+    318,
+    0,
+    44,
+    44
+   ],
+   "main": [
+    16,
+    92,
+    358,
+    813.6
+   ],
+   "h1": [
+    17,
+    140,
+    320,
+    60
+   ],
+   "h1Font": "\"Swangz Staff Poppins\", \"Helve 24px/600",
+   "scrimOverlay": "none",
+   "overflowX": false
+  },
+  "axe": [],
+  "perf": {
+   "fcp": 384,
+   "lcp": 896,
+   "dcl": 273,
+   "load": 285,
+   "longTasks": [
+    120,
+    211
+   ],
+   "clsAll": 0.00007,
+   "clsScored": 0.00007,
+   "clsEntries": 2
+  },
+  "cdp": {
+   "layouts": 4,
+   "recalc": 6,
+   "taskMs": 2088,
+   "scriptMs": 30,
+   "heapMB": 12
+  },
+  "errs": []
+ },
+ "dark/tools": {
+  "geo": {
+   "rail": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "railRadius": "31px",
+   "railBg": "rgba(30, 26, 24, 0.8)",
+   "brand": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "icons": [],
+   "active": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "activeBg": "rgb(242, 238, 236)",
+   "workspace": [
+    28,
+    0,
+    135,
+    44
+   ],
+   "crumb": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "search": [
+    169,
+    0,
+    87,
+    44
+   ],
+   "newBtn": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "clock": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "bell": [
+    268,
+    0,
+    44,
+    44
+   ],
+   "account": [
+    318,
+    0,
+    44,
+    44
+   ],
+   "main": [
+    16,
+    76,
+    358,
+    1452.7
+   ],
+   "h1": [
+    17,
+    77,
+    338,
+    30
+   ],
+   "h1Font": "\"Swangz Staff Poppins\", \"Helve 24px/600",
+   "scrimOverlay": "none",
+   "overflowX": false
+  },
+  "axe": [],
+  "perf": {
+   "fcp": 408,
+   "lcp": 660,
+   "dcl": 285,
+   "load": 311,
+   "longTasks": [
+    450
+   ],
+   "clsAll": 0.00002,
+   "clsScored": 0.00002,
+   "clsEntries": 1
+  },
+  "cdp": {
+   "layouts": 4,
+   "recalc": 5,
+   "taskMs": 2213,
+   "scriptMs": 12,
+   "heapMB": 8
+  },
+  "errs": []
+ },
+ "dark/requests": {
+  "geo": {
+   "rail": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "railRadius": "31px",
+   "railBg": "rgba(30, 26, 24, 0.8)",
+   "brand": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "icons": [],
+   "active": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "activeBg": "rgb(242, 238, 236)",
+   "workspace": [
+    28,
+    0,
+    135,
+    44
+   ],
+   "crumb": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "search": [
+    169,
+    0,
+    87,
+    44
+   ],
+   "newBtn": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "clock": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "bell": [
+    268,
+    0,
+    44,
+    44
+   ],
+   "account": [
+    318,
+    0,
+    44,
+    44
+   ],
+   "main": [
+    16,
+    76,
+    358,
+    326.4
+   ],
+   "h1": [
+    17,
+    77,
+    317,
+    30
+   ],
+   "h1Font": "\"Swangz Staff Poppins\", \"Helve 24px/600",
+   "scrimOverlay": "none",
+   "overflowX": false
+  },
+  "axe": [],
+  "perf": {
+   "fcp": 324,
+   "lcp": 660,
+   "dcl": 238,
+   "load": 249,
+   "longTasks": [
+    190
+   ],
+   "clsAll": 0.00002,
+   "clsScored": 0.00002,
+   "clsEntries": 1
+  },
+  "cdp": {
+   "layouts": 4,
+   "recalc": 9,
+   "taskMs": 1229,
+   "scriptMs": 9,
+   "heapMB": 13
+  },
+  "errs": []
+ },
+ "dark/weekly": {
+  "geo": {
+   "rail": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "railRadius": "31px",
+   "railBg": "rgba(30, 26, 24, 0.8)",
+   "brand": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "icons": [],
+   "active": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "activeBg": "rgb(242, 238, 236)",
+   "workspace": [
+    28,
+    0,
+    135,
+    44
+   ],
+   "crumb": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "search": [
+    169,
+    0,
+    87,
+    44
+   ],
+   "newBtn": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "clock": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "bell": [
+    268,
+    0,
+    44,
+    44
+   ],
+   "account": [
+    318,
+    0,
+    44,
+    44
+   ],
+   "main": [
+    16,
+    76,
+    358,
+    768.8
+   ],
+   "h1": [
+    17,
+    77,
+    338,
+    30
+   ],
+   "h1Font": "\"Swangz Staff Poppins\", \"Helve 24px/600",
+   "scrimOverlay": "none",
+   "overflowX": false
+  },
+  "axe": [],
+  "perf": {
+   "fcp": 356,
+   "lcp": 844,
+   "dcl": 254,
+   "load": 271,
+   "longTasks": [
+    196
+   ],
+   "clsAll": 0.00002,
+   "clsScored": 0.00002,
+   "clsEntries": 1
+  },
+  "cdp": {
+   "layouts": 4,
+   "recalc": 8,
+   "taskMs": 1231,
+   "scriptMs": 8,
+   "heapMB": 19
+  },
+  "errs": []
+ },
+ "dark/projects": {
+  "geo": {
+   "rail": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "railRadius": "31px",
+   "railBg": "rgba(30, 26, 24, 0.8)",
+   "brand": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "icons": [],
+   "active": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "activeBg": "rgb(242, 238, 236)",
+   "workspace": [
+    28,
+    0,
+    135,
+    44
+   ],
+   "crumb": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "search": [
+    169,
+    0,
+    87,
+    44
+   ],
+   "newBtn": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "clock": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "bell": [
+    268,
+    0,
+    44,
+    44
+   ],
+   "account": [
+    318,
+    0,
+    44,
+    44
+   ],
+   "main": [
+    16,
+    76,
+    358,
+    380.7
+   ],
+   "h1": [
+    17,
+    77,
+    294,
+    30
+   ],
+   "h1Font": "\"Swangz Staff Poppins\", \"Helve 24px/600",
+   "scrimOverlay": "none",
+   "overflowX": false
+  },
+  "axe": [],
+  "perf": {
+   "fcp": 368,
+   "lcp": 596,
+   "dcl": 255,
+   "load": 272,
+   "longTasks": [
+    606
+   ],
+   "clsAll": 0.00002,
+   "clsScored": 0.00002,
+   "clsEntries": 1
+  },
+  "cdp": {
+   "layouts": 4,
+   "recalc": 5,
+   "taskMs": 7604,
+   "scriptMs": 11,
+   "heapMB": 9
+  },
+  "errs": []
+ },
+ "light/home": {
+  "geo": {
+   "rail": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "railRadius": "31px",
+   "railBg": "rgba(252, 248, 242, 0.92)",
+   "brand": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "icons": [],
+   "active": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "activeBg": "rgb(28, 24, 22)",
+   "workspace": [
+    28,
+    0,
+    135,
+    44
+   ],
+   "crumb": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "search": [
+    169,
+    0,
+    87,
+    44
+   ],
+   "newBtn": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "clock": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "bell": [
+    268,
+    0,
+    44,
+    44
+   ],
+   "account": [
+    318,
+    0,
+    44,
+    44
+   ],
+   "main": [
+    16,
+    92,
+    358,
+    813.6
+   ],
+   "h1": [
+    17,
+    140,
+    320,
+    60
+   ],
+   "h1Font": "\"Swangz Staff Poppins\", \"Helve 24px/600",
+   "scrimOverlay": "none",
+   "overflowX": false
+  },
+  "axe": [],
+  "perf": {
+   "fcp": 560,
+   "lcp": 964,
+   "dcl": 288,
+   "load": 339,
+   "longTasks": [
+    61,
+    179,
+    222
+   ],
+   "clsAll": 0.00007,
+   "clsScored": 0.00007,
+   "clsEntries": 2
+  },
+  "cdp": {
+   "layouts": 4,
+   "recalc": 11,
+   "taskMs": 2309,
+   "scriptMs": 46,
+   "heapMB": 12
+  },
+  "errs": []
+ },
+ "light/tools": {
+  "geo": {
+   "rail": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "railRadius": "31px",
+   "railBg": "rgba(252, 248, 242, 0.92)",
+   "brand": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "icons": [],
+   "active": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "activeBg": "rgb(28, 24, 22)",
+   "workspace": [
+    28,
+    0,
+    135,
+    44
+   ],
+   "crumb": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "search": [
+    169,
+    0,
+    87,
+    44
+   ],
+   "newBtn": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "clock": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "bell": [
+    268,
+    0,
+    44,
+    44
+   ],
+   "account": [
+    318,
+    0,
+    44,
+    44
+   ],
+   "main": [
+    16,
+    76,
+    358,
+    1452.7
+   ],
+   "h1": [
+    17,
+    77,
+    338,
+    30
+   ],
+   "h1Font": "\"Swangz Staff Poppins\", \"Helve 24px/600",
+   "scrimOverlay": "none",
+   "overflowX": false
+  },
+  "axe": [],
+  "perf": {
+   "fcp": 340,
+   "lcp": 616,
+   "dcl": 216,
+   "load": 223,
+   "longTasks": [
+    907
+   ],
+   "clsAll": 0.00002,
+   "clsScored": 0.00002,
+   "clsEntries": 1
+  },
+  "cdp": {
+   "layouts": 3,
+   "recalc": 10,
+   "taskMs": 5746,
+   "scriptMs": 6,
+   "heapMB": 8
+  },
+  "errs": []
+ },
+ "light/requests": {
+  "geo": {
+   "rail": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "railRadius": "31px",
+   "railBg": "rgba(252, 248, 242, 0.92)",
+   "brand": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "icons": [],
+   "active": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "activeBg": "rgb(28, 24, 22)",
+   "workspace": [
+    28,
+    0,
+    135,
+    44
+   ],
+   "crumb": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "search": [
+    169,
+    0,
+    87,
+    44
+   ],
+   "newBtn": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "clock": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "bell": [
+    268,
+    0,
+    44,
+    44
+   ],
+   "account": [
+    318,
+    0,
+    44,
+    44
+   ],
+   "main": [
+    16,
+    76,
+    358,
+    326.4
+   ],
+   "h1": [
+    17,
+    77,
+    317,
+    30
+   ],
+   "h1Font": "\"Swangz Staff Poppins\", \"Helve 24px/600",
+   "scrimOverlay": "none",
+   "overflowX": false
+  },
+  "axe": [],
+  "perf": {
+   "fcp": 424,
+   "lcp": 1032,
+   "dcl": 310,
+   "load": 313,
+   "longTasks": [
+    55,
+    198
+   ],
+   "clsAll": 0.00002,
+   "clsScored": 0.00002,
+   "clsEntries": 1
+  },
+  "cdp": {
+   "layouts": 4,
+   "recalc": 14,
+   "taskMs": 2010,
+   "scriptMs": 13,
+   "heapMB": 15
+  },
+  "errs": []
+ },
+ "light/weekly": {
+  "geo": {
+   "rail": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "railRadius": "31px",
+   "railBg": "rgba(252, 248, 242, 0.92)",
+   "brand": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "icons": [],
+   "active": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "activeBg": "rgb(28, 24, 22)",
+   "workspace": [
+    28,
+    0,
+    135,
+    44
+   ],
+   "crumb": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "search": [
+    169,
+    0,
+    87,
+    44
+   ],
+   "newBtn": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "clock": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "bell": [
+    268,
+    0,
+    44,
+    44
+   ],
+   "account": [
+    318,
+    0,
+    44,
+    44
+   ],
+   "main": [
+    16,
+    76,
+    358,
+    768.8
+   ],
+   "h1": [
+    17,
+    77,
+    338,
+    30
+   ],
+   "h1Font": "\"Swangz Staff Poppins\", \"Helve 24px/600",
+   "scrimOverlay": "none",
+   "overflowX": false
+  },
+  "axe": [],
+  "perf": {
+   "fcp": 392,
+   "lcp": 1524,
+   "dcl": 311,
+   "load": 311,
+   "longTasks": [
+    187
+   ],
+   "clsAll": 0.00002,
+   "clsScored": 0.00002,
+   "clsEntries": 1
+  },
+  "cdp": {
+   "layouts": 4,
+   "recalc": 16,
+   "taskMs": 2035,
+   "scriptMs": 7,
+   "heapMB": 19
+  },
+  "errs": []
+ },
+ "light/projects": {
+  "geo": {
+   "rail": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "railRadius": "31px",
+   "railBg": "rgba(252, 248, 242, 0.92)",
+   "brand": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "icons": [],
+   "active": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "activeBg": "rgb(28, 24, 22)",
+   "workspace": [
+    28,
+    0,
+    135,
+    44
+   ],
+   "crumb": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "search": [
+    169,
+    0,
+    87,
+    44
+   ],
+   "newBtn": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "clock": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "bell": [
+    268,
+    0,
+    44,
+    44
+   ],
+   "account": [
+    318,
+    0,
+    44,
+    44
+   ],
+   "main": [
+    16,
+    76,
+    358,
+    380.7
+   ],
+   "h1": [
+    17,
+    77,
+    294,
+    30
+   ],
+   "h1Font": "\"Swangz Staff Poppins\", \"Helve 24px/600",
+   "scrimOverlay": "none",
+   "overflowX": false
+  },
+  "axe": [],
+  "perf": {
+   "fcp": 348,
+   "lcp": 524,
+   "dcl": 205,
+   "load": 262,
+   "longTasks": [
+    106
+   ],
+   "clsAll": 0.00002,
+   "clsScored": 0.00002,
+   "clsEntries": 1
+  },
+  "cdp": {
+   "layouts": 4,
+   "recalc": 12,
+   "taskMs": 2341,
+   "scriptMs": 6,
+   "heapMB": 25
+  },
+  "errs": []
+ }
+}
