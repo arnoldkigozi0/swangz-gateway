@@ -1473,3 +1473,20 @@ Read actual PR diff: docs/reference assets only, updated head 17c33583929d235d90
 Effective immediately for EVERY UI PR: honest low-data formatting (< $0.01 below one cent; at most 2 decimals; truthful zeros; purposeful empty states with actions; no fake/padded data), and merge-blocking Probe quality evidence: axe both themes plus sampled contrast over brightest backdrop (>=4.5:1 text, >=3:1 numbers >=24px per actual §10.9); Chrome perf trace on laptop or CI 4x CPU, >=55fps, no frames >50ms, CLS0; reduced-transparency, reduced-motion and no-blur screenshots; empty-database screenshot. Missing evidence blocks UI merge under Arnold's latest instruction. No production-data inspection authorized by this record.
 
 R17 owner Prism, todo AFTER R15/R16: liquid amber S loader (24px panel/48px page; static under reduced motion), at most one amber live pulse per screen, Comfortable/Compact avatar switch for list/table pages only. Low-data and gates apply now, not deferred with R17. R16 stays after v18 backlog; no R16/R17 build started. Chief local tests Not run: coordination only; git diff --check required for this record.
+
+
+## Shift start — 2026-11-10 00:00 EAT
+
+Goal: land existing functional backlog and repair exact-match UI blockers. Live GitHub: 26 open PRs; no recent WIP in five-hour all-branch history (four docs commits only). Root untracked files preserved. Standing v18 WIP limit takes priority over aspirational three-new-PR target. No new drafts assigned.
+
+| Task | Owner | Branch | Status | Next step |
+| --- | --- | --- | --- | --- |
+| Functional #13 then #16 | Forge | feature/client-key-rotation; feature/device-releases, separate existing worktrees | doing | Delegation accepted/queued; retarget main first, resolve conflicts, fresh CI, QA/security verdict; second task after13 lands. |
+| Correct #56 then finish/triage #39 | Prism | feature/exact-staff-shell-v2; feature/glass-r11 | doing | Delegation accepted/queued; reconcile local19d0ef4 versus remote77fa893; batch push corrections; reference/10.9 evidence. |
+| Docs9/10, then13/56 independent QA | Probe | current heads read-only | review | Accepted/queued; exact head VERIFIED or concrete blocker. Probe first exclusive local test/browser slot, report release. |
+| Critical docs9/10 and13 delta | Sentinel | current heads read-only | review | Accepted/queued; retained G2 and head-specific verdict, no routine UI review. |
+| #59 reference brief | Chief | docs/design-decisions | review | Python and app-window green; browser IN_PROGRESS at17c3358; wait green, no merge yet. |
+| #57 sign-in | Forge, deferred behind functional landing | feature/exact-signin-v2 | todo | Remote3cee0cf green, prior late-Google transition blocker unresolved in board; resume after landing priority. |
+| Remaining stacks/UI drafts | respective owners | existing branches | todo | Functional stacks waiting predecessors;53/43/49 conflicting,50 failed checks; finish/rebase/close after first bounded tasks. R16/R17 deferred. |
+
+Merged: none. Ready: none this turn; docs9/10 green but independent verdicts not established. Arnold decisions: none identified. Tests Not run: coordination only; no local suites/build/browser launched. No production/deployment/release actions. Four handoffs accepted, teammates start after this turn.
