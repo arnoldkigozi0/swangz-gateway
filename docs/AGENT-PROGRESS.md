@@ -1539,3 +1539,11 @@ Merged: none. Ready: none this turn; docs9/10 green but independent verdicts not
 - Chief read44 currentPR and committed TRIAGE.md at73d5976. Confirmed section10.7 tab/composition mismatch, saved301x240 versus285x152 cards, oldfont/scene, $0.0054 formatting, slowframe evidence andmissingoverlays/fallback/emptyDB. Closed44 withreason; GitHubstateCLOSED confirmed. Source/evidence retained.22open; no newmerge.
 - Prism assigned existing47 feature/glass-r14a (.worktrees/glass-r14a), head2954d5c: finishcompatiblecontrastdelta or recommendclosure within30–60min. Queue50afterdecision; no newdraft.56stillfrozenforProbe, solelocalQA slotProbe; Prism source/CIonly.
 - Chief tests Notrun: coordination/sourceevidence inspection only; diffcheckpassed. No production/deploymentaccess.
+
+
+## Device test repair pushed — 2026-11-10 00:31 EAT
+
+- Chief verified13 remote a994f595840bc81833807897bac08ed903cb5f93, base stillfeature/device-credentials. Python3.10/3.12/browser pending, app-window+6inertprofilesSUCCESS. No greenCIclaim.
+- Diff3a54396→a994f59 confinedtwoapprovedtestfiles96add1remove. Forge reports exactrotationNone expectation fixed; four realgatewaycases cover agedrotation, staleoldkeyrefresh/no-removal, lostnewkeyNeedsReconnect/no-removal, actualrevoke/wipe+configrestore. py_compilePASS reported; testsNotrunlocally (ProbeexclusiveQA), CIfirstrealrun.
+- Sentinel assignedboundedtest-onlyfinaldelta atnewhead/treef4bc6b79. Probe verification remains gatedonmainretarget+CI; do not duplicate prioroldbaseaudit. Forgeclean/stoppedpendingCI;16parked. Retargetcapabilityblockunchanged.
+- Chief testsNotrun coordinationonly; diffcheckpassed. No newmerge/deployment/productionaccess.
