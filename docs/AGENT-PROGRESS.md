@@ -1524,3 +1524,11 @@ Merged: none. Ready: none this turn; docs9/10 green but independent verdicts not
 - Prism assigned existing44 feature/glass-r4 isolatedworktree: finishwithin30–60min or concreteclosure recommendation; queue47afterdecision. No newdraft.56 frozenforQA.
 - Probe assigned56newhead acceptance afterexisting57/9queue; exclusive localbrowser/testslot transferredtoProbe, Prism44 source/CIonly. Prismreportsnoprocesses/worktreesclean.
 - Priorbd7522b push didnotreachremote: ls-remote showed78d4614. Thiscommitpush retriesbothcoordinationrecords; nohistoryrewrite. Chief testsNotrun coordinationonly; diffcheckpassed.
+
+
+## New findings assigned — 2026-11-10 00:22 EAT
+
+- Sentinel conditionallyAPPROVED57 at15f8efe/tree75855ff onlyifbrowserPASSsamehead. ChiefconfirmsbrowserIN_PROGRESS; Probevisual/10.9 acceptance outstanding. Desktopfade maybrieflyshowBGoogleonswap: Probecheck, notsecuritydefect. No merge.
+- SentinelBLOCKED13 at3a54396/tree6e9d421: syncconflictresolutioncorrect, python3.10FAILURE/3.12CANCELLED confirmedlive. Expected result lacks rotation:None in test_client_updates.py225; realgateway agedkeyrotate/oldkeydevice_key_rotated/no-removal and realrevoke/removal tests missing. G2 permits exactlyexpectationline+rotationtestadditions. Forgeassignednewfindings; CItests, no local slot;13retargetstillblocked.
+- IndependentreadonlyGPT REJECTdocs9 aswritten; Probeconfirmed provenanceinconsistencies: companyAPIshape, CapCutbilling, Suno/UdioSSO, Jasperdeletion, Codexlearn-onlyclaims. Probeassignedlabelrepairsinownedfile andindependentrereview. Sentinelresearch-onlyapprovaldoesnotclearnewfindings.
+- ProbeexclusiveQA slotunchanged; Prism44 source/CIonly. Chief testsNotrun coordinationonly; no deployment/productionaccess. Handoffsaccepted/queued.
