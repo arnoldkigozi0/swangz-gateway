@@ -1562,3 +1562,11 @@ Merged: none. Ready: none this turn; docs9/10 green but independent verdicts not
 - Chief inspected47 currentPRhead68a4edd andactualTRIAGE.md. Supersededscene/materialmeasurements, solidRGB samplerallowsnonfinitegradientresults, noCIsamplercoverage/current10.9 evidence. Closed47withreason; GitHubCLOSEDconfirmed. Palette/branch retainedforcanonicalremeasurement; no assertionallcoloursfail.21open.
 - Prismassignedexisting50 feature/bell-badge-contrast/head4704674 isolatedworktree: inspectfailedchecks, finishminimalcompatiblebadgefix or recommendclosure. ProbeexclusiveQA slotcontinues; Prism source/CIonly;56frozen. No newdraft/deferredR16/R17.
 - Chief testsNotrun coordination/sourceinspectiononly; diffcheckpassed. No additionalmerge/deployment/productionaccess.
+
+
+## Badge fix ready for QA — 2026-11-10 00:51 EAT
+
+- Chiefverified50 remotea71e356bc4b30ad1d1ee25f459595fbb635f94cb base main/MERGEABLE/all4Actions+NetlifySUCCESS. Prismreportscurrentmainintegrated/minimalbadgeforegroundfix/594Pythonperversion/fullbrowserPASS. Freshscreenshots/performanceNotrun; Probeacceptancepending, no merge. Headfrozen.
+- Probeassigned50newheadQA afterexisting56/57/9queue; applicable10.9evidence required, noimplicitwaiver. Solelocaltestbrowser slotProbe.
+- Prismassignedexisting49 feature/browser-theme-stability/head3ad5457 CONFLICTING; filesonlycheck.cjs/repro.cjs. Resolvewithmainwithoutweakeningaxe/animationchecks orrecommendclosureifsuperseded; source/CIonly.43shared-ui.jsnotassigned.
+- Chief testsNotrun coordinationonly; diffcheckpassed. No additionalmerge/deployment/productionaccess.
