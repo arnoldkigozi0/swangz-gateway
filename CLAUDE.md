@@ -243,3 +243,171 @@ For native Hub reporting, migrations, identity policy and review status, read do
 Schema20 extends the existing Hub with typed purchase drafts/business projects, immutable proposal corrections, governed department-report scopes, plan references, auditable adoption amendments/archival and traceable business calculations. The two wizards are separate from weekly evidence and tool entitlements. Native adoption workflows do not call Supabase or Google Sheets. Source features and intentional replacements are mapped in docs/TRACKER-PARITY.md.
 
 Production serves staff and admin on the same Caddy/systemd host; Netlify is optional legacy infrastructure. Use docs/HUB-DELIVERY.md for backup/rehearsal/cutover/recovery and isolated Railway staging. Run the full Python suite, tests/browser/check.cjs, hub.cjs, business.cjs and staging.cjs; pinned npm packages are test-only. Record actual verification in docs/HUB-COMPLETION.md.
+
+## Amendment 01 — product operating blueprint (2 November 2026)
+
+This extends the product overview above and preserves existing functionality. Authority:
+`/home/inquiline/swangz-team/mission/amendment-01-operating-model.md`, read in full.
+Where historical shared-account descriptions above differ, this amendment governs future work:
+never turn an individual's subscription into a shared login. Existing catalogue, subscriptions,
+assignments, keys, histories and connected environments remain intact. Production identity,
+provider billing and account ownership changes require Arnold's explicit approval after reviewing
+this blueprint and the assignments in the 22:00 report.
+
+Status evidence is source inspection at main `ba82a2a`, plus the explicitly identified unmerged
+credential artifact `865250c7d5ae0873112069696f87be79accbe312`. Implemented means code exists;
+it does not mean deployed or independently verified. Partial means only some required behavior exists.
+Missing means no implementation evidence was established here. Technically restricted means a
+provider or platform capability must be established before that route can be supported.
+
+### 1. Provider and account operating model
+
+**Partial.** `gateway/catalog.py`, `entitle.py`, `staff.py` and `proxy.py` support own accounts,
+company seats, SSO launches and company-key API routing. `/go` checks access and records a redirect;
+Hub Google sign-in does not authenticate to the vendor. Existing paid ChatGPT, Claude and Google AI
+subscriptions remain valid routes through officially supported login/CLI mechanisms where permitted.
+Each connected account belongs to its authorized individual; company seats are individually assigned.
+One account holder may use supported personal devices. No employee receives another's credentials.
+Provider connection ownership and typed subscription/seat/API/enterprise records need Forge's design.
+**Technically restricted:** provider-specific subscription CLI support, scopes and organization controls
+remain unverified until official-source research and actual compatibility checks establish them.
+
+### 2. Individual workspace architecture
+
+**Partial.** `swangz_client/core.py` provides local device state and scoped client integration;
+`gateway/enroll.py` provides per-person manifests. This is not evidence of a complete personal
+conversation/files/automation workspace or cross-user isolation. Preserve personal projects,
+conversations, history, folders, agent configurations, connections, automations, preferences and resume
+state on users' devices. Connected OpenMausBot environments retain their own bots, memory, execution
+context and workspace; no recreation or migration is authorized. **Missing:** verified ownership and
+explicit sharing boundaries across these objects. Forge defines server rules; Prism defines local
+profile/workspace integration; Probe independently tests cross-user denial and automation ownership.
+
+### 3. Small-server responsibilities
+
+**Implemented in source, deployment unverified:** identity, authorization, SQLite metadata, device
+enrollment/manifests, audit and notification facilities (`gateway/google.py`, `enroll.py`, `db.py`,
+`notify.py`); verified-backup tooling (`gateway/backup.py`). **Missing:** the new account-sync layer.
+The small VPS is for these lightweight services, callbacks, signed webhooks, configuration, health
+and backups. Hosted providers perform inference. Ordinary agent work and automations stay on employee
+devices. No local models, GPUs, fleet expansion or automatic per-employee VPS browsers.
+
+### 4. Provider account synchronization design
+
+**Missing:** a unified, verified account-sync implementation. Forge must propose provider adapters
+over official APIs, approved OAuth scopes and signed webhooks, preferring read-only access. Metadata
+must distinguish provider/account identity, owner, subscription or seat type, account status, quota,
+credit balance, period/reset, usage, last successful sync, sync errors, source and reliability.
+Unsupported fields stay unavailable or explicitly manually verified; stale data carries its timestamp.
+Do not scrape private pages or infer balances from Gateway estimated costs. Verify webhook signatures,
+timestamps, replay protection and idempotency. No passwords, cookies, card data or authentication
+secrets in ordinary database records. Storage/access/revocation and secret references await Sentinel.
+**Technically restricted:** each field depends on documented provider support and authorized scopes.
+
+### 5. Managed Chrome architecture
+
+**Partial.** `workspace_agent/agent.py` has Chromium policy and per-slot persistent profile volumes;
+`extension/background.js` provides an access gate. Per-slot saved profiles are acceptable only for company-held `shared` accounts. Seat profiles
+are tied to one person and wiped when the seat is reassigned (D-015). Prefer local official Chrome/Chromium with a separate managed
+profile per authorized user or seat, distinct from personal browsing. Keep cookies/storage isolated,
+show the signed-in provider account and accessible data, and record ownership/access events.
+**Missing:** verified local provisioning, ownership, lifecycle and workspace integration. Remote isolated
+browsers require a demonstrated company-session need and measured capacity. Existing workspace
+features remain; no automatic conversion of personal subscriptions to shared sessions.
+
+### 6. Browser restrictions and threat model
+
+**Partial.** `workspace_agent/agent.py:POLICY` disables sync, extra profiles, guest mode, developer
+tools and downloads. Its URL policy allows one local folder and blocks `file://*` plus four
+`chrome://` pages; there is no block-everything rule, no `RemoteDebuggingAllowed=false`, and no
+external-protocol control (`workspace_agent/agent.py:96-97`). This does not prove approved-site-only
+browsing. Browser boundaries are governed by Sentinel D-015/D-016. Design must address local administrator escape, cross-user session access, redirect/popup/new-tab
+bypasses, alternate hosts, direct IPs, local resources and external protocols. Design URLAllowlist and
+URLBlocklist together; remote browsers also need network restrictions. Evaluate Gmail, Drive,
+Google account/security/session pages, account switching and unapproved provider account management.
+Do not indiscriminately block OAuth endpoints. Restrict unapproved extensions, debugging, downloads,
+external protocols and sensitive local resources, and test the effective policy on each supported OS.
+**Partial:** device approval opens a browser through `swangz_client/core.py` and `shell.py`; Hub OIDC
+lives in `gateway/google.py`. **Missing:** verified managed-browser/system-browser return flows and refusal to start production
+Google sign-in without a fixed return address (D-017); current fallback derives it from Host.
+Google OAuth must use secure system-browser authorization, never an embedded WebView, credential
+interception, cookie reading or automated password entry. URL blocking cannot prevent use on another
+device; provider-side identity, assigned seats and supported organization controls remain authoritative.
+
+### 7. Subscription and optional API/Enterprise strategy
+
+**Partial.** Existing subscription/assignment gates and API routing remain (`gateway/entitle.py`,
+`proxy.py`, `money.py`). Preserve existing paid subscriptions; APIs and Business/Enterprise are optional,
+never mandatory or an automatic billing migration. Keep individual subscription, assigned seat, API
+billing and enterprise agreement visibly distinct. **Technically restricted:** vendor terms and
+metadata availability require Probe evidence; research is not vendor permission or a live setup check.
+Provider documentation PR #9 at `4929d349` has Sentinel's research-only approval; G6 remains open.
+
+### 8. Actual implementation status and verification
+
+**Implemented in source:** staff/admin UI, catalogue, device enrollment, packages, weekly reporting,
+access policies, audit and subscriptions (`gateway/enroll.py`, `reporting.py`, `policy.py`, `staff.py`,
+`gateway/static/`, `swangz_client/`). Preserve them and production history with forward-only changes;
+every migration shipped at `ba82a2a` (through schema v21) is immutable. Exact company-domain identity rules and the two approved owner
+exceptions remain in force. Personal workspace completeness, browser isolation, sync and real provider
+compatibility remain partial/missing/restricted as above, regardless of design documents.
+
+Unmerged PR #11 credential work at `865250c` (tree `6edfcd5`) adds native keystore adapters and
+migration. Probe VERIFIED this exact artifact outside the sandbox with
+`python3 -m unittest tests.test_client tests.test_client_credentials tests.test_client_gui tests.test_devices -v`:
+**104 tests in 67.4s, OK (skipped=14 Tk/display), exit 0**. This is Probe's recorded evidence.
+Sentinel APPROVED the same artifact; Hub CI run `41506599142` passed Python 3.10/3.12, browser
+and app-window checks. Native credential stores, Windows DACL/macOS ACL checks and real vendor
+clients remain unverified. Managed Claude, Windows managed Codex and managed Codex on Python 3.10
+(scoped mode; `swangz_client/agents.py:204`) remain gated. Every fix produces a new artifact requiring
+renewed Probe verification and Sentinel review before proceeding.
+Key rotation follows in PR #12 (server, schema v22) and PR #13 (client); neither is merged.
+Canonical main baseline supplied by Arnold: **426 tests in 1191.8s, OK (skipped=13), exit 0**.
+Not run for this documentation update: Python, browser, native platform or live-provider checks.
+
+### 9. Infrastructure cost assumptions
+
+**Missing:** measured capacity and a verified monthly cost estimate. Existing deployment sizing guidance
+is not a benchmark of the purchased VPS. Record actual VPS RAM/CPU, concurrent baseline load, browser
+RAM/CPU per active session, network latency and concurrency limits before selecting remote hosting.
+Expected monthly cost must separately show the verified base VPS price, backups/storage/egress and
+optional measured browser capacity; unknown amounts remain unknown. Do not invent a monthly total.
+Prefer device-local managed browsers; authorize expansion only after demand and business case review.
+No purchases, system changes or production benchmarks are authorized by this document.
+
+### 10. Implementation and test plan
+
+| Task | Owner | Dependency | Testable exit |
+|---|---|---|---|
+| Independent credential QA/full regression at 6cbe7dd | Probe | Existing priority, no amendment interruption | Exact commit/tree, command, count/time/skips/exit, defects and unavailable native checks |
+| Credential security review then PR | Sentinel, then Chief | Probe VERIFIED | Exact-artifact APPROVED, truthful checks and CI; no merge |
+| Amendment account/server/browser/OAuth decision | Sentinel | Read amendment in full; precedes other designs | Threat note and explicit decisions/conditions in docs; no code |
+| Official account/quota/subscription/usage matrix | Probe | Read-only; credentials QA first, may overlap Sentinel | Official sources/scopes/field availability and limitations; no scraping or live accounts |
+| Metadata hooks/sync/isolation/access design | Forge | Wait for Sentinel decision | Owned records, server denials, webhook/secret/replay design and test plan in docs |
+| Managed Chrome/profiles/workspace design | Prism | Wait for Sentinel decision; preserve credential work | Profile ownership, policies, system OAuth/return flow and capacity plan in docs |
+| Integrate decisions and present approval gate | Chief | Designs/evidence returned | Revised blueprint, assignments and production-impact decisions in 22:00 report |
+| Implement smallest approved increments | One owner at a time | Sentinel approval; Arnold OK before production identity/billing/ownership changes | Focused tests, independent QA, critical review, reviewable PR and CI |
+| Isolation/browser/provider-failure QA | Probe | Implemented isolated fixtures | Cross-user files/history/credentials/automations denial, redirects/popups/tabs/IP bypasses, OAuth, failure/stale states and revocation |
+
+Full regression uses fake services through Probe/Forge outside Codex or Actions, not real providers.
+Use CI for expensive browser/platform matrices. Record native and manual checks as unavailable when
+not executed. No designs count as implemented. Keep one code writer, preserve existing worktrees and
+leave no background tasks running after handoff. A credits/usage outage triggers independent work on
+another available engine; retry at the next heartbeat, without loops or model changes.
+
+The product remains: one Swangz identity, personal workspaces, authorized provider accounts,
+one controlled application environment and low infrastructure cost.
+
+Sentinel decisions D-012–D-018 authorize documentation design only. D-012 separates account holder
+from payer and forbids gateway relay/storage of individual subscription tokens. D-013 keeps the VPS
+lightweight: company sync secrets use environment/service-file references, never ordinary DB records;
+per-user token storage waits for an encryption decision and any required dependency approval. D-014
+keeps personal content/automations in existing device environments; the server holds ownership,
+explicit bounded sharing grants and access events only. D-015 distinguishes machine-enforced company
+Chrome from advisory personal profiles; cloud profile policy remains unverified and needs Arnold OK.
+D-016 requires default-deny navigation, approved login exceptions and actual bypass tests. D-017 keeps
+device-code handoff and system-browser sign-in; future provider OAuth needs fixed callback, PKCE,
+session/person/provider-bound state, read-only sourced scopes, explicit account consent and revocation.
+D-018 requires value provenance/freshness, provider-specific documented webhook verification before
+exposing any receiver, timestamp/replay/idempotency/body/rate controls, and hourly polling with backoff.
+Unsupported fields stay unavailable/manual; research is provisional until citations are verified.
