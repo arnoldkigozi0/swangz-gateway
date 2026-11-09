@@ -375,3 +375,78 @@ local suite/role matrix, new hardware performance/CLS/MotionScore, real devices,
 other engines and screen readers: Not run. Fresh final-head Actions and Probe
 QA remain required. Parent42 is now merged; PR48's diff is header/task evidence
 only. No scope expansion, new build/PR, deployment or merge to main.
+
+
+## Bell badge WCAG correction — 8 November 08:00 shift
+
+Branch feature/bell-badge-contrast from main4cf653b, isolated matching worktree.
+Confirmed original dark badge white/#FF5D52 at3.026119928029301:1 via expected
+failing assertion; changed only admin.css `.bell-n` foreground to existing
+`--on-bad`. Actual computed ratios: dark6.361659258042617:1, light4.736397633724517:1
+at1440x900 and390x844. Reference fill/shape maintained; dark numeral is the
+necessary contrast difference. Existing header harness adds four measured
+contrast assertions and task output routing; shared check.cjs/ui.css/ui.js and
+workflows untouched. G2 boundaries unchanged: presentation/token reuse only,
+no new architecture/security behavior or approval claimed.
+
+Actual commands/output and complete measurements/negative control/references:
+`docs/screenshots/bell-badge-contrast/README.md`, baseline-results.json/results.json.
+Focused existing admin harness:67checks,4screenshots,4axe scans, exit0, no
+exceptions/scoped findings. Python portal+hub:56tests in52.014s, OK/exit0.
+Node syntax and whitespace checks passed. Inspected all four exact screenshots.
+Full local suite/matrix, real devices/other engines/screen readers, hardware
+performance/CLS/MotionScore: Not run; Actions/independent QA remain required.
+No new fonts/dependencies, providers, auth/data changes, merge or deployment.
+
+
+## PR50 latest-main integration after46 — 8 November
+
+Normally merged exact main `a0dbcfe140dfcde4e7d1e4e1904b75c014abd222` as
+`68f23bdf2dbe415ede16b126ed3c27fc5c37249a`, no conflicts. Main contributes
+reviewed shared list/UI code and browser-contract tests/docs. No hand edits to
+shared source or any harness. Own admin.css and focused admin assertion harness
+remain byte-identical to previous PR50 head
+`1048e6f91b2540c2db9e308766a460d0f37d7b60`; tokens.css and shared browser
+harness also identical. Shared ui.css/ui.js exactly match integrated main.
+Baseline Git blob IDs/current SHA256s: `docs/screenshots/bell-badge-contrast/main-refresh-identity.json`.
+
+Fresh commands/results: `UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules UI_OUTPUT=docs/screenshots/bell-badge-contrast node docs/screenshots/glass-r3/check.cjs`: `PASS 67 header checks; 4 screenshots; 4 axe scans`, exit0. Zero browser exceptions/scoped axe findings. Actual contrast at both widths: dark6.361659258042617:1, light4.736397633724517:1. `python3 -m unittest tests.test_portal tests.test_hub`: `Ran 56 tests in 38.514s`, `OK`, exit0. Four source identity comparisons, inherited shared UI/main equality and working/staged whitespace checks passed. All local check processes finished. No new PR/build or
+repeated diagnosis. Full local suite/matrix, real devices, other engines/screen
+readers and new hardware performance/CLS/MotionScore: Not run. Fresh final-head
+CI and independent Probe QA remain required. PR44 stays queued; no shared-file
+release assumed or corrected40 integration performed. Peer tools unavailable;
+final exact-head handoff is returned to Chief for Probe routing.
+
+
+## PR50 amendment after45 merge — 8 November
+
+At clean PR44 checkpoint, normally merged exact main
+`be81749aadb7b9b1eeb3e61f4839d02903a09cae` as
+`3309f5c889a3cc3396cad51074d9f4c6a178f5a2`, no conflicts. Incoming product
+delta is only main's two-line empty-line chart fix, plus its chart tests.
+No own source/harness/style edits. Four byte-identity checks against previously
+verified `c8dfcb10e1aa419c4cefc55f50b69ccdd134ab64` pass: admin.css, focused
+admin harness, tokens.css and shared browser harness. Shared ui.css/ui.js match
+requested main exactly. Baseline blob IDs/SHA256s: `docs/screenshots/bell-badge-contrast/after45-identity.json`.
+
+Fresh commands/results: `UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules UI_OUTPUT=docs/screenshots/bell-badge-contrast node docs/screenshots/glass-r3/check.cjs`: `PASS 67 header checks; 4 screenshots; 4 axe scans`, exit0. No browser exceptions/scoped axe findings. Actual badge contrast remains dark6.361659258042617:1/light4.736397633724517:1 at both widths. `python3 -m unittest tests.test_portal tests.test_hub`: `Ran 56 tests in 50.038s`, `OK`, exit0. Source identity and working/staged whitespace checks passed. All local check processes finished. No repeated diagnosis or
+new PR/build. PR44 was clean and remains untouched. Full local suite/matrix,
+real devices, other engines/screen readers, new hardware performance/CLS/MotionScore:
+Not run. Fresh final-head CI and independent exact-head Probe QA remain required;
+previous verdict is not claimed as new-head approval.
+
+
+## PR50 refresh at final44 clean checkpoint — 8 November 09:30
+
+PR44 was tested/pushed/clean atd89f3e7 before starting this optional refresh.
+PR50 remained open; normally merged latest main
+`6ee3ed3aeaa5244cb88df8302b1435546112d524` without conflicts. Main brings
+merged R5 chart code/evidence. Own badge CSS, focused admin harness, tokens and
+shared browser harness remain byte-identical to previous c37571e; shared UI
+exactly matches requested main. Blob/SHA256 proof: `docs/screenshots/bell-badge-contrast/parent40-identity.json`.
+No source changes, repeated diagnosis or new build/PR.
+
+Fresh commands/results: `UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules UI_OUTPUT=docs/screenshots/bell-badge-contrast node docs/screenshots/glass-r3/check.cjs`: `PASS 67 header checks; 4 screenshots; 4 axe scans`, exit0. No browser exceptions/scoped axe findings; actual badge contrast remains dark6.361659258042617:1/light4.736397633724517:1 at both widths. `python3 -m unittest tests.test_portal tests.test_hub`: `Ran 56 tests in 43.684s`, `OK`, exit0. Source identity/whitespace checks passed; all local checks finished. Full local
+suite/matrix, real devices/other engines/screen readers and new hardware
+performance/CLS/MotionScore: Not run. Fresh exact-head CI and independent Probe
+QA remain required. No ready/merge/deploy action.
