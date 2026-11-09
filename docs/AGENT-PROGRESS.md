@@ -1547,3 +1547,11 @@ Merged: none. Ready: none this turn; docs9/10 green but independent verdicts not
 - Diff3a54396→a994f59 confinedtwoapprovedtestfiles96add1remove. Forge reports exactrotationNone expectation fixed; four realgatewaycases cover agedrotation, staleoldkeyrefresh/no-removal, lostnewkeyNeedsReconnect/no-removal, actualrevoke/wipe+configrestore. py_compilePASS reported; testsNotrunlocally (ProbeexclusiveQA), CIfirstrealrun.
 - Sentinel assignedboundedtest-onlyfinaldelta atnewhead/treef4bc6b79. Probe verification remains gatedonmainretarget+CI; do not duplicate prioroldbaseaudit. Forgeclean/stoppedpendingCI;16parked. Retargetcapabilityblockunchanged.
 - Chief testsNotrun coordinationonly; diffcheckpassed. No newmerge/deployment/productionaccess.
+
+
+## Device fixture-order finding — 2026-11-10 00:34 EAT
+
+- SentinelBLOCKED13a994f59 on sourcefinding: stale-old-key test installsdummybrand-prompts before sync, which removesunofferedpackage; move keep_something_installed() afterrotation-syncassertion, preserveassertIn. Required agedrotation/no-wipe and realrevoke/wipetests sound. Productcodefine.
+- Chiefconfirms python3.10FAILURE/3.12CANCELLED at a994f59; browserstillrunning. Failedjoblog unavailable untilrun42702434760complete, so failureidentitynotyetconfirmed. No inferredfailurepresentedasobservedtestoutput.
+- Forgeassignedsinglemovedline repair; checkfailedlogwhenavailable, returntoSentinelifthistestactuallypasses. Sentinelpreapprovednexthead ONLYifdiffa994f59showssoleline-move; Chiefwillverify, noautomaticrepeatsecurityreview. CIandProbeplusmainretargetstillrequired. No localslottoForge; ProbeownsQA.
+- Chief testsNotrun coordinationonly; diffcheckpassed. No newmerge/deployment/productionaccess.
