@@ -1578,3 +1578,11 @@ Merged: none. Ready: none this turn; docs9/10 green but independent verdicts not
 - Forge reports actual priorhead Python3.10log: Ran647tests,1failure,14skipped; finalbrand-promptsassertion failed aftersync removedunofferedfixture, confirmingpredictedorderbug. Prior3.12cancelled; otherprintedexceptions expected. No claimnewheadtestspassed.
 - Chieflivecheck newheadPython3.10/3.12/app-window/browserIN_PROGRESS, inertprofilesmixedSUCCESS/pending. Base stillfeature/device-credentials; retargetcapabilityblockunchanged. Musttargetmain+freshgreenCI+Probebeforemerge.16waiting. Forgecleanstopped, no localtestsrun.
 - Next: readnewCIwhencomplete; Probeacceptanceaftermainretarget; do notrepeatpreviousdeniedPATCH. Chief testsNotrun coordinationonly; diffcheckpassed. No additionalmerge/deployment/productionaccess.
+
+
+## Measured staff-shell performance blocker — 2026-11-10 01:00 EAT
+
+- ProbeBLOCKED56ec562af: softwareChromium156 scrolling2–12fps/~990msframes at390/500px. backdropblur+fixedphoto cost; removingpanelblur/layerpromotioninsufficient; no-blur+nonfixedphoto50–60fps, notproved>=55/no>50ms. Chiefreadactualperf.json: additionaldesktopTools18.4fps/max344ms/4frames>50; staticHome60fps doesnotprove scrollpass.
+- ProbePASSaxe40cells/text>=4.99/nontext/fallback24screens/empty20/430businessboththemes31screens each. ResidualCLS<=0.00007 sourcefixneeded, Weeklyemptyactionmissing, currentheadoverlaysNotrun(old overlays eca2728). Evidence /tmp/probe-s56d-out retained; reportnoprocesses/slotreleased.
+- ChiefreadcanonicalBRIEF10.1(3): §7contrast/oneblur/reducedmotion-transparencyfallbacks permittedifdocumented. Authorizesnarrowmaterial/nonfixedphoto performancefallback preservinggeometry/colourwithtaggeddifferences, notwaiver. Prismassignednew56fix above49 (pause49clean), actualperf/CLS/currentoverlaysrequired.
+- EXCLUSIVE localbrowser/testslot transferredtoPrism forrepair. Probeexplicitlyinstructedhold57/50browserQA untilrelease, continuequeued9docs/sourceCIonly. No freshQAclaim; Chief testsNotrun coordination/evidencereadonly. No additionalmerge/deployment/productionaccess.
