@@ -160,6 +160,8 @@ re-checked against this section in **R15** (below), not re-opened one by one.
    keyboard and ARIA. When one of these forces a change, the PR says which rule and by how much.
 4. **Features the reference has no room for** (more pages than its 10 rail icons, the Hub's sign-in modes):
    solved in the reference's visual language, listed in the PR.
+5. **The §10.9 additions** (Swangz signatures, honest low-data states, compact density, quality gates) — they sit on
+   top of the matched layout and never move or resize a measured element.
 
 ### 10.2 Acceptance check (every UI PR)
 - Screenshot at **1440×852** (the stills' frame) dark theme, next to the matching still, plus a **50% overlay**
@@ -257,3 +259,47 @@ the pill cross-fades and no lens, reduced transparency = solid bars. Hub names, 
 **New round R16 — navigation tabs** (after the v18 backlog lands): one `SUI.tabs` component with the A/B skins replacing
 the current tab strips, then the C bottom bar for both apps at ≤ 700px; screenshots at 390×844 and 1440×852 in both themes
 plus a frame-stepped comparison of the slide and the lens against the video.
+
+### 10.9 Beyond the reference (Arnold, 10 Nov 2026) — what lifts the finished Hub from ~7.5 to ~8.5 against the market
+Matching the references makes the Hub the best-looking product in its category, but leaves four weaknesses: it is a
+copy of public Instagram designs, it is built for big demo numbers while ours are small, it shows few numbers per
+screen for daily admins, and glass designs fail when contrast and smoothness are not policed. These four fixes are
+required. They are §10.1.5 allowed differences: they never move or resize anything measured in §10.3/§10.8.
+
+**1. Two Swangz signatures (originality).** Everything else stays exact; these two make it ours:
+- **Liquid "S" loader:** every loading state (page load, panel refresh, Live connecting) is the Swangz "S" mark filling
+  with the amber liquid from the footer's wave motion (same wave curve and easing as `footer-01→03`), never a generic
+  spinner or skeleton shimmer. 24px in panels, 48px for a full page. Reduced motion = a static S at 60% opacity.
+- **Amber live pulse:** the one value on a screen that is changing *right now* (live requests, a seat in use, the
+  "Needs attention" count) gets a slow amber ring pulse (2.4 s, opacity .0→.35→.0, transform only) — the Hub's
+  "this is alive" mark. At most one pulse per screen; none under reduced motion.
+- The footer's giant cut-out **"Swangz" wordmark** (§6) stays and is also the sign-in page's only background mark.
+
+**2. Honest low-data states (our numbers are small).** Glass cards built for "$99,560" look broken with "$0.0054":
+- Money: below $0.01 show **"< $0.01"**, below $1 show 2 decimals, never more than 2 decimals anywhere. Counts of 0
+  show "0" with a one-line reason ("No requests in 7 days").
+- A card or chart with no data shows a **purposeful empty state** inside the same card size: one 15px line on what
+  will appear, one 11px line on why it is empty, and one action pill (e.g. "Grant a tool" → Access, "Connect a
+  provider" → AI providers). Same glass, same position — the layout never collapses.
+- Charts with fewer than 3 data points show the truthful empty state from `SUI.line` (#45) plus "Collecting since
+  <date>". Never fake, pad or demo-fill data (§7.5).
+- Review each Overview card with today's real laptop data and with a fresh empty database; both screenshots go in the PR.
+
+**3. Compact density for daily admins.** A **Comfortable / Compact** switch in the avatar menu (remembered per admin,
+default Comfortable). Compact applies to list/table pages only (People, Activity, Tools, Licences & spend, Access
+requests, Security, Devices): rows 32px, 12px text, table body on `--glass-bg-strong` (no see-through behind dense
+text), sticky header, column sorting kept, 2× the rows per screen. Cards, Overview, sign-in and footer never change.
+The reference look is Comfortable; Compact must still pass §7 contrast and keyboard rules.
+
+**4. Quality gates that block merging (so the build cannot cut corners).** Every UI PR, checked by Probe — FAIL if
+any is missing:
+- **Contrast:** automated axe run in the browser CI job in both themes **plus** a sampled check of every text style
+  over the brightest point of `room-warm.webp` behind it: ≥ 4.5:1 (≥ 3:1 for ≥ 24px numbers). Report the worst value.
+- **Smoothness:** a Chrome performance trace on this 7 GB Celeron laptop (or CI with 4× CPU throttling) scrolling
+  the Overview and opening a tab with the lens: no long frames > 50 ms, ≥ 55 fps, CLS 0. One blur layer per pixel (§7.2).
+- **Fallbacks:** screenshots with `prefers-reduced-transparency`, `prefers-reduced-motion` and no `backdrop-filter`
+  support — the page must still read clearly.
+- **Low data:** the empty-database screenshot from point 2.
+
+**Round R17 — "beyond the reference"** (after R15 and R16): the S loader + live pulse, the low-data pass over every
+Overview card and chart, and the Compact switch. Points 2 and 4 apply to every UI PR **from now on**, not only R17.
