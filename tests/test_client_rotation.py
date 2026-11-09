@@ -874,9 +874,9 @@ class RealGatewayRotation(ClientBase):
     def test_a_call_made_with_the_old_key_picks_up_the_new_one_and_removes_nothing(self):
         self.sign_in()
         old_key = self.client.store.key()
-        self.keep_something_installed()
         self.age()
         self.assertEqual(self.client.sync()["rotation"], "rotated")
+        self.keep_something_installed()
         new_key = self.client.store.key()
         real, calls = self.client.api, []
 
