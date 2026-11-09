@@ -1464,3 +1464,12 @@ Arnold explicitly authorizes merging docs-only PR #59 as soon as CI is green. Li
 | R16 Glassy Navigation tabs V7 | Prism | Not started | todo | AFTER v18 backlog lands. BRIEF §10.8: bar A white pill for in-page tabs in Evening; bar B black pill for same tabs in Daylight; bar C liquid-glass lens for both apps phone bottom tabs. Exact §10.2 screenshots/overlays and frame-stepped motion. |
 
 No R16 delegation or build started. Tests not run locally: coordination-only record; hosted checks above are actual live status. Product files and production untouched.
+
+
+## #59 updated with §10.9 — 2026-11-09 23:50 EAT
+
+Read actual PR diff: docs/reference assets only, updated head 17c33583929d235d9021ea31d3ac40515417d02d. Base main, non-draft, MERGEABLE. app-window and preview/header/redirect PASS; both Python jobs and browser IN_PROGRESS on run 42696725922. Prior-head CI is superseded; merge waits on this head's green CI.
+
+Effective immediately for EVERY UI PR: honest low-data formatting (< $0.01 below one cent; at most 2 decimals; truthful zeros; purposeful empty states with actions; no fake/padded data), and merge-blocking Probe quality evidence: axe both themes plus sampled contrast over brightest backdrop (>=4.5:1 text, >=3:1 numbers >=24px per actual §10.9); Chrome perf trace on laptop or CI 4x CPU, >=55fps, no frames >50ms, CLS0; reduced-transparency, reduced-motion and no-blur screenshots; empty-database screenshot. Missing evidence blocks UI merge under Arnold's latest instruction. No production-data inspection authorized by this record.
+
+R17 owner Prism, todo AFTER R15/R16: liquid amber S loader (24px panel/48px page; static under reduced motion), at most one amber live pulse per screen, Comfortable/Compact avatar switch for list/table pages only. Low-data and gates apply now, not deferred with R17. R16 stays after v18 backlog; no R16/R17 build started. Chief local tests Not run: coordination only; git diff --check required for this record.
