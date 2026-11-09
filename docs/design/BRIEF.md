@@ -2,7 +2,7 @@
 
 Arnold, 7 Nov 2026: *"This is the exact design I want. They can improve where necessary."*
 Arnold, 8 Nov 2026: *"My boss said it needs an interface exactly like that."*
-The three reference videos are the target look and motion. **Match them exactly** — same layout, sizes,
+The four reference videos are the target look and motion. **Match them exactly** — same layout, sizes,
 spacing, radii, colours, transparency, type scale and motion. The only allowed differences are the ones listed
 in **§10 Exact match** (our words/data/brand, our licensed photos, and the accessibility, performance and phone
 rules in §7). §10 holds the measured values and the acceptance check every UI PR must pass; where §10 and an
@@ -13,6 +13,7 @@ earlier section disagree, §10 wins.
 | Glassy Dashboard V7 + CRM | `references/video/glass-dashboard-crm.mp4` | `references/stills/dashboard-01…07.jpg` | The control room (`admin.html`, `admin.css`, `admin-*.js`) and the staff app shell (`index.html`, `portal.css`) |
 | Glassy login form V2 | `references/video/glass-login.mp4` | `references/stills/login-01…07.jpg` | Staff and admin sign-in |
 | Glassy liquid footer | `references/video/liquid-glass-footer.mp4` | `references/stills/footer-01…06.jpg` | The footer of the staff app and the sign-in page |
+| Glassy Navigation tabs V7 (added 9 Nov) | `references/video/glassy-nav-tabs.mp4` | `references/stills/nav-01…05.jpg` | Every tab strip inside a page (both themes) and the phone bottom tab bar of both apps — see **§10.8** |
 
 Watch the videos, don't only read the stills: the motion is half of the design. Stills are 1-per-second crops
 at 2x. The videos are Instagram posts by @code.xr. We copy the *design language*, never their assets, logos,
@@ -114,7 +115,7 @@ image. Never use the reference's photos.
    Target 60 fps on this laptop and CLS 0.
 3. **Reduced motion:** `prefers-reduced-motion` turns lift, liquid fill, count-up and blur transitions into
    simple fades.
-4. **Phones (the references are desktop-only):** at ≤ 700px the rail becomes a bottom tab bar (5 items + More),
+4. **Phones (the references are desktop-only):** at ≤ 700px the rail becomes a bottom tab bar (exactly the §10.8 bar C),
    KPI cards 2-up, charts full width, tables become cards, the sign-in card stacks (heading panel on top, small),
    the footer stacks and the wordmark scales to width.
 5. **Real data only:** every number, chart and list comes from existing endpoints. Never fake data client-side;
@@ -226,3 +227,33 @@ rail and top bar to §10.3, and re-shoot R1–R7 against the stills with overlay
   `popMenu/newMenu/accountMenu` in `admin.js`, the rebuilt Overview in `admin-monitor.js`, `SUI.splitGate/xfield/eyeToggle`
   in `ui.js`, and both sign-ins switched to it — **the sign-in CSS is not written yet** and the browser suites have not
   been re-run. Take it, finish it, or replace it; it must pass the full test suites and the §10.2 check before merge.
+
+### 10.8 Navigation tabs — reference 4 (Arnold, 9 Nov 2026: "if it has a place, use it, and exact")
+Video `references/video/glassy-nav-tabs.mp4` (9.3 s, 720×1280, 30 fps, @code.xr), stills `nav-01…05.jpg`
+(720×430 crops: 01 start, 02 rest, 03/04 lens mid-drag, 05 settled on "Saved"). It shows three bars over the same kind
+of warm room, so it drops straight into our scene. **Where each bar goes:**
+
+| Bar (still nav-02) | Becomes | Shape (H = bar height; values measured on the 720-wide stills, verify with §10.2) |
+|---|---|---|
+| **A** — smoky glass, light labels, **white raised pill** on the active tab, soft warm glow under it (Home · Discover · Library · Messages · Profile) | Every in-page tab strip (`role="tablist"`: page tabs, Settings sections, profile tabs, report tabs) in the **Evening (dark)** theme | Full-pill bar, H ≈ 52 (x 127–620 on the still → 9.5 H wide for 5 tabs; tabs share the width evenly). Active pill inset ≈ 0.1 H, height ≈ 0.82 H, full radius, `#F4F1EE`, text `#1E1A18`, warm glow `0 0.15H 0.35H rgba(238,143,62,.35)` under it. Inactive labels ≈ `#ECE7E2`. Icon ≈ 0.27 H + label ≈ 0.28 H font, gap ≈ 0.17 H. 1px light rim. |
+| **B** — milky white glass, dark labels, **black pill** on the active tab (User · Overview · Projects · Alerts · Settings) | The same tab strips in the **Daylight (light)** theme — B is A inverted, so one component with two theme skins | Same geometry as A, gap between A and B in the video ≈ 0.85 H. Bar `rgba(240,236,232,.55)` + 1px `rgba(255,255,255,.6)` rim; active pill `#141210` (≈ .92), text white; inactive `#2E2A27`. |
+| **C** — milky icon bar + separate round button with a red count badge; the active item is a soft grey pill with a **filled** icon + its label (Home → Search → Saved) | The **phone bottom tab bar** (≤ 700px, §7.4) of both apps. Control room: Overview · Live · Needs attention · People, round button = All pages (badge = items needing attention). Staff app: Home · Search tools · Saved tools · Alerts, round button = Access requests (badge = pending). | Bar x 211–473 on the still (≈ 5 H wide, H ≈ 52) + round button H×H, 10 px apart (≈ 0.19 H). Active pill ≈ 2 H × 0.8 H `rgba(60,50,44,.10)`, icon filled, label weight 600. Inactive = outline icons only, no labels. Badge ≈ 0.3 H `#E5383B` circle, white number, at the button's top-right. Sits 12 px above the safe-area inset, centred. |
+
+**Motion (the signature — step the video at 30 fps and match within ±2 frames, §10.2):**
+- **A/B:** the active pill **slides** to the new tab (transform + width only, no layout animation) with a small
+  overshoot; the labels cross-fade colour as it passes. Measure start/duration in the video (≈ 0.8–1.6 s, Home → Library).
+- **C, the liquid lens (≈ 2.6–5.3 s):** on pointer-down a clear **liquid-glass lens** appears over the pressed item:
+  ≈ 2.1 H wide × 1.15 H tall (it overflows the bar top and bottom), 1px light rim, the background seen through it is
+  magnified/refracted and slightly darkened. While the pointer is held it **follows the pointer** across the bar;
+  on release it shrinks into the grey active pill on the item under it (≈ 6–8 frames), the icon fills and the label
+  slides out; the previous item collapses back to an outline icon. A tap without drag does the same in place.
+- Implementation hints (not requirements): Chromium supports `backdrop-filter: url(#lens)` with an SVG
+  `feDisplacementMap` for the refraction; elsewhere use `backdrop-filter: blur(2px) brightness(.9)` + `scale(1.08)`.
+  The lens exists only during the gesture, so it is the one allowed glass-on-glass besides the footer card (§7.2).
+**§7 still applies:** `role="tablist"`/`tab`, `aria-selected`, arrow keys move and Enter/Space select (the lens is
+pointer-only decoration; keyboard shows the accent focus ring), every label ≥ 4.5:1 on its bar, reduced motion =
+the pill cross-fades and no lens, reduced transparency = solid bars. Hub names, icons and counts replace theirs
+(§10.1.1); the cart becomes our button above, never a shopping cart.
+**New round R16 — navigation tabs** (after the v18 backlog lands): one `SUI.tabs` component with the A/B skins replacing
+the current tab strips, then the C bottom bar for both apps at ≤ 700px; screenshots at 390×844 and 1440×852 in both themes
+plus a frame-stepped comparison of the slide and the lens against the video.
