@@ -14,7 +14,8 @@ module.exports = async function themeStability({ browser, settle, layout, AxeBui
       const button = document.querySelector('#sample');
       button.style.backgroundColor = '#fff';
       button.style.color = '#111';
-      window.themeFinite = button.animate([{ color: '#fff' }, { color: '#111' }], { duration: 200, fill: 'forwards' });
+      // Exactly 1:1 ink is reported as incomplete by axe; use visible low-contrast ink for the negative control.
+      window.themeFinite = button.animate([{ color: '#aaa' }, { color: '#111' }], { duration: 200, fill: 'forwards' });
       window.themeFinite.pause();
       window.themeFinite.currentTime = 0;
       window.themePulse = document.querySelector('#pulse').animate([{ opacity: 1 }, { opacity: .5 }], { duration: 2000, iterations: Infinity });
@@ -31,7 +32,7 @@ module.exports = async function themeStability({ browser, settle, layout, AxeBui
     await page.evaluate(() => {
       const bad = document.createElement('button');
       bad.id = 'persistent'; bad.textContent = 'Persistent contrast defect';
-      bad.style.color = '#fff'; bad.style.backgroundColor = '#fff';
+      bad.style.color = '#aaa'; bad.style.backgroundColor = '#fff';
       document.querySelector('#fixture').append(bad);
     });
     await settle(page);
