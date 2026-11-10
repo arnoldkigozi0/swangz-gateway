@@ -44,6 +44,17 @@ class OverviewExactFitTests(unittest.TestCase):
         self.assertIn("@media (min-width: 1201px) { .route-overview .page { padding-bottom: 56px; } }", css)
 
 
+class OverviewRoomTests(unittest.TestCase):
+    def test_dark_desktop_overview_drops_the_plane_and_its_panels_are_glass(self):
+        css = (pathlib.Path(__file__).resolve().parent.parent / "gateway" / "static" / "admin.css").read_text(encoding="utf-8")
+        self.assertIn('html:not([data-theme="light"]) .shell.route-overview #main::before { display: none; }', css)
+        self.assertIn("background: rgba(129, 117, 120, .60); border-color: var(--glass-rim); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); }", css)
+        self.assertIn('html:not([data-theme="light"]) .route-overview .overview-exact .panel > header { border-bottom: 0; background: none; }', css)
+        # every other page, and light, keep the plane
+        self.assertIn(".shell #main::before {", css)
+        self.assertIn("(prefers-reduced-transparency: reduce)", css.split("OverviewRoom")[0].split(".shell.route-overview #main::before")[1])
+
+
 class OverviewCountIconTests(unittest.TestCase):
     def test_the_two_count_cards_open_with_a_round_icon(self):
         root = pathlib.Path(__file__).resolve().parent.parent / "gateway" / "static"
