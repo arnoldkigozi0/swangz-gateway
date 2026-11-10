@@ -107,7 +107,7 @@ class WhoMayAskTests(ReleaseBase):
         self.pilot()
 
     def test_the_sweep_has_exactly_one_route_and_it_only_reads(self):
-        found = [(m, rx.pattern, signed_in) for m, rx, _, signed_in in staff.ROUTES if "device/releases" in rx.pattern]
+        found = [(m, rx.pattern, signed_in) for m, rx, _, signed_in, *_rest in staff.ROUTES if "device/releases" in rx.pattern]
         self.assertEqual(len(found), 1)
         self.assertEqual(found[0][0], "GET")
         self.assertIn("(?P<channel>stable|pilot)", found[0][1])
@@ -777,7 +777,7 @@ class CommandLineTests(unittest.TestCase):
 
         text = Path(cli.__file__).read_text()
         self.assertIn("release-publish", text)
-        for method, rx, fn, _ in staff.ROUTES:
+        for method, rx, fn, *_ in staff.ROUTES:
             if "release" in rx.pattern:
                 self.assertEqual(method, "GET")
 
