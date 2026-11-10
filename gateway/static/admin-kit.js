@@ -76,9 +76,9 @@
 
     function openSheet(o) {
       let touched = !!o.dirty;
-      const name = el("input", { type: "text", value: "Amina Nakato", "aria-label": "Name", oninput: () => { touched = true; } });
+      const name = el("input", { type: "text", value: "Amina Nakato", oninput: () => { touched = true; } });
       SUI.sheet({ title: "Edit person", purpose: "Change how this person appears in the console.",
-        body: el("div", { class: "form" }, el("label", null, "Name", name)),
+        body: el("label", { class: "field" }, "Name", name),
         primary: { label: "Save changes", onClick: (s) => (o.slow ? new Promise((done) => setTimeout(() => { s.close(true); done(); }, 1500)) : s.close(true)) },
         dirty: () => touched });
     }
