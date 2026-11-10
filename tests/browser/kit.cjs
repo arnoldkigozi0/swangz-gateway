@@ -32,11 +32,17 @@ const mount = () => {
   const split = SUI.splitButton({ label: 'Export', icon: 'download', menuLabel: 'More export formats', primary: true, onClick: () => window.__did.push('csv'),
     items: [{ id: 'pdf', label: 'Export as PDF', onSelect: (x) => window.__did.push(x.id) }, { id: 'sheet', label: 'Export as a spreadsheet', onSelect: (x) => window.__did.push(x.id) }] });
   split.dataset.t = 'split';
+  window.__filt = [];
+  const opt = (a) => a.map((x) => ({ id: x.toLowerCase(), label: x }));
+  const bar = SUI.filterBar({ label: 'Filter people', search: { placeholder: 'Search people' }, values: { status: 'paused' }, onChange: (v, id) => window.__filt.push(JSON.stringify(v) + '|' + id),
+    filters: [{ id: 'team', label: 'Team', options: opt(['Creative', 'Finance', 'Sales']) }, { id: 'role', label: 'Role', options: opt(['Owner', 'Staff']) },
+      { id: 'status', label: 'Status', options: opt(['Active', 'Paused']) }, { id: 'tool', label: 'Tool', options: opt(['ChatGPT', 'Claude']) }, { id: 'device', label: 'Device', options: opt(['Laptop', 'Phone']) }] });
+  bar.dataset.t = 'bar';
   const row = el('div', null, team, ' ', tool, ' ', off, ' ', more, ' ', split);
   row.style.cssText = 'display:flex;flex-wrap:wrap;gap:12px;padding:16px 0';
   const foot = el('div', null, low);
   foot.style.cssText = 'position:fixed;left:50%;bottom:16px;z-index:5';
-  document.querySelector('main').replaceChildren(el('h1', null, 'Control kit'), row);
+  document.querySelector('main').replaceChildren(el('h1', null, 'Control kit'), row, bar);
   document.body.append(foot);
 };
 
@@ -196,6 +202,44 @@ const mount = () => {
         await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
         const d = await page.evaluate(() => ({ did: window.__did.join(), open: !!document.querySelector('.u-pop'), back: document.activeElement.classList.contains('u-split-more') }));
         ok(S + 'choosing a variant runs it and focus returns to the chevron part', d.did === 'csv,sheet' && !d.open && d.back);
+      }
+      {
+        const F = T.replace('select', 'filter bar');
+        const fs = () => page.evaluate(() => { const b = document.querySelector('[data-t=bar]'), a = document.activeElement;
+          return { controls: [...b.querySelectorAll('.u-filter-row > *')].map(x => x.dataset.filter || (x.classList.contains('u-search') ? 'search' : x.classList.contains('u-filter-more') ? 'more' : '?')).join(),
+            chips: [...b.querySelectorAll('.u-chip')].map(x => x.textContent).join('|'), names: [...b.querySelectorAll('.u-chip')].map(x => x.getAttribute('aria-label')).join('|'),
+            clear: !!b.querySelector('.u-chip-clear'), hidden: b.querySelector('.u-chips').hidden, focus: a.dataset.filter ? (a.classList.contains('u-chip') ? 'chip:' : 'select:') + a.dataset.filter : a.tagName + '.' + a.className,
+            last: window.__filt[window.__filt.length - 1], n: window.__filt.length, vals: JSON.stringify(b.values()) }; });
+        let f = await fs();
+        const look = await page.evaluate(() => { const b = document.querySelector('[data-t=bar]'), c = b.querySelector('.u-chip');
+          return { role: b.getAttribute('role'), name: b.getAttribute('aria-label'), chipRadius: getComputedStyle(c).borderTopLeftRadius, chipH: c.getBoundingClientRect().height,
+            under: c.getBoundingClientRect().top >= b.querySelector('.u-filter-row').getBoundingClientRect().bottom, status: b.querySelector('[data-filter=status].u-select').textContent }; });
+        ok(F + 'search, three dropdown filters and More filters, in that order', f.controls === 'search,team,role,status,more' && look.role === 'search' && look.name === 'Filter people');
+        ok(F + 'an active filter is a removable 6px chip under the bar, with Clear all', f.chips === 'Status: Paused' && f.names === 'Remove filter Status: Paused' && f.clear && look.under && look.chipRadius === '6px'
+          && look.status === 'Paused' && look.chipH >= (vname === 'mobile' ? 44 : 28));
+        await page.click('[data-t=bar] [data-filter=team].u-select');
+        await page.click('.u-pop [role=option]:has-text("Finance")');
+        f = await fs();
+        ok(F + 'choosing a value adds its chip, tells the page and keeps focus on the filter', f.chips === 'Team: Finance|Status: Paused' && f.last === '{"status":"paused","team":"finance"}|team' && f.focus === 'select:team');
+        await page.click('[data-t=bar] .u-filter-more');
+        const extra = await page.evaluate(() => [...document.querySelectorAll('.u-pop-menu [role=menuitem]')].map(x => x.textContent).join());
+        await page.click('.u-pop-menu [data-id=device]');
+        const opened = await page.evaluate(() => ({ list: !!document.querySelector('.u-pop-select'), label: document.querySelector('.u-pop-select [role=listbox]').getAttribute('aria-label') }));
+        ok(F + 'More filters lists the rest; picking one adds that filter and opens it', extra === 'Tool,Device' && opened.list && opened.label === 'Device');
+        await page.click('.u-pop [role=option]:has-text("Phone")');
+        f = await fs();
+        ok(F + 'the added filter sits in the bar with its chip', f.controls === 'search,team,role,status,device,more' && f.chips === 'Team: Finance|Status: Paused|Device: Phone');
+        if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `filter-${vname}-${theme}.png`) });
+        await page.focus('[data-t=bar] .u-chip[data-filter=team]'); await page.keyboard.press('Enter');
+        f = await fs();
+        ok(F + 'removing a chip clears that filter and moves focus to the next chip', f.chips === 'Status: Paused|Device: Phone' && f.focus === 'chip:status' && f.last === '{"status":"paused","device":"phone"}|team');
+        await page.fill('[data-t=bar] input[type=search]', 'ami');
+        await page.waitForFunction(() => /"q":"ami"/.test(window.__filt[window.__filt.length - 1]));
+        ok(F + 'typing in search tells the page once it settles', /\|q$/.test((await fs()).last));
+        await page.click('[data-t=bar] .u-chip-clear');
+        f = await fs();
+        ok(F + 'Clear all removes every filter and the search text, and hides the chip row', f.vals === '{}' && f.hidden && f.controls === 'search,team,role,status,more' && f.last === '{}|null'
+          && (await page.inputValue('[data-t=bar] input[type=search]')) === '');
       }
       ok(T + 'no horizontal page scroll', (await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)) <= 0);
       await ctx.close();

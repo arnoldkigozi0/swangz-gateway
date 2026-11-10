@@ -1125,6 +1125,75 @@
     return btn;
   }
 
+  /* The filter bar: a search field, at most three dropdown filters, and the rest behind "More filters". What is
+     active shows as removable chips under the bar, with "Clear all". The bar keeps no state of its own beyond what it is
+     given: the page puts the values in the address (A.keepParams) and redraws from onChange.
+     o: { label: "Filter people" (required), search: { placeholder, param: "q" } or null,
+          filters: [{ id, label, options: [{ id, label }], any: "Any team" }], values: { q, <filter id>: <option id> },
+          onChange(values, changedId) }. Returns the bar, with values() and set(values). */
+  function filterBar(o) {
+    const filters = o.filters || [];
+    const qKey = o.search ? o.search.param || "q" : null;
+    const vals = Object.assign({}, o.values);
+    const added = new Set();
+    const emit = (id) => { o.onChange && o.onChange(Object.assign({}, vals), id); };
+    const input = o.search ? el("input", { type: "search", placeholder: o.search.placeholder || "Search", "aria-label": o.search.placeholder || "Search",
+      autocomplete: "off", value: vals[qKey] || "" }) : null;
+    const controls = el("div", { class: "u-filter-row" }, input ? el("label", { class: "u-search" }, icon("search"), input) : null);
+    const chips = el("div", { class: "u-chips", role: "group", "aria-label": "Active filters" });
+    const bar = el("div", { class: "u-filter", role: "search", "aria-label": o.label }, controls, chips);
+    const selects = {};
+    filters.forEach((f) => {
+      selects[f.id] = select({ label: f.label, placeholder: f.label, value: vals[f.id] || "", small: o.small,
+        options: [{ id: "", label: f.any || "Any " + f.label.toLowerCase() }].concat(f.options),
+        onChange: (v) => { if (v) vals[f.id] = v; else delete vals[f.id]; draw(); emit(f.id); } });
+      selects[f.id].dataset.filter = f.id;
+    });
+    const extra = () => filters.slice(3).filter((f) => !added.has(f.id) && !vals[f.id]);
+    const more = el("button", { type: "button", class: "u-filter-more" }, el("span", null, "More filters"), icon(KIT.chevron, "chev"));
+    menu(more, () => extra().map((f) => ({ id: f.id, label: f.label, onSelect: () => { added.add(f.id); draw(); selects[f.id].click(); } })), { label: "More filters", align: "start" });
+    const clear = el("button", { type: "button", class: "u-chip-clear" }, "Clear all");
+    clear.addEventListener("click", () => {
+      Object.keys(vals).forEach((k) => delete vals[k]); added.clear();
+      if (input) input.value = "";
+      draw(); (input || bar.querySelector("button")).focus(); emit(null);
+    });
+    function draw() {
+      const had = bar.contains(document.activeElement) ? document.activeElement : null;   // moving a node drops its focus
+      const shown = filters.filter((f, i) => i < 3 || added.has(f.id) || vals[f.id]);
+      shown.forEach((f) => { selects[f.id].setValue(vals[f.id] || ""); selects[f.id].classList.toggle("set", !!vals[f.id]); });
+      [...controls.querySelectorAll(".u-select, .u-filter-more")].forEach((n) => { if (!shown.some((f) => selects[f.id] === n)) n.remove(); });
+      shown.forEach((f) => controls.append(selects[f.id]));
+      if (extra().length) controls.append(more);
+      const active = filters.filter((f) => vals[f.id]);
+      chips.replaceChildren(...active.map((f) => {
+        const opt = f.options.find((x) => x.id === vals[f.id]);
+        const text = f.label + ": " + (opt ? opt.label : vals[f.id]);
+        const chip = el("button", { type: "button", class: "u-chip", "aria-label": "Remove filter " + text, "data-filter": f.id }, el("span", null, text), icon("x"));
+        chip.addEventListener("click", () => {
+          const at = [...chips.querySelectorAll(".u-chip")].indexOf(chip);
+          delete vals[f.id]; draw();
+          const left = chips.querySelectorAll(".u-chip");
+          (left[Math.min(at, left.length - 1)] || selects[f.id]).focus();
+          emit(f.id);
+        });
+        return chip;
+      }), ...(active.length ? [clear] : []));
+      chips.hidden = !active.length;
+      if (had && bar.contains(had) && document.activeElement !== had) had.focus();
+    }
+    if (input) input.addEventListener("input", debounce(() => {
+      const q = input.value.trim();
+      if ((vals[qKey] || "") === q) return;
+      if (q) vals[qKey] = q; else delete vals[qKey];
+      emit(qKey);
+    }, 200));
+    draw();
+    bar.values = () => Object.assign({}, vals);
+    bar.set = (v) => { Object.keys(vals).forEach((k) => delete vals[k]); Object.assign(vals, v); if (input) input.value = vals[qKey] || ""; draw(); };
+    return bar;
+  }
+
   // ------------------------------------------------------------------ the command menu
 
   /* Ctrl+K anywhere. Static actions filter as you type; search(q) adds live results, grouped.
@@ -1328,6 +1397,6 @@
     tz, setGatewayOffset, setTzMode, tzLabel, startOfDay, startOfMonth, dateInput, fromDateInput, presetRange, fmt,
     initials, plural, debounce, gateway, avatar, logo, logoTint, status, badge, delta, evidence,
     skeleton, stateBox, errorBox, load, toast, copy, showTip, hideTip, infoTip,
-    columns, line, sparkline, barList, donut, donutParts, table, segmented, searchPill, progress, star, listPanel, rangeControl, trapFocus, popover, select, menu, menuButton, splitButton, commandMenu, splitGate, xfield, eyeToggle,
+    columns, line, sparkline, barList, donut, donutParts, table, segmented, searchPill, progress, star, listPanel, rangeControl, trapFocus, popover, select, menu, menuButton, splitButton, filterBar, commandMenu, splitGate, xfield, eyeToggle,
   };
 })();
