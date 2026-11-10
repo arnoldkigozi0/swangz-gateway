@@ -10,6 +10,73 @@ const results = { checks: [], errors: [] };
 const ok = (label, v) => { assert.ok(v, label); results.checks.push(label); };
 const SHOTS = process.env.SHOTS;
 
+/* The #/kit page itself, at the acceptance sizes. Findings are gathered, not thrown, so one CI run reports every
+   size and theme; the screenshots land in the workflow's /tmp/swangz-hub-* artifact. */
+const fs = require('node:fs');
+const { AxeBuilder } = require('@axe-core/playwright');
+const KIT_OUT = process.env.KIT_PAGE_OUT || '/tmp/swangz-hub-kit-page';
+const kitFindings = [];
+async function kitPage(page, url, theme, vname) {
+  const name = `${vname}-${theme}`, say = (m) => kitFindings.push(`${name}: ${m}`);
+  const writes = [], seen = (r) => { if (/\/admin\/api\//.test(r.url()) && r.method() !== 'GET') writes.push(r.method() + ' ' + r.url()); };
+  page.on('request', seen);
+  try {
+    const size = vname === 'desktop' ? { width: 1440, height: 852 } : { width: 390, height: 844 };
+    await page.setViewportSize(size);
+    await page.goto(url + '/admin#/kit'); await page.reload();
+    await page.waitForFunction(() => document.querySelector('main h1')?.textContent === 'Control kit' && document.querySelector('.kit-spec'));
+    await page.evaluate(() => document.fonts.ready);
+    const m = await page.evaluate(() => ({
+      theme: document.documentElement.dataset.theme || 'dark',
+      overflow: document.documentElement.scrollWidth - innerWidth,
+      panels: document.querySelectorAll('main .panel').length,
+      specs: document.querySelectorAll('.kit-spec').length,
+      inNav: document.querySelectorAll('a[href="#/kit"]').length,
+      empty: [...document.querySelectorAll('.kit-spec')].filter(s => ![...s.querySelector('.kit-stage').children].some(c => { const r = c.getBoundingClientRect(); return r.width > 8 && r.height > 4; })).map(s => s.querySelector('.kit-state').textContent),
+      spilled: [...document.querySelectorAll('.kit-stage')].flatMap(st => { const b = st.getBoundingClientRect(); return [...st.children].filter(c => { const r = c.getBoundingClientRect(); return r.right > b.right + 1 || r.left < b.left - 1; }).map(c => c.textContent.trim().slice(0, 40) || c.className); }),
+      height: Math.max(document.documentElement.scrollHeight, document.querySelector('main')?.scrollHeight || 0) }));
+    if (m.theme !== theme) say(`theme is ${m.theme}`);
+    if (m.overflow > 0) say(`page scrolls sideways by ${m.overflow}px`);
+    if (m.panels !== 9) say(`${m.panels} panels, expected 9`);
+    if (m.specs < 40) say(`only ${m.specs} specimens`);
+    if (m.inNav) say('the page is linked from the navigation');
+    if (m.empty.length) say('nothing visible in: ' + m.empty.join(', '));
+    if (m.spilled.length) say('outside its specimen: ' + m.spilled.join(', '));
+    await page.screenshot({ path: path.join(KIT_OUT, `${name}.png`) });
+    const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+    for (const v of axe.violations) say(`axe ${v.id}: ` + v.nodes.map(n => n.target.join(' ')).join(' | '));
+
+    const spec = (word) => page.locator('.kit-spec', { hasText: word });
+    const searches = () => page.locator('input[type=search]:visible').count();
+    const before = await searches();
+    await spec('Nine options').locator('.u-select').click();
+    await page.locator('[role=listbox]:visible').waitFor();
+    if (await searches() !== before + 1) say('nine options opened without a search field');
+    await page.screenshot({ path: path.join(KIT_OUT, `${name}-select-open.png`) });
+    await page.keyboard.press('Escape');
+    await spec('Dots').locator('.u-more').click();
+    await page.locator('[role=menu]:visible').waitFor();
+    await page.keyboard.press('Escape');
+    await spec('Clean: closes').locator('.btn').click();
+    await page.locator('.u-sheet').waitFor();
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.u-sheet'));
+    await spec('Unsaved changes').locator('.btn').click();
+    await page.locator('.u-sheet').waitFor();
+    await page.screenshot({ path: path.join(KIT_OUT, `${name}-sheet.png`) });
+    await page.keyboard.press('Escape');
+    await page.locator('.u-sheet-ask').waitFor();
+    await page.getByRole('button', { name: 'Discard', exact: true }).click();
+    await page.waitForFunction(() => !document.querySelector('.u-sheet'));
+
+    await page.setViewportSize({ width: size.width, height: m.height + 200 });
+    await page.waitForTimeout(150);
+    await page.screenshot({ path: path.join(KIT_OUT, `${name}-full.png`) });
+    if (writes.length) say('changed data: ' + writes.join(', '));
+  } catch (e) { say('threw ' + e.message); }
+  page.off('request', seen);
+}
+
 const mount = () => {
   const { el } = SUI;
   window.__picked = [];
@@ -62,6 +129,7 @@ const mount = () => {
     const info = await new Promise((res, rej) => { let b = ''; const t = setTimeout(() => rej(new Error('demo timeout')), 30000);
       demo.stdout.on('data', d => { b += d; if (b.includes('\n')) { clearTimeout(t); res(JSON.parse(b.split('\n')[0])); } });
       demo.on('exit', c => c && rej(new Error('demo exit ' + c))); });
+    fs.mkdirSync(KIT_OUT, { recursive: true });
     browser = await chromium.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome' });
     for (const theme of ['dark', 'light']) for (const [vw, vh, vname] of [[1440, 900, 'desktop'], [390, 844, 'mobile']]) {
       const T = `${theme} ${vname} select: `;
@@ -293,8 +361,21 @@ const mount = () => {
         ok(H + 'the primary action runs and can close without asking', (await hs()).log === 'closed,closed,save:Brian,closed');
       }
       ok(T + 'no horizontal page scroll', (await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)) <= 0);
+      await kitPage(page, info.url, theme, vname);
       await ctx.close();
     }
+    {
+      const ctx = await browser.newContext({ viewport: { width: 1440, height: 852 }, reducedMotion: 'reduce' });
+      const r = await ctx.request.post(info.url + '/admin/api/login', { headers: { 'x-gateway-admin': '1' }, data: { username: 'operations@swangzavenue.com', password: 'operations-password' } });
+      assert.equal(r.status(), 200);
+      const page = await ctx.newPage();
+      await page.goto(info.url + '/admin#/kit');
+      await page.getByText('Owners only', { exact: true }).waitFor();
+      ok('kit page: a non-owner sees no controls', await page.locator('.kit-spec').count() === 0);
+      await ctx.close();
+    }
+    fs.writeFileSync(path.join(KIT_OUT, 'findings.json'), JSON.stringify(kitFindings, null, 1));
+    assert.deepEqual(kitFindings, [], 'kit page findings');
     assert.deepEqual(results.errors, [], 'console errors');
     console.log(JSON.stringify({ checks: results.checks.length, errors: results.errors }, null, 1));
   } finally { if (browser) await browser.close(); demo.kill(); }
