@@ -25,7 +25,7 @@
   .stb-bar a.on[data-ic="search"] svg { fill: none; stroke-width: 2.6; } /* a filled magnifier is a blob */
   .stb-round { position: relative; display: grid; place-items: center; width: var(--h); height: var(--h); border-radius: 50%; }
   .stb-round.on { background: #F2EEEC; outline: 2px solid var(--stb-tx); outline-offset: -4px; }
-  .stb-badge { position: absolute; top: -2px; right: -2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #B51E33; color: #fff; font: 700 9px/16px inherit; font-family: inherit; text-align: center; }
+  .stb-badge { position: absolute; top: -2px; right: -2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #B51E33; color: #fff; font-family: inherit; font-weight: 700; font-size: 9px; line-height: 16px; text-align: center; }
   .staff-tabbar a:focus-visible { outline: 2px solid #B4530F; outline-offset: 2px; }
   .stb-lens { position: absolute; left: 0; top: 50%; width: calc(var(--h) * 2.1); height: calc(var(--h) * 1.15); margin: calc(var(--h) * -.575) 0 0 calc(var(--h) * -1.05);
     border-radius: 30px; border: 1px solid rgba(255,255,255,.75); background: rgba(60,50,44,.10); pointer-events: none;
