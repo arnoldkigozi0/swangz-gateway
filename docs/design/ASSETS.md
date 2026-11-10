@@ -40,3 +40,20 @@ is retained for older cached pages. No library or font-loading script is added.
 **`gateway/static/room-warm-tile.webp`** (10 Nov 2026) — `room-warm.webp` followed by its vertical mirror image
 (1600×1894), so the staff app's room continues without a seam on desktop pages that scroll. Derived from
 `room-warm.webp` only; same CC0 source and edits. WebP q80, **51,422 bytes**.
+
+**Console room, 10 Nov 2026 (late), BRIEF §10.10.3** — three candidates, all CC0 from Wikimedia Commons (photos first
+published on Unsplash under CC0, or uploaded to Commons as CC0). Unsplash, Pexels and StockSnap refused automated
+visits, so nothing was taken from them directly.
+
+| Candidate | Source | Author | Original | SHA-256 of the original |
+|---|---|---|---|---|
+| `room-hall-*` (in use, `gateway/static/`) | [Ornate office space (Unsplash)](https://commons.wikimedia.org/wiki/File:Ornate_office_space_(Unsplash).jpg) | Crew | 4000×2662 | `338b2064ac92ee6f243a9b0a79fe43fe048abd47463098b3a621cb75614cc1c5` |
+| `room-lamp-*` (`docs/design/backgrounds/`) | [Books in stack with lamps (Unsplash)](https://commons.wikimedia.org/wiki/File:Books_in_stack_with_lamps_(Unsplash).jpg) | chuttersnap | 6016×4016 | `f36259cbc0d89fd9e2e739db30687ef4f7cfd72a243533f992662942ce9ad5cc` |
+| `room-suite-*` (`docs/design/backgrounds/`) | [Hotel room bedroom … Salford, 5 October 2025](https://commons.wikimedia.org/wiki/File:Hotel_room_bedroom_in_building_on_Chapel_Street,_Salford,_Greater_Manchester,_England,_on_5_October_2025.jpg) | MatthewHoobin | 4080×2296 | `5708c346927df45ea6d00bde26a0184e1678ea261dc59a561534fd3eacc6b0cc` |
+
+Edits, the same for all three (`docs/design/backgrounds/build.py`): centre crop to 16:9, resize to 3840×2160, Gaussian
+blur radius 26 (so the room is out of focus and no text, logo or hard line survives), brightness set to an average of
+34–36%, fine grain added so the soft gradients do not band, WebP quality 86 at 2560, 1920 and 960 wide. The lamp and
+suite candidates are also warmed (red ×1.08, blue ×0.80–0.82); the hall is not. After the 16:9 crop every source is still larger than
+3840×2160 (the smallest is the hall at 4000×2250), so nothing is upscaled.
+
