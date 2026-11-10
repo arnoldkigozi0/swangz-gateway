@@ -170,8 +170,8 @@ async function overviewPass(page, url, theme) {
       await nav.locator('a[href="#/"]').click();
       await page.waitForFunction(() => document.querySelector('main h1')?.textContent.includes('Dr Jane Doe'));
       ok(theme + ': greeting retains full recorded name including title', await page.locator('main h1').textContent() === 'Hello, Dr Jane Doe! 👋');
-      await ctx.close();
       await overviewPass(page, info.url, theme);
+      await ctx.close();
     }
     ok('no console or page errors', results.errors.length === 0);
     fs.writeFileSync(path.join(OVERVIEW_OUT, 'findings.json'), JSON.stringify(overviewFindings, null, 1));
