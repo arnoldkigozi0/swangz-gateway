@@ -1,0 +1,22 @@
+1440 852 dark/home items 40 worst p5 (6.01, 'Home', 11) FAILS 0
+1440 852 dark/tools items 103 worst p5 (6.01, 'Tools', 11) FAILS 0
+1440 852 dark/requests items 27 worst p5 (6.1, 'Requests', 11) FAILS 0
+1440 852 dark/weekly items 36 worst p5 (6.01, 'Weekly reports', 11) FAILS 0
+1440 852 dark/projects items 37 worst p5 (6.1, 'Projects', 11) FAILS 0
+1440 852 light/home items 40 worst p5 (5.07, 'Access active', 12.5) FAILS 0
+1440 852 light/tools items 103 worst p5 (5.55, 'Ready', 12) FAILS 0
+1440 852 light/requests items 27 worst p5 (6.0, '5', 11) FAILS 0
+1440 852 light/weekly items 36 worst p5 (6.12, 'Pending / draft', 12.5) FAILS 0
+1440 852 light/projects items 37 worst p5 (6.11, 'Submitted', 12.5) FAILS 0
+390 844 dark/home items 27 worst p5 (6.57, '5', 8) FAILS 0
+390 844 dark/tools items 38 worst p5 (6.57, '5', 8) FAILS 0
+390 844 dark/requests items 21 worst p5 (6.57, '5', 8) FAILS 0
+390 844 dark/weekly items 25 worst p5 (4.5, 'Observed activity', 12) FAILS 1
+     (4.5, 4.43, 4.5, 'Observed activity', 12, [347, 548])
+390 844 dark/projects items 27 worst p5 (4.43, 'Report state', 12) FAILS 1
+     (4.43, 4.43, 4.5, 'Report state', 12, [386, 231])
+390 844 light/home items 27 worst p5 (5.07, 'Access active', 12.5) FAILS 0
+390 844 light/tools items 38 worst p5 (5.55, 'Ready', 12) FAILS 0
+390 844 light/requests items 21 worst p5 (6.0, '5', 11) FAILS 0
+390 844 light/weekly items 25 worst p5 (5.51, 'Observed activity', 12) FAILS 0
+390 844 light/projects items 27 worst p5 (5.51, 'Report state', 12) FAILS 0

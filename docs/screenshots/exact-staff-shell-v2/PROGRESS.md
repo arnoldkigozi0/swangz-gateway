@@ -124,3 +124,17 @@ Probe measured 0.000066 (Home, 390) and 0.000024 (Tools/Weekly) on 15f986f: Popp
 Real measurements (system Chrome 1.x headless, Playwright, local synthetic fixture), new `tests/browser/staff-font.cjs`: 2 widths (390, 1440) × 5 font conditions (fast, 800ms, 2.5s, 404, hung) × 3 routes (Home, Tools, Weekly) = 30 cells, **exit 0**: reveal 0.9–1.18s after mount (cap 1.2s + tolerance 1.55s), zero layout-shift entries of any kind after load in all 30 cells, the latch never changes after the reveal, the stack stays fixed, no horizontal overflow, no page errors. Negative control (the previous portal.js/exact-staff.css served over the same harness, delayed fonts): 390 Home 0.0262 (SECTION.home-body), Tools 0.0018, Weekly 0.0614 (DIV.vtabs-wrap), so the test does detect the swap; fast cells were 0 on both. `exact-staff-shell.cjs` (UI_OUTPUT=/tmp): exit 0, 37 checks, axe 0 in 4 cells, no page errors. `tests.test_portal tests.test_hub`: 56 OK. `syntax.py`: 29 files. Synthetic-DOM model: 18 PASS (sandbox gained `clearTimeout`).
 
 Not run: the full Python suite, check/hub/business/pwa suites, Probe's own cls2.cjs, CI. `staff-font.cjs` is not in `.github/workflows/checks.yml` (outside the allowed files); adding the step is the one-line next step. Real `loadingdone` pointer/phone-device emulation and a long-task/scroll trace were not measured.
+
+## Head f10a78a — 10 November, 08:30 (builder changed; evidence in `head-f10a78a/`)
+
+The browser job failed on 320edf3 in the new `staff-font.cjs` step: a 0.0000239 layout shift at 390 from the
+workspace pill (its mark shrank 3px until the file arrived). f10a78a fixes that (`flex: none`), and also: the room is
+one fixed layer instead of a scrolling `cover` background; panel content uses the full panel width and Home's blocks
+share the 1343 right edge; page panels start 10px above the header so the title clears the rim; disabled pagers pass
+4.5:1; phone top bar spacing, title alignment and status wrapping. CSS only (`exact-staff.css`).
+
+Measured on this head: search x 588, title x 179, axe 0 and CLS 0 with no layout-shift entries in 20 cells, text
+contrast worst 4.99:1 (real photo) / 5.07:1 (brightest point) in light and 6.57 / 6.01 in dark, empty-database and
+reduced-transparency/motion shots. **Open: desktop Tools scrolled at 46fps (gate 55) while the laptop was under
+load from other test runs; the other 19 cells were 58.7–60fps. It needs an idle-machine re-run before the gate is
+called either way.** Details, tagged differences and what was not run: `head-f10a78a/README.md`.

@@ -1,0 +1,202 @@
+{
+ "1440/dark/home": {
+  "scrollable": 0,
+  "blurCount": 0,
+  "blur": [],
+  "frames": 110,
+  "fps": 60,
+  "maxFrame": 17,
+  "p95": 17,
+  "over50": 0
+ },
+ "1440/dark/tools": {
+  "scrollable": 22,
+  "blurCount": 0,
+  "blur": [],
+  "frames": 140,
+  "fps": 46.4,
+  "maxFrame": 50,
+  "p95": 33,
+  "over50": 0
+ },
+ "1440/dark/requests": {
+  "scrollable": 0,
+  "blurCount": 0,
+  "blur": [],
+  "frames": 110,
+  "fps": 60,
+  "maxFrame": 17,
+  "p95": 17,
+  "over50": 0
+ },
+ "1440/dark/weekly": {
+  "scrollable": 0,
+  "blurCount": 0,
+  "blur": [],
+  "frames": 109,
+  "fps": 60,
+  "maxFrame": 17,
+  "p95": 17,
+  "over50": 0
+ },
+ "1440/dark/projects": {
+  "scrollable": 0,
+  "blurCount": 0,
+  "blur": [],
+  "frames": 109,
+  "fps": 60,
+  "maxFrame": 17,
+  "p95": 17,
+  "over50": 0
+ },
+ "1440/light/home": {
+  "scrollable": 0,
+  "blurCount": 0,
+  "blur": [],
+  "frames": 110,
+  "fps": 60,
+  "maxFrame": 17,
+  "p95": 17,
+  "over50": 0
+ },
+ "1440/light/tools": {
+  "scrollable": 22,
+  "blurCount": 0,
+  "blur": [],
+  "frames": 141,
+  "fps": 46.5,
+  "maxFrame": 50,
+  "p95": 33,
+  "over50": 0
+ },
+ "1440/light/requests": {
+  "scrollable": 0,
+  "blurCount": 0,
+  "blur": [],
+  "frames": 110,
+  "fps": 60,
+  "maxFrame": 17,
+  "p95": 17,
+  "over50": 0
+ },
+ "1440/light/weekly": {
+  "scrollable": 0,
+  "blurCount": 0,
+  "blur": [],
+  "frames": 110,
+  "fps": 60,
+  "maxFrame": 17,
+  "p95": 17,
+  "over50": 0
+ },
+ "1440/light/projects": {
+  "scrollable": 0,
+  "blurCount": 0,
+  "blur": [],
+  "frames": 109,
+  "fps": 60,
+  "maxFrame": 17,
+  "p95": 17,
+  "over50": 0
+ },
+ "390/dark/home": {
+  "scrollable": 268,
+  "blurCount": 0,
+  "blur": [],
+  "frames": 181,
+  "fps": 59.7,
+  "maxFrame": 33,
+  "p95": 17,
+  "over50": 0
+ },
+ "390/dark/tools": {
+  "scrollable": 769,
+  "blurCount": 0,
+  "blur": [],
+  "frames": 180,
+  "fps": 59.7,
+  "maxFrame": 33,
+  "p95": 17,
+  "over50": 0
+ },
+ "390/dark/requests": {
+  "scrollable": 0,
+  "blurCount": 0,
+  "blur": [],
+  "frames": 110,
+  "fps": 60,
+  "maxFrame": 17,
+  "p95": 17,
+  "over50": 0
+ },
+ "390/dark/weekly": {
+  "scrollable": 93,
+  "blurCount": 0,
+  "blur": [],
+  "frames": 181,
+  "fps": 59.7,
+  "maxFrame": 33,
+  "p95": 17,
+  "over50": 0
+ },
+ "390/dark/projects": {
+  "scrollable": 69,
+  "blurCount": 0,
+  "blur": [],
+  "frames": 178,
+  "fps": 59,
+  "maxFrame": 33,
+  "p95": 17,
+  "over50": 0
+ },
+ "390/light/home": {
+  "scrollable": 268,
+  "blurCount": 0,
+  "blur": [],
+  "frames": 179,
+  "fps": 59,
+  "maxFrame": 50,
+  "p95": 17,
+  "over50": 0
+ },
+ "390/light/tools": {
+  "scrollable": 769,
+  "blurCount": 0,
+  "blur": [],
+  "frames": 180,
+  "fps": 59.7,
+  "maxFrame": 33,
+  "p95": 17,
+  "over50": 0
+ },
+ "390/light/requests": {
+  "scrollable": 0,
+  "blurCount": 0,
+  "blur": [],
+  "frames": 109,
+  "fps": 60,
+  "maxFrame": 17,
+  "p95": 17,
+  "over50": 0
+ },
+ "390/light/weekly": {
+  "scrollable": 93,
+  "blurCount": 0,
+  "blur": [],
+  "frames": 178,
+  "fps": 58.7,
+  "maxFrame": 50,
+  "p95": 17,
+  "over50": 0
+ },
+ "390/light/projects": {
+  "scrollable": 69,
+  "blurCount": 0,
+  "blur": [],
+  "frames": 181,
+  "fps": 59.7,
+  "maxFrame": 33,
+  "p95": 17,
+  "over50": 0
+ }
+}
