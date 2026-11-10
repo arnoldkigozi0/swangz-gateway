@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly Swangz AI Hub restore check
+
+[Timer]
+# Sundays 00:30 UTC = 03:30 in Kampala, an hour after that night's backup; a missed run happens at the next boot
+OnCalendar=Sun *-*-* 00:30:00 UTC
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

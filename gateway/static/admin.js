@@ -876,6 +876,16 @@
     });
   }
 
+  /* Which build is running, in every page's footer: version and commit, asked once per load. The line keeps its
+     height while empty, so filling it in moves nothing. */
+  let buildAsked = null;
+  function buildFoot() {
+    const line = el("footer", { class: "build-foot", "aria-label": "Running version" });
+    buildAsked = buildAsked || api("GET", "/build").catch(() => null);
+    buildAsked.then((b) => { if (b && b.version) line.textContent = "Swangz AI Hub " + b.version + (b.commit ? " · " + b.commit : " · commit not recorded"); });
+    return line;
+  }
+
   /* Every page sits in the same frame: the sidebar (a drawer on phones), then a header saying where
      you are, why the page exists, and what you can do here. */
   function frame(o, content) {
@@ -921,7 +931,7 @@
       o.lede ? el("p", { class: "lede" }, o.lede) : null);
     const routeSlug = (section === "#/" ? "overview" : section.slice(2)).replace(/[^a-z0-9-]/gi, "-");
     app.replaceChildren(el("div", { class: "shell route-" + routeSlug }, side,
-      el("div", { class: "main" }, appbar, banner, el("main", { id: "main", tabindex: "-1" }, top, el("div", { class: "page" + (o.wide ? " wide" : "") }, content))), mobileNav(active)));
+      el("div", { class: "main" }, appbar, banner, el("main", { id: "main", tabindex: "-1" }, top, el("div", { class: "page" + (o.wide ? " wide" : "") }, content), buildFoot())), mobileNav(active)));
   }
 
   function openDrawer(active) {

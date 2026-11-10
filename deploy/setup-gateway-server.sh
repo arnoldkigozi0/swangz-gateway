@@ -49,6 +49,8 @@ if [ ! -f "$APP/.env" ]; then
       "$SRC/.env.example" > "$APP/.env"
   echo "   wrote $APP/.env — add the provider keys and the Google client to it"
 fi
+# the code is copied without .git, so say which commit this is (shown in /healthz and the console footer)
+git -C "$SRC" rev-parse HEAD > "$APP/COMMIT" 2>/dev/null || rm -f "$APP/COMMIT"
 chown -R swangz:swangz "$APP/data" "$APP/.env"
 chmod 600 "$APP/.env"
 
@@ -69,9 +71,10 @@ done
 curl -fsS http://127.0.0.1:8787/healthz >/dev/null || { journalctl -u swangz-gateway -n 30 --no-pager; exit 1; }
 
 echo "== nightly backup"
-cp "$SRC/deploy/swangz-gateway-backup.service" "$SRC/deploy/swangz-gateway-backup.timer" /etc/systemd/system/
+cp "$SRC/deploy/swangz-gateway-backup.service" "$SRC/deploy/swangz-gateway-backup.timer" \
+   "$SRC/deploy/swangz-gateway-backup-verify.service" "$SRC/deploy/swangz-gateway-backup-verify.timer" /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable -q --now swangz-gateway-backup.timer
+systemctl enable -q --now swangz-gateway-backup.timer swangz-gateway-backup-verify.timer
 if [ -f "$APP/data/gateway.db" ]; then
   systemctl start swangz-gateway-backup.service \
     && echo "   first backup taken: $(ls -1t "$APP"/data/backups/gateway-*.db.gz 2>/dev/null | head -1)" \

@@ -654,6 +654,12 @@ def revoke_key(ctx, kid):
     return {"ok": True, "cut": cut}
 
 
+@route("GET", r"/build")
+def build_info(ctx):
+    """Which build is answering: version and commit, for the console footer. Read-only; nothing secret."""
+    return {"version": _version(), "commit": _commit()}
+
+
 @route("GET", r"/health")
 def health(ctx):
     db = ctx.db
@@ -665,6 +671,7 @@ def health(ctx):
     return {
         "ok": db_ok,
         "version": _version(),
+        "commit": _commit(),
         "schema": int(db.scalar("SELECT v FROM meta WHERE k = 'schema'") or 0),
         "uptime_seconds": int(time.time() - gw.started_at),
         "started_at": gw.started_at,
@@ -710,6 +717,14 @@ def _provider_health(db, gw):
                     "last_hour": {"requests": len(rs), "errors": errors, "error_rate": round(errors / len(rs), 3) if rs else None,
                                   "p50_ms": _pct(ok, 0.5), "p95_ms": _pct(ok, 0.95), "ttft_p50_ms": _pct(ttft, 0.5)}})
     return out
+
+
+def _commit():
+    try:
+        from . import build
+        return build.info()["commit"]
+    except Exception:
+        return ""
 
 
 def _version():
@@ -1399,6 +1414,7 @@ def refresh_logo(ctx, tid):
         raise ApiError(404, "no such tool")
     found = icons.fetch(tool)
     icons.save(ctx.db, tid, found, tool["url"])
+    ctx.audit("refreshed a tool logo", tool["name"], "found" if found else "none found", correlation=f"tool:{tid}")
     return {"ok": bool(found)}
 
 
