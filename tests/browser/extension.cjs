@@ -357,13 +357,61 @@ test('signed-out startup clears cached held-site data', async () => {
 
 test('a late allow cannot reopen access after sign-out', async () => {
   const w = await worker(); let complete;
-  w.fetchWith(() => new Promise(resolve => { complete = resolve; }));
+  // the stalled request is the gate's; sign-out's own call to the Hub is answered so it is not mistaken for it
+  w.fetchWith(url => url.endsWith('/api/logout') ? response(200, { ok: true }) : new Promise(resolve => { complete = resolve; }));
   const navigating = w.run("onNavigate(7, 'https://chatgpt.com/')");
   await settle(); await w.run('signOut()');
   complete(response(200, { known: true, allowed: true, id: 99 }));
   await navigating; blocked(w);
   assert.deepEqual(w.state().open, {});
 });
+
+test('sign-out ends the extension session at the Hub with the old bearer, after the local token is gone', async () => {
+  const w = await worker(); let storedAtCall, memoryAtCall;
+  w.fetchWith(async url => {
+    if (url.endsWith('/api/logout')) { storedAtCall = w.stored.token; memoryAtCall = w.state().token; }
+    return response(200, { ok: true });
+  });
+  await w.run('signOut()'); await settle();
+  const calls = w.requests.filter(r => r.url === 'https://hub.example.test/api/logout');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].init.method, 'POST');
+  assert.equal(calls[0].init.headers.authorization, 'Bearer fixture-token');
+  assert.equal(calls[0].init.headers['x-swangz-app'], '1');
+  assert.equal(calls[0].init.credentials, 'omit');
+  assert.equal(storedAtCall, undefined, 'the stored token is removed before the Hub is told');
+  assert.equal(memoryAtCall, null);
+  await w.run("onNavigate(7, 'https://chatgpt.com/')"); blocked(w);
+  assert.equal(w.requests.filter(r => r.url.endsWith('/api/logout')).length, 1, 'signed out already: nothing to end twice');
+});
+
+for (const [name, hub] of [['unreachable', async () => { throw new Error('offline'); }], ['hung', () => new Promise(() => {})],
+  ['refusing', async () => response(500)]]) {
+  test(`sign-out stays signed out and blocked when the Hub is ${name}`, async () => {
+    const w = await worker();
+    w.fetchWith(hub);
+    await w.run('signOut()'); await settle();
+    assert.equal(w.state().token, null);
+    assert.equal(w.stored.token, undefined);
+    assert.equal(w.clears.length, 1, 'held shared sites are still cleared');
+    w.fetchWith(async () => response(200, { known: true, allowed: true, id: 5 }));
+    await w.run("onNavigate(7, 'https://chatgpt.com/')"); blocked(w);
+    assert.deepEqual(w.state().open, {});
+  });
+}
+
+for (const status of [401, 403]) {
+  test(`a ${status} from the gate is a block: sign-in page, no open record, and the dead session is ended at the Hub`, async () => {
+    const w = await worker();
+    w.fetchWith(async url => url.endsWith('/api/logout') ? response(200, { ok: true }) : response(status));
+    await w.run("onNavigate(7, 'https://chatgpt.com/')"); await settle();
+    blocked(w);
+    assert.deepEqual(w.state().open, {});
+    const calls = w.requests.filter(r => r.url.endsWith('/api/logout'));
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].init.headers.authorization, 'Bearer fixture-token');
+  });
+}
 
 test('a late refusal for an old token cannot sign out a replacement token', async () => {
   const w = await worker(); let complete;
