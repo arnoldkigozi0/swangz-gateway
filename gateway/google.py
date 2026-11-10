@@ -66,8 +66,18 @@ def _back(h, app, error=None, headers=None):
     h.send_bytes(302, b"", "text/plain", out)
 
 
+def available(gw):
+    """Is Google sign-in on? With GATEWAY_REQUIRE_FIXED_RETURN it also needs a return address from the settings
+    (GOOGLE_REDIRECT_URI, GATEWAY_WEB_URL or GATEWAY_PUBLIC_URL), so the address handed to Google is never built
+    from a request's Host header."""
+    s = gw.settings
+    if not s.google_enabled:
+        return False
+    return not s.require_fixed_return or bool(s.google_redirect_uri or s.web_url or s.public_url.strip())
+
+
 def options(h, gw):
-    h.send_json(200, {"google": gw.settings.google_enabled})
+    h.send_json(200, {"google": available(gw)})
 
 
 def start(h, gw, query):
@@ -75,7 +85,7 @@ def start(h, gw, query):
     if app not in APPS:
         app = "staff"
     s = gw.settings
-    if not s.google_enabled:
+    if not available(gw):
         return _back(h, app, "off")
     state, nonce = secrets.token_urlsafe(24), secrets.token_urlsafe(16)
     now = time.time()

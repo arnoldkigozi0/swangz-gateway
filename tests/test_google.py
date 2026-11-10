@@ -256,6 +256,41 @@ class GoogleSignInTests(unittest.TestCase):
         self.assertEqual(self.google.posted[-1]["redirect_uri"], "https://swangz-ai.example.test/auth/google/callback")
         self.assertNotIn("evil", json.dumps(self.google.posted))
 
+    def test_with_a_fixed_return_required_and_none_set_a_hostile_host_gets_no_redirect_to_google(self):
+        """D-017. GATEWAY_REQUIRE_FIXED_RETURN: with no address in the settings the return address would be built from
+        the request's Host header, so sign-in is refused instead and the button is hidden."""
+        s = self.rig.settings
+        s.web_url = s.public_url = s.google_redirect_uri = ""
+        hostile = {"host": "evil.example.test", "x-forwarded-host": "evil.example.test", "x-forwarded-proto": "https"}
+        self.rig.gw.trust_proxy = True
+        status, h, _ = self.rig.request("GET", "/auth/google/start?app=admin", None, hostile)
+        self.assertIn("evil.example.test", h["location"])  # the gap: off by default, the Host header reaches Google
+        self.assertEqual(json.loads(self.rig.request("GET", "/auth/options")[2]), {"google": True})
+
+        s.require_fixed_return = True
+        status, h, _ = self.rig.request("GET", "/auth/google/start?app=admin", None, hostile)
+        self.assertEqual((status, h["location"]), (302, "/admin?auth_error=off"))
+        self.assertNotIn("accounts.google.com", h["location"])
+        self.assertEqual(json.loads(self.rig.request("GET", "/auth/options", None, hostile)[2]), {"google": False})
+
+    def test_with_a_fixed_return_required_and_an_address_set_the_flow_is_unchanged(self):
+        s = self.rig.settings
+        s.require_fixed_return = True
+        for name, value, expected in (("web_url", "https://swangz-ai.example.test", "https://swangz-ai.example.test"),
+                                      ("public_url", "https://gw.example.test", "https://gw.example.test"),
+                                      ("google_redirect_uri", "https://hub.example.test/auth/google/callback", "https://hub.example.test")):
+            s.web_url = s.public_url = s.google_redirect_uri = ""
+            setattr(s, name, value)
+            self.assertEqual(json.loads(self.rig.request("GET", "/auth/options")[2]), {"google": True}, name)
+            status, h, _ = self.rig.request("GET", "/auth/google/start?app=staff", None, {"host": "evil.example.test"})
+            q = {k: v[-1] for k, v in parse_qs(urlsplit(h["location"]).query).items()}
+            self.assertEqual(q["redirect_uri"], expected + "/auth/google/callback", name)
+        s.public_url = s.google_redirect_uri = ""
+        s.web_url = "https://swangz-ai.example.test"
+        location, cookies = self.finish(*self.begin())
+        self.assertEqual(location, "/")
+        self.assertIn("HttpOnly", cookies)
+
     def test_an_explicit_redirect_uri_wins_at_both_steps(self):
         self.rig.settings.google_redirect_uri = "https://hub.example.test/auth/google/callback"
         q, cookie = self.begin()
