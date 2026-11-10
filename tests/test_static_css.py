@@ -37,5 +37,12 @@ class ChartEmptyStateTests(unittest.TestCase):
         self.assertNotIn('title: "No data yet"', js)                    # no chart falls back to the generic box
 
 
+class OverviewExactFitTests(unittest.TestCase):
+    def test_first_card_uses_the_reference_amber_in_dark_and_the_page_fits_the_frame(self):
+        css = (pathlib.Path(__file__).resolve().parent.parent / "gateway" / "static" / "admin.css").read_text(encoding="utf-8")
+        self.assertIn('html:not([data-theme="light"]) .kpis-exact .kpi.gold.link:hover { background: linear-gradient(160deg, rgba(247, 174, 98, .50), rgba(238, 143, 62, .40)); }', css)
+        self.assertIn("@media (min-width: 1201px) { .route-overview .page { padding-bottom: 56px; } }", css)
+
+
 if __name__ == "__main__":
     unittest.main()
