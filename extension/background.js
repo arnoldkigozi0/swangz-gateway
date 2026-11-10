@@ -143,7 +143,13 @@ async function onNavigate(tabId, url) {
   if (!S.base || !S.token) { await blockForSignIn(tabId); return; }
   let r;
   try { r = await gate("open", { host }); } catch (e) { /* unavailable: no allow decision */ }
-  if (!S.token || !r || !r.known) { await blockForSignIn(tabId); return; }
+  if (!S.token || !r) { await blockForSignIn(tabId); return; }
+  if (r.known === false) {
+    await refreshHosts();  // authenticated removal from governance; refresh the stale cache
+    if (!S.token) await blockForSignIn(tabId);
+    return;
+  }
+  if (!r.known) { await blockForSignIn(tabId); return; }
   if (r.allowed === true) {
     S.open[tabId] = { id: r.id, since: Date.now() };
     await chrome.storage.session?.set?.({ ["open_" + tabId]: S.open[tabId] }).catch(() => {});

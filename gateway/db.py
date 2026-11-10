@@ -13,6 +13,7 @@ from .hub_schema import MIGRATION as HUB_MIGRATION
 from .business_schema import MIGRATION as BUSINESS_MIGRATION
 from .device_schema import MIGRATION as DEVICE_MIGRATION
 from .device_schema import MIGRATION_22 as DEVICE_LIFECYCLE_MIGRATION
+from .device_schema import MIGRATION_23 as SESSION_KIND_MIGRATION
 
 SCHEMA = [
     # v1
@@ -506,6 +507,9 @@ SCHEMA = [
     DEVICE_MIGRATION,
     # v22: one device, many keys over its life: stable device id, rotation grace, reported key storage.
     DEVICE_LIFECYCLE_MIGRATION,
+    # v23: a session says what it is for. Rows that exist at upgrade become 'extension' (the only kind that was ever a
+    # bearer token), so no session is deleted and no old cookie keeps working: a web session is a new sign-in.
+    SESSION_KIND_MIGRATION,
 ]
 
 

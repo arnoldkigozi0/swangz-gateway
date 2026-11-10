@@ -181,13 +181,29 @@ for (const state of ['signed out', 'offline', 'refused']) {
   });
 }
 
-for (const decision of [response(500), response(200, {}), response(200, { known: false }),
+for (const decision of [response(500), response(200, {}),
   { ok: true, status: 200, json: async () => { throw new Error('bad JSON'); } }]) {
   test('missing, unavailable or invalid allow decision blocks cached governed site', async () => {
     const w = await worker(); w.fetchWith(async () => decision);
     await w.run("onNavigate(7, 'https://chatgpt.com/')"); blocked(w);
   });
 }
+
+test('authenticated known:false refreshes stale governance and allows the site', async () => {
+  const w = await worker(); w.requests.length = 0;
+  w.fetchWith(async url => response(200, url.endsWith('/open') ? { known: false } : { hosts: { 'canva.com': 'canva' } }));
+  await w.run("onNavigate(7, 'https://chatgpt.com/')");
+  assert.deepEqual(w.requests.map(r => r.url.split('/').pop()), ['open', 'config']);
+  assert.equal(w.updates.length, 0);
+  assert.deepEqual(w.stored.hosts, { 'canva.com': 'canva' });
+});
+
+test('401 during a known:false config refresh still blocks and signs out', async () => {
+  const w = await worker();
+  w.fetchWith(async url => url.endsWith('/open') ? response(200, { known: false }) : response(401));
+  await w.run("onNavigate(7, 'https://chatgpt.com/')"); blocked(w);
+  assert.equal(w.state().token, null);
+});
 
 test('successful config refresh can remove a site from governance', async () => {
   const w = await worker();

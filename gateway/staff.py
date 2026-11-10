@@ -26,9 +26,19 @@ class Streamed:
     """Returned by a handler that has already written its own response (a large file sent in blocks)."""
 
 
-def route(method, pattern, signed_in=True):
+# What a browser-extension session may reach: its own sign-in, the access gate, and signing out. Nothing else.
+EXTENSION_PATHS = re.compile(r"/(?:extension|gate)/.+|/logout|/tools/[a-z0-9-]+/request")
+PAUSED = ("Your access is paused. Talk to your admin to have it restored.", "person_paused")
+
+
+def route(method, pattern, signed_in=True, paused_ok=False):
+    """paused_ok marks a route a paused person (suspended, web session) may still reach. It is read-only by
+    construction: anything but a GET (and signing out) refuses to register."""
+    if paused_ok and method != "GET" and pattern != r"/logout":
+        raise ValueError(f"paused_ok is for read-only routes: {method} {pattern}")
+
     def wrap(fn):
-        ROUTES.append((method, re.compile(pattern), fn, signed_in))
+        ROUTES.append((method, re.compile(pattern), fn, signed_in, paused_ok))
         return fn
 
     return wrap
@@ -36,7 +46,7 @@ def route(method, pattern, signed_in=True):
 
 def dispatch(h, gw, path, query):
     sub = path[len("/api"):]
-    for method, rx, fn, signed_in in ROUTES:
+    for method, rx, fn, signed_in, paused_ok in ROUTES:
         m = rx.fullmatch(sub)
         if not m or method != h.command:
             continue
@@ -44,8 +54,12 @@ def dispatch(h, gw, path, query):
         try:
             if h.command != "GET" and h.headers.get("x-swangz-app") != "1":
                 raise ApiError(403, "missing app header")
-            ctx.person = current_person(ctx)
+            ctx.person, ctx.paused, wrong_kind = _who(ctx, sub, signed_in, paused_ok)
             if signed_in and not ctx.person:
+                if wrong_kind:
+                    raise ApiError(403, "This sign-in is for the browser extension only.", "session_kind")
+                if paused_person(ctx):  # a real session, for a person whose access is paused: nothing here is theirs to use
+                    raise ApiError(403, *PAUSED)
                 raise ApiError(401, "Please sign in.")
             if h.command in ("POST", "PUT", "PATCH", "DELETE"):
                 raw = h.read_body(64 * 1024)
@@ -69,26 +83,65 @@ def dispatch(h, gw, path, query):
     return h.send_json(404, {"error": "no such endpoint"})
 
 
-def current_person(ctx):
-    # The web app uses a cookie; the browser extension can't send a Lax cookie cross-site, so it
-    # presents the same session token as a bearer instead.
-    token = _cookie(ctx.h.headers.get("cookie") or "", COOKIE)
+def _lookup(ctx, kinds):
+    """-> (person row, kind) for a live session of a kind its presentation allows, or (None, None). The cookie is a
+    web session's and a bearer is the extension's, never the other way round, so a stolen extension token is not a web
+    session and a web cookie is not an extension token. The person's status is not looked at here."""
+    token, kind = _cookie(ctx.h.headers.get("cookie") or "", COOKIE), "web"
     if not token:
         auth = (ctx.h.headers.get("authorization") or "").strip()
-        if auth[:7].lower() == "bearer ":
-            token = auth[7:].strip()
-    if not token or security.split_key(token)[0]:
-        return None  # a device or API key is never a session, however it is presented
+        token, kind = (auth[7:].strip() if auth[:7].lower() == "bearer " else ""), "extension"
+    if not token or kind not in kinds or security.split_key(token)[0]:
+        return None, None  # a device or API key is never a session, however it is presented
+    digest, now = security.sha256(token), time.time()
     person = ctx.db.one(
-        "SELECT p.* FROM staff_sessions s JOIN people p ON p.id = s.person_id WHERE s.token_hash = ? AND s.expires > ?",
-        (security.sha256(token), time.time()))
-    # Checked on every request, not only at sign-in: a suspended person, or one whose account has ended, holds
-    # a session that opens nothing. The row stays, so restoring them restores the session until it expires.
+        "SELECT p.* FROM staff_sessions s JOIN people p ON p.id = s.person_id WHERE s.token_hash = ? AND s.kind = ? AND s.expires > ?",
+        (digest, kind, now))
+    if not person:
+        return None, None
+    ctx.db.x("UPDATE staff_sessions SET last_seen = ? WHERE token_hash = ? AND (last_seen IS NULL OR last_seen < ?)",
+             (now, digest, now - 60))
+    return person, kind
+
+
+def current_person(ctx, kinds=("web",)):
+    """The signed-in person, strictly: an active account on a web session (the default). Checked on every request, not
+    only at sign-in: a suspended person, or one whose account has ended, holds a session that opens nothing. The row
+    stays, so restoring them restores the session until it expires."""
+    person, _ = _lookup(ctx, kinds)
     return person if person and session_allowed(ctx, person) else None
 
 
+def paused_person(ctx):
+    """A person whose access is paused (suspended) but whose web session is otherwise valid. Only routes registered
+    paused_ok ever see them. An ended account, an address outside the approved accounts, and every extension
+    session are not paused people: they get nothing."""
+    person, _ = _lookup(ctx, ("web",))
+    return person if person and person_state(ctx, person) == "paused" else None
+
+
+def _who(ctx, sub, signed_in, paused_ok):
+    """-> (person, paused view?, a session of the wrong kind for this path?)"""
+    person, kind = _lookup(ctx, ("web", "extension"))
+    if person and not session_allowed(ctx, person):
+        person = None
+    if person and kind == "extension" and not EXTENSION_PATHS.fullmatch(sub):
+        return None, False, True
+    if not person and paused_ok:
+        person = paused_person(ctx)
+        return person, bool(person), False
+    return person, False, False
+
+
+def person_state(ctx, person):
+    """active | paused (suspended, or access ended: may sign in to a read-only view) | refused (not an approved account)."""
+    if not ctx.gw.settings.email_allowed(person["email"]):
+        return "refused"
+    return "paused" if person["status"] != "active" or entitle.access_ended(person) else "active"
+
+
 def session_allowed(ctx, person):
-    return person["status"] == "active" and not entitle.access_ended(person) and ctx.gw.settings.email_allowed(person["email"])
+    return person_state(ctx, person) == "active"
 
 
 def _cookie(header, name):
@@ -113,8 +166,8 @@ def _session_cookie(ctx, token, max_age):
 def _start_session(ctx, person_id):
     token = security.new_session_token()
     now = time.time()
-    ctx.db.x("INSERT INTO staff_sessions(token_hash, person_id, created, expires, ip) VALUES(?,?,?,?,?)",
-             (security.sha256(token), person_id, now, now + SESSION_SECONDS, ctx.ip))
+    ctx.db.x("INSERT INTO staff_sessions(token_hash, person_id, created, expires, ip, kind, last_seen) VALUES(?,?,?,?,?,'web',?)",
+             (security.sha256(token), person_id, now, now + SESSION_SECONDS, ctx.ip, now))
     ctx.db.x("UPDATE people SET last_login = ? WHERE id = ?", (now, person_id))
     return {"Set-Cookie": _session_cookie(ctx, token, SESSION_SECONDS)}
 
@@ -152,20 +205,23 @@ def login(ctx):
         ctx.gw.throttle.fail("staff:" + ctx.ip)
         raise ApiError(401, "That email and password don't match.")
     ctx.gw.throttle.clear("staff:" + ctx.ip)
-    if not session_allowed(ctx, person):
+    state = person_state(ctx, person)
+    if state == "refused":
         raise ApiError(403, "Your access is paused or has ended. Talk to your admin.", "person_paused")
-    ctx.gw.audit(person["name"], "signed in to Swangz AI Hub", "", "", ctx.ip, correlation=f"person:{person['id']}")
-    return 200, {"ok": True}, _start_session(ctx, person["id"])
+    # A paused person gets a web session too: it opens the read-only view and nothing else (checked on every request).
+    ctx.gw.audit(person["name"], "signed in to Swangz AI Hub" + (" (access paused: read-only view)" if state == "paused" else ""),
+                 "", "", ctx.ip, correlation=f"person:{person['id']}")
+    return 200, {"ok": True, **({"paused": True} if state == "paused" else {})}, _start_session(ctx, person["id"])
 
 
-@route("POST", r"/logout", signed_in=False)
+@route("POST", r"/logout", signed_in=False, paused_ok=True)
 def logout(ctx):
     token = _cookie(ctx.h.headers.get("cookie") or "", COOKIE)
     if token:
         digest = security.sha256(token)
-        row = ctx.db.one("SELECT s.person_id, p.name FROM staff_sessions s JOIN people p ON p.id = s.person_id WHERE s.token_hash = ?", (digest,))
+        row = ctx.db.one("SELECT s.person_id, p.name FROM staff_sessions s JOIN people p ON p.id = s.person_id WHERE s.token_hash = ? AND s.kind = 'web'", (digest,))
         # this one session only: the person's other sessions and their devices are untouched
-        if row and ctx.db.x("DELETE FROM staff_sessions WHERE token_hash = ?", (digest,)).rowcount:
+        if row and ctx.db.x("DELETE FROM staff_sessions WHERE token_hash = ? AND kind = 'web'", (digest,)).rowcount:
             left = ctx.db.scalar("SELECT COUNT(*) FROM staff_sessions WHERE person_id = ? AND expires > ?", (row["person_id"], time.time()))
             ctx.gw.audit(row["name"], "signed out of the web app", row["name"], "", ctx.ip, before={"sessions_ended": 0},
                          after={"sessions_ended": 1, "sessions_remaining": left}, correlation=f"person:{row['person_id']}")
@@ -216,8 +272,17 @@ def _self_keys_allowed(ctx):
     return ctx.db.get_setting("staff_self_keys", "1") == "1"
 
 
-@route("GET", r"/me")
+def paused_me(ctx):
+    """What a paused person sees of themselves: who they are, that it is paused, and who to talk to. No tools, keys,
+    devices, budget or Studio."""
+    return {"paused_view": True, "name": ctx.person["name"], "status": "paused", "reason": PAUSED[0],
+            "support_contact": ctx.db.get_setting("support_contact", "") or ""}
+
+
+@route("GET", r"/me", paused_ok=True)
 def me(ctx):
+    if ctx.paused:
+        return paused_me(ctx)
     from . import catalog as catalog_mod
     from . import entitle, turns
 
@@ -373,6 +438,8 @@ def launch(h, gw, tool_id):
     ctx = Ctx(h, gw, "")
     person = current_person(ctx)
     if not person:
+        if paused_person(ctx):
+            return _launch_page(h, 403, "Your access is paused", "Talk to your admin to have it restored.")
         return h.send_bytes(302, b"", "text/plain", {"Location": "/", "Cache-Control": "no-store"})
     tool = gw.db.one("SELECT * FROM tools WHERE id = ? AND archived = 0", (tool_id,)) \
         if re.fullmatch(r"[a-z0-9-]{1,80}", tool_id) else None
@@ -501,8 +568,8 @@ def extension_login(ctx):
         raise ApiError(403, "Your access is paused or has ended. Talk to your admin.", "person_paused")
     token = security.new_session_token()
     now = time.time()
-    ctx.db.x("INSERT INTO staff_sessions(token_hash, person_id, created, expires, ip) VALUES(?,?,?,?,?)",
-             (security.sha256(token), person["id"], now, now + EXTENSION_SECONDS, ctx.ip))
+    ctx.db.x("INSERT INTO staff_sessions(token_hash, person_id, created, expires, ip, kind, last_seen) VALUES(?,?,?,?,?,'extension',?)",
+             (security.sha256(token), person["id"], now, now + EXTENSION_SECONDS, ctx.ip, now))
     ctx.gw.audit(person["name"], "connected the access extension", "", "", ctx.ip, correlation=f"person:{person['id']}")
     return {"token": token, "name": person["name"], "policy": _gate_policy(ctx)}
 
