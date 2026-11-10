@@ -53,7 +53,13 @@ visits, so nothing was taken from them directly.
 
 Edits, the same for all three (`docs/design/backgrounds/build.py`): centre crop to 16:9, resize to 3840×2160, Gaussian
 blur radius 26 (so the room is out of focus and no text, logo or hard line survives), brightness set to an average of
-34–36%, fine grain added so the soft gradients do not band, WebP quality 86 at 2560, 1920 and 960 wide. The lamp and
+34–36%, one smooth highlight curve (`236·v/(v+150)` per channel, so the brightest part of the room cannot lift a
+glass panel above what text can take; the average ends at 31–34%), fine grain added so the soft gradients do not band, WebP quality 86 at 2560, 1920 and 960 wide. The lamp and
 suite candidates are also warmed (red ×1.08, blue ×0.80–0.82); the hall is not. After the 16:9 crop every source is still larger than
 3840×2160 (the smallest is the hall at 4000×2250), so nothing is upscaled.
+
+Computed from the files, not yet from a browser (photo fitted to 1440×852, blurred 22px, brightest point, scrim .35;
+`saturate(140%)` not modelled): third-level text on the lightest Overview panel reads 4.37 over the hall, 4.36 over the
+lamp and 4.09 over the suite, against 4.39 for `room-warm.webp` by the same sum (which measured 4.66 in the browser).
+On the smoked glass of other pages the lowest is the danger colour: 4.86, 4.86 and 4.64.
 

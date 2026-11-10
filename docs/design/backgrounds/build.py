@@ -15,6 +15,10 @@ for name,(i,target,flip,grade) in C.items():
         g=im.resize((64,36)).convert('L').tobytes(); m=sum(g)/len(g)/2.55
         if abs(m-target)<0.7: break
         im=ImageEnhance.Brightness(im).enhance(target/m)
+    # smooth shoulder on the highlights (one curve, per channel), so the brightest part of the room cannot lift a
+    # glass panel above what text can take; shadows and mid-tones are nearly unchanged
+    A,B=float(os.environ.get('KA','236')),float(os.environ.get('KB','150'))
+    im=im.point([min(255,int(round(A*v/(v+B)))) for v in range(256)]*3)
     for wd in (2560,1920,960):
         o=im.resize((wd,wd*9//16),Image.LANCZOS)
         n=Image.effect_noise(o.size,4.4).convert('RGB')   # fine grain so the soft gradients do not band
