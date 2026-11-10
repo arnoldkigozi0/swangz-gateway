@@ -304,64 +304,152 @@
     return out;
   }
 
+  function staffNavigation(search = false) {
+    if (!S.me || !document.querySelector(".staff-exact")) return;
+    const d = drawer(search ? "Search pages" : "All pages");
+    const input = el("input", { class: "input", type: "search", "aria-label": "Search pages", placeholder: "Search pages…" });
+    const links = NAV.filter(([href]) => href !== "#/studio" || hasStudio()).map(([href, label, ic]) =>
+      el("a", { href, onclick: d.close }, icon(ic), label));
+    const status = el("p", { class: "muted small", role: "status" });
+    const update = () => {
+      const q = input.value.trim().toLocaleLowerCase();
+      links.forEach(a => { a.hidden = !a.textContent.toLocaleLowerCase().includes(q); });
+      const n = links.filter(a => !a.hidden).length;
+      status.textContent = n ? `${n} page${n === 1 ? "" : "s"}` : "No pages match. Try another name.";
+    };
+    input.addEventListener("input", update);
+    const nav = el("nav", { class: "hub-staff-nav", "aria-label": "All staff pages" }, links);
+    nav.addEventListener("keydown", e => {
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
+      const shown = links.filter(a => !a.hidden), i = shown.indexOf(document.activeElement);
+      if (!shown.length) return;
+      e.preventDefault();
+      shown[e.key === "Home" ? 0 : e.key === "End" ? shown.length - 1 : (i + (e.key === "ArrowDown" ? 1 : -1) + shown.length) % shown.length].focus();
+    });
+    d.node.append(el("header", null, el("h2", null, search ? "Search pages" : "All pages"),
+      el("button", { class: "btn btn--quiet", type: "button", onclick: d.close, "aria-label": "Close navigation" }, icon("x"))),
+    el("div", { class: "body" }, input, status, nav));
+    update();
+    requestAnimationFrame(() => input.focus({ preventScroll: true }));
+  }
+
+  /* Poppins is latched once, at the first reveal. The shell is held invisible (visibility does not score as a
+     layout shift) until all five faces are in or 1.2s have passed; only then is Poppins applied, and only if
+     it loaded. A late or missing font is ignored for the rest of the session, so nothing re-lays out after
+     the first paint. The fallback is the documented BRIEF 10.1(3) performance difference. */
+  let staffFontPhase = 0;
+  function staffFontLatch() {
+    if (staffFontPhase) return;
+    staffFontPhase = 1;
+    const root = document.documentElement;
+    let loaded = false, cap = 0;
+    // The hold is cosmetic. Whatever fails in here, the shell is revealed and still renders.
+    const reveal = () => {
+      if (staffFontPhase === 2) return;
+      staffFontPhase = 2;
+      try { if (loaded) root.classList.add("staff-poppins"); } finally { root.classList.remove("staff-hold"); }
+      try { clearTimeout(cap); } catch (e) { /* no timers here */ }
+    };
+    try {
+      root.classList.add("staff-hold");
+      cap = setTimeout(reveal, 1200);
+      Promise.all([400, 500, 600, 700, 800].map(w => document.fonts.load(w + ' 16px "Swangz Staff Poppins"')))
+        .then(sets => { loaded = sets.every(f => f.length > 0 && f.every(x => x.status === "loaded")); reveal(); }, reveal);
+    } catch (e) { reveal(); }
+  }
+
   function frame(title, content, opts) {
     if (signedOut) return;
     if (isPaused()) return renderPaused();
     opts = opts || {};
+    staffFontLatch();
     const me = S.me;
     document.title = (title ? title + " · " : "") + "Swangz AI Hub";
-    const section = "#/" + ((location.hash || "#/").split("?")[0].split("/")[1] || "");
-    const active = section === "#/" ? "#/" : section;
+    const active = "#/" + ((location.hash || "#/").split("?")[0].split("/")[1] || "");
     const nav = NAV.filter(([href]) => href !== "#/studio" || hasStudio());
     const count = notices().length + (me.hub_unread || 0);
-    const menu = el("div", { class: "menu", role: "menu" },
-      el("div", { class: "who" }, el("div", null, me.name), el("div", null, me.email)),
-      el("button", { onclick: profile, role: "menuitem" }, icon("user"), "Profile"),
-      el("button", { onclick: changePassword, role: "menuitem" }, icon("key"), "Change password"),
-      el("a", { href: "#/privacy", role: "menuitem" }, icon("shield"), "How Swangz AI Hub works"),
-      el("button", { onclick: signOut, role: "menuitem" }, icon("logout"), "Sign out"));
-    const meBtn = el("button", { class: "me-btn", "aria-haspopup": "menu", "aria-expanded": "false", "aria-label": "Your account",
-      onclick: (e) => { e.stopPropagation(); toggleMenu(!menu.classList.contains("open")); } },
-    SUI.avatar(me.name, "sm"), el("span", { class: "me-name" }, firstName(me.name)), icon("chevronDown"));
-    function toggleMenu(open, last = false) {
-      menu.classList.toggle("open", open); meBtn.setAttribute("aria-expanded", String(open));
-      if (open) { const items = menu.querySelectorAll('[role="menuitem"]'); items[last ? items.length - 1 : 0].focus(); }
-      else meBtn.focus();
+
+    // Each anchored menu uses the same keyboard model and returns focus to its trigger.
+    function popMenu(label, cls, children, items) {
+      const menu = el("div", { class: "menu staff-pop", role: "menu", "aria-label": label }, items);
+      const button = el("button", { class: cls, type: "button", "aria-haspopup": "menu", "aria-expanded": "false", "aria-label": label }, children);
+      const close = (focus = true) => { menu.classList.remove("open"); button.setAttribute("aria-expanded", "false"); if (focus) button.focus(); };
+      function open(last = false) {
+        document.querySelectorAll(".staff-pop.open").forEach(m => { m.classList.remove("open"); m.previousElementSibling?.setAttribute("aria-expanded", "false"); });
+        menu.classList.add("open"); button.setAttribute("aria-expanded", "true");
+        const choices = menu.querySelectorAll('[role="menuitem"]'); choices[last ? choices.length - 1 : 0]?.focus();
+      }
+      button.addEventListener("click", e => { e.stopPropagation(); if (menu.classList.contains("open")) close(); else open(); });
+      button.addEventListener("keydown", e => { if (["ArrowDown", "ArrowUp"].includes(e.key)) { e.preventDefault(); open(e.key === "ArrowUp"); } });
+      menu.addEventListener("click", e => { if (e.target.closest('[role="menuitem"]')) close(); }, true);
+      menu.addEventListener("click", e => e.stopPropagation());
+      menu.addEventListener("focusout", e => { if (!menu.contains(e.relatedTarget)) close(false); });
+      menu.addEventListener("keydown", e => {
+        if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); }
+        else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
+          e.preventDefault(); const choices = [...menu.querySelectorAll('[role="menuitem"]')], i = choices.indexOf(document.activeElement);
+          choices[e.key === "Home" ? 0 : e.key === "End" ? choices.length - 1 : (i + (e.key === "ArrowDown" ? 1 : -1) + choices.length) % choices.length].focus();
+        }
+      });
+      return el("div", { class: "me-menu" }, button, menu);
     }
-    meBtn.addEventListener("keydown", (e) => {
-      if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); toggleMenu(true, e.key === "ArrowUp"); }
+    const theme = SUI.themeButton();
+    theme.setAttribute("role", "menuitem");
+    // Keep the primitive's live accessible label, and give it visible copy in the menu.
+    theme.append(el("span", null, "Change theme"));
+    theme.addEventListener("click", () => theme.append(el("span", null, "Change theme")));
+    const account = popMenu("Your account", "staff-account me-btn", [SUI.avatar(me.name, "sm")], [
+      el("div", { class: "who" }, el("div", null, me.name), el("div", null, me.email)),
+      el("button", { type: "button", role: "menuitem", onclick: profile }, icon("user"), "Profile"),
+      el("button", { type: "button", role: "menuitem", onclick: changePassword }, icon("key"), "Change password"),
+      theme,
+      el("a", { href: "#/privacy", role: "menuitem" }, icon("shield"), "How Swangz AI Hub works"),
+      el("button", { type: "button", role: "menuitem", onclick: policy }, icon("info"), "Usage policy"),
+      el("button", { type: "button", role: "menuitem", onclick: signOut }, icon("logout"), "Sign out")]);
+    const newMenu = popMenu("New", "staff-new", [icon("plus"), "New"], [
+      el("a", { href: "#/requests?view=access", role: "menuitem" }, icon("tools"), "Request access"),
+      el("a", { href: "#/requests?view=procurement", role: "menuitem" }, icon("inbox"), "Propose a purchase"),
+      el("a", { href: "#/business?view=reports", role: "menuitem" }, icon("report"), "Adoption report")]);
+    const railLinks = nav.filter(([href]) => href !== "#/privacy").map(([href, label, ic]) =>
+      el("a", { href, class: href === active ? "on" : null, "aria-current": href === active ? "page" : null,
+        "aria-label": label, "data-tip": label }, icon(ic)));
+    const allPages = el("button", { class: "staff-all", type: "button", "aria-label": "All pages", "data-tip": "All pages", onclick: () => staffNavigation() }, icon("menu"));
+    const rail = el("nav", { class: "staff-rail-pages", "aria-label": "Staff workspace" }, railLinks, allPages);
+    rail.addEventListener("keydown", e => {
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
+      e.preventDefault(); const choices = [...rail.querySelectorAll("a,button")], i = choices.indexOf(document.activeElement);
+      choices[e.key === "Home" ? 0 : e.key === "End" ? choices.length - 1 : (i + (e.key === "ArrowDown" ? 1 : -1) + choices.length) % choices.length].focus();
     });
-    menu.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); toggleMenu(false); }
-      else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
-        e.preventDefault(); const items = [...menu.querySelectorAll('[role="menuitem"]')]; const i = items.indexOf(document.activeElement);
-        items[e.key === "Home" ? 0 : e.key === "End" ? items.length - 1 : (i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus();
-      } else if (e.key === "Tab") { toggleMenu(false); }
-    });
-    const links = () => nav.map(([href, label, ic]) => el("a", { href, class: href === active ? "on" : null, "aria-current": href === active ? "page" : null }, icon(ic), label));
-    const menuButton = el("button", { class: "staff-menu icon-btn", type: "button", "aria-label": "Open navigation", onclick: () => {
-      const d = drawer("Hub navigation"); d.node.append(el("header", null, el("h2", null, "Swangz AI Hub"), el("button", { class: "btn btn--quiet", onclick: d.close, "aria-label": "Close navigation" }, icon("x"))),
-        el("nav", { class: "hub-staff-nav", "aria-label": "Staff workspace" }, links())); d.node.querySelectorAll("a").forEach(a => a.addEventListener("click", d.close));
-    } }, icon("menu"));
-    const side = el("aside", { class: "hub-staff-side" }, el("a", { class: "wordmark", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz AI Hub"),
-      el("p", { class: "eyebrow" }, "Your workspace"), el("nav", { class: "hub-staff-nav", "aria-label": "Staff workspace" }, links()));
-    const topbar = el("header", { class: "topbar" }, el("div", { class: "inner" }, menuButton,
-      el("a", { class: "wordmark", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz ", el("b", null, "AI Hub")),
-      el("nav", { class: "topnav", "aria-label": "Swangz AI Hub" }, nav.map(([href, label]) => el("a", { href, class: href === active ? "on" : null, "aria-current": href === active ? "page" : null }, label))),
-      el("div", { class: "top-right" },
-        el("a", { class: "icon-btn", href: "#/requests?view=updates", "aria-label": count ? `${count} updates` : "Updates", "data-tip": count ? `${count} notification${count === 1 ? "" : "s"}` : "No new notifications" },
-          icon("bell"), count ? el("span", { class: "dot-count" }, String(count)) : null),
-        SUI.themeButton(), el("div", { class: "me-menu" }, meBtn, menu))));
-    const tabbar = el("nav", { class: "tabbar", "aria-label": "Swangz AI Hub" }, nav.map(([href, label, ic]) =>
-      el("a", { href, class: href === active ? "on" : null, "aria-current": href === active ? "page" : null }, icon(ic), el("span", null, label),
-        href === "#/requests" && count ? el("i", { class: "dot-count" }, String(count)) : null)));
-    const foot = el("footer", { class: "foot" }, el("div", { class: "inner" },
-      el("span", { class: "brandline" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz Avenue · Swangz AI Hub"),
-      el("span", { class: "foot-links" }, el("a", { href: "#/privacy" }, "How Swangz AI Hub works"), el("button", { type: "button", onclick: policy }, "Usage policy"))));
-    app.replaceChildren(el("a", { class: "skip", href: "#main", onclick: (e) => { e.preventDefault(); document.getElementById("main").focus(); } }, "Skip to content"),
-      el("div", { class: "hub-staff-app" }, side, el("div", { class: "hub-staff-main" }, topbar, el("main", { id: "main", tabindex: "-1", class: opts.cls || null }, content), foot)));
+    const side = el("aside", { class: "hub-staff-side staff-rail" },
+      el("a", { class: "staff-brand", href: "#/", "aria-label": "Swangz AI Hub home" }, el("img", { src: "/static/icon.svg", alt: "" })), rail,
+      el("nav", { class: "staff-rail-foot", "aria-label": "Help and account" },
+        el("a", { href: "#/privacy", "aria-label": "Privacy & help", "data-tip": "Privacy & help", "aria-current": active === "#/privacy" ? "page" : null }, icon("info")),
+        el("button", { type: "button", onclick: profile, "aria-label": "Your profile and settings", "data-tip": "Your profile and settings" }, icon("settings"))));
+    const now = new Date();
+    const clock = el("time", { class: "staff-clock", datetime: now.toISOString() },
+      el("strong", null, now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })),
+      el("small", null, now.toLocaleDateString([], { day: "2-digit", month: "short" })));
+    const topbar = el("header", { class: "topbar staff-topbar" }, el("div", { class: "inner" },
+      el("button", { class: "staff-workspace", type: "button", "aria-label": "Open navigation", "data-tip": "All pages", onclick: () => staffNavigation() },
+        el("img", { src: "/static/icon.svg", alt: "" }), el("span", null, el("strong", null, "Swangz AI Hub"), el("small", null, "Your workspace")), icon("chevronDown")),
+      el("span", { class: "staff-crumb" }, title || "Home"),
+      el("button", { class: "staff-search", type: "button", onclick: () => staffNavigation(true), "aria-label": "Search pages (Ctrl+K or Command+K)" },
+        icon("search"), el("span", null, "Search pages…"), el("kbd", null, "⌘K")),
+      el("div", { class: "staff-tools" }, newMenu, clock,
+        el("a", { class: "icon-btn staff-bell", href: "#/requests?view=updates", "aria-label": count ? `${count} updates` : "Updates" },
+          icon("bell"), count ? el("span", { class: "dot-count" }, String(count)) : null), account)));
+    app.replaceChildren(el("a", { class: "skip", href: "#main", onclick: e => { e.preventDefault(); document.getElementById("main").focus(); } }, "Skip to content"),
+      el("div", { class: "hub-staff-app staff-exact" }, side, el("div", { class: "hub-staff-main" }, topbar,
+        el("main", { id: "main", tabindex: "-1", class: opts.cls || null }, content))));
   }
-  document.addEventListener("click", () => { const m = document.querySelector(".menu.open"); if (m) { m.classList.remove("open"); document.querySelector(".me-btn")?.setAttribute("aria-expanded", "false"); } });
+  document.addEventListener("click", () => {
+    document.querySelectorAll(".staff-pop.open").forEach(m => { m.classList.remove("open"); m.previousElementSibling?.setAttribute("aria-expanded", "false"); });
+  });
+  document.addEventListener("keydown", e => {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k" && S.me && document.querySelector(".staff-exact") && !document.querySelector(".drawer,dialog[open]")) {
+      e.preventDefault(); staffNavigation(true);
+    }
+  });
 
   function sectionHead(eyebrow, title, text, action) {
     return el("div", { class: "section-head" }, el("div", null, eyebrow ? el("div", { class: "eyebrow" }, eyebrow) : null, el("h1", null, title), text ? el("p", null, text) : null), action || null);

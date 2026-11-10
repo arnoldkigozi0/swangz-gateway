@@ -1,0 +1,148 @@
+# Isolated staff shell — 8 November 2026
+
+Base: main a3ff895ad5854d583ef8d7abf1b31ec61d6bc60d. Branch feature/exact-staff-shell-v2 supersedes the seed-based #55. Only staff-frame code was transplanted. Main showSignIn, signOut, startup and every byte outside that frame section are unchanged (source-identity.json). No inherited console, Overview, splitGate or authentication bundle. No HTML/ui.js/admin changes.
+
+The offending #53 global `.shell` console grid is excluded: exact.css is neither present nor loaded. The staff CSS scopes Home grid columns to .staff-exact and preserves main’s normal desktop/phone columns, so a generic staff .shell never receives a 129px console column. The focused browser harness additionally checks 1440px Home grid width/columns and visible, fitting metadata in both themes.
+
+Actual checks: `python3 -m unittest tests.test_portal tests.test_hub`: Ran 56 tests in 34.802s, OK. `node tests/browser/exact-staff-shell-model.cjs`: 18 checks PASS against actual main ui.js + transplanted portal.js in a synthetic DOM. `python3 tests/browser/syntax.py`: Checked 28 JavaScript files. `git diff --check`: passed. Source identity checks passed for main auth/outside-frame and ui.js, HTML, admin.js, admin-monitor.js; no generic console grid rule.
+
+Not run: browser/Chrome DevTools actions are not exposed in this conversation; no shell-launched replacement browser was used. No light-1440 rendered metadata result, full browser-job success, screenshots, overlays, axe, contrast, CLS or performance result is claimed. Existing GitHub full browser job must pass; provided focused harness is syntax-checked only. Full Python suite delegated to existing CI to avoid concurrent heavy local runs.
+
+Dependencies and tagged differences against BRIEF 10:
+- §10.1.1: Swangz staff words/routes/real counts replace CRM data; no invented presence dot or emergency authority. Admin Stop all AI/Resume routes are untouched.
+- §10.1.2 / §10.5 DEPENDENCY: current main lacks #53 room-warm.webp and Poppins files. This bounded branch uses main’s home-welcome.webp and existing font; approved room/font assets need a separate scoped delivery or explicit ownership expansion. It does not depend on the seed’s auth/console bundle. Exact-match acceptance remains blocked by these visible differences.
+- §10.1.3: light surfaces, keyboard focus/menu keys, reduced-motion/transparency fallbacks, basic phone drawer and 44px phone targets. Opacity and contrast still need browser measurements.
+- §10.1.4: Staff launchpad body remains the real existing workflow, not the admin Overview; help/policy remain in account routes and liquid footer work remains separate. Studio still depends on server availability. New links to existing request/adoption workflows only.
+
+Any untagged rendered difference is a defect. Missing browser evidence is not an allowed visual difference.
+
+Next: run full browser CI and focused exact-staff-shell.cjs on this exact head, especially light 1440 Home metadata and both theme/size cells; inspect overlays and fix any measured defects. Keep draft until independent verification and asset dependencies are resolved. portal.js is released to Forge at the pushed commit; Prism must not edit it during Forge sign-in work. CSS-only phone follow-up is separately queued. No merge/deploy, production sign-in, new dependencies, #44/#50 edits or shared-file changes.
+
+## Approved asset correction — local review checkpoint, 12:25 Kampala
+
+Chief authorized copying #53's existing approved fonts and room photo without inheriting its bundle. Five Poppins latin weights (400–800), Poppins-OFL.txt and room-warm.webp were copied byte-identically from 9ceae8f; asset-identity.json records all seven blobs and byte sizes (69,629 bytes total). exact-staff.css registers a staff-specific font-family and sets --font only on .staff-exact, then uses the room photo in both themes. The asset dependency described above is resolved locally; it is not yet pushed.
+
+Recheck: 56 Python tests in 34.679s, OK; 18 synthetic-DOM checks PASS; git diff --check passes. portal.js remains byte-identical to the released e6f13f0 version. No auth/shared files changed. The baseline CI browser failure remains “Choose a tool” clipped at light 1440; Probe's rendered bounds/styles are pending. No speculative clipping fix, browser workaround or weakened test was introduced. These assets will be batched with the evidence-based CSS correction, respecting at least 30 minutes since the previous branch push. Fresh full browser CI and independent overlays/axe/trace remain required after that batch.
+
+Correction to whitespace result: the earlier unstaged CSS diff check passed, but the staged asset check reports pre-existing trailing whitespace at Poppins-OFL.txt:21. The licence is deliberately preserved byte-for-byte as authorized; no whitespace cleanup was applied. Excluding that unchanged upstream licence, the correction diff check passes. A fresh GitHub status read failed with an API connection error; no additional CI result is claimed.
+
+## Main #51 integration — 12:28 Kampala
+
+Normal conflict-free merge of origin/main 91a1a086c828b262bfc58b2cd074a2bf5083f3d0 created 3381074ec1a553f00740f21c4abee7857927c37c. Only the two-line chart browser CI addition arrived. Workflow matches main byte-for-byte and retains both lists.cjs and charts.cjs. portal.js remains byte-identical to released e6f13f0; no sign-in or other portal edits. Approved asset commit 4f18777 is preserved. main51-identity.json records checks.
+
+Targeted integration retest: Ran 56 tests in 49.281s, OK (`tests.test_portal tests.test_hub`); 18 synthetic-DOM behavior checks PASS; diff check passes excluding the preserved upstream licence whitespace already recorded above. No full local suite or duplicate browser QA. Probe clipping bounds still pending; CSS clipping correction, fresh full browser CI and overlays/axe/trace remain open. Integration and assets stay local for the existing batched push, at least 30 minutes after the previous branch push. No new PR/build/phone task or portal ownership change.
+
+## Diagnosed CSS correction — 12:36 Kampala
+
+Chief relayed Probe’s real-browser diagnostic on old remote e6f13f0: later hub.css `.hub-staff-app` won over equally specific `.staff-exact`, retaining the 216px grid. Probe’s injected compound selector restored desktop main x173/1170px and phone main358px with no horizontal overflow; desktop four-cell clipping checks passed. These are **Probe-reported** bounds, not Prism reruns; provenance is in probe-diagnosis.json. Prism inspected Probe’s fixed-light-1440 screenshot and confirmed the visibly unreadable heading/lede over the dark inherited hero art.
+
+The source now uses `.hub-staff-app.staff-exact { display:block; grid-template-columns:none }`. No button widths, hub.css, assertions or portal.js changed. A second cascade issue required a more specific local hero ::before selector so later `.hero.art::before` cannot replace its readability scrim. The staff lede override now correctly targets `.home-lede` rather than `.lede`. The old staff doorway ::after is removed, leaving the approved room scene behind the local scrim.
+
+**Forced accessibility difference §10.1(3):** only the Home hero receives rgba(28,24,22,.88) dark / rgba(252,248,242,.94) light scrim, behind its existing text and controls. No box dimensions, font sizes, surrounding room scrim or global room appearance are changed. It adds no blur layer. hero-contrast-bound.json calculates WCAG specified-colour lower bounds for any sRGB underlying photo: dark heading11.7695/lede8.6818; light heading14.5856/lede9.4577, each >=4.5. These are mathematical guarantees for the declared colours/compositing, **not fresh rendered-pixel or computed-style measurements**. Probe must still confirm the final cascade and pixels with approved Poppins/room assets.
+
+Actual correction checks: Ran56 Python tests in33.348s, OK;18 synthetic-DOM checks PASS; released portal.js byte-identical; whitespace check passes excluding the unchanged upstream OFL whitespace. No new browser run, overlay, axe, CLS or performance clearance. Fresh browser CI and Probe QA must cover1440×852/900 both themes and390×844. All pending changes will be pushed together after12:46:43 Kampala (30min after previous branch push recorded by remote-tracking reflog). The existing PR stays draft.
+
+## Default Chromium status-wrap correction — 13:32 Kampala
+
+Chief relayed Probe’s reproduction on 877c857 using Playwright’s bundled/default Chromium with CHROME unset. The overflowing control was .tr-main (8px overflow), not “Complete report”. Poppins metrics were status123px/action166.6px/client156px. Injecting `.tool-row .tr-sub .u-status {white-space:normal}` passed all six requested widths in Probe’s diagnostic. Gated rows grew77→89px; other rows were unchanged. These are peer-reported diagnostic measurements, not source acceptance.
+
+The source adds only `.staff-exact .tool-row .tr-sub .u-status { white-space: normal; }` in exact-staff.css. **§10.1(3) forced accessibility difference:** long status labels may wrap rather than clip at larger font metrics; Probe observed12px row-height growth for report-required rows. No button widths, assertions, hub.css, portal.js or any other product code changed. Released portal.js remains byte-identical to e6f13f0.
+
+Targeted tests: Ran56 Python tests in33.288s, OK;18 synthetic-DOM behavior checks PASS; git diff --check passes. No mounted browser/Chrome tool is exposed, so no alternate local browser was launched. Fresh GitHub browser CI uses default Playwright Chromium (CHROME not configured). Its business.cjs default matrix covers1440/1280/1024/768/390, both themes; **430 is absent from that default matrix** and still requires Probe to run UI_WIDTH=430 with CHROME unset on the final source head. The shared matrix/assertions were not changed.
+
+Chief additionally relayed that Probe’s current877 Home clipping and rendered hero contrast passed both sizes/themes (heading about15.7:1, lede at least10.26:1). These remain Probe-reported results on877, not a fresh source-head acceptance. Status-chip contrast was not assessed. Full reference overlays, axe/CLS/performance remain unavailable/missing; HOLD remains regardless of CI. No new phone build, PR, merge or deployment. Next: verify fresh exact-head CI, have Probe run final430 and six-width Tools checks plus outstanding QA, then stop by14:00.
+
+## Subtitle inset correction after Probe rejection of 7053b70
+
+Probe reported active text contrast >=4.5:1, search x588, title x~179, real theme-toggle CLS 0 and no overflow across 20 cells, but rejected the four page subtitles flush against the panel rim. Those measurements apply only to 7053b70; its screenshots are superseded evidence, not acceptance of this correction.
+
+Added 5px left padding to the scoped section-head paragraph, matching the title inset while preserving the title/search positions. No markup, shared JavaScript, sign-in or content changes. Current checks: 18 synthetic DOM checks PASS; syntax checked 28 JavaScript files; git diff --check exit 0. Python tests not repeated for this one-line CSS adjustment; preceding code checkpoint recorded 56 tests in 44.206s, OK. Fresh rendered screenshots, contrast, geometry, CLS and all five individual reference-overlay reviews remain pending Probe. 1440x900 remains uncaptured. No visual pass or publication claimed.
+
+## Vertical header correction after Probe c2c022d review
+
+Removed the page panel's 16px top margin and 18px top padding: the four section headers move up 34px while the glass still backs their text. This addresses the measured +33px title/+36px subtitle deviation rather than treating spacing as an accessibility exemption. Fresh rendered verification pending.
+
+Remaining content differences to review against §10.1: (1)/(4) Staff Home keeps its real hero, preceding account/status metadata, tools and Updates instead of CRM KPI cards; its title is consequently below the CRM header. (1)/(4) CRM-only Export, New customer, This month and New order actions and decorative title emoji are absent because these staff pages have different real actions and content; no CRM actions or fake data are added. (2) Licensed room photo replaces the reference photo. (3) Local panel opacity .82 dark/.94 light supplies >=4.5 contrast on previously measured main text; panels retain22px radius/18px horizontal padding, with zero top padding for the aligned page headers. (3) Phone layouts adapt the rail/search; light/phone have no corresponding reference still. These are proposed mapping notes for Probe review, not a visual acceptance claim. Previous c2c022d evidence is superseded by this source correction.
+
+Current vertical-fix checks: 18 synthetic DOM checks PASS, syntax checked28 JavaScript files, whitespace exit0. Python not repeated for CSS-only adjustment; prior checkpoint56 tests/44.206s/OK. Browser/contrast/CLS checks pending Probe; no mounted browser tools exposed to builder.
+
+## Final source verification — eca2728
+
+This section supersedes the pending browser notes above. Probe VERIFIED Tools/Requests/Weekly/Projects at source HEAD eca2728dfc38544f805941b2a475711a628ea942, tree3b1f1db46e6e0fabefc25a1a7c8712022f7df9b7. Home accepted conditionally under §10.1.1/4: its real metadata precedes the title, whose text centre y154.5 is +61.5px against CRM y93. Its launchpad content and actions replace CRM KPI cards; this is a flagged content-layout difference, not a ±4px match. The missing CRM actions/emoji and photo/opacity/phone differences are listed above.
+
+Fresh evidence: verified-eca2728/ contains30 screenshots (five pages ×1440x852/1440x900/390x844 ×dark/light), five50% overlays, five side-by-sides, matching dashboard-01/03 reference stills and measurement JSON. Builder verified all55 original manifest entries in /tmp/probe-v4/ev, copied images/JSON only (not temporary runner scripts), and generated a manifest for the committed evidence. No product changes after Probe's inspected source.
+
+Probe measured title centre y91.5 and subtitle y119 on the four section pages (targets93/117, within4px), title/subtitle x179 and search x588 width345. All30 cells: axe0 and no horizontal overflow; text contrast >=4.5 across main/rail/topbar except DOM-disabled pagers (3.6 dark/2.48 light). All five overlays individually reviewed by Probe. Real avatar theme-button CLS0 for three clicks on Home/Tools/Weekly at1440/390. Load CLS at most0.00007: nonzero, so the strict standing CLS0 target is not fully met.
+
+Limitations: non-text icon/control3:1 contrast not measured; no performance trace/60fps verification, long tasks up to1381ms without baseline. Final430/default-Chromium six-width regression not rerun in this30-cell capture. Full Python suite/CI not run by builder for this CSS/evidence-only correction; prior Python checkpoint56/44.206s/OK, final18 behavior checks and syntax28JS checks passed. Probe ran no second opinion this round. These gaps remain for Chief's merge gates; this report does not claim full accessibility or performance acceptance. Probe stopped its demo fixture.
+
+## Reconciliation and publication — 10 November 2026, 00:00 shift
+
+Entry state: local `19d0ef4f2e524a3cc255d7ec1f0b9e9d184b0501`, remote `77fa89334fc9641997728f08300e1c9163c35296`; clean worktree. All unfinished corrections and evidence were already committed and have been preserved. Local contains main `83ac62f`, the glass/contrast correction `7053b70`, subtitle inset `c2c022d`, vertical header correction `eca2728`, and evidence `19d0ef4`. Product changes since remote are confined to `exact-staff.css` and staff-font preload links in `index.html`. `portal.js`, `ui.js` and `hub.css` are byte-identical to remote. No product changes follow the captured source `eca2728`.
+
+Fresh source/artifact inspection: all **51/51 SHA-256 manifest entries match**. The evidence has 30 page screenshots, five overlays, five side-by-sides and two reference stills. PNG dimensions match the stated 390×844, 1440×852/900 and 2880×852 side-by-sides. The three saved summaries contain 30 cells with zero recorded axe violations and zero horizontal overflow. These are inspected historical artifacts, not fresh browser results. `git diff --check 77fa893..HEAD` passed. Builder inspected the Tools and Home side-by-sides: the Home content layout remains visibly different from the CRM reference, including its +61.5px title-centre offset, as declared under §10.1(1)/(4); it is not an exact-match pass.
+
+**Acceptance remains HOLD.** The active rejection relayed by Chief is not cleared by an evidence directory called “verified” or by earlier prose reporting Probe VERIFIED. Search/title/glass/contrast corrections are ready for fresh acceptance, but load CLS is nonzero (maximum 0.00007), non-text contrast is unmeasured, 430px/default-Chromium regression remains unverified, and the long-task evidence has no comparative performance trace. The saved summaries do not identify layout-shift source nodes; they do not establish that font swapping caused the residual shift. No speculative font/visibility workaround was added.
+
+Not run locally this shift: Python tests, synthetic-DOM checks, syntax runner, browser/screenshots/contrast/CLS/performance. Probe owns the exclusive local browser/test slot, and no mounted browser tool is exposed in this conversation. Existing CI will run the complete Python matrix and browser checks on the pushed head; old remote green CI is not a result for these corrections. The last recorded targeted Python checkpoint remains 56 tests/44.206s/OK and the last recorded synthetic-DOM result remains 18 passing checks, both historical.
+
+Canonical source checked: fetched `origin/main` is `83ac62f47cc9230955fe479eba0b8227d04581df`; its `docs/design/BRIEF.md` ends at §10.7 (228 lines). Requested §10.8–10.9 are absent from that revision and were not invented. §10.1–10.7, §7 accessibility/performance requirements, no new dependencies, and the exclusive-slot/low-data restrictions still apply.
+
+Next acceptance request to Probe: verify the pushed source, run the missing bundled-Chromium 430px case, identify layout-shift source nodes on a cold load before proposing a font fix, measure icon/control contrast, and review the five committed overlays and declared Home mapping. CI and Probe acceptance must be reported separately. No merge, deployment, new draft, shared sign-in/backend edit or local process was started.
+
+## Scroll fallback and Weekly empty state — 10 November, 01:45
+
+Probe's source-head `ec562af` evidence is preserved under `probe-ec562af/`, with a SHA-256 manifest. In its saved `perf.json`, scrollable Tools measured 18.4/13.9 fps desktop and 10.2/1.1 fps phone (dark/light); the worst recorded frame was 1791ms. These are historical Probe measurements on the earlier source, not measurements of this correction. Probe reported that removing live backdrop blur and the fixed background together improved a diagnostic injection to roughly 50–60fps; an injection is not acceptance and did not establish the required ≥55fps with no frames over 50ms.
+
+Scoped source change: the staff shell uses `background-attachment: scroll` and disables descendant backdrop filters. **§10.1(3) performance differences:** the room moves with the page and panels/controls no longer blur the room through their surface. The existing colours, scrims, positions and radii are not deliberately changed; the scroll-attached `cover` image can crop differently as page height changes and must be compared in new screenshots. Reduced-transparency rules remain present. No claim is made that this CSS reaches the performance gate, preserves all contrast, or matches the reference within 4px until measured.
+
+The staff-only Weekly report list now adds an “Open adoption & impact” action inside its existing empty state, linking to the already existing `#/business?view=reports` workspace. It does not create or submit a report. A fresh browser check must verify the action and keyboard/navigation behavior.
+
+**CLS remains unresolved.** Probe's layout-shift entries identify an `H2` on Home moving from y435 to432 at 390px, and `SPAN`/`SMALL`/SVG nodes moving roughly one pixel. The saved data does not include selectors sufficient to uniquely identify those nodes or prove font loading as the cause. No guessed geometry or font-visibility workaround was applied. The requirement is CLS0, not the previous maximum approximately0.00007.
+
+Historical Probe results belong to `ec562af`, not this changed source. The saved 430 log captured 31 dark screens but the combined run subsequently failed when the light browser closed; the separate light run captured 31 screens and reported 11 workflows with no errors. Do not treat the interrupted combined run as a complete dark workflow pass. Existing source-head contrast, axe, fallback and empty-state evidence must be repeated or selectively revalidated where the changed background/blur/action affects it.
+
+The OpenMausBot mounted browser/Chrome DevTools tools are unavailable in this conversation. No shell-launched browser was substituted. **Not run:** current-source scroll trace, CLS diagnosis, reference/50% overlays, rendered contrast, fallback and empty-state/browser navigation checks. Probe must run the same harness against the pushed source in its authorised browser slot. Local synthetic-DOM behavior and JavaScript syntax checks are reported separately from browser acceptance.
+
+Actual targeted checks on the source correction: `node tests/browser/exact-staff-shell-model.cjs` passed18 synthetic-DOM checks; `python3 tests/browser/syntax.py` checked28 JavaScript files; `python3 -m unittest tests.test_portal tests.test_hub` ran56 tests in31.081s, OK. These do not exercise rendered performance or the new empty-state link. Full Python suite: Not run locally; CI handles it.
+
+## CLS hypothesis, weight 500 not preloaded — 10 November, source only
+
+Probe's `ec562af` layout-shift entries (clsScored 0.00007, 2 entries; SPAN/SMALL/SVG about 1px, one Home H2 3px at 390px) have no unique selectors, so the cause is not proven. One source fact fits the small-text entries: the staff shell uses Poppins 500 for the top-bar crumb, pills and the ⌘K chip, but index.html preloaded only 400, 600 and 700. With `font-display: swap`, 500 text is first laid out in the fallback face and re-laid out when the file arrives.
+
+Change: one `<link rel="preload">` for `Poppins-500-latin.woff2` in index.html, same attributes as its siblings. No CSS, JS, asset or test change. Weight 800 is declared but used only by one `font-weight: 800` rule; it is not preloaded and left alone.
+
+**This is a hypothesis, not a fix.** It does not explain the 3px H2 shift (the H2 is 600) and no browser was run, so no CLS, performance or visual claim is made. Probe must repeat the cold-load layout-shift capture with source-node selectors on the pushed head; if entries remain, the next step is a measured fallback `size-adjust`/`ascent-override` face, not a guess. Not run: all tests and browser checks (Probe holds the sole slot).
+
+## Cold-load font latch — 10 November, 05:40 (supersedes the preload hypothesis above)
+
+Probe measured 0.000066 (Home, 390) and 0.000024 (Tools/Weekly) on 15f986f: Poppins swaps in after first paint and the preload alone did not stop it. Fix, same shape as #57's reveal:
+- `portal.js` `staffFontLatch()` runs once at the first `frame()`. It adds `html.staff-hold` (`visibility:hidden` on `.staff-exact`, which layout-shift scoring ignores), loads the five Poppins faces with `document.fonts.load`, and reveals when all five are in or after 1200ms. Poppins is applied by `html.staff-poppins` only if every face loaded at the reveal; a late or missing font is ignored for the rest of the session.
+- `exact-staff.css`: the shell's default `--font` is now `"Helvetica Neue", Arial, sans-serif`; `html.staff-poppins .staff-exact` sets the Poppins stack. `index.html` also preloads Poppins 800 (all five faces are now preloaded, so the normal case reveals on the first paint).
+- **§10.1(3) performance difference:** when Poppins is slower than 1.2s or missing, the whole session keeps the system sans (Helvetica Neue/Arial). Reference typography is shown whenever the font is in time; no claim that the fallback matches the reference.
+
+Real measurements (system Chrome 1.x headless, Playwright, local synthetic fixture), new `tests/browser/staff-font.cjs`: 2 widths (390, 1440) × 5 font conditions (fast, 800ms, 2.5s, 404, hung) × 3 routes (Home, Tools, Weekly) = 30 cells, **exit 0**: reveal 0.9–1.18s after mount (cap 1.2s + tolerance 1.55s), zero layout-shift entries of any kind after load in all 30 cells, the latch never changes after the reveal, the stack stays fixed, no horizontal overflow, no page errors. Negative control (the previous portal.js/exact-staff.css served over the same harness, delayed fonts): 390 Home 0.0262 (SECTION.home-body), Tools 0.0018, Weekly 0.0614 (DIV.vtabs-wrap), so the test does detect the swap; fast cells were 0 on both. `exact-staff-shell.cjs` (UI_OUTPUT=/tmp): exit 0, 37 checks, axe 0 in 4 cells, no page errors. `tests.test_portal tests.test_hub`: 56 OK. `syntax.py`: 29 files. Synthetic-DOM model: 18 PASS (sandbox gained `clearTimeout`).
+
+Not run: the full Python suite, check/hub/business/pwa suites, Probe's own cls2.cjs, CI. `staff-font.cjs` is not in `.github/workflows/checks.yml` (outside the allowed files); adding the step is the one-line next step. Real `loadingdone` pointer/phone-device emulation and a long-task/scroll trace were not measured.
+
+## Head f10a78a — 10 November, 08:30 (builder changed; evidence in `head-f10a78a/`)
+
+The browser job failed on 320edf3 in the new `staff-font.cjs` step: a 0.0000239 layout shift at 390 from the
+workspace pill (its mark shrank 3px until the file arrived). f10a78a fixes that (`flex: none`), and also: the room is
+one fixed layer instead of a scrolling `cover` background; panel content uses the full panel width and Home's blocks
+share the 1343 right edge; page panels start 10px above the header so the title clears the rim; disabled pagers pass
+4.5:1; phone top bar spacing, title alignment and status wrapping. CSS only (`exact-staff.css`).
+
+Measured on this head: search x 588, title x 179, axe 0 and CLS 0 with no layout-shift entries in 20 cells, text
+contrast worst 4.99:1 (real photo) / 5.07:1 (brightest point) in light and 6.57 / 6.01 in dark, empty-database and
+reduced-transparency/motion shots. **Open: desktop Tools scrolled at 46fps (gate 55) while the laptop was under
+load from other test runs; the other 19 cells were 58.7–60fps. It needs an idle-machine re-run before the gate is
+called either way.** Details, tagged differences and what was not run: `head-f10a78a/README.md`.
+
+## Head fc982a7 — 10 November, 09:45 (desktop scroll; evidence in `head-fc982a7/`)
+
+Probe verified f193270 except desktop Tools scroll (43–47fps, gate 55), caused by the fixed photo layer. fc982a7 paints
+the room on the page above 900px (viewport-sized, mirrored tile for long pages, no re-smoothing); phones unchanged.
+Interleaved with a no-photo control under the same machine load it averaged 53.1fps against the control's 54.4, so
+the photo's cost is about 1fps, but the laptop was too loaded for either to hold 55. **Gate not demonstrated here;
+Probe's re-run decides it.** New 10.1(3) difference: the room moves with the page on desktop.

@@ -1,0 +1,32 @@
+{
+  "base": "a3ff895ad5854d583ef8d7abf1b31ec61d6bc60d",
+  "portal_outside_frame_unchanged": true,
+  "generic_console_shell_rule_absent": true,
+  "shared_identity": [
+    {
+      "path": "gateway/static/ui.js",
+      "blob": "0314b7b6b9dc2d10facf791c69055560fe390093",
+      "unchanged": true
+    },
+    {
+      "path": "gateway/static/index.html",
+      "blob": "d7174a403b872c24fadd4f7db16ee75bb7938b60",
+      "unchanged": true
+    },
+    {
+      "path": "gateway/static/admin.html",
+      "blob": "e52cc7a96023a4c61b14eefd9d83726f6511afd7",
+      "unchanged": true
+    },
+    {
+      "path": "gateway/static/admin.js",
+      "blob": "a407d34310e16a18b4d15c3db84649477e04d594",
+      "unchanged": true
+    },
+    {
+      "path": "gateway/static/admin-monitor.js",
+      "blob": "94e626687b366b03daf1548061769eae5538ca49",
+      "unchanged": true
+    }
+  ]
+}

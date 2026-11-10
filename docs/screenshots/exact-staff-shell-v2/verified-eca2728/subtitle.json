@@ -1,0 +1,74 @@
+{
+ "1440/tools": {
+  "panelX": 173,
+  "panelPad": "18px",
+  "titleX": 174,
+  "ledeBoxX": 174,
+  "ledeTextX": 179,
+  "ledeCls": "",
+  "ledePadL": "5px"
+ },
+ "1440/requests": {
+  "panelX": 173,
+  "panelPad": "18px",
+  "titleX": 174,
+  "ledeBoxX": 174,
+  "ledeTextX": 179,
+  "ledeCls": "",
+  "ledePadL": "5px"
+ },
+ "1440/weekly": {
+  "panelX": 173,
+  "panelPad": "18px",
+  "titleX": 174,
+  "ledeBoxX": 174,
+  "ledeTextX": 179,
+  "ledeCls": "",
+  "ledePadL": "5px"
+ },
+ "1440/projects": {
+  "panelX": 173,
+  "panelPad": "18px",
+  "titleX": 174,
+  "ledeBoxX": 174,
+  "ledeTextX": 179,
+  "ledeCls": "",
+  "ledePadL": "5px"
+ },
+ "390/tools": {
+  "panelX": 16,
+  "panelPad": "18px",
+  "titleX": 17,
+  "ledeBoxX": 17,
+  "ledeTextX": 22,
+  "ledeCls": "",
+  "ledePadL": "5px"
+ },
+ "390/requests": {
+  "panelX": 16,
+  "panelPad": "18px",
+  "titleX": 17,
+  "ledeBoxX": 17,
+  "ledeTextX": 22,
+  "ledeCls": "",
+  "ledePadL": "5px"
+ },
+ "390/weekly": {
+  "panelX": 16,
+  "panelPad": "18px",
+  "titleX": 17,
+  "ledeBoxX": 17,
+  "ledeTextX": 22,
+  "ledeCls": "",
+  "ledePadL": "5px"
+ },
+ "390/projects": {
+  "panelX": 16,
+  "panelPad": "18px",
+  "titleX": 17,
+  "ledeBoxX": 17,
+  "ledeTextX": 22,
+  "ledeCls": "",
+  "ledePadL": "5px"
+ }
+}

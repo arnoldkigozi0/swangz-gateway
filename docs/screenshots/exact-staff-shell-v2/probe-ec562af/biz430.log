@@ -1,0 +1,58 @@
+Checking dark-430-staff-home
+Checking dark-430-staff-tools
+Checking dark-430-staff-weekly
+Checking dark-430-staff-weekly-wizard
+Checking dark-430-staff-requests
+Checking dark-430-staff-procurement
+Checking dark-430-staff-history
+Checking dark-430-staff-adoption
+Checking dark-430-staff-projects
+Checking dark-430-staff-departments
+Checking dark-430-staff-department-requests
+Checking dark-430-staff-tool-detail
+Checking dark-430-staff-adoption-wizard
+Checking dark-430-staff-adoption-detail
+Checking dark-430-staff-project-detail
+Checking dark-430-admin-overview
+Checking dark-430-admin-weekly
+Checking dark-430-admin-review
+Checking dark-430-admin-people
+Checking dark-430-admin-tools
+Checking dark-430-admin-settings
+Checking dark-430-admin-identity
+Checking dark-430-admin-business
+Checking dark-430-admin-business-finance
+Checking dark-430-admin-business-management
+Checking dark-430-admin-procurement
+Checking dark-430-admin-procurement-detail
+Checking dark-430-admin-allocations
+Checking dark-430-admin-person-detail
+Checking dark-430-admin-tool-detail
+Checking dark-430-admin-report-detail
+Captured dark 430 responsive matrix
+Checking light-430-staff-home
+Checking light-430-staff-tools
+Checking light-430-staff-weekly
+Checking light-430-staff-weekly-wizard
+Checking light-430-staff-requests
+Checking light-430-staff-procurement
+Checking light-430-staff-history
+Checking light-430-staff-adoption
+Checking light-430-staff-projects
+Checking light-430-staff-departments
+Checking light-430-staff-department-requests
+Checking light-430-staff-tool-detail
+Checking light-430-staff-adoption-wizard
+Checking light-430-staff-adoption-detail
+Checking light-430-staff-project-detail
+Checking light-430-admin-overview
+Checking light-430-admin-weekly
+Checking light-430-admin-review
+Checking light-430-admin-people
+Checking light-430-admin-tools
+page.evaluate: Target page, context or browser has been closed
+    at AxeBuilder.analyze (/home/inquiline/swangz-team/swangz-gateway/.worktrees/glass-r1/tests/browser/node_modules/@axe-core/playwright/dist/index.js:236:16)
+    at screen (/tmp/probe-s56d/tests/browser/business.cjs:9:1015)
+    at async /tmp/probe-s56d/tests/browser/business.cjs:24:151 {
+  log: []
+}

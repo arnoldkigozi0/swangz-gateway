@@ -1,0 +1,18 @@
+{
+  "source": "Chief relay of Probe diagnostic, 2026-11-08 12:33 Kampala; peer-reported rendered measurements, not independently reproduced by Prism",
+  "diagnostic_remote_head": "e6f13f0084d6a6602195311da21928b1d2d17a53",
+  "cause": "hub.css .hub-staff-app display:grid and 216px first column wins over equal-specificity .staff-exact imported earlier",
+  "injected_fix": ".hub-staff-app.staff-exact {display:block;grid-template-columns:none}",
+  "reported_fixed_desktop_main": {
+    "x": 173,
+    "width": 1170
+  },
+  "reported_phone_main_width": 358,
+  "reported_clipped_controls_after_fix": 0,
+  "reported_phone_horizontal_overflow": false,
+  "screenshots": [
+    "/tmp/probe-keep/home-light-1440.png",
+    "/tmp/probe-keep/fixed-light-1440.png"
+  ],
+  "fresh_asset_head_qa_pending": true
+}

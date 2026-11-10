@@ -1,0 +1,54 @@
+{
+  "seed": "9ceae8faea223337b8fc4ee66d936d5f3812a9b6",
+  "assets": [
+    {
+      "path": "gateway/static/fonts/Poppins-400-latin.woff2",
+      "bytes": 7884,
+      "seed_blob": "b69e0091c26c46151996a7feec95515567f95ac2",
+      "working_blob": "b69e0091c26c46151996a7feec95515567f95ac2",
+      "identical": true
+    },
+    {
+      "path": "gateway/static/fonts/Poppins-500-latin.woff2",
+      "bytes": 7748,
+      "seed_blob": "c6603368bf147d85b919d0ce9766bff0a73959d0",
+      "working_blob": "c6603368bf147d85b919d0ce9766bff0a73959d0",
+      "identical": true
+    },
+    {
+      "path": "gateway/static/fonts/Poppins-600-latin.woff2",
+      "bytes": 8000,
+      "seed_blob": "921e962b91ded5f8574b8605d1e0b2af1294189f",
+      "working_blob": "921e962b91ded5f8574b8605d1e0b2af1294189f",
+      "identical": true
+    },
+    {
+      "path": "gateway/static/fonts/Poppins-700-latin.woff2",
+      "bytes": 7816,
+      "seed_blob": "bf022fc77e764ee16a6d45fae8ed5016110ca2fc",
+      "working_blob": "bf022fc77e764ee16a6d45fae8ed5016110ca2fc",
+      "identical": true
+    },
+    {
+      "path": "gateway/static/fonts/Poppins-800-latin.woff2",
+      "bytes": 7824,
+      "seed_blob": "f107b3699fcf9ee8cf4612a6a5d58d2b23e9c803",
+      "working_blob": "f107b3699fcf9ee8cf4612a6a5d58d2b23e9c803",
+      "identical": true
+    },
+    {
+      "path": "gateway/static/fonts/Poppins-OFL.txt",
+      "bytes": 4385,
+      "seed_blob": "76df3b565672e3248a5715339d092d4cb6c75019",
+      "working_blob": "76df3b565672e3248a5715339d092d4cb6c75019",
+      "identical": true
+    },
+    {
+      "path": "gateway/static/room-warm.webp",
+      "bytes": 25972,
+      "seed_blob": "d361c5a35e52cc3591f9a69ddc37c4ff6963d015",
+      "working_blob": "d361c5a35e52cc3591f9a69ddc37c4ff6963d015",
+      "identical": true
+    }
+  ]
+}

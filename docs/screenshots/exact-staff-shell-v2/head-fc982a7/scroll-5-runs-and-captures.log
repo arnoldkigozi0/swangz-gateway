@@ -1,0 +1,38 @@
+6.27
+1440/dark/tools {"scrollable":22,"blurCount":0,"blur":[],"frames":168,"fps":55.7,"maxFrame":50,"p95":33,"over50":0}
+1440/light/tools {"scrollable":22,"blurCount":0,"blur":[],"frames":162,"fps":54.6,"maxFrame":50,"p95":33,"over50":0}
+6.42
+1440/dark/tools {"scrollable":22,"blurCount":0,"blur":[],"frames":123,"fps":40.3,"maxFrame":83,"p95":50,"over50":5}
+1440/light/tools {"scrollable":22,"blurCount":0,"blur":[],"frames":130,"fps":42.6,"maxFrame":50,"p95":50,"over50":1}
+5.94
+1440/dark/tools {"scrollable":22,"blurCount":0,"blur":[],"frames":163,"fps":54,"maxFrame":100,"p95":33,"over50":2}
+1440/light/tools {"scrollable":22,"blurCount":0,"blur":[],"frames":151,"fps":50.1,"maxFrame":67,"p95":33,"over50":1}
+6.78
+1440/dark/tools {"scrollable":22,"blurCount":0,"blur":[],"frames":173,"fps":57.7,"maxFrame":33,"p95":17,"over50":0}
+1440/light/tools {"scrollable":22,"blurCount":0,"blur":[],"frames":162,"fps":54,"maxFrame":83,"p95":33,"over50":2}
+7.94
+1440/dark/tools {"scrollable":22,"blurCount":0,"blur":[],"frames":169,"fps":56,"maxFrame":50,"p95":33,"over50":0}
+1440/light/tools {"scrollable":22,"blurCount":0,"blur":[],"frames":153,"fps":50.4,"maxFrame":100,"p95":33,"over50":3}
+browser 156.0.8078.4
+dark/home axe=none cls(all/scored)=0/0 fcp=656 lcp=1104 longTasks=[66,142,388] overflowX=false errs=0
+dark/tools axe=none cls(all/scored)=0/0 fcp=644 lcp=820 longTasks=[680] overflowX=false errs=0
+dark/requests axe=none cls(all/scored)=0/0 fcp=724 lcp=1264 longTasks=[103,97,333] overflowX=false errs=0
+dark/weekly axe=none cls(all/scored)=0/0 fcp=616 lcp=772 longTasks=[104,62,343] overflowX=false errs=0
+dark/projects axe=none cls(all/scored)=0/0 fcp=524 lcp=792 longTasks=[56,332] overflowX=false errs=0
+light/home axe=none cls(all/scored)=0/0 fcp=552 lcp=980 longTasks=[183,292] overflowX=false errs=0
+light/tools axe=none cls(all/scored)=0/0 fcp=676 lcp=1076 longTasks=[69,686] overflowX=false errs=0
+light/requests axe=none cls(all/scored)=0/0 fcp=696 lcp=1076 longTasks=[59,332] overflowX=false errs=0
+light/weekly axe=none cls(all/scored)=0/0 fcp=632 lcp=952 longTasks=[60,67,343] overflowX=false errs=0
+light/projects axe=none cls(all/scored)=0/0 fcp=556 lcp=892 longTasks=[53,285] overflowX=false errs=0
+browser 156.0.8078.4
+dark/home axe=none cls(all/scored)=0/0 fcp=608 lcp=900 longTasks=[135,268] overflowX=false errs=0
+dark/tools axe=none cls(all/scored)=0/0 fcp=404 lcp=660 longTasks=[682] overflowX=false errs=0
+dark/requests axe=none cls(all/scored)=0/0 fcp=376 lcp=576 longTasks=[62,310] overflowX=false errs=0
+dark/weekly axe=none cls(all/scored)=0/0 fcp=492 lcp=760 longTasks=[96,208] overflowX=false errs=0
+dark/projects axe=none cls(all/scored)=0/0 fcp=444 lcp=732 longTasks=[144] overflowX=false errs=0
+light/home axe=none cls(all/scored)=0/0 fcp=448 lcp=908 longTasks=[212,220] overflowX=false errs=0
+light/tools axe=none cls(all/scored)=0/0 fcp=400 lcp=584 longTasks=[470] overflowX=false errs=0
+light/requests axe=none cls(all/scored)=0/0 fcp=624 lcp=1004 longTasks=[76,61,191] overflowX=false errs=0
+light/weekly axe=none cls(all/scored)=0/0 fcp=348 lcp=508 longTasks=[223] overflowX=false errs=0
+light/projects axe=none cls(all/scored)=0/0 fcp=352 lcp=568 longTasks=[151] overflowX=false errs=0
+ALLDONE
