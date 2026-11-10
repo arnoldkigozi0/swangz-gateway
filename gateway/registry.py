@@ -415,6 +415,10 @@ def console_list(ctx):
     if tool:
         where.append("a.tool_id = ?")
         args.append(tool)
+    person = ctx.arg("person", None, int)
+    if person is not None:  # "which seats does this person hold": the holder is already a console field on a seat row
+        where.append("a.holder_person_id = ?")
+        args.append(person)
     limit = min(max(ctx.arg("limit", LIST_LIMIT, int), 1), LIST_LIMIT)
     rows = ctx.db.q(f"{SELECT_ACCOUNT} WHERE {' AND '.join(where)} ORDER BY a.id DESC LIMIT {limit}", args)
     current = _current_values(ctx.db, [r["id"] for r in rows])
