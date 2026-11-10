@@ -105,3 +105,11 @@ Historical Probe results belong to `ec562af`, not this changed source. The saved
 The OpenMausBot mounted browser/Chrome DevTools tools are unavailable in this conversation. No shell-launched browser was substituted. **Not run:** current-source scroll trace, CLS diagnosis, reference/50% overlays, rendered contrast, fallback and empty-state/browser navigation checks. Probe must run the same harness against the pushed source in its authorised browser slot. Local synthetic-DOM behavior and JavaScript syntax checks are reported separately from browser acceptance.
 
 Actual targeted checks on the source correction: `node tests/browser/exact-staff-shell-model.cjs` passed18 synthetic-DOM checks; `python3 tests/browser/syntax.py` checked28 JavaScript files; `python3 -m unittest tests.test_portal tests.test_hub` ran56 tests in31.081s, OK. These do not exercise rendered performance or the new empty-state link. Full Python suite: Not run locally; CI handles it.
+
+## CLS hypothesis, weight 500 not preloaded — 10 November, source only
+
+Probe's `ec562af` layout-shift entries (clsScored 0.00007, 2 entries; SPAN/SMALL/SVG about 1px, one Home H2 3px at 390px) have no unique selectors, so the cause is not proven. One source fact fits the small-text entries: the staff shell uses Poppins 500 for the top-bar crumb, pills and the ⌘K chip, but index.html preloaded only 400, 600 and 700. With `font-display: swap`, 500 text is first laid out in the fallback face and re-laid out when the file arrives.
+
+Change: one `<link rel="preload">` for `Poppins-500-latin.woff2` in index.html, same attributes as its siblings. No CSS, JS, asset or test change. Weight 800 is declared but used only by one `font-weight: 800` rule; it is not preloaded and left alone.
+
+**This is a hypothesis, not a fix.** It does not explain the 3px H2 shift (the H2 is 600) and no browser was run, so no CLS, performance or visual claim is made. Probe must repeat the cold-load layout-shift capture with source-node selectors on the pushed head; if entries remain, the next step is a measured fallback `size-adjust`/`ascent-override` face, not a guess. Not run: all tests and browser checks (Probe holds the sole slot).
