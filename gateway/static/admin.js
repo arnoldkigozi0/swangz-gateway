@@ -933,11 +933,20 @@
     });
   }
 
-  /* Which build is running, in every page's footer: version and commit, asked once per load. The line keeps its
-     height while empty, so filling it in moves nothing. */
+  /* Which build is running, at the foot of every page: version and commit, asked once per load. The line sits under
+     content that arrives late and changes height, so it is shown only while the page above it is still: any change
+     in the page's height hides it at once (a hidden element is not a layout shift) and it comes back after 600ms
+     of quiet. Its own height is reserved, so filling in the text moves nothing. */
   let buildAsked = null;
-  function buildFoot() {
+  function buildFoot(page) {
     const line = el("footer", { class: "build-foot", "aria-label": "Running version" });
+    let timer = 0;
+    const settle = () => {
+      line.classList.remove("in");
+      clearTimeout(timer);
+      timer = setTimeout(() => { if (line.isConnected) line.classList.add("in"); }, 600);
+    };
+    if (page && typeof ResizeObserver === "function") new ResizeObserver(settle).observe(page); else settle();
     buildAsked = buildAsked || api("GET", "/build").catch(() => null);
     buildAsked.then((b) => { if (b && b.version) line.textContent = "Swangz AI Hub " + b.version + (b.commit ? " · " + b.commit : " · commit not recorded"); });
     return line;
@@ -988,8 +997,9 @@
       o.actions ? el("div", { class: "top-actions" }, o.actions) : null,
       o.lede ? el("p", { class: "lede" }, o.lede) : null);
     const routeSlug = (section === "#/" ? "overview" : section.slice(2)).replace(/[^a-z0-9-]/gi, "-");
+    const page = el("div", { class: "page" + (o.wide ? " wide" : "") }, content);
     app.replaceChildren(el("div", { class: "shell route-" + routeSlug }, side,
-      el("div", { class: "main" }, appbar, banner, el("main", { id: "main", tabindex: "-1" }, top, el("div", { class: "page" + (o.wide ? " wide" : "") }, content), buildFoot())), mobileNav(active)));
+      el("div", { class: "main" }, appbar, banner, el("main", { id: "main", tabindex: "-1" }, top, page, buildFoot(page))), mobileNav(active)));
   }
 
   function openDrawer(active) {
