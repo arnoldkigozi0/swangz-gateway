@@ -440,7 +440,8 @@
           icon("bell"), count ? el("span", { class: "dot-count" }, String(count)) : null), account)));
     app.replaceChildren(el("a", { class: "skip", href: "#main", onclick: e => { e.preventDefault(); document.getElementById("main").focus(); } }, "Skip to content"),
       el("div", { class: "hub-staff-app staff-exact" }, side, el("div", { class: "hub-staff-main" }, topbar,
-        el("main", { id: "main", tabindex: "-1", class: opts.cls || null }, content))));
+        el("main", { id: "main", tabindex: "-1", class: opts.cls || null }, content),
+        window.SWFooter ? window.SWFooter.build({ me, requestAccess, policy, gurl }) : null)));
   }
   document.addEventListener("click", () => {
     document.querySelectorAll(".staff-pop.open").forEach(m => { m.classList.remove("open"); m.previousElementSibling?.setAttribute("aria-expanded", "false"); });
