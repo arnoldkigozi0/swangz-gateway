@@ -367,7 +367,7 @@
       ["#/tools", "Search tools", "search", path === "#/tools" && q.get("show") !== "mine"],
       ["#/tools?show=mine", "My tools", "star", path === "#/tools" && q.get("show") === "mine"],
       ["#/requests?view=updates", "Alerts", "bell", path === "#/requests" && q.get("view") !== "access"]];
-    const link = ([href, label, ic, on], i) => el("a", { href, class: on ? "on" : null, "aria-current": on ? "page" : null, "aria-label": i === 3 && alerts ? `Alerts, ${alerts} new` : label },
+    const link = ([href, label, ic, on], i) => el("a", { href, class: on ? "on" : null, "aria-current": on ? "page" : null, "aria-label": i === 3 && alerts ? `Alerts, ${alerts} new` : label, "data-ic": ic, draggable: "false" },
       icon(ic), el("span", null, label));
     const bar = el("div", { class: "stb-bar" }, items.map(link));
     const onAccess = path === "#/requests" && q.get("view") === "access";

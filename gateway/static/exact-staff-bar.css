@@ -1,11 +1,11 @@
-/* BRIEF §10.8 bar C: the staff app's phone bottom bar (≤700px). H = 52px. A milky bar 5H wide with four items and a
+/* BRIEF §10.8 bar C: the staff app's phone bottom bar (≤700px). H = 52px. A milky bar (solid #F4F0EC: content scrolling under a see-through bar was readable through it) 5H wide with four items and a
    separate round button H×H, 10px apart, centred, 12px above the safe area. The active item is a soft grey pill
    2H × .8H with a filled icon and its label; the others are outline icons. Built by phoneBar() in portal.js, outside
    .staff-exact so the lens may use the one allowed backdrop filter, and only while a finger is down. */
 .staff-tabbar { display: none; }
 @media (max-width: 700px) {
   .staff-tabbar {
-    --h: 52px; --stb-bg: rgba(244,240,236,.94); --stb-rim: rgba(255,255,255,.60); --stb-tx: #2E2A27; --stb-on: rgba(60,50,44,.10);
+    --h: 52px; --stb-bg: #F4F0EC; --stb-rim: rgba(255,255,255,.60); --stb-tx: #2E2A27; --stb-on: rgba(60,50,44,.10);
     position: fixed; left: 0; right: 0; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: var(--z-nav);
     display: flex; justify-content: center; align-items: center; gap: 10px; pointer-events: none;
     font-family: "Helvetica Neue", Arial, sans-serif;
@@ -20,7 +20,9 @@
   .stb-bar a.on { width: calc(var(--h) * 2); background: var(--stb-on); }
   .stb-bar a.on span { display: inline; }
   .stb-bar svg, .stb-round svg { width: 19px; height: 19px; flex: none; }
+  .stb-bar a { -webkit-user-drag: none; user-select: none; -webkit-tap-highlight-color: transparent; }
   .stb-bar a.on svg { fill: currentColor; }
+  .stb-bar a.on[data-ic="search"] svg { fill: none; stroke-width: 2.6; } /* a filled magnifier is a blob */
   .stb-round { position: relative; display: grid; place-items: center; width: var(--h); height: var(--h); border-radius: 50%; }
   .stb-round.on { background: #F2EEEC; outline: 2px solid var(--stb-tx); outline-offset: -4px; }
   .stb-badge { position: absolute; top: -2px; right: -2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #B51E33; color: #fff; font: 700 9px/16px inherit; font-family: inherit; text-align: center; }
@@ -30,6 +32,6 @@
     backdrop-filter: blur(2px) brightness(.9); -webkit-backdrop-filter: blur(2px) brightness(.9); box-shadow: 0 6px 18px rgba(0,0,0,.25); }
   /* Room under the bar so the last content and the footer are never covered. */
   .staff-exact { padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
-  @media (prefers-reduced-transparency: reduce) { .staff-tabbar { --stb-bg: #F4F0EC; } .stb-lens { backdrop-filter: none; -webkit-backdrop-filter: none; } }
+  @media (prefers-reduced-transparency: reduce) { .stb-lens { backdrop-filter: none; -webkit-backdrop-filter: none; } }
   @media print { .staff-tabbar { display: none; } }
 }
