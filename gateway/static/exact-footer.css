@@ -83,6 +83,10 @@
 .staff-exact .xf-armed.xf-in .xf-fill { transform: none; transition: transform .6s cubic-bezier(.22,.8,.3,1); }
 .staff-exact .xf-armed.xf-in .xf-wave { transform: scaleY(0); transition: transform .4s ease-in-out .6s; animation: xf-slosh 1s ease-in-out; }
 .staff-exact .xf-armed.xf-in .xf-body { opacity: 1; transition: opacity .5s ease .65s; }
+/* Candidate, unproven until the A/B is run: the fill is one large masked SVG. Promoted for the length of the reveal
+   it is drawn once and then only moved; without it each frame of the rise redraws the mask. Dropped by xf-done. */
+.staff-exact .xf-armed:not(.xf-done) .xf-fill { will-change: transform; }
+.staff-exact .xf-armed.xf-done :is(.xf-fill,.xf-wave,.xf-body) { transition: none; animation: none; }
 @keyframes xf-slosh { 0% { translate: -18px 0; } 50% { translate: 14px 0; } 100% { translate: 0 0; } }
 @media (prefers-reduced-motion: reduce) {
   .staff-exact .xf-armed :is(.xf-fill,.xf-wave,.xf-body) { transform: none; opacity: 1; transition: none; animation: none; }

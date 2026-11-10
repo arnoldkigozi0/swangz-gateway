@@ -129,7 +129,9 @@
     if ("IntersectionObserver" in window && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
       f.classList.add("xf-armed");
       const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) show(); }, { threshold: 0.12 });
-      const show = () => { f.classList.add("xf-in"); io.disconnect(); };
+      // Once the reveal has played (1.15s of transitions), "xf-done" drops the promoted layers so scrolling past a
+      // settled footer costs what a static one does.
+      const show = () => { if (f.classList.contains("xf-in")) return; f.classList.add("xf-in"); io.disconnect(); setTimeout(() => f.classList.add("xf-done"), 1300); };
       f.addEventListener("focusin", show, { once: true });   // Tab can reach the footer before it scrolls into view
       requestAnimationFrame(() => { if (f.isConnected) io.observe(f); });
     }
