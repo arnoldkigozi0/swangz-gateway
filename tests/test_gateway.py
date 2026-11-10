@@ -475,6 +475,28 @@ class StaffAppTests(StaffBase):
         self.assertTrue(stored["pw_hash"].startswith("pbkdf2_sha256$"))
         self.assertIsNone(stored["invite_hash"])
 
+    def test_changing_your_own_password_is_in_the_audit_log(self):
+        rig = self.rig
+        self.staff("POST", "/welcome", {"token": self.invite(), "password": "a-long-password"})
+        last = lambda: rig.gw.db.one("SELECT * FROM audit ORDER BY id DESC LIMIT 1")
+
+        self.assertEqual(self.staff("POST", "/password", {"current": "not-my-password", "new": "another-long-password"})[0], 400)
+        refused = last()
+        self.assertEqual((refused["action"], refused["outcome"], refused["reason"], refused["correlation"]),
+                         ("tried to change their Swangz AI Hub password", "refused", "current password was wrong", f"person:{rig.person_id}"))
+
+        before = rig.gw.db.scalar("SELECT COUNT(*) FROM audit")
+        self.assertEqual(self.staff("POST", "/password", {"current": "a-long-password", "new": "short"})[0], 400)
+        self.assertEqual(rig.gw.db.scalar("SELECT COUNT(*) FROM audit"), before)   # a too-short new password is not an event
+
+        self.assertEqual(self.staff("POST", "/password", {"current": "a-long-password", "new": "another-long-password"})[0], 200)
+        done = last()
+        self.assertEqual((done["action"], done["outcome"], done["actor"], done["correlation"]),
+                         ("changed their Swangz AI Hub password", "ok", "Nansubuga Grace", f"person:{rig.person_id}"))
+        everything = " ".join(str(v) for row in rig.gw.db.q("SELECT * FROM audit") for v in dict(row).values())
+        for secret in ("a-long-password", "another-long-password", "not-my-password"):
+            self.assertNotIn(secret, everything)
+
     def test_sign_in_and_own_devices(self):
         rig = self.rig
         token = self.invite()

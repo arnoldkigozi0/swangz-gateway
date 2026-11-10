@@ -270,13 +270,19 @@ def welcome(ctx):
 
 @route("POST", r"/password")
 def change_password(ctx):
+    """A person changes their own password. Both the change and a wrong current password go in the audit log:
+    the first is an account-security event, the second is what guessing looks like. Neither password is recorded."""
+    who = {"correlation": f"person:{ctx.person['id']}"}
     if not security.check_password(str(ctx.body.get("current") or ""), ctx.person["pw_hash"] or ""):
+        ctx.gw.audit(ctx.person["name"], "tried to change their Swangz AI Hub password", ctx.person["name"], "", ctx.ip,
+                     reason="current password was wrong", outcome="refused", **who)
         raise ApiError(400, "Your current password isn't right.")
     new = str(ctx.body.get("new") or "")
     if len(new) < 10:
         raise ApiError(400, "Use at least 10 characters.")
     ctx.db.x("UPDATE people SET pw_hash = ? WHERE id = ?",
              (security.hash_password(new, ctx.gw.settings.pbkdf2_iterations), ctx.person["id"]))
+    ctx.gw.audit(ctx.person["name"], "changed their Swangz AI Hub password", ctx.person["name"], "", ctx.ip, **who)
     return {"ok": True}
 
 
