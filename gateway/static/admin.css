@@ -1479,6 +1479,7 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
 .console-trail .sep { color: var(--tx-3); }
 .console-trail .crumb-here, .crumbs .crumb-here { color: var(--tx-1); font-weight: 600; }
 @media (min-width: 1201px) { .top > .crumbs.in-bar { display: none; } }
+@media (max-width: 1200px) { .console-trail { display: none; } }
 .top > .lede.next-step { color: var(--tx-1); }
 .top > .lede.next-step + .lede { grid-area: auto; grid-column: 1 / -1; }
 .next-label { margin-right: 8px; font-weight: 600; color: var(--tx-2); }

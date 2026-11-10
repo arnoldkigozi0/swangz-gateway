@@ -32,7 +32,9 @@ async function overviewPass(page, url, theme) {
       const m = await page.evaluate(() => ({ overflow: document.documentElement.scrollWidth - innerWidth, tall: document.documentElement.scrollHeight - innerHeight,
         cards: [...document.querySelectorAll('main a.kpi-link')].map(a => a.getAttribute('href')),
         primaries: [...document.querySelectorAll('main .btn.primary')].filter(b => b.getBoundingClientRect().width).length,
-        next: document.querySelector('main .top')?.textContent.includes('Next step') }));
+        next: document.querySelector('main .top')?.textContent.includes('Next step'),
+        trails: [...document.querySelectorAll('.console-trail, main .top > .crumbs.in-bar')].filter(t => t.getBoundingClientRect().width).length }));
+      if (m.trails !== 1) say(`${m.trails} trails showing`);
       if (m.overflow > 0) say(`page scrolls sideways by ${m.overflow}px`);
       if (vname === 'desktop' && m.tall > 0) say(`page scrolls by ${m.tall}px at 1440x852`);
       if (JSON.stringify(m.cards) !== JSON.stringify(CARDS)) say('card links: ' + JSON.stringify(m.cards));
