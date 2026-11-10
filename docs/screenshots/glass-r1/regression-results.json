@@ -1,0 +1,70 @@
+{
+  "baseHead": "1e0a319e623665af33c382c56fbaa03ecc9c7820",
+  "runs": [
+    {
+      "command": "UI_WIDTH=1440 UI_THEME=light UI_PAGES_ONLY=1 UI_OUTPUT=/tmp/prism-glass-r1-light1440 node tests/browser/check.cjs",
+      "exit": 0,
+      "interactions": 27,
+      "screens": 25,
+      "errors": [],
+      "expectedStudioFailure": [
+        {
+          "url": "http://127.0.0.1:32915/api/studio/voice",
+          "status": 400
+        }
+      ],
+      "axeFindings": 0,
+      "clippedValues": [],
+      "clippedToolMetadata": []
+    },
+    {
+      "command": "UI_WIDTH=1440 UI_THEME=dark UI_PAGES_ONLY=1 UI_OUTPUT=/tmp/prism-glass-r1-dark1440 node tests/browser/check.cjs",
+      "exit": 0,
+      "interactions": 27,
+      "screens": 25,
+      "errors": [],
+      "expectedStudioFailure": [
+        {
+          "url": "http://127.0.0.1:35213/api/studio/voice",
+          "status": 400
+        }
+      ],
+      "axeFindings": 0,
+      "clippedValues": [],
+      "clippedToolMetadata": []
+    },
+    {
+      "command": "UI_WIDTH=390 UI_THEME=light UI_PAGES_ONLY=1 UI_OUTPUT=/tmp/prism-glass-r1-light390 node tests/browser/check.cjs",
+      "exit": 0,
+      "interactions": 27,
+      "screens": 25,
+      "errors": [],
+      "expectedStudioFailure": [
+        {
+          "url": "http://127.0.0.1:43179/api/studio/voice",
+          "status": 400
+        }
+      ],
+      "axeFindings": 0,
+      "clippedValues": [],
+      "clippedToolMetadata": []
+    },
+    {
+      "command": "UI_WIDTH=390 UI_THEME=dark UI_PAGES_ONLY=1 UI_OUTPUT=/tmp/prism-glass-r1-dark390 node tests/browser/check.cjs",
+      "exit": 0,
+      "interactions": 27,
+      "screens": 25,
+      "errors": [],
+      "expectedStudioFailure": [
+        {
+          "url": "http://127.0.0.1:35945/api/studio/voice",
+          "status": 400
+        }
+      ],
+      "axeFindings": 0,
+      "clippedValues": [],
+      "clippedToolMetadata": []
+    }
+  ],
+  "scope": "Principal pages only; role matrix runs on GitHub Actions. Synthetic fixture, Chromium viewports; no real-device claim."
+}
