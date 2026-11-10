@@ -1,0 +1,359 @@
+{
+ "summary": {
+  "1440x852-dark-overview": {
+   "texts": 36,
+   "worst_enabled": 6.26
+  },
+  "1440x852-dark-people": {
+   "texts": 36,
+   "worst_enabled": 6.26
+  },
+  "1440x852-dark-activity": {
+   "texts": 64,
+   "worst_enabled": 3.74
+  },
+  "1440x852-dark-tools": {
+   "texts": 87,
+   "worst_enabled": 3.52
+  },
+  "1440x852-dark-spend": {
+   "texts": 35,
+   "worst_enabled": 6.53
+  },
+  "1440x852-dark-security": {
+   "texts": 35,
+   "worst_enabled": 6.26
+  },
+  "1440x852-dark-settings": {
+   "texts": 52,
+   "worst_enabled": 6.26
+  },
+  "1440x852-dark-health": {
+   "texts": 81,
+   "worst_enabled": 6.26
+  },
+  "1440x852-light-overview": {
+   "texts": 36,
+   "worst_enabled": 4.74
+  },
+  "1440x852-light-people": {
+   "texts": 36,
+   "worst_enabled": 4.74
+  },
+  "1440x852-light-activity": {
+   "texts": 64,
+   "worst_enabled": 3.74
+  },
+  "1440x852-light-tools": {
+   "texts": 87,
+   "worst_enabled": 3.52
+  },
+  "1440x852-light-spend": {
+   "texts": 35,
+   "worst_enabled": 5.28
+  },
+  "1440x852-light-security": {
+   "texts": 35,
+   "worst_enabled": 4.74
+  },
+  "1440x852-light-settings": {
+   "texts": 52,
+   "worst_enabled": 4.74
+  },
+  "1440x852-light-health": {
+   "texts": 81,
+   "worst_enabled": 4.74
+  },
+  "390x844-dark-overview": {
+   "texts": 25,
+   "worst_enabled": 1.0
+  },
+  "390x844-dark-people": {
+   "texts": 29,
+   "worst_enabled": 6.23
+  },
+  "390x844-dark-activity": {
+   "texts": 32,
+   "worst_enabled": 6.23
+  },
+  "390x844-dark-tools": {
+   "texts": 35,
+   "worst_enabled": 4.2
+  },
+  "390x844-dark-spend": {
+   "texts": 24,
+   "worst_enabled": 1.0
+  },
+  "390x844-dark-security": {
+   "texts": 35,
+   "worst_enabled": 6.23
+  },
+  "390x844-dark-settings": {
+   "texts": 25,
+   "worst_enabled": 6.23
+  },
+  "390x844-dark-health": {
+   "texts": 32,
+   "worst_enabled": 6.23
+  },
+  "390x844-light-overview": {
+   "texts": 25,
+   "worst_enabled": 1.0
+  },
+  "390x844-light-people": {
+   "texts": 29,
+   "worst_enabled": 4.74
+  },
+  "390x844-light-activity": {
+   "texts": 32,
+   "worst_enabled": 4.74
+  },
+  "390x844-light-tools": {
+   "texts": 35,
+   "worst_enabled": 1.01
+  },
+  "390x844-light-spend": {
+   "texts": 24,
+   "worst_enabled": 1.0
+  },
+  "390x844-light-security": {
+   "texts": 35,
+   "worst_enabled": 4.74
+  },
+  "390x844-light-settings": {
+   "texts": 25,
+   "worst_enabled": 4.74
+  },
+  "390x844-light-health": {
+   "texts": 32,
+   "worst_enabled": 4.74
+  }
+ },
+ "below": [
+  [
+   "1440x852-dark-activity",
+   3.79,
+   "CC",
+   "SPAN.logo xs mono",
+   "rgb(255, 255, 255)",
+   9,
+   ""
+  ],
+  [
+   "1440x852-dark-activity",
+   3.86,
+   "CC",
+   "SPAN.logo xs mono",
+   "rgb(255, 255, 255)",
+   9,
+   ""
+  ],
+  [
+   "1440x852-dark-activity",
+   3.74,
+   "CC",
+   "SPAN.logo xs mono",
+   "rgb(255, 255, 255)",
+   9,
+   ""
+  ],
+  [
+   "1440x852-dark-tools",
+   4.15,
+   "C",
+   "SPAN.logo sm mono",
+   "rgb(255, 255, 255)",
+   11,
+   ""
+  ],
+  [
+   "1440x852-dark-tools",
+   3.77,
+   "C",
+   "SPAN.logo sm mono",
+   "rgb(255, 255, 255)",
+   11,
+   ""
+  ],
+  [
+   "1440x852-dark-tools",
+   4.04,
+   "C",
+   "SPAN.logo sm mono",
+   "rgb(255, 255, 255)",
+   11,
+   ""
+  ],
+  [
+   "1440x852-dark-tools",
+   3.9,
+   "CC",
+   "SPAN.logo sm mono",
+   "rgb(255, 255, 255)",
+   11,
+   ""
+  ],
+  [
+   "1440x852-dark-tools",
+   4.15,
+   "C",
+   "SPAN.logo sm mono",
+   "rgb(255, 255, 255)",
+   11,
+   ""
+  ],
+  [
+   "1440x852-dark-tools",
+   3.52,
+   "HA",
+   "SPAN.logo sm mono",
+   "rgb(255, 255, 255)",
+   11,
+   ""
+  ],
+  [
+   "1440x852-light-activity",
+   3.79,
+   "CC",
+   "SPAN.logo xs mono",
+   "rgb(255, 255, 255)",
+   9,
+   ""
+  ],
+  [
+   "1440x852-light-activity",
+   3.86,
+   "CC",
+   "SPAN.logo xs mono",
+   "rgb(255, 255, 255)",
+   9,
+   ""
+  ],
+  [
+   "1440x852-light-activity",
+   3.74,
+   "CC",
+   "SPAN.logo xs mono",
+   "rgb(255, 255, 255)",
+   9,
+   ""
+  ],
+  [
+   "1440x852-light-tools",
+   4.15,
+   "C",
+   "SPAN.logo sm mono",
+   "rgb(255, 255, 255)",
+   11,
+   ""
+  ],
+  [
+   "1440x852-light-tools",
+   3.77,
+   "C",
+   "SPAN.logo sm mono",
+   "rgb(255, 255, 255)",
+   11,
+   ""
+  ],
+  [
+   "1440x852-light-tools",
+   4.04,
+   "C",
+   "SPAN.logo sm mono",
+   "rgb(255, 255, 255)",
+   11,
+   ""
+  ],
+  [
+   "1440x852-light-tools",
+   3.9,
+   "CC",
+   "SPAN.logo sm mono",
+   "rgb(255, 255, 255)",
+   11,
+   ""
+  ],
+  [
+   "1440x852-light-tools",
+   4.15,
+   "C",
+   "SPAN.logo sm mono",
+   "rgb(255, 255, 255)",
+   11,
+   ""
+  ],
+  [
+   "1440x852-light-tools",
+   3.52,
+   "HA",
+   "SPAN.logo sm mono",
+   "rgb(255, 255, 255)",
+   11,
+   ""
+  ],
+  [
+   "390x844-dark-overview",
+   1.0,
+   "Overview",
+   "SPAN.",
+   "rgb(33, 29, 25)",
+   11,
+   ""
+  ],
+  [
+   "390x844-dark-tools",
+   4.2,
+   "C",
+   "SPAN.logo sm mono",
+   "rgb(255, 255, 255)",
+   11,
+   ""
+  ],
+  [
+   "390x844-dark-spend",
+   1.0,
+   "Overview",
+   "SPAN.",
+   "rgb(33, 29, 25)",
+   11,
+   ""
+  ],
+  [
+   "390x844-light-overview",
+   1.0,
+   "Overview",
+   "SPAN.",
+   "rgb(33, 29, 25)",
+   11,
+   ""
+  ],
+  [
+   "390x844-light-tools",
+   4.2,
+   "C",
+   "SPAN.logo sm mono",
+   "rgb(255, 255, 255)",
+   11,
+   ""
+  ],
+  [
+   "390x844-light-tools",
+   1.01,
+   "C",
+   "SPAN.logo sm mono",
+   "rgb(255, 255, 255)",
+   11,
+   ""
+  ],
+  [
+   "390x844-light-spend",
+   1.0,
+   "Overview",
+   "SPAN.",
+   "rgb(33, 29, 25)",
+   11,
+   ""
+  ]
+ ]
+}

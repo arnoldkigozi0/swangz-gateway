@@ -1,0 +1,114 @@
+/* The staff footer, BRIEF 6 / 10.3 (footer-04). Every rule is scoped to .xfoot inside the staff shell.
+   One look in both themes, like the reference: milky warm glass with near-black ink.
+   10.1(3): the glass is .86 where the reference is .55, because the staff shell has no live blur (scroll
+   performance) and near-black text needs 4.5:1 over the unblurred room. */
+.staff-exact main { min-height: calc(100dvh - 76px); }   /* the footer starts below the first screen: nothing a page loads can move it in view */
+.staff-exact .xfoot {
+  --xf-ink: #1E1A18; --xf-soft: #4A3F38; --xf-milk: rgba(235,220,205,.86); --xf-fs: 240px;
+  position: relative; margin: 40px 0 0; padding: 16px 0 0; overflow: hidden; overflow: clip;
+  color: var(--xf-ink); font-family: var(--font); border: 0; background: none;
+}
+.staff-exact .xf-panel { position: relative; border-radius: 28px; }
+.staff-exact .xf-fill { position: absolute; inset: 0; pointer-events: none; }
+.staff-exact .xf-glass { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.staff-exact .xf-milk { fill: var(--xf-milk); }
+.staff-exact .xf-rim { position: absolute; inset: 0; border-radius: 28px; border: 1px solid rgba(255,255,255,.55); border-bottom-color: rgba(255,255,255,.2); }
+.staff-exact .xf-wave { position: absolute; left: 28px; right: 28px; top: -13px; width: calc(100% - 56px); height: 14px; display: block; transform: scaleY(0); transform-origin: 50% 100%; }
+.staff-exact .xf-word {
+  font-family: var(--font); font-size: var(--xf-fs); font-weight: 700; letter-spacing: -.02em;
+  transform: translateY(calc(var(--xf-fs) * -.27 - 14px));   /* the whole "g" stays inside the panel */
+}
+.staff-exact .xf-wordroom { height: calc(var(--xf-fs) * .97 + 55px); }
+
+.staff-exact .xf-body { position: relative; padding: 32px 35px 0 37px; }
+.staff-exact .xf-top { display: grid; grid-template-columns: 380px minmax(0,1fr); gap: 56px; align-items: start; }
+.staff-exact .xf-lead { padding-top: 6px; min-width: 0; }
+.staff-exact .xf-brand { display: flex; align-items: center; gap: 10px; height: 36px; font-size: 16px; font-weight: 600; }
+.staff-exact .xf-brand img { width: 36px; height: 36px; border-radius: 50%; background: var(--accent-pill); }
+.staff-exact .xf-lead h2 { margin: 18px 0 0; font: 600 32px/38px var(--font); letter-spacing: -.01em; color: var(--xf-ink); }
+.staff-exact .xf-ask {
+  display: flex; align-items: center; width: 100%; max-width: 380px; height: 46px; margin-top: 17px; padding: 4px 4px 4px 18px;
+  border-radius: 23px; background: #4A3F38; color: #FFF8F2; box-shadow: inset 0 1px rgba(255,255,255,.12); text-decoration: none;
+}
+.staff-exact .xf-ask input {
+  flex: 1; min-width: 0; height: 38px; padding: 0; border: 0; background: transparent; color: #FFF8F2; font: 400 13px var(--font); outline: 0; box-shadow: none;
+}
+.staff-exact .xf-ask input::placeholder { color: #E6DAD0; opacity: 1; }
+.staff-exact .xf-ask:focus-within { outline: 2px solid var(--xf-ink); outline-offset: 2px; }
+.staff-exact .xf-ask :is(button,b) {
+  flex: none; display: grid; place-items: center; height: 38px; min-height: 38px; padding: 0 20px; border: 0; border-radius: 19px;
+  background: #1C1816; color: #FFFFFF; font: 600 13px var(--font); text-decoration: none; cursor: pointer;
+}
+.staff-exact .xf-ask-link span { flex: 1; font-size: 13px; }
+.staff-exact .xf-note { margin: 12px 0 0 20px; font-size: 11px; line-height: 16px; color: var(--xf-soft); }
+.staff-exact .xf-note a { color: var(--xf-ink); text-decoration: underline; }
+
+.staff-exact .xf-card {
+  display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; min-height: 221px; padding: 18px 24px 20px;
+  border-radius: 20px; background: rgba(255,255,255,.30); border: 1px solid rgba(255,255,255,.5);
+}
+.staff-exact .xf-col-title { margin: 0 0 6px; padding-left: 2px; font: 400 12px/16px var(--font); color: var(--xf-soft); }
+.staff-exact .xf-col ul { list-style: none; margin: 0; padding: 0; }
+.staff-exact .xf-col li { height: 28px; display: flex; align-items: center; }
+.staff-exact .xf-col :is(a,button) {
+  display: inline-flex; align-items: center; height: 26px; min-height: 0; margin-left: -8px; padding: 0 10px; border: 1px solid transparent; border-radius: 13px;
+  background: none; color: var(--xf-ink); font: 500 14px var(--font); text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+.staff-exact .xf-col :is(a,button):hover { border-color: rgba(255,255,255,.85); background: rgba(255,255,255,.28); }
+.staff-exact .xfoot :is(a,button):focus-visible { outline: 2px solid var(--xf-ink); outline-offset: 2px; }
+
+.staff-exact .xf-meta { display: flex; align-items: center; gap: 22px; min-height: 38px; margin-top: 15px; font-size: 12px; }
+.staff-exact .xf-meta p { margin: 0; color: var(--xf-ink); font-weight: 500; }
+.staff-exact .xf-status { display: flex; align-items: center; gap: 9px; }
+.staff-exact .xf-dot { width: 7px; height: 7px; border-radius: 50%; background: #6B5F57; }
+.staff-exact .xf-dot[data-state="up"] { background: #0A6B38; box-shadow: 0 0 0 3px rgba(61,220,132,.35); }
+.staff-exact .xf-dot:is([data-state="db"],[data-state="down"]) { background: #B51E33; border-radius: 1px; }
+.staff-exact .xf-icons { display: flex; gap: 2px; margin-left: auto; padding: 3px; border-radius: 19px; background: rgba(74,63,56,.86); box-shadow: inset 0 1px rgba(255,255,255,.14); }
+.staff-exact .xf-icons a { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; color: #FFF8F2; }
+.staff-exact .xf-icons a:hover { background: rgba(255,255,255,.16); }
+.staff-exact .xf-icons svg { width: 15px; height: 15px; }
+.staff-exact .xf-theme { display: flex; align-items: center; gap: 10px; font-weight: 500; }
+.staff-exact .xf-theme-name { min-width: 52px; text-align: right; }
+.staff-exact .xf-switch { position: relative; width: 46px; height: 26px; min-height: 26px; padding: 0; border: 0; border-radius: 13px; background: #6B5F57; cursor: pointer; }
+.staff-exact .xf-switch i { position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: #FFFFFF; transition: transform .2s ease; }
+.staff-exact .xf-switch[aria-checked="true"] { background: #1C1816; }
+.staff-exact .xf-switch[aria-checked="true"] i { transform: translateX(20px); }
+
+/* The liquid fill (footer-01 to 03, read from liquid-glass-footer.mp4 at 30fps): the glass rises with a wavy
+   top edge over about 18 frames, the edge settles flat by frame 30, the words fade in from frame 20.
+   Transform and opacity only. Armed by exact-footer.js only when motion is allowed. */
+.staff-exact .xf-armed .xf-fill { transform: translateY(102%); }
+.staff-exact .xf-armed .xf-wave { transform: scaleY(1); }
+.staff-exact .xf-armed .xf-body { opacity: 0; }
+.staff-exact .xf-armed.xf-in .xf-fill { transform: none; transition: transform .6s cubic-bezier(.22,.8,.3,1); }
+.staff-exact .xf-armed.xf-in .xf-wave { transform: scaleY(0); transition: transform .4s ease-in-out .6s; animation: xf-slosh 1s ease-in-out; }
+.staff-exact .xf-armed.xf-in .xf-body { opacity: 1; transition: opacity .5s ease .65s; }
+@keyframes xf-slosh { 0% { translate: -18px 0; } 50% { translate: 14px 0; } 100% { translate: 0 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .staff-exact .xf-armed :is(.xf-fill,.xf-wave,.xf-body) { transform: none; opacity: 1; transition: none; animation: none; }
+  .staff-exact .xf-armed .xf-wave { transform: scaleY(0); }
+}
+@media (prefers-reduced-transparency: reduce) { .staff-exact .xfoot { --xf-milk: #EBDCCD; } .staff-exact .xf-card { background: #F3E9DF; } .staff-exact .xf-icons { background: #4A3F38; } }
+
+@media (max-width: 1250px) {
+  .staff-exact .xf-top { grid-template-columns: minmax(0,1fr); gap: 28px; }
+}
+@media (max-width: 900px) {
+  .staff-exact .xfoot { margin-top: 24px; }
+  .staff-exact .xf-body { padding: 24px 18px 0; }
+  .staff-exact .xf-lead h2 { font-size: 26px; line-height: 32px; }
+  .staff-exact .xf-card { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 18px 12px; padding: 16px 18px; }
+  .staff-exact .xf-col li { height: 44px; }
+  .staff-exact .xf-col :is(a,button) { height: 40px; white-space: normal; }
+  .staff-exact .xf-meta { flex-wrap: wrap; gap: 12px 18px; margin-top: 24px; }
+  .staff-exact .xf-icons { margin-left: 0; }
+  .staff-exact .xf-icons a { width: 44px; height: 44px; }
+  .staff-exact .xf-icons { border-radius: 25px; }
+  .staff-exact .xf-theme { margin-left: auto; }
+  .staff-exact .xf-switch { height: 44px; min-height: 44px; background: none; }
+  .staff-exact .xf-switch::before { content: ""; position: absolute; inset: 9px 0; border-radius: 13px; background: #6B5F57; }
+  .staff-exact .xf-switch[aria-checked="true"] { background: none; }
+  .staff-exact .xf-switch[aria-checked="true"]::before { background: #1C1816; }
+  .staff-exact .xf-switch i { top: 12px; }
+}
+@media print { .staff-exact .xfoot { display: none; } }

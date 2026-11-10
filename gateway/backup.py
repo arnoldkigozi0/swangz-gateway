@@ -137,6 +137,41 @@ def verify(path):
     return True
 
 
+def check_latest(out_dir, max_age_hours=36, now=None):
+    """The restore check a timer can run: the newest backup here exists, is recent enough, has its checksum file,
+    and the database inside it opens and passes integrity_check. -> {"path", "age_hours", "tables", "schema"}.
+    It reads a scratch copy beside the backup (removed afterwards) and never touches the live database."""
+    found = sorted(p for p in Path(out_dir).glob(f"{PREFIX}*{SUFFIX}") if p.is_file())
+    if not found:
+        raise BackupError(f"no backup in {out_dir}")
+    path = found[-1]
+    age = ((time.time() if now is None else now) - path.stat().st_mtime) / 3600
+    if max_age_hours and age > max_age_hours:
+        raise BackupError(f"{path.name}: the newest backup is {age:.0f} hours old (limit {max_age_hours:g})")
+    if not path.with_name(path.name + ".sha256").exists():
+        raise BackupError(f"{path.name}: its .sha256 file is missing")
+    verify(path)
+    tmp = path.with_name("." + path.name + ".restore")
+    try:
+        with gzip.open(path, "rb") as f_in, open(tmp, "wb") as f_out:
+            shutil.copyfileobj(f_in, f_out, 1 << 20)
+        with closing(sqlite3.connect(tmp.resolve().as_uri() + "?mode=ro", uri=True)) as c:
+            tables = c.execute("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'").fetchone()[0]
+            try:
+                schema = c.execute("SELECT v FROM meta WHERE k = 'schema'").fetchone()
+            except sqlite3.Error:
+                schema = None
+        if not tables or not schema:
+            raise BackupError(f"{path.name}: restored, but it is not a gateway database (no schema version)")
+    finally:
+        for p in (tmp, tmp.with_name(tmp.name + "-wal"), tmp.with_name(tmp.name + "-shm")):
+            try:
+                p.unlink()
+            except FileNotFoundError:
+                pass
+    return {"path": str(path), "age_hours": round(age, 1), "tables": tables, "schema": int(schema[0])}
+
+
 def _sha256(path):
     h = hashlib.sha256()
     with open(path, "rb") as f:
