@@ -13,7 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import admin, catalog, geo, google, icons, notify, policy, pricing, proxy, purpose, security, staff, store
 from . import hub_api, reporting, hub_delivery, hub_export
-from . import business, credentials, departments, enroll, registry
+from . import business, credentials, departments, enroll, registry, releases
 from .db import DB
 from .live import Live
 from .workspace import Workspaces
@@ -502,6 +502,7 @@ class Server(ThreadingHTTPServer):
 
 
 def make_server(settings):
+    releases.check_gateway_version()  # devices read this version from a header; refuse to start with a malformed one
     gw = Gateway(settings)
     handler = type("BoundHandler", (Handler,), {"gw": gw})
     server = Server((settings.host, settings.port), handler)

@@ -60,6 +60,7 @@
     checkCircle: [C(12, 12, 9), "M8.5 12.5l2.5 2.5l4.5-5"],
     x: ["M6 6l12 12", "M18 6L6 18"],
     search: ["M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14z", "M20 20l-4-4"],
+    star: ["M12 3.8l2.5 5.1l5.6.8l-4.05 3.95l.95 5.6L12 16.6l-5 2.65l.95-5.6L3.9 9.7l5.6-.8z"],
     command: ["M9 6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3z"],
     bot: ["M5 8h14v11H5z", "M12 4v4", "M9 13v1.5", "M15 13v1.5", "M2.5 12v4", "M21.5 12v4"],
     server: ["M4 4h16v6H4z", "M4 14h16v6H4z", "M8 7h.01", "M8 17h.01"],
@@ -485,7 +486,8 @@
       onActive(i);
       const r = svg.getBoundingClientRect();
       const x = clientX !== undefined ? clientX : r.left + xs(i);
-      showTip(svg, chartTipContent(o.data[i], o), x, clientY !== undefined ? clientY : r.top + 12);
+      const anchor = o.tipY ? r.top + o.tipY(i) : clientY !== undefined ? clientY : r.top + 12;
+      showTip(svg, chartTipContent(o.data[i], o), x, anchor);
     };
     const hide = () => { active = -1; onActive(-1); hideTip(svg); };
     svg.addEventListener("pointermove", (e) => {
@@ -506,32 +508,92 @@
     svg.addEventListener("focus", () => show(active < 0 ? n - 1 : active));
   }
 
-  /* Columns over time — one series, so no legend: the title names it. data: [{label, short, value, note}] */
+  let tubeSeq = 0;
+  const calmMotion = () => !(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+  /* Columns over time, drawn as glass tubes: a rounded translucent bar with a soft cap. The current bar (the
+     latest, or the one being read) is accent-lit and carries its value in a floating label; every value is also in
+     the tooltip, the arrow-key reading and the table view. One series, so no legend: the title names it.
+     data: [{label, short, value, note}] */
   function columns(o) {
-    o = { height: 170, format: fmt.num, ...o };
+    o = { height: 210, format: fmt.num, ...o };
+    if (!o.data || !o.data.length) return stateBox({ icon: "info", compact: true, title: "No data yet", text: o.emptyText || "Nothing to chart for this period." });
+    const uid = "u-tube-" + (++tubeSeq);
+    let shown = false;   // bars grow from zero once, the first time the chart is in view
     return chartFrame(o, (w) => {
-      const h = o.height, pad = { t: 10, r: 4, b: 22, l: 44 };
+      const h = o.height, pad = { t: 30, r: 6, b: 22, l: 44 };
+      const n = o.data.length;
+      const peakAt = o.data.reduce((m, d, i) => ((d.value || 0) > (o.data[m].value || 0) ? i : m), 0);
+      const summary = ` Latest ${o.data[n - 1].label}: ${o.format(o.data[n - 1].value || 0)}. Highest ${o.data[peakAt].label}: ${o.format(o.data[peakAt].value || 0)}.`;
       const max = niceMax(Math.max(...o.data.map((d) => d.value || 0)));
-      const svg = s("svg", { width: w, height: h, role: "img", tabindex: "0", "aria-label": o.label + ". Use the left and right arrow keys to read each day." });
+      const svg = s("svg", { width: w, height: h, role: "img", tabindex: "0", class: "u-tubes", "aria-label": o.label + "." + summary + " Use the left and right arrow keys to read each day, or show the chart as a table." });
+      const defs = s("defs");
+      const stops = (id, cls, y2) => {
+        const gr = s("linearGradient", { id, x1: 0, y1: 0, x2: 0, y2 });
+        [[0, "a"], [1, "b"]].forEach(([off, k]) => gr.append(s("stop", { offset: off, class: cls + "-" + k })));
+        return gr;
+      };
+      defs.append(stops(uid + "-g", "tube", 1), stops(uid + "-s", "tube-sel", 1));
       const g = s("g");
       const ax = axes(g, o, w, h, pad, max);
-      const n = o.data.length;
       const band = (w - pad.l - pad.r) / n;
-      const bw = Math.max(2, Math.min(24, band * 0.64));
+      const bw = Math.max(4, Math.min(24, band * 0.66));
       const xs = (i) => pad.l + band * i + band / 2;
       const base = h - pad.b;
-      const bars = [];
+      const tubes = s("g", { class: "tubes" });
+      const bars = [], hi = [];
       o.data.forEach((d, i) => {
         const v = d.value || 0;
-        const bh = v > 0 ? Math.max(2, (base - pad.t) * v / max) : 0;
-        const x = xs(i) - bw / 2, y = base - bh, r = Math.min(4, bw / 2, bh);
-        const path = s("path", { class: "col", d: bh ? `M${x},${base}V${y + r}Q${x},${y} ${x + r},${y}H${x + bw - r}Q${x + bw},${y} ${x + bw},${y + r}V${base}Z` : "" });
-        bars.push(path);
-        g.append(path);
+        // height is exactly proportional to the value (a 1px floor only so a non-zero day can be seen); the cap is
+        // rounded to the bar's own size so a short bar is a small rounded stub, not a taller one
+        const bh = v > 0 ? Math.max(1, (base - pad.t) * v / max) : 0;
+        const x = xs(i) - bw / 2;
+        const rr = Math.min(bw / 2, bh / 2);
+        const bar = s("rect", { class: "col", x, y: base - bh, width: bw, height: bh, rx: rr });
+        bar.style.fill = `url(#${uid}-g)`;
+        const glow = s("rect", { class: "col-hi", x: x + bw * 0.22, y: base - bh + rr * 0.6, width: Math.max(1, bw * 0.18), height: Math.max(0, bh - rr * 1.2), rx: Math.max(.5, bw * 0.09) });
+        if (bh < bw * 1.3) glow.setAttribute("display", "none");
+        const wrap = s("g", { class: "tube" });
+        wrap.append(bar, glow);
+        wrap.style.setProperty("--i", i);   // CSSOM, not a style attribute: the page CSP refuses inline style attributes
+        if (!bh) wrap.setAttribute("aria-hidden", "true");
+        bars.push(bar); hi.push(glow);
+        tubes.append(wrap);
       });
       xLabels(ax, o, w, h, pad, xs);
-      svg.append(g);
-      interact(svg, o, xs, n, (i) => bars.forEach((b, j) => { b.style.opacity = i < 0 || i === j ? "" : ".45"; }));
+      // the floating value label for the current bar
+      const labelText = s("text", { class: "pill-t", "text-anchor": "middle", y: 0 });
+      const labelBg = s("rect", { class: "pill", height: 18, rx: 9, y: -13 });
+      const label = s("g", { class: "u-pill", "aria-hidden": "true" });
+      label.append(labelBg, labelText);
+      g.append(tubes, label);
+      svg.append(defs, g);
+      let cur = -1;
+      const select = (i) => {
+        const at = i < 0 ? n - 1 : i;
+        if (at === cur) return;
+        if (cur >= 0) bars[cur].classList.remove("on"), bars[cur].style.fill = `url(#${uid}-g)`;
+        cur = at;
+        bars[at].classList.add("on"); bars[at].style.fill = `url(#${uid}-s)`;
+        const d = o.data[at], t = o.format(d.value || 0);
+        labelText.textContent = t;
+        const pw = Math.max(34, t.length * 6.6 + 16);
+        labelBg.setAttribute("width", pw); labelBg.setAttribute("x", -pw / 2);
+        const top = Number(bars[at].getAttribute("y"));
+        const px = Math.max(pad.l + pw / 2, Math.min(w - pad.r - pw / 2, xs(at)));
+        label.style.transform = `translate(${px}px, ${Math.max(14, top - 8)}px)`;
+        label.classList.toggle("none", !d.value);
+      };
+      select(-1);
+      requestAnimationFrame(() => requestAnimationFrame(() => label.classList.add("ready")));
+      interact(svg, { ...o, tipY: (i) => Math.max(14, Number(bars[i < 0 ? n - 1 : i].getAttribute("y")) - 8) - 13 - 2 }, xs, n, select);
+      if (!shown) {
+        if (typeof IntersectionObserver !== "undefined" && calmMotion()) {
+          svg.classList.add("grow");
+          const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { shown = true; svg.classList.add("in"); io.disconnect(); } }, { threshold: 0.2 });
+          io.observe(svg);
+        } else shown = true;
+      }
       return svg;
     });
   }
@@ -539,6 +601,8 @@
   /* A line with a soft area under it, a crosshair that finds the day, and the latest value at its end. */
   function line(o) {
     o = { height: 170, format: fmt.num, ...o };
+    // No days at all is not a flat line at zero: say so, and skip the chart and its table toggle
+    if (!Array.isArray(o.data) || !o.data.length) return stateBox({ icon: "info", compact: true, title: "No data yet", text: o.emptyText || "Nothing to chart for this period." });
     return chartFrame(o, (w) => {
       const h = o.height, pad = { t: 12, r: o.endLabel === false ? 8 : 52, b: 22, l: 44 };
       const max = niceMax(Math.max(...o.data.map((d) => d.value || 0)));
@@ -648,6 +712,65 @@
     return el("div", { class: "u-table-wrap", tabindex: "0", role: "region", "aria-label": o.caption || "Data table" }, t);
   }
 
+
+  // ------------------------------------------------------------------ glass lists: filters, search, progress, favourite
+
+  /* A row of filter pills (one is pressed). options: [{ id, label, count? }]. onChange(id). Arrow keys move between pills. */
+  function segmented(o) {
+    let cur = o.value;
+    const seg = el("div", { class: "u-seg", role: "group", "aria-label": o.label || "Filter" });
+    /* The buttons are built once and only aria-pressed changes, so a keyboard user's focus stays on the pill they pressed. */
+    const btns = o.options.map((x) => el("button", { type: "button", "data-id": x.id, "aria-pressed": "false",
+      onclick: () => { if (cur === x.id) return; cur = x.id; draw(); o.onChange && o.onChange(x.id); } },
+      x.label, x.count === undefined || x.count === null ? null : el("span", { class: "n" }, String(x.count))));
+    seg.append(...btns);
+    function draw() { btns.forEach((b, i) => b.setAttribute("aria-pressed", cur === o.options[i].id ? "true" : "false")); }
+    seg.addEventListener("keydown", (e) => {
+      if (e.key !== "ArrowRight" && e.key !== "ArrowLeft" && e.key !== "Home" && e.key !== "End") return;
+      const bs = [...seg.querySelectorAll("button")];
+      const i = bs.indexOf(document.activeElement);
+      if (i < 0) return;
+      e.preventDefault();
+      const next = e.key === "Home" ? 0 : e.key === "End" ? bs.length - 1 : (i + (e.key === "ArrowRight" ? 1 : -1) + bs.length) % bs.length;
+      bs[next].focus();
+    });
+    draw();
+    return seg;
+  }
+
+  /* A search pill. onInput(text) is called as the person types. */
+  function searchPill(o) {
+    const input = el("input", { type: "search", placeholder: o.placeholder || "Search", "aria-label": o.label || "Search", autocomplete: "off", value: o.value || "" });
+    input.addEventListener("input", () => o.onInput && o.onInput(input.value));
+    return el("label", { class: "u-search" }, icon("search"), input);
+  }
+
+  /* A slim bar with its number beside it. The number is always shown, so the bar is never the only carrier. */
+  function progress(value, o) {
+    o = o || {};
+    const max = o.max || 100;
+    const v = Number.isFinite(value) ? Math.max(0, Math.min(max, value)) : 0;
+    const bar = el("span", { class: "bar", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": String(max), "aria-valuenow": String(v), "aria-label": o.label || "Progress" }, el("i"));
+    bar.firstChild.style.setProperty("--p", String(v / max));
+    return el("span", { class: "u-progress" + (o.tone ? " tone-" + o.tone : "") }, bar, el("span", { class: "v" }, o.text || String(Math.round(v)) + (max === 100 ? "%" : "")));
+  }
+
+  /* A favourite toggle. name is who or what it marks, for the screen reader. */
+  function star(pressed, name, onToggle) {
+    const b = el("button", { type: "button", class: "u-star", "aria-pressed": pressed ? "true" : "false", "aria-label": "Favourite " + name }, icon("star"));
+    b.addEventListener("click", () => { const on = b.getAttribute("aria-pressed") !== "true"; b.setAttribute("aria-pressed", on ? "true" : "false"); onToggle && onToggle(on); });
+    return b;
+  }
+
+  /* The glass list panel: a title, filter pills and a search pill on one line, then the table. One blur layer (the panel), none on rows.
+     o: { title, sub, filters: segmented options, search: searchPill options, body: node } */
+  function listPanel(o) {
+    const tools = el("div", { class: "u-list-tools" }, o.filters ? segmented(o.filters) : null, o.search ? searchPill(o.search) : null);
+    const heading = o.title ? el("div", { class: "u-list-title" }, el("h2", null, o.title), o.sub ? el("p", null, o.sub) : null) : null;
+    return el("section", { class: "u-list u-glass-strong", "aria-label": o.title || "List" },
+      heading || tools.childNodes.length ? el("header", null, heading, tools.childNodes.length ? tools : null) : null, o.body);
+  }
+
   // ------------------------------------------------------------------ the time machine
 
   const PRESETS = [["today", "Today"], ["yesterday", "Yesterday"], ["7d", "7 days"], ["30d", "30 days"], ["month", "This month"], ["custom", "Custom"]];
@@ -680,16 +803,16 @@
       const r = presetRange(cur.preset, cur);
       o.onChange({ ...cur, ...r });
     }
-    function drawSeg() {
-      seg.replaceChildren(...presets.map(([id, label]) => el("button", { type: "button", "aria-pressed": cur.preset === id ? "true" : "false",
-        onclick: () => {
-          cur.preset = id;
-          if (id === "custom" && !from.value) { from.value = dateInput(Date.now() / 1000 - 6 * 86400); to.value = dateInput(Date.now() / 1000); }
-          cur.from = from.value; cur.to = to.value;
-          custom.hidden = id !== "custom";
-          drawSeg(); fire();
-        } }, label)));
-    }
+    const presetBtns = presets.map(([id, label]) => el("button", { type: "button", "aria-pressed": "false",
+      onclick: () => {
+        cur.preset = id;
+        if (id === "custom" && !from.value) { from.value = dateInput(Date.now() / 1000 - 6 * 86400); to.value = dateInput(Date.now() / 1000); }
+        cur.from = from.value; cur.to = to.value;
+        custom.hidden = id !== "custom";
+        drawSeg(); fire();
+      } }, label));
+    seg.append(...presetBtns);
+    function drawSeg() { presetBtns.forEach((b, i) => b.setAttribute("aria-pressed", cur.preset === presets[i][0] ? "true" : "false")); }
     [from, to].forEach((i) => i.addEventListener("change", () => { cur.from = from.value; cur.to = to.value; fire(); }));
     drawSeg();
     const zone = el("select", { "aria-label": "Show times in" },
@@ -824,6 +947,6 @@
     tz, setGatewayOffset, setTzMode, tzLabel, startOfDay, startOfMonth, dateInput, fromDateInput, presetRange, fmt,
     initials, plural, debounce, gateway, avatar, logo, status, badge, delta, evidence,
     skeleton, stateBox, errorBox, load, toast, copy, showTip, hideTip, infoTip,
-    columns, line, sparkline, barList, table, rangeControl, trapFocus, commandMenu,
+    columns, line, sparkline, barList, table, segmented, searchPill, progress, star, listPanel, rangeControl, trapFocus, commandMenu,
   };
 })();
