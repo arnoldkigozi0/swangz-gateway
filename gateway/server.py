@@ -11,7 +11,7 @@ import time
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import admin, catalog, geo, google, icons, notify, policy, pricing, proxy, purpose, security, staff, store
+from . import admin, build, catalog, geo, google, icons, notify, policy, pricing, proxy, purpose, security, staff, store
 from . import hub_api, reporting, hub_delivery, hub_export
 from . import business, credentials, departments, enroll, registry, releases
 from .db import DB
@@ -388,7 +388,7 @@ class Handler(BaseHTTPRequestHandler):
                     ok = self.gw.db.scalar("SELECT 1") == 1
                 except Exception:
                     ok = False
-                return self.send_json(200 if ok else 503, {"ok": ok, "uptime_seconds": int(time.time() - self.gw.started_at)})
+                return self.send_json(200 if ok else 503, {"ok": ok, "uptime_seconds": int(time.time() - self.gw.started_at), **build.info()})
             if self.command in ("GET", "HEAD"):
                 return self.serve_static(path)
             self.send_json(404, {"error": "not found"})

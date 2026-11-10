@@ -14,6 +14,7 @@
                                 a verified, compressed copy of the database (safe while running); also sent
                                 off the server when GATEWAY_BACKUP_REMOTE is set
   backup-verify FILE            re-check a backup's checksum and the database inside it
+  backup-verify --latest        restore check: the newest backup is recent, intact and opens as a gateway database
   package-publish FILE --id ID --version V --name N [--department D | --person ID]…
                                 add a package (a .zip) for the Swangz app to install; a department of "*" is
                                 everyone. Anyone it is granted to gets it at their next sync.
@@ -73,7 +74,10 @@ def main(argv=None):
     p.add_argument("--keep", type=int, help="how many to keep on this server (default: GATEWAY_BACKUP_KEEP, else 14)")
     p.add_argument("--no-remote", action="store_true", help="do not send this one off the server")
     p = sub.add_parser("backup-verify")
-    p.add_argument("file")
+    p.add_argument("file", nargs="?")
+    p.add_argument("--latest", action="store_true", help="check the newest backup in --dir instead of a named file")
+    p.add_argument("--dir", help="with --latest (default: GATEWAY_BACKUP_DIR, else <data>/backups)")
+    p.add_argument("--max-age-hours", type=float, default=36, help="with --latest: fail if the newest is older (0 = any age)")
     p = sub.add_parser("package-publish")
     p.add_argument("file")
     p.add_argument("--id", required=True, help="lowercase letters, digits and dashes")
@@ -225,7 +229,14 @@ def run_backup(args, settings, env=None):
 
     env = os.environ if env is None else env
     try:
+        if args.cmd == "backup-verify" and getattr(args, "latest", False):
+            out_dir = args.dir or env.get("GATEWAY_BACKUP_DIR") or os.path.join(settings.data_dir, "backups")
+            got = backup.check_latest(out_dir, args.max_age_hours)
+            print(f"restore check ok: {got['path']} ({got['age_hours']} hours old, schema v{got['schema']}, {got['tables']} tables)")
+            return 0
         if args.cmd == "backup-verify":
+            if not args.file:
+                raise ValueError("name a backup file, or use --latest")
             backup.verify(args.file)
             print(f"{args.file}: checksum and integrity ok")
             return 0

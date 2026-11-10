@@ -1,0 +1,17 @@
+[Unit]
+Description=Swangz AI Hub restore check (the newest backup is recent, intact and opens as a gateway database)
+After=swangz-gateway-backup.service
+
+[Service]
+Type=oneshot
+User=swangz
+WorkingDirectory=/opt/swangz-gateway
+# Reads only the backups folder; the scratch copy is written beside the backup and removed. Never the live database.
+ExecStart=/usr/bin/python3 -m gateway backup-verify --latest
+Nice=10
+IOSchedulingClass=idle
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/swangz-gateway/data
+PrivateTmp=true
