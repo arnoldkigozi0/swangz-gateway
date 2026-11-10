@@ -1,6 +1,6 @@
 # Project state and roadmap
 
-Last updated: 2026-10-31 (the Swangz app). Read `../CLAUDE.md` first for the overview and conventions; `V2.md` for the
+Last updated: 2026-11-10 (sprint day; the block below). Read `../CLAUDE.md` first for the overview and conventions; `V2.md` for the
 control plane added on Oct 9, and `SECURITY.md` for the threat model.
 
 ## Where it stands
@@ -8,6 +8,35 @@ control plane added on Oct 9, and `SECURITY.md` for the threat model.
 The activated v19 baseline passed **301 unit tests** (`python3 -m unittest discover -s tests -t .`).
 Source schema is **v20**; the separate laptop deployment was v19 during feature development. Verify its actual running commit/schema and the activation evidence on PR #6 before rollout. Nothing real has been called by a provider yet — there are no company API keys, and
 the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
+
+### Sprint day — 10 November 2026
+
+Main is `42d8088`, source schema **v25**. 61 pull requests merged today, each on green GitHub CI; the
+full list with merge commits is in `AGENT-PROGRESS.md` under the same date. The figures in the paragraph
+above this block (301 tests, schema v20) describe the October baseline, not today's main.
+
+- **Landed:** the 4 November backlog (device key rotation, signed-release serving, revoke on the next
+  request, extension fail-closed and tab records, session kinds and the read-only paused view, unsigned
+  desktop test builds), the provider-account registry (v24, v25), the core proof (device lifecycle,
+  per-person isolation), version and commit in the console footer and `/healthz`, scheduled restore
+  check, uptime check, password changes that end other sessions and are throttled and audited, an audit
+  sweep over every console route, the Chrome policy pack for company devices, the offline go-live
+  configuration check, and the Google fixed-address switch (`GATEWAY_REQUIRE_FIXED_RETURN`, off by default),
+  and a real-user journey test over HTTP (`tests/test_user_journey.py`).
+- **Exact-match UI (BRIEF 10):** split sign-in, staff shell, staff footer, staff tabs and phone bar,
+  console scene, rail, top bar, avatar menu and Overview. Overlay paths are listed in `AGENT-PROGRESS.md`.
+  The last Overview header change (#97: greeting by recorded name, zero-day tubes, console phone
+  navigation) merged on green CI without screenshots or overlays; its visual acceptance is still owed.
+  Probe passed #92, #94 and #98 per BRIEF 10 on main `8ee5856` (dark and light, 1440x852 and 390x844).
+- **Exact-match work the team has not finished** (twelve items, listed in `AGENT-PROGRESS.md`): the room
+  photo is still hidden behind the page plane and two Overview panels are opaque; a light-theme top-bar
+  defect; overlays missing for #92, #94 and #98; footer scroll at 28-39 fps against a 55 fps gate; the
+  Chrome policy bypass tests are not built; Sentinel's review of #97, #99 and #100 is pending.
+- **Only Arnold can provide:** `ARNOLD-ONLY.md` (provider subscriptions, server and domain, Google
+  client and return address, signing certificates, Chrome policy roll-out, real-phone check).
+- **Not done:** signed installers (auto-update stays off until then), the PWA on a real Android phone
+  and a real iPhone (`MOBILE-READINESS.md` has the five steps), the Chrome policy pack on a real device,
+  a first-party host rehearsal.
 
 ### The Swangz app for people's devices — 31 October 2026
 

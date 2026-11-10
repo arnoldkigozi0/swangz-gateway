@@ -455,7 +455,7 @@ QA remain required. No ready/merge/deploy action.
 
 Branch feature/console-header-tubes, rebased on origin/main f580cb4. Changes: admin-monitor.js header emoji and role-safe greeting, shorter spend caption (plans amount remains in detail tooltip), zero-day tube option; ui.js opt-in zero stubs/labels/value chip; console mobileNav uses four specified routes, separate All pages attention badge; phone-nav.js extracts staff #70 lens for both apps with arrow-key focus; admin/index HTML load shared helper. CSS only in NEW exact-console-details.css, reusing exact-staff-bar.css; admin.css untouched to avoid Anvil's scene/panel work.
 
-Identity limitation: Forge checked /admin/api/me and confirmed there is no existing name field. Header now uses only the first whitespace-separated token of display_name, with neutral Hello when absent; never username or role. Forge's proposed read-only company people.name match requires its backend addition. This token is a display heuristic, not a guaranteed stored first name (titles may precede names). Item 3 remains dependent on that server contract.
+Identity limitation: Forge checked /admin/api/me and confirmed there is no existing name field. Header now uses only the first whitespace-separated token of display_name, with neutral Hello when absent; never username or role. (Superseded on the merged head `585b42c`: the greeting uses the full trimmed display_name, so titles and full names are kept.) Forge's proposed read-only company people.name match requires its backend addition. This token is a display heuristic, not a guaranteed stored first name (titles may precede names). Item 3 remains dependent on that server contract.
 
 Validation: browser syntax script checked39 JS files and staff synthetic model18PASS before rebase; node --check ui.js and extended charts.cjs passed. git diff --check passed. Added CI browser assertions for eight tubes/table rows, five zero stubs labelled0, selected-zero chip. Not run locally: Python/full suite, Chromium, screenshots/50%overlay, contrast/CLS/performance/fallback checks — Anvil holds sole browser slot and Chief explicitly assigned CI-only work. CI runs the chart regression. No claim of exact-match visual acceptance; architect review remains required. No new dependencies, production changes or admin.css edits.
 
@@ -465,3 +465,137 @@ Validation: browser syntax script checked39 JS files and staff synthetic model18
 Attention refresh now updates the console phone badge and accessible label after a deep link and on subsequent refreshes, including clearing it. Lens initialization is guarded. Bar C returns to 260px/104px geometry with 44px inactive targets, truncating only the visible long active label (full accessible name retained, §10.1.1). At 320px the bar is 256px (4px narrower) to fit beside the round button. The shared lens cancels only the duplicate click following pointer navigation. Drawer hides the bar; footer clearance replaces existing main padding. Primary hover retains amber by suppressing the inherited sweep; ghost buttons have explicit hover feedback. CSS remains in exact-console-details.css; admin.css untouched. Greeting uses full trimmed display_name from #99 (including titles), or neutral Hello when null (§10.1.1/5).
 
 Validation: syntax checked 39 JavaScript files; synthetic staff model 18 checks PASS; node --check charts.cjs and git diff --check passed. Extended the existing CI charts.cjs job with phone deep-link coverage in both themes: delayed attention, updated and cleared badges, four links/current route, drawer open/close, helper missing, 260px/104px widths, narrow inactive targets, full recorded name. These new rendered assertions have NOT run locally: Chief assigns CI only and Anvil owns Chromium. Python/full suite, screenshots/overlay, measured contrast, CLS and video timing remain unverified for this revision until CI/architect evidence. Previous a228af7 CI was all green, not evidence for these corrections.
+
+
+## Sprint day — 10 November 2026 (Kampala time)
+
+61 pull requests merged to main between 00:04 and 21:36; main is `42d8088`. Every merge had green
+GitHub CI on its head. The list is drawn from `git log --merges origin/main`.
+
+| Time | PR | Merge | What |
+|---|---|---|---|
+| 00:04 | #59 | `f1c50fa` | Design brief: navigation tabs reference (§10.8, R16) + beyond-the-reference fixes (§10.9, R17) |
+| 00:12 | #10 | `5196617` | Extend product blueprint with Amendment 01 operating model |
+| 01:07 | #50 | `8aa97c1` | Fix notification badge text contrast in dark mode |
+| 01:40 | #49 | `fc4c278` | Browser check: wait for finite animations before axe (theme-flip race) |
+| 04:02 | #9 | `1d663e6` | Document provider authentication, billing and observation boundaries |
+| 07:18 | #13 | `32dfad9` | Rotate device keys in the Swangz app (G3b client) |
+| 07:54 | #16 | `5ed064d` | Serve signed app releases from the gateway (G4 server) |
+| 07:54 | #19 | `9fc0d11` | Revoke people, devices and sessions on the next request (G5 continuity, backend) |
+| 08:00 | #17 | `5296054` | Reuse a verified staged update instead of downloading it again |
+| 08:01 | #20 | `ecdb141` | Extension fails closed on governed sites (G5 continuity, extension) |
+| 08:44 | #26 | `0f29579` | Read-only paused view, session kinds (v23) and Google hd check |
+| 08:44 | #18 | `a1bc0e3` | Unsigned desktop test builds for Windows, macOS and Linux (G5) |
+| 08:44 | #21 | `3b847cd` | Verify extension continuity in real Chromium on CI |
+| 09:05 | #27 | `16dce34` | Fix paused navigation and add read-only reports and updates |
+| 09:05 | #22 | `16eef13` | Close the previous tool's record when a site leaves governance (extension follow-up) |
+| 09:30 | #57 | `704ead6` | Split sign-in: console and staff (Sentinel G2) |
+| 09:52 | #23 | `3a8fe8e` | Extension: close the tab's running record on every navigation |
+| 09:53 | #30 | `2ed1da0` | Keep logout terminal across paused and mobile session races |
+| 10:00 | #56 | `9324599` | Isolate staff shell and exclude seed console grid |
+| 10:41 | #64 | `6a7d881` | Fix main: paused-view harness lacked clearTimeout, which the new staff shell calls |
+| 11:03 | #62 | `a53203e` | Staff: the font hold can never stop the shell rendering |
+| 11:24 | #33 | `279ff5c` | Reject missing and empty unsigned desktop build outputs |
+| 11:33 | #65 | `37ef6ac` | Staff footer: liquid glass panel with the cut-out wordmark (BRIEF §6, §10.3) |
+| 11:47 | #61 | `31ba412` | Core proof: device lifecycle journey and per-person isolation sweeps |
+| 11:48 | #60 | `afadef7` | Ops: running version and commit, scheduled restore check, audit coverage |
+| 12:01 | #66 | `76c4498` | R15 piece 1: console scene in the warm room at the 10.3 scrim |
+| 13:02 | #63 | `c6d7382` | Extension sign-out ends its session at the Hub; paused-view docstrings |
+| 13:26 | #68 | `93c2b6e` | R15 piece 2: 38px top-bar pills and no area eyebrow on desktop |
+| 14:01 | #67 | `c78a1db` | R16 piece 1: staff view tabs as glass bars A and B with a sliding pill (BRIEF 10.8) |
+| 14:06 | #69 | `5013026` | R15 piece 3: console rail, top bar positions and page header per BRIEF 10.3 |
+| 14:30 | #71 | `08bf6be` | Console version line no longer shifts on cold load |
+| 15:06 | #72 | `8ea5979` | Console avatar menu: theme, Sign out and Stop all AI reachable from the top bar (BRIEF 10.7) |
+| 15:13 | #70 | `f2a0e5d` | R16 piece 2: staff phone bottom bar with the pointer lens (BRIEF 10.8 bar C) |
+| 15:36 | #74 | `50a5488` | Staff Updates: say Emailed only when the email was sent |
+| 15:36 | #75 | `eaf5b60` | Live: no layout shift on a cold load |
+| 16:01 | #76 | `cd0208d` | Staff bar badge: valid font declaration (9px) |
+| 16:05 | #77 | `fd9bd14` | Tool initials: 4.5:1 on every brand colour |
+| 16:07 | #73 | `b8d1489` | Console Overview: four KPI cards per BRIEF 10.3 (R16) |
+| 16:25 | #78 | `25d6e32` | Console menu: Stop all AI readable in the light theme |
+| 16:25 | #80 | `f8b95d5` | Audit log: a person changing their own Hub password |
+| 16:32 | #81 | `be16b0f` | Go-live readiness: offline configuration check, Google return-address tests, owner asks |
+| 16:35 | #83 | `5d740ae` | Money under a cent reads "< $0.01" in both apps (BRIEF 10.9.2) |
+| 16:42 | #82 | `f68f16f` | Registry: console can list one person's seats (person= filter) |
+| 16:42 | #85 | `d7f2476` | Chrome policy pack for company devices (deploy/chrome-policy) |
+| 17:01 | #86 | `3db1199` | Empty charts keep their card's size and say what will appear and why (BRIEF 10.9.2) |
+| 17:01 | #84 | `90515d9` | Console at 390: the room shows around the page, not only above it (draft, unmeasured) |
+| 17:02 | #79 | `a67ffb9` | Console Overview: the body per BRIEF 10.7 (R17) |
+| 17:09 | #87 | `794e3c6` | Staff password follow-ups: end other sessions, throttle guesses, audit failed sign-ins |
+| 17:24 | #88 | `28fe3d9` | Uptime check on the server: health-check command + five-minute timer |
+| 17:47 | #90 | `e155c34` | Password and sign-in ruling: console password change, failed sign-in audit, preflight domain, Chrome pack notes |
+| 19:55 | #89 | `2ac674d` | Overview: a count of zero says why (BRIEF 10.9(2)) |
+| 20:27 | #91 | `aaf5f82` | Sign-in ruling follow-ups, audit coverage sweep, Chrome policy names checked |
+| 20:28 | #92 | `f580cb4` | Overview: first card in the reference amber, and the page fits 1440x852 |
+| 20:53 | #94 | `bddf68c` | Overview: Uses by tool as a donut with a legend (BRIEF 10.7) |
+| 20:55 | #95 | `4e4ef5d` | Arnold-only list, go-live asks, real-phone checklist, Chrome pack limits |
+| 20:57 | #93 | `3162bf2` | Security follow-ups: Google fixed-address switch (off by default), company-browser audit row, staff failed sign-ins on Security |
+| 21:18 | #98 | `8ee5856` | Overview: round icons on the two count cards (dashboard-02) |
+| 21:31 | #100 | `6106663` | Real-user journey over HTTP: add, grant, sign in, open, Activity, revoke, sign out |
+| 21:34 | #96 | `4bcc80b` | Decisions: record D-001 to D-019 on main |
+| 21:35 | #99 | `9332c5f` | Console /me: display_name for the signed-in console user |
+| 21:36 | #97 | `42d8088` | Overview header, zero-day tubes and console phone navigation |
+
+What this covers, by track:
+
+- **Backlog from 4 November landed:** #9 #10 #13 #16 #17 #18 #19 #20 #21 #22 #23 #26 #27 #30 #33.
+- **Function:** device key rotation, signed-release serving, revoke on the next request, session kinds
+  (schema v23) and the read-only paused view, provider registry (v24, v25), core proof (#61: device
+  lifecycle journey, per-person isolation sweeps), running version and scheduled restore check (#60),
+  uptime check (#88), staff and console password changes throttled, audited and ending other sessions
+  (#80 #87 #90), audit-coverage sweep of every console route (#91), Google fixed-address switch (#93),
+  offline go-live configuration check (#81), Chrome policy pack for company devices (#85).
+- **Exact-match UI:** split sign-in (#57), staff shell (#56), staff footer (#65), console scene, rail,
+  top bar and Overview (#66 #68 #69 #73 #79 #89 #92 #94 #98 #97), staff tabs and phone bar (#67 #70), avatar
+  menu (#72).
+- **Owner documents:** `docs/ARNOLD-ONLY.md`, `docs/GO-LIVE-ASKS.md`, `docs/MOBILE-READINESS.md` (#95).
+
+Overlays recorded for BRIEF 10.2 (1440x852, dark):
+
+- Sign-in: `docs/screenshots/exact-signin/overlay-{console,staff}-{login,access}-1440.png`
+- Staff shell: `docs/screenshots/exact-staff-shell-v2/verified-eca2728/overlay-{home,tools,requests,projects,weekly}-1440x852-dark.png`
+- Staff footer: `docs/screenshots/exact-footer/overlay-footer-1440x852-dark.png`
+- Console Overview: `docs/screenshots/exact-r15/overlay-overview-1440x852-dark.png`,
+  `piece2-` and `piece3-` beside it, and `docs/screenshots/exact-r16/r17-overlay-overview-1440x852-dark.png`
+
+Console header greeting (#97, with #99): the greeting uses the full trimmed `display_name` from
+`GET /admin/api/me` and says a plain hello when that is null; it never uses the username or the role.
+#97 merged on head `585b42c` with python 3.10, python 3.12, app-window and browser all passing, and
+Chief reports Sentinel approved that head on code and security. Its visual acceptance is **not
+verified**: no screenshots, 50% overlays, colour samples or lens timing were recorded for it, because
+no local browser ran for that work. BRIEF 10.2 acceptance for #97 is still owed.
+
+### Exact-match status at the end of the day
+
+Reported by Chief from Probe's verdicts; this document's author did not re-run them.
+
+- **Probe PASS per BRIEF 10** on main `8ee5856`, dark and light, 1440x852 and 390x844 (axe clean, CLS 0,
+  no overflow): #92 first KPI card tint and Overview fitting 1440x852; #94 Uses by tool donut and
+  legend; #98 round icons on the count cards.
+- **Merged on green CI, not yet visually verified by Probe:** #97 (Overview header, zero-day tubes,
+  console phone navigation).
+
+Team work that is **not finished**. None of it is waiting on Arnold, and none of it belongs in
+`ARNOLD-ONLY.md`:
+
+1. The page-wide plane `.shell #main::before` still hides the room photo; the AI usage and Uses by tool
+   panels are opaque, not glass (Probe confirmed); the BRIEF sample points are not met.
+2. Light theme: the top-bar "Monitor" pill shows as a white box (Probe confirmed).
+3. The 50% overlay images for #92, #94 and #98 are missing; the donut colours were matched by eye; the
+   light-theme yellow arc is likely under 3:1; the legend is not centred with five rows.
+4. The wave line on the second count card is not built.
+5. The phone KPI caption overflow is not started.
+6. What #97 leaves of the header (emoji, amber primary, the recorded name), the eight tubes and phone bar C is
+   unchecked.
+7. Sign-in, staff shell, light theme and phone rounds are untouched since their first merges.
+8. The "Collecting since…" wording and threshold decision is pending.
+9. Footer scroll measures 28-39 fps against the 55 fps gate: **not met**. The reveal change was tried
+   twice with no gain. The figure comes mostly from this laptop's headless browser; a real number needs
+   a device with a real GPU.
+10. `chrome-policy.yml` D-016 bypass tests are not built, so the policy pack's enforcement is unproven
+    (Probe holds a case plan, cases 0-12).
+11. `SECURITY-REVIEW.md` exists only on the `docs/architecture-review` branch, not on main.
+12. Sentinel's post-merge review of #97, #99 and #100 is pending.
+
+Not run today: the full suite on the laptop (CI runs it), any real phone, the Chrome policy pack on a
+real device, signed desktop builds. Desktop auto-update stays off until builds are signed.
