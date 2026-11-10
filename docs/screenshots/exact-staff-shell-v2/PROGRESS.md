@@ -138,3 +138,11 @@ contrast worst 4.99:1 (real photo) / 5.07:1 (brightest point) in light and 6.57 
 reduced-transparency/motion shots. **Open: desktop Tools scrolled at 46fps (gate 55) while the laptop was under
 load from other test runs; the other 19 cells were 58.7–60fps. It needs an idle-machine re-run before the gate is
 called either way.** Details, tagged differences and what was not run: `head-f10a78a/README.md`.
+
+## Head fc982a7 — 10 November, 09:45 (desktop scroll; evidence in `head-fc982a7/`)
+
+Probe verified f193270 except desktop Tools scroll (43–47fps, gate 55), caused by the fixed photo layer. fc982a7 paints
+the room on the page above 900px (viewport-sized, mirrored tile for long pages, no re-smoothing); phones unchanged.
+Interleaved with a no-photo control under the same machine load it averaged 53.1fps against the control's 54.4, so
+the photo's cost is about 1fps, but the laptop was too loaded for either to hold 55. **Gate not demonstrated here;
+Probe's re-run decides it.** New 10.1(3) difference: the room moves with the page on desktop.
