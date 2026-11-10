@@ -88,9 +88,9 @@
       const live = (S.overview || ov).live;
       const streaming = live.filter((t) => t.streaming).length;
       counts.replaceChildren(...[
-        A.kpi({ label: "Need attention", value: att === null ? "—" : String(att.length), tone: urgent ? "alert" : null,
+        A.kpi({ label: "Need attention", icon: "attention", value: att === null ? "—" : String(att.length), tone: urgent ? "alert" : null,
           note: att === null ? "couldn't load" : att.length ? (urgent ? `${urgent} high or medium` : "none high or medium") : zeroReason("attention", { items: 0 }), href: "#/attention" }),
-        A.kpi({ label: "Live requests", value: String(live.length),
+        A.kpi({ label: "Live requests", icon: "live", value: String(live.length),
           foot: live.length ? SUI.status("live", "Live", { breathe: true, plain: true }) : SUI.status("idle", "Quiet", { plain: true }),
           note: live.length ? `${streaming} streaming · ${live.length - streaming} waiting` : zeroReason("live", { live: 0 }), href: "#/live" }),
       ].map((card) => { card.append(el("span", { class: "kpi-go", "aria-hidden": "true" }, icon("arrowUp"))); return card; }));

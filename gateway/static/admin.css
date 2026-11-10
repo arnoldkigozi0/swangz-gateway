@@ -1398,6 +1398,10 @@ html[data-theme="light"] .kpis-exact .kpi .foot > :not(.kpi-note) { background: 
 .overview-exact { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
 .overview-side { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
 .kpis.kpis-exact.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* dashboard-02: each count card opens with a round icon at its top left (34px, 1px rim); our label sits under it. */
+.kpis-exact.two .kpi .label > svg:first-child { display: block; box-sizing: border-box; width: 34px; height: 34px; margin: -4px 0 8px -2px; padding: 9px;
+  border: 1px solid var(--glass-rim); border-radius: 50%; background: rgba(255, 255, 255, .08); color: var(--tx-1); }
+html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { background: rgba(255, 255, 255, .6); }
 .kpis-exact.two .kpi { min-height: 132px; }
 @media (min-width: 1001px) { .kpis-exact.two .kpi { min-height: 220px; } }
 .overview-exact > .panel, .overview-side > .panel { border-radius: 22px; }
