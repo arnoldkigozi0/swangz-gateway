@@ -8,6 +8,52 @@ const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '../..');
 const results = { checks: [], errors: [] };
 const ok = (label, v) => { assert.ok(v, label); results.checks.push(label); };
+
+/* Overview as an L1 (docs/UI.md "Page levels"), at the acceptance sizes: no scroll at 1440x852, and every card opens
+   its filtered list. Findings are gathered so one CI run reports all of them; screenshots land in the CI artifact. */
+const fs = require('node:fs');
+const { AxeBuilder } = require('@axe-core/playwright');
+const OVERVIEW_OUT = process.env.OVERVIEW_OUT || '/tmp/swangz-hub-overview-l1';
+const CARDS = ['#/licences?tab=spend&range=30d', '#/activity?tab=ai&range=30d', '#/activity?tab=usage&range=today&by=person', '#/security?days=7', '#/attention', '#/live'];
+const overviewFindings = [];
+async function overviewPass(page, url, theme) {
+  for (const [width, height, vname] of [[1440, 852, 'desktop'], [390, 844, 'mobile']]) {
+    const name = `${vname}-${theme}`, say = (m) => overviewFindings.push(`${name}: ${m}`);
+    try {
+      const open = async () => {
+        await page.goto(url + '/admin#/'); await page.reload();
+        await page.waitForSelector('main h1');
+        await page.waitForFunction(() => !document.querySelector('main .u-skel-rows, main .u-skel-cards'));
+      };
+      await page.setViewportSize({ width, height });
+      await open();
+      await page.evaluate(() => document.fonts.ready);
+      await page.waitForTimeout(800);
+      const m = await page.evaluate(() => ({ overflow: document.documentElement.scrollWidth - innerWidth, tall: document.documentElement.scrollHeight - innerHeight,
+        cards: [...document.querySelectorAll('main a.kpi-link')].map(a => a.getAttribute('href')),
+        primaries: [...document.querySelectorAll('main .btn.primary')].filter(b => b.getBoundingClientRect().width).length,
+        next: document.querySelector('main .top')?.textContent.includes('Next step') }));
+      if (m.overflow > 0) say(`page scrolls sideways by ${m.overflow}px`);
+      if (vname === 'desktop' && m.tall > 0) say(`page scrolls by ${m.tall}px at 1440x852`);
+      if (JSON.stringify(m.cards) !== JSON.stringify(CARDS)) say('card links: ' + JSON.stringify(m.cards));
+      if (m.primaries !== 1) say(`${m.primaries} primary buttons`);
+      if (!m.next) say('no Next step line');
+      await page.screenshot({ path: path.join(OVERVIEW_OUT, `${name}.png`) });
+      const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+      for (const v of axe.violations) say(`axe ${v.id}: ` + v.nodes.map(n => n.target.join(' ')).join(' | '));
+      if (vname === 'desktop') for (const href of CARDS) {
+        await open();
+        await page.locator(`main a.kpi-link[href="${href}"]`).click();
+        await page.waitForFunction(() => document.querySelector('main h1') && !/^Hello/.test(document.querySelector('main h1').textContent));
+        await page.waitForTimeout(300);
+        const at = await page.evaluate(() => location.hash);
+        const want = new URLSearchParams(href.split('?')[1] || ''), got = new URLSearchParams(at.split('?')[1] || '');
+        if (at.split('?')[0] !== href.split('?')[0]) say(`${href} landed on ${at}`);
+        for (const [k, v] of want) if (got.get(k) !== v) say(`${href} lost ${k}: now ${at}`);
+      }
+    } catch (e) { say('threw ' + e.message); }
+  }
+}
 (async () => {
   const demo = spawn(process.env.PYTHON || 'python3', [path.join(__dirname, 'demo.py')], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
   let browser;
@@ -15,6 +61,7 @@ const ok = (label, v) => { assert.ok(v, label); results.checks.push(label); };
     const info = await new Promise((res, rej) => { let b = ''; const t = setTimeout(() => rej(new Error('demo timeout')), 30000);
       demo.stdout.on('data', d => { b += d; if (b.includes('\n')) { clearTimeout(t); res(JSON.parse(b.split('\n')[0])); } });
       demo.on('exit', c => c && rej(new Error('demo exit ' + c))); });
+    fs.mkdirSync(OVERVIEW_OUT, { recursive: true });
     browser = await chromium.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome' });
     for (const theme of ['dark', 'light']) {
       const ctx = await browser.newContext({ viewport: { width: 1200, height: 800 } });
@@ -124,8 +171,11 @@ const ok = (label, v) => { assert.ok(v, label); results.checks.push(label); };
       await page.waitForFunction(() => document.querySelector('main h1')?.textContent.includes('Dr Jane Doe'));
       ok(theme + ': greeting retains full recorded name including title', await page.locator('main h1').textContent() === 'Hello, Dr Jane Doe! 👋');
       await ctx.close();
+      await overviewPass(page, info.url, theme);
     }
     ok('no console or page errors', results.errors.length === 0);
+    fs.writeFileSync(path.join(OVERVIEW_OUT, 'findings.json'), JSON.stringify(overviewFindings, null, 1));
+    assert.deepEqual(overviewFindings, [], 'Overview findings');
   } finally {
     if (browser) await browser.close();
     demo.kill();
