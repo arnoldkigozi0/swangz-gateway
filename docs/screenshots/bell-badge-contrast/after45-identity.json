@@ -1,0 +1,34 @@
+{
+  "verified_baseline": "c8dfcb10e1aa419c4cefc55f50b69ccdd134ab64",
+  "verified_tree": "45a8aecd3f6e46a57032651175c6c1393c9a9550",
+  "integrated_main": "be81749aadb7b9b1eeb3e61f4839d02903a09cae",
+  "merge_commit": "3309f5c889a3cc3396cad51074d9f4c6a178f5a2",
+  "conflicts": [],
+  "files": [
+    {
+      "path": "gateway/static/admin.css",
+      "baseline_blob": "75c1d3f0a0fb984fd85fd0441ab5aea8d1f2dd1d",
+      "sha256": "711a2eed0ed71cb4f5b568a08b89afb13068a29f96189de41c4829e83790591f",
+      "identical": true
+    },
+    {
+      "path": "docs/screenshots/glass-r3/check.cjs",
+      "baseline_blob": "d73e56c59b4f5da4709d8c80769d6a86b0e7340d",
+      "sha256": "c6c148b12336eb2d16fcb9aec3a399ec699ba0e00fae0ef3082b74e5390c8d21",
+      "identical": true
+    },
+    {
+      "path": "gateway/static/tokens.css",
+      "baseline_blob": "bcc94617334cd8d642b54e747d6eddcdbfcb2f25",
+      "sha256": "f5c9815fed62c3cf832a1cf01ace027dbc2376b5a41854026ee8aa4ca0aac399",
+      "identical": true
+    },
+    {
+      "path": "tests/browser/check.cjs",
+      "baseline_blob": "6c1a83c7eede8bcf2129c5ec0c3f519319e02a6e",
+      "sha256": "6f4d294600f114102b89f0f5ea585f72e6d489adc084c405f614160cbf7e2f7f",
+      "identical": true
+    }
+  ],
+  "shared_ui_matches_main": true
+}
