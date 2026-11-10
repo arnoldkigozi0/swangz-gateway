@@ -22,6 +22,10 @@ INVITE_SECONDS = 7 * 86400
 ROUTES = []
 
 
+class Streamed:
+    """Returned by a handler that has already written its own response (a large file sent in blocks)."""
+
+
 def route(method, pattern, signed_in=True):
     def wrap(fn):
         ROUTES.append((method, re.compile(pattern), fn, signed_in))
@@ -55,6 +59,8 @@ def dispatch(h, gw, path, query):
             result = fn(ctx, **{k: unquote(v) for k, v in m.groupdict().items()})
         except ApiError as err:
             return h.send_json(err.status, {"error": err.message, **({"code": err.code, "details": err.details} if err.code else {})})
+        if isinstance(result, Streamed):
+            return
         if isinstance(result, tuple):
             if isinstance(result[0], bytes):
                 return h.send_bytes(200, result[0], result[1], result[2])
