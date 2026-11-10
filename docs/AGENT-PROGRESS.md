@@ -592,10 +592,32 @@ Team work that is **not finished**. None of it is waiting on Arnold, and none of
 9. Footer scroll measures 28-39 fps against the 55 fps gate: **not met**. The reveal change was tried
    twice with no gain. The figure comes mostly from this laptop's headless browser; a real number needs
    a device with a real GPU.
-10. `chrome-policy.yml` D-016 bypass tests are not built, so the policy pack's enforcement is unproven
-    (Probe holds a case plan, cases 0-12).
+10. The D-016 bypass tests are partly built: `chrome-policy.yml` (#107) runs groups A, B and D on Linux
+    Google Chrome. Groups C, E, F, X, P, G, H, I and the Windows and macOS cells are not built, so the
+    pack's enforcement is proven only for those three groups on that one system. The plan itself
+    (`docs/CHROME-POLICY-BYPASS-TESTS.md`) is still draft PR #106, not on main.
 11. `SECURITY-REVIEW.md` exists only on the `docs/architecture-review` branch, not on main.
 12. Sentinel's post-merge review of #97, #99 and #100 is pending.
 
 Not run today: the full suite on the laptop (CI runs it), any real phone, the Chrome policy pack on a
 real device, signed desktop builds. Desktop auto-update stays off until builds are signed.
+
+### Late merges, 21:50 to 22:16
+
+Six more pull requests merged on green CI after the block above was written; main is `4e5b610` and the
+day's count is 67.
+
+| Time | PR | Merge | What |
+|---|---|---|---|
+| 21:50 | #102 | `8a501c6` | Donut follow-up: light-theme arc contrast, legend pitch, 50% overlay |
+| 22:01 | #103 | `7a89e8c` | Overview: room visible in dark, glass lower panels, no page-wide plane |
+| 22:02 | #104 | `4281820` | Light top bar: area label backing is a 38px pill |
+| 22:09 | #101 | `3f6faad` | Progress and state: the 10 November sprint day |
+| 22:13 | #105 | `01a34b3` | Browser check: Overview card text stays inside its card on phones |
+| 22:16 | #107 | `4e5b610` | Chrome policy pack: bypass checks in CI, step 1 |
+
+Probe's verdicts on main `4e5b610`, as relayed by Chief at 22:51: #97, #102, #104 and #105 PASS; #103
+PARTIAL (the lower sample point cannot be reached with `room-warm.webp`). This supersedes item 6 and the
+"not yet visually verified" note on #97 above. Probe's own written report is the record; it was not read
+for this entry.
+

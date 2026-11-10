@@ -11,7 +11,7 @@ the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
 
 ### Sprint day — 10 November 2026
 
-Main is `42d8088`, source schema **v25**. 61 pull requests merged today, each on green GitHub CI; the
+Main is `4e5b610`, source schema **v25**. 67 pull requests merged today, each on green GitHub CI; the
 full list with merge commits is in `AGENT-PROGRESS.md` under the same date. The figures in the paragraph
 above this block (301 tests, schema v20) describe the October baseline, not today's main.
 
@@ -31,7 +31,7 @@ above this block (301 tests, schema v20) describe the October baseline, not toda
 - **Exact-match work the team has not finished** (twelve items, listed in `AGENT-PROGRESS.md`): the room
   photo is still hidden behind the page plane and two Overview panels are opaque; a light-theme top-bar
   defect; overlays missing for #92, #94 and #98; footer scroll at 28-39 fps against a 55 fps gate; the
-  Chrome policy bypass tests are not built; Sentinel's review of #97, #99 and #100 is pending.
+  Chrome policy bypass tests cover groups A, B and D on Linux Chrome only (#107); Sentinel's review of #97, #99 and #100 is pending.
 - **Only Arnold can provide:** `ARNOLD-ONLY.md` (provider subscriptions, server and domain, Google
   client and return address, signing certificates, Chrome policy roll-out, real-phone check).
 - **Not done:** signed installers (auto-update stays off until then), the PWA on a real Android phone
