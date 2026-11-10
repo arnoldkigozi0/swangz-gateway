@@ -30,5 +30,39 @@ class MoneyFormatTests(unittest.TestCase):
         self.assertEqual(re.findall(r"toFixed\(([3-9])\)", body), [])
 
 
+def zero_reason(calls):
+    source = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
+    fn = re.search(r"\n  (function zeroReason\(card, n\) \{\n.*?\n  \})\n", source, re.S).group(1)
+    script = fn + "\nconsole.log(JSON.stringify(" + json.dumps(calls) + ".map((c) => zeroReason(c[0], c[1]))));"
+    out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30, check=True)
+    return json.loads(out.stdout)
+
+
+@unittest.skipUnless(shutil.which("node"), "Node is not installed")
+class OverviewZeroReasonTests(unittest.TestCase):
+    def test_a_zero_count_carries_one_line_on_why(self):
+        # BRIEF 10.9(2): counts of 0 show "0" with a one-line reason
+        self.assertEqual(zero_reason([
+            ["spend", {"cost": 0, "requests": 0}], ["spend", {"cost": 0, "requests": 4}],
+            ["requests", {"requests": 0, "before": 0}], ["requests", {"requests": 0, "before": 1200}],
+            ["people", {"today": 0, "month": 0}], ["people", {"today": 0, "month": 7}],
+            ["security", {"events": 0}], ["attention", {"items": 0}], ["live", {"live": 0}]]),
+            ["No metered requests in 30 days", "Requests ran, none carried a cost",
+             "No requests in 30 days", "No requests in 30 days · 1,200 in the 30 before",
+             "Nobody has used AI in 30 days", "Nobody has used AI today · 7 in 30 days",
+             "No warnings in 7 days", "Nothing is flagged right now", "No requests in flight"])
+
+    def test_a_count_that_is_not_zero_keeps_the_cards_usual_note(self):
+        self.assertEqual(zero_reason([
+            ["spend", {"cost": 0.004, "requests": 1}], ["requests", {"requests": 3, "before": 0}],
+            ["people", {"today": 1, "month": 1}], ["security", {"events": 2}],
+            ["attention", {"items": 1}], ["live", {"live": 1}], ["unknown", {}]]), [None] * 7)
+
+    def test_every_overview_card_asks_for_its_reason(self):
+        source = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
+        for card in ("spend", "requests", "people", "security", "attention", "live"):
+            self.assertIn('zeroReason("' + card + '"', source)
+
+
 if __name__ == "__main__":
     unittest.main()

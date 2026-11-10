@@ -23,6 +23,18 @@
 
   /* The overview leads with one summary strip; the detail sits in tabs, one question each:
      what's happening now, how use and spend are moving, who and what lead, where licences leak. */
+  /* BRIEF 10.9(2): a count of 0 says "0" with one line on why. Each line states only what the numbers on the card
+     show; a value that is not zero returns null and the card keeps its usual note. */
+  function zeroReason(card, n) {
+    if (card === "spend") return n.cost ? null : n.requests ? "Requests ran, none carried a cost" : "No metered requests in 30 days";
+    if (card === "requests") return n.requests ? null : n.before ? "No requests in 30 days · " + n.before.toLocaleString() + " in the 30 before" : "No requests in 30 days";
+    if (card === "people") return n.today ? null : n.month ? "Nobody has used AI today · " + n.month.toLocaleString() + " in 30 days" : "Nobody has used AI in 30 days";
+    if (card === "security") return n.events ? null : "No warnings in 7 days";
+    if (card === "attention") return n.items ? null : "Nothing is flagged right now";
+    if (card === "live") return n.live ? null : "No requests in flight";
+    return null;
+  }
+
   async function pageOverview(params) {
     await A.toolIndex().catch(() => null);
     const [trends, attention, security, lic] = await Promise.allSettled([
@@ -41,20 +53,23 @@
       const secCount = sec ? sec.events.filter((e) => e.severity !== "info").length : null;
       const subs = licence ? licence.summary.subscriptions_month : 0;
       const reqChange = tr.previous.requests ? (tr.current.requests - tr.previous.requests) / tr.previous.requests : null;
+      const spendWhy = zeroReason("spend", { cost: tr.current.cost, requests: tr.current.requests });
+      const reqWhy = zeroReason("requests", { requests: tr.current.requests, before: tr.previous.requests });
       /* BRIEF 10.3 / 10.7: four separate cards, the first in accent glass. Each opens the page that holds its detail. */
       kpis = el("div", { class: "kpis four kpis-exact" }, [
         A.kpi({ label: "AI spend · 30 days", value: fmt.money(tr.current.cost), tone: "gold",
           tip: "Metered use through the gateway, priced from the model price table when each request ran. Company plans are a fixed monthly cost on top.",
-          foot: SUI.delta(change), note: subs ? `vs the 30 days before · + ${fmt.moneyShort(subs)}/mo in plans` : "vs the 30 days before",
+          foot: spendWhy ? null : SUI.delta(change),
+          note: (spendWhy || "vs the 30 days before") + (subs ? ` · + ${fmt.moneyShort(subs)}/mo in plans` : ""),
           href: "#/licences?tab=spend&range=30d" }),
         A.kpi({ label: "AI requests · 30 days", value: fmt.num(tr.current.requests),
-          foot: SUI.delta(reqChange, { upIsGood: true }), note: "vs the 30 days before", href: "#/activity?tab=ai" }),
-        A.kpi({ label: "Active people · today", value: String(today.people), note: `${tr.current.people} in 30 days`,
+          foot: reqWhy ? null : SUI.delta(reqChange, { upIsGood: true }), note: reqWhy || "vs the 30 days before", href: "#/activity?tab=ai" }),
+        A.kpi({ label: "Active people · today", value: String(today.people), note: zeroReason("people", { today: today.people, month: tr.current.people }) || `${tr.current.people} in 30 days`,
           tip: "People who made an AI request, opened a tool from the portal, or visited an approved AI website.", href: "#/activity?tab=usage" }),
         A.kpi({ label: "Security events · 7 days", value: secCount === null ? "—" : String(secCount),
           tone: sec && sec.posture !== "healthy" ? "alert" : null,
           foot: sec ? SUI.status(sec.posture, { healthy: "Healthy", watch: "Worth a look", elevated: "Elevated" }[sec.posture], { plain: true }) : null,
-          note: sec ? "warnings and above" : "couldn't load", href: "#/security" }),
+          note: sec ? zeroReason("security", { events: secCount }) || "warnings and above" : "couldn't load", href: "#/security" }),
       ].map((card) => { card.append(el("span", { class: "kpi-go", "aria-hidden": "true" }, icon("arrowUp"))); return card; }));
     } else kpis = SUI.errorBox(trends.reason, () => A.render(), "The summary couldn't load");
 
@@ -74,10 +89,10 @@
       const streaming = live.filter((t) => t.streaming).length;
       counts.replaceChildren(...[
         A.kpi({ label: "Need attention", value: att === null ? "—" : String(att.length), tone: urgent ? "alert" : null,
-          note: att === null ? "couldn't load" : att.length ? (urgent ? `${urgent} high or medium` : "none high or medium") : "everything looks normal", href: "#/attention" }),
+          note: att === null ? "couldn't load" : att.length ? (urgent ? `${urgent} high or medium` : "none high or medium") : zeroReason("attention", { items: 0 }), href: "#/attention" }),
         A.kpi({ label: "Live requests", value: String(live.length),
           foot: live.length ? SUI.status("live", "Live", { breathe: true, plain: true }) : SUI.status("idle", "Quiet", { plain: true }),
-          note: live.length ? `${streaming} streaming · ${live.length - streaming} waiting` : "nobody is waiting on a model", href: "#/live" }),
+          note: live.length ? `${streaming} streaming · ${live.length - streaming} waiting` : zeroReason("live", { live: 0 }), href: "#/live" }),
       ].map((card) => { card.append(el("span", { class: "kpi-go", "aria-hidden": "true" }, icon("arrowUp"))); return card; }));
     }
     drawCounts();
