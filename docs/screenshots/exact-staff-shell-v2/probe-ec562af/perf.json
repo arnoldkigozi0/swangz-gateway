@@ -1,0 +1,541 @@
+{
+ "1440/dark/home": {
+  "cls": [
+   {
+    "t": 831,
+    "v": 0.000006688714462702139,
+    "src": [
+     "H2."
+    ],
+    "from": [
+     [
+      379,
+      376,
+      31,
+      31
+     ]
+    ]
+   }
+  ],
+  "blurCount": 7,
+  "blurNames": [
+   "ASIDE.hub-staff-side staff-rail",
+   "BUTTON.staff-workspace",
+   "BUTTON.staff-search",
+   "BUTTON.staff-new",
+   "TIME.staff-clock",
+   "SECTION.hero art home-hero",
+   "SECTION.home-tools"
+  ],
+  "blurOverlaps": [],
+  "scrollable": 0,
+  "frames": 91,
+  "fps": 60.4,
+  "maxFrame": 18,
+  "p95": 18,
+  "over50": 0
+ },
+ "1440/dark/tools": {
+  "cls": [
+   {
+    "t": 461,
+    "v": 0.000003883495805077378,
+    "src": [
+     "SPAN.",
+     "SMALL.",
+     "svg.[object SVGAnimatedString]"
+    ],
+    "from": [
+     [
+      24,
+      24,
+      25,
+      26
+     ],
+     [
+      40,
+      39,
+      11,
+      11
+     ],
+     [
+      33,
+      33,
+      10,
+      10
+     ]
+    ]
+   }
+  ],
+  "blurCount": 6,
+  "blurNames": [
+   "ASIDE.hub-staff-side staff-rail",
+   "BUTTON.staff-workspace",
+   "BUTTON.staff-search",
+   "BUTTON.staff-new",
+   "TIME.staff-clock",
+   "SECTION.section first"
+  ],
+  "blurOverlaps": [],
+  "scrollable": 4,
+  "frames": 32,
+  "fps": 18.4,
+  "maxFrame": 344,
+  "p95": 324,
+  "over50": 4
+ },
+ "1440/dark/requests": {
+  "cls": [],
+  "blurCount": 6,
+  "blurNames": [
+   "ASIDE.hub-staff-side staff-rail",
+   "BUTTON.staff-workspace",
+   "BUTTON.staff-search",
+   "BUTTON.staff-new",
+   "TIME.staff-clock",
+   "SECTION.section first"
+  ],
+  "blurOverlaps": [],
+  "scrollable": 0,
+  "frames": 91,
+  "fps": 60.6,
+  "maxFrame": 24,
+  "p95": 18,
+  "over50": 0
+ },
+ "1440/light/home": {
+  "cls": [
+   {
+    "t": 620,
+    "v": 0.0000037527440879846983,
+    "src": [
+     "SPAN.",
+     "svg.[object SVGAnimatedString]"
+    ],
+    "from": [
+     [
+      24,
+      24,
+      25,
+      25
+     ],
+     [
+      33,
+      33,
+      10,
+      10
+     ]
+    ]
+   },
+   {
+    "t": 669,
+    "v": 0.000006688714462702139,
+    "src": [
+     "H2."
+    ],
+    "from": [
+     [
+      379,
+      376,
+      31,
+      31
+     ]
+    ]
+   }
+  ],
+  "blurCount": 7,
+  "blurNames": [
+   "ASIDE.hub-staff-side staff-rail",
+   "BUTTON.staff-workspace",
+   "BUTTON.staff-search",
+   "BUTTON.staff-new",
+   "TIME.staff-clock",
+   "SECTION.hero art home-hero",
+   "SECTION.home-tools"
+  ],
+  "blurOverlaps": [],
+  "scrollable": 0,
+  "frames": 90,
+  "fps": 60.1,
+  "maxFrame": 27,
+  "p95": 19,
+  "over50": 0
+ },
+ "1440/light/tools": {
+  "cls": [
+   {
+    "t": 462,
+    "v": 0.000003883495805077378,
+    "src": [
+     "SPAN.",
+     "SMALL.",
+     "svg.[object SVGAnimatedString]"
+    ],
+    "from": [
+     [
+      24,
+      24,
+      25,
+      26
+     ],
+     [
+      40,
+      39,
+      11,
+      11
+     ],
+     [
+      33,
+      33,
+      10,
+      10
+     ]
+    ]
+   }
+  ],
+  "blurCount": 6,
+  "blurNames": [
+   "ASIDE.hub-staff-side staff-rail",
+   "BUTTON.staff-workspace",
+   "BUTTON.staff-search",
+   "BUTTON.staff-new",
+   "TIME.staff-clock",
+   "SECTION.section first"
+  ],
+  "blurOverlaps": [],
+  "scrollable": 4,
+  "frames": 22,
+  "fps": 13.9,
+  "maxFrame": 331,
+  "p95": 330,
+  "over50": 4
+ },
+ "1440/light/requests": {
+  "cls": [
+   {
+    "t": 448,
+    "v": 0.000003883495805077378,
+    "src": [
+     "SPAN.",
+     "SMALL.",
+     "svg.[object SVGAnimatedString]"
+    ],
+    "from": [
+     [
+      24,
+      24,
+      25,
+      26
+     ],
+     [
+      40,
+      39,
+      11,
+      11
+     ],
+     [
+      33,
+      33,
+      10,
+      10
+     ]
+    ]
+   }
+  ],
+  "blurCount": 6,
+  "blurNames": [
+   "ASIDE.hub-staff-side staff-rail",
+   "BUTTON.staff-workspace",
+   "BUTTON.staff-search",
+   "BUTTON.staff-new",
+   "TIME.staff-clock",
+   "SECTION.section first"
+  ],
+  "blurOverlaps": [],
+  "scrollable": 0,
+  "frames": 91,
+  "fps": 60.5,
+  "maxFrame": 19,
+  "p95": 17,
+  "over50": 0
+ },
+ "390/dark/home": {
+  "cls": [
+   {
+    "t": 636,
+    "v": 0.00006723274928167002,
+    "src": [
+     "H2.",
+     "SPAN.",
+     "SMALL.",
+     "svg.[object SVGAnimatedString]"
+    ],
+    "from": [
+     [
+      435,
+      432,
+      31,
+      31
+     ],
+     [
+      8,
+      8,
+      25,
+      26
+     ],
+     [
+      24,
+      23,
+      11,
+      11
+     ],
+     [
+      17,
+      17,
+      10,
+      10
+     ]
+    ]
+   }
+  ],
+  "blurCount": 4,
+  "blurNames": [
+   "BUTTON.staff-workspace",
+   "BUTTON.staff-search",
+   "SECTION.hero art home-hero",
+   "SECTION.home-tools"
+  ],
+  "blurOverlaps": [],
+  "scrollable": 86,
+  "frames": 21,
+  "fps": 13.5,
+  "maxFrame": 123,
+  "p95": 115,
+  "over50": 18
+ },
+ "390/dark/tools": {
+  "cls": [
+   {
+    "t": 449,
+    "v": 0.00002469664272521351,
+    "src": [
+     "SPAN.",
+     "SMALL.",
+     "svg.[object SVGAnimatedString]"
+    ],
+    "from": [
+     [
+      8,
+      8,
+      25,
+      26
+     ],
+     [
+      24,
+      23,
+      11,
+      11
+     ],
+     [
+      17,
+      17,
+      10,
+      10
+     ]
+    ]
+   }
+  ],
+  "blurCount": 3,
+  "blurNames": [
+   "BUTTON.staff-workspace",
+   "BUTTON.staff-search",
+   "SECTION.section first"
+  ],
+  "blurOverlaps": [],
+  "scrollable": 709,
+  "frames": 16,
+  "fps": 10.2,
+  "maxFrame": 208,
+  "p95": 208,
+  "over50": 13
+ },
+ "390/dark/requests": {
+  "cls": [
+   {
+    "t": 496,
+    "v": 0.000023865142292401338,
+    "src": [
+     "SPAN.",
+     "svg.[object SVGAnimatedString]"
+    ],
+    "from": [
+     [
+      8,
+      8,
+      25,
+      25
+     ],
+     [
+      17,
+      17,
+      10,
+      10
+     ]
+    ]
+   }
+  ],
+  "blurCount": 3,
+  "blurNames": [
+   "BUTTON.staff-workspace",
+   "BUTTON.staff-search",
+   "SECTION.section first"
+  ],
+  "blurOverlaps": [],
+  "scrollable": 0,
+  "frames": 91,
+  "fps": 60.3,
+  "maxFrame": 19,
+  "p95": 18,
+  "over50": 0
+ },
+ "390/light/home": {
+  "cls": [
+   {
+    "t": 544,
+    "v": 0.000023865142292401338,
+    "src": [
+     "SPAN.",
+     "svg.[object SVGAnimatedString]"
+    ],
+    "from": [
+     [
+      8,
+      8,
+      25,
+      25
+     ],
+     [
+      17,
+      17,
+      10,
+      10
+     ]
+    ]
+   },
+   {
+    "t": 566,
+    "v": 0.0000425361065564565,
+    "src": [
+     "H2."
+    ],
+    "from": [
+     [
+      435,
+      432,
+      31,
+      31
+     ]
+    ]
+   }
+  ],
+  "blurCount": 4,
+  "blurNames": [
+   "BUTTON.staff-workspace",
+   "BUTTON.staff-search",
+   "SECTION.hero art home-hero",
+   "SECTION.home-tools"
+  ],
+  "blurOverlaps": [],
+  "scrollable": 86,
+  "frames": 20,
+  "fps": 13.1,
+  "maxFrame": 154,
+  "p95": 154,
+  "over50": 16
+ },
+ "390/light/tools": {
+  "cls": [
+   {
+    "t": 602,
+    "v": 0.00002469664272521351,
+    "src": [
+     "SPAN.",
+     "SMALL.",
+     "svg.[object SVGAnimatedString]"
+    ],
+    "from": [
+     [
+      8,
+      8,
+      25,
+      26
+     ],
+     [
+      24,
+      23,
+      11,
+      11
+     ],
+     [
+      17,
+      17,
+      10,
+      10
+     ]
+    ]
+   }
+  ],
+  "blurCount": 3,
+  "blurNames": [
+   "BUTTON.staff-workspace",
+   "BUTTON.staff-search",
+   "SECTION.section first"
+  ],
+  "blurOverlaps": [],
+  "scrollable": 709,
+  "frames": 2,
+  "fps": 1.1,
+  "maxFrame": 1791,
+  "p95": 1791,
+  "over50": 1
+ },
+ "390/light/requests": {
+  "cls": [
+   {
+    "t": 529,
+    "v": 0.000023865142292401338,
+    "src": [
+     "SPAN.",
+     "svg.[object SVGAnimatedString]"
+    ],
+    "from": [
+     [
+      8,
+      8,
+      25,
+      25
+     ],
+     [
+      17,
+      17,
+      10,
+      10
+     ]
+    ]
+   }
+  ],
+  "blurCount": 3,
+  "blurNames": [
+   "BUTTON.staff-workspace",
+   "BUTTON.staff-search",
+   "SECTION.section first"
+  ],
+  "blurOverlaps": [],
+  "scrollable": 0,
+  "frames": 90,
+  "fps": 60.1,
+  "maxFrame": 23,
+  "p95": 20,
+  "over50": 0
+ }
+}

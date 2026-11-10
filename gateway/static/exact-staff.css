@@ -1,0 +1,242 @@
+@font-face { font-family: "Swangz Staff Poppins"; src: url("/static/fonts/Poppins-400-latin.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Swangz Staff Poppins"; src: url("/static/fonts/Poppins-500-latin.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Swangz Staff Poppins"; src: url("/static/fonts/Poppins-600-latin.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "Swangz Staff Poppins"; src: url("/static/fonts/Poppins-700-latin.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Swangz Staff Poppins"; src: url("/static/fonts/Poppins-800-latin.woff2") format("woff2"); font-weight: 800; font-display: swap; }
+
+/* Staff shell, BRIEF §10. Geometry at 1440×852; shell tokens are isolated here; no seed exact.css is imported.
+   Imported by portal.css before it paints; selectors are scoped to the signed-in staff shell. */
+.hub-staff-app.staff-exact { display: block; grid-template-columns: none; }
+/* Reveal hold and Poppins latch: portal.js staffFontLatch(). Poppins applies only when it was loaded at the reveal. */
+html.staff-poppins .staff-exact { --font: "Swangz Staff Poppins", "Helvetica Neue", Arial, sans-serif; }
+html.staff-hold .staff-exact { visibility: hidden; }
+
+.staff-exact {
+  --font: "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font);
+  --accent-pill: linear-gradient(180deg,#F7AE62,#EE8F3E);
+  --on-primary: #2A170A; --x-blur: blur(18px) saturate(130%);
+  --staff-rail-w: 62px; --staff-rail-x: 67px; --staff-content-x: 173px;
+  --staff-right: 97px; --staff-pill-h: 38px; --staff-icon-step: 45px;
+  --staff-rail-bg: rgba(30,26,24,.80); --staff-active-bg: #F2EEEC; --staff-active-tx: #1C1816;
+  --staff-tx: #FFF8F2; --staff-muted: #E2D6CC; --staff-pill-bg: rgba(38,30,26,.82);
+  --staff-panel-bg: rgba(28,24,22,.82);
+  --staff-panel-radius: 22px; --staff-panel-pad: 18px;
+  --staff-hero-scrim: var(--staff-panel-bg);
+  --staff-rim: rgba(255,255,255,.20); --staff-danger: #B51E33;
+  display: block; min-height: 100dvh; padding: 0 var(--staff-right) 32px var(--staff-content-x);
+  background: linear-gradient(rgba(12,10,9,.32), rgba(12,10,9,.32)), url('/static/room-warm.webp') center / cover fixed;
+}
+html[data-theme="light"] .staff-exact {
+  --staff-rail-bg: rgba(252,248,242,.92); --staff-active-bg: #1C1816; --staff-active-tx: #F2EEEC;
+  --staff-hero-scrim: rgba(252,248,242,.94);
+  --staff-panel-bg: rgba(252,248,242,.94);
+  --staff-tx: #1C1816; --staff-muted: #4B3527; --staff-pill-bg: rgba(252,248,242,.92); --staff-rim: rgba(82,60,44,.28);
+  background-image: linear-gradient(rgba(250,244,236,.42),rgba(250,244,236,.42)),url('/static/room-warm.webp');
+}
+.staff-exact .hub-staff-main { min-width: 0; }
+.staff-exact .hub-staff-side.staff-rail {
+  position: fixed; left: var(--staff-rail-x); top: 22px; bottom: 20px; width: var(--staff-rail-w); height: auto;
+  display: flex; flex-direction: column; align-items: center; gap: 0; padding: 7px 0 8px;
+  border: 1px solid var(--staff-rim); border-radius: 31px; background: var(--staff-rail-bg); overflow: visible; z-index: var(--z-nav);
+  box-shadow: inset 0 1px rgba(255,255,255,.06),0 20px 50px -24px rgba(0,0,0,.6);
+  backdrop-filter: var(--x-blur); -webkit-backdrop-filter: var(--x-blur);
+}
+.staff-exact .staff-brand { width: 36px; height: 36px; display: grid; place-items: center; margin-bottom: 27px; border-radius: 10px; background: var(--accent-pill); }
+.staff-exact .staff-brand img { width: 26px; height: 26px; }
+.staff-exact .staff-rail-pages, .staff-exact .staff-rail-foot { display: flex; flex-direction: column; align-items: center; gap: 9px; }
+.staff-exact .staff-rail-pages { min-height: 0; overflow-y: auto; scrollbar-width: thin; padding: 2px 5px; margin: -2px -5px; }
+.staff-exact .staff-rail-foot { margin-top: auto; padding-top: 14px; gap: 11px; }
+.staff-exact .staff-rail :is(nav a, nav button) {
+  flex: none; width: 36px; height: 36px; min-height: 36px; display: grid; place-items: center;
+  padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--staff-muted); cursor: pointer; text-decoration: none;
+}
+.staff-exact .staff-rail svg { width: 18px; height: 18px; }
+.staff-exact .staff-rail :is(a.on, a[aria-current="page"]) { background: var(--staff-active-bg); color: var(--staff-active-tx); }
+.staff-exact .staff-rail :is(nav a, nav button):hover { background: var(--staff-pill-bg); color: var(--staff-tx); }
+.staff-exact .staff-rail a.on:hover { background: var(--staff-active-bg); color: var(--staff-active-tx); }
+.staff-exact .topbar.staff-topbar { position: relative; top: auto; border: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; z-index: var(--z-nav); }
+.staff-exact .staff-topbar .inner {
+  display: grid; grid-template-columns: 135px 254px 345px minmax(0,1fr); gap: 15px;
+  height: 76px; padding: 0 0 0 2px; max-width: none; margin: 0; align-items: start; padding-top: 19px;
+}
+.staff-exact :is(.staff-workspace,.staff-search,.staff-clock,.staff-new) {
+  height: var(--staff-pill-h); min-height: var(--staff-pill-h); border-radius: 19px; border: 1px solid var(--staff-rim);
+  background: var(--staff-pill-bg); color: var(--staff-tx); font: 500 11px/1.2 var(--font);
+  box-shadow: inset 0 1px rgba(255,255,255,.06); backdrop-filter: var(--x-blur); -webkit-backdrop-filter: var(--x-blur);
+}
+.staff-exact .staff-workspace { display: flex; align-items: center; padding: 0 7px 0 4px; gap: 7px; cursor: pointer; }
+.staff-exact .staff-workspace img { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--accent-pill); }
+.staff-exact .staff-workspace span { display: grid; gap: 2px; text-align: left; }
+.staff-exact .staff-workspace strong { font-size: 10px; font-weight: 600; white-space: nowrap; }
+.staff-exact .staff-workspace small { font-size: 8px; color: var(--staff-muted); }
+.staff-exact .staff-workspace > svg { margin-left: auto; width: 10px; height: 10px; flex: none; }
+.staff-exact .staff-crumb { color: var(--staff-tx); font: 500 11px/38px var(--font); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.staff-exact .staff-search { display: flex; align-items: center; gap: 9px; padding: 0 7px 0 14px; text-align: left; cursor: pointer; color: var(--staff-muted); }
+.staff-exact .staff-search svg { width: 13px; height: 13px; }
+.staff-exact .staff-search kbd { margin-left: auto; font: 500 9px/1 var(--font); border-radius: 10px; padding: 4px 7px; background: rgba(128,110,95,.18); }
+.staff-exact .staff-tools { display: grid; grid-template-columns: 83px 76px 38px 36px; align-items: center; gap: 16px; margin-right: -20px; justify-self: end; }
+.staff-exact .staff-new { width: 83px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--accent-pill); color: var(--on-primary); border-color: transparent; cursor: pointer; }
+.staff-exact .staff-new svg { width: 13px; height: 13px; }
+.staff-exact .staff-clock { position: relative; left: -5px; width: 76px; display: grid; align-content: center; justify-items: center; gap: 2px; }
+.staff-exact .staff-clock strong { font-size: 10px; font-weight: 600; }
+.staff-exact .staff-clock small { font-size: 8px; color: var(--staff-muted); }
+.staff-exact .staff-bell { position: relative; left: -9px; width: 38px; height: 38px; border: 0; border-radius: 50%; background: transparent; color: var(--staff-tx); }
+.staff-exact .staff-bell .dot-count { top: 1px; right: 1px; min-width: 14px; height: 14px; padding: 0 3px; font: 700 8px/14px var(--font); background: var(--staff-danger); color: #fff; }
+.staff-exact .staff-account { width: 36px; height: 38px; padding: 0; display: grid; place-items: center; }
+.staff-exact .staff-account .u-avatar { width: 36px; height: 36px; font-size: 11px; background: var(--accent-pill); color: var(--on-primary); }
+/* Presence dots are deliberately omitted: the staff endpoint has no presence evidence (§10.1.1). */
+.staff-exact .staff-pop { top: calc(100% + 8px); max-width: min(320px,calc(100vw - 32px)); color: var(--staff-tx); background: var(--staff-rail-bg); border-color: var(--staff-rim); border-radius: 16px; backdrop-filter: var(--x-blur); -webkit-backdrop-filter: var(--x-blur); }
+.staff-exact .staff-pop :is(button,a) { min-height: 44px; font-size: 12px; color: var(--staff-tx); }
+.staff-exact .staff-pop .who { overflow-wrap: anywhere; }
+.staff-exact .staff-pop .who div:last-child { color: var(--staff-muted); }
+.staff-exact .staff-pop :is(button,a) svg { color: inherit; }
+.staff-exact :is(a,button,input):focus-visible { outline: 2px solid var(--staff-tx); outline-offset: 3px; }
+.staff-exact .shell { max-width: none; padding-inline: 0; margin-inline: 0; }
+.staff-exact .section-head { margin-top: 0; margin-bottom: 18px; }
+.staff-exact .section-head > div > .eyebrow { display: none; }
+.staff-exact .section-head h1 { color: var(--staff-tx); font: 600 24px/1.25 var(--font); margin: 0; padding-left: 5px; }
+.staff-exact .section-head p { color: var(--staff-muted); font-size: 11px; margin-top: 3px; padding-left: 5px; }
+/* Home content stays the existing real launchpad, separate from this shell pass (§10.1.4). */
+.staff-exact .home-hero { background: transparent; border: 0; }
+.hub-staff-app.staff-exact .home-hero::before { display: block; background: var(--staff-hero-scrim); }
+/* The staff scene supplies the photo; remove the old doorway over the text area. */
+.staff-exact .home-hero::after { display: none; }
+.staff-exact .home-hero .shell { padding-top: 6px; }
+.staff-exact .home-hero h1 { font-size: 24px; color: var(--staff-tx); }
+.staff-exact .home-hero .home-lede, .staff-exact .home-hero .hero-meta { color: var(--staff-muted); }
+/* Keep native hidden behaviour when the navigation's display rule is active. */
+.drawer .hub-staff-nav > a[hidden] { display: none; }
+@media (max-width: 1250px) {
+  .staff-exact { --staff-rail-x: 20px; --staff-content-x: 110px; --staff-right: 24px; }
+  .staff-exact .staff-topbar .inner { grid-template-columns: 135px minmax(150px,1fr) auto; }
+  .staff-exact .staff-crumb { display: none; }
+  .staff-exact .staff-clock { display: none; }
+  .staff-exact .staff-tools { display: flex; gap: 12px; margin-right: 0; }
+}
+@media (max-width: 900px) {
+  .staff-exact { padding: 0 16px 24px; }
+  .staff-exact .hub-staff-side.staff-rail { display: none; }
+  .staff-exact .staff-topbar .inner { grid-template-columns: 135px minmax(44px,1fr) auto; gap: 8px; padding: 16px 0 0; height: 76px; }
+  .staff-exact .staff-search { justify-content: center; padding: 0; min-width: 44px; min-height: 44px; }
+  .staff-exact .staff-search :is(span,kbd) { display: none; }
+  .staff-exact .staff-new { display: none; }
+  .staff-exact .staff-tools { gap: 6px; }
+  .staff-exact :is(.staff-workspace,.staff-bell,.staff-account) { min-height: 44px; }
+  .staff-exact .staff-account { min-width: 44px; }
+  .staff-exact .staff-bell { left: 0; width: 44px; }
+  .staff-exact .staff-pop { position: fixed; top: 68px; right: 16px; }
+}
+@media (prefers-reduced-motion: reduce) { .staff-exact *, .staff-exact *::after { animation: none; transition: none; } }
+@media (prefers-reduced-transparency: reduce) {
+  .staff-exact { background-image: none; background-color: #241F1C; }
+  html[data-theme="light"] .staff-exact { background-color: #FAF4EC; }
+  .staff-exact :is(.staff-rail,.staff-workspace,.staff-search,.staff-clock,.staff-pop) { backdrop-filter: none; -webkit-backdrop-filter: none; background: #241F1C; }
+  html[data-theme="light"] .staff-exact :is(.staff-rail,.staff-workspace,.staff-search,.staff-clock,.staff-pop) { background: #FAF4EC; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .staff-exact { --staff-rail-bg: #241F1C; --staff-pill-bg: #241F1C; }
+  html[data-theme="light"] .staff-exact { --staff-rail-bg: #FAF4EC; --staff-pill-bg: #FAF4EC; }
+}
+@media print { .staff-exact { padding: 0; background: white; } .staff-exact :is(.staff-rail,.staff-topbar) { display: none; } }
+
+/* Isolate staff layout from the seed’s console grid. Never target generic .shell. */
+.staff-exact .home-grid { grid-template-columns: minmax(0,1fr) 320px; }
+.staff-exact .home-grid.solo { grid-template-columns: minmax(0,560px); }
+@media (max-width:1100px) { .staff-exact .home-grid { grid-template-columns: minmax(0,1fr) 300px; } }
+@media (max-width:900px) { .staff-exact .home-grid, .staff-exact .home-grid.solo { grid-template-columns: minmax(0,1fr); } }
+
+/* §10.1(3): allow report-required status text to wrap with Poppins in Chromium. */
+.staff-exact .tool-row .tr-sub .u-status { white-space: normal; }
+
+/* §10.1.3: local opacity protects text against the brightest room pixels; keep the
+   scene scrim unchanged. One blur per panel, never on a nested row/card. */
+.staff-exact {
+  --tx-1: var(--staff-tx); --tx-2: var(--staff-muted); --tx-3: var(--staff-muted);
+}
+.staff-exact main > :is(.section.first,.hub-page),
+.staff-exact :is(.home-hero,.home-tools,.home-aside > *, .hub-reminder) {
+  background: var(--staff-panel-bg); border: 1px solid var(--staff-rim);
+  border-radius: var(--staff-panel-radius); padding: var(--staff-panel-pad);
+  backdrop-filter: var(--x-blur); -webkit-backdrop-filter: var(--x-blur);
+  color: var(--staff-tx);
+}
+.staff-exact main > :is(.section.first,.hub-page) { margin-top: 0; padding-top: 0; }
+.staff-exact main > :is(.section.first,.hub-page) .section-head { margin-left: calc(-1 * var(--staff-panel-pad)); }
+.staff-exact .home-hero { margin-top: 16px; }
+.hub-staff-app.staff-exact .home-hero::before { display: none; }
+.staff-exact .home-hero .shell { padding-block: 0; }
+.staff-exact .home-hero h1 { margin-left: calc(-1 * var(--staff-panel-pad)); padding-left: 5px; font: 600 24px/1.25 var(--font); }
+.staff-exact .home-hero .hero-meta { color: var(--staff-muted); }
+.staff-exact .home-tools .home-tool-list,
+.staff-exact .home-aside :is(.panel,.home-card),
+.staff-exact main > :is(.section.first,.hub-page) :is(.panel,.u-table-wrap,.tool-row,.tcard) {
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+.staff-exact .home-tools .home-h a { color: var(--staff-muted); }
+/* Vendor-coloured fallback initials are not text on a predictable surface. */
+.staff-exact .logo.mono { color: #FFF8F2; background: #3F3027 !important; }
+@media (prefers-reduced-transparency: reduce) {
+  .staff-exact { --staff-panel-bg: #241F1C; }
+  html[data-theme="light"] .staff-exact { --staff-panel-bg: #FCF8F2; }
+  .staff-exact main > :is(.section.first,.hub-page),
+  .staff-exact :is(.home-hero,.home-tools,.home-aside > *, .hub-reminder) { backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .staff-exact { --staff-panel-bg: #241F1C; }
+  html[data-theme="light"] .staff-exact { --staff-panel-bg: #FCF8F2; }
+}
+
+/* §10.1(3): `background-attachment: fixed` and live backdrop filters caused severe scroll stalls in
+   software Chromium, and a scrolling `cover` photo was re-scaled on every frame (desktop Tools 46fps).
+   The room is one fixed layer of its own behind the shell: it is drawn once, stays put as in the
+   reference, and scrolling only moves the content over it. No live blur inside the staff shell. */
+.staff-exact { background: none; isolation: isolate; --staff-scrim: linear-gradient(rgba(12,10,9,.32), rgba(12,10,9,.32)); --staff-scene: var(--staff-scrim), url('/static/room-warm.webp'); --staff-scene-flat: #241F1C; }
+html[data-theme="light"] .staff-exact { background: none; --staff-scrim: linear-gradient(rgba(250,244,236,.42),rgba(250,244,236,.42)); --staff-scene-flat: #FAF4EC; }
+.staff-exact::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--staff-scene-flat); background-image: var(--staff-scene); background-position: center; background-size: cover; background-repeat: no-repeat; }
+/* §10.1(3), desktop: a fixed full-screen photo layer under scrolling content cost desktop Tools 12fps in
+   software Chromium (43–47, gate 55), so above 900px the room is painted on the page itself, as one layer.
+   It is sized to cover the viewport, not the page, so at the top of the page it is the same picture in the
+   same place as the fixed layer; room-warm-tile.webp is the photo followed by its mirror image, so it
+   continues without a seam on pages that scroll. The room now moves with the page. Phones keep the fixed
+   layer (59fps measured). */
+@media (min-width: 901px) {
+  .staff-exact::before { display: none; }
+  .staff-exact > * { image-rendering: auto; }
+  .staff-exact, html[data-theme="light"] .staff-exact {
+    --staff-photo-h: max(59.1875vw, 100vh);
+    background-color: var(--staff-scene-flat);
+    background-image: var(--staff-scrim), url('/static/room-warm-tile.webp');
+    background-size: auto, calc(var(--staff-photo-h) * 1.68955) calc(var(--staff-photo-h) * 2);
+    background-position: 0 0, center calc((100vh - var(--staff-photo-h)) / 2);
+    background-repeat: repeat, repeat-y;
+    image-rendering: pixelated; /* the photo is soft-focus; smoothing it again on every repaint was the remaining scroll cost */
+  }
+}
+@media (prefers-reduced-transparency: reduce) { .staff-exact::before { background-image: none; } .staff-exact, html[data-theme="light"] .staff-exact { background-image: none; } }
+@media print { .staff-exact, html[data-theme="light"] .staff-exact { background-image: none; background-color: white; } }
+@media print { .staff-exact::before { display: none; } }
+.staff-exact * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+
+/* Cold load: the workspace mark could shrink 3px until its file arrived (a flex item with no
+   intrinsic size yet), then push the label right. Fixed size above; nothing moves after first paint.
+   Panel content uses the panel's full width (18px each side), and Home's blocks share the 1343 right
+   edge. The page panel starts 10px above its header so the title clears the rounded rim; the header
+   itself stays where §10.3 measures it (title x178, centre y92). */
+.hub-staff-app.staff-exact .shell { max-width: none; }
+.staff-exact main > :is(.section.first,.hub-page) { margin-top: -10px; padding-top: 10px; }
+.staff-exact .hub-reminder { margin-top: 12px; margin-bottom: 0; }
+.staff-exact .home-body { padding-top: 12px; }
+/* §10.1(3): a disabled pager was 3.6:1 (dark) / 2.5:1 (light) at 45% opacity. It keeps full-strength
+   muted text and says "disabled" with a dashed rim and no fill instead of by fading. */
+.staff-exact main .btn:disabled { opacity: 1; color: var(--staff-muted); background: transparent; border-style: dashed; border-color: var(--staff-rim); box-shadow: none; cursor: not-allowed; }
+/* Phones (§10.1(3), no reference still): hub.css's ≤420px top-bar padding won the cascade and put the
+   pills against the screen edge; and the desktop x178 title inset has no meaning here, so titles line
+   up with their panel's content. */
+@media (max-width: 900px) {
+  .hub-staff-app.staff-exact .staff-topbar .inner { padding: 16px 0 0; }
+  .staff-exact main > :is(.section.first,.hub-page) .section-head { margin-left: 0; }
+  .staff-exact .section-head :is(h1,p), .staff-exact .home-hero h1 { margin-left: 0; padding-left: 0; }
+}
+/* A wrapped status breaks between words, never inside one ("Report require/d" on phones). */
+.staff-exact .tool-row .tr-sub .u-status { overflow-wrap: normal; word-break: normal; }

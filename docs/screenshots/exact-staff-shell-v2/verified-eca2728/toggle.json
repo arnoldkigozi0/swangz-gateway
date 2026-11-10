@@ -1,0 +1,72 @@
+{
+ "1440/#/": {
+  "fonts": "Plus Jakarta Sans200 800,Swangz Staff Poppins400,Swangz Staff Poppins500,Swangz Staff Poppins600,Swangz Staff Poppins700,Swangz Staff Poppins800",
+  "pager": [],
+  "toggles": 3,
+  "finalTheme": "light",
+  "clsDuringToggle": 0,
+  "entries": 0,
+  "clsTotal": 0.00001
+ },
+ "1440/#/tools": {
+  "fonts": "Plus Jakarta Sans200 800,Swangz Staff Poppins400,Swangz Staff Poppins500,Swangz Staff Poppins600,Swangz Staff Poppins700",
+  "pager": [
+   "Previous:true",
+   "Next:null"
+  ],
+  "toggles": 3,
+  "finalTheme": "light",
+  "clsDuringToggle": 0,
+  "entries": 0,
+  "clsTotal": 0
+ },
+ "1440/#/weekly": {
+  "fonts": "Plus Jakarta Sans200 800,Swangz Staff Poppins400,Swangz Staff Poppins500,Swangz Staff Poppins600,Swangz Staff Poppins700",
+  "pager": [
+   "Previous:true",
+   "Next:true",
+   "Previous:true",
+   "Next:true"
+  ],
+  "toggles": 3,
+  "finalTheme": "light",
+  "clsDuringToggle": 0,
+  "entries": 0,
+  "clsTotal": 0
+ },
+ "390/#/": {
+  "fonts": "Plus Jakarta Sans200 800,Swangz Staff Poppins400,Swangz Staff Poppins500,Swangz Staff Poppins600,Swangz Staff Poppins700,Swangz Staff Poppins800",
+  "pager": [],
+  "toggles": 3,
+  "finalTheme": "light",
+  "clsDuringToggle": 0,
+  "entries": 0,
+  "clsTotal": 0.00007
+ },
+ "390/#/tools": {
+  "fonts": "Plus Jakarta Sans200 800,Swangz Staff Poppins400,Swangz Staff Poppins500,Swangz Staff Poppins600,Swangz Staff Poppins700",
+  "pager": [
+   "Previous:true",
+   "Next:null"
+  ],
+  "toggles": 3,
+  "finalTheme": "light",
+  "clsDuringToggle": 0,
+  "entries": 0,
+  "clsTotal": 0.00002
+ },
+ "390/#/weekly": {
+  "fonts": "Plus Jakarta Sans200 800,Swangz Staff Poppins400,Swangz Staff Poppins500,Swangz Staff Poppins600,Swangz Staff Poppins700",
+  "pager": [
+   "Previous:true",
+   "Next:true",
+   "Previous:true",
+   "Next:true"
+  ],
+  "toggles": 3,
+  "finalTheme": "light",
+  "clsDuringToggle": 0,
+  "entries": 0,
+  "clsTotal": 0.00002
+ }
+}

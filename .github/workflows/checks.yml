@@ -72,6 +72,8 @@ jobs:
         run: node tests/browser/lists.cjs
       - name: Chart empty-state and drawing checks
         run: node tests/browser/charts.cjs
+      - name: Staff shell cold-load fonts (zero layout shift, latch)
+        run: node tests/browser/staff-font.cjs
       - name: Split sign-in gate (both apps, Google link, eye, inert panes, welcome)
         run: node tests/browser/signin.cjs
       - uses: actions/upload-artifact@v4
