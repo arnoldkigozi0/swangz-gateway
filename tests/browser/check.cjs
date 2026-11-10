@@ -100,6 +100,7 @@ async function layout(p, name, axe = false) {
   if (axe) assert.deepEqual(violations.map(v => v.id), [], name + ': accessibility findings');
 }
 (async () => {
+  await require('./paused.cjs')();
   const { url, person, key, session } = await fixture();
   browser = await chromium.launch({ executablePath: process.env.CHROME || undefined, headless: true, args: ['--no-sandbox'] });
   results.themeStability = await require(path.join(root, 'docs/screenshots/browser-theme-stability/repro.cjs'))({ browser, settle, layout, AxeBuilder });
