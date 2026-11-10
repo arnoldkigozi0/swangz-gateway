@@ -222,11 +222,72 @@ class SessionKindTests(Base):
         self.assertEqual(h["location"], "/")
 
     def test_a_web_sign_out_ends_only_a_web_row_and_never_an_extension_row(self):
-        token = self.extension_token()
-        self.call("POST", "/logout", {}, bearer=token)  # a bearer is not a web sign-out
-        self.assertEqual(self.call("GET", "/gate/config", bearer=token)[0], 200)
+        token = self.extension_token()  # the bearer's own sign-out is ExtensionLogoutTests
         self.assertEqual(self.call("POST", "/logout", {}, cookie=self.person_cookie)[0], 200)
         self.assertEqual(self.call("GET", "/me", cookie=self.person_cookie)[0], 401)
+        self.assertEqual(self.call("GET", "/gate/config", bearer=token)[0], 200)
+
+
+class ExtensionLogoutTests(Base):
+    """A bearer's /logout ends that one extension session, and nothing else."""
+
+    def rows(self, kind):
+        return self.db.scalar("SELECT COUNT(*) FROM staff_sessions WHERE person_id = ? AND kind = ?", (self.pid, kind))
+
+    def test_the_bearer_ends_its_own_extension_session_only(self):
+        first, second = self.extension_token(), self.extension_token()
+        web_before = self.rows("web")
+        self.assertEqual(self.call("POST", "/logout", {}, bearer=first), (200, {"ok": True}))
+        self.assertIsNone(self.db.one("SELECT 1 FROM staff_sessions WHERE token_hash = ?", (security.sha256(first),)))
+        self.assertEqual(self.call("GET", "/gate/config", bearer=first)[0], 401)   # dead at once, not at expiry
+        self.assertEqual(self.call("POST", "/gate/open", {"host": "chatgpt.com"}, bearer=first)[0], 401)
+        self.assertEqual(self.call("GET", "/gate/turns", bearer=second)[0], 200)   # the other browser's extension
+        self.assertEqual((self.rows("extension"), self.rows("web")), (1, web_before))
+        self.assertEqual(self.call("GET", "/me", cookie=self.person_cookie)[0], 200)
+        self.assertEqual(self.db.scalar("SELECT COUNT(*) FROM keys WHERE person_id = ? AND revoked IS NULL", (self.pid,)),
+                         self.db.scalar("SELECT COUNT(*) FROM keys WHERE person_id = ?", (self.pid,)), "no key is touched")
+
+    def test_it_is_audited_once_with_counts_and_no_token(self):
+        token = self.extension_token()
+        self.call("POST", "/logout", {}, bearer=token)
+        self.call("POST", "/logout", {}, bearer=token)  # again: already gone, nothing to record
+        rows = self.db.q("SELECT * FROM audit WHERE action = 'access extension session ended'")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["correlation"], f"person:{self.pid}")
+        self.assertEqual(json.loads(rows[0]["after_json"])["sessions_ended"], 1)
+        self.assertNotIn(token, json.dumps([dict(r) for r in rows]))
+        self.assertNotIn(security.sha256(token), json.dumps([dict(r) for r in rows]))
+
+    def test_kinds_stay_apart_at_logout(self):
+        token = self.extension_token()
+        web = self.person_cookie.split("=", 1)[1]
+        self.assertEqual(self.call("POST", "/logout", {}, bearer=web)[0], 200)          # a web token as a bearer
+        self.assertEqual(self.call("GET", "/me", cookie=self.person_cookie)[0], 200)
+        self.assertEqual(self.call("POST", "/logout", {}, cookie="sgw_staff=" + token)[0], 200)   # an extension token as a cookie
+        self.assertEqual(self.call("GET", "/gate/config", bearer=token)[0], 200)
+        self.assertEqual(self.call("POST", "/logout", {}, bearer="not-a-session")[0], 200)
+        self.assertEqual(self.call("POST", "/logout", {}, bearer=self.rig.key)[0], 200)  # a device/API key is never a session
+        self.assertEqual(self.rig.anthropic({"model": "claude-haiku-4-5", "messages": [{"role": "user", "content": "hi"}]})[0], 200)
+        self.assertEqual((self.rows("extension"), self.db.scalar("SELECT COUNT(*) FROM audit WHERE action = 'access extension session ended'")), (1, 0))
+
+    def test_cookie_and_bearer_together_end_one_of_each(self):
+        token = self.extension_token()
+        self.assertEqual(self.call("POST", "/logout", {}, cookie=self.person_cookie, bearer=token)[0], 200)
+        self.assertEqual(self.call("GET", "/me", cookie=self.person_cookie)[0], 401)
+        self.assertEqual(self.call("GET", "/gate/config", bearer=token)[0], 401)
+
+    def test_a_paused_or_ended_person_can_still_end_their_extension_session(self):
+        for change in ({"status": "suspended"}, {"status": "active", "access_until": 1}):
+            self.set_person(status="active", access_until=None)
+            token = self.extension_token()
+            self.set_person(**change)
+            self.assertEqual(self.call("POST", "/logout", {}, bearer=token)[0], 200, change)
+            self.assertIsNone(self.db.one("SELECT 1 FROM staff_sessions WHERE token_hash = ?", (security.sha256(token),)), change)
+
+    def test_it_still_needs_the_app_header(self):
+        token = self.extension_token()
+        status, _, _ = self.rig.request("POST", "/api/logout", {}, {"authorization": "Bearer " + token})
+        self.assertNotEqual(status, 200)
         self.assertEqual(self.call("GET", "/gate/config", bearer=token)[0], 200)
 
 

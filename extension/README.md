@@ -31,6 +31,12 @@ clears the cached held tools' site data **before** discarding their holding stat
 state is loaded after worker restarts. If Chrome refuses cleanup, it is retained so the
 next check/startup can retry; governed navigation remains blocked while signed out.
 
+Sign-out also tells the Hub: after the local token is removed, the worker sends one
+`POST /api/logout` with the old token, and the Hub deletes that one extension session
+(nothing else: not the person's web sessions, other browsers' extensions or devices).
+This is best effort. Nothing waits for it, it gives up after 5 seconds, and if the Hub is
+unreachable the browser is signed out all the same and the session ends at its own expiry.
+
 So re-opening the tool always means going back through Swangz AI Hub, and the next person never inherits
 someone else's session. It also means the vendor's credit history lines up with the turn log: whoever
 held the account at the time spent what was spent.
@@ -79,6 +85,7 @@ staff get it automatically and can't remove it.
 - `POST /api/gate/open` — decide allow/block for a host, start a usage record.
 - `GET /api/gate/turns` — which shared tools this person holds, and which to sign out of.
 - `POST /api/gate/close` — end a usage record with the duration.
+- `POST /api/logout` — with the token: end this extension session at the Hub.
 - `POST /api/tools/<id>/request` — the "Request access" button.
 
 Admins see the log under **Tools → Website access** in the control room.

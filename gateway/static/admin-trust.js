@@ -148,7 +148,7 @@
         ["Policies", `${h.policies_enabled} on`, "Govern → Policies"], ["Models registered", String(h.models_registered), "Govern → Models"],
         ["Open notifications", String(h.notifications_open), "the bell"],
         ["Location table", geo.rows ? `${fmt.num(geo.rows)} ranges` : "Not loaded", geo.rows ? `${geo.source}, imported ${fmt.date(geo.imported)}` : "places show as address types only"],
-        ["Rate limit", h.rate_per_min ? `${h.rate_per_min} a minute` : "Off", "per person"], ["Version", h.version, ""]]
+        ["Rate limit", h.rate_per_min ? `${h.rate_per_min} a minute` : "Off", "per person"], ["Version", h.version, h.commit ? "commit " + h.commit : "commit not recorded"]]
         .map(([k, v, how]) => el("div", null, el("div", { class: "k" }, k), el("div", { class: "v" }, v), how ? el("div", { class: "how" }, how) : null)));
     A.frame({ title: "Health", lede: "Is the gateway itself well? Times are measured at the gateway, so they include the network to each provider." }, [
       statline, A.panel("Providers", "the last hour", providers), A.panel("Switches and housekeeping", null, el("div", { class: "body" }, facts))]);
