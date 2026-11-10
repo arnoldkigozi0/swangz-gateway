@@ -910,7 +910,7 @@
 
   // ------------------------------------------------------------------ the control kit (BRIEF 10.10 point 5)
 
-  const KIT = { check: ["M5 12.5l4.5 4.5L19 7"], chevron: ["M6 9l6 6l6-6"] };
+  const KIT = { check: ["M5 12.5l4.5 4.5L19 7"], chevron: ["M6 9l6 6l6-6"], more: ["M5 12h.01", "M12 12h.01", "M19 12h.01"] };
   let kitSeq = 0, kitOpen = null;
 
   /* A panel anchored to its trigger: opens under it, flips above when there is no room below, and is a bottom sheet on
@@ -965,6 +965,72 @@
     panel.addEventListener("keydown", key);
     trigger.addEventListener("keydown", key);
     return { open: doOpen, close, put, toggle: () => (open ? close(true) : doOpen()), get isOpen() { return open; } };
+  }
+
+  /* A menu of actions on a trigger (role=menu). Enter, Space, ArrowDown or a press opens it on the first item; ArrowUp
+     opens on the last; arrows move and wrap, Home and End jump, a letter goes to the next item starting with it, Tab and
+     Esc close. Destructive items are always shown last, under a rule, in the danger colour, whatever order they came in.
+     items: an array, or a function returning one (read each time it opens):
+       { id, label, sub, icon, danger, disabled, onSelect(item), href }. o: { label (required), align }. */
+  function menu(trigger, items, o) {
+    o = o || {};
+    const id = "u-menu-" + (++kitSeq);
+    let rows = [];
+    const list = el("div", { class: "u-menu", role: "menu", id, "aria-label": o.label || null });
+    const panel = el("div", { class: "u-pop u-pop-menu" }, list);
+    trigger.setAttribute("aria-haspopup", "menu");
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.setAttribute("aria-controls", id);
+    const live = () => rows.filter((b) => b.getAttribute("aria-disabled") !== "true");
+    function focusAt(i) { const l = live(); if (l.length) l[(i + l.length) % l.length].focus(); }
+    function draw() {
+      const all = (typeof items === "function" ? items() : items || []).filter(Boolean);
+      const safe = all.filter((x) => !x.danger), danger = all.filter((x) => x.danger);
+      const row = (x) => {
+        const b = el(x.href ? "a" : "button", { type: x.href ? null : "button", href: x.href || null, role: "menuitem", tabindex: "-1",
+          class: x.danger ? "danger" : null, "aria-disabled": x.disabled ? "true" : null, "data-id": x.id || null },
+          x.icon ? icon(x.icon) : null, el("span", { class: "t" }, x.label, x.sub ? el("small", null, x.sub) : null));
+        b.addEventListener("click", (e) => {
+          if (x.disabled) { e.preventDefault(); return; }
+          pop.close(true);
+          if (x.onSelect) x.onSelect(x);
+        });
+        return b;
+      };
+      rows = safe.concat(danger).map(row);
+      list.replaceChildren(...rows.slice(0, safe.length), ...(safe.length && danger.length ? [el("hr", { role: "separator" })] : []), ...rows.slice(safe.length));
+    }
+    const pop = popover(trigger, panel, { align: o.align || "end", minWidth: o.minWidth || 200, onOpen: draw });
+    function show(last) { pop.open(); pop.put(); focusAt(last ? -1 : 0); }
+    trigger.addEventListener("click", () => (pop.isOpen ? pop.close(true) : show(false)));
+    trigger.addEventListener("keydown", (e) => {
+      if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !pop.isOpen) { e.preventDefault(); show(e.key === "ArrowUp"); }
+    });
+    list.addEventListener("pointermove", (e) => { const b = e.target.closest("[role=menuitem]"); if (b && b !== document.activeElement && b.getAttribute("aria-disabled") !== "true") b.focus(); });
+    panel.addEventListener("keydown", (e) => {
+      const l = live(), at = l.indexOf(document.activeElement);
+      if (e.key === "ArrowDown") { e.preventDefault(); focusAt(at + 1); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); focusAt(at < 0 ? -1 : at - 1); }
+      else if (e.key === "Home") { e.preventDefault(); focusAt(0); }
+      else if (e.key === "End") { e.preventDefault(); focusAt(-1); }
+      else if (e.key === "Tab") pop.close(true);
+      else if (e.key.length === 1 && e.key !== " " && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const k = e.key.toLowerCase();
+        const next = l.slice(at + 1).concat(l.slice(0, at + 1)).find((b) => b.textContent.trim().toLowerCase().startsWith(k));
+        if (next) next.focus();
+      }
+    });
+    return pop;
+  }
+
+  /* The "More" button: three dots that open a menu. One ends every table row; a page header has at most one, after its
+     primary and one secondary action. o: { label: "More actions for Amina" (required: the name read out), items, text
+     (show a word beside the dots), small, align, disabled }. Returns the button, with a menu property. */
+  function menuButton(o) {
+    const btn = el("button", { type: "button", class: "u-more" + (o.small ? " sm" : "") + (o.text ? " worded" : ""), "aria-label": o.text ? null : o.label,
+      title: o.text ? null : o.label, disabled: o.disabled }, o.text ? el("span", null, o.text) : null, icon(KIT.more));
+    btn.menu = menu(btn, o.items, { label: o.label, align: o.align });
+    return btn;
   }
 
   /* A dropdown select, for one choice out of five or more (fewer: SUI.segmented). The trigger is a box showing the
@@ -1250,6 +1316,6 @@
     tz, setGatewayOffset, setTzMode, tzLabel, startOfDay, startOfMonth, dateInput, fromDateInput, presetRange, fmt,
     initials, plural, debounce, gateway, avatar, logo, logoTint, status, badge, delta, evidence,
     skeleton, stateBox, errorBox, load, toast, copy, showTip, hideTip, infoTip,
-    columns, line, sparkline, barList, donut, donutParts, table, segmented, searchPill, progress, star, listPanel, rangeControl, trapFocus, popover, select, commandMenu, splitGate, xfield, eyeToggle,
+    columns, line, sparkline, barList, donut, donutParts, table, segmented, searchPill, progress, star, listPanel, rangeControl, trapFocus, popover, select, menu, menuButton, commandMenu, splitGate, xfield, eyeToggle,
   };
 })();

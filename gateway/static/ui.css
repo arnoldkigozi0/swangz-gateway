@@ -500,11 +500,35 @@ html[data-theme="light"] .u-donut .t5 { stroke: #1A9A62; color: #1A9A62; } html[
   box-shadow: none; outline: 0; color: var(--tx-1); font: 500 13px/1.2 var(--font); }
 .u-pop-empty { margin: 0; padding: 10px; color: var(--tx-2); font-size: 13px; }
 .u-pop-empty[hidden] { display: none; }
+/* the More button and its menu (SUI.menuButton, SUI.menu) */
+.u-more { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: none; box-sizing: border-box; width: 36px; height: 36px; padding: 0;
+  border: 1px solid transparent; border-radius: var(--radius-control); background: transparent; color: var(--tx-2); font: 600 13px/1 var(--font); cursor: pointer; }
+.u-more.sm { width: 32px; height: 32px; border-radius: var(--radius-control-sm); }
+.u-more.worded { width: auto; padding: 0 10px 0 12px; border-color: var(--line); color: var(--tx-1); }
+.u-more svg { flex: none; width: 18px; height: 18px; stroke-width: 2.6; }
+.u-more:hover:not(:disabled), .u-more[aria-expanded="true"] { background: var(--ink-3); border-color: var(--line-hi); color: var(--tx-1); }
+.u-more:active:not(:disabled) { transform: translateY(1px); }
+.u-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.u-more:disabled { opacity: .45; cursor: not-allowed; }
+.u-menu { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.u-menu [role="menuitem"] { display: flex; align-items: center; gap: 10px; flex: none; box-sizing: border-box; width: 100%; min-height: 36px; padding: 4px 10px; border: 0;
+  border-radius: var(--radius-control-sm); background: transparent; color: var(--tx-1); font: 500 13.5px/1.25 var(--font); text-align: left; text-decoration: none; cursor: pointer; }
+.u-menu [role="menuitem"] svg { flex: none; width: 16px; height: 16px; color: var(--tx-2); }
+.u-menu [role="menuitem"] .t { flex: 1 1 auto; min-width: 0; }
+.u-menu [role="menuitem"] small { display: block; color: var(--tx-2); font-size: 11.5px; font-weight: 400; }
+.u-menu [role="menuitem"]:focus { background: var(--ink-3); outline: 0; }
+.u-menu [role="menuitem"]:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.u-menu [role="menuitem"].danger, .u-menu [role="menuitem"].danger svg { color: var(--bad-hi); }
+.u-menu [role="menuitem"].danger:focus { background: var(--bad-soft); }
+.u-menu [role="menuitem"][aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+.u-menu hr { flex: none; width: auto; height: 1px; margin: 6px 4px; border: 0; background: var(--line); }
 @media (max-width: 640px) {   /* on phones the panel is a sheet along the bottom, with 44px rows */
   .u-select, .u-select.sm { min-height: 44px; }
   .u-pop { left: 8px; right: 8px; top: auto; bottom: max(8px, env(safe-area-inset-bottom)); max-height: 70vh; border-radius: 16px;
     box-shadow: 0 0 0 100vmax var(--scrim); animation-name: u-pop-up; }
   .u-pop-list li { min-height: 44px; }
+  .u-menu [role="menuitem"] { min-height: 44px; }
+  .u-more, .u-more.sm { min-width: 44px; height: 44px; }
   .u-pop-find { min-height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) { .u-pop { animation: none; } .u-select .chev { transition: none; } }

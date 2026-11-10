@@ -21,7 +21,15 @@ const mount = () => {
   const off = SUI.select({ label: 'Role', options: teams, value: 'sales', disabled: true });
   const low = SUI.select({ label: 'Period', options: teams, value: 'studio' });
   team.dataset.t = 'team'; tool.dataset.t = 'tool'; off.dataset.t = 'off'; low.dataset.t = 'low';
-  const row = el('div', null, team, ' ', tool, ' ', off);
+  window.__did = [];
+  const more = SUI.menuButton({ label: 'More actions for Amina', items: () => [
+    { id: 'remove', label: 'Remove person', danger: true, onSelect: (x) => window.__did.push(x.id) },
+    { id: 'edit', label: 'Edit details', icon: 'edit', onSelect: (x) => window.__did.push(x.id) },
+    { id: 'pause', label: 'Pause access', sub: 'Until you resume it', onSelect: (x) => window.__did.push(x.id) },
+    { id: 'export', label: 'Export record', disabled: true, onSelect: (x) => window.__did.push(x.id) },
+    { id: 'reset', label: 'Reset sign-in', onSelect: (x) => window.__did.push(x.id) }] });
+  more.dataset.t = 'more';
+  const row = el('div', null, team, ' ', tool, ' ', off, ' ', more);
   row.style.cssText = 'display:flex;flex-wrap:wrap;gap:12px;padding:16px 0';
   const foot = el('div', null, low);
   foot.style.cssText = 'position:fixed;left:50%;bottom:16px;z-index:5';
@@ -122,6 +130,49 @@ const mount = () => {
         await page.click(team);
         ok(T + 'opening another closes the first: one list at a time', (await page.evaluate(() => document.querySelectorAll('.u-pop').length)) === 1);
         await page.keyboard.press('Escape');
+      }
+      {
+        const M = T.replace('select', 'menu');
+        const ms = () => page.evaluate(() => { const p = document.querySelector('.u-pop-menu'); const a = document.activeElement;
+          return { open: !!p, focus: a && (a.dataset.t || a.dataset.id || a.tagName), expanded: document.querySelector('[data-t=more]').getAttribute('aria-expanded') }; });
+        const b = await page.evaluate(() => { const x = document.querySelector('[data-t=more]'); const r = x.getBoundingClientRect();
+          return { w: r.width, h: r.height, name: x.getAttribute('aria-label'), popup: x.getAttribute('aria-haspopup'), radius: getComputedStyle(x).borderTopLeftRadius }; });
+        ok(M + 'the More button is a named square box that says it opens a menu', b.name === 'More actions for Amina' && b.popup === 'menu' && b.radius === '10px' && b.w === b.h && b.h === (vname === 'mobile' ? 44 : 36));
+        await page.focus('[data-t=more]'); await page.keyboard.press('Enter');
+        let m = await ms();
+        ok(M + 'Enter opens it on the first item', m.open && m.focus === 'edit' && m.expanded === 'true');
+        const shape = await page.evaluate(() => { const p = document.querySelector('.u-pop-menu'), items = [...p.querySelectorAll('[role=menuitem]')], last = items[items.length - 1];
+          const sep = p.querySelector('[role=separator]'); const br = document.querySelector('[data-t=more]').getBoundingClientRect(), pr = p.getBoundingClientRect();
+          return { role: p.querySelector('.u-menu').getAttribute('role'), ids: items.map(x => x.dataset.id), sepBeforeLast: sep && sep.nextElementSibling === last, danger: last.classList.contains('danger'),
+            dangerColour: getComputedStyle(last).color !== getComputedStyle(items[0]).color, radius: getComputedStyle(items[0]).borderTopLeftRadius, rowH: items[0].getBoundingClientRect().height,
+            right: Math.abs(pr.right - br.right), gap: pr.top - br.bottom, bottom: innerHeight - pr.bottom, inside: pr.left >= 0 && pr.right <= innerWidth }; });
+        ok(M + 'the destructive item is last, under a rule, in the danger colour', shape.role === 'menu' && shape.ids.join() === 'edit,pause,export,reset,remove' && shape.sepBeforeLast && shape.danger && shape.dangerColour);
+        ok(M + 'rows have 8px corners' + (vname === 'mobile' ? ' and 44px targets' : ''), shape.radius === '8px' && shape.rowH >= (vname === 'mobile' ? 44 : 36));
+        ok(M + (vname === 'mobile' ? 'on a phone it is a sheet along the bottom' : 'it opens under the button, right edges aligned'), shape.inside && (vname === 'mobile' ? shape.bottom <= 12 : shape.right <= 1 && shape.gap >= 4 && shape.gap <= 8));
+        await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown');
+        ok(M + 'arrows move and skip a disabled item', (await ms()).focus === 'reset');
+        await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown');
+        ok(M + 'the arrows wrap round', (await ms()).focus === 'edit');
+        await page.keyboard.press('End');
+        ok(M + 'End goes to the last item', (await ms()).focus === 'remove');
+        await page.keyboard.press('p');
+        ok(M + 'a letter jumps to the item starting with it', (await ms()).focus === 'pause');
+        if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `menu-${vname}-${theme}.png`) });
+        await page.keyboard.press('Escape');
+        m = await ms();
+        ok(M + 'Esc closes it and focus returns to the button', !m.open && m.focus === 'more' && m.expanded === 'false');
+        await page.keyboard.press('ArrowUp');
+        ok(M + 'ArrowUp opens it on the last item', (await ms()).focus === 'remove');
+        await page.keyboard.press('Home'); await page.keyboard.press('Enter');
+        m = await ms();
+        ok(M + 'Enter runs the item, closes the menu and returns focus', !m.open && m.focus === 'more' && (await page.evaluate(() => window.__did.join())) === 'edit');
+        await page.click('[data-t=more]');
+        await page.evaluate(() => document.querySelector('.u-pop-menu [data-id=export]').click());
+        ok(M + 'a disabled item does nothing and the menu stays', (await ms()).open && (await page.evaluate(() => window.__did.join())) === 'edit');
+        await page.click('.u-pop-menu [data-id=pause]');
+        ok(M + 'a press runs the item', !(await ms()).open && (await page.evaluate(() => window.__did.join())) === 'edit,pause');
+        await page.click('[data-t=more]'); await page.click('main h1');
+        ok(M + 'a press outside closes it', !(await ms()).open);
       }
       ok(T + 'no horizontal page scroll', (await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)) <= 0);
       await ctx.close();
