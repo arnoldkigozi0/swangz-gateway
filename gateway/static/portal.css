@@ -58,7 +58,7 @@ main:focus { outline: none; }
 .input-wrap { position: relative; display: flex; }
 .input { width: 100%; min-height: 44px; padding: 0 var(--s4); background: var(--ink-1); border: 1px solid var(--ink-4); border-radius: var(--r-xs); font-size: var(--t-body);
   transition: border-color var(--d-fast), box-shadow var(--d-fast); }
-.input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent); }
+.input:focus { outline: none; border-color: var(--focus); box-shadow: 0 0 0 4px color-mix(in srgb, var(--focus) 16%, transparent); }
 .input::placeholder { color: var(--tx-3); }
 .input-wrap .reveal { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); min-height: 34px; font-size: var(--t-small); }
 select.input { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--tx-2) 50%), linear-gradient(135deg, var(--tx-2) 50%, transparent 50%);
@@ -188,7 +188,7 @@ h1, h2, h3 { text-wrap: balance; }
 .tool-rows { list-style: none; margin: 0; padding: 4px 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); column-gap: 32px; background: var(--ink-1); border: 1px solid var(--line); border-radius: var(--r-lg); }
 .tool-row { break-inside: avoid; display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); min-width: 0; }
 .tr-main { all: unset; box-sizing: border-box; flex: 1; min-width: 0; display: flex; align-items: center; gap: 11px; cursor: pointer; border-radius: var(--r-sm); }
-.tr-main:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tr-main:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .tr-main:hover strong { text-decoration: underline; text-underline-offset: 3px; }
 .tr-text { display: flex; flex-direction: column; min-width: 0; }
 .tr-text strong { font-weight: 650; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -202,7 +202,7 @@ h1, h2, h3 { text-wrap: balance; }
   transition: border-color var(--d-base) var(--e-out), transform var(--d-base) var(--e-out), background var(--d-base); }
 .tile:hover { border-color: var(--line-hi); }
 .tile-main { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; gap: var(--s3); padding: 20px 20px var(--s3); flex: 1; border-radius: var(--r-lg) var(--r-lg) 0 0; }
-.tile-main:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tile-main:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .tile-top { display: flex; align-items: center; gap: var(--s3); min-width: 0; }
 .tile-top h3 { margin: 0; font-size: var(--t-h3); font-weight: 680; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tile-top .cat { color: var(--tx-3); font-size: 12.5px; }
@@ -505,7 +505,7 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
   padding: 10px 1px 11px; font: inherit; font-weight: 620; font-size: 14px; color: var(--tx-2); cursor: pointer; white-space: nowrap; transition: color var(--d-fast); }
 .vtabs [role=tab]:hover { color: var(--tx-1); border-bottom-color: var(--line-hi); }
 .vtabs [role=tab][aria-selected="true"] { color: var(--tx-1); border-bottom-color: var(--accent); font-weight: 680; }
-.vtabs [role=tab]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 3px; }
+.vtabs [role=tab]:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; border-radius: 3px; }
 .vt-n { font-size: 11px; font-weight: 700; padding: 0 7px; line-height: 18px; border-radius: var(--radius-chip); background: var(--ink-3); color: var(--tx-2); font-variant-numeric: tabular-nums; }
 .vtabs [aria-selected="true"] .vt-n { background: var(--accent-soft); color: var(--accent-tx); }
 @media (max-width: 640px) {
@@ -528,7 +528,7 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
 .p-index ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; border-left: 1px solid var(--line); }
 .p-index button { background: none; border: 0; padding: 6px 12px; text-align: left; font: inherit; font-size: 13.5px; color: var(--tx-2); cursor: pointer; border-left: 2px solid transparent; margin-left: -1px; }
 .p-index button:hover { color: var(--tx-1); border-left-color: var(--line-hi); }
-.p-index button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.p-index button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .p-sections { display: grid; gap: var(--s4); min-width: 0; }
 .p-sections .trust-card { scroll-margin-top: 84px; }
 .p-sections .trust-card:focus { outline: none; }
@@ -561,7 +561,7 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
   background: var(--ink-1); box-shadow: var(--shadow-sm); }
 .resume.holding { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
 .resume-id { all: unset; box-sizing: border-box; flex: 1; min-width: 0; display: flex; align-items: center; gap: 14px; cursor: pointer; border-radius: var(--r-md); }
-.resume-id:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.resume-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
 .resume-id:hover strong { text-decoration: underline; text-underline-offset: 3px; }
 .resume-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .resume-k { font-size: 11px; font-weight: 750; letter-spacing: var(--track-label); text-transform: uppercase; color: var(--tx-3); }
@@ -585,7 +585,7 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
 .tcard:hover { border-color: var(--line-hi); }
 .tcard.holding { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
 .tcard-main { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 12px; min-width: 0; padding: 16px 16px 0; cursor: pointer; border-radius: var(--r-lg) var(--r-lg) 0 0; }
-.tcard-main:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tcard-main:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .tcard-main:hover strong { text-decoration: underline; text-underline-offset: 3px; }
 .tcard-text { display: flex; flex-direction: column; min-width: 0; }
 .tcard-text strong { font-size: 15px; font-weight: 680; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -629,7 +629,7 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
 .home-studio { display: flex; align-items: center; gap: 14px; padding: 16px 18px; border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line)); border-radius: var(--r-lg);
   background: color-mix(in srgb, var(--accent) 6%, var(--ink-1)); color: inherit; text-decoration: none; transition: border-color var(--d-fast); }
 .home-studio:hover { border-color: var(--accent); }
-.home-studio:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.home-studio:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .home-studio-ic { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; background: var(--accent-soft); color: var(--accent-tx); }
 .home-studio-ic svg { width: 20px; height: 20px; }
 .home-studio strong { display: block; font-weight: 700; }
@@ -639,7 +639,7 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
 .home-links a { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 12px 16px; border-top: 1px solid var(--line); color: inherit; text-decoration: none; transition: background var(--d-fast); }
 .home-links a:first-child { border-top: 0; }
 .home-links a:hover { background: var(--ink-2); }
-.home-links a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.home-links a:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .home-links a > svg:first-child { width: 17px; height: 17px; flex: none; color: var(--tx-3); }
 .home-links a > svg:last-child { width: 15px; height: 15px; flex: none; margin-left: auto; color: var(--tx-4); }
 .home-links a > span { display: flex; flex-direction: column; gap: 1px; min-width: 0; }

@@ -25,6 +25,43 @@ class FontShorthandTests(unittest.TestCase):
 
 
 
+def _luminance(colour):
+    channels = [int(colour[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    r, g, b = [c / 12.92 if c <= .03928 else ((c + .055) / 1.055) ** 2.4 for c in channels]
+    return .2126 * r + .7152 * g + .0722 * b
+
+
+def _contrast(a, b):
+    hi, lo = sorted((_luminance(a), _luminance(b)), reverse=True)
+    return (hi + .05) / (lo + .05)
+
+
+class FocusRingTests(unittest.TestCase):
+    def test_light_focus_colour_reaches_three_to_one_on_the_light_page(self):
+        # KIT-CHECKS check 4. The two colours are the ends of the measured light page background.
+        css = (STATIC / "tokens.css").read_text(encoding="utf-8")
+        light = css[css.index(':root[data-theme="light"]'):]
+        self.assertIn("--focus: var(--accent-tx);", light)
+        ring = re.search(r"--accent-tx:\s*(#[0-9A-Fa-f]{6})", light).group(1)
+        for page in ("#F6F2ED", "#FAF7F4"):
+            self.assertGreaterEqual(_contrast(ring, page), 3)
+
+    def test_accent_stays_the_button_fill_in_light(self):
+        css = (STATIC / "tokens.css").read_text(encoding="utf-8")
+        self.assertIn("--accent: #C9962A;", css[css.index(':root[data-theme="light"]'):])
+
+    def test_no_focus_indicator_uses_the_accent_directly(self):
+        # --accent is 2.4:1 on the light page; a ring or focus border must use --focus.
+        bad = []
+        for sheet in sorted(STATIC.glob("*.css")):
+            for selector, body in re.findall(r"([^{}]*:focus[^{}]*)\{([^{}]*)\}", sheet.read_text(encoding="utf-8")):
+                if ":hover" in selector:
+                    continue
+                if re.search(r"(?:outline(?:-color)?|box-shadow|border-color|stroke)\s*:[^;}]*var\(--accent\)", body):
+                    bad.append(f"{sheet.name}: {selector.strip()}")
+        self.assertEqual(bad, [])
+
+
 class ChartEmptyStateTests(unittest.TestCase):
     def test_an_empty_chart_keeps_its_height_and_uses_the_brief_sizes(self):
         # BRIEF 10.9(2): one 15px line on what will appear, one 11px line on why it is empty, same card size

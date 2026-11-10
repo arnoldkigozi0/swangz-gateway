@@ -269,6 +269,7 @@ html[data-theme="light"] .staff-exact { background: none; --staff-scrim: linear-
     transition: transform .42s cubic-bezier(.34,1.36,.64,1), width .42s cubic-bezier(.34,1.36,.64,1);
   }
   .staff-exact .vtabs [role=tab]:focus-visible { outline: 2px solid #EE8F3E; outline-offset: 2px; border-radius: var(--radius-control-sm); }
+  html[data-theme="light"] .staff-exact .vtabs [role=tab]:focus-visible { outline-color: var(--focus); }
   .staff-exact .vtabs .vt-n { background: rgba(128,110,95,.30); color: inherit; }
   .staff-exact .vtabs [aria-selected="true"] .vt-n { background: rgba(128,110,95,.24); color: inherit; }
 }
