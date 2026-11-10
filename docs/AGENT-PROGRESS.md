@@ -450,3 +450,11 @@ Fresh commands/results: `UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.
 suite/matrix, real devices/other engines/screen readers and new hardware
 performance/CLS/MotionScore: Not run. Fresh exact-head CI and independent Probe
 QA remain required. No ready/merge/deploy action.
+
+## Console Overview details — 10 November sprint
+
+Branch feature/console-header-tubes, rebased on origin/main f580cb4. Changes: admin-monitor.js header emoji and role-safe greeting, shorter spend caption (plans amount remains in detail tooltip), zero-day tube option; ui.js opt-in zero stubs/labels/value chip; console mobileNav uses four specified routes, separate All pages attention badge; phone-nav.js extracts staff #70 lens for both apps with arrow-key focus; admin/index HTML load shared helper. CSS only in NEW exact-console-details.css, reusing exact-staff-bar.css; admin.css untouched to avoid Anvil's scene/panel work.
+
+Identity limitation: /admin/api/me exposes username and role, no confirmed first name. Header uses first username segment (or name if supplied), excludes role words Owner/Admin/Administrator and falls back to Hello. Server name contract required for guaranteed first-name display; no fabricated identity.
+
+Validation: browser syntax script checked39 JS files and staff synthetic model18PASS before rebase; node --check ui.js and extended charts.cjs passed. git diff --check passed. Added CI browser assertions for eight tubes/table rows, five zero stubs labelled0, selected-zero chip. Not run locally: Python/full suite, Chromium, screenshots/50%overlay, contrast/CLS/performance/fallback checks — Anvil holds sole browser slot and Chief explicitly assigned CI-only work. CI runs the chart regression. No claim of exact-match visual acceptance; architect review remains required. No new dependencies, production changes or admin.css edits.

@@ -9,7 +9,7 @@
 }
 .route-overview .overview-exact > .panel:first-child > header { border-bottom: 0; }
 .route-overview .u-chart .axis text { fill: var(--tx-2); }
-.route-overview .u-chart .grid { stroke-width: .5; }
+.route-overview .u-chart .grid line { stroke-width: .5; }
 .route-overview .u-tubes .col.zero { opacity: .35; }
 .route-overview .u-tubes .zero-label { fill: var(--tx-2); font: 500 10px var(--font); }
 @media (max-width: 700px) {
