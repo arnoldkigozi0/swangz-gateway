@@ -374,30 +374,8 @@
     const round = el("a", { class: "stb-round" + (onAccess ? " on" : ""), href: "#/requests?view=access", "aria-current": onAccess ? "page" : null,
       "aria-label": asked ? `Access requests, ${asked} waiting` : "Access requests" }, icon("send"), asked ? el("span", { class: "stb-badge" }, String(asked)) : null);
     const nav = el("nav", { class: "staff-tabbar", "aria-label": "Quick navigation" }, bar, round);
-    try { phoneLens(bar); } catch (e) { /* decoration only */ }
+    try { SUI.phoneLens(bar); } catch (e) { /* decoration only */ }
     return nav;
-  }
-  function phoneLens(bar) {
-    if (!bar.addEventListener || (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) return;
-    let lens = null;
-    const under = x => [...bar.querySelectorAll("a")].find(a => { const r = a.getBoundingClientRect(); return x >= r.left && x <= r.right; });
-    const place = x => { const r = bar.getBoundingClientRect(); lens.style.transform = `translate(${Math.max(0, Math.min(r.width, x - r.left))}px, 0)`; };
-    const end = () => { if (lens) { lens.remove(); lens = null; } };
-    bar.addEventListener("pointerdown", e => {
-      if (e.button) return;
-      end();
-      lens = el("i", { class: "stb-lens", "aria-hidden": "true" }); bar.append(lens); place(e.clientX);
-      try { bar.setPointerCapture(e.pointerId); } catch (err) { /* older browsers */ }
-    });
-    bar.addEventListener("pointermove", e => { if (lens) place(e.clientX); });
-    bar.addEventListener("pointerup", e => {
-      if (!lens) return;
-      const target = under(e.clientX); end();
-      if (target) location.hash = target.getAttribute("href");
-    });
-    bar.addEventListener("pointercancel", end);
-    // The pointer handler has already navigated; a click on a link would do it twice.
-    bar.addEventListener("click", e => { if (e.detail) e.preventDefault(); });
   }
 
   function frame(title, content, opts) {

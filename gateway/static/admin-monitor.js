@@ -58,9 +58,9 @@
       /* BRIEF 10.3 / 10.7: four separate cards, the first in accent glass. Each opens the page that holds its detail. */
       kpis = el("div", { class: "kpis four kpis-exact" }, [
         A.kpi({ label: "AI spend · 30 days", value: fmt.money(tr.current.cost), tone: "gold",
-          tip: "Metered use through the gateway, priced from the model price table when each request ran. Company plans are a fixed monthly cost on top.",
+          tip: "Metered use through the gateway, priced from the model price table when each request ran. Company plans are a fixed monthly cost on top." + (subs ? ` Plans: ${fmt.moneyShort(subs)}/month.` : ""),
           foot: spendWhy ? null : SUI.delta(change),
-          note: (spendWhy || "vs the 30 days before") + (subs ? ` · + ${fmt.moneyShort(subs)}/mo in plans` : ""),
+          note: spendWhy || "vs the 30 days before",
           href: "#/licences?tab=spend&range=30d" }),
         A.kpi({ label: "AI requests · 30 days", value: fmt.num(tr.current.requests),
           foot: reqWhy ? null : SUI.delta(reqChange, { upIsGood: true }), note: reqWhy || "vs the 30 days before", href: "#/activity?tab=ai" }),
@@ -77,7 +77,7 @@
        counts (need attention, live requests) and uses by tool. Trends, leaders and licences live on their own pages. */
     const week = tr ? tr.days.slice(-8) : [];
     const usage = A.panel("AI usage", el("a", { class: "btn small quiet", href: "#/activity?tab=usage&range=30d" }, "Who used what", icon("chevronRight")),
-      tr ? el("div", { class: "body" }, SUI.columns({ label: "Uses per day over the last 8 days", yName: "Uses", height: window.matchMedia("(min-width: 1001px)").matches ? 350 : 250, caption: "Requests, tool opens and website visits · times in " + SUI.tzLabel(true),
+      tr ? el("div", { class: "body" }, SUI.columns({ label: "Uses per day over the last 8 days", showZero: true, yName: "Uses", height: window.matchMedia("(min-width: 1001px)").matches ? 350 : 250, caption: "Requests, tool opens and website visits · times in " + SUI.tzLabel(true),
         data: week.map((d) => ({ label: fmt.weekday(d.start), short: fmt.dayMonth(d.start), value: d.requests + d.opens + d.visits,
           note: `${fmt.num(d.requests)} requests · ${fmt.num(d.opens)} opens · ${fmt.num(d.visits)} visits` })) }))
         : SUI.errorBox(trends.reason, () => A.render()));
@@ -105,8 +105,10 @@
           note: SUI.plural(t.people, "person", "people") + " · 30 days" })))
           : A.empty("Once staff start using approved tools, they'll be ranked here.", "No AI activity yet", "tools"));
 
-    const who = String(S.me.username || "").split("@")[0].split(/[._-]/)[0];
-    A.frame({ title: who ? `Hello, ${who.charAt(0).toUpperCase() + who.slice(1)}!` : "Overview",
+    const identity = String(S.me.name || S.me.username || "").trim();
+    const first = identity.split("@")[0].split(/[\s._-]/)[0];
+    const who = /^(owner|admin|administrator)$/i.test(first) ? "" : first;
+    A.frame({ title: who ? `Hello, ${who.charAt(0).toUpperCase() + who.slice(1)}! 👋` : "Hello! 👋",
       lede: `Swangz AI Hub at a glance — ${fmt.weekday(Date.now() / 1000)}. Times in ${SUI.tzLabel()}.`,
       actions: [el("a", { class: "btn", href: "#/activity" }, icon("activity"), "Activity"), el("a", { class: "btn primary", href: "#/live" }, icon("live"), "Open Live")] },
     [kpis, el("div", { class: "overview-exact" }, usage, el("div", { class: "overview-side" }, counts, byTool))]);

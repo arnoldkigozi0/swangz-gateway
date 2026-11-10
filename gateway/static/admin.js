@@ -941,11 +941,17 @@
   }
 
   function mobileNav(active) {
-    const links = [NAV[0][1][0], NAV[0][1][1], NAV[1][1][0], NAV[1][1][2], NAV[4][1][4]];
-    const direct = links.some(([href]) => href === active);
-    return el("nav", { class: "rail-mobile", "aria-label": "Quick navigation" },
-      links.map(([href, label, ic]) => el("a", { href, "aria-current": href === active ? "page" : null }, icon(ic), el("span", null, label))),
-      el("button", { type: "button", "aria-label": "More navigation", "aria-haspopup": "dialog", class: direct ? null : "on", onclick: () => openDrawer(active) }, icon("menu"), el("span", null, "More")));
+    const links = [["#/", "Overview", "home"], ["#/live", "Live", "live"],
+      ["#/attention", "Needs attention", "bell"], ["#/people", "People", "people"]];
+    const bar = el("div", { class: "stb-bar" }, links.map(([href, label, ic]) => el("a", {
+      href, class: active === href ? "on" : null, "aria-current": active === href ? "page" : null,
+      "aria-label": label, "data-ic": ic, draggable: "false"
+    }, icon(ic), el("span", null, label))));
+    const count = S.attention?.items?.length || 0;
+    const round = el("button", { type: "button", class: "stb-round", "aria-label": count ? `All pages, ${count} need attention` : "All pages",
+      "aria-haspopup": "dialog", onclick: () => openDrawer(active) }, icon("menu"), count ? el("span", { class: "stb-badge" }, String(count)) : null);
+    SUI.phoneLens(bar);
+    return el("nav", { class: "staff-tabbar console-tabbar", "aria-label": "Quick navigation" }, bar, round);
   }
 
   function refreshSidebar(side) {

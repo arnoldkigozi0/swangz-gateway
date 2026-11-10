@@ -574,15 +574,19 @@
         const v = d.value || 0;
         // height is exactly proportional to the value (a 1px floor only so a non-zero day can be seen); the cap is
         // rounded to the bar's own size so a short bar is a small rounded stub, not a taller one
-        const bh = v > 0 ? Math.max(1, (base - pad.t) * v / max) : 0;
+        const bh = v > 0 ? Math.max(1, (base - pad.t) * v / max) : (o.showZero ? 4 : 0);
         const x = xs(i) - bw / 2;
         const rr = Math.min(bw / 2, bh / 2);
-        const bar = s("rect", { class: "col", x, y: base - bh, width: bw, height: bh, rx: rr });
+        const bar = s("rect", { class: "col" + (!v ? " zero" : ""), x, y: base - bh, width: bw, height: bh, rx: rr });
         bar.style.fill = `url(#${uid}-g)`;
         const glow = s("rect", { class: "col-hi", x: x + bw * 0.22, y: base - bh + rr * 0.6, width: Math.max(1, bw * 0.18), height: Math.max(0, bh - rr * 1.2), rx: Math.max(.5, bw * 0.09) });
         if (bh < bw * 1.3) glow.setAttribute("display", "none");
         const wrap = s("g", { class: "tube" });
         wrap.append(bar, glow);
+        if (!v && o.showZero) {
+          const zero = s("text", { class: "zero-label", x: xs(i), y: base - 9, "text-anchor": "middle" });
+          zero.textContent = "0"; wrap.append(zero);
+        }
         wrap.style.setProperty("--i", i);   // CSSOM, not a style attribute: the page CSP refuses inline style attributes
         if (!bh) wrap.setAttribute("aria-hidden", "true");
         bars.push(bar); hi.push(glow);
@@ -610,7 +614,7 @@
         const top = Number(bars[at].getAttribute("y"));
         const px = Math.max(pad.l + pw / 2, Math.min(w - pad.r - pw / 2, xs(at)));
         label.style.transform = `translate(${px}px, ${Math.max(14, top - 8)}px)`;
-        label.classList.toggle("none", !d.value);
+        label.classList.toggle("none", !d.value && !o.showZero);
       };
       select(-1);
       requestAnimationFrame(() => requestAnimationFrame(() => label.classList.add("ready")));
