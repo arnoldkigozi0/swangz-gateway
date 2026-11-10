@@ -18,6 +18,86 @@ Written for the V2.1 clarity pass (Oct 9, 2026). Keep it current: when a page ga
 - The URL is the state: `?tab=` for a page's view, `?section=` for a Settings sub-section, filters and ranges
   alongside. Back and Forward step through tab changes; deep links and refresh land on the same view.
 
+## Page levels (BRIEF §10.10.1)
+
+The plan for the layered structure. It lists every page of the console and the staff app, in the order the
+chain PRs will touch them. It changes no code; each row is the target, and "Today" says where the page stands
+against it. **Nothing leaves the product**: content that leaves a page moves down a level and stays reachable
+(the All pages drawer, Ctrl+K, the avatar menu). Stop all AI stays one step away from every page.
+
+Levels: **L1 Summary** (how is this area doing: title, ≤ 4 number cards, one chart or one ≤ 5-row list, no scroll
+at 1440×852) · **L2 List** (which ones: one table or card list, one filter row, one primary action, no charts) ·
+**L3 Record** (what about this one: header + tabs, one block per tab) · **L4 Action** (do it: side sheet or dialog,
+≤ 6 fields per step). Counting rules a reviewer applies: an L1 has ≤ 7 blocks; no page mixes a table with charts;
+a tab strip has ≤ 6 tabs; a page has one tab strip; a number on an L1 card links to the L2 list already filtered to
+those items; nothing appears on two pages, the second page links to the first (Canonical homes, below).
+
+### Console (`/admin`)
+
+| Page (address) | Level | The one question | Parent | Children | What leaves the page, and where it goes |
+|---|---|---|---|---|---|
+| **Overview** (`#/`) | L1 | Is anything wrong, and what is the next step? | — (root of Monitor) | Needs attention, Live, Activity, Licences & spend, Security | Today 8 blocks (4 KPI cards, AI usage chart, two count cards, Uses by tool). Target ≤ 7: *Uses by tool* → Activity → Who used what; *AI usage chart* stays as the one chart. Each card's number links to its filtered L2. Adds one "Next step" line |
+| **Needs attention** (`#/attention`) | L2 | Which items need someone now? | Overview | Person, Tool, Device, Record, Incident (each row's L3) | Nothing. Canonical home of the queue |
+| **Live** (`#/live`) | L2 | Which requests are running right now? | Overview | Record (Inspect) | Cut-request action is L4 (confirm dialog) |
+| **Activity** (`#/activity?tab=`) | L2 | What did people do? | Overview | Record, Person, Tool | Five tabs (Timeline · Who used what · AI requests · Tools opened · Websites visited), within the limit. *Who used what* has charts, so it moves to its own L1-style summary under Reports when the Money chain lands; the table tabs stay |
+| **Request record** (`#/records/<id>`) | L3 | What happened in this one request? | Activity (or the list it came from) | Person, Tool, Device, the session | Nothing. Canonical home of a request in full |
+| **Session** (`#/sessions/<id>`) | L3 | What was in this session? | Request record | Request records, Person | Nothing |
+| **Health** (`#/health`) | L2 | Which checks pass? | Overview | Settings (the fix), Audit log | Not measured for this table (UNVERIFIED which blocks it holds today); the chain PR that reaches it measures it first |
+| **People** (`#/people`) | L2 | Which person? | Govern (L1, new) | Person | Status filter + search + one primary (Add person). Budgets stay on the person |
+| **Person** (`#/people/<id>`) | L3 | What about this person? | People | Their Tools (Access tab), Devices, Activity rows, Incidents | Six tabs: Overview · Access · Activity · Devices · Security · Account. Overview shrinks to facts + one next step; the live-now block and the recent-activity preview leave for the Activity tab |
+| **Access requests** (`#/requests`) | L2 | Which requests wait for a decision? | Govern (L1, new) | Person, Tool | Grant/decline is L4. Filter: Open · Granted · Declined |
+| **Tools** (`#/tools`) | L2 | Which tool? | Govern (L1, new) | Tool | Catalogue as one table, filter row, one primary (Add tool). Counts leave the page into the filter tabs |
+| **Tool** (`#/tools?open=<id>` side sheet) | L3 | What about this tool? | Tools | Licence (Subscription tab), Person (Access tab), Usage rows | Six tabs: Overview · Usage · Access · Subscription · Configuration · Workspace (shared accounts only). Usage keeps the one chart; the people and devices tables leave Usage for Access |
+| **Models** (`#/models`) | L2 | Which model, and is it allowed? | Govern (L1, new) | Model sheet (L4 edit) | Nothing |
+| **Policies** (`#/policies?tab=`) | L2 | Which rules apply? | Govern (L1, new) | Policy editor (L4, grouped steps) | Three tabs: Policies · Simulate · Explain a decision. Simulate and Explain are tools, so they stay as tabs but never share a page with the list |
+| **Weekly reporting** (`#/weekly?tab=`) | L2 | Which weekly reports need review? | Reporting (L1, new) | Weekly report (L3 sheet), Person, Tool | Five tabs (Weekly trends · Staff estimates · Adoption value · Licence opportunities · Procurement) mix charts and tables: trends and value move to the Reporting L1; each tab keeps one block |
+| **Business value** (`#/business?tab=`) | L2 | Which tool pays back? | Reporting (L1, new) | Project, Department, Tool | Tabs Overview · Departments · Projects · Analytics; the allowance form fields (≤ 6) become an L4 sheet |
+| **Tool & subscription requests** (`#/procurement`) | L2 | Which purchase requests wait? | Reporting (L1, new) | Procurement request (L3) | Decision is L4 |
+| **Licences & spend** (`#/licences?tab=`) | L1 (Money) | How is spend and licence use? | — (root of Money) | Licences, What cost us money?, Renewals, Spend reports | Three tabs now. Target: Money L1 = 4 number cards + one chart; *Licences*, *What cost us money?* and *Renewals* become L2 pages under it, each one table |
+| **Spend reports** (`#/reports`, `#/reports/<id>`) | L2 → L3 | Which standard question do I need answered? | Money | One report (range + CSV download) | Nothing; each report is its own page |
+| **Security** (`#/security`) | L1 (Trust) | Is anything unsafe? | — (root of Trust) | Incidents, Devices, Audit log, Person → Security, Record | Signals list is its ≤ 5-row list; the full list becomes L2 "All signals". Failed sign-ins grouped table moves to the L2 |
+| **Incidents** (`#/incidents`) | L2 | Which incident is open? | Security | Incident | Open/Closed/All filter |
+| **Incident** (`#/incidents/<id>`) | L3 | What happened and what was done? | Incidents | Records, Person, Device, Audit log | Trail and evidence as tabs; Close is L4 |
+| **Devices** (`#/devices?tab=`) | L2 | Which key or browser? | Trust (Security) | Device | Tabs Gateway keys · Browsers. Status filter + search |
+| **Device** (`#/devices/<id>`) | L3 | What did this device do? | Devices | Person, Records | Tabs Activity · Flagged; session, apps and addresses details move into Activity rows. Key revoke is L4 |
+| **Audit log** (`#/audit`) | L2 | Who changed what? | Security | Record or target the change names | Nothing. Canonical home of admin changes |
+| **Settings** (`#/settings?section=`) | L1 → L4 | What do I configure? | Trust (Security) | Seven categories: Access & privacy · Purpose & location · Providers & pricing · Company browsers · Emergency · Console users · Your account | The rail is the L1 list. A section is an L4 form: ≤ 6 fields per step, longer sections become numbered steps. Access & privacy (Records · Safeguards · Staff controls) and Purpose & location (Purposes · Locations · Connections) each split so no section shows two tab strips |
+| **Notifications** (bell sheet) | L2 | What did the system tell me? | Any page | The thing each note names | Sheet, not a page |
+| **Sign-in** (`/admin` signed out) | — | — | — | Overview | Not part of the chain |
+
+*New L1 landings* (Govern, Reporting, Money, Security) do not exist as pages today: the area's first page is an L2.
+They are built in the chain PRs below, each with ≤ 4 cards and one list or chart, and each card links to a filtered L2.
+
+### Staff app (`/`)
+
+| Page (address) | Level | The one question | Parent | Children | What leaves the page, and where it goes |
+|---|---|---|---|---|---|
+| **Home** (`#/`) | L1 | What do I open now? | — | Tools, a tool's Open (`/go/`), Requests, Weekly reports | One hero action + three recent rows + one of Updates / allowance. Today the page can also show Updates and allowance together; target is one of them, the other links to Requests → Updates |
+| **Tools** (`#/tools`) | L2 | Which tool is mine? | Home | Tool drawer (L3), Open, Request access (L4) | Search + category + sort is one filter row. Yours as cards, the rest as rows: one list with a "Mine" filter |
+| **Tool drawer** | L3 | Why do I have this, how does sign-in work, what is recorded? | Tools | Privacy (the "recorded" link), Request access | Ends with the single link to Privacy |
+| **Request access** | L4 | — | Tool drawer | Requests → Access requests | ≤ 6 fields |
+| **Studio** (`#/studio?view=`) | L2 | What can I make, what have I made? | Home | A creation | Two views: Create · Your creations |
+| **Devices** (`#/devices?view=`) | L2 | Which devices are connected? | Home | Connect flow (L4), a device | Views Connected · Connect a tool; "Disconnected" becomes a filter on Connected |
+| **Requests** (`#/requests?view=`) | L2 | What is waiting for me? | Home | Update, Access request | Views Updates · Access requests; Procurement and Department reports leave for Weekly reports |
+| **Weekly reports** (`#/weekly?view=`) | L2 | Which report do I owe? | Home | Weekly report (L3 sheet) | Views Pending & returned · Submitted · Adoption & impact; Adoption & impact is its own L2 (below) |
+| **Adoption & impact** (`#/activity`, `#/business`) | L2 | How is my area adopting AI? | Weekly reports | Project | Declarations, department views, analytics: one block per tab |
+| **Project** (`#/projects`) | L3 | What is this deliverable? | Adoption & impact | — | Focused detail only |
+| **Privacy** (`#/privacy`) | L3 | What is recorded about me? | Any tool drawer, Home footer | — | Six sections with an index; this is reference reading, linked from the drawer, not from Home |
+| **Device approval** (`/device`) | L4 | Approve this device? | The app's sign-in code | — | One code, one decision |
+| **Sign-in** (`/`) signed out | — | — | — | Home | Not part of the chain |
+
+### Build order (BRIEF §10.10, round R18)
+
+(d) Overview as the L1 with its cards linked → (e) one chain per PR: People (list → person → their tools) → Tools
+→ Money (new L1) → Security (new L1) → Settings → staff app (Home → tool → request access). Each chain PR changes
+this table in the same commit, so the document stays the truth.
+
+### What this table does not decide (UNVERIFIED / open)
+
+- The exact ≤ 4 cards for Govern, Reporting, Money and Security landings are not chosen; each chain PR proposes them and Arnold's boss reviews.
+- Block counts "today" were read from the code and the Overview screenshot on 10 Nov (main c429f93), not measured on every page; each chain PR measures its own page at 1440×852 before and after.
+- Tab counts were read from `pageTabs()` / `viewTabs()` calls; pages that build tabs dynamically (Reporting detail sheets) are not counted.
+
 ## Audit (before this pass) and what each page is now for
 
 | Area | Primary job | Problems found | Overlap | Structure now |
