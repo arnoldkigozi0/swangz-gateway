@@ -676,10 +676,10 @@ def spend(ctx):
 # ---------------------------------------------------------------- security
 
 
-# audit action -> (title, where the attempt was made, what the actor column holds). The console records the username
-# typed; the staff app and the extension record a name only for a real person, and "?" otherwise.
+# audit action -> (title, where the attempt was made, what the actor column holds). The console records the matched
+# account, or "unknown" when the username matched none (never the text typed); the staff app and the extension record a name only for a real person, and "?" otherwise.
 FAILED_SIGN_INS = {
-    "failed sign-in": ("Failed console sign-ins", "the control room", "usernames tried"),
+    "failed sign-in": ("Failed console sign-ins", "the control room", "accounts; unknown = no such account"),
     "failed Swangz AI Hub sign-in": ("Failed staff app sign-ins", "the staff app", "people whose password was wrong"),
     "failed access extension sign-in": ("Failed browser extension sign-ins", "the browser extension",
                                         "people whose password was wrong"),

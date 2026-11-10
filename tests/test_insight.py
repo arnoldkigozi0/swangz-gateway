@@ -125,6 +125,25 @@ class DeviceTests(LensBase):
 
 
 class SecurityTests(LensBase):
+    def test_failed_staff_sign_ins_are_never_counted_as_attempts_on_the_control_room(self):
+        rig = self.rig
+        for body in ({"username": "owner@swangzavenue.com", "password": "wrong"}, {"username": "typed-in-the-wrong-box", "password": "wrong"}):
+            rig.request("POST", "/admin/api/login", body, {"x-gateway-admin": "1"})
+        for path in ("/api/login", "/api/extension/login"):
+            self.assertEqual(rig.request("POST", path, {"email": "nobody@swangzavenue.com", "password": "wrong"}, {"x-swangz-app": "1"})[0], 401)
+        actions = [r["action"] for r in rig.gw.db.q("SELECT action FROM audit WHERE action LIKE 'failed%' ORDER BY id")]
+        self.assertEqual(actions, ["failed sign-in", "failed sign-in", "failed Swangz AI Hub sign-in", "failed access extension sign-in"])
+        hit = [e for e in rig.api("GET", "/security")[1]["events"] if e["type"] == "signin"]
+        self.assertEqual(len(hit), 3)                                      # one line per place, each with its own count
+        console = [e for e in hit if "control room" in e["text"]]
+        self.assertEqual(len(console), 1)
+        self.assertIn("2 failed sign-ins to the control room", console[0]["text"])
+        self.assertIn("owner@swangzavenue.com", console[0]["text"])
+        self.assertIn("unknown", console[0]["text"])
+        for e in hit:
+            self.assertNotIn("typed-in-the-wrong-box", e["text"])
+            self.assertNotIn("nobody@swangzavenue.com", e["text"])
+
     def test_signals_with_their_evidence(self):
         rig = self.rig
         rig.anthropic({"model": "claude-sonnet-4-5", "max_tokens": 5,
@@ -153,7 +172,7 @@ class SecurityTests(LensBase):
         self.assertEqual(sorted(lines), ["Failed browser extension sign-ins", "Failed console sign-ins", "Failed staff app sign-ins"])
         console, staff, ext = (lines[t] for t in ("Failed console sign-ins", "Failed staff app sign-ins",
                                                   "Failed browser extension sign-ins"))
-        self.assertIn("1 failed sign-in to the control room from 203.0.113.5 (usernames tried: owner@swangzavenue.com)", console["text"])
+        self.assertIn("1 failed sign-in to the control room from 203.0.113.5 (accounts; unknown = no such account: owner@swangzavenue.com)", console["text"])
         self.assertIn("1 failed sign-in to the staff app from 203.0.113.5 (people whose password was wrong: Grace)", staff["text"])
         self.assertIn("1 failed sign-in to the browser extension from 203.0.113.5 (people whose password was wrong: —)", ext["text"])
         for e in (staff, ext):
