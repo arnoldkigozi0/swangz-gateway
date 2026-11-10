@@ -74,6 +74,8 @@ jobs:
         run: node tests/browser/charts.cjs
       - name: Staff shell cold-load fonts (zero layout shift, latch)
         run: node tests/browser/staff-font.cjs
+      - name: Console cold loads (zero layout shift, version line)
+        run: node tests/browser/admin-cls.cjs
       - name: Split sign-in gate (both apps, Google link, eye, inert panes, welcome)
         run: node tests/browser/signin.cjs
       - name: Staff footer (geometry, liquid reveal, health word, ask, theme switch)
