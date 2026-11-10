@@ -19,6 +19,13 @@
   transform: translateY(calc(var(--xf-fs) * -.27 - 14px));   /* the whole "g" stays inside the panel */
 }
 .staff-exact .xf-wordroom { height: calc(var(--xf-fs) * .97 + 55px); }
+/* Scroll cost, desktop: the glass is one SVG rect behind a mask that cuts out a 240px word, the dearest thing
+   in the footer to draw. The footer paints as a box of its own, and the glass is drawn once and kept, so
+   scrolling moves a finished picture instead of drawing the mask again. Nothing here changes a pixel. */
+@media (min-width: 901px) {
+  .staff-exact .xfoot { contain: layout paint; }
+  .staff-exact .xf-fill { will-change: transform; }
+}
 
 .staff-exact .xf-body { position: relative; padding: 32px 35px 0 37px; }
 .staff-exact .xf-top { display: grid; grid-template-columns: 380px minmax(0,1fr); gap: 56px; align-items: start; }
