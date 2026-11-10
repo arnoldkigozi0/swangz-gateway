@@ -251,7 +251,7 @@ class ExtensionLogoutTests(Base):
         token = self.extension_token()
         self.call("POST", "/logout", {}, bearer=token)
         self.call("POST", "/logout", {}, bearer=token)  # again: already gone, nothing to record
-        rows = self.db.q("SELECT * FROM audit WHERE action = 'disconnected the access extension'")
+        rows = self.db.q("SELECT * FROM audit WHERE action = 'access extension session ended'")
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["correlation"], f"person:{self.pid}")
         self.assertEqual(json.loads(rows[0]["after_json"])["sessions_ended"], 1)
@@ -268,7 +268,7 @@ class ExtensionLogoutTests(Base):
         self.assertEqual(self.call("POST", "/logout", {}, bearer="not-a-session")[0], 200)
         self.assertEqual(self.call("POST", "/logout", {}, bearer=self.rig.key)[0], 200)  # a device/API key is never a session
         self.assertEqual(self.rig.anthropic({"model": "claude-haiku-4-5", "messages": [{"role": "user", "content": "hi"}]})[0], 200)
-        self.assertEqual((self.rows("extension"), self.db.scalar("SELECT COUNT(*) FROM audit WHERE action = 'disconnected the access extension'")), (1, 0))
+        self.assertEqual((self.rows("extension"), self.db.scalar("SELECT COUNT(*) FROM audit WHERE action = 'access extension session ended'")), (1, 0))
 
     def test_cookie_and_bearer_together_end_one_of_each(self):
         token = self.extension_token()

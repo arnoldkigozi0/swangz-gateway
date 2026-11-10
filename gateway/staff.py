@@ -32,7 +32,7 @@ PAUSED = ("Your access is paused. Talk to your admin to have it restored.", "per
 
 
 def route(method, pattern, signed_in=True, paused_ok=False):
-    """paused_ok marks a route a paused person (suspended, web session) may still reach. It is read-only by
+    """paused_ok marks a route a paused person (suspended or access ended, web session) may still reach. It is read-only by
     construction: anything but a GET (and signing out) refuses to register."""
     if paused_ok and method != "GET" and pattern != r"/logout":
         raise ValueError(f"paused_ok is for read-only routes: {method} {pattern}")
@@ -239,7 +239,7 @@ def logout(ctx):
     _end_session(ctx, _cookie(ctx.h.headers.get("cookie") or "", COOKIE), "web", "signed out of the web app")
     auth = (ctx.h.headers.get("authorization") or "").strip()
     if auth[:7].lower() == "bearer ":
-        _end_session(ctx, auth[7:].strip(), "extension", "disconnected the access extension")
+        _end_session(ctx, auth[7:].strip(), "extension", "access extension session ended")
     return 200, {"ok": True}, {"Set-Cookie": _session_cookie(ctx, "", 0)}
 
 
