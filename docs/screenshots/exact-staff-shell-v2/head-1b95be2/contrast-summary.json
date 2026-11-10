@@ -1,0 +1,149 @@
+{
+ "summary": {
+  "1440x852-dark-home": {
+   "texts": 40,
+   "worst_enabled": 6.57
+  },
+  "1440x852-dark-tools": {
+   "texts": 102,
+   "worst_enabled": 6.57
+  },
+  "1440x852-dark-requests": {
+   "texts": 21,
+   "worst_enabled": 6.57
+  },
+  "1440x852-dark-weekly": {
+   "texts": 35,
+   "worst_enabled": 6.57
+  },
+  "1440x852-dark-projects": {
+   "texts": 15,
+   "worst_enabled": 6.57
+  },
+  "1440x852-light-home": {
+   "texts": 40,
+   "worst_enabled": 4.99
+  },
+  "1440x852-light-tools": {
+   "texts": 102,
+   "worst_enabled": 5.55
+  },
+  "1440x852-light-requests": {
+   "texts": 21,
+   "worst_enabled": 5.7
+  },
+  "1440x852-light-weekly": {
+   "texts": 35,
+   "worst_enabled": 5.63
+  },
+  "1440x852-light-projects": {
+   "texts": 15,
+   "worst_enabled": 5.72
+  },
+  "390x844-dark-home": {
+   "texts": 26,
+   "worst_enabled": 6.57
+  },
+  "390x844-dark-tools": {
+   "texts": 39,
+   "worst_enabled": 6.57
+  },
+  "390x844-dark-requests": {
+   "texts": 15,
+   "worst_enabled": 6.57
+  },
+  "390x844-dark-weekly": {
+   "texts": 21,
+   "worst_enabled": 6.57
+  },
+  "390x844-dark-projects": {
+   "texts": 9,
+   "worst_enabled": 6.57
+  },
+  "390x844-light-home": {
+   "texts": 26,
+   "worst_enabled": 4.98
+  },
+  "390x844-light-tools": {
+   "texts": 39,
+   "worst_enabled": 5.55
+  },
+  "390x844-light-requests": {
+   "texts": 15,
+   "worst_enabled": 5.67
+  },
+  "390x844-light-weekly": {
+   "texts": 21,
+   "worst_enabled": 2.97
+  },
+  "390x844-light-projects": {
+   "texts": 9,
+   "worst_enabled": 5.67
+  }
+ },
+ "below": [
+  [
+   "1440x852-dark-tools",
+   3.6,
+   "Previous",
+   "BUTTON.btn btn--small",
+   "rgb(255, 248, 242)",
+   13,
+   "DISABLED"
+  ],
+  [
+   "1440x852-dark-weekly",
+   3.6,
+   "Previous",
+   "BUTTON.btn btn--small",
+   "rgb(255, 248, 242)",
+   13,
+   "DISABLED"
+  ],
+  [
+   "1440x852-dark-weekly",
+   3.65,
+   "Next",
+   "BUTTON.btn btn--small",
+   "rgb(255, 248, 242)",
+   13,
+   "DISABLED"
+  ],
+  [
+   "1440x852-light-tools",
+   2.47,
+   "Previous",
+   "BUTTON.btn btn--small",
+   "rgb(28, 24, 22)",
+   13,
+   "DISABLED"
+  ],
+  [
+   "1440x852-light-weekly",
+   2.48,
+   "Previous",
+   "BUTTON.btn btn--small",
+   "rgb(28, 24, 22)",
+   13,
+   "DISABLED"
+  ],
+  [
+   "1440x852-light-weekly",
+   2.47,
+   "Next",
+   "BUTTON.btn btn--small",
+   "rgb(28, 24, 22)",
+   13,
+   "DISABLED"
+  ],
+  [
+   "390x844-light-weekly",
+   2.97,
+   "Observed activity",
+   "TH.hide-sm",
+   "rgb(75, 53, 39)",
+   12,
+   ""
+  ]
+ ]
+}
