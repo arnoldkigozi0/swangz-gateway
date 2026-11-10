@@ -1,5 +1,5 @@
 /* Cold loads of the console must not shift: the version line at the foot of the page sits under content that
-   arrives late (Activity, Settings). Every layout-shift entry is recorded with its source; none is allowed.
+   arrives late (Activity, Settings), and Live draws its first load before it is shown. Every layout-shift entry is recorded with its source; none is allowed.
    Also checks the line is shown once the page is still. Local synthetic fixture only. */
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -17,7 +17,7 @@ let demo, browser;
     });
     browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME || undefined });
     let cells = 0;
-    for (const [width, height] of [[1440, 852], [390, 844]]) for (const hash of ['#/', '#/activity', '#/settings', '#/people', '#/health']) {
+    for (const [width, height] of [[1440, 852], [390, 844]]) for (const hash of ['#/', '#/activity', '#/settings', '#/people', '#/health', '#/live']) {
       const c = await browser.newContext({ viewport: { width, height } });
       await c.addInitScript(() => {
         window.__shifts = [];

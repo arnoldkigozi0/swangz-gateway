@@ -159,18 +159,6 @@
     const finished = el("ol", { class: "events flat" });
     const shared = el("div"), opens = el("div"), sites = el("div");
     const sharedPanel = A.panel("Shared company accounts", "who holds a turn now", shared);
-    A.frame({ title: "Live", lede: "What is happening across Swangz AI Hub right now.", status: conn }, [
-      kpis,
-      el("div", { class: "grid cols-2" },
-        el("div", { class: "grid" },
-          A.panel("In flight", "requests waiting on a model or streaming back", stream),
-          A.panel("Just finished", el("a", { class: "btn small quiet", href: "#/activity?tab=ai" }, "Search everything", icon("chevronRight")), finished)),
-        el("div", { class: "grid" },
-          sharedPanel,
-          A.panel("Opened from the portal", "today", opens),
-          A.panel("AI websites", "last hour · browser extension", sites))),
-    ]);
-
     const cards = new Map();
     function drawKpis(live, turnsNow) {
       const streaming = live.filter((t) => t.streaming).length;
@@ -264,7 +252,21 @@
           el("button", { class: "btn small", onclick: () => tick() }, icon("refresh"), "Retry"));
       }
     }
+    // The first load is drawn into these nodes before the page is shown, so nothing fills in (and moves
+    // what is below it) after the first paint. BRIEF 10.9.4: a cold load must not shift.
     await tick();
+    A.frame({ title: "Live", lede: "What is happening across Swangz AI Hub right now.", status: conn }, [
+      kpis,
+      el("div", { class: "grid cols-2" },
+        el("div", { class: "grid" },
+          A.panel("In flight", "requests waiting on a model or streaming back", stream),
+          A.panel("Just finished", el("a", { class: "btn small quiet", href: "#/activity?tab=ai" }, "Search everything", icon("chevronRight")), finished)),
+        el("div", { class: "grid" },
+          sharedPanel,
+          A.panel("Opened from the portal", "today", opens),
+          A.panel("AI websites", "last hour · browser extension", sites))),
+    ]);
+    document.querySelector(".page")?.classList.toggle("stale", failures > 0);
     A.every(2500, tick);
     A.every(1000, () => {
       document.querySelectorAll(".elapsed[data-started]").forEach((x) => { x.textContent = fmt.elapsed(Number(x.dataset.started)); });
