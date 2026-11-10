@@ -85,7 +85,7 @@
       ] }) : SUI.stateBox({ icon: "people", title: items.length ? "Nobody matches" : "Nobody yet", text: items.length ? "Try another search or filter." : "Add the first person, then send them a sign-in link or issue a key." }));
     }
     const apply = () => { A.keepParams("#/people", { q: st.q, dept: st.dept, status: st.status }); draw(); };
-    const bar = SUI.filterBar({ label: "Filter people", search: { placeholder: "Search name, email, department…" }, values: st,
+    const bar = SUI.filterBar({ label: "Filter people", search: { placeholder: "Name, email, department" }, values: st,
       filters: [{ id: "status", label: "Status", any: "Everyone", options: statusOptions }]
         .concat(depts.length > 1 ? [{ id: "dept", label: "Department", any: "All departments", options: depts.map((d) => ({ id: d, label: d })) }] : []),
       onChange: (v) => { st.q = v.q || ""; st.dept = v.dept || ""; st.status = v.status || ""; apply(); } });
