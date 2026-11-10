@@ -72,6 +72,8 @@ jobs:
         run: node tests/browser/lists.cjs
       - name: Chart empty-state and drawing checks
         run: node tests/browser/charts.cjs
+      - name: Split sign-in gate (both apps, Google link, eye, inert panes, welcome)
+        run: node tests/browser/signin.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

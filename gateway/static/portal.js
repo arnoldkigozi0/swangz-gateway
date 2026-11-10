@@ -178,13 +178,24 @@
 
   function showSignIn() {
     document.title = "Sign in · Swangz AI Hub";
-    const email = el("input", { class: "input", type: "email", autocomplete: "email", required: true, placeholder: "you@swangzavenue.com", id: "si-email" });
+    const email = el("input", { type: "email", autocomplete: "email", required: true, placeholder: "Work email", id: "si-email" });
     const pw = passwordInput("current-password", "si-pass");
+    pw.input.removeAttribute("class"); pw.input.setAttribute("placeholder", "Password");
     const err = el("div", { class: "form-error", role: "alert" }, authError());
-    const google = el("div");
-    googleButton("staff", "Continue with Google").then((b) => google.replaceWith(b));
-    const go = el("button", { class: "btn btn--solid btn--block", type: "submit" }, "Sign in");
+    const google = el("div", { class: "google-box" });
+    const googleB = el("div", { class: "xg-gB" });
+    // Google is offered only when the server says so; mode B reuses the same link (no divider there)
+    const optionsKnown = googleButton("staff", "Continue with Google").then((b) => {
+      google.replaceWith(b);
+      const link = b.querySelector("a[href]");
+      if (link) {
+        googleB.append(el("p", { class: "xg-note" }, "If your admin has already added your work email, continue with Google using that account."), link.cloneNode(true));
+      }
+    });
+    const go = el("button", { class: "xg-primary", type: "submit" }, "Login");
+    let gate;
     const form = el("form", {
+      class: "xg-fields",
       onsubmit: async (e) => {
         e.preventDefault();
         go.disabled = true;
@@ -195,13 +206,22 @@
         } catch (x) { err.textContent = x.message; go.disabled = false; }
       },
     },
-    el("div", null, el("div", { class: "eyebrow" }, "Welcome back"), el("h2", null, "Sign in to Swangz AI Hub")),
-    google,
-    el("label", { class: "field", for: "si-email" }, el("span", null, "Work email"), email),
-    el("label", { class: "field", for: "si-pass" }, el("span", null, "Password"), pw.node),
+    SUI.xfield("user", "Work email", email),
+    SUI.xfield("lock", "Password", pw.input, SUI.eyeToggle(pw.input)),
     err, go,
-    el("p", { class: "muted small" }, "First time here? Your admin sends you a sign-in link. Forgot your password? Ask them for a new one."));
-    app.replaceChildren(gateFrame(form));
+    el("p", { class: "xg-links" }, "First time here? ", el("button", { type: "button", class: "xg-link", onclick: () => gate.swap("b") }, "Get access")));
+    gate = SUI.splitGate({
+      ready: optionsKnown,
+      brand: el("a", { class: "xg-brand", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz ", el("b", null, "AI Hub")),
+      a: { title: "Login", body: [google, form], focus: email },
+      b: { title: "Get access", body: [el("div", { class: "xg-fields" },
+        el("p", { class: "xg-note" }, "Your admin adds your work email, then sends you a sign-in link. Forgot your password? Ask them for a new link."),
+        googleB,
+        el("button", { type: "button", class: "xg-primary", onclick: () => gate.swap("a") }, "Back to login"))] },
+      helloA: { h: "HELLO,\nFRIEND!", p: "Every AI tool Swangz pays for, in one place. Open any of them with your work account.", btn: "Get access" },
+      helloB: { h: "WELCOME\nBACK!", p: "Already set up? Please login with your credentials.", btn: "Sign In" },
+    });
+    app.replaceChildren(gate.node);
     email.focus();
   }
 
