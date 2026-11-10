@@ -64,7 +64,7 @@ async function boot({ hash = '#/', search = '', me = paused, request, sui = {}, 
   const dialogs = [];
   Object.defineProperty(app, 'observeMutation', { value: kind => mutations.push({ kind, text: text(app), children: app.children.length }) });
   let guardCalls = 0;
-  const c = { URLSearchParams, setTimeout: () => {},
+  const c = { URLSearchParams, setTimeout: () => {}, clearTimeout: () => {},
     location: { hash, search, pathname: '/', replace(url) {
       assert.equal(c.SWP.S.me, null); assert.equal(c.SWP.S.studio, null);
       assert.equal(app.children.length, 0, 'attached app cleared before navigation');
