@@ -250,7 +250,7 @@ class SourceTests(Base):
             ("GET", "/device/packages/(?P<pid>[a-z0-9-]{2,60})/(?P<version>[0-9A-Za-z._-]{1,32})"),
             ("POST", "/device/code"), ("POST", "/device/heartbeat"), ("POST", "/device/rotate"),
             ("POST", "/device/signout"), ("POST", "/device/token")])
-        self.assertEqual(len(SCHEMA), 23)  # v23 is session kinds, not the browser contract, which still adds no migration
+        self.assertEqual(len(SCHEMA), 25)  # v23 session kinds, v24-v25 provider registry; the browser contract itself adds no migration
 
 
 class NegotiationSemanticsTests(Base):

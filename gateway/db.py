@@ -14,6 +14,7 @@ from .business_schema import MIGRATION as BUSINESS_MIGRATION
 from .device_schema import MIGRATION as DEVICE_MIGRATION
 from .device_schema import MIGRATION_22 as DEVICE_LIFECYCLE_MIGRATION
 from .device_schema import MIGRATION_23 as SESSION_KIND_MIGRATION
+from .registry_schema import MIGRATION as PROVIDER_REGISTRY_MIGRATION, MIGRATION_25 as PROVIDER_REGISTRY_NULL_SAFE_MIGRATION
 
 SCHEMA = [
     # v1
@@ -510,6 +511,10 @@ SCHEMA = [
     # v23: a session says what it is for. Rows that exist at upgrade become 'extension' (the only kind that was ever a
     # bearer token), so no session is deleted and no old cookie keeps working: a web session is a new sign-in.
     SESSION_KIND_MIGRATION,
+    # v24: the manual provider-account registry (Amendment 01 task 1): declarations by the holder, retained, never fetched.
+    PROVIDER_REGISTRY_MIGRATION,
+    # v25: v24's guards made NULL-safe (an explicit NULL in a defaulted column slipped past them under OR REPLACE). v24 stays frozen.
+    PROVIDER_REGISTRY_NULL_SAFE_MIGRATION,
 ]
 
 
@@ -540,7 +545,9 @@ class DB:
             for i, script in enumerate(SCHEMA[version:], start=version + 1):
                 self.conn.execute("BEGIN")
                 try:
-                    for stmt in script.split(";"):
+                    # A str entry is split on semicolons, exactly as it always was. A tuple entry (v24 onward) holds one
+                    # statement per element, so a trigger body can carry semicolons; sqlite refuses an element with two.
+                    for stmt in (script if isinstance(script, tuple) else script.split(";")):
                         if stmt.strip():
                             self.conn.execute(stmt)
                     self.conn.execute("INSERT OR REPLACE INTO meta(k, v) VALUES('schema', ?)", (str(i),))

@@ -6,7 +6,7 @@
   const { el, icon, fmt, toast, copy } = SUI;
   const app = document.getElementById("app");
   const S = { me: null, studio: null, filter: { q: "", cat: "all", sort: "recommended", show: "all" } };
-  let pausedRefresh = null, pausedRender = 0, loading = 0, identityGeneration = 0;
+  let pausedRefresh = null, pausedRender = 0, loading = 0, identityGeneration = 0, signingOut = false, signedOut = false;
   const isPaused = () => !!S.me?.paused_view;
   const pausedCall = (method, path) => method === "POST" && path === "/logout" || method === "GET" &&
     (path === "/me" || path === "/hub/notifications" || /^\/hub\/reports(?:\/[1-9]\d{0,14}|\?limit=30&offset=\d+)?$/.test(path));
@@ -19,6 +19,7 @@
   const gurl = (path) => GATEWAY + path;
 
   async function api(method, path, body) {
+    if (signedOut) throw new ApiError(401, "You're signed out.", "signed_out");
     if (isPaused() && !pausedCall(method, path)) throw new ApiError(403, "Your access is paused.", "person_paused");
     const generation = identityGeneration;
     const opts = { method, credentials: "include", headers: { "x-swangz-app": "1" } };
@@ -30,20 +31,24 @@
     try { res = await fetch(GATEWAY + "/api" + path, opts); }
     catch (e) { throw new ApiError(0, "Swangz AI Hub can't be reached. Check your connection and try again."); }
     let data = null;
-    try { data = await res.json(); } catch (e) { /* empty */ }
+    try { data = await res.json(); } catch (e) {
+      if (method === "POST" && path === "/logout") throw new ApiError(res.status, "Couldn't confirm sign-out. Try again.");
+    }
     if (!res.ok) {
-      if (data?.code === "person_paused" && path !== "/me") {
+      if (!signedOut && !signingOut && generation === identityGeneration && data?.code === "person_paused" && path !== "/me") {
         if (pausedRefresh) await pausedRefresh;
         else if (!isPaused()) await refreshPaused();
       }
       throw new ApiError(res.status, (data && data.error) || "Something went wrong. Try again.", data?.code);
     }
     // A response started before suspension must not restore active data after the identity changed.
-    if (generation !== identityGeneration) throw new ApiError(403, "Your access is paused.", "person_paused");
+    if (generation !== identityGeneration && !(method === "POST" && path === "/logout" && res.ok))
+      throw new ApiError(403, "Your access is paused.", "person_paused");
     return data;
   }
 
   function refreshPaused() {
+    if (signedOut) return;
     if (!pausedRefresh) {
       identityGeneration++;
       S.me = { paused_view: true };
@@ -71,6 +76,7 @@
   }
 
   function dialog(title, body, actions) {
+    if (signedOut) return el("dialog");
     const id = "d-" + Math.random().toString(36).slice(2, 7);
     const d = el("dialog", { "aria-labelledby": id }, el("div", { class: "d-body" }, el("h2", { id }, title), typeof body === "string" ? el("p", null, body) : body),
       el("div", { class: "d-actions" }, actions(() => d.close())));
@@ -177,6 +183,7 @@
   }
 
   function showSignIn() {
+    if (signedOut) return;
     document.title = "Sign in · Swangz AI Hub";
     const email = el("input", { type: "email", autocomplete: "email", required: true, placeholder: "Work email", id: "si-email" });
     const pw = passwordInput("current-password", "si-pass");
@@ -226,15 +233,18 @@
   }
 
   async function showWelcome(token) {
+    if (signedOut) return;
     let invite;
     try {
       invite = await api("GET", "/welcome/" + encodeURIComponent(token));
     } catch (e) {
+      if (signedOut) return;
       const form = el("form", null, el("div", { class: "eyebrow" }, "Sign-in link"), el("h2", null, "This link has run out"),
         el("p", { class: "muted" }, e.message), el("a", { class: "btn", href: "#/" }, "Go to sign in"));
       app.replaceChildren(gateFrame(form));
       return;
     }
+    if (signedOut) return;
     const pw = passwordInput("new-password", "w-pass");
     const again = passwordInput("new-password", "w-again");
     const err = el("div", { class: "form-error", role: "alert" });
@@ -295,6 +305,7 @@
   }
 
   function frame(title, content, opts) {
+    if (signedOut) return;
     if (isPaused()) return renderPaused();
     opts = opts || {};
     const me = S.me;
@@ -1099,12 +1110,14 @@
             pv.gate_log_full ? "Your company has also turned on fuller logging for AI websites — ask your admin what it covers." : null),
           item("terminal", "AI requests through the gateway", "Who, which device and app, the model, what you typed, what the AI did and replied, and what it cost.",
             "This covers coding tools, Studio and apps connected with a Swangz key — they run on the company's key, so each request passes through Swangz AI Hub."),
-          item("hand", "Shared company accounts", "Who held the turn and when, so the account's use can be matched to a person."))]],
+          item("hand", "Shared company accounts", "Who held the turn and when, so the account's use can be matched to a person."),
+          item("wallet", "Subscriptions you tell us about", "If you record an AI subscription you hold, Swangz AI Hub keeps what you enter: the tool, whether it's personal or a seat on the company plan, who pays, an optional label, and any plan, quota, period end date, price or credit you add. It's your own declaration: nobody checks it with the provider, and it doesn't change which tools you can use.",
+            "You can end a record but not delete it. Values can't be edited; adding a new one keeps the earlier one in the record's history."))]],
       ["not-recorded", "What is not recorded", icon("lock"), [
         el("ul", { class: "p-list" },
           pv.gate_log_full ? null : item("globe", "Page contents or keystrokes on AI websites", "The extension records the site and the time — never what's on the page or what you type there."),
           item("x", "Anything outside approved AI tools", "Other websites and apps aren't watched by Swangz AI Hub."),
-          item("user", "Your personal accounts", "Only access through Swangz AI Hub is recorded."))]],
+          item("user", "Your personal accounts", "Only your access through Swangz AI Hub is recorded, plus any subscription you choose to record yourself."))]],
       ["purpose", "Purpose and location", icon("target"), [
         el("ul", { class: "p-list" },
           item("target", "What a request was for", pv.purpose_inference ? "Your word if you give it (Studio asks); otherwise the tool's, or a labelled guess." : "Only your word (Studio asks) or what the tool itself implies — never a guess from what you type.",
@@ -1114,12 +1127,16 @@
             "The gateway sees the network address of each request. Admins see the network's name if Swangz has named it, or an approximate town from an offline table" + (pv.location_table ? "" : " (not loaded here yet)") + ". Your address is never sent to an outside service."))]],
       ["who", "Who can see it", icon("shield"), [
         el("p", null, "Swangz administrators, in the control room. Every time one opens a full record or exports records, that is itself written to an audit log — and only some admin roles can export what you typed."),
+        el("p", null, "Swangz AI Hub shows the details of a personal subscription you record only to you. For a seat on the company plan, control-room users who manage tools or spending see its tool, status, dates, holder, payer and label; those who manage tools also see its plan, quota and period end, and those who manage spending see its price and credit. Whenever you add a subscription record, add a value to it or end it, the audit log notes your name, the change, the time, your network address and a record number. Everyone with control-room access, including read-only users, can see that entry. It never includes the tool, plan, price or anything else you entered."),
+        el("details", { class: "p-more" }, el("summary", null, "More about this"),
+          el("p", null, "From that entry, control-room users who manage tools or spending can tell whether the change was to a personal subscription or a company seat; for a personal subscription, they still can't see which tool. As with every record here, the people who run the Swangz server and its backups can reach the stored data.")),
         el("p", { class: "muted" }, pv.block_secrets ? "Requests that contain passwords or API keys are refused, to keep them out of AI tools." : "Requests that look like they contain passwords or API keys are flagged so they can be changed.")]],
       ["kept", "How long it's kept", icon("clock"), [
         el("p", null, pv.retention_days ? `AI request records are deleted automatically after ${pv.retention_days} days.` : "AI request records are kept until an administrator removes them."),
         el("p", { class: "muted" }, !pv.store_bodies ? "Only a summary is kept — not the full contents of requests."
           : pv.bodies_days ? `Full request contents are kept for ${pv.bodies_days} days, then only the summary stays.` : "Full request contents are kept for that time, so the exact request can be checked if something goes wrong."),
-        pv.site_days || pv.launch_days ? el("p", { class: "muted" }, [pv.site_days ? `AI website visits: ${pv.site_days} days.` : null, pv.launch_days ? `Tools opened from here: ${pv.launch_days} days.` : null].filter(Boolean).join(" ")) : null]],
+        pv.site_days || pv.launch_days ? el("p", { class: "muted" }, [pv.site_days ? `AI website visits: ${pv.site_days} days.` : null, pv.launch_days ? `Tools opened from here: ${pv.launch_days} days.` : null].filter(Boolean).join(" ")) : null,
+        el("p", null, "Subscription records and their values are kept even after you end them. Audit log entries are kept for at least a year.")]],
       ["help", "Using it well, and help", icon("info"), [
         el("p", null, "Swangz AI Hub is for your work at Swangz. Don't paste passwords, other people's personal details, or anything you wouldn't put in a work email."),
         el("details", null, el("summary", null, "Weekly reporting and your declarations"),
@@ -1184,12 +1201,14 @@
   // Paused identities never enter the active portal or Hub report wizard. These views use only
   // the existing read-only routes and text nodes; notification destinations are deliberately ignored.
   function pausedHome() {
+    if (signedOut) return;
     history.replaceState(null, "", location.pathname + "#/");
     previousRoute = "#/";
     return renderPaused();
   }
 
   async function renderPaused() {
+    if (signedOut) return;
     const ticket = ++pausedRender, me = S.me;
     document.title = "Access paused · Swangz AI Hub";
     S.studio = null;
@@ -1270,9 +1289,15 @@
   }
 
   async function signOut() {
+    if (signedOut || signingOut) return;
+    signingOut = true;
     // Offline or a server error: the session may still be live, so say so and stay signed in rather than pretend.
-    try { await api("POST", "/logout"); } catch (e) { toast("Couldn't sign out. Try again.", true); return; }
+    try { await api("POST", "/logout"); } catch (e) { signingOut = false; toast("Couldn't sign out. Try again.", true); return; }
+    signedOut = true; identityGeneration++; loading++;
     S.me = null; S.studio = null;
+    app.replaceChildren();
+    document.documentElement.style.display = "none";
+    document.querySelectorAll("dialog, .hub-side-sheet, .hub-sheet-scrim, .toast").forEach((n) => n.remove());
     try { localStorage.removeItem("swangz-studio-purpose"); } catch (e) { /* no storage */ }
     // Start a fresh page, so nothing the last person loaded (drafts, catalogue, Studio) stays in memory on a shared phone
     // or installed window, and the next sign-in runs the newest release.
@@ -1285,6 +1310,7 @@
     [/^#\/requests$/, pageRequests], [/^#\/privacy$/, pagePrivacy]];
 
   function render() {
+    if (signedOut) return;
     if (isPaused()) return renderPaused();
     document.querySelectorAll(".drawer, .scrim").forEach((n) => n.remove());
     const [path, query] = (location.hash || "#/").split("?");
@@ -1296,20 +1322,21 @@
   }
 
   async function load() {
+    if (signedOut) return;
     const ticket = ++loading;
     try {
       const me = await api("GET", "/me");
-      if (ticket !== loading) return;
+      if (signedOut || ticket !== loading) return;
       if (me.paused_view && !isPaused()) identityGeneration++;
       S.me = me;
       if (me.paused_view) return renderPaused();
       SUI.setGatewayOffset(180);
       // the device count on each coding tool's tile
       me.catalog.forEach((t) => { if (t.kind === "dev") t.connected = me.keys.filter((k) => !k.revoked && k.client === t.name).length; });
-      try { const studio = await api("GET", "/studio"); if (S.me !== me) return; S.studio = studio; } catch (e) { if (S.me !== me) return; S.studio = null; }
+      try { const studio = await api("GET", "/studio"); if (signedOut || S.me !== me) return; S.studio = studio; } catch (e) { if (signedOut || S.me !== me) return; S.studio = null; }
       render();
     } catch (e) {
-      if (ticket !== loading) return;
+      if (signedOut || ticket !== loading) return;
       if (e.status === 401) { S.me = null; S.studio = null; showSignIn(); }
       else app.replaceChildren(el("main", { class: "gate" }, gateArt(), el("section", { class: "gate-form" },
         el("form", null, el("div", { class: "eyebrow" }, "Connection"), el("h2", null, "Swangz AI Hub is temporarily unavailable"), el("p", { class: "muted" }, e.message),
@@ -1318,6 +1345,7 @@
   }
 
   function route() {
+    if (signedOut) return;
     if (isPaused()) return renderPaused();
     const m = (location.hash || "").match(/^#\/welcome\/([A-Za-z0-9_\-]+)$/);
     if (m) return showWelcome(m[1]);
@@ -1341,6 +1369,7 @@
   window.SWP = { S, api, gurl, frame, sectionHead, viewTabs, load, render, rememberRoute: () => { previousRoute = location.hash; }, page: (rx, fn) => ROUTES.push([rx, fn]) };
   let previousRoute = location.hash;
   window.addEventListener("hashchange", () => {
+    if (signedOut) return;
     if (isPaused()) { previousRoute = location.hash; return renderPaused(); }
     if (window.HubUI && !HubUI.guard()) { history.pushState(null, "", previousRoute || "#/"); return; }
     previousRoute = location.hash; route();
