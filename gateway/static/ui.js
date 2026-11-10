@@ -1033,6 +1033,18 @@
     return btn;
   }
 
+  /* A split button: the main part does the common action, the chevron part opens the variants ("Export" + CSV, PDF).
+     o: { label, onClick, items (as SUI.menu), menuLabel: "More export formats" (required: the chevron's name), icon,
+          primary, small, disabled }. Returns the group, with main, more and menu properties. */
+  function splitButton(o) {
+    const main = el("button", { type: "button", class: "u-split-main", disabled: o.disabled }, o.icon ? icon(o.icon) : null, el("span", null, o.label));
+    const more = el("button", { type: "button", class: "u-split-more", "aria-label": o.menuLabel, title: o.menuLabel, disabled: o.disabled }, icon(KIT.chevron, "chev"));
+    const box = el("div", { class: "u-split" + (o.primary ? " primary" : "") + (o.small ? " sm" : ""), role: "group", "aria-label": o.label }, main, more);
+    if (o.onClick) main.addEventListener("click", () => o.onClick());
+    box.main = main; box.more = more; box.menu = menu(more, o.items, { label: o.menuLabel, align: "end" });
+    return box;
+  }
+
   /* A dropdown select, for one choice out of five or more (fewer: SUI.segmented). The trigger is a box showing the
      current value and a chevron; the list opens under it with a tick on the current row. Arrows, Home and End move,
      Enter chooses, Esc closes, typing jumps to the first match, and a search field appears above eight options.
@@ -1316,6 +1328,6 @@
     tz, setGatewayOffset, setTzMode, tzLabel, startOfDay, startOfMonth, dateInput, fromDateInput, presetRange, fmt,
     initials, plural, debounce, gateway, avatar, logo, logoTint, status, badge, delta, evidence,
     skeleton, stateBox, errorBox, load, toast, copy, showTip, hideTip, infoTip,
-    columns, line, sparkline, barList, donut, donutParts, table, segmented, searchPill, progress, star, listPanel, rangeControl, trapFocus, popover, select, menu, menuButton, commandMenu, splitGate, xfield, eyeToggle,
+    columns, line, sparkline, barList, donut, donutParts, table, segmented, searchPill, progress, star, listPanel, rangeControl, trapFocus, popover, select, menu, menuButton, splitButton, commandMenu, splitGate, xfield, eyeToggle,
   };
 })();

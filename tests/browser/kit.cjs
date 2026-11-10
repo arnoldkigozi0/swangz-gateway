@@ -29,7 +29,10 @@ const mount = () => {
     { id: 'export', label: 'Export record', disabled: true, onSelect: (x) => window.__did.push(x.id) },
     { id: 'reset', label: 'Reset sign-in', onSelect: (x) => window.__did.push(x.id) }] });
   more.dataset.t = 'more';
-  const row = el('div', null, team, ' ', tool, ' ', off, ' ', more);
+  const split = SUI.splitButton({ label: 'Export', icon: 'download', menuLabel: 'More export formats', primary: true, onClick: () => window.__did.push('csv'),
+    items: [{ id: 'pdf', label: 'Export as PDF', onSelect: (x) => window.__did.push(x.id) }, { id: 'sheet', label: 'Export as a spreadsheet', onSelect: (x) => window.__did.push(x.id) }] });
+  split.dataset.t = 'split';
+  const row = el('div', null, team, ' ', tool, ' ', off, ' ', more, ' ', split);
   row.style.cssText = 'display:flex;flex-wrap:wrap;gap:12px;padding:16px 0';
   const foot = el('div', null, low);
   foot.style.cssText = 'position:fixed;left:50%;bottom:16px;z-index:5';
@@ -173,6 +176,26 @@ const mount = () => {
         ok(M + 'a press runs the item', !(await ms()).open && (await page.evaluate(() => window.__did.join())) === 'edit,pause');
         await page.click('[data-t=more]'); await page.click('main h1');
         ok(M + 'a press outside closes it', !(await ms()).open);
+      }
+      {
+        const S = T.replace('select', 'split button');
+        await page.evaluate(() => { window.__did = []; });
+        const g = await page.evaluate(() => { const x = document.querySelector('[data-t=split]'), a = x.querySelector('.u-split-main'), b = x.querySelector('.u-split-more');
+          const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect(), ca = getComputedStyle(a), cb = getComputedStyle(b);
+          return { role: x.getAttribute('role'), group: x.getAttribute('aria-label'), name: b.getAttribute('aria-label'), popup: b.getAttribute('aria-haspopup'), joined: Math.abs(ar.right - br.left) < 0.5,
+            sameH: ar.height === br.height, h: ar.height, bw: br.width, left: ca.borderTopLeftRadius, mid: ca.borderTopRightRadius + cb.borderTopLeftRadius, right: cb.borderTopRightRadius, main: a.textContent }; });
+        ok(S + 'two joined parts in one 10px box, the chevron part named', g.role === 'group' && g.group === 'Export' && g.name === 'More export formats' && g.popup === 'menu' && g.joined && g.sameH
+          && g.left === '10px' && g.right === '10px' && g.mid === '0px0px' && g.main === 'Export' && g.h === (vname === 'mobile' ? 44 : 38) && g.bw >= (vname === 'mobile' ? 44 : 34));
+        await page.click('[data-t=split] .u-split-main');
+        ok(S + 'the main part does the common action without opening anything', (await page.evaluate(() => window.__did.join())) === 'csv' && !(await page.evaluate(() => !!document.querySelector('.u-pop'))));
+        await page.keyboard.press('Tab'); await page.keyboard.press('ArrowDown');
+        const o = await page.evaluate(() => { const p = document.querySelector('.u-pop-menu'), a = document.activeElement; const pr = p && p.getBoundingClientRect(), gr = document.querySelector('[data-t=split]').getBoundingClientRect();
+          return { open: !!p, focus: a.dataset.id, n: p ? p.querySelectorAll('[role=menuitem]').length : 0, right: p ? Math.abs(pr.right - gr.right) : 99 }; });
+        ok(S + 'Tab reaches the chevron part and ArrowDown opens the variants', o.open && o.focus === 'pdf' && o.n === 2 && (vname === 'mobile' || o.right <= 1));
+        if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `split-${vname}-${theme}.png`) });
+        await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
+        const d = await page.evaluate(() => ({ did: window.__did.join(), open: !!document.querySelector('.u-pop'), back: document.activeElement.classList.contains('u-split-more') }));
+        ok(S + 'choosing a variant runs it and focus returns to the chevron part', d.did === 'csv,sheet' && !d.open && d.back);
       }
       ok(T + 'no horizontal page scroll', (await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)) <= 0);
       await ctx.close();
