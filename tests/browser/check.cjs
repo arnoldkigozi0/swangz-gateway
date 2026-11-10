@@ -90,11 +90,20 @@ async function layout(p, name, axe = false) {
       return r.right > innerWidth + 1 || r.left < -1 || e.scrollWidth > e.clientWidth + 3;
     }).map(e => e.textContent.trim()),
     clippedValues: [...document.querySelectorAll('.kpi .value:not(.text)')].filter(e => e.scrollWidth > e.clientWidth + 1 || e.scrollHeight > e.clientHeight + 1).map(e => e.textContent.trim()),
+    // Overview cards: the label, chip and caption must stay inside their own card at every width (two narrow cards a row on phones).
+    spilledCardText: [...document.querySelectorAll('.kpis-exact .kpi')].flatMap(card => {
+      const box = card.getBoundingClientRect();
+      return [...card.querySelectorAll('.label, .foot > *')].filter(e => {
+        const r = e.getBoundingClientRect();
+        return r.width && (r.right > box.right + 1 || r.left < box.left - 1 || r.bottom > box.bottom + 1 || e.scrollWidth > e.clientWidth + 1 && e.clientWidth > 0);
+      }).map(e => e.textContent.trim());
+    }),
     clippedToolMetadata: [...document.querySelectorAll('.tr-sub')].filter(e => e.scrollWidth > e.clientWidth + 1).map(e => e.textContent.trim()) }));
   assert.equal(metrics.overflow, false, name + ': horizontal overflow');
   assert.deepEqual(metrics.buttons, [], name + ': clipped controls');
   assert.deepEqual(metrics.clippedValues, [], name + ': clipped summary values');
   assert.deepEqual(metrics.clippedToolMetadata, [], name + ': clipped tool metadata');
+  assert.deepEqual(metrics.spilledCardText, [], name + ': summary card text outside its card');
   const violations = axe ? (await new AxeBuilder({ page: p }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations : [];
   results.screens.push({ name, ...metrics, violations: violations.map(v => ({ id: v.id, targets: v.nodes.map(n => n.target) })) });
   if (axe) assert.deepEqual(violations.map(v => v.id), [], name + ': accessibility findings');
