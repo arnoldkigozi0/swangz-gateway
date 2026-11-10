@@ -280,3 +280,8 @@ html[data-theme="light"] .staff-exact { background: none; --staff-scrim: linear-
 @media (min-width: 901px) { .staff-exact .vtabs { overflow: visible; } } /* room for the pill's glow; narrower bars may scroll sideways */
 /* The bar never widens its column: on a narrow panel (768px) it scrolls sideways inside it instead. */
 @media (min-width: 641px) { .staff-exact .vtabs-wrap { grid-template-columns: minmax(0, 1fr); } .staff-exact .vtabs { justify-self: start; scrollbar-width: none; } }
+/* 641–900px (§10.1(3), no reference still): a bar wider than its panel wraps to a second row, so no tab is out of sight. */
+@media (min-width: 641px) and (max-width: 900px) {
+  .staff-exact .vtabs { flex-wrap: wrap; height: auto; overflow: visible; }
+  .staff-exact .vtabs [role=tab] { height: 42px; }
+}
