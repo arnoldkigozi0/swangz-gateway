@@ -1,0 +1,24 @@
+{
+  "checks": [
+    "synthetic owner login",
+    "dark1440 toolbar visible",
+    "dark1440 no overflow",
+    "dark1440 all toolbar controls fit",
+    "dark1440 real clock and timezone",
+    "dark1440 real account name"
+  ],
+  "screenshots": [],
+  "errors": [],
+  "accessibility": [],
+  "badgeContrast": [
+    {
+      "theme": "dark",
+      "width": 1440,
+      "foreground": "rgb(255, 255, 255)",
+      "background": "rgb(255, 93, 82)",
+      "opacity": "1",
+      "ratio": 3.026119928029301
+    }
+  ],
+  "failure": "AssertionError [ERR_ASSERTION]: dark1440 notification badge text >=4.5:1 (3.026120)\n    at check (/home/inquiline/swangz-team/swangz-gateway/.worktrees/bell-badge-contrast/docs/screenshots/glass-r3/check.cjs:14:36)\n    at /home/inquiline/swangz-team/swangz-gateway/.worktrees/bell-badge-contrast/docs/screenshots/glass-r3/check.cjs:46:3"
+}

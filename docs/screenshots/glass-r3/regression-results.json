@@ -1,0 +1,38 @@
+[
+  {
+    "theme": "dark",
+    "width": 1440,
+    "assertions": 27,
+    "screens": 25,
+    "browser_errors": [],
+    "axe_findings": 0,
+    "unexpected_api_failures": []
+  },
+  {
+    "theme": "dark",
+    "width": 390,
+    "assertions": 27,
+    "screens": 25,
+    "browser_errors": [],
+    "axe_findings": 0,
+    "unexpected_api_failures": []
+  },
+  {
+    "theme": "light",
+    "width": 1440,
+    "assertions": 27,
+    "screens": 25,
+    "browser_errors": [],
+    "axe_findings": 0,
+    "unexpected_api_failures": []
+  },
+  {
+    "theme": "light",
+    "width": 390,
+    "assertions": 27,
+    "screens": 25,
+    "browser_errors": [],
+    "axe_findings": 0,
+    "unexpected_api_failures": []
+  }
+]
