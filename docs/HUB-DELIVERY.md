@@ -38,6 +38,16 @@ A copy on the same server is not a backup of the server. Set `GATEWAY_BACKUP_REM
 
 Restore drill (monthly, into a scratch directory, never over the live file): `python3 -m gateway backup-verify FILE`, then `gunzip -k FILE` and open the result with a scratch `GATEWAY_DATA` to confirm counts. A real restore follows *Rollback/recovery* below.
 
+### Configuration rehearsal (no network)
+
+Before the first start on the real host, and again after any change to its environment file, run the offline check against that file:
+
+```bash
+GATEWAY_ENV_FILE=/path/to/the/production.env python3 -m gateway preflight
+```
+
+It reads the environment only: it contacts nothing, opens no database and prints no secret values. It exits 1 while anything is marked `FAIL`. It checks that `GATEWAY_WEB_URL` and `GATEWAY_PUBLIC_URL` are bare first-party https addresses, that Google sign-in has both values and a fixed https return address on the same host people open (and prints the exact address to register in the Google client), that forwarded headers are trusted only behind a proxy, that cookies are secure, that cross-origin addresses are exact, and that the stand-in model and the bootstrap password are not left on. A `WARN` needs a person's judgement (for example a hosting provider's address used for staging). Passing this check is not a deployment: DNS, the certificate, the Google client and real sign-in still have to be verified on the host. What only Arnold can supply is listed in [GO-LIVE-ASKS.md](GO-LIVE-ASKS.md).
+
 ### Backup and rehearsal
 
 Stop writes for the final cutover. Do not copy only a live WAL database with `cp`; use SQLite's backup API. With the service running, a read-only rehearsal can use:
