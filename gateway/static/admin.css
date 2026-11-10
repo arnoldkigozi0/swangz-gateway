@@ -1260,3 +1260,18 @@ html[data-theme="light"] .shell #main::before { background: rgba(252, 248, 242, 
    takes no space and the label stays where 10.3 puts it. */
 html[data-theme="light"] .console-bar .console-area { background: rgba(252, 248, 242, .94); box-shadow: 0 0 0 7px rgba(252, 248, 242, .94); border-radius: 6px; }
 @media print { .shell #main::before { display: none; } }
+
+/* R15 piece 2, BRIEF 10.3 "Top bar" and 10.7 "Page header". Desktop only: phones keep 44px targets (10.1(3)).
+   Pills are 38px tall with their centre at y 38. The page's own area eyebrow ("MONITOR") leaves the screen where the
+   top bar already shows the area beside the workspace pill; it stays in the accessibility tree, and it stays visible
+   at 1200px and below, where the top bar has no room for the area. Real breadcrumbs (a trail with links) are kept. */
+@media (min-width: 1201px) {
+  .appbar.console-bar { padding-top: 19px; }
+  .console-workspace, .console-search, .console-clock, .console-account { min-height: 38px; }
+  .console-workspace { padding-top: 3px; padding-bottom: 3px; }
+  .console-workspace img { width: 24px; height: 24px; border-radius: 8px; }
+  .console-bar .bell { min-width: 38px; height: 38px; }
+  .console-account { width: 38px; }
+  .console-account .u-avatar { width: 36px; height: 36px; }
+  .top > .crumbs.area-only { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
