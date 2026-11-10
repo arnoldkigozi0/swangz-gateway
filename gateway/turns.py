@@ -15,6 +15,7 @@ So any credits the vendor shows burned between 14:00 and 15:00 belong to whoever
 That is the attribution a shared login otherwise throws away.
 """
 
+import json
 import time
 
 from . import workspace
@@ -40,8 +41,28 @@ def minutes(tool):
 
 def expire(db):
     """Close turns whose time is up. Cheap, so every read can call it first."""
+    now = time.time()
     db.x("UPDATE tool_turns SET ended = expires, ended_by = 'system', reason = 'time was up'"
-         " WHERE ended IS NULL AND expires <= ?", (time.time(),))
+         " WHERE ended IS NULL AND expires <= ?", (now,))
+    release_ended_accounts(db, now)
+
+
+def release_ended_accounts(db, now=None):
+    """A holder whose account end date (`access_until`) has passed no longer holds anything. Every read and every
+    claim goes through expire(), so this is the one place that releases them, the same way suspension does:
+    turns.end_all_for, one audit row with the count. -> how many turns were ended."""
+    now = time.time() if now is None else now
+    total = 0
+    for p in db.q("SELECT DISTINCT p.id, p.name FROM tool_turns t JOIN people p ON p.id = t.person_id"
+                  " WHERE t.ended IS NULL AND p.access_until IS NOT NULL AND p.access_until > 0 AND p.access_until <= ?", (now,)):
+        n = end_all_for(db, p["id"], "system", "their access ended")
+        if n:  # only the caller that actually ended them records it
+            total += n
+            db.x("INSERT INTO audit(ts, actor, action, target, detail, ip, reason, before_json, after_json, outcome, correlation, area)"
+                 " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                 (now, "system", "ended a person's turns (their access ended)", p["name"], f"{n} turn(s) ended", "", "their access ended",
+                  json.dumps({"turns_open": n}), json.dumps({"turns_ended": n}), "ok", f"person:{p['id']}", ""))
+    return total
 
 
 def holders(db, tool_id):

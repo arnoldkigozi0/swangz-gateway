@@ -588,18 +588,20 @@ def suspend_person(ctx, pid, action):
     person = ctx.db.one("SELECT name,email FROM people WHERE id = ?", (pid,))
     if not person:
         raise ApiError(404, "no such person")
+    before = ctx.db.scalar("SELECT status FROM people WHERE id = ?", (pid,))
     ctx.db.x("UPDATE people SET status = ? WHERE id = ?", ("suspended" if action == "suspend" else "active", pid))
-    cut = 0
+    cut = sessions = turns_ended = 0
     if action == "suspend":
         from . import turns
 
         cut = ctx.gw.live.cut("this person's AI access was suspended by an administrator.", person_id=pid)
-        ctx.db.x("DELETE FROM staff_sessions WHERE person_id = ?", (pid,))
-        turns.end_all_for(ctx.db, pid, ctx.admin["username"], "their access was suspended")
+        sessions = ctx.db.x("DELETE FROM staff_sessions WHERE person_id = ?", (pid,)).rowcount
+        turns_ended = turns.end_all_for(ctx.db, pid, ctx.admin["username"], "their access was suspended")
         ctx.gw.workspaces.soon()
     ctx.audit("suspended a person" if action == "suspend" else "restored a person", person["name"],
-              f"{cut} request(s) cut" if cut else "", correlation=f"person:{pid}",
-              after={"status": "suspended" if action == "suspend" else "active"})
+              f"{cut} request(s) cut" if cut else "", correlation=f"person:{pid}", before={"status": before},
+              after={"status": "suspended" if action == "suspend" else "active",
+                     **({"requests_cut": cut, "web_sessions_ended": sessions, "turns_ended": turns_ended} if action == "suspend" else {})})
     return {"ok": True, "cut": cut}
 
 
@@ -647,7 +649,7 @@ def revoke_key(ctx, kid):
     # a device that is mid-rotation holds two keys: ending it ends both
     ids, cut = credentials.revoke_device_keys(ctx.db, ctx.gw.live, kid, ctx.admin["username"], "this key was revoked by an administrator.")
     ctx.audit("revoked a key", row["name"], f"{row['label']} ({row['hint']})" + (f", {cut} request(s) cut" if cut else ""),
-              before={"keys": ids} if len(ids) > 1 else None, correlation=f"device:{row['device_id'] or kid}")
+              before={"keys": ids}, after={"keys_revoked": len(ids), "requests_cut": cut}, correlation=f"device:{row['device_id'] or kid}")
     return {"ok": True, "cut": cut}
 
 

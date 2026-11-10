@@ -45,6 +45,31 @@ async function go(p, url, route) {
   await p.waitForFunction(() => !document.querySelector('main .u-skel-rows, main .u-skel-cards'));
 }
 async function screenshot(p, name, fullPage = true) { await p.screenshot({ path: path.join(output, name + '.png'), fullPage }); }
+/* Audit settled colours after real finite transitions. Do not cancel/finish animations or change axe rules.
+   Infinite pulses keep running; a paused/stalled finite animation fails instead of hiding the problem. */
+async function settle(p) {
+  await p.evaluate(async () => {
+    await document.fonts.ready;
+    const finite = () => document.getAnimations().filter(a => {
+      const timing = a.effect && a.effect.getComputedTiming();
+      return timing && Number.isFinite(timing.endTime) && a.playState !== 'finished';
+    });
+    let timer;
+    try {
+      await Promise.race([
+        (async () => {
+          for (let i = 0; i < 5; i++) {
+            const active = finite();
+            if (!active.length) return;
+            await Promise.all(active.map(a => a.finished.catch(() => {})));
+          }
+          if (finite().length) throw new Error('Finite animations did not settle after five passes');
+        })(),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Timed out waiting for finite animations')), 3000); })
+      ]);
+    } finally { clearTimeout(timer); }
+  });
+}
 async function setTheme(p, theme) {
   await p.evaluate(async t => {
     document.documentElement.dataset.theme = t;
@@ -57,6 +82,7 @@ async function setTheme(p, theme) {
   }, theme);
 }
 async function layout(p, name, axe = false) {
+  if (axe) await settle(p);
   const metrics = await p.evaluate(() => ({ width: innerWidth, overflow: document.documentElement.scrollWidth > innerWidth + 1,
     buttons: [...document.querySelectorAll('main button, main .btn')].filter(e => {
       const r = e.getBoundingClientRect();
@@ -76,6 +102,7 @@ async function layout(p, name, axe = false) {
 (async () => {
   const { url, person, key, session } = await fixture();
   browser = await chromium.launch({ executablePath: process.env.CHROME || undefined, headless: true, args: ['--no-sandbox'] });
+  results.themeStability = await require(path.join(root, 'docs/screenshots/browser-theme-stability/repro.cjs'))({ browser, settle, layout, AxeBuilder });
   const c = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   await login(c, url); await staffLogin(c, url);
   const p = await c.newPage();

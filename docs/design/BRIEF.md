@@ -1,14 +1,19 @@
 # Design brief — "Glass" redesign of Swangz AI Hub
 
 Arnold, 7 Nov 2026: *"This is the exact design I want. They can improve where necessary."*
-The three reference videos are the target look and motion. Match them closely; improve only where this
-brief says so (accessibility, performance, phone layouts, the Hub's real features and data).
+Arnold, 8 Nov 2026: *"My boss said it needs an interface exactly like that."*
+The four reference videos are the target look and motion. **Match them exactly** — same layout, sizes,
+spacing, radii, colours, transparency, type scale and motion. The only allowed differences are the ones listed
+in **§10 Exact match** (our words/data/brand, our licensed photos, and the accessibility, performance and phone
+rules in §7). §10 holds the measured values and the acceptance check every UI PR must pass; where §10 and an
+earlier section disagree, §10 wins.
 
 | Reference | Video | Stills | Becomes |
 |---|---|---|---|
 | Glassy Dashboard V7 + CRM | `references/video/glass-dashboard-crm.mp4` | `references/stills/dashboard-01…07.jpg` | The control room (`admin.html`, `admin.css`, `admin-*.js`) and the staff app shell (`index.html`, `portal.css`) |
 | Glassy login form V2 | `references/video/glass-login.mp4` | `references/stills/login-01…07.jpg` | Staff and admin sign-in |
 | Glassy liquid footer | `references/video/liquid-glass-footer.mp4` | `references/stills/footer-01…06.jpg` | The footer of the staff app and the sign-in page |
+| Glassy Navigation tabs V7 (added 9 Nov) | `references/video/glassy-nav-tabs.mp4` | `references/stills/nav-01…05.jpg` | Every tab strip inside a page (both themes) and the phone bottom tab bar of both apps — see **§10.8** |
 
 Watch the videos, don't only read the stills: the motion is half of the design. Stills are 1-per-second crops
 at 2x. The videos are Instagram posts by @code.xr. We copy the *design language*, never their assets, logos,
@@ -110,7 +115,7 @@ image. Never use the reference's photos.
    Target 60 fps on this laptop and CLS 0.
 3. **Reduced motion:** `prefers-reduced-motion` turns lift, liquid fill, count-up and blur transitions into
    simple fades.
-4. **Phones (the references are desktop-only):** at ≤ 700px the rail becomes a bottom tab bar (5 items + More),
+4. **Phones (the references are desktop-only):** at ≤ 700px the rail becomes a bottom tab bar (exactly the §10.8 bar C),
    KPI cards 2-up, charts full width, tables become cards, the sign-in card stacks (heading panel on top, small),
    the footer stacks and the wordmark scales to width.
 5. **Real data only:** every number, chart and list comes from existing endpoints. Never fake data client-side;
@@ -139,3 +144,162 @@ matching reference still, with one line per difference that remains.
   softly lit interiors like the dashboard and footer references, or dark angular 3D surfaces like the login
   reference. Optimise to WebP ≤ 200 KB, and record each in `docs/design/ASSETS.md` (file, source URL, author,
   licence, date). Never use the reference creator's photos, logos, names or copy.
+
+## 10. Exact match (Arnold, 8 Nov 2026) — this section wins over everything above
+
+"Like the reference" is no longer enough: a reviewer puts the Hub screenshot next to the reference still and
+any difference that is not on the allowed list below is a defect. Rounds already merged (R1–R3, R5, R7) are
+re-checked against this section in **R15** (below), not re-opened one by one.
+
+### 10.1 Allowed differences (the only ones)
+1. **Words, data and brand:** Hub page names, real numbers from real endpoints, the Swangz "S" mark instead of
+   their logo, our names instead of "Lumen CRM" / "Vertix" / "Barbara". Same *positions, sizes and styles* though.
+2. **Photos:** ours, never theirs (§9). The control room and staff app use `static/room-warm.webp`; sign-in keeps
+   `login-welcome.webp` (dark angular, matches the login reference).
+3. **§7 improvements:** contrast ≥ 4.5:1, one blur layer, reduced motion/transparency fallbacks, phone layouts,
+   keyboard and ARIA. When one of these forces a change, the PR says which rule and by how much.
+4. **Features the reference has no room for** (more pages than its 10 rail icons, the Hub's sign-in modes):
+   solved in the reference's visual language, listed in the PR.
+5. **The §10.9 additions** (Swangz signatures, honest low-data states, compact density, quality gates) — they sit on
+   top of the matched layout and never move or resize a measured element.
+
+### 10.2 Acceptance check (every UI PR)
+- Screenshot at **1440×852** (the stills' frame) dark theme, next to the matching still, plus a **50% overlay**
+  (`docs/screenshots/<task>/overlay-*.png`). Positions and sizes within **±4px**, radii within ±2px.
+- Colour: sample the same points the table below lists; each channel within **±16** of the reference sample
+  (video compression darkens the stills, so the targets below are already corrected — use those, not the jpg).
+- Motion: step the reference video frame by frame (`ffmpeg -ss <t> -i references/video/<file>.mp4 -vf fps=30
+  frames/%03d.png`) and match start, duration and easing of each transition within ±2 frames.
+- One line per remaining difference, each tagged with its §10.1 number. No tag = not mergeable.
+
+### 10.3 Measured layout, 1440×852 (from `dashboard-01/03/05`, `login-02/05`, `footer-04`)
+| Element | Exact values |
+|---|---|
+| **Scene** | Warm, mid-tone room filling the screen (`room-warm.webp`), scrim **rgba(12,10,9,.30–.40)** — not .78. Visible room around and through every panel is the point of the design; the background must read as a room, not as black. |
+| **Rail** | Floating pill x **67–129** (62 wide), y **22–832** (inset 22 top / 20 bottom), radius 31, `rgba(30,26,24,.80)`, 1px rim. Brand square 36×36 at y 30, radius 10. **Icons only, 18px, centres 45px apart** starting y 112; active = solid white circle **36px** with dark icon; badges 14px accent circles at the icon's top-right. Help + Settings at y 758 and 805. No visible words in the collapsed rail ("All pages", "More" become icons with tooltips — §10.1.4). Tooltip: dark pill right of the icon, 11px. |
+| **Top bar** | No bar background. All pills **38px tall**, centre y **38**. Workspace pill x 175–310 (avatar 24px + 2 text lines + chevron) → breadcrumb text x 325 → search pill x **588–933** (345 wide, ⌘K chip at its right) → accent **New** pill x 1082–1165 → clock pill x 1176–1252 (time + date, 2 lines) → bell x 1280 (red count dot) → avatar 36px x 1327 with green presence dot. |
+| **Page header** | Title x **178**, cap height ≈ 18px (24px, weight 600, white) + one emoji; subtitle 11px muted at y 117. Page actions right-aligned, right edge **1343**, centre y 101, pills 34px tall (ghost glass + accent). |
+| **KPI cards** | Row y **140–292** (152 tall), four cards 285 wide, 12px gaps, first at x 173. Radius **18**. Label 11px at (18, 22); arrow-in-circle 24px top-right; value 24px weight 700 bottom-left (baseline y 255); delta chip right of value; "vs last" caption 9px under. First card accent glass, others dark glass `rgba(28,24,22,.52)` — the room must stay visible through them. |
+| **Big panels** | Radius 22, padding 18; eyebrow 9px caps letter-spaced accent; title 15px weight 600; inner KPI groups separated by space, not lines. Segmented pill group (Q1–Q4) with a white selected pill. |
+| **Login card** | Centred, **1150 × ~640**, radius 24. Two panels split by a **slanted seam** (top x ≈ 595 → bottom x ≈ 665, ~6°). Form panel darker (`rgba(20,20,24,.55)`), heading panel lighter (`rgba(70,74,78,.35)`). Heading **40px, weight 800, uppercase, 2 lines**; body 16px. Underline inputs: 1px `rgba(255,255,255,.14)`, focused 2px white; leading 18px icon. Primary button full-width pill **56px**, translucent grey glass, white 16px weight 600; ghost pill 230×54 with 1px rim and "→". Panels swap by sliding (see video), ≈ 600ms ease-in-out. |
+| **Footer** | Milky warm glass panel x 30–1410, radius 28 (`rgba(235,220,205,.55)` over the room). Left: logo + 32px weight 600 two-line heading in near-black, input pill 380×46 with a dark button inside. Right: nested lighter card x 590–1375, y 157–378, radius 20 (`rgba(255,255,255,.30)`), 4 link columns (12px muted heading, 14px links, 28px rows). Bottom row y 434: © + green status dot · icon pill group · Evening switch. Giant cut-out wordmark ≈ 240px tall spanning the width. |
+
+### 10.4 Colour targets (corrected for video compression)
+| Token | Value | Use |
+|---|---|---|
+| `--accent-pill` | `linear-gradient(180deg, #F7AE62, #EE8F3E)`, text `#2A170A` | New, primary page action, selected bar, first KPI card tint — the reference's amber-orange. Keep `--primary` gold for the brand mark only. |
+| `--glass-bg` (dark) | `rgba(28,24,22,.52)` (unchanged) — correct **only** over the room at scrim .30–.40 | KPI cards, panels |
+| Active rail item | `#F2EEEC` circle, icon `#1C1816` | |
+| Delta up / down | `#7BC47F` on `rgba(123,196,127,.16)` / `#F07A7A` on `rgba(240,122,122,.16)` | always with the word |
+| Presence / status | `#3DDC84` | avatar dot, "All systems normal" |
+
+### 10.5 Typography — DECIDED (Arnold, 8 Nov: "make everything exact")
+**Poppins** (OFL) for the console and staff app, **Inter** (OFL) for sign-in, replacing Plus Jakarta Sans. Self-hosted
+latin woff2 files are already in `gateway/static/fonts/` on the WIP branch (see 10.7) with their `*-OFL.txt`.
+
+### 10.6 New round
+**R15 — exact-match pass** (after the open drafts merge): switch the scene to `room-warm.webp` with the §10.3 scrim,
+re-balance contrast for it (raise panel opacity locally where text fails, never the scrim back to .78), bring the
+rail and top bar to §10.3, and re-shoot R1–R7 against the stills with overlays. Then R10 (sign-in) and R11
+(footer) are reviewed against 10.3 before they merge.
+
+### 10.7 Decisions, 8 Nov 2026 (later) — Arnold: "make everything exact, drop the un-required"
+- **Who builds:** the OpenMaus team builds all of it. Claude only writes this brief and reviews against §10.
+- **Deadline: 20 November 2026.** This brief is on main from 8 Nov so every branch has it; branch from main, not from #53.
+- **Accent:** the reference's amber-orange everywhere the reference uses it (`--accent-pill`, §10.4). Gold only for
+  warnings. **Fonts:** §10.5.
+- **Drop the un-required:** anything on a screen that the reference does not have is removed *from that screen* —
+  not from the product. It stays reachable through the "All pages" drawer, the ⌘K menu or the avatar menu. Concretely:
+  - Rail: brand square + **9 page icons** (Overview, Live, Needs attention, Activity, People, Access requests, Tools,
+    Licences & spend, Security) + an **All pages** icon; Help + Settings at the foot. No labels toggle, no search/bell in
+    the rail, no "All pages"/"More" words, no group buttons, no emergency block, no account block in the rail.
+  - Theme switch, Sign out and **Stop all AI / Resume** move to the **avatar menu** in the top bar (emergency also stays in
+    ⌘K and Settings → Emergency — it must never become unreachable).
+  - Page header: no eyebrow/area crumb line; title + emoji, one 11px line, actions right. Breadcrumb lives in the top bar.
+  - Overview = dashboard-02 exactly: "Hello, <name>! 👋", 4 KPI cards (AI spend [amber], AI requests, Active people,
+    Security events), tube chart "AI usage" (8 days) left, two count cards (need attention · live requests), donut
+    "Uses by tool" with legend. The old Right now / Trends / Top tools / Licences tabs leave the Overview (each already
+    has its own page).
+  - Sign-in (both apps) = the split card only: no side art, no feature bullets, no "Swangz Avenue · Company access only"
+    footer. Mode A "Login" (underline fields with icons, eye toggle, Login pill, Google button when configured) ↔ mode B
+    "Get access" (no self sign-up exists: explains admin-made accounts); greeting panel "HELLO, FRIEND!" ↔ "WELCOME BACK!".
+  - Background: control room + staff app on `room-warm.webp`, scrim ≈ .16–.34; sign-in on `login-welcome.webp`.
+- **Starting point (WIP, not reviewed, not tested):** branch `design/exact-match-brief` (PR #53, draft) carries a first pass
+  by Claude: `static/exact.css` (tokens, rail, top bar, header, KPI/stat/donut, pop menus), `exactRail()` + top bar +
+  `popMenu/newMenu/accountMenu` in `admin.js`, the rebuilt Overview in `admin-monitor.js`, `SUI.splitGate/xfield/eyeToggle`
+  in `ui.js`, and both sign-ins switched to it — **the sign-in CSS is not written yet** and the browser suites have not
+  been re-run. Take it, finish it, or replace it; it must pass the full test suites and the §10.2 check before merge.
+
+### 10.8 Navigation tabs — reference 4 (Arnold, 9 Nov 2026: "if it has a place, use it, and exact")
+Video `references/video/glassy-nav-tabs.mp4` (9.3 s, 720×1280, 30 fps, @code.xr), stills `nav-01…05.jpg`
+(720×430 crops: 01 start, 02 rest, 03/04 lens mid-drag, 05 settled on "Saved"). It shows three bars over the same kind
+of warm room, so it drops straight into our scene. **Where each bar goes:**
+
+| Bar (still nav-02) | Becomes | Shape (H = bar height; values measured on the 720-wide stills, verify with §10.2) |
+|---|---|---|
+| **A** — smoky glass, light labels, **white raised pill** on the active tab, soft warm glow under it (Home · Discover · Library · Messages · Profile) | Every in-page tab strip (`role="tablist"`: page tabs, Settings sections, profile tabs, report tabs) in the **Evening (dark)** theme | Full-pill bar, H ≈ 52 (x 127–620 on the still → 9.5 H wide for 5 tabs; tabs share the width evenly). Active pill inset ≈ 0.1 H, height ≈ 0.82 H, full radius, `#F4F1EE`, text `#1E1A18`, warm glow `0 0.15H 0.35H rgba(238,143,62,.35)` under it. Inactive labels ≈ `#ECE7E2`. Icon ≈ 0.27 H + label ≈ 0.28 H font, gap ≈ 0.17 H. 1px light rim. |
+| **B** — milky white glass, dark labels, **black pill** on the active tab (User · Overview · Projects · Alerts · Settings) | The same tab strips in the **Daylight (light)** theme — B is A inverted, so one component with two theme skins | Same geometry as A, gap between A and B in the video ≈ 0.85 H. Bar `rgba(240,236,232,.55)` + 1px `rgba(255,255,255,.6)` rim; active pill `#141210` (≈ .92), text white; inactive `#2E2A27`. |
+| **C** — milky icon bar + separate round button with a red count badge; the active item is a soft grey pill with a **filled** icon + its label (Home → Search → Saved) | The **phone bottom tab bar** (≤ 700px, §7.4) of both apps. Control room: Overview · Live · Needs attention · People, round button = All pages (badge = items needing attention). Staff app: Home · Search tools · Saved tools · Alerts, round button = Access requests (badge = pending). | Bar x 211–473 on the still (≈ 5 H wide, H ≈ 52) + round button H×H, 10 px apart (≈ 0.19 H). Active pill ≈ 2 H × 0.8 H `rgba(60,50,44,.10)`, icon filled, label weight 600. Inactive = outline icons only, no labels. Badge ≈ 0.3 H `#E5383B` circle, white number, at the button's top-right. Sits 12 px above the safe-area inset, centred. |
+
+**Motion (the signature — step the video at 30 fps and match within ±2 frames, §10.2):**
+- **A/B:** the active pill **slides** to the new tab (transform + width only, no layout animation) with a small
+  overshoot; the labels cross-fade colour as it passes. Measure start/duration in the video (≈ 0.8–1.6 s, Home → Library).
+- **C, the liquid lens (≈ 2.6–5.3 s):** on pointer-down a clear **liquid-glass lens** appears over the pressed item:
+  ≈ 2.1 H wide × 1.15 H tall (it overflows the bar top and bottom), 1px light rim, the background seen through it is
+  magnified/refracted and slightly darkened. While the pointer is held it **follows the pointer** across the bar;
+  on release it shrinks into the grey active pill on the item under it (≈ 6–8 frames), the icon fills and the label
+  slides out; the previous item collapses back to an outline icon. A tap without drag does the same in place.
+- Implementation hints (not requirements): Chromium supports `backdrop-filter: url(#lens)` with an SVG
+  `feDisplacementMap` for the refraction; elsewhere use `backdrop-filter: blur(2px) brightness(.9)` + `scale(1.08)`.
+  The lens exists only during the gesture, so it is the one allowed glass-on-glass besides the footer card (§7.2).
+**§7 still applies:** `role="tablist"`/`tab`, `aria-selected`, arrow keys move and Enter/Space select (the lens is
+pointer-only decoration; keyboard shows the accent focus ring), every label ≥ 4.5:1 on its bar, reduced motion =
+the pill cross-fades and no lens, reduced transparency = solid bars. Hub names, icons and counts replace theirs
+(§10.1.1); the cart becomes our button above, never a shopping cart.
+**New round R16 — navigation tabs** (after the v18 backlog lands): one `SUI.tabs` component with the A/B skins replacing
+the current tab strips, then the C bottom bar for both apps at ≤ 700px; screenshots at 390×844 and 1440×852 in both themes
+plus a frame-stepped comparison of the slide and the lens against the video.
+
+### 10.9 Beyond the reference (Arnold, 10 Nov 2026) — what lifts the finished Hub from ~7.5 to ~8.5 against the market
+Matching the references makes the Hub the best-looking product in its category, but leaves four weaknesses: it is a
+copy of public Instagram designs, it is built for big demo numbers while ours are small, it shows few numbers per
+screen for daily admins, and glass designs fail when contrast and smoothness are not policed. These four fixes are
+required. They are §10.1.5 allowed differences: they never move or resize anything measured in §10.3/§10.8.
+
+**1. Two Swangz signatures (originality).** Everything else stays exact; these two make it ours:
+- **Liquid "S" loader:** every loading state (page load, panel refresh, Live connecting) is the Swangz "S" mark filling
+  with the amber liquid from the footer's wave motion (same wave curve and easing as `footer-01→03`), never a generic
+  spinner or skeleton shimmer. 24px in panels, 48px for a full page. Reduced motion = a static S at 60% opacity.
+- **Amber live pulse:** the one value on a screen that is changing *right now* (live requests, a seat in use, the
+  "Needs attention" count) gets a slow amber ring pulse (2.4 s, opacity .0→.35→.0, transform only) — the Hub's
+  "this is alive" mark. At most one pulse per screen; none under reduced motion.
+- The footer's giant cut-out **"Swangz" wordmark** (§6) stays and is also the sign-in page's only background mark.
+
+**2. Honest low-data states (our numbers are small).** Glass cards built for "$99,560" look broken with "$0.0054":
+- Money: below $0.01 show **"< $0.01"**, below $1 show 2 decimals, never more than 2 decimals anywhere. Counts of 0
+  show "0" with a one-line reason ("No requests in 7 days").
+- A card or chart with no data shows a **purposeful empty state** inside the same card size: one 15px line on what
+  will appear, one 11px line on why it is empty, and one action pill (e.g. "Grant a tool" → Access, "Connect a
+  provider" → AI providers). Same glass, same position — the layout never collapses.
+- Charts with fewer than 3 data points show the truthful empty state from `SUI.line` (#45) plus "Collecting since
+  <date>". Never fake, pad or demo-fill data (§7.5).
+- Review each Overview card with today's real laptop data and with a fresh empty database; both screenshots go in the PR.
+
+**3. Compact density for daily admins.** A **Comfortable / Compact** switch in the avatar menu (remembered per admin,
+default Comfortable). Compact applies to list/table pages only (People, Activity, Tools, Licences & spend, Access
+requests, Security, Devices): rows 32px, 12px text, table body on `--glass-bg-strong` (no see-through behind dense
+text), sticky header, column sorting kept, 2× the rows per screen. Cards, Overview, sign-in and footer never change.
+The reference look is Comfortable; Compact must still pass §7 contrast and keyboard rules.
+
+**4. Quality gates that block merging (so the build cannot cut corners).** Every UI PR, checked by Probe — FAIL if
+any is missing:
+- **Contrast:** automated axe run in the browser CI job in both themes **plus** a sampled check of every text style
+  over the brightest point of `room-warm.webp` behind it: ≥ 4.5:1 (≥ 3:1 for ≥ 24px numbers). Report the worst value.
+- **Smoothness:** a Chrome performance trace on this 7 GB Celeron laptop (or CI with 4× CPU throttling) scrolling
+  the Overview and opening a tab with the lens: no long frames > 50 ms, ≥ 55 fps, CLS 0. One blur layer per pixel (§7.2).
+- **Fallbacks:** screenshots with `prefers-reduced-transparency`, `prefers-reduced-motion` and no `backdrop-filter`
+  support — the page must still read clearly.
+- **Low data:** the empty-database screenshot from point 2.
+
+**Round R17 — "beyond the reference"** (after R15 and R16): the S loader + live pulse, the low-data pass over every
+Overview card and chart, and the Compact switch. Points 2 and 4 apply to every UI PR **from now on**, not only R17.

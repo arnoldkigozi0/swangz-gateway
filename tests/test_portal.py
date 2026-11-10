@@ -108,8 +108,7 @@ class TimeLimitTests(PortalBase):
     def test_an_account_can_end_on_a_date(self):
         rig = self.rig
         self.assertEqual(rig.api("PATCH", f"/people/{rig.person_id}", {"access_until": "2001-01-01"})[0], 200)
-        me = self.staff("GET", "/me")[1]
-        self.assertTrue(all(t["state"] == "suspended" for t in me["catalog"]))
+        self.assertEqual(self.staff("GET", "/me")[0], 401)  # G5: an ended account's session opens nothing
         # their API key stops too
         status, _, payload = rig.anthropic({"model": "claude-haiku-4-5", "messages": [{"role": "user", "content": "hi"}]},
                                            extra={"user-agent": "Anthropic/Python 1.2"})
