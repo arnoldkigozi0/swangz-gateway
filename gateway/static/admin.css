@@ -1356,3 +1356,30 @@ html[data-theme="light"] .console-bar .console-area { background: rgba(252, 248,
   .build-foot { margin-left: 44px; margin-right: 97px; }
   .shell #main::before { inset: 0 81px 16px 28px; }
 }
+
+/* The Overview's four cards (BRIEF 10.3 "KPI cards", 10.7): separate glass cards, radius 18, the first in accent
+   glass. Label top-left, arrow in a circle top-right, value bottom-left with its change chip beside it, one caption
+   under. No live blur: the page's backing plane is behind them. Evidence: docs/screenshots/exact-r16/README.md. */
+.kpis.kpis-exact { gap: 12px; background: none; border: 0; border-radius: 0; overflow: visible; }
+.kpis-exact .kpi { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto auto; column-gap: 8px; row-gap: 0;
+  min-height: 152px; padding: 18px; border: 1px solid var(--glass-rim); border-radius: 18px; background: var(--glass-bg); box-shadow: var(--glass-highlight);
+  transition: transform var(--d-fast), border-color var(--d-fast); }
+.kpis-exact .kpi.gold, .kpis-exact .kpi.gold.link:hover { background: var(--glass-bg-accent); box-shadow: var(--glass-highlight); }
+.kpis-exact .kpi.link:hover { background: var(--glass-bg); transform: translateY(-2px); border-color: var(--tx-3); }
+.kpis-exact .kpi.alert { box-shadow: var(--glass-highlight); border-color: var(--bad); }
+.kpis-exact .kpi .label { grid-column: 1 / -1; grid-row: 1; min-height: 16px; padding-right: 32px; color: var(--tx-1); font: 500 11px/16px var(--font); letter-spacing: 0; text-transform: none; }
+.kpis-exact .kpi .label .u-info { margin-left: 0; }
+.kpis-exact .kpi .value { grid-column: 1; grid-row: 3; margin: 0; font-size: 24px; font-weight: 700; line-height: 28px; letter-spacing: -.01em; }
+.kpis-exact .kpi .foot { display: contents; }
+.kpis-exact .kpi .foot > :not(.kpi-note) { grid-column: 2; grid-row: 3; align-self: center; justify-self: start; min-height: 18px; padding: 0 7px; border-radius: 9px;
+  background: rgba(18, 15, 13, .78); font-size: 10px; line-height: 18px; }
+html[data-theme="light"] .kpis-exact .kpi .foot > :not(.kpi-note) { background: rgba(255, 255, 255, .9); }
+.kpis-exact .kpi .kpi-note { grid-column: 1 / -1; grid-row: 4; margin-top: 1px; color: var(--tx-1); font-size: 9px; line-height: 12px; }
+.kpis-exact .kpi-go { position: absolute; top: 14px; right: 14px; width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid var(--glass-rim);
+  border-radius: 50%; color: var(--tx-1); pointer-events: none; }
+.kpis-exact .kpi-go svg { width: 11px; height: 11px; transform: rotate(45deg); }
+.kpis-exact .kpi-link { border-radius: 18px; }
+@media (prefers-reduced-motion: reduce) { .kpis-exact .kpi, .kpis-exact .kpi.link:hover { transition: none; transform: none; } }
+@media (max-width: 1200px) { .kpis-exact .kpi .kpi-note { font-size: 11px; line-height: 15px; } .kpis-exact .kpi .foot > :not(.kpi-note) { font-size: 11px; } }
+/* The measured row at 1440: y 140 to 292, four cards 285 wide from x 173 with 12px between them. */
+@media (min-width: 1201px) { .route-overview .page > .kpis-exact:first-child { margin: -7px -6px 0 0; } }

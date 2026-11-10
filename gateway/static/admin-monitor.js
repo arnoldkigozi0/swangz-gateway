@@ -40,17 +40,22 @@
       const change = tr.previous.cost ? (tr.current.cost - tr.previous.cost) / tr.previous.cost : null;
       const secCount = sec ? sec.events.filter((e) => e.severity !== "info").length : null;
       const subs = licence ? licence.summary.subscriptions_month : 0;
-      kpis = el("div", { class: "kpis three" },
-        A.kpi({ label: "AI spend · 30 days", icon: "wallet", value: fmt.money(tr.current.cost), tone: "gold hero",
+      const reqChange = tr.previous.requests ? (tr.current.requests - tr.previous.requests) / tr.previous.requests : null;
+      /* BRIEF 10.3 / 10.7: four separate cards, the first in accent glass. Each opens the page that holds its detail. */
+      kpis = el("div", { class: "kpis four kpis-exact" }, [
+        A.kpi({ label: "AI spend · 30 days", value: fmt.money(tr.current.cost), tone: "gold",
           tip: "Metered use through the gateway, priced from the model price table when each request ran. Company plans are a fixed monthly cost on top.",
-          foot: SUI.delta(change, { vs: "vs the 30 days before" }), note: subs ? `+ ${fmt.moneyShort(subs)}/mo in plans` : "vs the 30 days before",
-          spark: SUI.sparkline(days.map((d) => d.cost)), href: "#/licences?tab=spend&range=30d" }),
-        A.kpi({ label: "Active today", icon: "people", value: String(today.people), note: `${tr.current.people} in 30 days`,
+          foot: SUI.delta(change), note: subs ? `vs the 30 days before · + ${fmt.moneyShort(subs)}/mo in plans` : "vs the 30 days before",
+          href: "#/licences?tab=spend&range=30d" }),
+        A.kpi({ label: "AI requests · 30 days", value: fmt.num(tr.current.requests),
+          foot: SUI.delta(reqChange, { upIsGood: true }), note: "vs the 30 days before", href: "#/activity?tab=ai" }),
+        A.kpi({ label: "Active people · today", value: String(today.people), note: `${tr.current.people} in 30 days`,
           tip: "People who made an AI request, opened a tool from the portal, or visited an approved AI website.", href: "#/activity?tab=usage" }),
-        A.kpi({ label: "Security · 7 days", icon: "shield", value: secCount === null ? "—" : String(secCount),
+        A.kpi({ label: "Security events · 7 days", value: secCount === null ? "—" : String(secCount),
           tone: sec && sec.posture !== "healthy" ? "alert" : null,
           foot: sec ? SUI.status(sec.posture, { healthy: "Healthy", watch: "Worth a look", elevated: "Elevated" }[sec.posture], { plain: true }) : null,
-          href: "#/security" }));
+          note: sec ? "warnings and above" : "couldn't load", href: "#/security" }),
+      ].map((card) => { card.append(el("span", { class: "kpi-go", "aria-hidden": "true" }, icon("arrowUp"))); return card; }));
     } else kpis = SUI.errorBox(trends.reason, () => A.render(), "The summary couldn't load");
 
     const liveBox = el("div");
