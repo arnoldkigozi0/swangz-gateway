@@ -778,8 +778,65 @@
   function foldedGroups() {
     try { return new Set(JSON.parse(localStorage.getItem(NAV_KEY) || JSON.stringify(NAV.map(g => g[0])))); } catch (e) { return new Set(NAV.map(g => g[0])); }
   }
+  /* The floating rail (BRIEF 10.3, 10.7): the brand, nine page icons and All pages; Help and Settings at the foot.
+     Icons only, each named by its label and tooltip. Everything else the console has (the other pages, the
+     emergency stop, theme, sign-out) is in the All pages drawer and the command menu, never removed. */
+  const RAIL = ["#/", "#/live", "#/attention", "#/activity", "#/people", "#/requests", "#/tools", "#/licences", "#/security"];
+  function rail(active) {
+    const pages = NAV.flatMap(([group, links]) => links.map(([href, label, ic]) => ({ href, label, ic, group })));
+    const link = ({ href, label, ic, group }) => {
+      const count = navCounts(href);
+      return el("a", { href, class: href === active ? "on" : null, "aria-current": href === active ? "page" : null,
+        "aria-label": label + (count ? ", " + count.getAttribute("aria-label") : ""), "data-tip": group ? `${label} · ${group}` : label }, icon(ic), count);
+    };
+    const elsewhere = !RAIL.includes(active) && active !== "#/settings";  // the page you are on has no icon here
+    const hidden = pages.filter((x) => !RAIL.includes(x.href)).map((x) => navCounts(x.href)).filter(Boolean);
+    const more = hidden.reduce((sum, node) => sum + Number(node.textContent.trim()), 0);
+    return el("aside", { class: "side compact rail-exact", onfocusin: railTip, onpointerover: railTip },
+      el("a", { class: "brand", href: "#/", "aria-label": "Swangz AI Hub overview", "data-tip": "Swangz AI Hub" }, el("img", { src: "/static/icon.svg", alt: "" })),
+      el("nav", { class: "nav", "aria-label": "Control room", onkeydown: navKeys },
+        RAIL.map((href) => link(pages.find((x) => x.href === href))),
+        el("button", { class: "rail-pages" + (elsewhere ? " on" : ""), type: "button", "aria-label": "All pages and account controls" + (more ? ", " + more + " indicators" : ""),
+          "aria-haspopup": "dialog", "data-tip": "All pages", onclick: () => openDrawer(active) }, icon("menu"),
+        more ? el("span", { class: "count", "aria-hidden": "true" }, String(more)) : null)),
+      el("nav", { class: "rail-foot nav", "aria-label": "Help and settings", onkeydown: navKeys },
+        el("a", { href: "/#/privacy", target: "_blank", rel: "noopener", "aria-label": "Help (opens in a new tab)", "data-tip": "Help · opens in a new tab" }, icon("info")),
+        link({ href: "#/settings", label: "Settings", ic: "settings" })));
+  }
+
+  /* The accent New pill (10.3). Each choice opens a form that already exists (the pages read ?add=1); it is shown
+     only to someone whose role may use at least one of them. */
+  function newMenu() {
+    const items = [can("govern") ? ["#/people?add=1", "people", "Person"] : null, can("govern") ? ["#/tools?add=1", "tools", "Tool"] : null,
+      can("govern") ? ["#/policies?add=1", "rule", "Policy"] : null].filter(Boolean);
+    if (!items.length) return null;
+    const menu = el("div", { class: "console-pop", role: "menu", "aria-label": "New", hidden: true },
+      items.map(([href, ic, label]) => el("a", { href, role: "menuitem", tabindex: "-1", onclick: () => close(false) }, icon(ic), label)));
+    const button = el("button", { class: "console-new", type: "button", "aria-haspopup": "menu", "aria-expanded": "false" }, icon("plus"), "New");
+    const away = (e) => { if (!wrap.contains(e.target)) close(false); };
+    function close(focus) { menu.hidden = true; button.setAttribute("aria-expanded", "false"); document.removeEventListener("click", away); if (focus) button.focus(); }
+    function open(last) {
+      menu.hidden = false; button.setAttribute("aria-expanded", "true"); document.addEventListener("click", away);
+      const choices = menu.querySelectorAll("a"); choices[last ? choices.length - 1 : 0].focus();
+    }
+    button.addEventListener("click", () => (menu.hidden ? open() : close(false)));
+    button.addEventListener("keydown", (e) => { if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); open(e.key === "ArrowUp"); } });
+    menu.addEventListener("keydown", (e) => {
+      const choices = [...menu.querySelectorAll("a")], i = choices.indexOf(document.activeElement);
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(true); }
+      else if (e.key === "Tab") close(false);
+      else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
+        e.preventDefault();
+        choices[e.key === "Home" ? 0 : e.key === "End" ? choices.length - 1 : (i + (e.key === "ArrowDown" ? 1 : -1) + choices.length) % choices.length].focus();
+      }
+    });
+    const wrap = el("div", { class: "console-new-wrap" }, button, menu);
+    return wrap;
+  }
+
   function sidebar(active, onNavigate, drawer = false) {
-    const labelled = drawer || navLabels();
+    if (!drawer) return rail(active);
+    const labelled = true;
     const folded = foldedGroups();
     const groupCount = links => {
       const counts = links.map(([href]) => navCounts(href)).filter(Boolean);
@@ -899,11 +956,12 @@
     const banner = paused ? el("div", { class: "banner", role: "alert" }, icon("stop"),
       el("span", null, el("strong", null, "AI access is paused for everyone. "), "Requests and tool launches are refused until an owner resumes."),
       can("emergency") ? el("button", { class: "btn small primary", onclick: () => setPaused(false) }, "Resume access") : null) : null;
-    const clockText = el("span");
-    const clock = el("time", { class: "console-clock" }, icon("clock"), clockText);
+    const clockText = el("span"), clockDate = el("small");
+    const clock = el("time", { class: "console-clock" }, icon("clock"), clockText, clockDate);
     const tickClock = () => {
       const now = Date.now() / 1000;
       clockText.textContent = fmt.clock(now);
+      clockDate.textContent = fmt.dayMonth(now);
       clock.dateTime = new Date(now * 1000).toISOString();
       clock.title = "Current time · " + SUI.tzLabel();
       clock.setAttribute("aria-label", clockText.textContent + " · " + SUI.tzLabel());
@@ -914,11 +972,11 @@
     const appbar = el("header", { class: "appbar console-bar", "aria-label": "Control room toolbar" },
       el("div", { class: "console-context" },
         el("button", { class: "console-workspace", type: "button", "aria-label": "Open navigation", "aria-haspopup": "dialog", onclick: () => openDrawer(active) },
-          el("img", { src: "/static/icon.svg", alt: "" }), el("span", null, "Swangz AI Hub"), icon("chevronDown")),
+          el("img", { src: "/static/icon.svg", alt: "" }), el("span", null, el("strong", null, "Swangz AI Hub"), el("small", null, "Control room")), icon("chevronDown")),
         el("span", { class: "console-area", "aria-hidden": "true" }, area)),
       el("button", { class: "console-search", type: "button", "aria-label": "Search", onclick: () => openCommand() }, icon("search"),
         el("span", null, "Search pages, people, tools…"), el("span", { class: "u-kbd", "aria-hidden": "true" }, /Mac/.test(navigator.platform || "") ? "⌘K" : "Ctrl K")),
-      el("div", { class: "console-tools" }, clock, bell(),
+      el("div", { class: "console-tools" }, newMenu(), clock, bell(),
         el("a", { class: "console-account", href: "#/settings?tab=account", "aria-label": "Your account: " + S.me.username, "data-tip": S.me.username }, SUI.avatar(S.me.username))));
     // Where you are: the area, then the pages above this one — never the page's own title again.
     const place = NAV.map(([group, links]) => ({ group, item: links.find(([href]) => href === active) })).find((x) => x.item);
