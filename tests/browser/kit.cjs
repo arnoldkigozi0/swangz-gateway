@@ -48,6 +48,7 @@ const mount = () => {
       page.on('console', m => m.type() === 'error' && results.errors.push(m.text()));
       await page.goto(info.url + '/admin');
       await page.waitForSelector('main h1');
+      await page.evaluate(() => document.fonts.ready);
       await page.evaluate(mount);
       const team = '[data-t=team]', tool = '[data-t=tool]';
       const state = () => page.evaluate(() => {
@@ -115,8 +116,8 @@ const mount = () => {
 
       if (vname === 'desktop') {
         await page.click('[data-t=low]');
-        const flip = await page.evaluate(() => { const b = document.querySelector('[data-t=low]').getBoundingClientRect(), p = document.querySelector('.u-pop').getBoundingClientRect(); return { gap: b.top - p.bottom, top: p.top }; });
-        ok(T + 'with no room below, the list opens above its trigger', flip.gap >= 4 && flip.gap <= 8 && flip.top >= 8);
+        const flip = await page.evaluate(() => { const b = document.querySelector('[data-t=low]').getBoundingClientRect(), p = document.querySelector('.u-pop').getBoundingClientRect(); return { gap: b.top - p.bottom, top: p.top, bTop: b.top, bBottom: b.bottom, pBottom: p.bottom, ih: innerHeight, up: document.querySelector('.u-pop').className }; });
+        ok(T + 'with no room below, the list opens above its trigger ' + JSON.stringify(flip), flip.gap >= 4 && flip.gap <= 8 && flip.top >= 8);
         await page.click(team);
         ok(T + 'opening another closes the first: one list at a time', (await page.evaluate(() => document.querySelectorAll('.u-pop').length)) === 1);
         await page.keyboard.press('Escape');
