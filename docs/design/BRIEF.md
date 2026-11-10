@@ -162,9 +162,12 @@ re-checked against this section in **R15** (below), not re-opened one by one.
    solved in the reference's visual language, listed in the PR.
 5. **The §10.9 additions** (Swangz signatures, honest low-data states, compact density, quality gates) — they sit on
    top of the matched layout and never move or resize a measured element.
-6. **Overview background below the panels (reason: photo).** The reference reads 119,105,98 at (700,810); no part of
+6. **§10.10 (boss review, 10 Nov):** box-shaped controls, the layered page structure, the new background, and the
+   side bar and scrollbar design. Where §10.10 and a reference still disagree, §10.10 wins.
+7. **Overview background below the panels (reason: photo).** The reference reads 119,105,98 at (700,810); no part of
    `room-warm.webp` is bright enough to land within ±16 there at any crop, zoom, flip or scrim in the .30–.40 range
    (analysis in `docs/screenshots/console-room/README.md`). Allowed until a different photo is chosen.
+   The console photo was replaced on 11 Nov (§10.10.3, `room-suite`); this point has not been re-measured with it.
 
 ### 10.2 Acceptance check (every UI PR)
 - Screenshot at **1440×852** (the stills' frame) dark theme, next to the matching still, plus a **50% overlay**
@@ -306,3 +309,134 @@ any is missing:
 
 **Round R17 — "beyond the reference"** (after R15 and R16): the S loader + live pulse, the low-data pass over every
 Overview card and chart, and the Compact switch. Points 2 and 4 apply to every UI PR **from now on**, not only R17.
+
+### 10.10 Boss review, 10 Nov 2026 (late) — structure, box controls, background, side bar and scrollbars
+
+Arnold's boss: "the design is good", but (1) too many things sit on one page — the app must be directive and
+layered, data chained from one level to the next like a professional product; (2) buttons must be boxes, not ovals
+or pills; (3) the background is below standard; (4) the side bar and scroll bars must be properly designed.
+**This section wins over §10.1–§10.9 wherever they disagree** (it is §10.1 allowed difference 6). The glass
+material, colours, type, card sizes and the measured positions of §10.3 stay.
+
+**1. Layered structure — one page answers one question.** Every screen in both apps is exactly one of four levels:
+
+| Level | What it is | What may be on it |
+|---|---|---|
+| **L1 Summary** (area landing: Overview, Money, Security…) | "How is this area doing?" | Title, ≤ 4 number cards, **one** chart or **one** short list (≤ 5 rows, "See all" link). Nothing below the fold at 1440×852. |
+| **L2 List** (People, Tools, Activity, Requests…) | "Which ones?" | One table or card list, one filter row (search + ≤ 3 filters), one primary action. No charts, no second table. |
+| **L3 Record** (one person, one tool, one request, one device) | "What about this one?" | Header (name, state, primary action) + tabs; each tab holds one block. |
+| **L4 Action** (add, edit, grant, revoke, approve) | "Do it." | A side sheet or dialog over the page it came from: ≤ 6 fields per step; longer forms become numbered steps. |
+
+- **The chain:** every number on an L1 card is a link to the L2 list already filtered to exactly those items (the card
+  "3 need attention" opens the list showing those 3). Every L2 row opens its L3 record. Every L3 record links to its
+  related records (person → their tools → tool → its licence → its spend → the requests behind that spend), so a
+  reader can walk the data without using the menu. No dead ends: every record has a way on and a way back.
+- **The trail:** the top-bar breadcrumb shows the whole chain (`Overview › Needs attention › Nansubuga Grace`), each
+  crumb is a link, Back returns to the same filter and scroll position, and the address carries the level and filter.
+- **Directive:** one primary (amber) button per screen. Each L1 and L3 has one "Next step" line under the title that
+  names the most useful thing to do now and links to it; when nothing needs doing it says so in one line.
+- **Limits a reviewer counts:** at 1440×852 an L1 shows ≤ 7 blocks and does not scroll; no page mixes a table with
+  charts; no tab strip has more than 6 tabs; no page has two tab strips; nothing is repeated on two pages — the
+  second place links to the first (`docs/UI.md` "Canonical homes").
+- **Before building:** one table in `docs/UI.md` ("Page levels") listing **every** page of the console and the staff
+  app with: level, the one question it answers, its parent, its children, what leaves it and where that goes.
+  Content that leaves a page is never deleted from the product (§10.7 rule); it moves down a level.
+- Order: Overview → People chain (list → person → their tools) → Tools chain → Money chain → Security chain →
+  Settings → staff app (Home → tool → request access).
+
+**2. Box controls, not pills.** New tokens in `tokens.css`; no control uses `--radius-pill` any more:
+
+| Token | Value | Used by |
+|---|---|---|
+| `--radius-control` | **10px** | Buttons (38px and 34px tall), inputs, search field, selects, workspace switcher, clock, "New", page actions, sign-in Login button and its fields' focus frame, footer input and its button |
+| `--radius-control-sm` | **8px** | Small buttons (≤ 30px tall), the active marker inside a tab strip, menu rows, table row hover |
+| `--radius-chip` | **6px** | Status chips, count badges with text, filter tags, keyboard hints (⌘K) |
+| unchanged | 18 / 22 / 24 / 28 | Cards, panels, sign-in card, footer panel |
+
+- Still round, because they are not buttons: avatars, status dots, the bell's number dot, the donut, the arrow-in-
+  circle on KPI cards.
+- Tab strips (§10.8 A and B): the bar is radius **12**, the active marker is a raised box radius **8**; it still
+  slides and keeps the same timing. Phone bar C: bar radius **16**, active item radius **10**; the lens becomes a
+  rounded box of the same radius and keeps its motion.
+- Buttons: 38px tall (34px in page headers), padding 0 16px, 13px weight 600, icon 16px with 8px gap. Three kinds
+  only — primary (amber fill), secondary (glass, 1px rim), quiet (no fill until hover). Destructive = secondary with
+  the danger colour, never a red fill except in the confirming dialog. Hover lifts brightness, pressed moves 1px,
+  focus is a 2px ring 2px outside the box; disabled is 45% opacity and not clickable.
+- Acceptance: a search of `gateway/static/*.css` and `*.js` finds `999px` / `--radius-pill` / `border-radius: 50%`
+  only on the round items listed above. Probe lists every remaining use.
+
+**3. Background to a professional standard.** `room-warm.webp` is 1600×947 at 26 KB: it is soft, blocky in the
+dark areas and its composition fights the cards. Replace it; the scrim and glass values are then re-tuned once.
+- Source ≥ **3840×2160**, shipped as WebP at 2560, 1920 and 960 wide (`image-set`), quality ≥ 82, the 1920 file
+  between 180 and 420 KB. No visible banding or blocks in the dark gradients at 100% zoom on a 1440×852 window.
+- Content: a calm warm interior or architectural space, out of focus or shallow depth, **one** soft light source,
+  mid-tone (average brightness 30–45%), no people, faces, text, screens, logos or strong lines crossing the card
+  area. The busy part of the picture sits behind the rail or the page margin, not behind the numbers.
+- Licence: CC0, Unsplash or Pexels licence only, logged in `docs/design/ASSETS.md` with source address, author,
+  licence and the edits made. Never a reference photo, never an AI-generated picture of a real place.
+- Deliver **three** candidates as 1440×852 Overview screenshots in dark and light in the PR; ship the one with the
+  best worst-case text contrast (§10.9.4) and keep the other two in `docs/design/backgrounds/` so Arnold can swap
+  with a one-line change. Sign-in gets the same quality pass (`login-welcome.webp` is 47 KB).
+- Fallback when the photo cannot load or transparency is reduced: a designed gradient (two warm radial lights on
+  near-black, with 2% noise so it does not band) — never a flat black page.
+
+**4. Side bar, scrollbars and sliders.**
+- **Side bar (rail):** radius **16** (was a full pill), same position and width. Icon buttons 40×40, radius 10,
+  centred; active = raised glass box + amber 3px marker on its left edge + filled icon; hover = faint box. A label
+  tooltip appears to the right after 300 ms and immediately on keyboard focus. Groups are separated by 12px of
+  space, not lines. The "All pages" drawer opens as a second layer beside the rail with the same L1 areas as
+  headings and their L2 pages under them — it is the map of §10.10.1, in the same order as the breadcrumb.
+- **Scrollbars:** one style everywhere (page, panels, tables, drawers, menus): 8px wide, thumb radius 4,
+  thumb `rgba(255,255,255,.22)` (dark) / `rgba(0,0,0,.25)` (light), hover .40, transparent track, 2px inset from
+  the panel edge; `scrollbar-width: thin` + `scrollbar-color` for Firefox, `::-webkit-scrollbar` for Chrome. A
+  panel never shows two scrollbars; tables scroll inside their panel with a sticky header; no horizontal page
+  scroll at any width. `scrollbar-gutter: stable` so pages do not shift when a bar appears.
+  **Ruling (Chief, 11 Nov):** `scrollbar-gutter: stable` is set on boxes that scroll inside a page (the rail's list,
+  scrolling lists), not on `html`; the page itself is left as it is.
+- **Range sliders and progress bars:** track 4px, radius 2; filled part amber; slider thumb a 16×16 box, radius 5,
+  white with a 1px rim, 2px focus ring; the value is shown as text beside it.
+
+**5. The control kit — use the right control, built once, used everywhere.** Pages are structured by choosing
+controls that hide what is not needed now. All of these live in `ui.js` / `ui.css` as one shared kit (`SUI.*`) used by
+both apps; no page builds its own. Vanilla JS and CSS, no new dependencies.
+
+| Control | Use it for | Rules |
+|---|---|---|
+| **Dropdown select** | Choosing 1 of 5+ options (team, tool, role, period, sort) | Box trigger with the current value + chevron; menu opens under it, 8px radius rows, tick on the current one, type to jump, a search field inside when > 8 options. Fewer than 5 options and space allows → segmented control instead. |
+| **Menu button ("More ⋯")** | Secondary actions on a page, card or table row | Every table row ends in one `⋯` button; a page header shows the primary button + at most one secondary + `⋯`. Destructive items last, separated, danger colour. |
+| **Split button** | A primary action with close variants ("Add person ▾" → Add one · Import list · Invite by email) | Main part does the common action; the chevron part opens the variants. |
+| **Segmented control** | Switching the view of the same data (Day · Week · Month; Cards · Table) | 2–4 options, box style of §10.10.2; remembered in the address. |
+| **Tabs** | The parts of one record (L3) | ≤ 6; the rest go under a "More ▾" tab dropdown. |
+| **Filter bar** | Narrowing an L2 list | Search + ≤ 3 dropdown filters + "More filters ▾"; each active filter shows as a removable chip under the bar with "Clear all"; filters live in the address so a link reproduces the list. |
+| **Date range picker** | Any period choice | Dropdown with presets (Today, 7 days, 30 days, This month, Custom) + a two-month calendar for Custom; always shows the chosen range as text. |
+| **Disclosure / accordion** | Detail most readers do not need ("Advanced", raw record, history) | Closed by default, chevron + one-line summary of what is inside; state remembered per page. |
+| **Side sheet** | L4 add / edit / grant, and row preview | Slides from the right, 480px (full width on phones), title + one-line purpose, sticky footer with Cancel (quiet) and the primary button, Esc closes, unsaved changes are confirmed. |
+| **Stepper** | Any form over 6 fields | Numbered steps along the top of the sheet, Back / Next, a final review step before saving. |
+| **Dialog** | Confirming something destructive or irreversible only | Says what will happen and to whom, in plain words; the confirm button names the action ("Remove access"), never "OK". |
+| **Tooltip / popover** | Explaining an icon, a number or a term | Tooltip = one line on hover/focus; popover = a small card on click (how a number was calculated, with a link to the list behind it). |
+| **Pagination** | Lists over 25 rows | 25 / 50 / 100 per page dropdown, "1–25 of 312", previous/next; sticky table header; bulk-select bar appears only when rows are ticked. |
+| **Toast** | Result of an action | Bottom-right, one line + Undo where the action can be undone; errors stay until dismissed and say what to do next. |
+| **Breadcrumb with dropdown** | The trail of §10.10.1 | Each crumb is a link; the last-but-one crumb has a chevron listing its sibling pages, so a reader can move sideways without the menu. |
+| **Command menu (⌘K)** | Jumping anywhere | Already exists: must list every L1/L2 page and every primary action, grouped by area. |
+
+- **Every control has every state designed:** default, hover, focus (2px ring), pressed, open, selected, disabled,
+  loading (the S loader inside the box, width does not jump), error (message under the field, never colour alone),
+  and empty. One screenshot sheet per control in dark and light goes in `docs/design/kit/`.
+- **Keyboard and screen readers (required, not optional):** every menu and dropdown opens with Enter/Space/↓, moves
+  with arrows, closes with Esc and returns focus to its trigger; correct roles (`menu`, `listbox`, `tablist`,
+  `dialog` with focus trap); touch targets ≥ 44px on phones; menus flip when they would leave the screen and become
+  a bottom sheet on phones.
+- **Forms, international grade:** label above the field, hint under it, required marked in words, validation on
+  leaving the field, the first error focused on submit; dates as "10 Nov 2026", times with the zone, money with the
+  currency code, numbers with thousands separators; every table column sortable with a visible arrow, numbers
+  right-aligned, long text cut with an ellipsis and shown in full in a tooltip.
+- **Consistency a reviewer checks:** one name per thing across the whole product (never "Remove" on one page and
+  "Delete" on another for the same act); the primary button is always in the same place (page header right; sheet
+  footer right); spacing only from the 4 / 8 / 12 / 16 / 24 / 32 scale; icons from one set at one stroke width.
+- **Build order:** the kit page first (`/admin#kit`, visible to owners only: every control in every state), then
+  pages adopt it chain by chain in the order of §10.10.1. A page is not "restructured" until it uses only kit controls.
+
+**Round R18 — "structure and boxes"** goes **ahead of** the unfinished R15–R17 items, in this order: (a) tokens +
+box controls + scrollbars + rail in one PR (CSS only, both apps, both themes); (b) the background; (c) the
+"Page levels" table and the control kit page of point 5; (d) Overview as L1 with every card chained to its filtered list; (e) one chain per PR in the
+order above. §10.2 overlays compare layout and colour only from now on — control radii follow this section.
