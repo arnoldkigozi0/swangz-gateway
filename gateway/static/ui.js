@@ -921,7 +921,7 @@
     let open = false;
     function put() {
       if (window.matchMedia("(max-width: 640px)").matches) {
-        panel.style.left = panel.style.top = panel.style.minWidth = ""; panel.classList.remove("up"); return;
+        panel.style.left = panel.style.top = panel.style.bottom = panel.style.minWidth = ""; panel.classList.remove("up"); return;
       }
       const r = trigger.getBoundingClientRect();
       panel.style.minWidth = Math.max(r.width, o.minWidth || 180) + "px";
@@ -931,7 +931,9 @@
       panel.classList.toggle("up", up);
       const left = o.align === "end" ? r.right - w : r.left;
       panel.style.left = Math.max(8, Math.min(left, window.innerWidth - w - 8)) + "px";
-      panel.style.top = Math.max(8, up ? r.top - 6 - h : r.bottom + 6) + "px";
+      /* above its trigger the panel hangs from its bottom edge, so it stays 6px clear if its height changes while open */
+      panel.style.top = up ? "auto" : Math.max(8, r.bottom + 6) + "px";
+      panel.style.bottom = up ? Math.max(8, window.innerHeight - r.top + 6) + "px" : "auto";
     }
     const outside = (e) => { if (!panel.contains(e.target) && !trigger.contains(e.target)) close(false); };
     const moved = (e) => { if (!e || e.type !== "scroll" || !panel.contains(e.target)) put(); };
@@ -944,6 +946,7 @@
       trigger.setAttribute("aria-expanded", "true");
       o.onOpen && o.onOpen();
       put();
+      requestAnimationFrame(() => { if (open) put(); });   // a pressed trigger is drawn shifted; measure again once it is released
       document.addEventListener("pointerdown", outside, true);
       window.addEventListener("resize", moved);
       window.addEventListener("scroll", moved, true);

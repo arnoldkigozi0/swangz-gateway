@@ -116,6 +116,7 @@ const mount = () => {
 
       if (vname === 'desktop') {
         await page.click('[data-t=low]');
+        await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
         const flip = await page.evaluate(() => { const b = document.querySelector('[data-t=low]').getBoundingClientRect(), p = document.querySelector('.u-pop').getBoundingClientRect(); return { gap: b.top - p.bottom, top: p.top, bTop: b.top, bBottom: b.bottom, pBottom: p.bottom, ih: innerHeight, up: document.querySelector('.u-pop').className }; });
         ok(T + 'with no room below, the list opens above its trigger ' + JSON.stringify(flip), flip.gap >= 4 && flip.gap <= 8 && flip.top >= 8);
         await page.click(team);
