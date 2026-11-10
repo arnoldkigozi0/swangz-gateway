@@ -215,6 +215,11 @@ html[data-theme="light"] .u-tubes { --tube-a: rgba(70, 56, 40, .46); --tube-b: r
 .u-chart .cross.on { opacity: .7; }
 .u-chart .end-label { fill: var(--tx-1); font: 650 11px var(--font); font-variant-numeric: tabular-nums; }
 .u-chart .overlay { fill: transparent; }
+.u-chart-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 16px; text-align: center; }
+.u-chart-empty p { margin: 0; max-width: 46ch; }
+.u-chart-empty .what { font-size: 15px; font-weight: 600; color: var(--tx-1); }
+.u-chart-empty .why { font-size: 11px; color: var(--tx-2); }
+.u-chart-empty .btn { margin-top: 8px; }
 .u-chart-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 6px; }
 .u-chart-foot button { background: none; border: 0; padding: 0; color: var(--tx-3); font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .u-chart-foot button:hover { color: var(--tx-1); }

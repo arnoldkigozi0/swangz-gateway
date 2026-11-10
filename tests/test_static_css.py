@@ -24,5 +24,18 @@ class FontShorthandTests(unittest.TestCase):
             self.assertIn(part, rule)
 
 
+
+class ChartEmptyStateTests(unittest.TestCase):
+    def test_an_empty_chart_keeps_its_height_and_uses_the_brief_sizes(self):
+        # BRIEF 10.9(2): one 15px line on what will appear, one 11px line on why it is empty, same card size
+        css = (STATIC / "ui.css").read_text(encoding="utf-8")
+        self.assertIn("font-size: 15px", re.search(r"\.u-chart-empty \.what\s*\{([^}]*)\}", css).group(1))
+        self.assertIn("font-size: 11px", re.search(r"\.u-chart-empty \.why\s*\{([^}]*)\}", css).group(1))
+        js = (STATIC / "ui.js").read_text(encoding="utf-8")
+        self.assertEqual(js.count("return chartEmpty(o);"), 2)          # the column chart and the line chart
+        self.assertIn("box.style.minHeight = (o.height + 24)", js)
+        self.assertNotIn('title: "No data yet"', js)                    # no chart falls back to the generic box
+
+
 if __name__ == "__main__":
     unittest.main()
