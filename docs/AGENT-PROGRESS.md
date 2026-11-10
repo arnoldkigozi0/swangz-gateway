@@ -1,5 +1,18 @@
 # Agent progress
 
+**11 Nov 00:55 honest state (R18: boss review, BRIEF §10.10).** Main `31ecbfc`. Sprint ran to 01:00; unfinished chains start the 04:00 shift.
+
+| State | Items |
+|---|---|
+| Merged, NOT verified by Probe | #115 box controls, scrollbars, rail; #116 dropdown select + popover; #117 console background (room-suite photo, worst text contrast 4.93 dark / 6.08 light measured by Anvil at 1440x852, scrim .35); #118 More menu, split button, filter bar with chips, side sheet (kit.cjs 232 checks, Forge local); #110 dark donut orange; #108 console room panels |
+| Merged, docs | #112 BRIEF §10.10 (incl. scrollbar-gutter ruling: stays on rail/list, not html); #113 Page levels table in docs/UI.md; #114 kit acceptance checks |
+| Verified by Probe | #97 #102 #104 #105 (22:50, on 4e5b610). Static pill grep on #115: only round items left (status dots, avatars, bell number, spinner, donut icons) |
+| In progress | #119 control kit page (#/kit, owners only), draft; #106 Chrome policy plan (draft). Probe holds the browser slot to verify #115-#118 (rendered radii, contrast, double scrollbars): result pending |
+| Not started | Overview as L1 (first work 04:00, Forge); People chain (Anvil, on the kit); Tools, Money, Security, Settings, staff app chains; staff app + sign-in photo quality pass |
+| Not met | Footer scroll 28-39 fps vs 55 gate (BRIEF §10.9): needs a real-GPU device |
+| Known gaps | #115: buttons not resized to 38/34px heights; round marks not on the 10.10.2 list (footer brand, step circles, .u-info 16px tap target); menu row with icon indents label; Overview on phones/light still has the page-wide plane; light panels stay opaque (contrast); banding at 100% not checked |
+| For Arnold | Lower Overview sample point needs a paler room photo (allowed difference, reason: photo); Unsplash/Pexels blocked automated visits, so a better photo set needs a person signed in |
+
 **10 Nov 21:30 status:** 43 PRs merged today (docs/daily/2026-11-10.md). Open: #96, #97, #99, #101, #102. Main head 6106663, Hub checks running. No blockers for Arnold.
 
 Last updated: 2026-11-07 08:40 EAT (Arnold's Glass UI redesign queue added; earlier: Probe verified contract, Sentinel gate pending). Coordination branch: `team/log`. Product baseline: main `ba82a2a`.
