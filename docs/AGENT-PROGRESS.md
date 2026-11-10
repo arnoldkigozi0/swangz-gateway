@@ -622,19 +622,14 @@ PARTIAL (the lower sample point cannot be reached with `room-warm.webp`). This s
 for this entry.
 
 
-### 11 November, 01:00 — control kit page (`feature/kit-page`, WIP)
+### 11 November, 01:00 — control kit page (`feature/kit-page`)
 
 `#/kit` (also `#kit`) in the console: owners only, not in the navigation, every kit control in every state,
-built from the same `SUI` functions the pages use; it calls no API. Files: `gateway/static/admin-kit.js`
-(new), one script tag in `admin.html`, `.kit-*` layout rules at the end of `admin.css`, and
-`ControlKitPageTests` in `tests/test_static_js.py` (static JS and CSS tests: 24 pass). Not run: any browser
-check, so the page has not been seen rendered.
+built from the same `SUI` functions the pages use; it calls no API. Files: `gateway/static/admin-kit.js`,
+one script tag in `admin.html`, `.kit-*` rules at the end of `admin.css`, `ControlKitPageTests`, and a browser
+pass in `tests/browser/kit.cjs` (1440x852 and 390x844, dark and light; screenshots in the CI artifact). Seen in
+CI's Chromium at `dd5bffa`, no findings; viewing the renders found filter chips cutting off descenders, fixed.
 
-Exact next step (04:00, before Overview L1): open `#/kit` on the local demo at 1440x852 and 390x844, light
-and dark; fix what the render shows (button class names `quiet`/`danger`/`small`, the `users`/`lock` icon
-names and the `.form` wrapper in the sheet were written without a render); add a `#/kit` pass to
-`tests/browser/check.cjs`; save the four screenshots in `docs/screenshots/kit-page/`; then mark the PR
-ready and merge on green CI.
 ### Dark donut orange contrast follow-up — 10 November 2026
 
 Branch `feature/donut-dark-contrast`, based on main `4e5b610`. The dark first arc and its legend dot
