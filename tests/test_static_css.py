@@ -25,6 +25,15 @@ class FontShorthandTests(unittest.TestCase):
 
 
 
+class FilterChipTextTests(unittest.TestCase):
+    def test_chip_text_has_room_for_descenders(self):
+        """The chip's font is line-height 1 and its label clips, which cut the tails off "Company"."""
+        css = (STATIC / "ui.css").read_text(encoding="utf-8")
+        rule = re.search(r"\.u-chip span \{([^}]*)\}", css).group(1)
+        self.assertIn("overflow: hidden", rule)
+        self.assertIn("line-height: 1.3", rule)
+
+
 class ChartEmptyStateTests(unittest.TestCase):
     def test_an_empty_chart_keeps_its_height_and_uses_the_brief_sizes(self):
         # BRIEF 10.9(2): one 15px line on what will appear, one 11px line on why it is empty, same card size

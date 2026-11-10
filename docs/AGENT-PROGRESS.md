@@ -622,6 +622,14 @@ PARTIAL (the lower sample point cannot be reached with `room-warm.webp`). This s
 for this entry.
 
 
+### 11 November, 01:00 — control kit page (`feature/kit-page`)
+
+`#/kit` (also `#kit`) in the console: owners only, not in the navigation, every kit control in every state,
+built from the same `SUI` functions the pages use; it calls no API. Files: `gateway/static/admin-kit.js`,
+one script tag in `admin.html`, `.kit-*` rules at the end of `admin.css`, `ControlKitPageTests`, and a browser
+pass in `tests/browser/kit.cjs` (1440x852 and 390x844, dark and light; screenshots in the CI artifact). Seen in
+CI's Chromium at `dd5bffa`, no findings; viewing the renders found filter chips cutting off descenders, fixed.
+
 ### Dark donut orange contrast follow-up — 10 November 2026
 
 Branch `feature/donut-dark-contrast`, based on main `4e5b610`. The dark first arc and its legend dot
