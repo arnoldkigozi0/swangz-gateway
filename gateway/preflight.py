@@ -66,6 +66,13 @@ def check(env):
         if problem or scheme != "https":
             add("fail", "GATEWAY_CORS_ORIGINS", f"{origin!r} must be one exact https address (no wildcard, no path)")
 
+    # Whoever signs in, by password or Google: the account rule is this one domain (plus the approved exceptions).
+    domain = get("GATEWAY_COMPANY_DOMAIN").strip().lower().lstrip("@")
+    if domain and domain != "swangzavenue.com":
+        add("fail", "GATEWAY_COMPANY_DOMAIN", "must be swangzavenue.com (or unset); another domain would let its accounts sign in")
+    else:
+        add("ok", "GATEWAY_COMPANY_DOMAIN", "swangzavenue.com" + ("" if domain else " (default)"))
+
     cid, secret, fixed = get("GOOGLE_CLIENT_ID"), get("GOOGLE_CLIENT_SECRET"), get("GOOGLE_REDIRECT_URI")
     if bool(cid) != bool(secret):
         add("fail", "GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET", "set both or neither; with one missing the Google button is hidden")
@@ -92,7 +99,6 @@ def check(env):
                 add("fail", "GOOGLE_REDIRECT_URI", f"is on {host}, but people open {hosts['GATEWAY_WEB_URL']}; the sign-in cookie would be set on the wrong site")
             else:
                 add("ok", "Google return address", f"register exactly this in the Google client: {redirect}")
-        add("ok", "GATEWAY_COMPANY_DOMAIN", (get("GATEWAY_COMPANY_DOMAIN") or "swangzavenue.com (default)"))
 
     tls = bool(get("GATEWAY_TLS_CERT") and get("GATEWAY_TLS_KEY"))
     trust, force = get("GATEWAY_TRUST_PROXY") in ON, get("GATEWAY_FORCE_HTTPS") in ON

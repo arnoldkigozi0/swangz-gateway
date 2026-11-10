@@ -72,6 +72,14 @@ class PreflightTests(unittest.TestCase):
         expected = google.redirect_uri(GW(), None)
         self.assertIn(("ok", "Google return address", "register exactly this in the Google client: " + expected), preflight.check(GOOD))
 
+    def test_the_company_domain_is_swangzavenue_whether_or_not_google_is_on(self):
+        no_google = {k: v for k, v in GOOD.items() if not k.startswith("GOOGLE_")}
+        for env in (GOOD, no_google):
+            self.assertIn("GATEWAY_COMPANY_DOMAIN", levels(env, "ok"))
+            self.assertIn("GATEWAY_COMPANY_DOMAIN", levels({**env, "GATEWAY_COMPANY_DOMAIN": "SwangzAvenue.com"}, "ok"))
+            for other in ("gmail.com", "swangzavenue.com.example", "evil-swangzavenue.com", "swangzavenue.co"):
+                self.assertIn("GATEWAY_COMPANY_DOMAIN", levels({**env, "GATEWAY_COMPANY_DOMAIN": other}, "fail"), other)
+
     def test_proxy_and_cookie_settings(self):
         self.assertIn("GATEWAY_TRUST_PROXY", levels({**GOOD, "GATEWAY_TRUST_PROXY": ""}, "fail"))
         self.assertIn("GATEWAY_HOST", levels({**GOOD, "GATEWAY_HOST": "0.0.0.0"}, "warn"))
