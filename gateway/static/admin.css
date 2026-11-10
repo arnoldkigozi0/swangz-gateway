@@ -1281,6 +1281,8 @@ html[data-theme="light"] .shell { --plane: rgba(252, 248, 242, .94); }
 html:not([data-theme="light"]) .shell:not(.route-overview) .page .panel:not(.panel .panel) {
   background: var(--glass-bg-strong); border-color: var(--glass-rim); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); }
 @media (max-width: 900px) { .shell:not(.route-overview) #main > .top::before { inset: 0 8px -8px 8px; border-radius: 18px; } }
+/* The wide console pads its right side for the bar above, so the band is pulled in to sit over the panels evenly. */
+@media (min-width: 1201px) { .shell:not(.route-overview) #main > .top::before { inset: 0 69px -8px 16px; } }
 @media (prefers-reduced-transparency: reduce) {
   html:not([data-theme="light"]) .shell:not(.route-overview) .page .panel:not(.panel .panel) { background: var(--ink-1); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }

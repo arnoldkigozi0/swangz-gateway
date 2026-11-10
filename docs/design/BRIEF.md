@@ -162,6 +162,9 @@ re-checked against this section in **R15** (below), not re-opened one by one.
    solved in the reference's visual language, listed in the PR.
 5. **The §10.9 additions** (Swangz signatures, honest low-data states, compact density, quality gates) — they sit on
    top of the matched layout and never move or resize a measured element.
+6. **Overview background below the panels (reason: photo).** The reference reads 119,105,98 at (700,810); no part of
+   `room-warm.webp` is bright enough to land within ±16 there at any crop, zoom, flip or scrim in the .30–.40 range
+   (analysis in `docs/screenshots/console-room/README.md`). Allowed until a different photo is chosen.
 
 ### 10.2 Acceptance check (every UI PR)
 - Screenshot at **1440×852** (the stills' frame) dark theme, next to the matching still, plus a **50% overlay**

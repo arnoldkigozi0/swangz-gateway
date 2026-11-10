@@ -1,8 +1,29 @@
 # Console pages: local backing instead of the page-wide plane (architect review item 1, Nov 10)
 
-**Not captured in a browser yet.** This was written while another check held the one browser slot. Everything below is
-computed from the room photo and the colour tokens; nothing here was sampled from a screenshot, and no page was looked
-at. It must be measured before it is treated as done.
+Captured Nov 10 on the fixture demo, one Chromium, at 1440×852 and 390×844, dark and light, on People, Tools,
+Activity, Settings, Security and Needs attention (24 captures). Screenshots here: `tools-1440-dark.png`,
+`settings-1440-light.png`, `activity-390-light.png`, `security-390-dark.png`.
+
+## Measured
+
+Contrast is each visible text run against the pixels behind it (text hidden, same frame). No sideways overflow in any
+capture; axe reported nothing.
+
+| | 1440 dark | 1440 light | 390 dark | 390 light |
+|---|---|---|---|---|
+| Worst text contrast, six pages | 5.42 | 4.79 | 5.95 | 4.85 |
+
+The lowest values are the build line in the page footer (light) and the monogram letters on tool avatars (dark).
+On Security at 390 two runs sat under the fixed bottom bar at the moment of capture and are not counted: they are
+covered, not shown.
+
+Fixed after looking: on the wide console the header band ran 81px past the panels on the right (the page pads that
+side for the bar above); it is now pulled in to overhang both sides evenly.
+
+**Light theme choice:** panels stay opaque white, so the room shows around the header band and between blocks, not
+through the panels. Reason: on light glass the state colours fall under 3:1 (table below).
+
+Not measured: frame rate on long pages; the other console pages; widths between 390 and 1440.
 
 ## What changes (every console page except Overview, all widths)
 
@@ -24,12 +45,6 @@ in `--glass-blur` is not modelled).
 
 Light glass (.82 over the darkest room, 227,223,217) would put ok at 2.65, warn at 2.54, info at 3.24 and bad at 3.56,
 which is why light panels stay opaque.
-
-## Known risks until captured
-
-- A block with its own translucent surface (a tab bar, a filter row) now sits over the room, not over the plane.
-- Text on a tinted chip inside a glass panel was not modelled.
-- Frame rate with several blurred panels on a long page is unmeasured.
 
 ## The two missed sample points on Overview: a crop cannot fix the lower one
 
