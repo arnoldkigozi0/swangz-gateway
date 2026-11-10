@@ -279,8 +279,34 @@
     requestAnimationFrame(() => input.focus({ preventScroll: true }));
   }
 
+  /* Poppins is latched once, at the first reveal. The shell is held invisible (visibility does not score as a
+     layout shift) until all five faces are in or 1.2s have passed; only then is Poppins applied, and only if
+     it loaded. A late or missing font is ignored for the rest of the session, so nothing re-lays out after
+     the first paint. The fallback is the documented BRIEF 10.1(3) performance difference. */
+  let staffFontPhase = 0;
+  function staffFontLatch() {
+    if (staffFontPhase) return;
+    staffFontPhase = 1;
+    const root = document.documentElement;
+    let loaded = false, cap = 0;
+    root.classList.add("staff-hold");
+    const reveal = () => {
+      if (staffFontPhase === 2) return;
+      staffFontPhase = 2;
+      clearTimeout(cap);
+      if (loaded) root.classList.add("staff-poppins");
+      root.classList.remove("staff-hold");
+    };
+    cap = setTimeout(reveal, 1200);
+    try {
+      Promise.all([400, 500, 600, 700, 800].map(w => document.fonts.load(w + ' 16px "Swangz Staff Poppins"')))
+        .then(sets => { loaded = sets.every(f => f.length > 0 && f.every(x => x.status === "loaded")); reveal(); }, reveal);
+    } catch (e) { reveal(); }
+  }
+
   function frame(title, content, opts) {
     opts = opts || {};
+    staffFontLatch();
     const me = S.me;
     document.title = (title ? title + " · " : "") + "Swangz AI Hub";
     const active = "#/" + ((location.hash || "#/").split("?")[0].split("/")[1] || "");

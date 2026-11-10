@@ -57,7 +57,7 @@ document.dispatchEvent = () => {};
 const app = new Element('div'); app.setAttribute('id','app'); document.body.append(app);
 const context = vm.createContext({ Node: Element, document, location: { hash: '#/', search: '', pathname: '/' }, history: { replaceState() {}, pushState() {} },
   localStorage: { getItem() {}, setItem() {} }, CustomEvent: class {}, URLSearchParams, Date, Intl, console,
-  fetch: () => new Promise(() => {}), setTimeout: fn => { fn(); return 0; }, requestAnimationFrame: fn => fn(), addEventListener() {}, scrollTo() {} });
+  fetch: () => new Promise(() => {}), setTimeout: fn => { fn(); return 0; }, clearTimeout() {}, requestAnimationFrame: fn => fn(), addEventListener() {}, scrollTo() {} });
 context.window = context;
 const root = path.resolve(__dirname,'../..');
 for (const file of ['ui.js','portal.js']) vm.runInContext(fs.readFileSync(path.join(root,'gateway/static',file),'utf8'),context,{filename:file});

@@ -7,9 +7,12 @@
 /* Staff shell, BRIEF §10. Geometry at 1440×852; shell tokens are isolated here; no seed exact.css is imported.
    Imported by portal.css before it paints; selectors are scoped to the signed-in staff shell. */
 .hub-staff-app.staff-exact { display: block; grid-template-columns: none; }
+/* Reveal hold and Poppins latch: portal.js staffFontLatch(). Poppins applies only when it was loaded at the reveal. */
+html.staff-poppins .staff-exact { --font: "Swangz Staff Poppins", "Helvetica Neue", Arial, sans-serif; }
+html.staff-hold .staff-exact { visibility: hidden; }
 
 .staff-exact {
-  --font: "Swangz Staff Poppins", "Helvetica Neue", Arial, sans-serif;
+  --font: "Helvetica Neue", Arial, sans-serif;
   font-family: var(--font);
   --accent-pill: linear-gradient(180deg,#F7AE62,#EE8F3E);
   --on-primary: #2A170A; --x-blur: blur(18px) saturate(130%);
