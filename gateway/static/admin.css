@@ -1368,6 +1368,8 @@ html[data-theme="light"] .console-bar .console-area { background: rgba(252, 248,
   min-height: 152px; padding: 18px; border: 1px solid var(--glass-rim); border-radius: 18px; background: var(--glass-bg); box-shadow: var(--glass-highlight);
   transition: transform var(--d-fast), border-color var(--d-fast); }
 .kpis-exact .kpi.gold, .kpis-exact .kpi.gold.link:hover { background: var(--glass-bg-accent); box-shadow: var(--glass-highlight); }
+/* BRIEF 10.4: the first card is the reference's amber, measured near #8A6540 over the room (ours #835C38). Dark only. */
+html:not([data-theme="light"]) .kpis-exact .kpi.gold, html:not([data-theme="light"]) .kpis-exact .kpi.gold.link:hover { background: linear-gradient(160deg, rgba(247, 174, 98, .50), rgba(238, 143, 62, .40)); }
 .kpis-exact .kpi.link:hover { background: var(--glass-bg); transform: translateY(-2px); border-color: var(--tx-3); }
 .kpis-exact .kpi.alert { box-shadow: var(--glass-highlight); border-color: var(--bad); }
 .kpis-exact .kpi .label { grid-column: 1 / -1; grid-row: 1; min-height: 16px; padding-right: 32px; color: var(--tx-1); font: 500 11px/16px var(--font); letter-spacing: 0; text-transform: none; }
@@ -1403,4 +1405,6 @@ html[data-theme="light"] .kpis-exact .kpi .foot > :not(.kpi-note) { background: 
 .overview-exact .u-chart > div:first-child { min-height: 250px; }
 @media (min-width: 1001px) { .overview-exact .u-chart > div:first-child { min-height: 350px; } }
 @media (min-width: 1201px) { .route-overview .overview-exact { margin-right: -6px; } }
+/* dashboard-02 fits 1440x852 without scrolling: the blocks end at y 791, so the page keeps 56px under them, not 80. */
+@media (min-width: 1201px) { .route-overview .page { padding-bottom: 56px; } }
 @media (max-width: 1000px) { .overview-exact { grid-template-columns: minmax(0, 1fr); } }
