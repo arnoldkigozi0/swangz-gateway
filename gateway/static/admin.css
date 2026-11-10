@@ -1241,7 +1241,17 @@ body:has(.side.drawer) .appbar, .scrim { -webkit-backdrop-filter: none; backdrop
    room reads as a room through and around every panel. Sign-in keeps its own image and scrim. Light has no
    reference still; it uses the staff app's .42 porcelain veil. Text that sits straight on the scene gets its
    contrast from the local backing below, never from a darker scrim. Evidence: docs/screenshots/exact-r15/README.md. */
-body:has(.shell) { --scene-image: url("/static/room-warm.webp"); --scene-scrim: rgba(12, 10, 9, .35); }
+/* 10.10.3: the room is a 3840-wide CC0 source shipped at 2560, 1920 and 960 (docs/design/ASSETS.md). To swap the photo,
+   change "suite" in the three addresses below; the other candidates are in docs/design/backgrounds/. Under the photo
+   sits a designed gradient (two warm lights on near-black), so a photo that cannot load never leaves a flat black page. */
+body:has(.shell) {
+  --scene-image: url("/static/room-suite-1920.webp");
+  --scene-image: image-set(url("/static/room-suite-1920.webp") 1x, url("/static/room-suite-2560.webp") 2x);
+  --scene-fallback: radial-gradient(60% 55% at 22% 18%, rgba(196, 138, 74, .34), transparent 70%), radial-gradient(55% 60% at 82% 88%, rgba(150, 92, 52, .28), transparent 72%), #14100D;
+  --scene-scrim: rgba(12, 10, 9, .35);
+}
+@media (max-width: 600px) { body:has(.shell) { --scene-image: url("/static/room-suite-960.webp"); } }
+body:has(.shell)::before { background: linear-gradient(var(--scene-scrim), var(--scene-scrim)), var(--scene-image) center / cover no-repeat, var(--scene-fallback); }
 html[data-theme="light"] body:has(.shell) { --scene-scrim: rgba(250, 244, 236, .42); }
 /* 10.1(3): one backing plane behind the page column, the staff shell's values (.82 dark, .94 light), so titles, ledes,
    tabs and hints that sit outside a card keep 4.5:1 over the brighter room. It is painted behind the content and

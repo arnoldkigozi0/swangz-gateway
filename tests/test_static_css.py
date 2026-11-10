@@ -96,5 +96,26 @@ class LightAreaLabelTests(unittest.TestCase):
         self.assertNotIn("box-shadow", rule)
 
 
+class RoomPhotoTests(unittest.TestCase):
+    """BRIEF 10.10.3: the console room ships at three widths with a gradient under it."""
+
+    def setUp(self):
+        import pathlib
+        self.static = pathlib.Path(__file__).resolve().parent.parent / "gateway" / "static"
+        self.css = (self.static / "admin.css").read_text(encoding="utf-8")
+
+    def test_three_widths_ship_and_the_1920_file_is_in_the_size_range(self):
+        for width in (2560, 1920, 960):
+            name = "room-suite-%d.webp" % width
+            self.assertTrue((self.static / name).is_file(), name)
+            self.assertIn('url("/static/%s")' % name, self.css)
+        size = (self.static / "room-suite-1920.webp").stat().st_size
+        self.assertTrue(180_000 <= size <= 420_000, size)
+
+    def test_a_gradient_sits_under_the_photo(self):
+        self.assertIn("--scene-fallback: radial-gradient(", self.css)
+        self.assertIn("var(--scene-image) center / cover no-repeat, var(--scene-fallback)", self.css)
+
+
 if __name__ == "__main__":
     unittest.main()
