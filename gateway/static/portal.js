@@ -343,16 +343,16 @@
     staffFontPhase = 1;
     const root = document.documentElement;
     let loaded = false, cap = 0;
-    root.classList.add("staff-hold");
+    // The hold is cosmetic. Whatever fails in here, the shell is revealed and still renders.
     const reveal = () => {
       if (staffFontPhase === 2) return;
       staffFontPhase = 2;
-      clearTimeout(cap);
-      if (loaded) root.classList.add("staff-poppins");
-      root.classList.remove("staff-hold");
+      try { if (loaded) root.classList.add("staff-poppins"); } finally { root.classList.remove("staff-hold"); }
+      try { clearTimeout(cap); } catch (e) { /* no timers here */ }
     };
-    cap = setTimeout(reveal, 1200);
     try {
+      root.classList.add("staff-hold");
+      cap = setTimeout(reveal, 1200);
       Promise.all([400, 500, 600, 700, 800].map(w => document.fonts.load(w + ' 16px "Swangz Staff Poppins"')))
         .then(sets => { loaded = sets.every(f => f.length > 0 && f.every(x => x.status === "loaded")); reveal(); }, reveal);
     } catch (e) { reveal(); }
