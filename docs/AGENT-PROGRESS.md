@@ -450,3 +450,18 @@ Fresh commands/results: `UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.
 suite/matrix, real devices/other engines/screen readers and new hardware
 performance/CLS/MotionScore: Not run. Fresh exact-head CI and independent Probe
 QA remain required. No ready/merge/deploy action.
+
+## Console Overview details — 10 November sprint
+
+Branch feature/console-header-tubes, rebased on origin/main f580cb4. Changes: admin-monitor.js header emoji and role-safe greeting, shorter spend caption (plans amount remains in detail tooltip), zero-day tube option; ui.js opt-in zero stubs/labels/value chip; console mobileNav uses four specified routes, separate All pages attention badge; phone-nav.js extracts staff #70 lens for both apps with arrow-key focus; admin/index HTML load shared helper. CSS only in NEW exact-console-details.css, reusing exact-staff-bar.css; admin.css untouched to avoid Anvil's scene/panel work.
+
+Identity limitation: Forge checked /admin/api/me and confirmed there is no existing name field. Header now uses only the first whitespace-separated token of display_name, with neutral Hello when absent; never username or role. Forge's proposed read-only company people.name match requires its backend addition. This token is a display heuristic, not a guaranteed stored first name (titles may precede names). Item 3 remains dependent on that server contract.
+
+Validation: browser syntax script checked39 JS files and staff synthetic model18PASS before rebase; node --check ui.js and extended charts.cjs passed. git diff --check passed. Added CI browser assertions for eight tubes/table rows, five zero stubs labelled0, selected-zero chip. Not run locally: Python/full suite, Chromium, screenshots/50%overlay, contrast/CLS/performance/fallback checks — Anvil holds sole browser slot and Chief explicitly assigned CI-only work. CI runs the chart regression. No claim of exact-match visual acceptance; architect review remains required. No new dependencies, production changes or admin.css edits.
+
+
+## PR97 Sentinel corrections — 10 November 21:07 sprint
+
+Attention refresh now updates the console phone badge and accessible label after a deep link and on subsequent refreshes, including clearing it. Lens initialization is guarded. Bar C returns to 260px/104px geometry with 44px inactive targets, truncating only the visible long active label (full accessible name retained, §10.1.1). At 320px the bar is 256px (4px narrower) to fit beside the round button. The shared lens cancels only the duplicate click following pointer navigation. Drawer hides the bar; footer clearance replaces existing main padding. Primary hover retains amber by suppressing the inherited sweep; ghost buttons have explicit hover feedback. CSS remains in exact-console-details.css; admin.css untouched. Greeting uses full trimmed display_name from #99 (including titles), or neutral Hello when null (§10.1.1/5).
+
+Validation: syntax checked 39 JavaScript files; synthetic staff model 18 checks PASS; node --check charts.cjs and git diff --check passed. Extended the existing CI charts.cjs job with phone deep-link coverage in both themes: delayed attention, updated and cleared badges, four links/current route, drawer open/close, helper missing, 260px/104px widths, narrow inactive targets, full recorded name. These new rendered assertions have NOT run locally: Chief assigns CI only and Anvil owns Chromium. Python/full suite, screenshots/overlay, measured contrast, CLS and video timing remain unverified for this revision until CI/architect evidence. Previous a228af7 CI was all green, not evidence for these corrections.

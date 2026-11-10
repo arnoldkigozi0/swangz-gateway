@@ -45,6 +45,16 @@ const ok = (label, v) => { assert.ok(v, label); results.checks.push(label); };
         out.oneDraw = !!host.children[3].querySelector('path.line');
         // sparkline with no values is already safe and stays so
         try { out.spark = !!SUI.sparkline([]); } catch (e) { out.spark = false; }
+        const tubes = SUI.columns({ label: 'Eight days', showZero: true,
+          data: [0, 2, 0, 4, 0, 6, 0, 0].map((value, i) => ({label: 'Day ' + i, value})) });
+        host.append(tubes);
+        await new Promise(r => setTimeout(r, 400));
+        out.tubes = { count: tubes.querySelectorAll('rect.col').length,
+          zeros: [...tubes.querySelectorAll('rect.col.zero')].map(n => +n.getAttribute('height')),
+          labels: [...tubes.querySelectorAll('.zero-label')].map(n => n.textContent),
+          chip: tubes.querySelector('.u-pill:not(.none) .pill-t')?.textContent };
+        tubes.querySelector('.u-chart-foot button').click();
+        out.tubes.rows = tubes.querySelectorAll('.u-chart-table tbody tr').length;
         return out;
       });
       const t = `${theme}: `;
@@ -60,6 +70,59 @@ const ok = (label, v) => { assert.ok(v, label); results.checks.push(label); };
       ok(t + 'three days: line, end label and aria text unchanged', q.threeDraw.path && q.threeDraw.end === '$2' && /Use the left and right arrow keys/.test(q.threeDraw.aria));
       ok(t + 'three days: table view lists every day', q.threeRows === 3);
       ok(t + 'sparkline of nothing stays safe', q.spark);
+      ok(t + 'eight tubes retain eight truthful table rows', q.tubes.count === 8 && q.tubes.rows === 8);
+      ok(t + 'zero days are labelled minimum-height stubs', q.tubes.zeros.length === 5 && q.tubes.zeros.every(h => h === 4) && q.tubes.labels.every(x => x === '0'));
+      ok(t + 'selected zero day shows a zero value chip', q.tubes.chip === '0');
+      await ctx.close();
+    }
+    // Deep links render before the asynchronous attention fetch, unlike Overview.
+    for (const theme of ['dark', 'light']) {
+      const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+      await ctx.addInitScript(t => localStorage.setItem('swangz-theme', t), theme);
+      await ctx.request.post(info.url + '/admin/api/login', { headers: { 'x-gateway-admin': '1' }, data: { username: 'owner@swangzavenue.com', password: 'owner-password' } });
+      const page = await ctx.newPage();
+      page.on('pageerror', e => results.errors.push(String(e)));
+      let release;
+      const delayed = new Promise(resolve => { release = resolve; });
+      let count = 2;
+      await page.route('**/admin/api/attention', async route => {
+        await delayed;
+        await route.fulfill({ json: { items: Array.from({length: count}, (_, i) => ({id: i})), counts: {high: count, medium: 0} } });
+      });
+      await page.route('**/admin/api/me', async route => {
+        const response = await route.fetch();
+        await route.fulfill({ response, json: {...await response.json(), display_name: 'Dr Jane Doe'} });
+      });
+      await page.goto(info.url + '/admin#/people');
+      const nav = page.locator('.console-tabbar');
+      await nav.waitFor({state: 'visible'});
+      ok(theme + ': phone deep link has four links', await nav.locator('a').count() === 4);
+      ok(theme + ': People is current', await nav.locator('a[aria-current="page"]').getAttribute('href') === '#/people');
+      ok(theme + ': delayed attention has no premature badge', await nav.locator('.stb-badge').count() === 0);
+      release();
+      await page.waitForFunction(() => document.querySelector('.console-tabbar .stb-badge')?.textContent === '2');
+      ok(theme + ': loaded attention updates accessible label', await nav.locator('.stb-round').getAttribute('aria-label') === 'All pages, 2 need attention');
+      count = 1;
+      await page.evaluate(() => SWA.refreshAttention());
+      ok(theme + ': refresh replaces badge count', await nav.locator('.stb-badge').textContent() === '1');
+      count = 0;
+      await page.evaluate(() => SWA.refreshAttention());
+      ok(theme + ': cleared attention removes badge and label', await nav.locator('.stb-badge').count() === 0 && await nav.locator('.stb-round').getAttribute('aria-label') === 'All pages');
+      const widths = await nav.locator('.stb-bar').evaluate(n => [n.getBoundingClientRect().width, n.querySelector('a.on').getBoundingClientRect().width]);
+      ok(theme + ': bar and active pill match reference geometry', Math.abs(widths[0] - 260) <= 4 && Math.abs(widths[1] - 104) <= 4);
+      await nav.locator('.stb-round').click();
+      await page.locator('.side.drawer.in').waitFor({state: 'visible'});
+      ok(theme + ': All pages opens drawer and hides phone bar', !await nav.isVisible());
+      await page.keyboard.press('Escape');
+      await page.locator('.side.drawer').waitFor({state: 'detached'});
+      await page.evaluate(() => { SUI.phoneLens = undefined; return SWA.render(); });
+      await nav.waitFor({state: 'visible'});
+      ok(theme + ': missing lens helper preserves console', await nav.locator('a').count() === 4);
+      await page.setViewportSize({width: 320, height: 844});
+      ok(theme + ': narrow inactive targets retain 44px width', await nav.locator('a:not(.on)').evaluateAll(ns => ns.every(n => n.getBoundingClientRect().width >= 44)));
+      await nav.locator('a[href="#/"]').click();
+      await page.waitForFunction(() => document.querySelector('main h1')?.textContent.includes('Dr Jane Doe'));
+      ok(theme + ': greeting retains full recorded name including title', await page.locator('main h1').textContent() === 'Hello, Dr Jane Doe! 👋');
       await ctx.close();
     }
     ok('no console or page errors', results.errors.length === 0);
