@@ -696,6 +696,40 @@
     }));
   }
 
+  /* The share of a whole (BRIEF 10.7, dashboard-02): a ring with the total in the middle and a legend beside it.
+     o = { label, unit, total, rows: [{ label, value, display, href, lead }] }. Shares are of o.total; whatever the
+     rows do not account for is drawn as one muted "Other" arc and named in the legend, never dropped or spread over
+     the rest. The legend carries every name and number as text, in the ring's order clockwise from the top. */
+  function donutParts(rows, total, max) {
+    const shown = rows.filter((r) => r.value > 0).slice(0, max || 5);
+    const sum = shown.reduce((n, r) => n + r.value, 0);
+    const whole = Math.max(total || 0, sum);
+    const parts = shown.map((r, i) => ({ row: r, value: r.value, share: whole ? r.value / whole : 0, tone: i + 1 }));
+    if (whole > sum) parts.push({ row: null, value: whole - sum, share: (whole - sum) / whole, tone: 0 });
+    return { parts, whole };
+  }
+  function donut(o) {
+    const { parts, whole } = donutParts(o.rows || [], o.total, o.max);
+    const R = 58, LEN = 2 * Math.PI * R, gap = parts.length > 1 ? 3 : 0;
+    const svg = s("svg", { viewBox: "0 0 146 146", "aria-hidden": "true", focusable: "false" });
+    let at = 0;
+    for (const part of parts) {
+      const len = Math.max(part.share * LEN - gap, 1);
+      svg.append(s("circle", { cx: 73, cy: 73, r: R, fill: "none", "stroke-width": 16, class: "t" + part.tone,
+        "stroke-dasharray": len.toFixed(2) + " " + (LEN - len).toFixed(2), "stroke-dashoffset": (-at).toFixed(2), transform: "rotate(-90 73 73)" }));
+      at += part.share * LEN;
+    }
+    const unit = o.unit || "";
+    return el("div", { class: "u-donut", role: "group", "aria-label": o.label },
+      el("div", { class: "ring" }, svg, el("div", { class: "mid" }, el("small", null, o.centre || unit), el("b", null, fmt.compact(whole)))),
+      el("ul", null, parts.map((part) => {
+        const r = part.row, name = r ? [el("span", null, r.label)] : [el("span", null, o.other || "Other")];
+        return el("li", null, el("i", { class: "t" + part.tone, "aria-hidden": "true" }),
+          r && r.href ? el("a", { href: r.href }, name) : el("div", { class: "nm" }, name),
+          el("span", { class: "val" }, r && r.display !== undefined ? r.display : fmt.compact(part.value) + (unit ? " " + unit.toLowerCase() : "")));
+      })));
+  }
+
   // ------------------------------------------------------------------ tables
 
   /* columns: [{key, label, num, sort (value fn or false), render(row) → node, lead, hideSm, cls}]
@@ -1077,6 +1111,6 @@
     tz, setGatewayOffset, setTzMode, tzLabel, startOfDay, startOfMonth, dateInput, fromDateInput, presetRange, fmt,
     initials, plural, debounce, gateway, avatar, logo, logoTint, status, badge, delta, evidence,
     skeleton, stateBox, errorBox, load, toast, copy, showTip, hideTip, infoTip,
-    columns, line, sparkline, barList, table, segmented, searchPill, progress, star, listPanel, rangeControl, trapFocus, commandMenu, splitGate, xfield, eyeToggle,
+    columns, line, sparkline, barList, donut, donutParts, table, segmented, searchPill, progress, star, listPanel, rangeControl, trapFocus, commandMenu, splitGate, xfield, eyeToggle,
   };
 })();

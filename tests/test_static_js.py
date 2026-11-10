@@ -64,5 +64,31 @@ class OverviewZeroReasonTests(unittest.TestCase):
             self.assertIn('zeroReason("' + card + '"', source)
 
 
+def donut_parts(calls):
+    source = (STATIC / "ui.js").read_text(encoding="utf-8")
+    fn = re.search(r"\n  (function donutParts\(rows, total, max\) \{\n.*?\n  \})\n", source, re.S).group(1)
+    script = (fn + "\nconsole.log(JSON.stringify(" + json.dumps(calls) + ".map((c) => { const o = donutParts(c[0], c[1], c[2]);"
+              " return [o.whole, o.parts.map((p) => [p.row ? p.row.label : null, p.value, Math.round(p.share * 1000) / 1000, p.tone])]; })));")
+    out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30, check=True)
+    return json.loads(out.stdout)
+
+
+@unittest.skipUnless(shutil.which("node"), "Node is not installed")
+class DonutShareTests(unittest.TestCase):
+    def test_shares_are_of_the_true_total_and_the_rest_is_named_other(self):
+        rows = [{"label": "A", "value": 6}, {"label": "B", "value": 3}, {"label": "C", "value": 0}]
+        self.assertEqual(donut_parts([[rows, 12, 5], [rows, 9, 5], [rows, 0, 5], [rows, 9, 1], [[], 0, 5]]), [
+            [12, [["A", 6, 0.5, 1], ["B", 3, 0.25, 2], [None, 3, 0.25, 0]]],
+            [9, [["A", 6, 0.667, 1], ["B", 3, 0.333, 2]]],
+            [9, [["A", 6, 0.667, 1], ["B", 3, 0.333, 2]]],      # a total smaller than the rows is not believed
+            [9, [["A", 6, 0.667, 1], [None, 3, 0.333, 0]]],
+            [0, []]])
+
+    def test_overview_draws_uses_by_tool_as_a_donut_and_keeps_its_empty_state(self):
+        source = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
+        self.assertIn('SUI.donut({ label: "Uses by tool over 30 days"', source)
+        self.assertIn('"No AI activity yet"', source)
+
+
 if __name__ == "__main__":
     unittest.main()

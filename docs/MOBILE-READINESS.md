@@ -43,6 +43,27 @@ Tests: `node tests/browser/pwa.cjs` (mocked DOM; 9 tests). Four of them fail aga
   removal, the no-fetch/no-cache worker, the manifest fields and icon file, and sign-out ordering.
 - Static review of the server headers and routes, done by reading the code.
 
+## Real-phone checklist (five steps, about ten minutes per phone)
+
+Do this once on an Android phone (Chrome) and once on an iPhone (Safari), on the Hub's real https address, with a
+staff account that has at least one tool. Write down pass or fail for each step and the phone model and system version.
+
+1. **Open and sign in.** Open the Hub address in the browser and sign in. Pass: Home appears, nothing is cut off at
+   the sides, and the page does not scroll sideways.
+2. **Install.** Android: tap **Install app** (or the browser menu, *Add to Home screen* / *Install app*). iPhone: tap
+   Share, then *Add to Home Screen* (there is no Install button on iPhone). Pass: an AI Hub icon is on the home screen.
+   Note what the icon looks like; a blank or screenshot icon is a known gap (no PNG icons yet).
+3. **Open from the icon.** Close the browser and open the Hub from its icon. Pass: it opens full screen with no
+   address bar. Note whether you are still signed in or had to sign in again (an iPhone may ask again).
+4. **Use it.** Open Tools, open one tool with **Open**, come back, and open Weekly reports. Pass: the tool opens, the
+   back gesture returns to the Hub, and text and buttons are readable and tappable with a thumb.
+5. **Sign out and reopen.** Sign out from the avatar menu, close the app, open it from the icon again. Pass: it shows
+   the sign-in page and nothing from the previous person. Then turn on aeroplane mode and open it: it should show the
+   phone's own "no connection" page, not old Hub content (nothing is kept offline).
+
+Not run by the team: no phone was available. `tests/test_pwa_files.py` checks only that the files a phone needs are
+present and well-formed.
+
 ## Device checks
 
 - Android Chrome, install from the sign-in page and from Home: **Not run.** No device or emulator here, and

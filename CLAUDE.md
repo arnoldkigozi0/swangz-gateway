@@ -212,7 +212,8 @@ still has to be awake and online; use the documented VPS deployment for permanen
 `GATEWAY_TRUST_PROXY` / `GATEWAY_FORCE_HTTPS` behind a proxy or tunnel; `GATEWAY_FETCH_ICONS=0` to stop
 logo fetching (the tests set it); `GATEWAY_WEB_URL` (the first-party HTTPS address people open);
 `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (both set = "Continue with Google" appears; admins match by
-username = Google email); `GATEWAY_WORKSPACE_AGENT` / `GATEWAY_WORKSPACE_AGENT_TOKEN` (the Workspace
+username = Google email); `GATEWAY_REQUIRE_FIXED_RETURN=1` (Google sign-in is refused unless `GOOGLE_REDIRECT_URI`,
+`GATEWAY_WEB_URL` or `GATEWAY_PUBLIC_URL` fixes its return address; off by default, `preflight` fails without it); `GATEWAY_WORKSPACE_AGENT` / `GATEWAY_WORKSPACE_AGENT_TOKEN` (the Workspace
 Agent on the rented server); `GATEWAY_TURN_CLOUDFLARE_KEY_ID` / `_TOKEN` or `GATEWAY_TURN_URLS` /
 `GATEWAY_TURN_SECRET` (the video relay for company browsers on Swangz's own computers);
 `GATEWAY_WORKSPACE_TOKEN` (fallback: fixed browsers' Neko API token); `GATEWAY_CORS_ORIGINS` to let a Netlify-hosted front-end call the API (see `deploy/NETLIFY.md`); `GATEWAY_TZ_OFFSET`;

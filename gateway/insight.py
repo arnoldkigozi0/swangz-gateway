@@ -12,6 +12,7 @@ lens here is read-only and open to viewers as well as owners.
 import json
 import re
 import time
+import urllib.parse
 
 from . import geo, proxy, turns
 from .admin import ApiError, licence_data, route
@@ -675,6 +676,14 @@ def spend(ctx):
 # ---------------------------------------------------------------- security
 
 
+# audit action -> (title, where the attempt was made, what the actor column holds). The console records the matched
+# account, or "unknown" when the username matched none (never the text typed); the staff app and the extension record a name only for a real person, and "?" otherwise.
+FAILED_SIGN_INS = {
+    "failed sign-in": ("Failed console sign-ins", "the control room", "accounts; unknown = no such account"),
+    "failed Swangz AI Hub sign-in": ("Failed staff app sign-ins", "the staff app", "people whose password was wrong"),
+    "failed access extension sign-in": ("Failed browser extension sign-ins", "the browser extension",
+                                        "people whose password was wrong"),
+}
 SEVERITY = {"high": 3, "medium": 2, "low": 1, "info": 0}
 
 
@@ -864,13 +873,17 @@ def security_events(ctx, days):
                                f"{'once' if r['n'] == 1 else str(r['n']) + ' times'}.",
                        "tool": r["tool"] or r["host"], "href": "#/activity?tab=sites",
                        "evidence": "Recorded by the browser extension: the site and the time, nothing on the page."})
-    for r in db.q("SELECT ip, COUNT(*) AS n, MAX(ts) AS last, GROUP_CONCAT(DISTINCT actor) AS names FROM audit"
-                  " WHERE ts >= ? AND action = 'failed sign-in' GROUP BY ip ORDER BY last DESC LIMIT 30", (since,)):
+    for r in db.q("SELECT action, ip, COUNT(*) AS n, MAX(ts) AS last, GROUP_CONCAT(DISTINCT actor) AS names FROM audit"
+                  f" WHERE ts >= ? AND action IN ({','.join('?' * len(FAILED_SIGN_INS))})"
+                  " GROUP BY action, ip ORDER BY last DESC LIMIT 30", (since, *FAILED_SIGN_INS)):
+        title, where, who = FAILED_SIGN_INS[r["action"]]
+        names = ", ".join(n for n in (r["names"] or "").split(",") if n != "?")  # "?" = an email nobody here has
         events.append({"type": "signin", "severity": "medium" if r["n"] >= 5 else "low", "ts": r["last"],
-                       "title": "Failed console sign-ins",
-                       "text": f"{r['n']} failed sign-in{'s' if r['n'] != 1 else ''} to the control room from "
-                               f"{r['ip'] or 'an unknown address'} (accounts: {r['names'] or '—'}; unknown means the username matched no account).",
-                       "ip": r["ip"] or None, "place": ip_kind(r["ip"]), "href": "#/audit?q=failed%20sign-in",
+                       "title": title,
+                       "text": f"{r['n']} failed sign-in{'s' if r['n'] != 1 else ''} to {where} from "
+                               f"{r['ip'] or 'an unknown address'} ({who}: {names or '—'}).",
+                       "ip": r["ip"] or None, "place": ip_kind(r["ip"]),
+                       "href": "#/audit?q=" + urllib.parse.quote(r["action"]),
                        "evidence": "Sign-in is throttled after repeated failures from one address."})
     for r in db.q("SELECT k.id, k.label, k.revoked, k.revoked_by, p.name AS person, k.person_id FROM keys k"
                   " JOIN people p ON p.id = k.person_id WHERE k.revoked >= ? AND " + HIDDEN_KEYS + " ORDER BY k.revoked DESC LIMIT 50", (since,)):

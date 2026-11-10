@@ -99,10 +99,9 @@
 
     const byTool = A.panel("Uses by tool", el("a", { class: "btn small quiet", href: "#/activity?tab=usage&range=30d&by=tool" }, "All tools", icon("chevronRight")),
       !tr ? SUI.errorBox(trends.reason, () => A.render())
-        : tr.top_tools.length ? SUI.barList(tr.top_tools.slice(0, 5).map((t) => ({
-          label: t.tool, lead: A.toolLogo(t.tool_id, t.tool, "sm"), href: t.tool_id ? `#/tools?open=${t.tool_id}` : null,
-          value: t.requests + t.opens + t.visits, display: fmt.compact(t.requests + t.opens + t.visits) + " uses",
-          note: SUI.plural(t.people, "person", "people") + " · 30 days" })))
+        : tr.top_tools.length ? SUI.donut({ label: "Uses by tool over 30 days", unit: "Uses", centre: "Uses · 30 days", other: "Other tools",
+          total: tr.days.reduce((n, d) => n + d.requests + d.opens + d.visits, 0),
+          rows: tr.top_tools.map((t) => ({ label: t.tool, href: t.tool_id ? `#/tools?open=${t.tool_id}` : null, value: t.requests + t.opens + t.visits, display: SUI.plural(t.requests + t.opens + t.visits, "use") })) })
           : A.empty("Once staff start using approved tools, they'll be ranked here.", "No AI activity yet", "tools"));
 
     const who = String(S.me.display_name || "").trim();
