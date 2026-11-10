@@ -23,7 +23,10 @@ unlisted Web Store listing avoids that.
 ## Installing (an administrator of the computer, by hand)
 
 - **Linux:** copy the filled-in file to `/etc/opt/chrome/policies/managed/` (Chromium: `/etc/chromium/policies/managed/`).
-- **Windows:** the same names and values under `HKLM\Software\Policies\Google\Chrome` (Group Policy or a `.reg` file).
+- **Windows:** the same names under `HKLM\Software\Policies\Google\Chrome` (Group Policy or a `.reg` file). A
+  single-value policy is a value of that key; a **list policy** (`URLAllowlist`, `URLBlocklist`, the three
+  `ExtensionInstall…` lists) is a **subkey** of that name holding one string value per entry, named `1`, `2`, `3`, …
+  A list pasted as one value is ignored.
 - **macOS:** the same names and values in a configuration profile for `com.google.Chrome`.
 
 Then open `chrome://policy`, press *Reload policies* and confirm every row says OK with no "unknown policy" or
@@ -45,6 +48,12 @@ The split of work: this file decides **which sites a company computer can reach 
 decides **which of those tools this person is entitled to** and records access-level use. Every catalogue
 provider is on the list, so removing a person's grant is still done in the control room, not here.
 
+**Not on the allow list:** a tool added in the control room after this file was written, and the addresses of
+company browsers (Neko). Each needs its exact host added here and the file re-installed. Never add
+`*.trycloudflare.com` (or any other shared tunnel domain): anyone can get an address under it, so allowing it
+allows every site someone chooses to put behind one. A company browser on a quick tunnel is not reachable from a
+computer under this policy until it has a fixed first-party address.
+
 `tests/test_chrome_policy.py` fails if a catalogue provider host is missing from the allow list, if a wider
 Google address than the two sign-in hosts appears, or if one of the controls above is removed.
 
@@ -63,6 +72,12 @@ Google address than the two sign-in hosts appears, or if one of the controls abo
 - **Chrome's own pages.** A `*` entry does not cover `chrome://` or extension pages (Chrome's documentation says
   so), which is why two are blocked by name and the rest (settings, new tab) stay open.
 - **Network or system level blocking.** None here; out of scope before 20 November.
+- **Separating people who share one operating-system login.** The policy is per computer, and Chrome's profile,
+  cookies and signed-in provider sessions belong to the OS account. Two people on one OS login see each other's
+  sessions. A shared OS login is not isolation; each person needs their own OS account.
+- **Links that open other programs, or Chrome started with switches.** Whether the URL lists stop `mailto:`,
+  `zoommtg:` and similar external-protocol links, and whether a managed force-installed extension survives
+  `--disable-extensions`, is not established here; both are in the checks below.
 - **A provider that moves its sign-in.** A provider that sends people through a host not on the list will show
   Chrome's "blocked by your organisation" page until the host is added.
 
@@ -74,6 +89,8 @@ Google address than the two sign-in hosts appears, or if one of the controls abo
 4. The extension is present, cannot be removed, and still blocks a tool the person is not assigned.
 5. Add person, guest, incognito, Chrome sign-in and developer tools are unavailable.
 6. Redirects, pop-ups and new tabs to a host off the list are refused.
+7. A `mailto:` link and a `zoommtg:` link on an allowed page do not open another program (or note which do).
+8. Chrome started with `--disable-extensions` still runs the Swangz extension, or opens no AI site without it.
 
 Sources: Chrome Enterprise "URL blocklist filter format" (read 10 Nov 2026: subdomain matching, the leading
 dot, path prefixes, and that `*` does not cover `chrome://`). The other policy names and values follow the pack

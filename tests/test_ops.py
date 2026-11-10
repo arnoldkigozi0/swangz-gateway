@@ -222,3 +222,68 @@ class AuditCoverageTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UptimeCheckTests(unittest.TestCase):
+    def setUp(self):
+        self.rig = Rig()
+        self.url = f"http://127.0.0.1:{self.rig.port}/healthz"
+
+    def tearDown(self):
+        self.rig.close()
+
+    def run_check(self, *argv, env=None):
+        import argparse
+        from gateway import uptime
+        p = argparse.ArgumentParser()
+        p.add_argument("--url")
+        p.add_argument("--expect-commit", default="")
+        p.add_argument("--timeout", type=float, default=5)
+        lines = []
+        return uptime.run(p.parse_args(argv), env or {}, lines.append), " ".join(lines)
+
+    def test_up_says_which_build_and_changes_nothing(self):
+        before = self.rig.gw.db.scalar("SELECT COUNT(*) FROM audit")
+        code, said = self.run_check("--url", self.url)
+        self.assertEqual(code, 0, said)
+        self.assertIn(f"up: version {__version__}", said)
+        self.assertEqual(self.rig.gw.db.scalar("SELECT COUNT(*) FROM audit"), before)
+        code, said = self.run_check(env={"GATEWAY_HOST": "0.0.0.0", "GATEWAY_PORT": str(self.rig.port)})   # the timer's form
+        self.assertEqual(code, 0, said)
+
+    def test_down_when_the_database_fails_or_nothing_answers(self):
+        real = self.rig.gw.db.scalar
+        self.rig.gw.db.scalar = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("database is gone"))
+        try:
+            code, said = self.run_check("--url", self.url)
+        finally:
+            self.rig.gw.db.scalar = real
+        self.assertEqual((code, "answered 503" in said), (1, True), said)
+        self.assertNotIn("database is gone", said)
+        code, said = self.run_check("--url", self.url.replace("/healthz", "/not-a-page"))   # 200 that is not a health answer
+        self.assertEqual(code, 1, said)
+        import socket
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            free = s.getsockname()[1]
+        code, said = self.run_check("--url", f"http://127.0.0.1:{free}/healthz", "--timeout", "2")
+        self.assertEqual((code, said.startswith("down:")), (1, True), said)
+        for bad in ("file:///etc/hostname", "healthz", "ftp://127.0.0.1/healthz"):
+            self.assertEqual(self.run_check("--url", bad)[0], 1, bad)
+
+    def test_expected_commit_must_be_the_one_running(self):
+        from gateway import build
+        running = build.info()["commit"]
+        code, said = self.run_check("--url", self.url, "--expect-commit", "0" * 12 if running != "0" * 12 else "1" * 12)
+        self.assertEqual((code, said.startswith("wrong build")), (1, True), said)
+        if running:
+            self.assertEqual(self.run_check("--url", self.url, "--expect-commit", running[:7])[0], 0)
+
+    def test_the_command_exits_with_the_result(self):
+        import subprocess, sys
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        up = subprocess.run([sys.executable, "-m", "gateway", "health-check", "--url", self.url], cwd=root, capture_output=True, text=True)
+        self.assertEqual((up.returncode, up.stdout.startswith("up:")), (0, True), up.stdout + up.stderr)
+        down = subprocess.run([sys.executable, "-m", "gateway", "health-check", "--url", self.url + "x", "--timeout", "2"],
+                              cwd=root, capture_output=True, text=True)
+        self.assertEqual(down.returncode, 1, down.stdout + down.stderr)

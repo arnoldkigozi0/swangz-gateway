@@ -160,7 +160,10 @@ def login(ctx):
     row = ctx.db.one("SELECT * FROM admins WHERE username = ?", (username,))
     if not row or not ctx.gw.settings.email_allowed(username) or not security.check_password(password, row["pw_hash"]):
         ctx.gw.throttle.fail(ctx.ip)
-        ctx.gw.audit(username or "?", "failed sign-in", "", "", ctx.ip)
+        # The account when the username is a real one, otherwise "unknown": what was typed is never recorded (it is
+        # often a mistyped address, or a password in the wrong box).
+        ctx.gw.audit(row["username"] if row else "unknown", "failed sign-in", "", "", ctx.ip,
+                     reason="wrong password or account not allowed" if row else "unknown username", outcome="refused")
         raise ApiError(401, "wrong username or password")
     ctx.gw.throttle.clear(ctx.ip)
     return 200, {"username": row["username"], **authz.describe(row)}, start_session(ctx, row)
@@ -200,15 +203,27 @@ def me(ctx):
 
 @route("POST", r"/password")
 def change_password(ctx):
+    """A console user changes their own password. Wrong guesses of the current one are counted per account on the
+    sign-in throttle and audited; once locked the answer is 429 and nothing more is written. A change ends the
+    account's other console sessions and keeps this one. Neither password is recorded."""
     row = ctx.db.one("SELECT * FROM admins WHERE id = ?", (ctx.admin["id"],))
+    who = {"correlation": f"admin:{row['id']}"}
+    guesses = f"pwchange:admin:{row['id']}"
+    if ctx.gw.throttle.blocked(guesses):
+        raise ApiError(429, "too many attempts; wait ten minutes")
     if not security.check_password(str(ctx.body.get("current") or ""), row["pw_hash"]):
+        ctx.gw.throttle.fail(guesses)
+        ctx.audit("tried to change own password", reason="current password was wrong", outcome="refused", **who)
         raise ApiError(400, "the current password is wrong")
     new = str(ctx.body.get("new") or "")
     _check_password_strength(new)
     ctx.db.x("UPDATE admins SET pw_hash = ? WHERE id = ?",
              (security.hash_password(new, ctx.gw.settings.pbkdf2_iterations), row["id"]))
-    ctx.audit("changed own password")
-    return {"ok": True}
+    ctx.gw.throttle.clear(guesses)
+    mine = security.sha256(_cookie(ctx.h.headers.get("cookie") or "", SESSION_COOKIE))
+    ended = ctx.db.x("DELETE FROM admin_sessions WHERE admin_id = ? AND token_hash != ?", (row["id"], mine)).rowcount
+    ctx.audit("changed own password", before={"sessions_ended": 0}, after={"sessions_ended": ended, "sessions_kept": 1}, **who)
+    return {"ok": True, "sessions_ended": ended}
 
 
 def _check_password_strength(pw):

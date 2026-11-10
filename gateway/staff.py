@@ -199,9 +199,10 @@ def _invited(ctx, token):
 def _failed_sign_in(ctx, person, where):
     """One audit row for a refused sign-in: who (when the email is a real person's), where from and when. Neither the
     password nor the text typed as an email is recorded: an unknown email is often a mistyped one, or a password in the
-    wrong box. The per-address throttle caps these at its limit per window, so guessing cannot flood the log."""
+    wrong box. The per-address throttle caps these at its limit per window, so guessing cannot flood the log. The action
+    is deliberately not the console's "failed sign-in": Security counts that one as attempts on the control room."""
     known = bool(person and ctx.gw.settings.email_allowed(person["email"]))
-    ctx.gw.audit(person["name"] if known else "?", f"failed sign-in to {where}", "", "", ctx.ip,
+    ctx.gw.audit(person["name"] if known else "?", f"failed {where} sign-in", "", "", ctx.ip,
                  reason="wrong password" if known else "unknown or unapproved email", outcome="refused",
                  correlation=f"person:{person['id']}" if known else None)
 
@@ -288,7 +289,7 @@ def change_password(ctx):
     be a way to find the password, whatever address it comes from). A change ends every other session of the person,
     web and extension, and keeps this one; devices and keys are not sessions and are untouched."""
     who = {"correlation": f"person:{ctx.person['id']}"}
-    guesses = f"password:{ctx.person['id']}"
+    guesses = f"pwchange:{ctx.person['id']}"
     if ctx.gw.throttle.blocked(guesses):
         raise ApiError(429, "Too many attempts. Wait ten minutes and try again.")
     if not security.check_password(str(ctx.body.get("current") or ""), ctx.person["pw_hash"] or ""):
@@ -606,7 +607,7 @@ def extension_login(ctx):
     person = ctx.db.one("SELECT * FROM people WHERE lower(email) = ? AND email != ''", (email,)) if email else None
     if not person or not ctx.gw.settings.email_allowed(person["email"]) or not person["pw_hash"] or not security.check_password(password, person["pw_hash"]):
         ctx.gw.throttle.fail("ext:" + ctx.ip)
-        _failed_sign_in(ctx, person, "the access extension")
+        _failed_sign_in(ctx, person, "access extension")
         raise ApiError(401, "That email and password don't match.")
     ctx.gw.throttle.clear("ext:" + ctx.ip)
     if not session_allowed(ctx, person):
