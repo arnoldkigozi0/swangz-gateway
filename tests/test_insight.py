@@ -125,6 +125,21 @@ class DeviceTests(LensBase):
 
 
 class SecurityTests(LensBase):
+    def test_failed_console_sign_ins_are_counted_and_staff_ones_are_not(self):
+        rig = self.rig
+        for body in ({"username": "owner@swangzavenue.com", "password": "wrong"}, {"username": "typed-in-the-wrong-box", "password": "wrong"}):
+            rig.request("POST", "/admin/api/login", body, {"x-gateway-admin": "1"})
+        for path in ("/api/login", "/api/extension/login"):
+            self.assertEqual(rig.request("POST", path, {"email": "nobody@swangzavenue.com", "password": "wrong"}, {"x-swangz-app": "1"})[0], 401)
+        actions = [r["action"] for r in rig.gw.db.q("SELECT action FROM audit WHERE action LIKE 'failed%' ORDER BY id")]
+        self.assertEqual(actions, ["failed sign-in", "failed sign-in", "failed Swangz AI Hub sign-in", "failed access extension sign-in"])
+        hit = [e for e in rig.api("GET", "/security")[1]["events"] if e["type"] == "signin"]
+        self.assertEqual(len(hit), 1)
+        self.assertIn("2 failed sign-ins to the control room", hit[0]["text"])
+        self.assertIn("owner@swangzavenue.com", hit[0]["text"])
+        self.assertIn("unknown", hit[0]["text"])
+        self.assertNotIn("typed-in-the-wrong-box", hit[0]["text"])
+
     def test_signals_with_their_evidence(self):
         rig = self.rig
         rig.anthropic({"model": "claude-sonnet-4-5", "max_tokens": 5,
