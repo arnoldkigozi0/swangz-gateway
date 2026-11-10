@@ -322,7 +322,7 @@ class HubHTTPTests(unittest.TestCase):
         self.assertEqual(self.rig.openai('/responses',{'model':'gpt-5','input':'hi'})[0],200)
         self.db.x("UPDATE people SET status='suspended' WHERE id=?",(self.pid,))
         self.assertEqual(self.rig.openai('/responses',{'model':'gpt-5','input':'hi'})[0],403)
-        self.assertEqual(self.staff('GET','/hub/reports')[0],200) # reports/help remain accessible
+        self.assertEqual(self.staff('GET','/hub/reports')[0],401) # G5: a suspended person's session opens nothing, reports included
 
     def test_extension_and_studio_machine_readable_denials(self):
         rid=self.obligation('elevenlabs')
