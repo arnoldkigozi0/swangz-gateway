@@ -200,7 +200,8 @@ def _failed_sign_in(ctx, person, where):
     """One audit row for a refused sign-in: who (when the email is a real person's), where from and when. Neither the
     password nor the text typed as an email is recorded: an unknown email is often a mistyped one, or a password in the
     wrong box. The per-address throttle caps these at its limit per window, so guessing cannot flood the log. The action
-    is deliberately not the console's "failed sign-in": Security counts that one as attempts on the control room."""
+    is deliberately not the console's "failed sign-in": Security words each line by where the attempt was made
+    (insight.FAILED_SIGN_INS), so a staff failure is never reported as an attempt on the control room."""
     known = bool(person and ctx.gw.settings.email_allowed(person["email"]))
     ctx.gw.audit(person["name"] if known else "?", f"failed {where} sign-in", "", "", ctx.ip,
                  reason="wrong password" if known else "unknown or unapproved email", outcome="refused",
@@ -464,7 +465,7 @@ def workspace_hello(ctx):
     key = auth[7:].strip() if auth[:7].lower() == "bearer " else ""
     try:
         return ctx.gw.workspaces.hello(str(ctx.body.get("host") or ""), key, str(ctx.body.get("url") or ""),
-                                       ctx.body.get("info"))
+                                       ctx.body.get("info"), ip=ctx.ip)
     except PermissionError:
         raise ApiError(401, "that key isn't this computer's — make a new one in the console and run setup again")
     except ValueError as exc:

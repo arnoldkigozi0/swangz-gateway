@@ -107,6 +107,7 @@ class Settings:
     google_client_id: str = ""
     google_client_secret: str = ""
     google_redirect_uri: str = ""  # optional; default <web address>/auth/google/callback
+    require_fixed_return: bool = False  # GATEWAY_REQUIRE_FIXED_RETURN: no Google sign-in unless its return address is fixed
     google_auth_url: str = "https://accounts.google.com/o/oauth2/v2/auth"
     google_token_url: str = "https://oauth2.googleapis.com/token"
     # The shared workspace's API token (Neko's session.api_token, the same on every company browser).
@@ -200,6 +201,7 @@ class Settings:
             google_client_id=env.get("GOOGLE_CLIENT_ID", "").strip(),
             google_client_secret=env.get("GOOGLE_CLIENT_SECRET", "").strip(),
             google_redirect_uri=env.get("GOOGLE_REDIRECT_URI", "").strip(),
+            require_fixed_return=env.get("GATEWAY_REQUIRE_FIXED_RETURN", "").strip() in ("1", "true", "yes"),
             workspace_token=env.get("GATEWAY_WORKSPACE_TOKEN", "").strip(),
             workspace_agent_url=env.get("GATEWAY_WORKSPACE_AGENT", "").strip().rstrip("/"),
             workspace_agent_token=env.get("GATEWAY_WORKSPACE_AGENT_TOKEN", "").strip(),

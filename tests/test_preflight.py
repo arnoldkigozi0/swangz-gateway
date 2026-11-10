@@ -14,6 +14,7 @@ GOOD = {
     "GATEWAY_WEB_URL": "https://ai.swangzavenue.example", "GATEWAY_PUBLIC_URL": "https://ai.swangzavenue.example",
     "GATEWAY_TRUST_PROXY": "1", "GATEWAY_FORCE_HTTPS": "1", "GATEWAY_HOST": "127.0.0.1",
     "GOOGLE_CLIENT_ID": "123-abc.apps.googleusercontent.com", "GOOGLE_CLIENT_SECRET": "s3cret-value-never-printed",
+    "GATEWAY_REQUIRE_FIXED_RETURN": "1",
     "ANTHROPIC_API_KEY": "sk-never-printed",
 }
 
@@ -28,6 +29,12 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual([f for f in findings if f[0] != "ok"], [])
         self.assertIn(("ok", "Google return address",
                        "register exactly this in the Google client: https://ai.swangzavenue.example/auth/google/callback"), findings)
+
+    def test_google_sign_in_without_the_fixed_return_guard_fails_and_names_the_variable(self):
+        for value in ("", "0", "off"):
+            self.assertIn("GATEWAY_REQUIRE_FIXED_RETURN", levels({**GOOD, "GATEWAY_REQUIRE_FIXED_RETURN": value}, "fail"), value)
+        off = {k: v for k, v in GOOD.items() if not k.startswith(("GOOGLE_", "GATEWAY_REQUIRE_"))}
+        self.assertNotIn("GATEWAY_REQUIRE_FIXED_RETURN", [name for _, name, _ in preflight.check(off)])  # Google off: not asked for
 
     def test_the_addresses_must_be_set_https_bare_and_reachable(self):
         for value in ("", "http://ai.swangzavenue.example", "https://ai.swangzavenue.example/hub", "https://localhost:8787",
