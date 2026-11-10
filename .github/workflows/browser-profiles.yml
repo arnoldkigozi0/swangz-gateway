@@ -1,0 +1,43 @@
+name: Inert browser profile checks
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/browser-profiles.yml'
+      - 'swangz_client/**'
+      - 'tests/test_browser_profiles.py'
+      - 'tests/__init__.py'
+  pull_request:
+    paths:
+      - '.github/workflows/browser-profiles.yml'
+      - 'swangz_client/**'
+      - 'tests/test_browser_profiles.py'
+      - 'tests/__init__.py'
+  workflow_dispatch:
+concurrency:
+  group: browser-profiles-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  profiles:
+    name: Inert profiles (${{ matrix.os }}, Python ${{ matrix.python }})
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ['3.10', '3.12']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Record native test environment
+        run: python -c "import platform, sys; print(platform.platform()); print(sys.version)"
+      # Standard library only; test skips/refusals remain visible with verbose output.
+      # Windows retirement is unsupported; mocked checks do not establish native support.
+      # This inert suite never launches a browser or accesses a provider.
+      - name: Test inert profile preparation and refusal limits
+        run: python -m unittest tests.test_browser_profiles -v

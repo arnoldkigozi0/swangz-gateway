@@ -59,3 +59,22 @@ CREATE TABLE package_grants (
 CREATE UNIQUE INDEX package_grants_person ON package_grants(package_id, person_id) WHERE person_id IS NOT NULL;
 CREATE UNIQUE INDEX package_grants_dept ON package_grants(package_id, department) WHERE department IS NOT NULL
 """
+
+
+MIGRATION_22 = """
+ALTER TABLE keys ADD COLUMN device_id TEXT;
+ALTER TABLE keys ADD COLUMN retire_at REAL;
+ALTER TABLE keys ADD COLUMN rotated_from TEXT;
+ALTER TABLE keys ADD COLUMN confirmed REAL;
+ALTER TABLE devices ADD COLUMN device_id TEXT;
+ALTER TABLE devices ADD COLUMN key_storage TEXT NOT NULL DEFAULT '';
+ALTER TABLE devices ADD COLUMN key_backend TEXT NOT NULL DEFAULT '';
+ALTER TABLE devices ADD COLUMN key_storage_at REAL;
+ALTER TABLE devices ADD COLUMN key_issued REAL;
+ALTER TABLE devices ADD COLUMN rotations INTEGER NOT NULL DEFAULT 0;
+UPDATE devices SET device_id = key_id, key_issued = enrolled;
+UPDATE keys SET device_id = id WHERE id IN (SELECT key_id FROM devices);
+CREATE UNIQUE INDEX devices_device_id ON devices(device_id);
+CREATE INDEX keys_device ON keys(device_id) WHERE device_id IS NOT NULL;
+CREATE INDEX keys_retire ON keys(retire_at) WHERE retire_at IS NOT NULL
+"""

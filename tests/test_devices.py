@@ -104,6 +104,8 @@ class EnrolmentTests(DeviceBase):
         self.assertNotIn(out["key"], json.dumps(key, default=str))
         device = self.rig.gw.db.one("SELECT * FROM devices WHERE key_id = ?", (out["key_id"],))
         self.assertEqual((device["os"], device["arch"], device["app_version"], device["owner_kind"]), ("windows", "x86_64", "0.1.0", "personal"))
+        self.assertEqual((device["device_id"], key["device_id"], out["device_id"]), (out["key_id"],) * 3)  # the first key names the device
+        self.assertEqual(out["rotate_after_days"], 30)
         # it can be collected only once
         status, again, _ = self.api("POST", "/device/token", {"device_code": asked["device_code"]})
         self.assertEqual((status, again["code"]), (400, "invalid_grant"))
@@ -358,8 +360,8 @@ class PackageTests(DeviceBase):
         from gateway import security
 
         key_id, full, secret_hash, hint = security.new_key()
-        self.gw.db.x("INSERT INTO keys(id, person_id, label, secret_hash, hint, created) VALUES(?,?,?,?,?,?)", (key_id, person_id, "x", secret_hash, hint, time.time()))
-        self.gw.db.x("INSERT INTO devices(key_id, person_id, name, os, owner_kind, enrolled) VALUES(?,?,?,?,?,?)", (key_id, person_id, "x", "linux", "personal", time.time()))
+        self.gw.db.x("INSERT INTO keys(id, person_id, label, secret_hash, hint, created, device_id) VALUES(?,?,?,?,?,?,?)", (key_id, person_id, "x", secret_hash, hint, time.time(), key_id))
+        self.gw.db.x("INSERT INTO devices(key_id, device_id, person_id, name, os, owner_kind, enrolled) VALUES(?,?,?,?,?,?,?)", (key_id, key_id, person_id, "x", "linux", "personal", time.time()))
         return full
 
     def test_grants_by_department_and_for_everyone(self):
@@ -432,7 +434,7 @@ class PackageTests(DeviceBase):
 
 class MigrationTests(unittest.TestCase):
     def test_v21_adds_the_device_tables_and_nothing_else_changes(self):
-        self.assertGreaterEqual(len(SCHEMA), 21)
+        self.assertGreaterEqual(len(SCHEMA), 22)
         from gateway.db import DB
 
         db = DB(":memory:")

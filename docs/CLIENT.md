@@ -94,6 +94,84 @@ any file that would land outside the package's folder (`..`, absolute or drive p
 count, and unpacks beside the final place before moving it in, so a failure never leaves half a package. It
 only downloads from the server it signed in to, so a manifest can never send the key elsewhere.
 
+## Device credentials: rotation, idle expiry, key-storage report (schema v22)
+
+A device is one `devices` row with a stable `device_id` (the id of its first key). Over its life it holds several
+gateway keys (`keys.device_id`); `devices.key_id` points at the current one. Device keys are accepted by the proxy and
+`/api/device/*` only, never by the staff app or the console.
+
+**Error codes on `/api/device/*`.** `device_revoked`: the device was disconnected (person, admin, app sign-out, idle) —
+remove everything. `device_key_rotated`: *this key* was replaced by a newer one on the same device — reload the key
+from the keystore and retry; **never wipe**. `device_unknown`: ask the person. The proxy answers a rotated key with 403
+"this device key was renewed".
+
+**`POST /api/device/rotate`** (device key; no body needed). Returns `{key, key_id, device_id, old_key_valid_until,
+rotate_after_days}`; the response is `no-store` and the key is shown once. The app rotates every `rotate_after_days`
+(30; also in the manifest as `credential.rotate_after_days`): put the new key in the keystore, verify it, call any
+device endpoint (e.g. a check-in) with it, then delete the old item. The old key works until the new key's first call at a
+device endpoint (use through the proxy does not count) or 10 minutes after the rotate call, whichever is first. If the response
+is lost, the old key may call rotate again while that grace lasts and the new key was never used: the unused key is revoked
+(`device_key_rotated`) and a fresh one issued; the grace is never extended. Errors: `429 slow_down` (3 a
+device per hour), `409 rotation_pending` (already being replaced and the new key has been used). If the grace ends
+without the new key reaching the app, the app only has a rotated key (see below).
+
+**Lost response, after the grace.** Once the 10 minutes are up the old key answers `device_key_rotated` and cannot
+rotate again. So the app must write the new key to its store before it calls any endpoint with it. If the app gets
+`device_key_rotated` and its store holds no newer key, it shows "Reconnect this device", never wipes, and retries no
+faster than the heartbeat interval. The hourly idle job ends the orphaned device (refused retries do not count as
+activity), and the person reconnects with a new code.
+
+**What retirement cuts.** The 10-minute retirement of an old key does not cut requests already in flight on it; it is
+routine rotation. If a key is believed compromised, revoke the device (person, administrator or app sign-out): that ends
+every key of the device and cuts everything in flight.
+
+**Idle expiry.** A device with no activity for `device_idle_days` (console setting, 7–365, default 60) is revoked by the hourly
+job, audited as `system`. Activity is the newest of the app's last check-in, enrolment and any of its keys being used
+at the proxy, so a device in daily use through Claude Code is never idle. An attempt refused because the key was already
+revoked is not activity.
+
+**Key-storage report.** Heartbeat bodies may carry `key_storage` (`keychain` or `file`) and `key_backend`
+(`credential-manager`, `keychain`, `secret-service`; optional). Anything else is stored as `unknown` / empty. The console shows it
+as "reported by the app", flags `file`, and shows older apps as "Not reported (older app)". It is a report, never evidence, and
+never an input to an access decision. Moving to `file` is audited once.
+
+## Personal browser contract v1 (server side only; nothing in the app uses it yet)
+
+`GET /api/device/manifest?browser_contract=1` adds one block to the manifest. It is **inert**: the server only
+describes what the app may prepare; no client, browser launch or UI exists for it.
+
+```json
+"browser": {"contract": 1, "person_id": "7", "device_id": "a1b2c3d4e5f6", "profiles": [{"kind": "personal"}]}
+```
+
+- **Negotiation is strict.** Exactly one `browser_contract` parameter whose value is exactly `1`. Missing, `2`,
+  `01`, `true`, empty or repeated: no `browser` key, and the manifest is byte-for-byte what older apps get.
+- **Reading the query.** Percent-escapes are decoded first and the value must then be exactly `1`, so `%31` negotiates but `+`, a space, `%00`, a repeated name (however it is spelled) or a full-width digit does not; `personal` means bound to the person, so a company-owned device gets the same block and still reports `owner_kind: company`.
+- **Identity is origin + `person_id` + `device_id`.** `person_id` is `str(people.id)` (`^[1-9][0-9]*$`); person ids
+  can be reused by a different database, so the server origin is part of the identity. `device_id` is the stored
+  `devices.device_id` (`^[A-Za-z0-9_-]{1,64}$`) and stays the same when the key is rotated. Both come from the
+  authenticated key only; anything the request says about them is ignored.
+- **No secrets or personal data.** No email, name, key, hint or token. No provider account, registry entry or seat
+  inference; the only kind is `personal`.
+- **Auth is not changed.** The block is built only after the existing checks pass (revoked or rotated key, paused
+  person, ended access, global pause, not enrolled), so every refusal code carries no block. If the account rule
+  does not allow the person's email, `profiles` is `[]`; today the existing key check already answers
+  `401 device_unknown` for such a person, so the empty list is a second line of defence, not a new refusal.
+- **What the app must do with it (lifecycle, for the separate client work):**
+
+| Server says | The app may |
+|---|---|
+| block with a profile | prepare that personal profile |
+| `profiles: []` | retire this owner's browser data |
+| no block | do nothing |
+| `device_revoked`, `device_unknown` | retire all |
+| `device_key_rotated` | never retire; load the newer key |
+| `paused` (everyone) or `person_paused` | keep what is on disk; do not prepare or launch |
+| `access_ended` | retire all |
+| paused and ended together | the server answers `person_paused`: keep what is on disk |
+
+Client integration needs its own review before it is built.
+
 ## Disconnecting
 
 If the server says a device was disconnected (`401 device_revoked`), the app removes everything it installed
@@ -109,6 +187,38 @@ does not claim successful sign-out when cleanup fails. `cleanup` makes no server
 The device screen and terminal status expose `key_storage: keychain|file`; each heartbeat reports that mode.
 Server ingestion, idle expiry and rotation belong to the later G3b change and are not implemented here.
 
+## Key rotation in the app (server contract: schema v22, `POST /api/device/rotate`)
+
+At the end of every sync (start-up and each idle check-in) the app rotates the device key when it is older than the
+manifest's `credential.rotate_after_days` (30 if absent). Never while a coding agent started by the app is running: a
+run holds the key in its environment, so `swangz run` leaves a marker in `sessions/` (checked against live process
+ids) and rotation waits for the next check-in. Steps: call rotate; write the new key to the store and read it back
+(native item, or a protected `device.key.next` if the keychain refuses) **before** any use; make one check-in with it;
+only then make it current and delete the old item. A failed confirm leaves the old key in place and the new one staged,
+and the next check-in confirms it. `device.json` records only identities (`key_id`, `key_issued`, `next_key_id`), never a key.
+
+`device_key_rotated` never removes anything. The app reloads the key from the store (a staged key, or a newer one
+written by another window) and tries once more. With nothing newer it keeps everything, shows **Reconnect this device**
+(`swangz sync` exits 4), and tries the Hub again no faster than the 15-minute check-in interval; a newer key arriving
+clears the wait. Only `device_revoked` removes Swangz from the device, including a staged key. Heartbeats carry
+`key_storage` and, when the key is in a native store, `key_backend`.
+
+**One rotation at a time on a device.** The window and `swangz sync` are separate processes, and a second rotation
+during the 10-minute grace is reissued by the Hub, which revokes the first new key. So a rotation (finish a staged
+key, or rotate, write the new key and confirm it) is done under a lock file, `rotate.lock` in the data folder,
+created exclusively and private to the person. A process that finds it held skips rotation until its next check-in.
+A lock whose process has ended, or that is older than three minutes, is taken over; it is removed only if it is still
+the one that process wrote, and signing out deletes it. Taking over a stale lock is two steps (read, then remove), so
+two processes taking over the same stale lock at the same instant could in theory both rotate. That is rare, needs a
+crashed holder, and ends in **Reconnect this device** at worst; nothing is removed.
+
+**What a run in progress sees.** Each `sessions/` marker records the process id and when the run started. A marker
+older than seven days is ignored and removed even if its process id is live, because the number has been reused by
+something else; an older marker without a start time is aged by its file. When the new key is confirmed, requests
+still using the old key are cut at once, not after the 10 minutes: grace ends at the new key's first use. Managed
+Claude Code and Codex shells opened before the rotation therefore get "key renewed" (`device_key_rotated`) until they
+fetch the key again or a new shell is started; the app does not wait for or interrupt them.
+
 ## The app
 
 `swangz` opens the window: a dock down the left (Home, Apps, Packages, This device), sign-in, sync every 15
@@ -122,6 +232,47 @@ pip install pyinstaller && python3 packaging/build.py
 ```
 
 See `packaging/README.md` for installers and signing.
+
+## Inert browser-profile preparation (tests only)
+
+`swangz_client/browser_profiles.py` prepares empty app-owned directories beneath an explicitly supplied
+`<data>/browser-profiles/`. It has no production callers, browser launch, GUI/CLI integration, extension
+installation, provider login, policy installation or session data. Forge's ownership/manifest contract
+and a separate G2 security approval are required before real use. This is not a managed browser rollout.
+
+Owners use normalized Hub origin, stable person/device identifiers, OS user and an optional seat ID plus
+generation. No email, name, token or key is stored. Random folder IDs and versioned markers support exact
+owner reuse; duplicates and changed seat generations fail closed. A persistent `.lock` file holds an
+OS-managed nonblocking lock: POSIX `flock`, or Windows `msvcrt.locking` over one byte at offset zero.
+The file is never written, truncated or removed, and old JSON contents are ignored and preserved.
+The noninheritable descriptor is validated for type, permissions, ownership, link count and inode.
+The OS releases the lock on process exit; neither PID probing nor file age permits takeover.
+Contention reports `busy`; an unavailable locking mechanism reports `lock_unavailable` without cleanup.
+Age applies only to interrupted temporary folders: on POSIX those older than 180 seconds are discarded,
+not resumed, and structurally safe retired folders are purged on the next locked operation.
+
+`retire(id, owner)` requires a valid matching marker. `retire_owner(owner)` touches only exact owners.
+Explicit `retire_all()` removes structurally safe profile folders even if their markers are corrupt or
+missing; unsafe and unknown entries remain and are reported in `skipped`, with `complete=False`.
+There are no real sign-out/revocation hooks. POSIX purge never follows links into their targets.
+
+POSIX directories are 0700 and markers 0600, owned by the current uid. The supplied data directory must
+already exist, be owned by that uid and not be writable by group/others; it is never chmodded. Ancestors
+above it are outside the module's checks. Windows rejects reparse points from data downward:
+**ACL not verified by the app.** Native Windows behavior: **Not run: needs Actions**.
+Windows preparation and locking have mocked coverage only. Retirement and purge refuse with
+`unsupported_platform` before renaming or deleting; batch retirement reports candidates as skipped
+and incomplete. Temporary/retired folders are retained on Windows, including during preparation.
+Windows deletion requires a separately reviewed native handle-based design, Actions evidence and a
+new security ruling. The app makes no native safety claim. Advisory locks assume the same OS-user
+trust boundary and supported local filesystems; network filesystem locking is unsupported.
+
+Personal-device profiles are advisory (D-015b). A shared OS login is not isolation (D-014), and local
+administrators remain outside this boundary. Company policy enforcement is separate (D-015a).
+Existing personal browsing, files, histories, agent environments and automations remain untouched.
+
+Port-free checks: `python3 -m unittest tests.test_browser_profiles -v`. Browser and provider checks
+are inapplicable to this inert slice; cross-platform behavior still needs independent QA and review.
 
 ## Not built yet (in rough priority)
 
