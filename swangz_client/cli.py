@@ -88,6 +88,9 @@ def main(argv=None, client=None):
     except core.Revoked:
         say("This device was disconnected from Swangz AI Hub, so Swangz has been removed from it.")
         return 3
+    except core.NeedsReconnect as exc:
+        say(str(exc) + "  Run: swangz logout, then swangz login")
+        return 4
     except core.NotSignedIn as exc:
         say(str(exc) + "  Run: swangz login")
         return 2
