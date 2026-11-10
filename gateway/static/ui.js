@@ -278,11 +278,26 @@
 
   function avatar(name, size) { return el("span", { class: "u-avatar" + (size ? " " + size : ""), "aria-hidden": "true" }, initials(name)); }
 
+  /* The tile behind a tool's initials: its brand colour, darkened just enough that the white initials reach
+     4.5:1 on the lightest part of the tile (WCAG 1.4.3; the initials are 9-15px). Dark colours are unchanged. */
+  const LOGO_INK = [10, 10, 11];
+  function logoTint(color) {
+    const hex = /^#[0-9a-f]{6}$/i.test(color || "") ? color : "#3F3F46";
+    const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    const lum = (v) => v.map((x) => x / 255).map((x) => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4))
+      .reduce((sum, x, i) => sum + x * [0.2126, 0.7152, 0.0722][i], 0);
+    for (let keep = 1; keep > 0; keep -= 0.02) {
+      const v = rgb.map((x, i) => Math.round(x * keep + LOGO_INK[i] * (1 - keep)));
+      if (1.05 / (lum(v) + 0.05) >= 4.5) return keep === 1 ? hex : "#" + v.map((x) => x.toString(16).padStart(2, "0")).join("");
+    }
+    return "#0A0A0B";
+  }
+
   function logo(t, size) {
     const cls = "logo" + (size ? " " + size : "");
     const mono = () => {
       const box = el("span", { class: cls + " mono", "aria-hidden": "true" }, initials(t.name || t.tool));
-      const c = /^#[0-9a-f]{6}$/i.test(t.color || "") ? t.color : "#3F3F46";
+      const c = logoTint(t.color);
       box.style.background = `linear-gradient(140deg, ${c}, color-mix(in srgb, ${c} 55%, #0A0A0B))`;
       return box;
     };
@@ -1043,7 +1058,7 @@
   window.SUI = {
     el, s, icon, ICONS, theme, applyTheme, themeButton,
     tz, setGatewayOffset, setTzMode, tzLabel, startOfDay, startOfMonth, dateInput, fromDateInput, presetRange, fmt,
-    initials, plural, debounce, gateway, avatar, logo, status, badge, delta, evidence,
+    initials, plural, debounce, gateway, avatar, logo, logoTint, status, badge, delta, evidence,
     skeleton, stateBox, errorBox, load, toast, copy, showTip, hideTip, infoTip,
     columns, line, sparkline, barList, table, segmented, searchPill, progress, star, listPanel, rangeControl, trapFocus, commandMenu, splitGate, xfield, eyeToggle,
   };

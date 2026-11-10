@@ -78,6 +78,8 @@ jobs:
         run: node tests/browser/admin-cls.cjs
       - name: Staff Updates copy (Emailed only when sent)
         run: node tests/browser/updates-copy.cjs
+      - name: Tool initials contrast (white on the tile, 4.5:1)
+        run: node tests/browser/logo-contrast.cjs
       - name: Split sign-in gate (both apps, Google link, eye, inert panes, welcome)
         run: node tests/browser/signin.cjs
       - name: Staff footer (geometry, liquid reveal, health word, ask, theme switch)
