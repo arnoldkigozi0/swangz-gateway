@@ -311,11 +311,42 @@ def build_manifest(gw, h, person, device):
         tool = db.one("SELECT * FROM tools WHERE id = ?", (t["id"],))
         apps.append({"id": t["id"], "name": t["name"], "category": t["category"], "signin": t["signin"],
                      "company_browser": bool(tool and catalog.uses_workspace(tool)), "open": f"{base}/go/{t['id']}"})
-    return {"server": base, "person": {"name": person["name"], "email": person["email"], "department": person.get("department") or ""},
-            "device": {"id": device["device_id"], "name": device["name"], "os": device["os"], "owner_kind": device["owner_kind"]},
-            "client": {"latest": CLIENT_LATEST, "minimum": CLIENT_MINIMUM}, "packages": packages, "apps": apps,
-            "credential": {"rotate_after_days": credentials.ROTATE_AFTER_DAYS, "issued": device.get("key_issued")},
-            "recording": RECORDING, "generated": time.time()}
+    manifest = {"server": base, "person": {"name": person["name"], "email": person["email"], "department": person.get("department") or ""},
+                "device": {"id": device["device_id"], "name": device["name"], "os": device["os"], "owner_kind": device["owner_kind"]},
+                "client": {"latest": CLIENT_LATEST, "minimum": CLIENT_MINIMUM}, "packages": packages, "apps": apps,
+                "credential": {"rotate_after_days": credentials.ROTATE_AFTER_DAYS, "issued": device.get("key_issued")},
+                "recording": RECORDING, "generated": time.time()}
+    browser = _browser_block(gw, h, person, device)
+    if browser is not None:
+        manifest["browser"] = browser
+    return manifest
+
+
+BROWSER_CONTRACT = "1"
+_PERSON_ID = re.compile(r"[1-9][0-9]*")
+_DEVICE_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
+
+
+def _browser_negotiated(h):
+    """True only for exactly one `browser_contract=1` in the query string. Missing, repeated, `2`, `01`, `true`,
+    empty: not negotiated, and the manifest is the one every older app already gets."""
+    raw = (getattr(h, "path", "") or "").partition("?")[2]
+    values = parse_qs(raw, keep_blank_values=True).get("browser_contract", [])
+    return values == [BROWSER_CONTRACT]
+
+
+def _browser_block(gw, h, person, device):
+    """The inert personal-browser contract (v1). Built from the authenticated person and device rows only, never
+    from the request: identity is this server + person_id + device_id. Carries no email, name, key or hint, and
+    no provider account or seat. A person the account rule no longer allows gets `profiles: []` (retire), not
+    a profile; this adds no new refusal and changes no existing one."""
+    if not _browser_negotiated(h):
+        return None
+    person_id, device_id = str(person["id"]), str(device["device_id"])
+    if not (_PERSON_ID.fullmatch(person_id) and _DEVICE_ID.fullmatch(device_id)):
+        return None
+    allowed = gw.settings.email_allowed(person["email"])
+    return {"contract": 1, "person_id": person_id, "device_id": device_id, "profiles": [{"kind": "personal"}] if allowed else []}
 
 
 @route("GET", r"/device/manifest", signed_in=False)

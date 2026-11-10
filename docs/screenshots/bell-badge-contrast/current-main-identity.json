@@ -1,0 +1,39 @@
+{
+  "scope": "Static source inspection; no local runtime tests",
+  "previous_remote": "470467423fef20d0ba1736c4aca600be121ed458",
+  "integrated_main": "5196617f45590b919f5cbd38cf71cf9aad1941a4",
+  "merge_head": "c0d97df37435b41960f8db36ed5caeda8ab66631",
+  "files": {
+    "gateway/static/admin.css": {
+      "unchanged_from_previous_remote": true,
+      "sha256": "711a2eed0ed71cb4f5b568a08b89afb13068a29f96189de41c4829e83790591f"
+    },
+    "gateway/static/tokens.css": {
+      "unchanged_from_previous_remote": true,
+      "sha256": "f5c9815fed62c3cf832a1cf01ace027dbc2376b5a41854026ee8aa4ca0aac399"
+    },
+    "docs/screenshots/glass-r3/check.cjs": {
+      "unchanged_from_previous_remote": true,
+      "sha256": "c6c148b12336eb2d16fcb9aec3a399ec699ba0e00fae0ef3082b74e5390c8d21"
+    },
+    "gateway/static/ui.css": {
+      "unchanged_from_previous_remote": true,
+      "sha256": "1c373f24370bcaf1529747eda347bd1b2896e6f520155ed22b7b96a3e09b7d7d"
+    },
+    "gateway/static/ui.js": {
+      "unchanged_from_previous_remote": true,
+      "sha256": "c9fd7739b21e94d8cf9bd51d05843752b7ffdde0bd2f746c46963b4ea143c18b"
+    }
+  },
+  "product_diff_against_main": [
+    "gateway/static/admin.css"
+  ],
+  "old_paid_netlify_preview": {
+    "deploy_id": "6af018f82962c86a4887a339",
+    "state": "error",
+    "error_message": null,
+    "build_id": "6af018f82962c86a4887a337",
+    "rule_annotations": 0,
+    "root_cause": "unavailable; no rule-specific error exposed"
+  }
+}
