@@ -450,3 +450,93 @@ Fresh commands/results: `UI_TOOLING=/home/inquiline/swangz-team/swangz-gateway/.
 suite/matrix, real devices/other engines/screen readers and new hardware
 performance/CLS/MotionScore: Not run. Fresh exact-head CI and independent Probe
 QA remain required. No ready/merge/deploy action.
+
+
+## Sprint day — 10 November 2026 (Kampala time)
+
+56 pull requests merged to main between 00:04 and 20:58; main is `3162bf2`. Every merge had green
+GitHub CI on its head. The list is drawn from `git log --merges origin/main`.
+
+| Time | PR | Merge | What |
+|---|---|---|---|
+| 00:04 | #59 | `f1c50fa` | Design brief: navigation tabs reference (§10.8, R16) + beyond-the-reference fixes (§10.9, R17) |
+| 00:12 | #10 | `5196617` | Extend product blueprint with Amendment 01 operating model |
+| 01:07 | #50 | `8aa97c1` | Fix notification badge text contrast in dark mode |
+| 01:40 | #49 | `fc4c278` | Browser check: wait for finite animations before axe (theme-flip race) |
+| 04:02 | #9 | `1d663e6` | Document provider authentication, billing and observation boundaries |
+| 07:18 | #13 | `32dfad9` | Rotate device keys in the Swangz app (G3b client) |
+| 07:54 | #16 | `5ed064d` | Serve signed app releases from the gateway (G4 server) |
+| 07:54 | #19 | `9fc0d11` | Revoke people, devices and sessions on the next request (G5 continuity, backend) |
+| 08:00 | #17 | `5296054` | Reuse a verified staged update instead of downloading it again |
+| 08:01 | #20 | `ecdb141` | Extension fails closed on governed sites (G5 continuity, extension) |
+| 08:44 | #26 | `0f29579` | Read-only paused view, session kinds (v23) and Google hd check |
+| 08:44 | #18 | `a1bc0e3` | Unsigned desktop test builds for Windows, macOS and Linux (G5) |
+| 08:44 | #21 | `3b847cd` | Verify extension continuity in real Chromium on CI |
+| 09:05 | #27 | `16dce34` | Fix paused navigation and add read-only reports and updates |
+| 09:05 | #22 | `16eef13` | Close the previous tool's record when a site leaves governance (extension follow-up) |
+| 09:30 | #57 | `704ead6` | Split sign-in: console and staff (Sentinel G2) |
+| 09:52 | #23 | `3a8fe8e` | Extension: close the tab's running record on every navigation |
+| 09:53 | #30 | `2ed1da0` | Keep logout terminal across paused and mobile session races |
+| 10:00 | #56 | `9324599` | Isolate staff shell and exclude seed console grid |
+| 10:41 | #64 | `6a7d881` | Fix main: paused-view harness lacked clearTimeout, which the new staff shell calls |
+| 11:03 | #62 | `a53203e` | Staff: the font hold can never stop the shell rendering |
+| 11:24 | #33 | `279ff5c` | Reject missing and empty unsigned desktop build outputs |
+| 11:33 | #65 | `37ef6ac` | Staff footer: liquid glass panel with the cut-out wordmark (BRIEF §6, §10.3) |
+| 11:47 | #61 | `31ba412` | Core proof: device lifecycle journey and per-person isolation sweeps |
+| 11:48 | #60 | `afadef7` | Ops: running version and commit, scheduled restore check, audit coverage |
+| 12:01 | #66 | `76c4498` | R15 piece 1: console scene in the warm room at the 10.3 scrim |
+| 13:02 | #63 | `c6d7382` | Extension sign-out ends its session at the Hub; paused-view docstrings |
+| 13:26 | #68 | `93c2b6e` | R15 piece 2: 38px top-bar pills and no area eyebrow on desktop |
+| 14:01 | #67 | `c78a1db` | R16 piece 1: staff view tabs as glass bars A and B with a sliding pill (BRIEF 10.8) |
+| 14:06 | #69 | `5013026` | R15 piece 3: console rail, top bar positions and page header per BRIEF 10.3 |
+| 14:30 | #71 | `08bf6be` | Console version line no longer shifts on cold load |
+| 15:06 | #72 | `8ea5979` | Console avatar menu: theme, Sign out and Stop all AI reachable from the top bar (BRIEF 10.7) |
+| 15:13 | #70 | `f2a0e5d` | R16 piece 2: staff phone bottom bar with the pointer lens (BRIEF 10.8 bar C) |
+| 15:36 | #74 | `50a5488` | Staff Updates: say Emailed only when the email was sent |
+| 15:36 | #75 | `eaf5b60` | Live: no layout shift on a cold load |
+| 16:01 | #76 | `cd0208d` | Staff bar badge: valid font declaration (9px) |
+| 16:05 | #77 | `fd9bd14` | Tool initials: 4.5:1 on every brand colour |
+| 16:07 | #73 | `b8d1489` | Console Overview: four KPI cards per BRIEF 10.3 (R16) |
+| 16:25 | #78 | `25d6e32` | Console menu: Stop all AI readable in the light theme |
+| 16:25 | #80 | `f8b95d5` | Audit log: a person changing their own Hub password |
+| 16:32 | #81 | `be16b0f` | Go-live readiness: offline configuration check, Google return-address tests, owner asks |
+| 16:35 | #83 | `5d740ae` | Money under a cent reads "< $0.01" in both apps (BRIEF 10.9.2) |
+| 16:42 | #82 | `f68f16f` | Registry: console can list one person's seats (person= filter) |
+| 16:42 | #85 | `d7f2476` | Chrome policy pack for company devices (deploy/chrome-policy) |
+| 17:01 | #86 | `3db1199` | Empty charts keep their card's size and say what will appear and why (BRIEF 10.9.2) |
+| 17:01 | #84 | `90515d9` | Console at 390: the room shows around the page, not only above it (draft, unmeasured) |
+| 17:02 | #79 | `a67ffb9` | Console Overview: the body per BRIEF 10.7 (R17) |
+| 17:09 | #87 | `794e3c6` | Staff password follow-ups: end other sessions, throttle guesses, audit failed sign-ins |
+| 17:24 | #88 | `28fe3d9` | Uptime check on the server: health-check command + five-minute timer |
+| 17:47 | #90 | `e155c34` | Password and sign-in ruling: console password change, failed sign-in audit, preflight domain, Chrome pack notes |
+| 19:55 | #89 | `2ac674d` | Overview: a count of zero says why (BRIEF 10.9(2)) |
+| 20:27 | #91 | `aaf5f82` | Sign-in ruling follow-ups, audit coverage sweep, Chrome policy names checked |
+| 20:28 | #92 | `f580cb4` | Overview: first card in the reference amber, and the page fits 1440x852 |
+| 20:53 | #94 | `bddf68c` | Overview: Uses by tool as a donut with a legend (BRIEF 10.7) |
+| 20:55 | #95 | `4e4ef5d` | Arnold-only list, go-live asks, real-phone checklist, Chrome pack limits |
+| 20:58 | #93 | `3162bf2` | Security follow-ups: Google fixed-address switch (off by default), company-browser audit row, staff failed sign-ins on Security |
+
+What this covers, by track:
+
+- **Backlog from 4 November landed:** #9 #10 #13 #16 #17 #18 #19 #20 #21 #22 #23 #26 #27 #30 #33.
+- **Function:** device key rotation, signed-release serving, revoke on the next request, session kinds
+  (schema v23) and the read-only paused view, provider registry (v24, v25), core proof (#61: device
+  lifecycle journey, per-person isolation sweeps), running version and scheduled restore check (#60),
+  uptime check (#88), staff and console password changes throttled, audited and ending other sessions
+  (#80 #87 #90), audit-coverage sweep of every console route (#91), Google fixed-address switch (#93),
+  offline go-live configuration check (#81), Chrome policy pack for company devices (#85).
+- **Exact-match UI:** split sign-in (#57), staff shell (#56), staff footer (#65), console scene, rail,
+  top bar and Overview (#66 #68 #69 #73 #79 #89 #92 #94), staff tabs and phone bar (#67 #70), avatar
+  menu (#72).
+- **Owner documents:** `docs/ARNOLD-ONLY.md`, `docs/GO-LIVE-ASKS.md`, `docs/MOBILE-READINESS.md` (#95).
+
+Overlays recorded for BRIEF 10.2 (1440x852, dark):
+
+- Sign-in: `docs/screenshots/exact-signin/overlay-{console,staff}-{login,access}-1440.png`
+- Staff shell: `docs/screenshots/exact-staff-shell-v2/verified-eca2728/overlay-{home,tools,requests,projects,weekly}-1440x852-dark.png`
+- Staff footer: `docs/screenshots/exact-footer/overlay-footer-1440x852-dark.png`
+- Console Overview: `docs/screenshots/exact-r15/overlay-overview-1440x852-dark.png`,
+  `piece2-` and `piece3-` beside it, and `docs/screenshots/exact-r16/r17-overlay-overview-1440x852-dark.png`
+
+Not run today: the full suite on the laptop (CI runs it), any real phone, the Chrome policy pack on a
+real device, signed desktop builds. Desktop auto-update stays off until builds are signed.
