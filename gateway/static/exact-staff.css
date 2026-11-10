@@ -278,3 +278,5 @@ html[data-theme="light"] .staff-exact { background: none; --staff-scrim: linear-
   html[data-theme="light"] .staff-exact .vtabs { --tab-bar: #F0ECE8; }
 }
 @media (min-width: 901px) { .staff-exact .vtabs { overflow: visible; } } /* room for the pill's glow; narrower bars may scroll sideways */
+/* The bar never widens its column: on a narrow panel (768px) it scrolls sideways inside it instead. */
+@media (min-width: 641px) { .staff-exact .vtabs-wrap { grid-template-columns: minmax(0, 1fr); } .staff-exact .vtabs { justify-self: start; scrollbar-width: none; } }

@@ -476,6 +476,7 @@
         bar.style.setProperty("--pill-w", on.offsetWidth + "px");
         bar.style.setProperty("--pill-h", on.offsetHeight + "px");
         bar.classList.add("pill");
+        if (bar.scrollWidth > bar.clientWidth) bar.scrollLeft = Math.max(0, on.offsetLeft - (bar.clientWidth - on.offsetWidth) / 2);
       } catch (e) { /* no layout here */ }
     }
     try { if (typeof ResizeObserver === "function") new ResizeObserver(pill).observe(bar); } catch (e) { /* static pill */ }
