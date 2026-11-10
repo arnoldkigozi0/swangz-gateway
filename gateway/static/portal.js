@@ -467,6 +467,20 @@
     const bar = el("div", { class: "vtabs", role: "tablist", "aria-label": label || "Views" });
     const body = el("div", { class: "vtab-body" });
     const panes = new Map();
+    // BRIEF §10.8 bars A/B: one pill slides to the selected tab. Decoration only; without it the tab styles itself.
+    function pill() {
+      try {
+        const on = bar.querySelector('[role=tab][aria-selected="true"]');
+        if (!on || !on.offsetWidth) return bar.classList.remove("pill");
+        bar.style.setProperty("--pill-x", on.offsetLeft + "px");
+        bar.style.setProperty("--pill-y", on.offsetTop + "px");
+        bar.style.setProperty("--pill-w", on.offsetWidth + "px");
+        bar.style.setProperty("--pill-h", on.offsetHeight + "px");
+        bar.classList.add("pill");
+        if (bar.scrollWidth > bar.clientWidth) bar.scrollLeft = Math.max(0, on.offsetLeft - (bar.clientWidth - on.offsetWidth) / 2);
+      } catch (e) { /* no layout here */ }
+    }
+    try { if (typeof ResizeObserver === "function") new ResizeObserver(pill).observe(bar); } catch (e) { /* static pill */ }
     function show(id, push, focus) {
       current = id;
       bar.querySelectorAll("[role=tab]").forEach((b) => {
@@ -476,6 +490,7 @@
         if (on && focus) b.focus();
       });
       panes.forEach((pane, key) => { pane.hidden = key !== id; });
+      pill();
       const view = views.find((v) => v[0] === id);
       if (view[4]) view[4]();
       const q = new URLSearchParams(location.hash.split("?")[1] || "");

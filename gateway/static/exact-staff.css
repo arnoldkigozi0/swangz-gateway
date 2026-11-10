@@ -240,3 +240,48 @@ html[data-theme="light"] .staff-exact { background: none; --staff-scrim: linear-
 }
 /* A wrapped status breaks between words, never inside one ("Report require/d" on phones). */
 .staff-exact .tool-row .tr-sub .u-status { overflow-wrap: normal; word-break: normal; }
+
+/* BRIEF §10.8, bars A (Evening) and B (Daylight): the staff view tabs are one full-pill glass bar with a raised
+   pill on the selected tab. H = 52px; pill inset .1H, height .82H; label .28H. viewTabs() in portal.js places the
+   pill (--pill-*) and it slides by transform and width only. Tabs keep their own widths: Hub labels are longer
+   than the reference's (§10.1(1)), and there are no tab icons. Phones (≤640px) keep the two-column grid (§10.1(3)). */
+@media (min-width: 641px) {
+  .staff-exact .vtabs {
+    --tab-h: 52px; --tab-bar: rgba(46,38,33,.86); --tab-rim: rgba(255,255,255,.22); --tab-tx: #ECE7E2;
+    --tab-pill: #F4F1EE; --tab-on: #1E1A18; --tab-glow: 0 8px 18px rgba(238,143,62,.35);
+    position: relative; display: inline-flex; gap: 0; width: max-content; max-width: 100%; height: var(--tab-h); padding: 4px;
+    border: 1px solid var(--tab-rim); border-radius: 26px; background: var(--tab-bar); overflow-x: auto; isolation: isolate;
+  }
+  html[data-theme="light"] .staff-exact .vtabs {
+    --tab-bar: rgba(240,236,232,.55); --tab-rim: rgba(82,60,44,.30); --tab-tx: #2E2A27;
+    --tab-pill: rgba(20,18,16,.92); --tab-on: #FFFFFF; --tab-glow: 0 6px 14px rgba(20,18,16,.18);
+  }
+  .staff-exact .vtabs [role=tab] {
+    position: relative; z-index: 1; height: 100%; margin: 0; padding: 0 20px; border: 0; border-radius: 21px;
+    font: 500 14.5px/1 var(--font); color: var(--tab-tx); background: transparent; transition: color .28s ease;
+  }
+  .staff-exact .vtabs [role=tab]:hover { color: var(--tab-tx); border: 0; text-decoration: underline; text-underline-offset: 4px; }
+  .staff-exact .vtabs [role=tab][aria-selected="true"] { color: var(--tab-on); font-weight: 500; background: var(--tab-pill); box-shadow: var(--tab-glow); text-decoration: none; }
+  .staff-exact .vtabs.pill [role=tab][aria-selected="true"] { background: transparent; box-shadow: none; }
+  .staff-exact .vtabs.pill::before {
+    content: ""; position: absolute; z-index: 0; left: 0; top: 0; width: var(--pill-w); height: var(--pill-h); border-radius: 21px;
+    background: var(--tab-pill); box-shadow: var(--tab-glow); transform: translate(var(--pill-x), var(--pill-y));
+    transition: transform .42s cubic-bezier(.34,1.36,.64,1), width .42s cubic-bezier(.34,1.36,.64,1);
+  }
+  .staff-exact .vtabs [role=tab]:focus-visible { outline: 2px solid #EE8F3E; outline-offset: 2px; border-radius: 21px; }
+  .staff-exact .vtabs .vt-n { background: rgba(128,110,95,.30); color: inherit; }
+  .staff-exact .vtabs [aria-selected="true"] .vt-n { background: rgba(128,110,95,.24); color: inherit; }
+}
+@media (prefers-reduced-motion: reduce) { .staff-exact *::before { animation: none; transition: none; } }
+@media (prefers-reduced-transparency: reduce) {
+  .staff-exact .vtabs { --tab-bar: #2E2621; }
+  html[data-theme="light"] .staff-exact .vtabs { --tab-bar: #F0ECE8; }
+}
+@media (min-width: 901px) { .staff-exact .vtabs { overflow: visible; } } /* room for the pill's glow; narrower bars may scroll sideways */
+/* The bar never widens its column: on a narrow panel (768px) it scrolls sideways inside it instead. */
+@media (min-width: 641px) { .staff-exact .vtabs-wrap { grid-template-columns: minmax(0, 1fr); } .staff-exact .vtabs { justify-self: start; scrollbar-width: none; } }
+/* 641–900px (§10.1(3), no reference still): a bar wider than its panel wraps to a second row, so no tab is out of sight. */
+@media (min-width: 641px) and (max-width: 900px) {
+  .staff-exact .vtabs { flex-wrap: wrap; height: auto; overflow: visible; }
+  .staff-exact .vtabs [role=tab] { height: 42px; }
+}
