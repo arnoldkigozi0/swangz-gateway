@@ -98,6 +98,23 @@ class DonutShareTests(unittest.TestCase):
             ratio = (lum("#FCF8F2") + .05) / (lum(colour) + .05)
             self.assertGreaterEqual(ratio, 3.0, "tone %s %s is %.2f:1" % (tone, colour, ratio))
 
+    def test_dark_orange_reaches_three_to_one_on_room_glass(self):
+        css = (STATIC / "ui.css").read_text(encoding="utf-8")
+        colour = re.search(r'\.u-donut \{ --donut-orange: (#[0-9A-F]{6});', css).group(1)
+        self.assertIn('.u-donut .t1 { stroke: var(--donut-orange); color: var(--donut-orange); }', css)
+
+        def lum(rgb):
+            c = [v / 255 for v in rgb]
+            c = [v / 12.92 if v <= .04045 else ((v + .055) / 1.055) ** 2.4 for v in c]
+            return sum(v * w for v, w in zip(c, (.2126, .7152, .0722)))
+
+        # Brightest ring-adjacent pixel in the saved #103 dark capture, at (845, 626).
+        # Also check the brief's panel target and the opaque reduced-transparency fallback.
+        fg = lum(tuple(bytes.fromhex(colour[1:])))
+        for bg in ((111, 92, 84), (106, 89, 81), (18, 18, 20)):
+            ratio = (fg + .05) / (lum(bg) + .05)
+            self.assertGreaterEqual(ratio, 3.0, "%s on %s is %.2f:1" % (colour, bg, ratio))
+
     def test_overview_draws_uses_by_tool_as_a_donut_and_keeps_its_empty_state(self):
         source = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
         self.assertIn('SUI.donut({ label: "Uses by tool over 30 days"', source)
