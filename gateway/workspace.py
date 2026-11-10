@@ -215,7 +215,7 @@ class Workspaces:
         self.soon()
         return len(moved)
 
-    def hello(self, host, token, url, info):
+    def hello(self, host, token, url, info, ip=""):
         """A workspace machine checking in. -> what it should run: the tools that need browsers and how many,
         and the video relay. Raises PermissionError for a wrong key, ValueError for a bad address."""
         if host == "server":
@@ -229,8 +229,14 @@ class Workspaces:
             if not (url.startswith("https://") and len(url) <= 300 and " " not in url):
                 raise ValueError("url must be the agent's https address")
             info = info if isinstance(info, dict) else {}
-            self.gw.db.x("UPDATE workspace_hosts SET url = ?, info = ?, seen = ? WHERE id = ?",
-                         (url.rstrip("/"), json.dumps(info)[:4000], time.time(), host))
+            url = url.rstrip("/")
+            with self.gw.db.tx():
+                before = self.gw.db.scalar("SELECT url FROM workspace_hosts WHERE id = ?", (host,)) or ""
+                self.gw.db.x("UPDATE workspace_hosts SET url = ?, info = ?, seen = ? WHERE id = ?",
+                             (url, json.dumps(info)[:4000], time.time(), host))
+                if url != before:  # where staff are sent for a company browser changed: leave a trace (never the key)
+                    self.gw.audit(host, "company browser address changed", HOSTS[host], "", ip, before={"url": before},
+                                  after={"url": url}, correlation=f"workspace_host:{host}", area="govern")
         return {"ok": True, "active": host == self.active, "tools": self.wanted(), "ice_servers": self.relay.ice_servers()}
 
     def wanted(self):

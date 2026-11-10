@@ -27,6 +27,11 @@ above this block (301 tests, schema v20) describe the October baseline, not toda
   console scene, rail, top bar, avatar menu and Overview. Overlay paths are listed in `AGENT-PROGRESS.md`.
   The last Overview header change (#97: greeting by recorded name, zero-day tubes, console phone
   navigation) merged on green CI without screenshots or overlays; its visual acceptance is still owed.
+  Probe passed #92, #94 and #98 per BRIEF 10 on main `8ee5856` (dark and light, 1440x852 and 390x844).
+- **Exact-match work the team has not finished** (twelve items, listed in `AGENT-PROGRESS.md`): the room
+  photo is still hidden behind the page plane and two Overview panels are opaque; a light-theme top-bar
+  defect; overlays missing for #92, #94 and #98; footer scroll at 28-39 fps against a 55 fps gate; the
+  Chrome policy bypass tests are not built; Sentinel's review of #97, #99 and #100 is pending.
 - **Only Arnold can provide:** `ARNOLD-ONLY.md` (provider subscriptions, server and domain, Google
   client and return address, signing certificates, Chrome policy roll-out, real-phone check).
 - **Not done:** signed installers (auto-update stays off until then), the PWA on a real Android phone

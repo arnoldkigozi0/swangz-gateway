@@ -44,5 +44,14 @@ class OverviewExactFitTests(unittest.TestCase):
         self.assertIn("@media (min-width: 1201px) { .route-overview .page { padding-bottom: 56px; } }", css)
 
 
+class OverviewCountIconTests(unittest.TestCase):
+    def test_the_two_count_cards_open_with_a_round_icon(self):
+        root = pathlib.Path(__file__).resolve().parent.parent / "gateway" / "static"
+        self.assertIn(".kpis-exact.two .kpi .label > svg:first-child { display: block; box-sizing: border-box; width: 34px; height: 34px;", (root / "admin.css").read_text(encoding="utf-8"))
+        js = (root / "admin-monitor.js").read_text(encoding="utf-8")
+        self.assertIn('label: "Need attention", icon: "attention"', js)
+        self.assertIn('label: "Live requests", icon: "live"', js)
+
+
 if __name__ == "__main__":
     unittest.main()

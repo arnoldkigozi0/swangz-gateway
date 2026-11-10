@@ -81,6 +81,11 @@ def check(env):
     else:
         if not cid.endswith(".apps.googleusercontent.com"):
             add("warn", "GOOGLE_CLIENT_ID", "does not look like a Google web client id (….apps.googleusercontent.com)")
+        if get("GATEWAY_REQUIRE_FIXED_RETURN") in ON:
+            add("ok", "GATEWAY_REQUIRE_FIXED_RETURN", "on: Google sign-in is refused unless its return address is fixed")
+        else:
+            add("fail", "GATEWAY_REQUIRE_FIXED_RETURN", "is not on; set it to 1 so Google sign-in is refused whenever its "
+                "return address would come from a request's Host header")
         base = web or public
         redirect = fixed or (base + CALLBACK if base else "")
         if not redirect:

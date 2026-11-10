@@ -351,6 +351,26 @@ class PlacesTests(ThreePeople):
                                               {"host": host, "url": url, "info": {"system": "Windows", "memory_gb": 31.2}}, h)
         return status, json.loads(payload)
 
+    def test_a_changed_address_is_audited_once_and_a_repeat_check_in_is_not(self):
+        """A stolen computer key could point company-browser turns somewhere else: that leaves a row, without the key."""
+        rows = lambda: self.rig.gw.db.q("SELECT * FROM audit WHERE action = 'company browser address changed' ORDER BY id")
+        self.assertEqual(self.hello()[0], 200)
+        self.assertEqual(len(rows()), 1)  # the first address is a change from none
+        self.assertEqual(self.hello()[0], 200)
+        self.assertEqual(self.hello(url="https://quiet-river.trycloudflare.com/agent/")[0], 200)  # same address
+        self.assertEqual(len(rows()), 1)
+        self.assertEqual(self.hello(url="https://elsewhere.example.test/agent")[0], 200)
+        self.assertEqual(self.hello(url="https://elsewhere.example.test/agent")[0], 200)
+        found = rows()
+        self.assertEqual(len(found), 2)
+        row = found[-1]
+        self.assertEqual((row["actor"], row["correlation"]), ("windows", "workspace_host:windows"))
+        self.assertEqual(json.loads(row["before_json"]), {"url": "https://quiet-river.trycloudflare.com/agent"})
+        self.assertEqual(json.loads(row["after_json"]), {"url": "https://elsewhere.example.test/agent"})
+        self.assertNotIn(self.key, json.dumps([dict(r) for r in found]))
+        self.assertEqual(self.hello(key="f" * 64, url="https://thief.example.test/agent")[0], 401)  # a wrong key changes nothing
+        self.assertEqual(len(rows()), 2)
+
     def connect_pc(self):
         self.assertEqual(self.hello()[0], 200)
         # the tunnel's address stands in for the agent here; in the tests it answers on plain http

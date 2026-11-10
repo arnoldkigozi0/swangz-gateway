@@ -125,7 +125,7 @@ class DeviceTests(LensBase):
 
 
 class SecurityTests(LensBase):
-    def test_failed_console_sign_ins_are_counted_and_staff_ones_are_not(self):
+    def test_failed_staff_sign_ins_are_never_counted_as_attempts_on_the_control_room(self):
         rig = self.rig
         for body in ({"username": "owner@swangzavenue.com", "password": "wrong"}, {"username": "typed-in-the-wrong-box", "password": "wrong"}):
             rig.request("POST", "/admin/api/login", body, {"x-gateway-admin": "1"})
@@ -134,11 +134,15 @@ class SecurityTests(LensBase):
         actions = [r["action"] for r in rig.gw.db.q("SELECT action FROM audit WHERE action LIKE 'failed%' ORDER BY id")]
         self.assertEqual(actions, ["failed sign-in", "failed sign-in", "failed Swangz AI Hub sign-in", "failed access extension sign-in"])
         hit = [e for e in rig.api("GET", "/security")[1]["events"] if e["type"] == "signin"]
-        self.assertEqual(len(hit), 1)
-        self.assertIn("2 failed sign-ins to the control room", hit[0]["text"])
-        self.assertIn("owner@swangzavenue.com", hit[0]["text"])
-        self.assertIn("unknown", hit[0]["text"])
-        self.assertNotIn("typed-in-the-wrong-box", hit[0]["text"])
+        self.assertEqual(len(hit), 3)                                      # one line per place, each with its own count
+        console = [e for e in hit if "control room" in e["text"]]
+        self.assertEqual(len(console), 1)
+        self.assertIn("2 failed sign-ins to the control room", console[0]["text"])
+        self.assertIn("owner@swangzavenue.com", console[0]["text"])
+        self.assertIn("unknown", console[0]["text"])
+        for e in hit:
+            self.assertNotIn("typed-in-the-wrong-box", e["text"])
+            self.assertNotIn("nobody@swangzavenue.com", e["text"])
 
     def test_signals_with_their_evidence(self):
         rig = self.rig
@@ -157,6 +161,24 @@ class SecurityTests(LensBase):
         self.assertEqual(out["posture"], "watch")
         for e in out["events"]:
             self.assertTrue(e["evidence"])
+
+    def test_a_failed_sign_in_is_worded_by_where_it_happened(self):
+        """Staff and extension failures reach Security too, and neither is reported as an attempt on the control room."""
+        gw = self.rig.gw
+        gw.audit("owner@swangzavenue.com", "failed sign-in", ip="203.0.113.5", outcome="refused")
+        gw.audit("Grace", "failed Swangz AI Hub sign-in", ip="203.0.113.5", outcome="refused")
+        gw.audit("?", "failed access extension sign-in", ip="203.0.113.5", outcome="refused")
+        lines = {e["title"]: e for e in self.rig.api("GET", "/security")[1]["events"] if e["type"] == "signin"}
+        self.assertEqual(sorted(lines), ["Failed browser extension sign-ins", "Failed console sign-ins", "Failed staff app sign-ins"])
+        console, staff, ext = (lines[t] for t in ("Failed console sign-ins", "Failed staff app sign-ins",
+                                                  "Failed browser extension sign-ins"))
+        self.assertIn("1 failed sign-in to the control room from 203.0.113.5 (accounts; unknown = no such account: owner@swangzavenue.com)", console["text"])
+        self.assertIn("1 failed sign-in to the staff app from 203.0.113.5 (people whose password was wrong: Grace)", staff["text"])
+        self.assertIn("1 failed sign-in to the browser extension from 203.0.113.5 (people whose password was wrong: —)", ext["text"])
+        for e in (staff, ext):
+            self.assertNotIn("control room", e["text"])
+        self.assertEqual(staff["href"], "#/audit?q=failed%20Swangz%20AI%20Hub%20sign-in")
+        self.assertEqual(console["href"], "#/audit?q=failed%20sign-in")
 
     def test_unusual_is_measured_against_their_own_normal(self):
         now = time.time()
