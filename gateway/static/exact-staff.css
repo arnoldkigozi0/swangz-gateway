@@ -249,7 +249,7 @@ html[data-theme="light"] .staff-exact { background: none; --staff-scrim: linear-
   .staff-exact .vtabs {
     --tab-h: 52px; --tab-bar: rgba(46,38,33,.86); --tab-rim: rgba(255,255,255,.22); --tab-tx: #ECE7E2;
     --tab-pill: #F4F1EE; --tab-on: #1E1A18; --tab-glow: 0 8px 18px rgba(238,143,62,.35);
-    position: relative; display: inline-flex; gap: 0; width: max-content; max-width: 100%; height: var(--tab-h); padding: 5px;
+    position: relative; display: inline-flex; gap: 0; width: max-content; max-width: 100%; height: var(--tab-h); padding: 4px;
     border: 1px solid var(--tab-rim); border-radius: 26px; background: var(--tab-bar); overflow-x: auto; isolation: isolate;
   }
   html[data-theme="light"] .staff-exact .vtabs {
@@ -261,7 +261,7 @@ html[data-theme="light"] .staff-exact { background: none; --staff-scrim: linear-
     font: 500 14.5px/1 var(--font); color: var(--tab-tx); background: transparent; transition: color .28s ease;
   }
   .staff-exact .vtabs [role=tab]:hover { color: var(--tab-tx); border: 0; text-decoration: underline; text-underline-offset: 4px; }
-  .staff-exact .vtabs [role=tab][aria-selected="true"] { color: var(--tab-on); font-weight: 600; background: var(--tab-pill); box-shadow: var(--tab-glow); text-decoration: none; }
+  .staff-exact .vtabs [role=tab][aria-selected="true"] { color: var(--tab-on); font-weight: 500; background: var(--tab-pill); box-shadow: var(--tab-glow); text-decoration: none; }
   .staff-exact .vtabs.pill [role=tab][aria-selected="true"] { background: transparent; box-shadow: none; }
   .staff-exact .vtabs.pill::before {
     content: ""; position: absolute; z-index: 0; left: 0; top: 0; width: var(--pill-w); height: var(--pill-h); border-radius: 21px;
@@ -277,3 +277,4 @@ html[data-theme="light"] .staff-exact { background: none; --staff-scrim: linear-
   .staff-exact .vtabs { --tab-bar: #2E2621; }
   html[data-theme="light"] .staff-exact .vtabs { --tab-bar: #F0ECE8; }
 }
+@media (min-width: 901px) { .staff-exact .vtabs { overflow: visible; } } /* room for the pill's glow; narrower bars may scroll sideways */
