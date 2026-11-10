@@ -11,7 +11,8 @@ verified the email address.
 
 Google only proves *who* someone is. They still need an account here — a person with that email
 (staff) or a console user whose username is that email (admins) — and every existing rule applies:
-Swangz emails only, suspended people and ended accounts are refused.
+company Google accounts only (Google's own `hd` claim names the company domain; two approved owner addresses are exact
+matches), ended accounts are refused, and a suspended person gets only the read-only paused view.
 """
 
 import base64
@@ -150,8 +151,10 @@ def callback(h, gw, query):
     email = str(claims["email"]).strip().lower()
     ctx = Ctx(h, gw, "")
 
-    if not gw.settings.email_allowed(email):
-        gw.audit(email, "Google sign-in refused", "", "identity outside approved company accounts", ctx.ip)
+    # Decided from Google's own ID token for this code exchange (its `hd` claim), never from the hint in the URL.
+    # Claims and tokens are not logged.
+    if not gw.settings.google_account_allowed(claims):
+        gw.audit(email, "Google sign-in refused", "", "not a company Google account", ctx.ip)
         return _back(h, app, "not_allowed")
 
     if app == "admin":
@@ -161,14 +164,14 @@ def callback(h, gw, query):
             return _back(h, app, "no_account")
         return _back(h, app, headers=admin.start_session(ctx, row, "signed in with Google"))
 
-    if not gw.settings.email_allowed(email):
-        gw.audit(email, "Google sign-in refused", "", "not a Swangz email", ctx.ip)
-        return _back(h, app, "not_allowed")
     person = gw.db.one("SELECT * FROM people WHERE lower(email) = ? AND email != ''", (email,))
     if not person:
         gw.audit(email, "Google sign-in refused", "", "no account with that email", ctx.ip)
         return _back(h, app, "no_account")
-    if person["status"] != "active" or entitle.access_ended(person):
+    state = staff.person_state(ctx, person)
+    if state == "refused":
         return _back(h, app, "paused")
-    gw.audit(person["name"], "signed in with Google", "", "", ctx.ip, correlation=f"person:{person['id']}")
+    # a paused (suspended) person gets a web session for the read-only view; every request is checked again
+    gw.audit(person["name"], "signed in with Google" + (" (access paused: read-only view)" if state == "paused" else ""),
+             "", "", ctx.ip, correlation=f"person:{person['id']}")
     return _back(h, app, headers=staff._start_session(ctx, person["id"]))

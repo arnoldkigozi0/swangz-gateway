@@ -78,3 +78,9 @@ CREATE UNIQUE INDEX devices_device_id ON devices(device_id);
 CREATE INDEX keys_device ON keys(device_id) WHERE device_id IS NOT NULL;
 CREATE INDEX keys_retire ON keys(retire_at) WHERE retire_at IS NOT NULL
 """
+
+
+MIGRATION_23 = """
+ALTER TABLE staff_sessions ADD COLUMN kind TEXT NOT NULL DEFAULT 'extension' CHECK (kind IN ('web','extension'));
+ALTER TABLE staff_sessions ADD COLUMN last_seen REAL
+"""

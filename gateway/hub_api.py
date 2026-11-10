@@ -49,12 +49,12 @@ def _list(ctx, personal=False):
             'timezone': ctx.gw.settings.company_timezone}
 
 
-@staff.route('GET', r'/hub/reports')
+@staff.route('GET', r'/hub/reports', paused_ok=True)
 def staff_reports(ctx):
     return _list(ctx, True)
 
 
-@staff.route('GET', r'/hub/reports/(?P<rid>\d+)')
+@staff.route('GET', r'/hub/reports/(?P<rid>\d+)', paused_ok=True)
 def staff_detail(ctx, rid):
     return reporting.detail(ctx.gw, int(rid), ctx.person['id'])
 
@@ -332,7 +332,7 @@ def procurement_review(ctx,rid):
     return {'ok':True,'state':state,'access_granted':False,'next_action':'Configure or verify the subscription and separately assign the tool in People and access.'}
 
 
-@staff.route('GET', r'/hub/notifications')
+@staff.route('GET', r'/hub/notifications', paused_ok=True)
 def notifications(ctx):
     return {'items':ctx.db.q('SELECT id,title,href,created,read,email_state FROM hub_notifications WHERE person_id=? ORDER BY id DESC LIMIT 100',(ctx.person['id'],))}
 
