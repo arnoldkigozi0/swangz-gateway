@@ -1239,3 +1239,24 @@ body:has(.side.drawer) .appbar, .scrim { -webkit-backdrop-filter: none; backdrop
 }
 @media (forced-colors:active) { .console-workspace, .console-search, .console-clock, .console-account, .console-bar .bell { background: Canvas; color: CanvasText; border-color: CanvasText; box-shadow: none; } }
 @media print { .appbar.console-bar { display: none !important; } }
+
+/* R15, BRIEF 10.3 scene: the signed-in console sits in the warm room at a .35 scrim (the range is .30 to .40), so the
+   room reads as a room through and around every panel. Sign-in keeps its own image and scrim. Light has no
+   reference still; it uses the staff app's .42 porcelain veil. Text that sits straight on the scene gets its
+   contrast from the local backing below, never from a darker scrim. Evidence: docs/screenshots/exact-r15/README.md. */
+body:has(.shell) { --scene-image: url("/static/room-warm.webp"); --scene-scrim: rgba(12, 10, 9, .35); }
+html[data-theme="light"] body:has(.shell) { --scene-scrim: rgba(250, 244, 236, .42); }
+/* 10.1(3): one backing plane behind the page column, the staff shell's values (.82 dark, .94 light), so titles, ledes,
+   tabs and hints that sit outside a card keep 4.5:1 over the brighter room. It is painted behind the content and
+   takes no space, so nothing moves; the room stays visible around it, behind the rail and the top bar. */
+.shell #main { position: relative; isolation: isolate; }
+.shell #main::before {
+  content: ""; position: absolute; z-index: -1; inset: 0 16px 16px 16px; border-radius: 22px; pointer-events: none;
+  background: rgba(28, 24, 22, .82); border: 1px solid var(--glass-rim);
+}
+html[data-theme="light"] .shell #main::before { background: rgba(252, 248, 242, .94); }
+@media (max-width: 900px) { .shell #main::before { inset: 0 0 8px 0; border-radius: 0; border-width: 1px 0; } }
+/* Light only (no reference still): the top bar's bare area label gets a porcelain backing drawn with a shadow, so it
+   takes no space and the label stays where 10.3 puts it. */
+html[data-theme="light"] .console-bar .console-area { background: rgba(252, 248, 242, .94); box-shadow: 0 0 0 7px rgba(252, 248, 242, .94); border-radius: 6px; }
+@media print { .shell #main::before { display: none; } }
