@@ -55,12 +55,9 @@
     ];
     if (!STATUS.some(([k]) => k === st.status)) st.status = "";
     const counts = Object.fromEntries(STATUS.map(([k, , f]) => [k, items.filter(f).length]));
-    const tabs = STATUS.filter(([k]) => !k || k === "active" || counts[k] || k === st.status).map(([k, label]) =>
-      [k, el("span", { class: "seg-l" }, label, el("span", { class: "seg-n u-num" }, String(counts[k])))]);
-    const q = el("input", { type: "search", placeholder: "Search name, email, department…", value: st.q, "aria-label": "Search people" });
     const depts = [...new Set(items.map((p) => p.department).filter(Boolean))].sort();
-    const dept = el("select", { class: "fb-select", "aria-label": "Department" }, el("option", { value: "" }, "All departments"), depts.map((d) => el("option", { value: d }, d)));
-    dept.value = st.dept;
+    const statusOptions = STATUS.filter(([k]) => k && (k === "active" || counts[k] || k === st.status))
+      .map(([k, label]) => ({ id: k, label, sub: SUI.plural(counts[k], "person", "people") }));
     const usedToday = items.filter((p) => p.today.requests).length;
     const meta = el("div", { class: "list-meta" },
       el("span", null, SUI.plural(items.length, "person", "people") + " · " + SUI.plural(depts.length, "department")),
@@ -84,27 +81,91 @@
         { key: "month", label: "This month", num: true, sort: (p) => p.month.cost, render: (p) => el("span", null, fmt.money(p.month.cost),
           el("span", { class: "sub" }, p.monthly_budget !== null ? "of " + fmt.money(p.monthly_budget) : "no limit"), p.monthly_budget !== null ? A.bar(p.month.cost, p.monthly_budget) : null) },
         { key: "last_seen", label: "Last used AI", num: true, render: (p) => el("span", { title: p.last_seen ? fmt.stamp(p.last_seen) : null }, fmt.ago(p.last_seen)) },
+        { key: "act", label: "", srLabel: "Actions", sort: false, render: (p) => SUI.menuButton({ label: "More actions for " + p.name, small: true, items: () => personRowActions(p) }) },
       ] }) : SUI.stateBox({ icon: "people", title: items.length ? "Nobody matches" : "Nobody yet", text: items.length ? "Try another search or filter." : "Add the first person, then send them a sign-in link or issue a key." }));
     }
     const apply = () => { A.keepParams("#/people", { q: st.q, dept: st.dept, status: st.status }); draw(); };
-    q.addEventListener("input", SUI.debounce(() => { st.q = q.value.trim(); apply(); }, 150));
-    dept.addEventListener("change", () => { st.dept = dept.value; apply(); });
+    const bar = SUI.filterBar({ label: "Filter people", search: { placeholder: "Search name, email, department…" }, values: st,
+      filters: [{ id: "status", label: "Status", any: "Everyone", options: statusOptions }]
+        .concat(depts.length > 1 ? [{ id: "dept", label: "Department", any: "All departments", options: depts.map((d) => ({ id: d, label: d })) }] : []),
+      onChange: (v) => { st.q = v.q || ""; st.dept = v.dept || ""; st.status = v.status || ""; apply(); } });
     draw();
-    const add = A.can("govern") ? el("button", { class: "btn primary", onclick: addPerson }, icon("plus"), "Add person") : null;
+    const add = A.can("govern") ? SUI.splitButton({ label: "Add person", icon: "plus", primary: true, onClick: () => addPerson(), menuLabel: "More ways to add a person", items: [
+      { id: "invite", label: "Add and create sign-in link", icon: "send", onSelect: () => addPerson("invite") },
+      { id: "key", label: "Add and issue a key", icon: "key", onSelect: () => addPerson("key") },
+    ] }) : null;
     A.frame({ title: "People", lede: "Everyone with Swangz AI Hub access — their status, devices, and what they spend.", actions: add }, [
-      A.panel(null, null,
-        el("div", { class: "filterbar" }, el("div", { class: "fb-row" },
-          A.seg(tabs, st.status, (v) => { st.status = v; apply(); }, "Show"),
-          el("span", { class: "fb-gap" }),
-          el("label", { class: "fb-search" }, icon("search"), el("span", { class: "u-sr" }, "Search"), q),
-          depts.length > 1 ? dept : null)),
-        meta, box),
+      A.panel(null, null, el("div", { class: "filterbar" }, bar), meta, box),
     ]);
     if (params.get("add") && A.can("govern")) addPerson();
+    const opened = items.find((p) => String(p.id) === params.get("open"));
+    if (opened) previewPerson(opened);
   }
 
-  function personForm(p) {
-    p = p || {};
+  /* A kit side sheet that belongs to the page under it: leaving the page closes it, and a sheet with edits holds
+     Back and links through the console's unsaved-changes question. */
+  function pageSheet(o) {
+    const leave = () => { if (!A.isDirty()) s.close(true); };
+    const s = SUI.sheet(Object.assign({}, o, { onClose: () => {
+      window.removeEventListener("hashchange", leave);
+      if (o.dirty) A.setDirty(null);
+      if (o.onClose) o.onClose();
+    } }));
+    window.addEventListener("hashchange", leave);
+    if (o.dirty) A.setDirty(o.dirty);
+    return s;
+  }
+
+  /* A row's preview: the facts already on the list, and the ways on into their record. ?open= makes it linkable. */
+  function previewPerson(p) {
+    A.keepParams("#/people", { open: p.id });
+    const none = (x) => el("span", { class: "faint" }, x);
+    const record = "#/people/" + p.id;
+    pageSheet({ title: p.name, purpose: [p.title, p.department].filter(Boolean).join(" · ") || "No department", cancel: "Close",
+      body: el("div", { class: "stack" },
+        el("div", { class: "facts person-preview" },
+          fact("Status", el("span", { class: "row" }, SUI.status(...personState(p), { plain: true }), p.live ? SUI.status("live", "Live", { breathe: true, plain: true }) : null)),
+          fact("App sign-in", signInBadge(p.sign_in)),
+          fact("Email", p.email || none("none yet")),
+          fact("Devices", SUI.plural(p.active_keys, "active key")),
+          fact("Today", `${fmt.money(p.today.cost)} · ${SUI.plural(p.today.requests, "request")}`),
+          fact("This month", fmt.money(p.month.cost) + (p.monthly_budget !== null ? " of " + fmt.money(p.monthly_budget) : " · no limit")),
+          fact("Last used AI", p.last_seen ? fmt.ago(p.last_seen) : none("never")),
+          fact("Access ends", p.access_until ? fmt.date(p.access_until - 86400) : none("no end date"))),
+        el("nav", { class: "person-preview-links", "aria-label": "Go to part of their record" },
+          [["access", "Tools and access"], ["activity", "Activity"], ["devices", "Devices"], ["security", "Security"]].map(([tab, label]) =>
+            el("a", { href: `${record}?tab=${tab}` }, label, icon("chevronRight"))))),
+      primary: { label: "Open record", onClick: (sheet) => { sheet.close(true); location.hash = record; } },
+      onClose: () => { if (/^#\/people(\?|$)/.test(location.hash)) A.keepParams("#/people", { open: null }); } });
+  }
+
+  async function setSuspended(p, on) {
+    if (on) {
+      const ok = await A.confirmAction(`Suspend ${p.name}?`, "Every key they hold stops working now, anything streaming is cut, their shared-account turns end, and the portal stops opening tools for them. You can restore access later.", "Suspend access", true);
+      if (!ok) return;
+    }
+    try {
+      const out = await api("POST", `/people/${p.id}/${on ? "suspend" : "resume"}`);
+      toast(on ? `Suspended. ${out.cut} request(s) cut.` : "Access restored.");
+      A.render();
+    } catch (e) { toast(e.message, true); }
+  }
+  const mayStop = (p) => (p.status === "active" ? A.can("emergency") : A.can("emergency") || A.can("govern"));
+  const signInItem = (p) => (A.can("govern") ? { id: "invite", label: p.sign_in === "active" ? "New sign-in link" : "Create sign-in link", sub: p.email ? null : "Add their email first", icon: "send", disabled: !p.email, onSelect: () => inviteLink(p) } : null);
+  const suspendItem = (p) => (mayStop(p) && p.status === "active" ? { id: "suspend", label: "Suspend access", icon: "lock", danger: true, onSelect: () => setSuspended(p, true) } : null);
+  function personRowActions(p) {
+    return [
+      { id: "preview", label: "Preview", icon: "people", onSelect: () => previewPerson(p) },
+      A.can("govern") && p.status === "active" ? { id: "key", label: "Issue a key", icon: "key", onSelect: () => issueKey(p) } : null,
+      signInItem(p),
+      mayStop(p) && p.status !== "active" ? { id: "restore", label: "Restore access", icon: "check", onSelect: () => setSuspended(p, false) } : null,
+      suspendItem(p),
+    ];
+  }
+
+  /* o.brief is the add sheet's first step: five fields, with budgets and rules left for their Account tab. */
+  function personForm(p, o) {
+    p = p || {}; o = o || {};
     const f = {
       name: el("input", { type: "text", value: p.name || "", required: true }),
       title: el("input", { type: "text", value: p.title || "", placeholder: "e.g. Director" }),
@@ -118,41 +179,62 @@
       access_until: el("input", { type: "date", value: p.access_until ? isoDate(p.access_until - 86400) : "" }),
     };
     f.budget_visible = el("input", { type: "checkbox", checked: !!p.budget_visible });
+    const nameErr = el("span", { class: "err", role: "alert" }), emailErr = el("span", { class: "err", role: "alert" });
+    const accessEnds = el("label", { class: "field" }, "Access ends on", f.access_until,
+      el("span", { class: "hint" }, "Optional — for contractors and temporary staff. Every tool and key stops after this day."));
     const node = el("div", { class: "stack" },
       el("div", { class: "form-grid" },
-        el("label", { class: "field" }, "Name", f.name),
+        el("label", { class: "field" }, o.brief ? "Name (required)" : "Name", f.name, nameErr),
         el("label", { class: "field" }, "Role / title", f.title),
         el("label", { class: "field" }, "Department", f.department),
         el("label", { class: "field" }, "Email — they sign in with it", f.email,
-          el("span", { class: "hint" }, "A Swangz email (@swangzavenue.com). Only the two explicitly authorised owner/admin addresses are exceptions."))),
-      el("div", { class: "form-grid" },
+          el("span", { class: "hint" }, "A Swangz email (@swangzavenue.com). Only the two explicitly authorised owner/admin addresses are exceptions."), emailErr),
+        o.brief ? accessEnds : null),
+      o.brief ? null : el("div", { class: "form-grid" },
         el("label", { class: "field" }, "Daily budget (USD)", f.daily_budget),
         el("label", { class: "field" }, "Monthly budget (USD)", f.monthly_budget),
-        el("label", { class: "field" }, "Access ends on", f.access_until,
-          el("span", { class: "hint" }, "Optional — for contractors and temporary staff. Every tool and key stops after this day."))),
-      el("label", { class: "check" }, f.budget_visible, el("span", null, el("strong", null, "Let this person see their budget"),
+        accessEnds),
+      o.brief ? null : el("label", { class: "check" }, f.budget_visible, el("span", null, el("strong", null, "Let this person see their budget"),
         el("div", { class: "hint" }, "Off by default — staff don't see the budget set for them until you turn this on."))),
-      el("label", { class: "field" }, "Allowed models", f.allowed_models,
+      o.brief ? null : el("label", { class: "field" }, "Allowed models", f.allowed_models,
         el("span", { class: "hint" }, "Comma-separated, * works as a wildcard: claude-sonnet-*, gpt-6-*. Empty = any model.")),
-      el("label", { class: "field" }, "Allowed services", f.allowed_services,
+      o.brief ? null : el("label", { class: "field" }, "Allowed services", f.allowed_services,
         el("span", { class: "hint" }, "Comma-separated: " + S.me.providers.map((x) => x.name).join(", ") + ". Empty = every service the company has switched on.")),
-      el("label", { class: "field" }, "Notes", f.notes));
-    const values = () => Object.fromEntries(Object.entries(f).map(([k, input]) => [k, input.type === "checkbox" ? input.checked : input.value]));
-    return { node, values, focus: () => f.name.focus() };
+      o.brief ? null : el("label", { class: "field" }, "Notes", f.notes));
+    const shown = o.brief ? ["name", "title", "department", "email", "access_until"] : Object.keys(f);
+    const values = () => Object.fromEntries(shown.map((k) => [k, f[k].type === "checkbox" ? f[k].checked : f[k].value]));
+    /* Says what is missing under the field, and puts focus on the first problem. */
+    function check(needEmail) {
+      nameErr.textContent = f.name.value.trim() ? "" : "Enter their name.";
+      emailErr.textContent = needEmail && !f.email.value.trim() ? "A sign-in link goes to their email, so enter it." : "";
+      const bad = nameErr.textContent ? f.name : emailErr.textContent ? f.email : null;
+      if (bad) bad.focus();
+      return !bad;
+    }
+    f.name.addEventListener("blur", () => { if (o.brief && nameErr.textContent) nameErr.textContent = f.name.value.trim() ? "" : "Enter their name."; });
+    return { node, values, check, focus: () => f.name.focus() };
   }
 
-  function addPerson() {
-    const form = personForm();
+  /* What to open once the new person's record has drawn. Held here, not in the address: a link must never be able
+     to create a sign-in link, which replaces any older one. */
+  let afterAdd = null;
+  function addPerson(then) {
+    const form = personForm(null, { brief: true });
+    const first = JSON.stringify(form.values());
     const err = el("div", { class: "err", role: "alert" });
-    const save = el("button", { class: "btn primary", onclick: async () => {
-      try {
-        const out = await api("POST", "/people", form.values());
-        d.close();
-        location.hash = "#/people/" + out.id;
-      } catch (e) { err.textContent = e.message; }
-    } }, "Add person");
-    const d = A.dialog("Add a person", [form.node, err], [save]);
-    form.focus();
+    pageSheet({ title: "Add a person", purpose: "Who they are. Budgets and model rules are on their Account tab once they're added.",
+      body: el("div", { class: "stack" }, form.node, err), dirty: () => JSON.stringify(form.values()) !== first,
+      primary: { label: { invite: "Add and create link", key: "Add and issue key" }[then] || "Add person", onClick: async (sheet) => {
+        err.textContent = "";
+        if (!form.check(then === "invite")) return;
+        try {
+          const v = form.values();
+          const out = await api("POST", "/people", v);
+          afterAdd = then ? { id: out.id, then } : null;
+          sheet.close(true);
+          location.hash = "#/people/" + out.id;
+        } catch (e) { err.textContent = e.message; }
+      } } });
   }
 
   // links from before the profile's tabs were renamed
@@ -165,8 +247,9 @@
     }
     await A.toolIndex().catch(() => null);
     const p = await api("GET", "/people/" + id);
+    const after = afterAdd && afterAdd.id === p.id ? afterAdd.then : null;
+    afterAdd = null;
     const owner = A.can("govern");
-    const stopper = p.status === "active" ? A.can("emergency") : A.can("emergency") || owner;
     const [state, stateLabel] = personState(p);
     const since30 = Date.now() / 1000 - 30 * 86400;
     const [usage, security, recent] = await Promise.allSettled([
@@ -176,18 +259,6 @@
     const last = recent.status === "fulfilled" && recent.value.items[0] ? recent.value.items[0] : null;
     const activeKeys = p.keys.filter((k) => !k.revoked);
     const current = activeKeys.filter((k) => k.last_used).sort((a, b) => b.last_used - a.last_used)[0];
-
-    async function suspend(on) {
-      if (on) {
-        const ok = await A.confirmAction(`Suspend ${p.name}?`, "Every key they hold stops working now, anything streaming is cut, their shared-account turns end, and the portal stops opening tools for them. You can restore access later.", "Suspend", true);
-        if (!ok) return;
-      }
-      try {
-        const out = await api("POST", `/people/${p.id}/${on ? "suspend" : "resume"}`);
-        toast(on ? `Suspended. ${out.cut} request(s) cut.` : "Access restored.");
-        A.render();
-      } catch (e) { toast(e.message, true); }
-    }
 
     // A slim line of facts rather than a tile each: the profile's content lives in the tabs below.
     const alerts = myEvents ? myEvents.filter((e) => e.severity !== "info").length : null;
@@ -328,9 +399,14 @@
       lede: [[p.title, p.department].filter(Boolean).join(" · ") || "No department", p.email].filter(Boolean).join(" — ") +
         (p.access_until ? ` · access ${ended ? "ended" : "until"} ${fmt.date(p.access_until - 86400)}` : ""),
       actions: [owner && p.status === "active" ? el("button", { class: "btn primary", onclick: () => issueKey(p) }, icon("key"), "Issue a key") : null,
-        stopper ? el("span", { class: "act-gap" }) : null,
-        stopper ? (p.status === "active" ? el("button", { class: "btn danger", onclick: () => suspend(true) }, icon("lock"), "Suspend access")
-          : el("button", { class: "btn", onclick: () => suspend(false) }, "Restore access")) : null],
+        mayStop(p) && p.status !== "active" ? el("button", { class: "btn primary", onclick: () => setSuspended(p, false) }, "Restore access") : null,
+        SUI.menuButton({ label: "More actions for " + p.name, items: () => [
+          signInItem(p),
+          { id: "details", label: owner || A.can("money") ? "Edit details" : "Details", icon: "settings", href: `#/people/${p.id}?tab=account` },
+          { id: "explain", label: "Explain a decision", icon: "shield", href: "#/policies?tab=explain&person=" + p.id },
+          { id: "export", label: "Export activity CSV", icon: "download", href: A.gadmin(`/export.csv?person=${p.id}`) },
+          suspendItem(p),
+        ] })],
     }, [stats, A.pageTabs("#/people/" + p.id, params, [
       ["overview", "Overview", overviewTab],
       ["access", "Access", async () => accessTab(), p.tool_summary.enabled, "The tools they have and why, and the other limits on what they can do."],
@@ -339,6 +415,8 @@
       ["security", "Security", securityTab, alerts || null, "Signals involving them in the last 30 days — what to look into, not a history."],
       ["account", "Account", accountTab],
     ], { label: p.name })]);
+    if (after === "key" && owner) issueKey(p);
+    if (after === "invite" && owner) inviteLink(p);
   }
 
   const TOOL_STATE = { enabled: ["ok", "Ready"], past_due: ["waiting", "Payment due"], suspended: ["suspended", "Paused"], locked: ["none", "No subscription"], not_assigned: ["none", "Not given"] };
@@ -401,16 +479,16 @@
   function issueKey(p) {
     const label = el("input", { type: "text", placeholder: "e.g. Grace's MacBook — Claude Code", value: "" });
     const err = el("div", { class: "err", role: "alert" });
-    const go = el("button", { class: "btn primary", onclick: async () => {
-      try {
-        const out = await api("POST", `/people/${p.id}/keys`, { label: label.value });
-        d.close();
-        showNewKey(p, out);
-      } catch (e) { err.textContent = e.message; }
-    } }, "Issue key");
-    const d = A.dialog(`New key for ${p.name}`, el("div", { class: "stack" },
-      el("label", { class: "field" }, "Which device or tool is it for?", label, el("span", { class: "hint" }, "One key per device or tool, so you can revoke one without stopping the rest. This name is how the device appears everywhere in the control room.")), err), [go]);
-    label.focus();
+    pageSheet({ title: `New key for ${p.name}`, purpose: "One key per device or tool, so you can revoke one without stopping the rest.",
+      body: el("div", { class: "stack" },
+        el("label", { class: "field" }, "Which device or tool is it for?", label, el("span", { class: "hint" }, "This name is how the device appears everywhere in the control room.")), err),
+      primary: { label: "Issue key", onClick: async (sheet) => {
+        try {
+          const out = await api("POST", `/people/${p.id}/keys`, { label: label.value });
+          sheet.close(true);
+          showNewKey(p, out);
+        } catch (e) { err.textContent = e.message; }
+      } } });
   }
 
   function showNewKey(p, out) {
