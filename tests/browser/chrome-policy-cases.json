@@ -1,0 +1,27 @@
+{
+  "about": "D-016 bypass cases as data (docs/CHROME-POLICY-BYPASS-TESTS.md). Step 1: groups A, B and D. Every host is served by the local fixture; nothing leaves the machine. expect: ALLOW must reach the fixture with the pack installed; ENFORCE must be refused by policy with zero fixture requests; RECORD is a prediction nobody has checked, so the result is reported and never fails the job.",
+  "hub_host": "hub.swangz.test",
+  "cases": [
+    { "id": "A-1", "expect": "ALLOW", "urls": ["https://hub.swangz.test/", "https://claude.ai/", "https://chatgpt.com/", "https://gemini.google.com/", "https://github.com/copilot"] },
+    { "id": "A-2", "expect": "ALLOW", "kind": "signin", "urls": ["https://hub.swangz.test/auth/google/start"] },
+    { "id": "A-3", "expect": "ALLOW", "urls": ["https://login.microsoftonline.com/", "https://appleid.apple.com/", "https://github.com/login/oauth/authorize", "https://www.google.com/recaptcha/api.js", "https://challenges.cloudflare.com/"] },
+    { "id": "A-4", "expect": "ALLOW", "urls": ["https://app.claude.ai/", "https://platform.openai.com/"] },
+    { "id": "B-1", "expect": "ENFORCE", "urls": ["https://evil.test/", "http://evil.test/"] },
+    { "id": "B-2", "expect": "ENFORCE", "urls": ["https://mail.google.com/", "https://drive.google.com/", "https://myaccount.google.com/", "https://google.com/", "https://www.google.com/search?q=x", "https://youtube.com/", "https://gmail.com/"] },
+    { "id": "B-3", "expect": "ENFORCE", "urls": ["https://evil.accounts.google.com/"] },
+    { "id": "B-4", "expect": "ENFORCE", "urls": ["https://github.com/", "https://github.com/someuser/repo"] },
+    { "id": "D-1", "expect": "ENFORCE", "urls": ["https://claude.ai.evil.test/", "https://evil.test/claude.ai", "https://evil.test/?u=claude.ai", "https://claude-ai.test/", "https://claudeai.test/", "https://ciaude.ai/"] },
+    { "id": "D-2", "expect": "ENFORCE", "unicode_host": "clаude.ai", "urls": [] },
+    { "id": "D-3", "expect": "ENFORCE", "urls": ["https://claude.ai@evil.test/", "https://claude.ai:pw@evil.test/"] },
+    { "id": "D-4", "expect": "RECORD", "urls": ["https://claude.ai./", "https://chatgpt.com./", "https://CLAUDE.AI/", "https://claude.ai//double"] },
+    { "id": "D-5", "expect": "RECORD", "urls": ["https://github.com/login-anything", "https://github.com/copilot-anything"] }
+  ],
+  "not_run": [
+    { "id": "B-5", "reason": "omnibox typing is not driven yet" },
+    { "id": "B-6", "reason": "launch-flag cases need their own browser start; step 2" },
+    { "id": "C, E, F, X, P", "reason": "step 2 of the plan" },
+    { "id": "G, H", "reason": "step 3, after the pack fixes and Arnold's two decisions" },
+    { "id": "I", "reason": "tier 2 (extension), not built" },
+    { "id": "Windows, macOS, Playwright Chromium", "reason": "only the ubuntu Google Chrome cell exists" }
+  ]
+}

@@ -1,0 +1,63 @@
+name: Chrome policy pack checks
+# D-016 bypass checks for deploy/chrome-policy, step 1 of docs/CHROME-POLICY-BYPASS-TESTS.md: Google Chrome on Linux,
+# case groups A, B and D. The policy file is installed on the throwaway runner only, and removed again.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/chrome-policy.yml'
+      - 'deploy/chrome-policy/**'
+      - 'tests/browser/chrome-policy*'
+  pull_request:
+    paths:
+      - '.github/workflows/chrome-policy.yml'
+      - 'deploy/chrome-policy/**'
+      - 'tests/browser/chrome-policy*'
+  workflow_dispatch:
+concurrency:
+  group: chrome-policy-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  linux-chrome:
+    name: Bypass checks (ubuntu, Google Chrome)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      POLICY_DIR: /etc/opt/chrome/policies/managed
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/browser/package-lock.json
+      - run: npm ci --prefix tests/browser
+      - name: Record the browser and prepare the runner
+        run: |
+          google-chrome --version
+          command -v xvfb-run || { sudo apt-get update && sudo apt-get install -y xvfb; }
+          # The fixture answers on 80 and 443 as the ordinary user.
+          sudo sysctl -w net.ipv4.ip_unprivileged_port_start=0
+          # A file left by anything else would give a false pass.
+          sudo rm -rf "$POLICY_DIR"
+      - name: Control run, no policy (every case must reach the fixture)
+        run: xvfb-run -a node tests/browser/chrome-policy.cjs control
+      - name: Install the rendered pack
+        run: |
+          node tests/browser/chrome-policy.cjs render "$RUNNER_TEMP/swangz-test.json"
+          sudo mkdir -p "$POLICY_DIR"
+          sudo install -m 0644 "$RUNNER_TEMP/swangz-test.json" "$POLICY_DIR/swangz-test.json"
+      - name: Enforced run, pack installed
+        run: xvfb-run -a node tests/browser/chrome-policy.cjs enforced
+      - name: Remove the policy file
+        if: always()
+        run: sudo rm -rf "$POLICY_DIR"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chrome-policy-linux-chrome
+          path: /tmp/swangz-chrome-policy/
+          retention-days: 7
+          if-no-files-found: warn
