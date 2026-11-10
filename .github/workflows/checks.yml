@@ -70,6 +70,8 @@ jobs:
         run: node tests/browser/business.cjs
       - name: Glass list primitives (panel, segmented control, search pill, progress, star)
         run: node tests/browser/lists.cjs
+      - name: Control kit (dropdown select)
+        run: node tests/browser/kit.cjs
       - name: Chart empty-state and drawing checks
         run: node tests/browser/charts.cjs
       - name: Staff shell cold-load fonts (zero layout shift, latch)
