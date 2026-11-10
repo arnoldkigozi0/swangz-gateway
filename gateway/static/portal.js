@@ -358,6 +358,48 @@
     } catch (e) { reveal(); }
   }
 
+  // BRIEF §10.8 bar C: the phone bottom bar (≤700px). Links in a nav; the lens is pointer-only decoration.
+  function phoneBar(me, alerts) {
+    const hash = location.hash || "#/", path = "#/" + (hash.split("?")[0].split("/")[1] || ""), q = new URLSearchParams(hash.split("?")[1] || "");
+    const asked = (me.catalog || []).filter(t => t.pending).length;
+    const items = [
+      ["#/", "Home", "home", path === "#/"],
+      ["#/tools", "Search tools", "search", path === "#/tools" && q.get("show") !== "mine"],
+      ["#/tools?show=mine", "My tools", "star", path === "#/tools" && q.get("show") === "mine"],
+      ["#/requests?view=updates", "Alerts", "bell", path === "#/requests" && q.get("view") !== "access"]];
+    const link = ([href, label, ic, on], i) => el("a", { href, class: on ? "on" : null, "aria-current": on ? "page" : null, "aria-label": i === 3 && alerts ? `Alerts, ${alerts} new` : label, "data-ic": ic, draggable: "false" },
+      icon(ic), el("span", null, label));
+    const bar = el("div", { class: "stb-bar" }, items.map(link));
+    const onAccess = path === "#/requests" && q.get("view") === "access";
+    const round = el("a", { class: "stb-round" + (onAccess ? " on" : ""), href: "#/requests?view=access", "aria-current": onAccess ? "page" : null,
+      "aria-label": asked ? `Access requests, ${asked} waiting` : "Access requests" }, icon("send"), asked ? el("span", { class: "stb-badge" }, String(asked)) : null);
+    const nav = el("nav", { class: "staff-tabbar", "aria-label": "Quick navigation" }, bar, round);
+    try { phoneLens(bar); } catch (e) { /* decoration only */ }
+    return nav;
+  }
+  function phoneLens(bar) {
+    if (!bar.addEventListener || (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) return;
+    let lens = null;
+    const under = x => [...bar.querySelectorAll("a")].find(a => { const r = a.getBoundingClientRect(); return x >= r.left && x <= r.right; });
+    const place = x => { const r = bar.getBoundingClientRect(); lens.style.transform = `translate(${Math.max(0, Math.min(r.width, x - r.left))}px, 0)`; };
+    const end = () => { if (lens) { lens.remove(); lens = null; } };
+    bar.addEventListener("pointerdown", e => {
+      if (e.button) return;
+      end();
+      lens = el("i", { class: "stb-lens", "aria-hidden": "true" }); bar.append(lens); place(e.clientX);
+      try { bar.setPointerCapture(e.pointerId); } catch (err) { /* older browsers */ }
+    });
+    bar.addEventListener("pointermove", e => { if (lens) place(e.clientX); });
+    bar.addEventListener("pointerup", e => {
+      if (!lens) return;
+      const target = under(e.clientX); end();
+      if (target) location.hash = target.getAttribute("href");
+    });
+    bar.addEventListener("pointercancel", end);
+    // The pointer handler has already navigated; a click on a link would do it twice.
+    bar.addEventListener("click", e => { if (e.detail) e.preventDefault(); });
+  }
+
   function frame(title, content, opts) {
     if (signedOut) return;
     if (isPaused()) return renderPaused();
@@ -441,7 +483,7 @@
     app.replaceChildren(el("a", { class: "skip", href: "#main", onclick: e => { e.preventDefault(); document.getElementById("main").focus(); } }, "Skip to content"),
       el("div", { class: "hub-staff-app staff-exact" }, side, el("div", { class: "hub-staff-main" }, topbar,
         el("main", { id: "main", tabindex: "-1", class: opts.cls || null }, content),
-        window.SWFooter ? window.SWFooter.build({ me, requestAccess, policy, gurl }) : null)));
+        window.SWFooter ? window.SWFooter.build({ me, requestAccess, policy, gurl }) : null)), phoneBar(me, count));
   }
   document.addEventListener("click", () => {
     document.querySelectorAll(".staff-pop.open").forEach(m => { m.classList.remove("open"); m.previousElementSibling?.setAttribute("aria-expanded", "false"); });
