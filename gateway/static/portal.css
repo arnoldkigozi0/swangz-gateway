@@ -120,7 +120,7 @@ h1, h2, h3 { text-wrap: balance; }
   font: 700 10.5px/18px var(--font); text-align: center; font-style: normal; }
 :root[data-theme="light"] .dot-count { background: var(--accent); color: #1A1406; }
 .me-menu { position: relative; }
-.me-btn { display: inline-flex; align-items: center; gap: var(--s2); background: none; border: 1px solid transparent; padding: 3px 8px 3px 3px; border-radius: var(--r-full); cursor: pointer; color: var(--tx-1); }
+.me-btn { display: inline-flex; align-items: center; gap: var(--s2); background: none; border: 1px solid transparent; padding: 3px 8px 3px 3px; border-radius: var(--radius-control); cursor: pointer; color: var(--tx-1); }
 .me-btn:hover { background: var(--ink-3); }
 .me-btn > svg { width: 14px; height: 14px; color: var(--tx-3); }
 .me-name { font-weight: 620; font-size: var(--t-small); }
@@ -237,7 +237,7 @@ h1, h2, h3 { text-wrap: balance; }
 .sort .input { min-height: 40px; width: auto; }
 .chips-row { display: flex; flex-wrap: wrap; gap: var(--s2); margin-bottom: var(--s3); }
 .catalog-category-mobile { display: none; }
-.chip { background: var(--ink-1); border: 1px solid var(--line); color: var(--tx-2); padding: 6px 14px; border-radius: var(--r-full); font-weight: 620; font-size: 13px; cursor: pointer;
+.chip { background: var(--ink-1); border: 1px solid var(--line); color: var(--tx-2); padding: 6px 14px; border-radius: var(--radius-chip); font-weight: 620; font-size: 13px; cursor: pointer;
   transition: color var(--d-fast), border-color var(--d-fast), background var(--d-fast); }
 .chip:hover { color: var(--tx-1); border-color: var(--line-hi); }
 .chip.on { background: var(--accent-soft); color: var(--accent-tx); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
@@ -263,7 +263,7 @@ dl.facts dt { color: var(--tx-3); }
 dl.facts dd { margin: 0; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 
 .progress { list-style: none; margin: 0; padding: 0; display: flex; gap: var(--s2); counter-reset: p; flex-wrap: wrap; }
-.progress li { counter-increment: p; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 620; color: var(--tx-3); padding: 4px 10px 4px 4px; border-radius: var(--r-full); background: var(--ink-2); }
+.progress li { counter-increment: p; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 620; color: var(--tx-3); padding: 4px 10px 4px 4px; border-radius: var(--radius-chip); background: var(--ink-2); }
 .progress li::before { content: counter(p); width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; background: var(--ink-3); }
 .progress li.on { color: var(--tx-1); }
 .progress li.on::before { background: var(--accent); color: var(--on-primary); }
@@ -506,7 +506,7 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
 .vtabs [role=tab]:hover { color: var(--tx-1); border-bottom-color: var(--line-hi); }
 .vtabs [role=tab][aria-selected="true"] { color: var(--tx-1); border-bottom-color: var(--accent); font-weight: 680; }
 .vtabs [role=tab]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 3px; }
-.vt-n { font-size: 11px; font-weight: 700; padding: 0 7px; line-height: 18px; border-radius: var(--r-full); background: var(--ink-3); color: var(--tx-2); font-variant-numeric: tabular-nums; }
+.vt-n { font-size: 11px; font-weight: 700; padding: 0 7px; line-height: 18px; border-radius: var(--radius-chip); background: var(--ink-3); color: var(--tx-2); font-variant-numeric: tabular-nums; }
 .vtabs [aria-selected="true"] .vt-n { background: var(--accent-soft); color: var(--accent-tx); }
 @media (max-width: 640px) {
   .vtabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; border: 0; overflow: visible; }
@@ -541,7 +541,7 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
   .p-layout { grid-template-columns: minmax(0, 1fr); gap: var(--s4); }
   .p-index { position: static; }
   .p-index ul { display: flex; flex-wrap: wrap; gap: 6px; border-left: 0; }
-  .p-index button { border: 1px solid var(--line); border-radius: var(--r-full); margin: 0; padding: 5px 12px; font-size: 13px; }
+  .p-index button { border: 1px solid var(--line); border-radius: var(--radius-control-sm); margin: 0; padding: 5px 12px; font-size: 13px; }
 }
 
 /* ------------------------------------------------------------ Home: a personal launchpad */

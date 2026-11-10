@@ -1,6 +1,6 @@
 /* Overview details and console bar C; isolated from admin.css scene/panel work. */
 .route-overview .top-actions .btn {
-  min-height: 34px; height: 34px; padding: 0 14px; border-radius: 17px;
+  min-height: 34px; height: 34px; padding: 0 14px; border-radius: var(--radius-control);
   background: var(--glass-bg); border: 1px solid var(--line-hi); color: var(--tx-1);
 }
 .route-overview .top-actions .btn:not(.primary):hover { background: var(--glass-bg-hover, var(--ink-2)); border-color: var(--tx-2); }

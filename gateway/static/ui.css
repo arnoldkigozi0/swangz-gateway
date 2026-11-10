@@ -29,7 +29,7 @@ body:has(.gate) { --scene-image: url("/static/login-welcome.webp"); }
   /* Gold needs full-contrast copy, including labels that use supporting tokens. */
   --tx-2: var(--tx-1); --tx-3: var(--tx-1);
 }
-.u-glass-pill { border-radius: var(--radius-pill); }
+.u-glass-pill { border-radius: var(--radius-control); }
 /* An inset surface is a tint only. This also guards accidental nested utility use. */
 .u-glass-well,
 :is(.u-glass, .u-glass-strong, .u-glass-accent) :is(.u-glass, .u-glass-strong, .u-glass-accent) {
@@ -102,7 +102,7 @@ body:has(.gate) { --scene-image: url("/static/login-welcome.webp"); }
 @keyframes u-breathe { 0% { transform: scale(.6); opacity: .45; } 70% { transform: scale(1.6); opacity: 0; } 100% { opacity: 0; } }
 
 /* soft badge */
-.u-badge { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: var(--r-full); font-size: 11.5px; font-weight: 650;
+.u-badge { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: var(--radius-chip); font-size: 11.5px; font-weight: 650;
   color: var(--tx-2); background: var(--ink-3); white-space: nowrap; }
 .u-badge svg { width: 12px; height: 12px; }
 .u-badge.ok { color: var(--ok-hi); background: var(--ok-soft); }
@@ -302,7 +302,7 @@ html[data-theme="light"] .u-tubes { --tube-a: rgba(70, 56, 40, .46); --tube-b: r
 .u-list-title h2 { margin: 0; font-size: 16px; font-weight: 680; letter-spacing: -.01em; color: var(--tx-1); }
 .u-list-title p { margin: 2px 0 0; font-size: 12.5px; color: var(--tx-2); }
 .u-list-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; margin-left: auto; }
-.u-search { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px; border-radius: var(--radius-pill); background: var(--glass-bg-strong);
+.u-search { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px; border-radius: var(--radius-control); background: var(--glass-bg-strong);
   border: 1px solid var(--glass-rim); box-shadow: var(--glass-highlight); color: var(--tx-2); min-width: 0; transition: border-color var(--dur-1) var(--ease-out); }
 .u-search:hover { border-color: var(--glass-rim-hover); }
 .u-search:focus-within { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -324,7 +324,7 @@ html[data-theme="light"] .u-tubes { --tube-a: rgba(70, 56, 40, .46); --tube-b: r
 .u-list .u-table.cards tr { border-bottom-color: var(--glass-rim); }
 
 .u-progress { display: inline-flex; align-items: center; gap: 10px; min-width: 120px; width: 100%; max-width: 220px; }
-.u-progress .bar { position: relative; flex: 1 1 auto; height: 6px; border-radius: var(--radius-pill); overflow: hidden; background: rgba(255, 255, 255, .18); }
+.u-progress .bar { position: relative; flex: 1 1 auto; height: 6px; border-radius: 2px; overflow: hidden; background: rgba(255, 255, 255, .18); }
 :root[data-theme="light"] .u-progress .bar { background: rgba(70, 56, 40, .14); }
 :root[data-theme="light"] .u-progress .bar i { background: linear-gradient(90deg, #8A600C, #A26F0F); }
 :root[data-theme="light"] .u-progress.tone-2 .bar i { background: var(--viz-2); }
@@ -335,7 +335,7 @@ html[data-theme="light"] .u-tubes { --tube-a: rgba(70, 56, 40, .46); --tube-b: r
 @keyframes u-fill { from { transform: scaleX(0); } }
 @media (prefers-reduced-motion: reduce) { .u-progress .bar i { animation: none; } }
 
-.u-star { all: unset; box-sizing: border-box; display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; color: var(--tx-3);
+.u-star { all: unset; box-sizing: border-box; display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: var(--radius-control-sm); cursor: pointer; color: var(--tx-3);
   transition: color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out); }
 .u-star svg { width: 17px; height: 17px; }
 .u-star:hover { color: var(--tx-1); background: var(--glass-rim); }
@@ -365,10 +365,10 @@ html[data-theme="light"] .u-tubes { --tube-a: rgba(70, 56, 40, .46); --tube-b: r
 .u-seg { scrollbar-width: none; }
 /* Filter pills: a glass track, the pressed pill lighter. Tint only, no blur of their own. */
 .u-seg { --seg-on: rgba(255, 255, 255, .10); --seg-on-rim: rgba(255, 255, 255, .5);
-  display: inline-flex; min-width: 0; padding: 3px; gap: 2px; background: var(--glass-bg-strong); border: 1px solid var(--glass-rim); border-radius: var(--radius-pill);
+  display: inline-flex; min-width: 0; padding: 3px; gap: 2px; background: var(--glass-bg-strong); border: 1px solid var(--glass-rim); border-radius: 12px;
   box-shadow: var(--glass-highlight); max-width: 100%; overflow-x: auto; }
 :root[data-theme="light"] .u-seg { --seg-on: rgba(255, 255, 255, .95); --seg-on-rim: rgba(120, 86, 15, .38); }
-.u-seg button { border: 1px solid transparent; background: none; padding: 5px 13px; min-height: 30px; border-radius: var(--radius-pill); font-weight: 600; font-size: 12.5px; color: var(--tx-2); cursor: pointer; white-space: nowrap;
+.u-seg button { border: 1px solid transparent; background: none; padding: 5px 13px; min-height: 30px; border-radius: var(--radius-control-sm); font-weight: 600; font-size: 12.5px; color: var(--tx-2); cursor: pointer; white-space: nowrap;
   display: inline-flex; align-items: center; gap: 7px; transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out); }
 .u-seg button:hover { color: var(--tx-1); }
 .u-seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -451,3 +451,13 @@ html[data-theme="light"] .u-donut .t1 { stroke: #DB5F1F; color: #DB5F1F; } html[
 html[data-theme="light"] .u-donut .t3 { stroke: #A88200; color: #A88200; } html[data-theme="light"] .u-donut .t4 { stroke: #E0456A; color: #E0456A; }
 html[data-theme="light"] .u-donut .t5 { stroke: #1A9A62; color: #1A9A62; } html[data-theme="light"] .u-donut .t0 { stroke: #8A8378; color: #8A8378; }
 @media (max-width: 720px) { .u-donut { grid-template-columns: 112px minmax(0, 1fr); column-gap: 16px; padding-left: 18px; } .u-donut .ring, .u-donut svg { width: 112px; height: 112px; } }
+
+/* One scrollbar everywhere (BRIEF 10.10.4): an 8px thumb, radius 4, set 2px in from the edge of a clear track.
+   Chrome ignores ::-webkit-scrollbar once scrollbar-color is set, so the standard properties are for Firefox only. */
+/* scrollbar-gutter: stable is set where a box scrolls up and down inside a page (the console rail's list). It is not set on
+   html: a held gutter there moves the right-hand controls 12px off the measured 1440 frame. */
+@supports not selector(::-webkit-scrollbar) { * { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; } }
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 6px; background: var(--scroll-thumb); background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: var(--scroll-thumb-hover); }
