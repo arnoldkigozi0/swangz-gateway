@@ -96,7 +96,12 @@ def main(argv=None):
     p = sub.add_parser("release-pilot")
     p.add_argument("action", choices=("add", "remove"))
     p.add_argument("person", type=int)
+    sub.add_parser("preflight", help="check the go-live configuration; contacts nothing and opens no database")
     args = parser.parse_args(argv)
+    if args.cmd == "preflight":
+        from . import preflight
+
+        sys.exit(preflight.run(os.environ))
     settings = Settings.from_env()
 
     if args.cmd == "add-admin":

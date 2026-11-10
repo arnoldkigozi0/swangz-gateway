@@ -193,7 +193,7 @@ python3 -m gateway add-admin "$HUB_OWNER_EMAIL" # first owner (asks for a passwo
 python3 -m gateway serve                 # http://localhost:8787
 ```
 
-Command line: `serve | add-admin [--role owner|operations|security|billing|viewer] | add-person | issue-key | revoke-key | people | pause | resume | purge | geoip-import FILE --source "DB-IP Lite 2026-10" | backup [--dir D] [--keep N] [--no-remote] | backup-verify FILE | package-publish FILE --id I --version V --name N [--department D] [--person ID]`.
+Command line: `serve | add-admin [--role owner|operations|security|billing|viewer] | add-person | issue-key | revoke-key | people | pause | resume | purge | geoip-import FILE --source "DB-IP Lite 2026-10" | backup [--dir D] [--keep N] [--no-remote] | backup-verify FILE | preflight | package-publish FILE --id I --version V --name N [--department D] [--person ID]`.
 
 **Demo online from a laptop** (a stand-in model answers, so nothing is spent):
 

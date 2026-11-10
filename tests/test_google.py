@@ -239,6 +239,30 @@ class GoogleSignInTests(unittest.TestCase):
         status, h, _ = self.rig.request("GET", f"/auth/google/callback?state={q['state']}&error=access_denied", None, {"cookie": cookie})
         self.assertEqual(h["location"], "/?auth_error=cancelled")
 
+    def test_the_return_address_is_the_first_party_address_whatever_host_the_request_names(self):
+        """GATEWAY_WEB_URL fixes the return address at the start and again at the code exchange (Google
+        compares the two), and the browser is sent back to a path on the same site."""
+        hostile = {"host": "evil.example.test", "x-forwarded-host": "evil.example.test", "x-forwarded-proto": "http"}
+        self.rig.gw.trust_proxy = True
+        status, h, _ = self.rig.request("GET", "/auth/google/start?app=staff", None, hostile)
+        self.assertEqual(status, 302)
+        q = {k: v[-1] for k, v in parse_qs(urlsplit(h["location"]).query).items()}
+        self.assertEqual(q["redirect_uri"], "https://swangz-ai.example.test/auth/google/callback")
+        cookie = h["set-cookie"].split(";")[0]
+        self.google.claims = {"iss": "https://accounts.google.com", "aud": CLIENT, "exp": time.time() + 600, "nonce": q["nonce"],
+                              "email": "grace@swangzavenue.com", "email_verified": True, "hd": "swangzavenue.com"}
+        status, h, _ = self.rig.request("GET", f"/auth/google/callback?state={q['state']}&code=one-time-code", None, {**hostile, "cookie": cookie})
+        self.assertEqual((status, h["location"]), (302, "/"))
+        self.assertEqual(self.google.posted[-1]["redirect_uri"], "https://swangz-ai.example.test/auth/google/callback")
+        self.assertNotIn("evil", json.dumps(self.google.posted))
+
+    def test_an_explicit_redirect_uri_wins_at_both_steps(self):
+        self.rig.settings.google_redirect_uri = "https://hub.example.test/auth/google/callback"
+        q, cookie = self.begin()
+        self.assertEqual(q["redirect_uri"], "https://hub.example.test/auth/google/callback")
+        self.finish(q, cookie)
+        self.assertEqual(self.google.posted[-1]["redirect_uri"], "https://hub.example.test/auth/google/callback")
+
     def test_sign_in_links_use_the_web_address(self):
         status, out = self.rig.api("POST", f"/people/{self.rig.person_id}/invite")
         self.assertTrue(out["link"].startswith("https://swangz-ai.example.test/#/welcome/"))
