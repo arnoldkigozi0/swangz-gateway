@@ -36,7 +36,7 @@ import time
 import zipfile
 from urllib.parse import parse_qs, quote
 
-from . import entitle, releases, security
+from . import credentials, entitle, releases, security
 from .admin import ApiError
 from .admin import route as admin_route
 from .staff import COOKIE, Ctx, _cookie, current_person, route
@@ -170,13 +170,14 @@ def device_token(ctx):
         if claimed != 1:
             raise ApiError(400, "That sign-in was already used. Start again.", "invalid_grant")
         name = row["label"] or "My device"
-        db.x("INSERT INTO keys(id, person_id, label, secret_hash, hint, created, created_by) VALUES(?,?,?,?,?,?,?)",
-             (key_id, person["id"], name, secret_hash, hint, now, "device enrolment"))
-        db.x("INSERT INTO devices(key_id, person_id, name, os, arch, app_version, owner_kind, enrolled, last_seen, last_ip)"
-             " VALUES(?,?,?,?,?,?,?,?,?,?)",
-             (key_id, person["id"], name, row["os"], row["arch"], row["app_version"], row["owner_kind"], now, now, ctx.ip))
+        db.x("INSERT INTO keys(id, person_id, label, secret_hash, hint, created, created_by, device_id) VALUES(?,?,?,?,?,?,?,?)",
+             (key_id, person["id"], name, secret_hash, hint, now, "device enrolment", key_id))  # the first key names the device
+        db.x("INSERT INTO devices(key_id, device_id, person_id, name, os, arch, app_version, owner_kind, enrolled, last_seen, last_ip, key_issued)"
+             " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+             (key_id, key_id, person["id"], name, row["os"], row["arch"], row["app_version"], row["owner_kind"], now, now, ctx.ip, now))
     ctx.gw.audit(person["name"], "enrolled a device", person["name"], f"{name} ({row['os'] or '?'}, {row['owner_kind']}, {hint})", ctx.ip)
-    return {"key": full, "key_id": key_id, "server": ctx.gw.public_url(ctx.h), "owner_kind": row["owner_kind"],
+    return {"key": full, "key_id": key_id, "device_id": key_id, "server": ctx.gw.public_url(ctx.h), "owner_kind": row["owner_kind"],
+            "rotate_after_days": credentials.ROTATE_AFTER_DAYS,
             "person": {"name": person["name"], "email": person["email"]}}
 
 
@@ -184,8 +185,14 @@ def device_token(ctx):
 
 
 def device_auth(ctx):
-    """-> (key row joined with its person, device row). Refuses a wrong, revoked or paused key — the app treats a
-    401 `device_revoked` as "remove Swangz from this device"."""
+    """-> (person, device row). See `device_key_auth`."""
+    return device_key_auth(ctx)[:2]
+
+
+def device_key_auth(ctx):
+    """-> (person, device row, the key presented). Refuses a wrong, revoked or paused key. The app treats a 401
+    `device_revoked` as "remove Swangz from this device"; a key that was only replaced by rotation answers
+    `device_key_rotated` instead, which means "load the newer key", never "wipe" (D-002)."""
     if ctx.gw.throttle.blocked("devauth:" + ctx.ip):
         raise ApiError(429, "Too many attempts. Wait a few minutes.", "slow_down")
     auth = (ctx.h.headers.get("authorization") or "").strip()
@@ -195,6 +202,9 @@ def device_auth(ctx):
         ctx.gw.throttle.fail("devauth:" + ctx.ip)
         raise ApiError(401, "This device is not signed in to Swangz AI Hub.", "device_unknown")
     if key["revoked"]:
+        if key.get("revoked_by") in credentials.ROTATED and key.get("device_id") and ctx.db.scalar(
+                "SELECT 1 FROM keys WHERE device_id = ? AND revoked IS NULL LIMIT 1", (key["device_id"],)):
+            raise ApiError(401, "This device key was renewed. Use the newer key.", "device_key_rotated")
         raise ApiError(401, "This device was disconnected. Sign in again to use it.", "device_revoked")
     person = ctx.db.one("SELECT * FROM people WHERE id = ?", (key["person_id"],))
     if not person or person["status"] != "active":
@@ -203,10 +213,26 @@ def device_auth(ctx):
         raise ApiError(403, "Your account's access has ended.", "access_ended")
     if ctx.gw.db.get_setting("paused", "0") == "1":
         raise ApiError(403, "AI access is paused for everyone right now.", "paused")
-    device = ctx.db.one("SELECT * FROM devices WHERE key_id = ?", (key["id"],))
+    device = ctx.db.one("SELECT * FROM devices WHERE device_id = ?", (key["device_id"],)) if key.get("device_id") else None
     if not device:
         raise ApiError(403, "This key was not made by the Swangz app. Sign in with the app to enrol this device.", "not_enrolled")
-    return person, device
+    if key.get("rotated_from") and not key.get("confirmed"):
+        _confirm_rotation(ctx, person, device, key)
+    return person, device, key
+
+
+def _confirm_rotation(ctx, person, device, key):
+    """The new key's first use at a device endpoint (proxy use does not count): the old key stops now, not at 10 minutes."""
+    now = time.time()
+    with ctx.db.tx():
+        if ctx.db.x("UPDATE keys SET confirmed = ? WHERE id = ? AND confirmed IS NULL AND revoked IS NULL", (now, key["id"])).rowcount != 1:
+            return
+        ctx.db.x("UPDATE keys SET revoked = ?, revoked_by = 'system: rotated' WHERE id = ? AND revoked IS NULL", (now, key["rotated_from"]))
+        ctx.db.x("UPDATE devices SET key_id = ?, key_issued = ?, rotations = rotations + 1 WHERE device_id = ?", (key["id"], now, device["device_id"]))
+    ctx.gw.live.cut("this device key was renewed.", key_id=key["rotated_from"])
+    ctx.gw.audit(person["name"], "confirmed a rotated device credential", person["name"], device["name"], ctx.ip,
+                 before={"key_id": key["rotated_from"]}, after={"key_id": key["id"]}, correlation=f"device:{device['device_id']}")
+    device["key_id"] = key["id"]
 
 
 def _agents(gw, base):
@@ -285,10 +311,42 @@ def build_manifest(gw, h, person, device):
         tool = db.one("SELECT * FROM tools WHERE id = ?", (t["id"],))
         apps.append({"id": t["id"], "name": t["name"], "category": t["category"], "signin": t["signin"],
                      "company_browser": bool(tool and catalog.uses_workspace(tool)), "open": f"{base}/go/{t['id']}"})
-    return {"server": base, "person": {"name": person["name"], "email": person["email"], "department": person.get("department") or ""},
-            "device": {"id": device["key_id"], "name": device["name"], "os": device["os"], "owner_kind": device["owner_kind"]},
-            "client": {"latest": releases.latest_hint(gw, person, CLIENT_LATEST), "minimum": CLIENT_MINIMUM}, "packages": packages, "apps": apps,
-            "recording": RECORDING, "generated": time.time()}
+    manifest = {"server": base, "person": {"name": person["name"], "email": person["email"], "department": person.get("department") or ""},
+                "device": {"id": device["device_id"], "name": device["name"], "os": device["os"], "owner_kind": device["owner_kind"]},
+                "client": {"latest": releases.latest_hint(gw, person, CLIENT_LATEST), "minimum": CLIENT_MINIMUM}, "packages": packages, "apps": apps,
+                "credential": {"rotate_after_days": credentials.ROTATE_AFTER_DAYS, "issued": device.get("key_issued")},
+                "recording": RECORDING, "generated": time.time()}
+    browser = _browser_block(gw, h, person, device)
+    if browser is not None:
+        manifest["browser"] = browser
+    return manifest
+
+
+BROWSER_CONTRACT = "1"
+_PERSON_ID = re.compile(r"[1-9][0-9]*")
+_DEVICE_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
+
+
+def _browser_negotiated(h):
+    """True only for exactly one `browser_contract=1` in the query string. Missing, repeated, `2`, `01`, `true`,
+    empty: not negotiated, and the manifest is the one every older app already gets."""
+    raw = (getattr(h, "path", "") or "").partition("?")[2]
+    values = parse_qs(raw, keep_blank_values=True).get("browser_contract", [])
+    return values == [BROWSER_CONTRACT]
+
+
+def _browser_block(gw, h, person, device):
+    """The inert personal-browser contract (v1). Built from the authenticated person and device rows only, never
+    from the request: identity is this server + person_id + device_id. Carries no email, name, key or hint, and
+    no provider account or seat. A person the account rule no longer allows gets `profiles: []` (retire), not
+    a profile; this adds no new refusal and changes no existing one."""
+    if not _browser_negotiated(h):
+        return None
+    person_id, device_id = str(person["id"]), str(device["device_id"])
+    if not (_PERSON_ID.fullmatch(person_id) and _DEVICE_ID.fullmatch(device_id)):
+        return None
+    allowed = gw.settings.email_allowed(person["email"])
+    return {"contract": 1, "person_id": person_id, "device_id": device_id, "profiles": [{"kind": "personal"}] if allowed else []}
 
 
 @route("GET", r"/device/manifest", signed_in=False)
@@ -299,18 +357,73 @@ def device_manifest(ctx):
 
 @route("POST", r"/device/heartbeat", signed_in=False)
 def device_heartbeat(ctx):
-    person, device = device_auth(ctx)
+    person, device, key = device_key_auth(ctx)
     installed = []
     for item in (ctx.body.get("packages") or [])[:100]:
         if isinstance(item, dict) and PACKAGE_ID.fullmatch(str(item.get("id") or "")):
             installed.append({"id": item["id"], "version": _version(item.get("version")) or "?"})
     now = time.time()
     ctx.db.x("UPDATE devices SET last_seen = ?, last_ip = ?, os = COALESCE(NULLIF(?, ''), os), arch = COALESCE(NULLIF(?, ''), arch),"
-             " app_version = COALESCE(NULLIF(?, ''), app_version), packages_json = ? WHERE key_id = ?",
+             " app_version = COALESCE(NULLIF(?, ''), app_version), packages_json = ? WHERE device_id = ?",
              (now, ctx.ip, _os_name(ctx.body.get("os")), _clean(ctx.body.get("arch"), 20), _version(ctx.body.get("app_version")),
-              json.dumps(installed), device["key_id"]))
-    ctx.db.x("UPDATE keys SET last_used = ? WHERE id = ?", (now, device["key_id"]))
+              json.dumps(installed), device["device_id"]))
+    ctx.db.x("UPDATE keys SET last_used = ? WHERE id = ?", (now, key["id"]))
+    _record_key_storage(ctx, person, device, now)
     return {"ok": True, "latest_client": releases.latest_hint(ctx.gw, person, CLIENT_LATEST), "server_time": now}
+
+
+def _record_key_storage(ctx, person, device, now):
+    """What the app says about where it keeps this device's key. A report by the app, never evidence and never an
+    input to an access decision. Absent = an older app: left as 'not reported'. Only a move to a file is audited."""
+    body = ctx.body
+    if "key_storage" not in body:
+        return
+    value = str(body.get("key_storage") or "")
+    value = value if value in credentials.KEY_STORAGE else "unknown"
+    backend = str(body.get("key_backend") or "")
+    backend = backend if backend in credentials.KEY_BACKENDS else ""
+    if (value, backend) == (device["key_storage"], device["key_backend"]):
+        return
+    ctx.db.x("UPDATE devices SET key_storage = ?, key_backend = ?, key_storage_at = ? WHERE device_id = ?", (value, backend, now, device["device_id"]))
+    if value == "file" and device["key_storage"] != "file":
+        ctx.gw.audit(person["name"], "device reported its key is kept in a file", person["name"], device["name"], ctx.ip,
+                     before={"key_storage": device["key_storage"] or None}, after={"key_storage": value, "reported_by": "the app"},
+                     correlation=f"device:{device['device_id']}")
+
+
+@route("POST", r"/device/rotate", signed_in=False)
+def device_rotate(ctx):
+    """Give this device a new key (D-002). The old key keeps working until the new one is first used at a device
+    endpoint, or for 10 minutes at most. If the response is lost, the old key may ask again while that grace lasts and
+    the new key was never used: the unused one is revoked and a fresh one issued; the grace is never extended."""
+    person, device, key = device_key_auth(ctx)
+    now = time.time()
+    db = ctx.db
+    if db.scalar("SELECT COUNT(*) FROM keys WHERE device_id = ? AND created_by = 'device rotation' AND created > ?",
+                 (device["device_id"], now - 3600)) >= credentials.ROTATIONS_PER_HOUR:
+        raise ApiError(429, "This device has rotated its key too often. Try again later.", "slow_down")
+    new_id, full, secret_hash, hint = security.new_key()
+    reissue = None
+    with db.tx():
+        if key.get("retire_at"):  # the old key asking again, while in its grace
+            pending = db.one("SELECT id FROM keys WHERE rotated_from = ? AND revoked IS NULL AND confirmed IS NULL AND last_used IS NULL", (key["id"],))
+            if not pending or db.x("UPDATE keys SET revoked = ?, revoked_by = 'system: reissued' WHERE id = ? AND revoked IS NULL"
+                                   " AND confirmed IS NULL AND last_used IS NULL", (now, pending["id"])).rowcount != 1:
+                raise ApiError(409, "This key is already being replaced and the new one has been used.", "rotation_pending")
+            reissue, retire_at = pending["id"], key["retire_at"]
+        else:
+            retire_at = now + credentials.GRACE_SECONDS
+            if db.x("UPDATE keys SET retire_at = ? WHERE id = ? AND revoked IS NULL AND retire_at IS NULL", (retire_at, key["id"])).rowcount != 1:
+                raise ApiError(409, "This key is already being replaced.", "rotation_pending")
+        db.x("INSERT INTO keys(id, person_id, label, secret_hash, hint, created, created_by, hub_tool_id, device_id, rotated_from)"
+             " VALUES(?,?,?,?,?,?,?,?,?,?)",
+             (new_id, key["person_id"], key["label"], secret_hash, hint, now, "device rotation", key.get("hub_tool_id"),
+              device["device_id"], key["id"]))
+    ctx.gw.audit(person["name"], "reissued a device credential" if reissue else "rotated a device credential", person["name"], device["name"], ctx.ip,
+                 before={"key_id": key["id"], **({"unused_key_id": reissue} if reissue else {})},
+                 after={"key_id": new_id, "old_key_valid_until": retire_at}, correlation=f"device:{device['device_id']}")
+    return {"key": full, "key_id": new_id, "device_id": device["device_id"], "old_key_valid_until": retire_at,
+            "rotate_after_days": credentials.ROTATE_AFTER_DAYS}
 
 
 @route("GET", r"/device/extension", signed_in=False)
@@ -341,10 +454,10 @@ def device_package(ctx, pid, version):
 @route("POST", r"/device/signout", signed_in=False)
 def device_signout(ctx):
     """The app signs itself out: this device's key is revoked, exactly like "disconnect this device"."""
-    person, device = device_auth(ctx)
-    ctx.db.x("UPDATE keys SET revoked = ?, revoked_by = ? WHERE id = ? AND revoked IS NULL", (time.time(), "device", device["key_id"]))
-    ctx.gw.live.cut("this device was signed out.", key_id=device["key_id"])
-    ctx.gw.audit(person["name"], "signed a device out of Swangz", person["name"], device["name"], ctx.ip)
+    person, device, key = device_key_auth(ctx)
+    ids, cut = credentials.revoke_device_keys(ctx.db, ctx.gw.live, key["id"], "device", "this device was signed out.")
+    ctx.gw.audit(person["name"], "signed a device out of Swangz", person["name"], device["name"], ctx.ip,
+                 before={"keys": ids}, after={"keys_revoked": len(ids), "requests_cut": cut}, correlation=f"device:{device['device_id']}")
     return {"ok": True}
 
 
@@ -433,7 +546,7 @@ def _decide(h, gw, ctx, person, token, row, form):
         return _page(h, 403, "Your access is paused", "<p>Talk to your admin.</p>")
     if gw.db.get_setting("staff_self_keys", "1") != "1":
         return _page(h, 403, "Ask your admin", "<p>Your admin connects new devices for you.</p>")
-    if gw.db.scalar("SELECT COUNT(*) FROM keys WHERE person_id = ? AND revoked IS NULL", (person["id"],)) >= MAX_DEVICES:
+    if credentials.active_device_count(gw.db, person["id"]) >= MAX_DEVICES:
         return _page(h, 400, "Ten devices are connected",
                      "<p>Disconnect one you no longer use in <strong>Devices</strong>, then try again.</p><a class='btn btn--solid' href=/>Back to Swangz AI Hub</a>")
     owner = form.get("owner") if form.get("owner") in OWNER_KINDS else "personal"
