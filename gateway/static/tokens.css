@@ -44,7 +44,9 @@
   --scene-image: url("/static/admin-welcome.webp");
   --scene-scrim: rgba(12, 10, 9, .78);
   --radius-card: 22px;
-  --radius-pill: 999px;
+  --radius-pill: 999px;   /* round things only: avatars, dots, the bell's number (BRIEF 10.10.2) */
+  --radius-control: 10px; --radius-control-sm: 8px; --radius-chip: 6px;
+  --scroll-thumb: rgba(255, 255, 255, .22); --scroll-thumb-hover: rgba(255, 255, 255, .40);
   --lift: translateY(-5px);
   --ease-out: cubic-bezier(.22, 1, .36, 1);
   --dur-1: 160ms; --dur-2: 280ms; --dur-3: 520ms;
@@ -105,7 +107,7 @@
   --s6: 32px; --s7: 48px; --s8: 64px; --s9: 96px; --s10: 128px;
 
   /* Legacy names remain aliases so existing components share the new foundation. */
-  --r-xs: var(--radius-pill); --r-sm: 12px; --r-md: 16px;
+  --r-xs: var(--radius-control); --r-sm: 12px; --r-md: 16px;
   --r-lg: var(--radius-card); --r-xl: 24px; --r-full: var(--radius-pill);
 
   /* Motion — fast and explanatory; a live request breathes, nothing flashes */
@@ -124,6 +126,7 @@
 /* Porcelain — the light alternative. Warm off-white, ink-black type, the same gold. Not an
    inversion: its own steps, its own chart hues, softer shadows doing what hairlines do on black. */
 :root[data-theme="light"] {
+  --scroll-thumb: rgba(0, 0, 0, .25); --scroll-thumb-hover: rgba(0, 0, 0, .40);
   --glass-bg: rgba(245, 240, 234, .55);
   --glass-bg-strong: rgba(250, 247, 242, .82);
   --glass-bg-accent: linear-gradient(160deg, rgba(245, 179, 43, .30), rgba(229, 190, 120, .18));

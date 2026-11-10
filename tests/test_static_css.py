@@ -92,7 +92,7 @@ class LightAreaLabelTests(unittest.TestCase):
     def test_the_light_area_backing_is_a_pill_the_height_of_its_line_not_a_taller_box(self):
         css = (pathlib.Path(__file__).resolve().parent.parent / "gateway" / "static" / "admin.css").read_text(encoding="utf-8")
         rule = css.split('html[data-theme="light"] .console-bar .console-area {')[1].split("}")[0]
-        self.assertIn("padding: 0 12px; margin: 0 -12px; border-radius: 19px;", rule)
+        self.assertIn("padding: 0 12px; margin: 0 -12px; border-radius: var(--radius-control);", rule)
         self.assertNotIn("box-shadow", rule)
 
 

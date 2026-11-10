@@ -28,7 +28,7 @@
 .staff-exact .xf-lead h2 { margin: 18px 0 0; font: 600 32px/38px var(--font); letter-spacing: -.01em; color: var(--xf-ink); }
 .staff-exact .xf-ask {
   display: flex; align-items: center; width: 100%; max-width: 380px; height: 46px; margin-top: 17px; padding: 4px 4px 4px 18px;
-  border-radius: 23px; background: #4A3F38; color: #FFF8F2; box-shadow: inset 0 1px rgba(255,255,255,.12); text-decoration: none;
+  border-radius: var(--radius-control); background: #4A3F38; color: #FFF8F2; box-shadow: inset 0 1px rgba(255,255,255,.12); text-decoration: none;
 }
 .staff-exact .xf-ask input {
   flex: 1; min-width: 0; height: 38px; padding: 0; border: 0; background: transparent; color: #FFF8F2; font: 400 13px var(--font); outline: 0; box-shadow: none;
@@ -36,7 +36,7 @@
 .staff-exact .xf-ask input::placeholder { color: #E6DAD0; opacity: 1; }
 .staff-exact .xf-ask:focus-within { outline: 2px solid var(--xf-ink); outline-offset: 2px; }
 .staff-exact .xf-ask :is(button,b) {
-  flex: none; display: grid; place-items: center; height: 38px; min-height: 38px; padding: 0 20px; border: 0; border-radius: 19px;
+  flex: none; display: grid; place-items: center; height: 38px; min-height: 38px; padding: 0 20px; border: 0; border-radius: var(--radius-control-sm);
   background: #1C1816; color: #FFFFFF; font: 600 13px var(--font); text-decoration: none; cursor: pointer;
 }
 .staff-exact .xf-ask-link span { flex: 1; font-size: 13px; }
@@ -51,7 +51,7 @@
 .staff-exact .xf-col ul { list-style: none; margin: 0; padding: 0; }
 .staff-exact .xf-col li { height: 28px; display: flex; align-items: center; }
 .staff-exact .xf-col :is(a,button) {
-  display: inline-flex; align-items: center; height: 26px; min-height: 0; margin-left: -8px; padding: 0 10px; border: 1px solid transparent; border-radius: 13px;
+  display: inline-flex; align-items: center; height: 26px; min-height: 0; margin-left: -8px; padding: 0 10px; border: 1px solid transparent; border-radius: var(--radius-control-sm);
   background: none; color: var(--xf-ink); font: 500 14px var(--font); text-decoration: none; cursor: pointer; white-space: nowrap;
 }
 .staff-exact .xf-col :is(a,button):hover { border-color: rgba(255,255,255,.85); background: rgba(255,255,255,.28); }
@@ -63,14 +63,14 @@
 .staff-exact .xf-dot { width: 7px; height: 7px; border-radius: 50%; background: #6B5F57; }
 .staff-exact .xf-dot[data-state="up"] { background: #0A6B38; box-shadow: 0 0 0 3px rgba(61,220,132,.35); }
 .staff-exact .xf-dot:is([data-state="db"],[data-state="down"]) { background: #B51E33; border-radius: 1px; }
-.staff-exact .xf-icons { display: flex; gap: 2px; margin-left: auto; padding: 3px; border-radius: 19px; background: rgba(74,63,56,.86); box-shadow: inset 0 1px rgba(255,255,255,.14); }
-.staff-exact .xf-icons a { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; color: #FFF8F2; }
+.staff-exact .xf-icons { display: flex; gap: 2px; margin-left: auto; padding: 3px; border-radius: var(--radius-control); background: rgba(74,63,56,.86); box-shadow: inset 0 1px rgba(255,255,255,.14); }
+.staff-exact .xf-icons a { width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--radius-control-sm); color: #FFF8F2; }
 .staff-exact .xf-icons a:hover { background: rgba(255,255,255,.16); }
 .staff-exact .xf-icons svg { width: 15px; height: 15px; }
 .staff-exact .xf-theme { display: flex; align-items: center; gap: 10px; font-weight: 500; }
 .staff-exact .xf-theme-name { min-width: 52px; text-align: right; }
-.staff-exact .xf-switch { position: relative; width: 46px; height: 26px; min-height: 26px; padding: 0; border: 0; border-radius: 13px; background: #6B5F57; cursor: pointer; }
-.staff-exact .xf-switch i { position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: #FFFFFF; transition: transform .2s ease; }
+.staff-exact .xf-switch { position: relative; width: 46px; height: 26px; min-height: 26px; padding: 0; border: 0; border-radius: var(--radius-control-sm); background: #6B5F57; cursor: pointer; }
+.staff-exact .xf-switch i { position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 5px; background: #FFFFFF; transition: transform .2s ease; }
 .staff-exact .xf-switch[aria-checked="true"] { background: #1C1816; }
 .staff-exact .xf-switch[aria-checked="true"] i { transform: translateX(20px); }
 
@@ -103,10 +103,10 @@
   .staff-exact .xf-meta { flex-wrap: wrap; gap: 12px 18px; margin-top: 24px; }
   .staff-exact .xf-icons { margin-left: 0; }
   .staff-exact .xf-icons a { width: 44px; height: 44px; }
-  .staff-exact .xf-icons { border-radius: 25px; }
+  .staff-exact .xf-icons { border-radius: var(--radius-control); }
   .staff-exact .xf-theme { margin-left: auto; }
   .staff-exact .xf-switch { height: 44px; min-height: 44px; background: none; }
-  .staff-exact .xf-switch::before { content: ""; position: absolute; inset: 9px 0; border-radius: 13px; background: #6B5F57; }
+  .staff-exact .xf-switch::before { content: ""; position: absolute; inset: 9px 0; border-radius: var(--radius-control-sm); background: #6B5F57; }
   .staff-exact .xf-switch[aria-checked="true"] { background: none; }
   .staff-exact .xf-switch[aria-checked="true"]::before { background: #1C1816; }
   .staff-exact .xf-switch i { top: 12px; }
