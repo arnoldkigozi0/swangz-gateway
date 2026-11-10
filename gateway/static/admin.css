@@ -1255,7 +1255,10 @@ html[data-theme="light"] body:has(.shell) { --scene-scrim: rgba(250, 244, 236, .
   background: rgba(28, 24, 22, .82); border: 1px solid var(--glass-rim);
 }
 html[data-theme="light"] .shell #main::before { background: rgba(252, 248, 242, .94); }
-@media (max-width: 900px) { .shell #main::before { inset: 0 0 8px 0; border-radius: 0; border-width: 1px 0; } }
+/* Phones and tablets: the plane kept edge to edge hid the room everywhere under the top bar. It now stops 8px short of
+   each side with rounded corners, so the room shows around the page as on desktop; the page's own 16px padding keeps
+   every bare text run 8px inside the plane. Unmeasured until captured (docs/screenshots/exact-r16/README.md). */
+@media (max-width: 900px) { .shell #main::before { inset: 0 8px 8px 8px; border-radius: 18px; } }
 /* Light only (no reference still): the top bar's bare area label gets a porcelain backing drawn with a shadow, so it
    takes no space and the label stays where 10.3 puts it. */
 html[data-theme="light"] .console-bar .console-area { background: rgba(252, 248, 242, .94); box-shadow: 0 0 0 7px rgba(252, 248, 242, .94); border-radius: 6px; }
@@ -1388,3 +1391,16 @@ html[data-theme="light"] .kpis-exact .kpi .foot > :not(.kpi-note) { background: 
 }
 /* The measured row at 1440: y 140 to 292, four cards 285 wide from x 173 with 12px between them. */
 @media (min-width: 1201px) { .route-overview .page > .kpis-exact:first-child { margin: -7px -6px 0 0; } }
+
+/* The Overview under the cards (BRIEF 10.7): AI usage on the left, two counts and uses by tool on the right. */
+.overview-exact { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.overview-side { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
+.kpis.kpis-exact.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.kpis-exact.two .kpi { min-height: 132px; }
+@media (min-width: 1001px) { .kpis-exact.two .kpi { min-height: 220px; } }
+.overview-exact > .panel, .overview-side > .panel { border-radius: 22px; }
+/* the chart is drawn a frame after the panel: hold its 250px so the caption under it does not move on a cold load */
+.overview-exact .u-chart > div:first-child { min-height: 250px; }
+@media (min-width: 1001px) { .overview-exact .u-chart > div:first-child { min-height: 350px; } }
+@media (min-width: 1201px) { .route-overview .overview-exact { margin-right: -6px; } }
+@media (max-width: 1000px) { .overview-exact { grid-template-columns: minmax(0, 1fr); } }

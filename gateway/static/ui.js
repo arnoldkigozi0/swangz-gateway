@@ -463,6 +463,18 @@
     return fig;
   }
 
+  /* BRIEF 10.9(2): a chart with nothing to draw keeps the chart's own height, so the card never collapses, and says
+     what will appear (15px), why it is empty (11px) and, when the caller names one, the one action that fills it:
+     emptyAction = { label, href }. Nothing is padded or invented. */
+  function chartEmpty(o) {
+    const box = el("div", { class: "u-state u-chart-empty" },
+      el("p", { class: "what" }, o.emptyTitle || "No data yet"),
+      el("p", { class: "why" }, o.emptyText || "Nothing to chart for this period."),
+      o.emptyAction && o.emptyAction.href ? el("a", { class: "btn small", href: o.emptyAction.href }, o.emptyAction.label) : null);
+    box.style.minHeight = (o.height + 24) + "px";   // the drawing plus its caption line; CSSOM, the page CSP refuses style attributes
+    return box;
+  }
+
   function chartTipContent(d, o) {
     return [el("b", null, o.format(d.value)), el("span", { class: "k" }, el("i"), d.label), d.note ? el("span", { class: "k" }, d.note) : null].filter(Boolean);
   }
@@ -533,7 +545,7 @@
      data: [{label, short, value, note}] */
   function columns(o) {
     o = { height: 210, format: fmt.num, ...o };
-    if (!o.data || !o.data.length) return stateBox({ icon: "info", compact: true, title: "No data yet", text: o.emptyText || "Nothing to chart for this period." });
+    if (!o.data || !o.data.length) return chartEmpty(o);
     const uid = "u-tube-" + (++tubeSeq);
     let shown = false;   // bars grow from zero once, the first time the chart is in view
     return chartFrame(o, (w) => {
@@ -618,7 +630,7 @@
   function line(o) {
     o = { height: 170, format: fmt.num, ...o };
     // No days at all is not a flat line at zero: say so, and skip the chart and its table toggle
-    if (!Array.isArray(o.data) || !o.data.length) return stateBox({ icon: "info", compact: true, title: "No data yet", text: o.emptyText || "Nothing to chart for this period." });
+    if (!Array.isArray(o.data) || !o.data.length) return chartEmpty(o);
     return chartFrame(o, (w) => {
       const h = o.height, pad = { t: 12, r: o.endLabel === false ? 8 : 52, b: 22, l: 44 };
       const max = niceMax(Math.max(...o.data.map((d) => d.value || 0)));

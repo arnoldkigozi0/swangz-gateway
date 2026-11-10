@@ -175,6 +175,24 @@ class ConsoleCeilingTests(Base):
         self.assertEqual(status, 200, out)
         return {i["id"]: i for i in out["items"]}
 
+    def test_the_console_can_list_one_persons_seats_and_never_their_individual_accounts(self):
+        theirs = self.account(tool="chatgpt", route="seat", payer="company", label="Brian's seat", cookie=self.other_cookie)["id"]
+        self.account(tool="canva", route="individual", payer="person", cookie=self.other_cookie)
+        for who in ("ops", "bill", "owner"):
+            status, out = self.console(f"/provider-accounts?person={self.other_pid}", who)
+            self.assertEqual((status, [i["id"] for i in out["items"]]), (200, [theirs]), who)
+            status, out = self.console(f"/provider-accounts?person={self.pid}", who)
+            self.assertEqual((status, [i["id"] for i in out["items"]]), (200, [self.seat]), who)
+            self.assertNotIn(LABEL_MARK, json.dumps(out))
+        status, out = self.console(f"/provider-accounts?person={self.pid}&status=ended", "ops")
+        self.assertEqual((status, out["items"]), (200, []))
+        status, out = self.console("/provider-accounts?person=999999", "ops")
+        self.assertEqual((status, out["items"]), (200, []))
+        status, out = self.console("/provider-accounts?person=abc", "ops")
+        self.assertEqual(status, 400, out)
+        for who in ("sec", "adm", "emerg"):  # the filter opens nothing to roles that could not list at all
+            self.assertEqual(self.console(f"/provider-accounts?person={self.pid}", who)[0], 403, who)
+
     def test_the_holder_sees_everything_about_their_own_accounts(self):
         status, out = self.call("GET", f"/provider-accounts/{self.ind}")
         self.assertEqual(status, 200)

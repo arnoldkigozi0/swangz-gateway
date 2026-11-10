@@ -24,7 +24,7 @@ Written for the V2.1 clarity pass (Oct 9, 2026). Keep it current: when a page ga
 |---|---|---|---|---|
 | Sidebar | Find any page | PR draft opened with three of four groups collapsed; a collapsed group could hide the active page; group labels looked like links | — | Four groups, all open by default, collapsible, the active page's group always open; remembered per browser |
 | Page tabs | Switch views | PR draft: a syntax error (the whole console failed to load); `aria-controls` pointed at nothing; nested Settings tabs shared one query string; tab changes weren't in history; switching tabs could drop unsaved settings | — | One `pageTabs()` with its own query parameter, real ARIA wiring, history entries, an unsaved-changes guard, and tab switches that don't refetch the page |
-| Overview | Is anything wrong, is anyone working, what's changing, what costs money | "Right now" listed up to six attention items — the queue's job | Attention queue; licence table | Summary strip + four views; "Right now" shows the top three urgent items and the live preview, with links to Needs attention and Live |
+| Overview | Is anything wrong, is anyone working, what's changing, what costs money | "Right now" listed up to six attention items — the queue's job; four tabs repeated other pages | Attention queue; licence table; trends; leaders | Since R16/R17 (BRIEF §10.7): a greeting, four cards (AI spend, AI requests, Active people, Security events), then AI usage over eight days, two counts (Need attention · Live requests) and Uses by tool. No tabs: each block links to the page that owns the detail (Licences & spend, Activity, Needs attention, Live, Security) |
 | Needs attention | The whole queue | — | — | Canonical home of the queue |
 | Activity | What people did | — | Security and Audit read like other histories | Timeline (chronological) · Who used what (analysis) · AI requests (request detail) · Tools opened · Websites visited; the intro says what is *not* here |
 | Security | Signals that may need investigating | Read like another activity list | Activity | Signals with severity, evidence, *Investigate* and *Open incident*; not a history |
@@ -51,9 +51,9 @@ Written for the V2.1 clarity pass (Oct 9, 2026). Keep it current: when a page ga
 |---|---|---|
 | A request in full | Record page (`#/records/<id>`) | Activity rows, device and person activity, Security evidence links |
 | What one person did | Person → Activity | Person → Overview (last few), Activity timeline filtered by person |
-| A tool's use | Tool → Usage | Tool → Overview (one line of facts), Overview → Top tools |
+| A tool's use | Tool → Usage | Tool → Overview (one line of facts), Overview → Uses by tool |
 | Who can use a tool and why | Tool → Access (per tool) · Person → Access (per person) | Licences (seats), staff drawer ("why it's available to you") |
-| The attention queue | Needs attention | Overview → Right now (top three), the bell |
+| The attention queue | Needs attention | Overview (a count), the bell |
 | Security signals | Security | Person → Security, device → Flagged, Overview strip |
 | Admin changes | Audit log | Incident trail, timeline access events (about a person) |
 | Metered spend | Licences & spend → What cost us money? | Overview strip and trend, People (per person vs budget), Reports |
