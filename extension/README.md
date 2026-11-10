@@ -5,6 +5,19 @@ routed through the gateway. This company extension governs those sites: it opens
 turned on for a person, shows a clear "not enabled" page for the rest, and keeps an access-level
 record of use.
 
+Governed sites require an explicit allow response from the Hub. Signed out, revoked (`401`),
+refused (`403`, including `person_paused`), offline, timed out or unable to read a valid
+decision: a governed navigation goes to **Sign in to Swangz AI Hub**. Its sign-in button
+opens the extension's own sign-in form, so connecting restores the extension token.
+Ordinary entitlement/report refusals retain their existing explanation and actions.
+
+The last governed-host list, Hub address and policy stay cached across sign-out and browser
+worker restarts. A successful authenticated config refresh can replace that list; a failed
+refresh cannot erase it. Other sites remain untouched. A fresh installation needs its first
+successful config fetch to know the governed hosts. Checks time out after ten seconds,
+including reading the response body. This uses Chrome's tab navigation redirect; it does
+not intercept every network request before a page can start loading.
+
 ## Shared company accounts
 
 Some tools are one account the whole team uses. The portal hands those out **a turn at a time**. This
@@ -12,6 +25,11 @@ extension enforces the other half: it lets only the person holding the turn onto
 **signs the browser out** of a shared tool when their turn ends, when an admin takes it back, and
 again every time Chrome starts. It does that by clearing that site's cookies and stored data
 (`chrome.browsingData.remove` for the tool's own domains — nothing else is touched).
+
+On sign-out or any gate endpoint's `401`/`403`, the worker invalidates its token and
+clears the cached held tools' site data **before** discarding their holding state. Holding
+state is loaded after worker restarts. If Chrome refuses cleanup, it is retained so the
+next check/startup can retry; governed navigation remains blocked while signed out.
 
 So re-opening the tool always means going back through Swangz AI Hub, and the next person never inherits
 someone else's session. It also means the vendor's credit history lines up with the turn log: whoever
@@ -72,4 +90,41 @@ Admins see the log under **Tools → Website access** in the control room.
 | `manifest.json` | MV3 manifest, permissions |
 | `background.js` | the service worker: host matching, the gate decision, open/close logging, shared-account sign-out |
 | `popup.html` / `popup.js` | sign in, show status and the policy |
-| `blocked.html` / `blocked.js` | the "not enabled for you" page, with Request access |
+| `blocked.html` / `blocked.js` | sign-in/unavailable blocking, or the entitlement/report refusal and actions |
+
+## Verification
+
+Dependency-free worker and blocked-page regressions:
+
+```sh
+node tests/browser/extension.cjs
+python3 tests/browser/syntax.py
+```
+
+The JavaScript tests execute the shipped worker and page scripts with mocked Chrome APIs
+and a minimal DOM; they do not use accounts, provider calls, ports or a browser installation.
+`tests/test_extension.py` includes them in the standard Python CI suite when Node is available.
+The coverage includes `401`/`403` on open/config/turns/startup, offline and timed-out
+responses, preserved caches, ungoverned hosts/domain lookalikes, cleanup order and retry,
+cold-worker navigation, late replies after sign-out, the sign-in action and existing report
+actions. Request assertions limit recorded fields to host, access ID and duration.
+Full Python suite and manual Chrome/Edge checks are not run under Codex; Probe verifies
+the exact pushed commit independently.
+
+Local verification, 4 November 2026 (Node v22.22.1):
+
+```text
+1..33
+# tests 33
+# pass 33
+# fail 0
+# cancelled 0
+# skipped 0
+# duration_ms 580.493701
+Checked 24 JavaScript files
+Python test wrapper syntax OK
+```
+
+Both JavaScript commands exited 0; `git diff --check` was clean. The tests mock Chrome
+APIs and DOM rendering; actual Chrome/Edge navigation and site-data removal still need
+independent browser verification.
