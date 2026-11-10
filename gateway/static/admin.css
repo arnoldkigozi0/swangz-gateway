@@ -1232,7 +1232,6 @@ body:has(.side.drawer) .appbar, .scrim { -webkit-backdrop-filter: none; backdrop
   .console-context { grid-column: 1; grid-row: 1; }
   .console-tools { display: contents; }
   .console-bar .bell { grid-column: 2; grid-row: 1; }
-  .console-account { grid-column: 3; grid-row: 1; }
   .console-search { grid-column: 1; grid-row: 2; padding: 0 12px; }
   .console-search .u-kbd, .console-clock > svg { display: none; }
   .console-clock { grid-column: 2 / -1; grid-row: 2; min-height: 44px; justify-content: center; padding: 0 6px; background: var(--ink-2); font-size: 11px; }
@@ -1283,9 +1282,18 @@ html[data-theme="light"] .console-bar .console-area { background: rgba(252, 248,
 .console-pop { position: absolute; top: calc(100% + 8px); right: 0; z-index: var(--z-nav); min-width: 168px; padding: 6px; display: grid; gap: 2px;
   background: var(--ink-2); border: 1px solid var(--glass-rim); border-radius: 16px; box-shadow: var(--glass-shadow); }
 .console-pop[hidden] { display: none; }
-.console-pop a { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: var(--tx-1); font: 600 12.5px/1.2 var(--font); text-decoration: none; }
-.console-pop a:hover, .console-pop a:focus-visible { background: var(--glass-rim); outline: none; }
-.console-pop a svg { width: 16px; height: 16px; }
+.console-pop :is(a,button) { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: var(--tx-1); font: 600 12.5px/1.2 var(--font); text-decoration: none; }
+.console-pop :is(a,button):hover, .console-pop :is(a,button):focus-visible { background: var(--glass-rim); outline: none; }
+.console-pop :is(a,button) svg { width: 16px; height: 16px; flex: none; }
+.console-pop button { width: 100%; border: 0; background: none; text-align: left; cursor: pointer; white-space: nowrap; }
+.console-pop button.danger { color: var(--bad); }
+.console-pop-id { display: grid; gap: 2px; padding: 8px 12px 6px; max-width: 240px; }
+.console-pop-id strong { font: 600 12.5px/1.3 var(--font); color: var(--tx-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.console-pop-id span { font: 500 11px/1.3 var(--font); color: var(--tx-2); }
+.console-pop-rule { height: 1px; margin: 4px 8px; background: var(--glass-rim); }
+.console-account { cursor: pointer; }
+@media (max-width:700px) { .console-account-wrap { grid-column: 3; grid-row: 1; } }
+@media (forced-colors:active) { .console-pop { background: Canvas; border-color: CanvasText; } .console-pop button.danger { color: CanvasText; } }
 .console-workspace small, .console-clock small { display: none; }
 .console-workspace strong { font-weight: inherit; }
 .side.rail-exact .rail-pages .count { top: -1px; right: -3px; }
@@ -1336,7 +1344,8 @@ html[data-theme="light"] .console-bar .console-area { background: rgba(252, 248,
   .console-clock > svg { display: none; }
   .console-clock small { display: block; font-size: 8px; font-weight: 500; color: var(--tx-2); }
   .console-bar .bell { margin-left: 9px; }
-  .console-account { width: 36px; margin-left: 28px; border: 0; background: none; box-shadow: none; }
+  .console-account-wrap { margin-left: 28px; }
+  .console-account { width: 36px; border: 0; background: none; box-shadow: none; }
 
   .top { grid-template-areas: "crumbs crumbs" "title actions" "lede actions"; padding: 21px 97px 18px 49px; }
   .top h1 { font: 600 24px/1.25 var(--font); letter-spacing: 0; }

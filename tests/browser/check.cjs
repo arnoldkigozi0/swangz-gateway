@@ -420,6 +420,17 @@ async function layout(p, name, axe = false) {
         check(`${role} ${route} action permissions ${theme} ${width}`, (await add.count() > 0) === allowed);
       }
     }
+    // BRIEF 10.7: theme, Sign out and the emergency stop are reachable from the avatar; the stop only with the emergency area.
+    await go(rp, url, '/admin#/');
+    const avatar = rp.locator('.console-account');
+    await avatar.focus(); await rp.keyboard.press('ArrowDown');
+    check(role + ' avatar menu opens on Your account', await rp.getByRole('menuitem', { name: 'Your account', exact: true }).evaluate(e => e === document.activeElement));
+    check(role + ' avatar menu has the theme switch', await rp.getByRole('menuitem', { name: /^(Light|Dark) theme$/ }).count() === 1);
+    check(role + ' avatar menu emergency stop follows the role', (await rp.getByRole('menuitem', { name: 'Stop all AI', exact: true }).count() === 1) === ['operations', 'security'].includes(role));
+    await rp.keyboard.press('End');
+    check(role + ' avatar menu ends on Sign out', await rp.getByRole('menuitem', { name: 'Sign out', exact: true }).evaluate(e => e === document.activeElement));
+    await rp.keyboard.press('Escape');
+    check(role + ' avatar menu closes and returns focus', await avatar.evaluate(e => e === document.activeElement) && await avatar.getAttribute('aria-expanded') === 'false');
     await rc.close(); console.log('Verified role', role);
   }
   assert.deepEqual(results.errors, [], 'Browser exceptions');

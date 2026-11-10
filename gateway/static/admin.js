@@ -806,32 +806,59 @@
 
   /* The accent New pill (10.3). Each choice opens a form that already exists (the pages read ?add=1); it is shown
      only to someone whose role may use at least one of them. */
-  function newMenu() {
-    const items = [can("govern") ? ["#/people?add=1", "people", "Person"] : null, can("govern") ? ["#/tools?add=1", "tools", "Tool"] : null,
-      can("govern") ? ["#/policies?add=1", "rule", "Policy"] : null].filter(Boolean);
-    if (!items.length) return null;
-    const menu = el("div", { class: "console-pop", role: "menu", "aria-label": "New", hidden: true },
-      items.map(([href, ic, label]) => el("a", { href, role: "menuitem", tabindex: "-1", onclick: () => close(false) }, icon(ic), label)));
-    const button = el("button", { class: "console-new", type: "button", "aria-haspopup": "menu", "aria-expanded": "false" }, icon("plus"), "New");
+  /* A top-bar button with its menu underneath: arrows, Home and End move, Escape returns to the button,
+     Tab or a click elsewhere closes. Every [role=menuitem] in `items` is a choice. */
+  function barMenu(button, label, items, cls) {
+    const menu = el("div", { class: "console-pop", role: "menu", "aria-label": label, hidden: true }, items);
+    const choices = () => [...menu.querySelectorAll("[role=menuitem]")];
     const away = (e) => { if (!wrap.contains(e.target)) close(false); };
     function close(focus) { menu.hidden = true; button.setAttribute("aria-expanded", "false"); document.removeEventListener("click", away); if (focus) button.focus(); }
     function open(last) {
       menu.hidden = false; button.setAttribute("aria-expanded", "true"); document.addEventListener("click", away);
-      const choices = menu.querySelectorAll("a"); choices[last ? choices.length - 1 : 0].focus();
+      const all = choices(); all[last ? all.length - 1 : 0].focus();
     }
     button.addEventListener("click", () => (menu.hidden ? open() : close(false)));
     button.addEventListener("keydown", (e) => { if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); open(e.key === "ArrowUp"); } });
+    menu.addEventListener("click", (e) => { if (e.target.closest("[role=menuitem]")) close(false); });
     menu.addEventListener("keydown", (e) => {
-      const choices = [...menu.querySelectorAll("a")], i = choices.indexOf(document.activeElement);
+      const all = choices(), i = all.indexOf(document.activeElement);
       if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(true); }
       else if (e.key === "Tab") close(false);
       else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
         e.preventDefault();
-        choices[e.key === "Home" ? 0 : e.key === "End" ? choices.length - 1 : (i + (e.key === "ArrowDown" ? 1 : -1) + choices.length) % choices.length].focus();
+        all[e.key === "Home" ? 0 : e.key === "End" ? all.length - 1 : (i + (e.key === "ArrowDown" ? 1 : -1) + all.length) % all.length].focus();
       }
     });
-    const wrap = el("div", { class: "console-new-wrap" }, button, menu);
+    const wrap = el("div", { class: "console-new-wrap" + (cls ? " " + cls : "") }, button, menu);
     return wrap;
+  }
+
+  function newMenu() {
+    const items = [can("govern") ? ["#/people?add=1", "people", "Person"] : null, can("govern") ? ["#/tools?add=1", "tools", "Tool"] : null,
+      can("govern") ? ["#/policies?add=1", "rule", "Policy"] : null].filter(Boolean);
+    if (!items.length) return null;
+    return barMenu(el("button", { class: "console-new", type: "button", "aria-haspopup": "menu", "aria-expanded": "false" }, icon("plus"), "New"), "New",
+      items.map(([href, ic, label]) => el("a", { href, role: "menuitem", tabindex: "-1" }, icon(ic), label)));
+  }
+
+  /* BRIEF 10.7: the theme switch, Sign out and Stop all AI / Resume live under the avatar, because the icon
+     rail no longer shows the account or emergency blocks. The stop still asks before it acts (setPaused). */
+  function accountMenu() {
+    const paused = S.overview && S.overview.paused, dark = SUI.theme() === "dark";
+    const act = (ic, label, run, cls) => el("button", { type: "button", role: "menuitem", tabindex: "-1", class: cls || null, onclick: run }, icon(ic), label);
+    const rule = () => el("div", { class: "console-pop-rule", role: "separator" });
+    const button = el("button", { class: "console-account", type: "button", "aria-haspopup": "menu", "aria-expanded": "false",
+      "aria-label": "Your account: " + S.me.username }, SUI.avatar(S.me.username));
+    return barMenu(button, "Your account", [
+      el("div", { class: "console-pop-id" }, el("strong", null, S.me.username),
+        el("span", null, roleLabel() + (isOwner() || (S.me.can || []).length ? "" : " · read-only"))),
+      el("a", { href: "#/settings?tab=account", role: "menuitem", tabindex: "-1" }, icon("user"), "Your account"),
+      act(dark ? "sun" : "moon", dark ? "Light theme" : "Dark theme", () => { SUI.applyTheme(dark ? "light" : "dark", true); render(); }),
+      can("emergency") ? [rule(), paused ? act("play", "Resume AI access", () => setPaused(false))
+        : act("stop", "Stop all AI", () => setPaused(true), "danger")] : null,
+      rule(),
+      act("logout", "Sign out", signOut),
+    ], "console-account-wrap");
   }
 
   function sidebar(active, onNavigate, drawer = false) {
@@ -986,7 +1013,7 @@
       el("button", { class: "console-search", type: "button", "aria-label": "Search", onclick: () => openCommand() }, icon("search"),
         el("span", null, "Search pages, people, tools…"), el("span", { class: "u-kbd", "aria-hidden": "true" }, /Mac/.test(navigator.platform || "") ? "⌘K" : "Ctrl K")),
       el("div", { class: "console-tools" }, newMenu(), clock, bell(),
-        el("a", { class: "console-account", href: "#/settings?tab=account", "aria-label": "Your account: " + S.me.username, "data-tip": S.me.username }, SUI.avatar(S.me.username))));
+        accountMenu()));
     // Where you are: the area, then the pages above this one — never the page's own title again.
     const place = NAV.map(([group, links]) => ({ group, item: links.find(([href]) => href === active) })).find((x) => x.item);
     const trail = [place ? el("span", { class: "crumb-area" }, place.group) : null, ...[].concat(o.crumbs || []).filter(Boolean)].filter(Boolean);
