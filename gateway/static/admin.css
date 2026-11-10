@@ -1412,3 +1412,23 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
 /* dashboard-02 fits 1440x852 without scrolling: the blocks end at y 791, so the page keeps 56px under them, not 80. */
 @media (min-width: 1201px) { .route-overview .page { padding-bottom: 56px; } }
 @media (max-width: 1000px) { .overview-exact { grid-template-columns: minmax(0, 1fr); } }
+/* BRIEF 10.3/10.7, dashboard-02: on Overview the room is the page's ground. Dark desktop drops the page-wide backing plane
+   and the two lower panels become glass over the room: one blur, the glass rim, no header band and no header divider.
+   Their tint is lighter than --glass-bg because the reference's panels are (106,89,81 at 300,420); with our room photo
+   --glass-bg read 49,35,22 there and this reads 97,80,73. Light keeps the plane: it has no reference still and its bare
+   text was not measured over the room. Evidence: docs/screenshots/overview-room/README.md. */
+@media (min-width: 1201px) {
+  html:not([data-theme="light"]) .shell.route-overview #main::before { display: none; }
+  /* without the plane, muted text sits on glass over the room: lift it so every run keeps 4.5:1 (measured, see README) */
+  html:not([data-theme="light"]) .shell.route-overview #main { --tx-2: #F3EEE8; --tx-3: #ECE5DD; --viz-axis: #ECE5DD; }
+  /* the amber card was tuned over the plane (#92); the same dark layer goes under its tint so it keeps that colour */
+  html:not([data-theme="light"]) .route-overview .kpis-exact .kpi.gold, html:not([data-theme="light"]) .route-overview .kpis-exact .kpi.gold.link:hover {
+    background: linear-gradient(160deg, rgba(247, 174, 98, .50), rgba(238, 143, 62, .40)), rgba(28, 24, 22, .82); }
+  html:not([data-theme="light"]) .route-overview .overview-exact > .panel, html:not([data-theme="light"]) .route-overview .overview-side > .panel {
+    background: rgba(129, 117, 120, .60); border-color: var(--glass-rim); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); }
+  html:not([data-theme="light"]) .route-overview .overview-exact .panel > header { border-bottom: 0; background: none; }
+}
+@media (min-width: 1201px) and (prefers-reduced-transparency: reduce) {
+  html:not([data-theme="light"]) .route-overview .overview-exact > .panel, html:not([data-theme="light"]) .route-overview .overview-side > .panel {
+    background: var(--ink-1); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
