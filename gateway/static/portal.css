@@ -184,7 +184,7 @@ h1, h2, h3 { text-wrap: balance; }
 .cat-part { display: grid; gap: var(--s4); }
 .cat-part-h { display: flex; align-items: baseline; gap: 6px 14px; flex-wrap: wrap; }
 .cat-part-h h2 { margin: 0; font-size: 1.05rem; font-weight: 700; display: inline-flex; align-items: center; gap: 9px; }
-.cat-part-h h2 .n { min-width: 22px; padding: 0 7px; border-radius: 11px; background: var(--ink-3); color: var(--tx-2); font-size: 12px; font-weight: 700; line-height: 22px; text-align: center; }
+.cat-part-h h2 .n { min-width: 22px; padding: 0 7px; border-radius: var(--radius-chip); background: var(--ink-3); color: var(--tx-2); font-size: 12px; font-weight: 700; line-height: 22px; text-align: center; }
 .tool-rows { list-style: none; margin: 0; padding: 4px 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); column-gap: 32px; background: var(--ink-1); border: 1px solid var(--line); border-radius: var(--r-lg); }
 .tool-row { break-inside: avoid; display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); min-width: 0; }
 .tr-main { all: unset; box-sizing: border-box; flex: 1; min-width: 0; display: flex; align-items: center; gap: 11px; cursor: pointer; border-radius: var(--r-sm); }
