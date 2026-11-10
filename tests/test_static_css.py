@@ -64,6 +64,30 @@ class OverviewCountIconTests(unittest.TestCase):
         self.assertIn('label: "Live requests", icon: "live"', js)
 
 
+class ConsoleRoomTests(unittest.TestCase):
+    def test_other_console_pages_back_only_bare_text_and_dark_panels_are_one_layer_of_glass(self):
+        css = (pathlib.Path(__file__).resolve().parent.parent / "gateway" / "static" / "admin.css").read_text(encoding="utf-8")
+        self.assertIn(".shell:not(.route-overview) #main::before { display: none; }", css)
+        self.assertIn(":where(.shell:not(.route-overview) .page) > :where(:not(.panel, .kpis)) { background: var(--plane);", css)
+        glass = css.split('html:not([data-theme="light"]) .shell:not(.route-overview) .page .panel:not(.panel .panel) {')[1].split("}")[0]
+        self.assertIn("background: var(--glass-bg-strong);", glass)
+        self.assertEqual(glass.count("backdrop-filter: var(--glass-blur)"), 2)
+        self.assertNotIn('html[data-theme="light"] .shell:not(.route-overview) .page .panel', css)
+
+    def test_smoked_glass_keeps_every_dark_text_token_readable_over_the_brightest_room(self):
+        # the blurred room's brightest point is 155,115,75 (docs/screenshots/console-room/README.md)
+        def lum(c):
+            c = [x / 255 for x in c]
+            c = [x / 12.92 if x <= .03928 else ((x + .055) / 1.055) ** 2.4 for x in c]
+            return .2126 * c[0] + .7152 * c[1] + .0722 * c[2]
+
+        scene = [155 * .65 + 12 * .35, 115 * .65 + 10 * .35, 75 * .65 + 9 * .35]
+        ground = [t * .68 + r * .32 for t, r in zip((22, 19, 17), scene)]
+        for name, colour in (("tx-3", "B5ADA5"), ("accent-tx", "E5C48C"), ("ok", "2FD99A"), ("info", "43B9F5"), ("warn", "F5B32B"), ("bad", "FF5D52")):
+            rgb = [int(colour[i:i + 2], 16) for i in (0, 2, 4)]
+            self.assertGreaterEqual((lum(rgb) + .05) / (lum(ground) + .05), 4.5, name)
+
+
 class LightAreaLabelTests(unittest.TestCase):
     def test_the_light_area_backing_is_a_pill_the_height_of_its_line_not_a_taller_box(self):
         css = (pathlib.Path(__file__).resolve().parent.parent / "gateway" / "static" / "admin.css").read_text(encoding="utf-8")
