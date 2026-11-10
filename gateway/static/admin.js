@@ -673,6 +673,13 @@
   }
   async function refreshAttention() {
     try { S.attention = await api("GET", "/attention"); } catch (e) { /* the badge just waits */ }
+    const round = document.querySelector(".console-tabbar .stb-round");
+    if (round) {
+      const count = S.attention?.items?.length || 0;
+      round.querySelector(".stb-badge")?.remove();
+      if (count) round.append(el("span", { class: "stb-badge" }, String(count)));
+      round.setAttribute("aria-label", count ? `All pages, ${count} need attention` : "All pages");
+    }
     return S.attention;
   }
 
@@ -950,7 +957,7 @@
     const count = S.attention?.items?.length || 0;
     const round = el("button", { type: "button", class: "stb-round", "aria-label": count ? `All pages, ${count} need attention` : "All pages",
       "aria-haspopup": "dialog", onclick: () => openDrawer(active) }, icon("menu"), count ? el("span", { class: "stb-badge" }, String(count)) : null);
-    SUI.phoneLens(bar);
+    try { SUI.phoneLens(bar); } catch (e) { /* decoration only */ }
     return el("nav", { class: "staff-tabbar console-tabbar", "aria-label": "Quick navigation" }, bar, round);
   }
 

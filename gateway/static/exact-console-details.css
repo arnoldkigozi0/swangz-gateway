@@ -3,6 +3,8 @@
   min-height: 34px; height: 34px; padding: 0 14px; border-radius: 17px;
   background: var(--glass-bg); border: 1px solid var(--line-hi); color: var(--tx-1);
 }
+.route-overview .top-actions .btn:not(.primary):hover { background: var(--glass-bg-hover, var(--ink-2)); border-color: var(--tx-2); }
+.route-overview .top-actions .btn.primary::after { display: none; }
 .route-overview .top-actions .btn.primary {
   background: var(--accent-pill, linear-gradient(180deg,#F7AE62,#EE8F3E));
   color: #2A170A; border-color: transparent;
@@ -13,11 +15,12 @@
 .route-overview .u-tubes .col.zero { opacity: .35; }
 .route-overview .u-tubes .zero-label { fill: var(--tx-2); font: 500 10px var(--font); }
 @media (max-width: 700px) {
-  .shell > .main { padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
+  .shell > .main > main { padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
+  body:has(.side.drawer) .console-tabbar { visibility: hidden; }
   .console-tabbar { font-family: var(--font); }
-  .console-tabbar .stb-bar { width: min(290px, calc(100vw - 84px)); }
-  .console-tabbar .stb-bar a { flex: 1; min-width: 0; }
-  .console-tabbar .stb-bar a.on { flex: 2.8; width: auto; font-size: 10px; gap: 4px; }
+  .console-tabbar .stb-bar { width: min(260px, calc(100vw - 64px)); }
+  .console-tabbar .stb-bar a { flex: none; width: 44px; min-width: 44px; }
+  .console-tabbar .stb-bar a.on { flex: none; width: 104px; min-width: 0; gap: 6px; }
   .console-tabbar .stb-bar a.on span { overflow: hidden; text-overflow: ellipsis; }
   .console-tabbar button:focus-visible { outline: 2px solid #B4530F; outline-offset: 2px; }
   .route-overview .kpis-exact .kpi .kpi-note { overflow-wrap: anywhere; min-width: 0; max-width: 100%; }

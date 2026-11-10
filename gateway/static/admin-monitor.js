@@ -105,7 +105,7 @@
           note: SUI.plural(t.people, "person", "people") + " · 30 days" })))
           : A.empty("Once staff start using approved tools, they'll be ranked here.", "No AI activity yet", "tools"));
 
-    const who = String(S.me.display_name || "").trim().split(/\s+/)[0];
+    const who = String(S.me.display_name || "").trim();
     A.frame({ title: who ? `Hello, ${who}! 👋` : "Hello! 👋",
       lede: `Swangz AI Hub at a glance — ${fmt.weekday(Date.now() / 1000)}. Times in ${SUI.tzLabel()}.`,
       actions: [el("a", { class: "btn", href: "#/activity" }, icon("activity"), "Activity"), el("a", { class: "btn primary", href: "#/live" }, icon("live"), "Open Live")] },
