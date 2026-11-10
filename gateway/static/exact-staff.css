@@ -66,7 +66,7 @@ html[data-theme="light"] .staff-exact {
   box-shadow: inset 0 1px rgba(255,255,255,.06); backdrop-filter: var(--x-blur); -webkit-backdrop-filter: var(--x-blur);
 }
 .staff-exact .staff-workspace { display: flex; align-items: center; padding: 0 7px 0 4px; gap: 7px; cursor: pointer; }
-.staff-exact .staff-workspace img { width: 24px; height: 24px; border-radius: 50%; background: var(--accent-pill); }
+.staff-exact .staff-workspace img { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--accent-pill); }
 .staff-exact .staff-workspace span { display: grid; gap: 2px; text-align: left; }
 .staff-exact .staff-workspace strong { font-size: 10px; font-weight: 600; white-space: nowrap; }
 .staff-exact .staff-workspace small { font-size: 8px; color: var(--staff-muted); }
@@ -187,8 +187,36 @@ html[data-theme="light"] .staff-exact {
   html[data-theme="light"] .staff-exact { --staff-panel-bg: #FCF8F2; }
 }
 
-/* §10.1(3): the fixed scene and backdrop filters caused severe scroll stalls in
-   software Chromium. Keep the same surfaces and scrims while allowing the
-   room to scroll and omitting live blur within the staff shell. */
-.staff-exact { background-attachment: scroll; }
+/* §10.1(3): `background-attachment: fixed` and live backdrop filters caused severe scroll stalls in
+   software Chromium, and a scrolling `cover` photo was re-scaled on every frame (desktop Tools 46fps).
+   The room is one fixed layer of its own behind the shell: it is drawn once, stays put as in the
+   reference, and scrolling only moves the content over it. No live blur inside the staff shell. */
+.staff-exact { background: none; isolation: isolate; --staff-scene: linear-gradient(rgba(12,10,9,.32), rgba(12,10,9,.32)), url('/static/room-warm.webp'); --staff-scene-flat: #241F1C; }
+html[data-theme="light"] .staff-exact { background: none; --staff-scene: linear-gradient(rgba(250,244,236,.42),rgba(250,244,236,.42)), url('/static/room-warm.webp'); --staff-scene-flat: #FAF4EC; }
+.staff-exact::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--staff-scene-flat); background-image: var(--staff-scene); background-position: center; background-size: cover; background-repeat: no-repeat; }
+@media (prefers-reduced-transparency: reduce) { .staff-exact::before { background-image: none; } }
+@media print { .staff-exact::before { display: none; } }
 .staff-exact * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+
+/* Cold load: the workspace mark could shrink 3px until its file arrived (a flex item with no
+   intrinsic size yet), then push the label right. Fixed size above; nothing moves after first paint.
+   Panel content uses the panel's full width (18px each side), and Home's blocks share the 1343 right
+   edge. The page panel starts 10px above its header so the title clears the rounded rim; the header
+   itself stays where §10.3 measures it (title x178, centre y92). */
+.hub-staff-app.staff-exact .shell { max-width: none; }
+.staff-exact main > :is(.section.first,.hub-page) { margin-top: -10px; padding-top: 10px; }
+.staff-exact .hub-reminder { margin-top: 12px; margin-bottom: 0; }
+.staff-exact .home-body { padding-top: 12px; }
+/* §10.1(3): a disabled pager was 3.6:1 (dark) / 2.5:1 (light) at 45% opacity. It keeps full-strength
+   muted text and says "disabled" with a dashed rim and no fill instead of by fading. */
+.staff-exact main .btn:disabled { opacity: 1; color: var(--staff-muted); background: transparent; border-style: dashed; border-color: var(--staff-rim); box-shadow: none; cursor: not-allowed; }
+/* Phones (§10.1(3), no reference still): hub.css's ≤420px top-bar padding won the cascade and put the
+   pills against the screen edge; and the desktop x178 title inset has no meaning here, so titles line
+   up with their panel's content. */
+@media (max-width: 900px) {
+  .hub-staff-app.staff-exact .staff-topbar .inner { padding: 16px 0 0; }
+  .staff-exact main > :is(.section.first,.hub-page) .section-head { margin-left: 0; }
+  .staff-exact .section-head :is(h1,p), .staff-exact .home-hero h1 { margin-left: 0; padding-left: 0; }
+}
+/* A wrapped status breaks between words, never inside one ("Report require/d" on phones). */
+.staff-exact .tool-row .tr-sub .u-status { overflow-wrap: normal; word-break: normal; }
