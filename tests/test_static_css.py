@@ -44,14 +44,6 @@ class OverviewExactFitTests(unittest.TestCase):
         self.assertIn("@media (min-width: 1201px) { .route-overview .page { padding-bottom: 56px; } }", css)
 
 
-class LightAreaLabelTests(unittest.TestCase):
-    def test_the_light_area_backing_is_a_pill_the_height_of_its_line_not_a_taller_box(self):
-        css = (pathlib.Path(__file__).resolve().parent.parent / "gateway" / "static" / "admin.css").read_text(encoding="utf-8")
-        rule = css.split('html[data-theme="light"] .console-bar .console-area {')[1].split("}")[0]
-        self.assertIn("padding: 0 12px; margin: 0 -12px; border-radius: 19px;", rule)
-        self.assertNotIn("box-shadow", rule)
-
-
 class OverviewCountIconTests(unittest.TestCase):
     def test_the_two_count_cards_open_with_a_round_icon(self):
         root = pathlib.Path(__file__).resolve().parent.parent / "gateway" / "static"
@@ -59,6 +51,14 @@ class OverviewCountIconTests(unittest.TestCase):
         js = (root / "admin-monitor.js").read_text(encoding="utf-8")
         self.assertIn('label: "Need attention", icon: "attention"', js)
         self.assertIn('label: "Live requests", icon: "live"', js)
+
+
+class LightAreaLabelTests(unittest.TestCase):
+    def test_the_light_area_backing_is_a_pill_the_height_of_its_line_not_a_taller_box(self):
+        css = (pathlib.Path(__file__).resolve().parent.parent / "gateway" / "static" / "admin.css").read_text(encoding="utf-8")
+        rule = css.split('html[data-theme="light"] .console-bar .console-area {')[1].split("}")[0]
+        self.assertIn("padding: 0 12px; margin: 0 -12px; border-radius: 19px;", rule)
+        self.assertNotIn("box-shadow", rule)
 
 
 if __name__ == "__main__":
