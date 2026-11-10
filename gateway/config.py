@@ -99,7 +99,6 @@ class Settings:
     # Explicit owner exceptions approved by the organisation; legacy environment overrides cannot widen this.
     # The one company domain: GATEWAY_COMPANY_DOMAIN, default swangzavenue.com. Not editable in the console.
     company_domain: str = COMPANY_DOMAIN
-    email_domains: tuple = ("swangzavenue.com",)
     email_exceptions: frozenset = frozenset({"arnoldkigozi0@gmail.com", "marvinmusokessekatawa@gmail.com"})
     # The address people open the apps at, when it differs from the gateway's own (e.g. a Netlify site
     # that proxies to the gateway). Used for sign-in links and the Google sign-in return address.
@@ -151,7 +150,7 @@ class Settings:
         return isinstance(hd, str) and hd.strip().lower() == self.company_domain and email.endswith("@" + self.company_domain)
 
     def email_rule(self):
-        return "Accounts use an @swangzavenue.com work email."
+        return f"Accounts use an @{self.company_domain} work email."
 
     def __post_init__(self):
         from zoneinfo import ZoneInfo

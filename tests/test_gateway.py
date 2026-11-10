@@ -949,5 +949,10 @@ class EmailRuleTests(unittest.TestCase):
 
     def test_legacy_configuration_cannot_widen_company_domain(self):
         rig = self.rig
-        rig.gw.settings.email_domains = ("swangz.co", "swangzavenue.com")
+        from gateway.config import Settings
+        legacy = Settings.from_env({"GATEWAY_EMAIL_DOMAINS": "swangz.co", "GATEWAY_COMPANY_DOMAIN": ""})
+        self.assertFalse(hasattr(legacy, "email_domains"))  # only the one company domain remains
+        self.assertFalse(legacy.email_allowed("a@swangz.co"))
+        self.assertEqual(legacy.email_rule(), "Accounts use an @swangzavenue.com work email.")
+        self.assertEqual(Settings.from_env({"GATEWAY_COMPANY_DOMAIN": "example.org"}).email_rule(), "Accounts use an @example.org work email.")
         self.assertEqual(rig.api("POST", "/people", {"name": "A", "email": "a@swangz.co"})[0], 400)

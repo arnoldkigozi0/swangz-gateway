@@ -141,10 +141,31 @@ class PausedViewTests(Base):
         token = self.invite()
         self.assertEqual(self.call("POST", "/welcome", {"token": token, "password": "another-good-password"})[0], 403)
 
-    def test_ended_access_gets_no_paused_view(self):
+    def test_ended_access_gets_the_same_paused_view_and_nothing_else(self):
         self.set_person(access_until=time.time() - 5)
-        self.assertEqual(self.call("GET", "/me", cookie=self.person_cookie)[0], 401)
-        self.assertEqual(self.call("GET", "/hub/reports", cookie=self.person_cookie)[0], 401)
+        c = self.person_cookie
+        status, me = self.call("GET", "/me", cookie=c)
+        self.assertEqual((status, me["paused_view"], sorted(me)), (200, True, ["name", "paused_view", "reason", "status", "support_contact"]))
+        for path in ("/hub/reports", "/hub/notifications"):
+            self.assertEqual(self.call("GET", path, cookie=c)[0], 200, path)
+        for method, rx, fn, signed_in, paused_ok in staff.ROUTES:
+            if signed_in and not paused_ok:
+                self.assertEqual(self.call(method, sample(rx), {}, cookie=c)[0], 403, (method, rx.pattern))
+        self.assertEqual(self.rig.request("GET", "/go/chatgpt", None, {"cookie": c})[0], 403)
+        self.assertEqual(self.page(cookie=c)[0], 403)
+        self.assertEqual(self.call("POST", "/logout", {}, cookie=c)[0], 200)
+
+    def test_ended_access_still_opens_nothing_for_the_extension_the_proxy_the_device_and_an_invite(self):
+        token = self.extension_token()
+        device = self.enrol()
+        self.set_person(access_until=time.time() - 5)
+        self.assertEqual(self.call("GET", "/gate/config", bearer=token)[0], 401)
+        status, out = self.call("POST", "/extension/login", {"email": EMAIL, "password": PASSWORD})
+        self.assertEqual((status, out.get("code")), (403, "person_paused"))
+        self.assertEqual(self.call("POST", "/welcome", {"token": self.invite(), "password": "another-good-password"})[0], 403)
+        self.assertEqual(self.api("GET", "/device/manifest", key=device["key"])[0], 403)
+        self.assertEqual(self.rig.anthropic({"model": "claude-test", "max_tokens": 5, "messages": [{"role": "user", "content": "hi"}]},
+                                            key=device["key"])[0], 403)
 
     def test_a_paused_session_is_checked_every_request_and_activation_restores_the_full_view(self):
         self.pause()
@@ -184,8 +205,11 @@ class SessionKindTests(Base):
         token = self.extension_token()
         self.assertEqual(self.call("GET", "/gate/config", bearer=token)[0], 200)
         self.assertEqual(self.call("GET", "/gate/turns", bearer=token)[0], 200)
+        # the blocked page's "Request access" is the one other thing it may do
+        self.assertEqual(self.call("POST", "/tools/chatgpt/request", {"reason": "need it"}, bearer=token)[0], 200)
+        self.assertEqual(self.call("POST", "/tools/chatgpt/request", {}, cookie="sgw_staff=" + token)[0], 401)
         for method, path in (("GET", "/me"), ("GET", "/studio"), ("POST", "/keys"), ("GET", "/hub/reports"),
-                             ("GET", "/hub/notifications")):
+                             ("POST", "/tools/chatgpt/turn/end"), ("GET", "/hub/notifications")):
             status, out = self.call(method, path, {}, bearer=token)
             self.assertIn(status, (401, 403), path)
             if status == 403:
