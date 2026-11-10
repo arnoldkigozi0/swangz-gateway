@@ -163,7 +163,7 @@ body:has(.gate) { --scene-image: url("/static/login-welcome.webp"); }
 .u-tip .k i { width: 12px; height: 2px; border-radius: 1px; background: var(--viz-1); }
 [data-tip] { cursor: help; }
 button[data-tip], a[data-tip] { cursor: pointer; }
-.u-info { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; color: var(--tx-3); vertical-align: -3px; border: 0; background: none; padding: 0; }
+.u-info { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: var(--radius-chip); color: var(--tx-3); vertical-align: -3px; border: 0; background: none; padding: 0; }
 .u-info svg { width: 14px; height: 14px; }
 .u-info:hover, .u-info:focus-visible { color: var(--accent-tx); }
 
