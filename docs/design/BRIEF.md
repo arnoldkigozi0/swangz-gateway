@@ -394,7 +394,47 @@ dark areas and its composition fights the cards. Replace it; the scrim and glass
 - **Range sliders and progress bars:** track 4px, radius 2; filled part amber; slider thumb a 16×16 box, radius 5,
   white with a 1px rim, 2px focus ring; the value is shown as text beside it.
 
+**5. The control kit — use the right control, built once, used everywhere.** Pages are structured by choosing
+controls that hide what is not needed now. All of these live in `ui.js` / `ui.css` as one shared kit (`SUI.*`) used by
+both apps; no page builds its own. Vanilla JS and CSS, no new dependencies.
+
+| Control | Use it for | Rules |
+|---|---|---|
+| **Dropdown select** | Choosing 1 of 5+ options (team, tool, role, period, sort) | Box trigger with the current value + chevron; menu opens under it, 8px radius rows, tick on the current one, type to jump, a search field inside when > 8 options. Fewer than 5 options and space allows → segmented control instead. |
+| **Menu button ("More ⋯")** | Secondary actions on a page, card or table row | Every table row ends in one `⋯` button; a page header shows the primary button + at most one secondary + `⋯`. Destructive items last, separated, danger colour. |
+| **Split button** | A primary action with close variants ("Add person ▾" → Add one · Import list · Invite by email) | Main part does the common action; the chevron part opens the variants. |
+| **Segmented control** | Switching the view of the same data (Day · Week · Month; Cards · Table) | 2–4 options, box style of §10.10.2; remembered in the address. |
+| **Tabs** | The parts of one record (L3) | ≤ 6; the rest go under a "More ▾" tab dropdown. |
+| **Filter bar** | Narrowing an L2 list | Search + ≤ 3 dropdown filters + "More filters ▾"; each active filter shows as a removable chip under the bar with "Clear all"; filters live in the address so a link reproduces the list. |
+| **Date range picker** | Any period choice | Dropdown with presets (Today, 7 days, 30 days, This month, Custom) + a two-month calendar for Custom; always shows the chosen range as text. |
+| **Disclosure / accordion** | Detail most readers do not need ("Advanced", raw record, history) | Closed by default, chevron + one-line summary of what is inside; state remembered per page. |
+| **Side sheet** | L4 add / edit / grant, and row preview | Slides from the right, 480px (full width on phones), title + one-line purpose, sticky footer with Cancel (quiet) and the primary button, Esc closes, unsaved changes are confirmed. |
+| **Stepper** | Any form over 6 fields | Numbered steps along the top of the sheet, Back / Next, a final review step before saving. |
+| **Dialog** | Confirming something destructive or irreversible only | Says what will happen and to whom, in plain words; the confirm button names the action ("Remove access"), never "OK". |
+| **Tooltip / popover** | Explaining an icon, a number or a term | Tooltip = one line on hover/focus; popover = a small card on click (how a number was calculated, with a link to the list behind it). |
+| **Pagination** | Lists over 25 rows | 25 / 50 / 100 per page dropdown, "1–25 of 312", previous/next; sticky table header; bulk-select bar appears only when rows are ticked. |
+| **Toast** | Result of an action | Bottom-right, one line + Undo where the action can be undone; errors stay until dismissed and say what to do next. |
+| **Breadcrumb with dropdown** | The trail of §10.10.1 | Each crumb is a link; the last-but-one crumb has a chevron listing its sibling pages, so a reader can move sideways without the menu. |
+| **Command menu (⌘K)** | Jumping anywhere | Already exists: must list every L1/L2 page and every primary action, grouped by area. |
+
+- **Every control has every state designed:** default, hover, focus (2px ring), pressed, open, selected, disabled,
+  loading (the S loader inside the box, width does not jump), error (message under the field, never colour alone),
+  and empty. One screenshot sheet per control in dark and light goes in `docs/design/kit/`.
+- **Keyboard and screen readers (required, not optional):** every menu and dropdown opens with Enter/Space/↓, moves
+  with arrows, closes with Esc and returns focus to its trigger; correct roles (`menu`, `listbox`, `tablist`,
+  `dialog` with focus trap); touch targets ≥ 44px on phones; menus flip when they would leave the screen and become
+  a bottom sheet on phones.
+- **Forms, international grade:** label above the field, hint under it, required marked in words, validation on
+  leaving the field, the first error focused on submit; dates as "10 Nov 2026", times with the zone, money with the
+  currency code, numbers with thousands separators; every table column sortable with a visible arrow, numbers
+  right-aligned, long text cut with an ellipsis and shown in full in a tooltip.
+- **Consistency a reviewer checks:** one name per thing across the whole product (never "Remove" on one page and
+  "Delete" on another for the same act); the primary button is always in the same place (page header right; sheet
+  footer right); spacing only from the 4 / 8 / 12 / 16 / 24 / 32 scale; icons from one set at one stroke width.
+- **Build order:** the kit page first (`/admin#kit`, visible to owners only: every control in every state), then
+  pages adopt it chain by chain in the order of §10.10.1. A page is not "restructured" until it uses only kit controls.
+
 **Round R18 — "structure and boxes"** goes **ahead of** the unfinished R15–R17 items, in this order: (a) tokens +
 box controls + scrollbars + rail in one PR (CSS only, both apps, both themes); (b) the background; (c) the
-"Page levels" table; (d) Overview as L1 with every card chained to its filtered list; (e) one chain per PR in the
+"Page levels" table and the control kit page of point 5; (d) Overview as L1 with every card chained to its filtered list; (e) one chain per PR in the
 order above. §10.2 overlays compare layout and colour only from now on — control radii follow this section.
