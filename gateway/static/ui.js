@@ -908,6 +908,145 @@
     return () => { node.removeEventListener("keydown", onKey); if (before && before.focus && document.contains(before)) before.focus(); };
   }
 
+  // ------------------------------------------------------------------ the control kit (BRIEF 10.10 point 5)
+
+  const KIT = { check: ["M5 12.5l4.5 4.5L19 7"], chevron: ["M6 9l6 6l6-6"] };
+  let kitSeq = 0, kitOpen = null;
+
+  /* A panel anchored to its trigger: opens under it, flips above when there is no room below, and is a bottom sheet on
+     phones (ui.css). One is open at a time. A press outside closes it; Esc closes it and gives focus back to the trigger.
+     o: { align: "end", minWidth, onOpen, onClose }. Returns { open, close(focusBack), toggle, isOpen }. */
+  function popover(trigger, panel, o) {
+    o = o || {};
+    let open = false;
+    function put() {
+      if (window.matchMedia("(max-width: 640px)").matches) {
+        panel.style.left = panel.style.top = panel.style.bottom = panel.style.minWidth = ""; panel.classList.remove("up"); return;
+      }
+      const r = trigger.getBoundingClientRect();
+      panel.style.minWidth = Math.max(r.width, o.minWidth || 180) + "px";
+      const w = panel.offsetWidth, h = panel.offsetHeight;
+      const below = window.innerHeight - r.bottom - 14, above = r.top - 14;
+      const up = h > below && above > below;
+      panel.classList.toggle("up", up);
+      const left = o.align === "end" ? r.right - w : r.left;
+      panel.style.left = Math.max(8, Math.min(left, window.innerWidth - w - 8)) + "px";
+      /* above its trigger the panel hangs from its bottom edge, so it stays 6px clear if its height changes while open */
+      panel.style.top = up ? "auto" : Math.max(8, r.bottom + 6) + "px";
+      panel.style.bottom = up ? Math.max(8, window.innerHeight - r.top + 6) + "px" : "auto";
+    }
+    const outside = (e) => { if (!panel.contains(e.target) && !trigger.contains(e.target)) close(false); };
+    const moved = (e) => { if (!e || e.type !== "scroll" || !panel.contains(e.target)) put(); };
+    const key = (e) => { if (e.key === "Escape" && open) { e.preventDefault(); e.stopPropagation(); close(true); } };
+    function doOpen() {
+      if (open) return;
+      if (kitOpen) kitOpen(false);
+      open = true; kitOpen = close;
+      document.body.append(panel);
+      trigger.setAttribute("aria-expanded", "true");
+      o.onOpen && o.onOpen();
+      put();
+      requestAnimationFrame(() => { if (open) put(); });   // a pressed trigger is drawn shifted; measure again once it is released
+      document.addEventListener("pointerdown", outside, true);
+      window.addEventListener("resize", moved);
+      window.addEventListener("scroll", moved, true);
+    }
+    function close(focusBack) {
+      if (!open) return;
+      open = false; if (kitOpen === close) kitOpen = null;
+      document.removeEventListener("pointerdown", outside, true);
+      window.removeEventListener("resize", moved);
+      window.removeEventListener("scroll", moved, true);
+      panel.remove();
+      trigger.setAttribute("aria-expanded", "false");
+      if (focusBack && document.contains(trigger)) trigger.focus();
+      o.onClose && o.onClose();
+    }
+    panel.addEventListener("keydown", key);
+    trigger.addEventListener("keydown", key);
+    return { open: doOpen, close, put, toggle: () => (open ? close(true) : doOpen()), get isOpen() { return open; } };
+  }
+
+  /* A dropdown select, for one choice out of five or more (fewer: SUI.segmented). The trigger is a box showing the
+     current value and a chevron; the list opens under it with a tick on the current row. Arrows, Home and End move,
+     Enter chooses, Esc closes, typing jumps to the first match, and a search field appears above eight options.
+     o: { label (required: the name read out), options: [{ id, label, sub, disabled }], value, placeholder, onChange(id, option),
+          icon, small, align, disabled }. Returns the trigger button, with setValue(id) and a value getter. */
+  function select(o) {
+    const id = "u-sel-" + (++kitSeq);
+    const opts = o.options || [];
+    let cur = o.value, shown = [], active = -1, buf = "", bufAt = 0, swallow = false;
+    const valueEl = el("span", { class: "v" });
+    const btn = el("button", { type: "button", class: "u-select" + (o.small ? " sm" : ""), id, "aria-haspopup": "listbox", "aria-expanded": "false",
+      "aria-controls": id + "-list", disabled: o.disabled }, o.icon ? icon(o.icon) : null, valueEl, icon(KIT.chevron, "chev"));
+    const list = el("ul", { class: "u-pop-list", role: "listbox", id: id + "-list", tabindex: "-1", "aria-label": o.label });
+    const search = opts.length > 8 ? el("input", { type: "search", class: "u-pop-search", placeholder: "Search", "aria-label": "Search " + o.label,
+      autocomplete: "off", role: "combobox", "aria-expanded": "true", "aria-controls": id + "-list", "aria-autocomplete": "list" }) : null;
+    const none = el("p", { class: "u-pop-empty", role: "status", hidden: true });
+    const panel = el("div", { class: "u-pop u-pop-select" }, search ? el("label", { class: "u-pop-find" }, icon("search"), search) : null, list, none);
+    const target = search || list;
+    const pop = popover(btn, panel, { align: o.align, minWidth: o.minWidth, onOpen: () => { if (search) search.value = ""; draw(""); } });
+
+    function paint() {
+      const x = opts.find((y) => y.id === cur);
+      valueEl.textContent = x ? x.label : (o.placeholder || "Choose");
+      valueEl.classList.toggle("ph", !x);
+      btn.setAttribute("aria-label", o.label + ": " + valueEl.textContent);
+    }
+    function setActive(i, quiet) {
+      if (!shown.length) { active = -1; target.removeAttribute("aria-activedescendant"); return; }
+      active = Math.max(0, Math.min(i, shown.length - 1));
+      [...list.children].forEach((li, n) => li.classList.toggle("on", n === active));
+      target.setAttribute("aria-activedescendant", id + "-o" + active);
+      if (!quiet) list.children[active].scrollIntoView({ block: "nearest" });
+    }
+    function draw(q) {
+      const needle = q.trim().toLowerCase();
+      shown = opts.filter((x) => !needle || (x.label + " " + (x.sub || "")).toLowerCase().includes(needle));
+      list.replaceChildren(...shown.map((x, i) => el("li", { role: "option", id: id + "-o" + i, "data-i": i, "aria-selected": x.id === cur ? "true" : "false",
+        "aria-disabled": x.disabled ? "true" : null },
+        el("span", { class: "t" }, x.label, x.sub ? el("small", null, x.sub) : null), x.id === cur ? icon(KIT.check, "tick") : null)));
+      none.hidden = shown.length > 0;
+      none.textContent = shown.length ? "" : "Nothing matches “" + q.trim() + "”.";
+      setActive(Math.max(0, shown.findIndex((x) => x.id === cur)));
+    }
+    function choose(x) {
+      if (!x || x.disabled) return;
+      const changed = x.id !== cur;
+      cur = x.id; paint(); pop.close(true);
+      if (changed && o.onChange) o.onChange(x.id, x);
+    }
+    function show() { pop.open(); pop.put(); target.focus(); }
+
+    btn.addEventListener("click", () => (pop.isOpen ? pop.close(true) : show()));
+    /* Space chooses on keydown and focus returns to the trigger; its keyup must not press the trigger and reopen the list. */
+    btn.addEventListener("keyup", (e) => { if (swallow && e.key === " ") e.preventDefault(); swallow = false; });
+    btn.addEventListener("keydown", (e) => { if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !pop.isOpen) { e.preventDefault(); show(); } });
+    if (search) search.addEventListener("input", () => { draw(search.value); pop.put(); });
+    list.addEventListener("click", (e) => { const li = e.target.closest("li"); if (li) choose(shown[+li.dataset.i]); });
+    list.addEventListener("pointermove", (e) => { const li = e.target.closest("li"); if (li && +li.dataset.i !== active) setActive(+li.dataset.i, true); });
+    panel.addEventListener("keydown", (e) => {
+      const inList = e.target === list;
+      if (e.key === "ArrowDown") { e.preventDefault(); setActive(active + 1); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); setActive(active - 1); }
+      else if (e.key === "Home" && inList) { e.preventDefault(); setActive(0); }
+      else if (e.key === "End" && inList) { e.preventDefault(); setActive(shown.length - 1); }
+      else if (e.key === "Enter" || (e.key === " " && inList)) { e.preventDefault(); swallow = e.key === " "; choose(shown[active]); }
+      else if (e.key === "Tab") pop.close(true);   // focus goes back to the trigger, then Tab moves on from there
+      else if (inList && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const now = Date.now(); buf = now - bufAt > 700 ? e.key : buf + e.key; bufAt = now;
+        const from = buf.length === 1 ? active + 1 : active;
+        const order = shown.map((x, i) => i).slice(from).concat(shown.map((x, i) => i).slice(0, from));
+        const hit = order.find((i) => shown[i].label.toLowerCase().startsWith(buf.toLowerCase()));
+        if (hit !== undefined) setActive(hit);
+      }
+    });
+    btn.setValue = (v) => { cur = v; paint(); };
+    Object.defineProperty(btn, "value", { get: () => cur });
+    paint();
+    return btn;
+  }
+
   // ------------------------------------------------------------------ the command menu
 
   /* Ctrl+K anywhere. Static actions filter as you type; search(q) adds live results, grouped.
@@ -1111,6 +1250,6 @@
     tz, setGatewayOffset, setTzMode, tzLabel, startOfDay, startOfMonth, dateInput, fromDateInput, presetRange, fmt,
     initials, plural, debounce, gateway, avatar, logo, logoTint, status, badge, delta, evidence,
     skeleton, stateBox, errorBox, load, toast, copy, showTip, hideTip, infoTip,
-    columns, line, sparkline, barList, donut, donutParts, table, segmented, searchPill, progress, star, listPanel, rangeControl, trapFocus, commandMenu, splitGate, xfield, eyeToggle,
+    columns, line, sparkline, barList, donut, donutParts, table, segmented, searchPill, progress, star, listPanel, rangeControl, trapFocus, popover, select, commandMenu, splitGate, xfield, eyeToggle,
   };
 })();
