@@ -84,6 +84,20 @@ class DonutShareTests(unittest.TestCase):
             [9, [["A", 6, 0.667, 1], [None, 3, 0.333, 0]]],
             [0, []]])
 
+    def test_light_theme_arcs_reach_three_to_one_on_porcelain(self):
+        css = (STATIC / "ui.css").read_text(encoding="utf-8")
+
+        def lum(h):
+            c = [int(h[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+            c = [x / 12.92 if x <= .03928 else ((x + .055) / 1.055) ** 2.4 for x in c]
+            return .2126 * c[0] + .7152 * c[1] + .0722 * c[2]
+
+        found = re.findall(r'html\[data-theme="light"\] \.u-donut \.t(\d) \{ stroke: (#[0-9A-F]{6}); color: \2; \}', css)
+        self.assertEqual(sorted(t for t, _ in found), ["0", "1", "2", "3", "4", "5"])
+        for tone, colour in found:
+            ratio = (lum("#FCF8F2") + .05) / (lum(colour) + .05)
+            self.assertGreaterEqual(ratio, 3.0, "tone %s %s is %.2f:1" % (tone, colour, ratio))
+
     def test_overview_draws_uses_by_tool_as_a_donut_and_keeps_its_empty_state(self):
         source = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
         self.assertIn('SUI.donut({ label: "Uses by tool over 30 days"', source)

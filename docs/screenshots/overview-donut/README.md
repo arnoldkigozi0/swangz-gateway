@@ -21,3 +21,15 @@ ranked bar list; it is now `SUI.donut`. The panel stays where it was (x 767-1349
 - In light the yellow arc on the white panel is likely under 3:1 against its background (not measured). The count
   is in the legend as text, so no information depends on it, but it is a known weak point.
 - No 50% overlay was made. Motion, reduced-transparency and the 4x CPU trace were not run.
+
+## Follow-up (architect review, Nov 10)
+
+- `overlay-50-dashboard-02-dark.png`: this page at 1440×852 dark blended 50% with `stills/dashboard-02.jpg`. The ring
+  sits on the reference ring; the legend is centred on the ring and its rows are at the reference's 29px pitch.
+- The fixture has three tools with uses, so three legend rows are drawn. Up to five are named when the data has five
+  (`donutParts`, tested); rows are never invented to fill the legend.
+- Light theme: the reference arcs were under 3:1 on porcelain `#FCF8F2` (yellow 1.44, green 1.96, blue 2.20, orange
+  2.62; pink 3.07). Light now uses darker arcs of the same hues, computed against `#FCF8F2`: orange `#DB5F1F` 3.50,
+  blue `#1C8FCF` 3.38, yellow `#A88200` 3.39, pink `#E0456A` 3.80, green `#1A9A62` 3.40, other `#8A8378` about 3.5.
+  A test holds each at 3:1 or more. These are computed ratios on the flat panel colour, not sampled from a capture.
+- Dark colours are unchanged and were read from the still by eye.

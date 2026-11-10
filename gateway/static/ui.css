@@ -437,7 +437,7 @@ html[data-theme="light"] .u-tubes { --tube-a: rgba(70, 56, 40, .46); --tube-b: r
 .u-donut .mid { position: absolute; inset: 0; display: grid; align-content: center; justify-items: center; gap: 1px; }
 .u-donut .mid small { font-size: 9px; line-height: 12px; color: var(--tx-2); }
 .u-donut .mid b { font-size: 20px; line-height: 24px; font-weight: 700; color: var(--tx-1); font-variant-numeric: tabular-nums; }
-.u-donut ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; min-width: 0; }
+.u-donut ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; min-width: 0; align-self: center; }
 .u-donut li { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 24px; font-size: 11px; }
 .u-donut li i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
 .u-donut li a, .u-donut li .nm { min-width: 0; color: var(--tx-1); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -445,4 +445,9 @@ html[data-theme="light"] .u-tubes { --tube-a: rgba(70, 56, 40, .46); --tube-b: r
 .u-donut li .val { color: var(--tx-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .u-donut .t1 { stroke: #F2793A; color: #F2793A; } .u-donut .t2 { stroke: #45B4EE; color: #45B4EE; } .u-donut .t3 { stroke: #F3CF3F; color: #F3CF3F; }
 .u-donut .t4 { stroke: #EE5C7C; color: #EE5C7C; } .u-donut .t5 { stroke: #3FCB8B; color: #3FCB8B; } .u-donut .t0 { stroke: var(--viz-muted); color: var(--viz-muted); }
+/* Light: the reference has no light still, and its bright arcs fall under 3:1 on porcelain (the yellow measured 1.44:1 on
+   #FCF8F2). Each hue is kept and darkened until arc and legend dot reach 3:1 there: 3.50, 3.38, 3.39, 3.80, 3.40, 3.5. */
+html[data-theme="light"] .u-donut .t1 { stroke: #DB5F1F; color: #DB5F1F; } html[data-theme="light"] .u-donut .t2 { stroke: #1C8FCF; color: #1C8FCF; }
+html[data-theme="light"] .u-donut .t3 { stroke: #A88200; color: #A88200; } html[data-theme="light"] .u-donut .t4 { stroke: #E0456A; color: #E0456A; }
+html[data-theme="light"] .u-donut .t5 { stroke: #1A9A62; color: #1A9A62; } html[data-theme="light"] .u-donut .t0 { stroke: #8A8378; color: #8A8378; }
 @media (max-width: 720px) { .u-donut { grid-template-columns: 112px minmax(0, 1fr); column-gap: 16px; padding-left: 18px; } .u-donut .ring, .u-donut svg { width: 112px; height: 112px; } }
