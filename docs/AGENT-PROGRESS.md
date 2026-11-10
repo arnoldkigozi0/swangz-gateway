@@ -454,7 +454,7 @@ QA remain required. No ready/merge/deploy action.
 
 ## Sprint day — 10 November 2026 (Kampala time)
 
-56 pull requests merged to main between 00:04 and 20:58; main is `3162bf2`. Every merge had green
+60 pull requests merged to main between 00:04 and 21:38; main is `42d8088`. Every merge had green
 GitHub CI on its head. The list is drawn from `git log --merges origin/main`.
 
 | Time | PR | Merge | What |
@@ -515,6 +515,10 @@ GitHub CI on its head. The list is drawn from `git log --merges origin/main`.
 | 20:53 | #94 | `bddf68c` | Overview: Uses by tool as a donut with a legend (BRIEF 10.7) |
 | 20:55 | #95 | `4e4ef5d` | Arnold-only list, go-live asks, real-phone checklist, Chrome pack limits |
 | 20:58 | #93 | `3162bf2` | Security follow-ups: Google fixed-address switch (off by default), company-browser audit row, staff failed sign-ins on Security |
+| 21:32 | #100 | `6106663` | Real-user journey over HTTP: add, grant, sign in, open, Activity, revoke, sign out |
+| 21:34 | #96 | `4bcc80b` | Decisions: record D-001 to D-019 on main |
+| 21:37 | #99 | `9332c5f` | Console /me: display_name for the signed-in console user |
+| 21:38 | #97 | `42d8088` | Overview header, zero-day tubes and console phone navigation |
 
 What this covers, by track:
 

@@ -11,7 +11,7 @@ the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
 
 ### Sprint day — 10 November 2026
 
-Main is `3162bf2`, source schema **v25**. 56 pull requests merged today, each on green GitHub CI; the
+Main is `42d8088`, source schema **v25**. 60 pull requests merged today, each on green GitHub CI; the
 full list with merge commits is in `AGENT-PROGRESS.md` under the same date. The figures in the paragraph
 above this block (301 tests, schema v20) describe the October baseline, not today's main.
 
@@ -21,7 +21,8 @@ above this block (301 tests, schema v20) describe the October baseline, not toda
   per-person isolation), version and commit in the console footer and `/healthz`, scheduled restore
   check, uptime check, password changes that end other sessions and are throttled and audited, an audit
   sweep over every console route, the Chrome policy pack for company devices, the offline go-live
-  configuration check, and the Google fixed-address switch (`GATEWAY_REQUIRE_FIXED_RETURN`, off by default).
+  configuration check, and the Google fixed-address switch (`GATEWAY_REQUIRE_FIXED_RETURN`, off by default),
+  and a real-user journey test over HTTP (`tests/test_user_journey.py`).
 - **Exact-match UI (BRIEF 10):** split sign-in, staff shell, staff footer, staff tabs and phone bar,
   console scene, rail, top bar, avatar menu and Overview. Overlay paths are listed in `AGENT-PROGRESS.md`.
 - **Only Arnold can provide:** `ARNOLD-ONLY.md` (provider subscriptions, server and domain, Google
