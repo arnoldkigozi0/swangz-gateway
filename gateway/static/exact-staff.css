@@ -191,10 +191,30 @@ html[data-theme="light"] .staff-exact {
    software Chromium, and a scrolling `cover` photo was re-scaled on every frame (desktop Tools 46fps).
    The room is one fixed layer of its own behind the shell: it is drawn once, stays put as in the
    reference, and scrolling only moves the content over it. No live blur inside the staff shell. */
-.staff-exact { background: none; isolation: isolate; --staff-scene: linear-gradient(rgba(12,10,9,.32), rgba(12,10,9,.32)), url('/static/room-warm.webp'); --staff-scene-flat: #241F1C; }
-html[data-theme="light"] .staff-exact { background: none; --staff-scene: linear-gradient(rgba(250,244,236,.42),rgba(250,244,236,.42)), url('/static/room-warm.webp'); --staff-scene-flat: #FAF4EC; }
+.staff-exact { background: none; isolation: isolate; --staff-scrim: linear-gradient(rgba(12,10,9,.32), rgba(12,10,9,.32)); --staff-scene: var(--staff-scrim), url('/static/room-warm.webp'); --staff-scene-flat: #241F1C; }
+html[data-theme="light"] .staff-exact { background: none; --staff-scrim: linear-gradient(rgba(250,244,236,.42),rgba(250,244,236,.42)); --staff-scene-flat: #FAF4EC; }
 .staff-exact::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--staff-scene-flat); background-image: var(--staff-scene); background-position: center; background-size: cover; background-repeat: no-repeat; }
-@media (prefers-reduced-transparency: reduce) { .staff-exact::before { background-image: none; } }
+/* §10.1(3), desktop: a fixed full-screen photo layer under scrolling content cost desktop Tools 12fps in
+   software Chromium (43–47, gate 55), so above 900px the room is painted on the page itself, as one layer.
+   It is sized to cover the viewport, not the page, so at the top of the page it is the same picture in the
+   same place as the fixed layer; room-warm-tile.webp is the photo followed by its mirror image, so it
+   continues without a seam on pages that scroll. The room now moves with the page. Phones keep the fixed
+   layer (59fps measured). */
+@media (min-width: 901px) {
+  .staff-exact::before { display: none; }
+  .staff-exact > * { image-rendering: auto; }
+  .staff-exact, html[data-theme="light"] .staff-exact {
+    --staff-photo-h: max(59.1875vw, 100vh);
+    background-color: var(--staff-scene-flat);
+    background-image: var(--staff-scrim), url('/static/room-warm-tile.webp');
+    background-size: auto, calc(var(--staff-photo-h) * 1.68955) calc(var(--staff-photo-h) * 2);
+    background-position: 0 0, center calc((100vh - var(--staff-photo-h)) / 2);
+    background-repeat: repeat, repeat-y;
+    image-rendering: pixelated; /* the photo is soft-focus; smoothing it again on every repaint was the remaining scroll cost */
+  }
+}
+@media (prefers-reduced-transparency: reduce) { .staff-exact::before { background-image: none; } .staff-exact, html[data-theme="light"] .staff-exact { background-image: none; } }
+@media print { .staff-exact, html[data-theme="light"] .staff-exact { background-image: none; background-color: white; } }
 @media print { .staff-exact::before { display: none; } }
 .staff-exact * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 
