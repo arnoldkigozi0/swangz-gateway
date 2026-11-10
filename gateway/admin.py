@@ -194,9 +194,22 @@ def logout(ctx):
     return 200, {"ok": True}, {"Set-Cookie": _session_cookie(ctx, "", 0)}
 
 
+def _display_name(ctx):
+    """The signed-in console user's name as the company recorded it: the name on the one person whose email is this
+    console username. No such person, more than one, or a blank name is None. Never taken from the username or role."""
+    username = str(ctx.admin["username"] or "").strip()
+    if not username:
+        return None
+    rows = ctx.db.q("SELECT name FROM people WHERE trim(email) != '' AND lower(trim(email)) = lower(?) LIMIT 2", (username,))
+    if len(rows) != 1:
+        return None
+    return str(rows[0]["name"] or "").strip() or None
+
+
 @route("GET", r"/me")
 def me(ctx):
-    return {"username": ctx.admin["username"], **authz.describe(ctx.admin), "base_url": ctx.gw.public_url(ctx.h),
+    return {"username": ctx.admin["username"], "display_name": _display_name(ctx),
+            **authz.describe(ctx.admin), "base_url": ctx.gw.public_url(ctx.h),
             "providers": _providers(ctx), "tz_offset_minutes": ctx.gw.settings.tz_offset_minutes,
             "areas": authz.AREAS, "roles": {k: {"label": v[0], "can": sorted(v[1]), "about": v[2]} for k, v in authz.ROLES.items()}}
 
