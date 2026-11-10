@@ -1259,9 +1259,9 @@ html[data-theme="light"] .shell #main::before { background: rgba(252, 248, 242, 
    each side with rounded corners, so the room shows around the page as on desktop; the page's own 16px padding keeps
    every bare text run 8px inside the plane. Unmeasured until captured (docs/screenshots/exact-r16/README.md). */
 @media (max-width: 900px) { .shell #main::before { inset: 0 8px 8px 8px; border-radius: 18px; } }
-/* Light only (no reference still): the top bar's bare area label gets a porcelain backing drawn with a shadow, so it
-   takes no space and the label stays where 10.3 puts it. */
-html[data-theme="light"] .console-bar .console-area { background: rgba(252, 248, 242, .94); box-shadow: 0 0 0 7px rgba(252, 248, 242, .94); border-radius: 6px; }
+/* Light only (no reference still): the top bar's bare area label gets a porcelain backing the height of the pills beside
+   it (its 38px line), rounded like them. Padding and an equal negative margin keep the label where 10.3 puts it. */
+html[data-theme="light"] .console-bar .console-area { background: rgba(252, 248, 242, .94); padding: 0 12px; margin: 0 -12px; border-radius: 19px; }
 @media print { .shell #main::before { display: none; } }
 
 /* R15 piece 2, BRIEF 10.3 "Top bar" and 10.7 "Page header". Desktop only: phones keep 44px targets (10.1(3)).
