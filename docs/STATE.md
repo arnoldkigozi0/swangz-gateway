@@ -11,7 +11,7 @@ the demo uses a stand-in model (`tests/fake_upstream.py --demo`).
 
 ### Sprint day — 10 November 2026
 
-Main is `42d8088`, source schema **v25**. 60 pull requests merged today, each on green GitHub CI; the
+Main is `42d8088`, source schema **v25**. 61 pull requests merged today, each on green GitHub CI; the
 full list with merge commits is in `AGENT-PROGRESS.md` under the same date. The figures in the paragraph
 above this block (301 tests, schema v20) describe the October baseline, not today's main.
 
@@ -25,6 +25,8 @@ above this block (301 tests, schema v20) describe the October baseline, not toda
   and a real-user journey test over HTTP (`tests/test_user_journey.py`).
 - **Exact-match UI (BRIEF 10):** split sign-in, staff shell, staff footer, staff tabs and phone bar,
   console scene, rail, top bar, avatar menu and Overview. Overlay paths are listed in `AGENT-PROGRESS.md`.
+  The last Overview header change (#97: greeting by recorded name, zero-day tubes, console phone
+  navigation) merged on green CI without screenshots or overlays; its visual acceptance is still owed.
 - **Only Arnold can provide:** `ARNOLD-ONLY.md` (provider subscriptions, server and domain, Google
   client and return address, signing certificates, Chrome policy roll-out, real-phone check).
 - **Not done:** signed installers (auto-update stays off until then), the PWA on a real Android phone

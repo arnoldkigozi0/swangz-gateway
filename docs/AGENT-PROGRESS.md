@@ -454,7 +454,7 @@ QA remain required. No ready/merge/deploy action.
 
 ## Sprint day — 10 November 2026 (Kampala time)
 
-60 pull requests merged to main between 00:04 and 21:38; main is `42d8088`. Every merge had green
+61 pull requests merged to main between 00:04 and 21:36; main is `42d8088`. Every merge had green
 GitHub CI on its head. The list is drawn from `git log --merges origin/main`.
 
 | Time | PR | Merge | What |
@@ -514,11 +514,12 @@ GitHub CI on its head. The list is drawn from `git log --merges origin/main`.
 | 20:28 | #92 | `f580cb4` | Overview: first card in the reference amber, and the page fits 1440x852 |
 | 20:53 | #94 | `bddf68c` | Overview: Uses by tool as a donut with a legend (BRIEF 10.7) |
 | 20:55 | #95 | `4e4ef5d` | Arnold-only list, go-live asks, real-phone checklist, Chrome pack limits |
-| 20:58 | #93 | `3162bf2` | Security follow-ups: Google fixed-address switch (off by default), company-browser audit row, staff failed sign-ins on Security |
-| 21:32 | #100 | `6106663` | Real-user journey over HTTP: add, grant, sign in, open, Activity, revoke, sign out |
+| 20:57 | #93 | `3162bf2` | Security follow-ups: Google fixed-address switch (off by default), company-browser audit row, staff failed sign-ins on Security |
+| 21:18 | #98 | `8ee5856` | Overview: round icons on the two count cards (dashboard-02) |
+| 21:31 | #100 | `6106663` | Real-user journey over HTTP: add, grant, sign in, open, Activity, revoke, sign out |
 | 21:34 | #96 | `4bcc80b` | Decisions: record D-001 to D-019 on main |
-| 21:37 | #99 | `9332c5f` | Console /me: display_name for the signed-in console user |
-| 21:38 | #97 | `42d8088` | Overview header, zero-day tubes and console phone navigation |
+| 21:35 | #99 | `9332c5f` | Console /me: display_name for the signed-in console user |
+| 21:36 | #97 | `42d8088` | Overview header, zero-day tubes and console phone navigation |
 
 What this covers, by track:
 
@@ -530,7 +531,7 @@ What this covers, by track:
   (#80 #87 #90), audit-coverage sweep of every console route (#91), Google fixed-address switch (#93),
   offline go-live configuration check (#81), Chrome policy pack for company devices (#85).
 - **Exact-match UI:** split sign-in (#57), staff shell (#56), staff footer (#65), console scene, rail,
-  top bar and Overview (#66 #68 #69 #73 #79 #89 #92 #94), staff tabs and phone bar (#67 #70), avatar
+  top bar and Overview (#66 #68 #69 #73 #79 #89 #92 #94 #98 #97), staff tabs and phone bar (#67 #70), avatar
   menu (#72).
 - **Owner documents:** `docs/ARNOLD-ONLY.md`, `docs/GO-LIVE-ASKS.md`, `docs/MOBILE-READINESS.md` (#95).
 
@@ -541,6 +542,13 @@ Overlays recorded for BRIEF 10.2 (1440x852, dark):
 - Staff footer: `docs/screenshots/exact-footer/overlay-footer-1440x852-dark.png`
 - Console Overview: `docs/screenshots/exact-r15/overlay-overview-1440x852-dark.png`,
   `piece2-` and `piece3-` beside it, and `docs/screenshots/exact-r16/r17-overlay-overview-1440x852-dark.png`
+
+Console header greeting (#97, with #99): the greeting uses the first word of `display_name` from
+`GET /admin/api/me` and says a plain hello when that is null; it never uses the username or the role.
+#97 merged on head `585b42c` with python 3.10, python 3.12, app-window and browser all passing, and
+Chief reports Sentinel approved that head on code and security. Its visual acceptance is **not
+verified**: no screenshots, 50% overlays, colour samples or lens timing were recorded for it, because
+no local browser ran for that work. BRIEF 10.2 acceptance for #97 is still owed.
 
 Not run today: the full suite on the laptop (CI runs it), any real phone, the Chrome policy pack on a
 real device, signed desktop builds. Desktop auto-update stays off until builds are signed.
