@@ -910,7 +910,7 @@
 
   // ------------------------------------------------------------------ the control kit (BRIEF 10.10 point 5)
 
-  const KIT = { check: ["M5 12.5l4.5 4.5L19 7"], chevron: ["M6 9l6 6l6-6"] };
+  const KIT = { check: ["M5 12.5l4.5 4.5L19 7"], chevron: ["M6 9l6 6l6-6"], more: ["M5 12h.01", "M12 12h.01", "M19 12h.01"] };
   let kitSeq = 0, kitOpen = null;
 
   /* A panel anchored to its trigger: opens under it, flips above when there is no room below, and is a bottom sheet on
@@ -965,6 +965,84 @@
     panel.addEventListener("keydown", key);
     trigger.addEventListener("keydown", key);
     return { open: doOpen, close, put, toggle: () => (open ? close(true) : doOpen()), get isOpen() { return open; } };
+  }
+
+  /* A menu of actions on a trigger (role=menu). Enter, Space, ArrowDown or a press opens it on the first item; ArrowUp
+     opens on the last; arrows move and wrap, Home and End jump, a letter goes to the next item starting with it, Tab and
+     Esc close. Destructive items are always shown last, under a rule, in the danger colour, whatever order they came in.
+     items: an array, or a function returning one (read each time it opens):
+       { id, label, sub, icon, danger, disabled, onSelect(item), href }. o: { label (required), align }. */
+  function menu(trigger, items, o) {
+    o = o || {};
+    const id = "u-menu-" + (++kitSeq);
+    let rows = [];
+    const list = el("div", { class: "u-menu", role: "menu", id, "aria-label": o.label || null });
+    const panel = el("div", { class: "u-pop u-pop-menu" }, list);
+    trigger.setAttribute("aria-haspopup", "menu");
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.setAttribute("aria-controls", id);
+    const live = () => rows.filter((b) => b.getAttribute("aria-disabled") !== "true");
+    function focusAt(i) { const l = live(); if (l.length) l[(i + l.length) % l.length].focus(); }
+    function draw() {
+      const all = (typeof items === "function" ? items() : items || []).filter(Boolean);
+      const safe = all.filter((x) => !x.danger), danger = all.filter((x) => x.danger);
+      const row = (x) => {
+        const b = el(x.href ? "a" : "button", { type: x.href ? null : "button", href: x.href || null, role: "menuitem", tabindex: "-1",
+          class: x.danger ? "danger" : null, "aria-disabled": x.disabled ? "true" : null, "data-id": x.id || null },
+          x.icon ? icon(x.icon) : null, el("span", { class: "t" }, x.label, x.sub ? el("small", null, x.sub) : null));
+        b.addEventListener("click", (e) => {
+          if (x.disabled) { e.preventDefault(); return; }
+          pop.close(true);
+          if (x.onSelect) x.onSelect(x);
+        });
+        return b;
+      };
+      rows = safe.concat(danger).map(row);
+      list.replaceChildren(...rows.slice(0, safe.length), ...(safe.length && danger.length ? [el("hr", { role: "separator" })] : []), ...rows.slice(safe.length));
+    }
+    const pop = popover(trigger, panel, { align: o.align || "end", minWidth: o.minWidth || 200, onOpen: draw });
+    function show(last) { pop.open(); pop.put(); focusAt(last ? -1 : 0); }
+    trigger.addEventListener("click", () => (pop.isOpen ? pop.close(true) : show(false)));
+    trigger.addEventListener("keydown", (e) => {
+      if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !pop.isOpen) { e.preventDefault(); show(e.key === "ArrowUp"); }
+    });
+    list.addEventListener("pointermove", (e) => { const b = e.target.closest("[role=menuitem]"); if (b && b !== document.activeElement && b.getAttribute("aria-disabled") !== "true") b.focus(); });
+    panel.addEventListener("keydown", (e) => {
+      const l = live(), at = l.indexOf(document.activeElement);
+      if (e.key === "ArrowDown") { e.preventDefault(); focusAt(at + 1); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); focusAt(at < 0 ? -1 : at - 1); }
+      else if (e.key === "Home") { e.preventDefault(); focusAt(0); }
+      else if (e.key === "End") { e.preventDefault(); focusAt(-1); }
+      else if (e.key === "Tab") pop.close(true);
+      else if (e.key.length === 1 && e.key !== " " && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const k = e.key.toLowerCase();
+        const next = l.slice(at + 1).concat(l.slice(0, at + 1)).find((b) => b.textContent.trim().toLowerCase().startsWith(k));
+        if (next) next.focus();
+      }
+    });
+    return pop;
+  }
+
+  /* The "More" button: three dots that open a menu. One ends every table row; a page header has at most one, after its
+     primary and one secondary action. o: { label: "More actions for Amina" (required: the name read out), items, text
+     (show a word beside the dots), small, align, disabled }. Returns the button, with a menu property. */
+  function menuButton(o) {
+    const btn = el("button", { type: "button", class: "u-more" + (o.small ? " sm" : "") + (o.text ? " worded" : ""), "aria-label": o.text ? null : o.label,
+      title: o.text ? null : o.label, disabled: o.disabled }, o.text ? el("span", null, o.text) : null, icon(KIT.more));
+    btn.menu = menu(btn, o.items, { label: o.label, align: o.align });
+    return btn;
+  }
+
+  /* A split button: the main part does the common action, the chevron part opens the variants ("Export" + CSV, PDF).
+     o: { label, onClick, items (as SUI.menu), menuLabel: "More export formats" (required: the chevron's name), icon,
+          primary, small, disabled }. Returns the group, with main, more and menu properties. */
+  function splitButton(o) {
+    const main = el("button", { type: "button", class: "u-split-main", disabled: o.disabled }, o.icon ? icon(o.icon) : null, el("span", null, o.label));
+    const more = el("button", { type: "button", class: "u-split-more", "aria-label": o.menuLabel, title: o.menuLabel, disabled: o.disabled }, icon(KIT.chevron, "chev"));
+    const box = el("div", { class: "u-split" + (o.primary ? " primary" : "") + (o.small ? " sm" : ""), role: "group", "aria-label": o.label }, main, more);
+    if (o.onClick) main.addEventListener("click", () => o.onClick());
+    box.main = main; box.more = more; box.menu = menu(more, o.items, { label: o.menuLabel, align: "end" });
+    return box;
   }
 
   /* A dropdown select, for one choice out of five or more (fewer: SUI.segmented). The trigger is a box showing the
@@ -1045,6 +1123,133 @@
     Object.defineProperty(btn, "value", { get: () => cur });
     paint();
     return btn;
+  }
+
+  /* The filter bar: a search field, at most three dropdown filters, and the rest behind "More filters". What is
+     active shows as removable chips under the bar, with "Clear all". The bar keeps no state of its own beyond what it is
+     given: the page puts the values in the address (A.keepParams) and redraws from onChange.
+     o: { label: "Filter people" (required), search: { placeholder, param: "q" } or null,
+          filters: [{ id, label, options: [{ id, label }], any: "Any team" }], values: { q, <filter id>: <option id> },
+          onChange(values, changedId) }. Returns the bar, with values() and set(values). */
+  function filterBar(o) {
+    const filters = o.filters || [];
+    const qKey = o.search ? o.search.param || "q" : null;
+    const vals = Object.assign({}, o.values);
+    const added = new Set();
+    const emit = (id) => { o.onChange && o.onChange(Object.assign({}, vals), id); };
+    const input = o.search ? el("input", { type: "search", placeholder: o.search.placeholder || "Search", "aria-label": o.search.placeholder || "Search",
+      autocomplete: "off", value: vals[qKey] || "" }) : null;
+    const controls = el("div", { class: "u-filter-row" }, input ? el("label", { class: "u-search" }, icon("search"), input) : null);
+    const chips = el("div", { class: "u-chips", role: "group", "aria-label": "Active filters" });
+    const bar = el("div", { class: "u-filter", role: "search", "aria-label": o.label }, controls, chips);
+    const selects = {};
+    filters.forEach((f) => {
+      selects[f.id] = select({ label: f.label, placeholder: f.label, value: vals[f.id] || "", small: o.small,
+        options: [{ id: "", label: f.any || "Any " + f.label.toLowerCase() }].concat(f.options),
+        onChange: (v) => { if (v) vals[f.id] = v; else delete vals[f.id]; draw(); emit(f.id); } });
+      selects[f.id].dataset.filter = f.id;
+    });
+    const extra = () => filters.slice(3).filter((f) => !added.has(f.id) && !vals[f.id]);
+    const more = el("button", { type: "button", class: "u-filter-more" }, el("span", null, "More filters"), icon(KIT.chevron, "chev"));
+    menu(more, () => extra().map((f) => ({ id: f.id, label: f.label, onSelect: () => { added.add(f.id); draw(); selects[f.id].click(); } })), { label: "More filters", align: "start" });
+    const clear = el("button", { type: "button", class: "u-chip-clear" }, "Clear all");
+    clear.addEventListener("click", () => {
+      Object.keys(vals).forEach((k) => delete vals[k]); added.clear();
+      if (input) input.value = "";
+      draw(); (input || bar.querySelector("button")).focus(); emit(null);
+    });
+    function draw() {
+      const had = bar.contains(document.activeElement) ? document.activeElement : null;   // moving a node drops its focus
+      const shown = filters.filter((f, i) => i < 3 || added.has(f.id) || vals[f.id]);
+      shown.forEach((f) => { selects[f.id].setValue(vals[f.id] || ""); selects[f.id].classList.toggle("set", !!vals[f.id]); });
+      [...controls.querySelectorAll(".u-select, .u-filter-more")].forEach((n) => { if (!shown.some((f) => selects[f.id] === n)) n.remove(); });
+      shown.forEach((f) => controls.append(selects[f.id]));
+      if (extra().length) controls.append(more);
+      const active = filters.filter((f) => vals[f.id]);
+      chips.replaceChildren(...active.map((f) => {
+        const opt = f.options.find((x) => x.id === vals[f.id]);
+        const text = f.label + ": " + (opt ? opt.label : vals[f.id]);
+        const chip = el("button", { type: "button", class: "u-chip", "aria-label": "Remove filter " + text, "data-filter": f.id }, el("span", null, text), icon("x"));
+        chip.addEventListener("click", () => {
+          const at = [...chips.querySelectorAll(".u-chip")].indexOf(chip);
+          delete vals[f.id]; draw();
+          const left = chips.querySelectorAll(".u-chip");
+          (left[Math.min(at, left.length - 1)] || selects[f.id]).focus();
+          emit(f.id);
+        });
+        return chip;
+      }), ...(active.length ? [clear] : []));
+      chips.hidden = !active.length;
+      if (had && bar.contains(had) && document.activeElement !== had) had.focus();
+    }
+    if (input) input.addEventListener("input", debounce(() => {
+      const q = input.value.trim();
+      if ((vals[qKey] || "") === q) return;
+      if (q) vals[qKey] = q; else delete vals[qKey];
+      emit(qKey);
+    }, 200));
+    draw();
+    bar.values = () => Object.assign({}, vals);
+    bar.set = (v) => { Object.keys(vals).forEach((k) => delete vals[k]); Object.assign(vals, v); if (input) input.value = vals[qKey] || ""; draw(); };
+    return bar;
+  }
+
+  /* A side sheet: a panel that slides in from the right (480px; the whole width on phones) for a form or a record,
+     over a scrim. Title and one line saying what it is for; the body scrolls; the footer stays put with Cancel (quiet)
+     and one primary action. Esc, the cross, Cancel and a press on the scrim all close it — and when dirty() says there
+     are unsaved changes, the footer asks first ("Keep editing" / "Discard"). Focus is trapped inside and goes back to
+     where it came from.
+     o: { title, purpose, body (a node), primary: { label, onClick(api) — may return a promise; the button waits on it },
+          cancel: "Cancel", dirty: () => bool, onClose() }. Returns { node, body, close(force), busy(on) }. */
+  function sheet(o) {
+    const id = "u-sheet-" + (++kitSeq);
+    const quick = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let closed = false, asking = false;
+    const x = el("button", { type: "button", class: "u-sheet-x", "aria-label": "Close" }, icon("x"));
+    const cancel = el("button", { type: "button", class: "btn quiet" }, o.cancel || "Cancel");
+    const go = o.primary ? el("button", { type: "button", class: "btn primary" }, o.primary.label) : null;
+    const keep = el("button", { type: "button", class: "btn quiet" }, "Keep editing");
+    const drop = el("button", { type: "button", class: "btn danger" }, "Discard");
+    const ask = el("p", { class: "u-sheet-ask", role: "alert" }, "Discard your unsaved changes?");
+    const foot = el("footer", { class: "u-sheet-foot" }, cancel, go);
+    const body = el("div", { class: "u-sheet-body" }, o.body || null);
+    const node = el("aside", { class: "u-sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": id + "-t", "aria-describedby": o.purpose ? id + "-p" : null, tabindex: "-1" },
+      el("header", { class: "u-sheet-head" }, el("div", null, el("h2", { id: id + "-t" }, o.title), o.purpose ? el("p", { id: id + "-p" }, o.purpose) : null), x), body, foot);
+    const scrim = el("div", { class: "u-sheet-scrim" });
+    function close(force) {
+      if (closed) return;
+      if (!force && o.dirty && o.dirty()) { if (!asking) { asking = true; foot.classList.add("asking"); foot.replaceChildren(ask, keep, drop); keep.focus(); } return; }
+      closed = true;
+      if (kitOpen) kitOpen(false);
+      document.removeEventListener("keydown", onKey);
+      node.classList.remove("in"); scrim.classList.remove("in");
+      release();
+      setTimeout(() => { node.remove(); scrim.remove(); }, quick ? 0 : 200);
+      o.onClose && o.onClose();
+    }
+    function onKey(e) {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      e.preventDefault();
+      if (asking) keep.click(); else close(false);
+    }
+    function busy(on) { [cancel, go, x].forEach((b) => { if (b) b.disabled = !!on; }); if (go) go.classList.toggle("loading", !!on); node.setAttribute("aria-busy", on ? "true" : "false"); }
+    const api = { node, body, close, busy };
+    x.addEventListener("click", () => close(false));
+    cancel.addEventListener("click", () => close(false));
+    scrim.addEventListener("click", () => close(false));
+    keep.addEventListener("click", () => { asking = false; foot.classList.remove("asking"); foot.replaceChildren(...[cancel, go].filter(Boolean)); (go || cancel).focus(); });
+    drop.addEventListener("click", () => close(true));
+    if (go) go.addEventListener("click", () => {
+      const r = o.primary.onClick && o.primary.onClick(api);
+      if (r && typeof r.then === "function") { busy(true); r.then(() => busy(false), () => busy(false)); }
+    });
+    document.body.append(scrim, node);
+    const release = trapFocus(node);
+    document.addEventListener("keydown", onKey);
+    const first = body.querySelector("input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])");
+    (first || node).focus();
+    requestAnimationFrame(() => { node.classList.add("in"); scrim.classList.add("in"); });
+    return api;
   }
 
   // ------------------------------------------------------------------ the command menu
@@ -1250,6 +1455,6 @@
     tz, setGatewayOffset, setTzMode, tzLabel, startOfDay, startOfMonth, dateInput, fromDateInput, presetRange, fmt,
     initials, plural, debounce, gateway, avatar, logo, logoTint, status, badge, delta, evidence,
     skeleton, stateBox, errorBox, load, toast, copy, showTip, hideTip, infoTip,
-    columns, line, sparkline, barList, donut, donutParts, table, segmented, searchPill, progress, star, listPanel, rangeControl, trapFocus, popover, select, commandMenu, splitGate, xfield, eyeToggle,
+    columns, line, sparkline, barList, donut, donutParts, table, segmented, searchPill, progress, star, listPanel, rangeControl, trapFocus, popover, select, menu, menuButton, splitButton, filterBar, sheet, commandMenu, splitGate, xfield, eyeToggle,
   };
 })();

@@ -21,11 +21,37 @@ const mount = () => {
   const off = SUI.select({ label: 'Role', options: teams, value: 'sales', disabled: true });
   const low = SUI.select({ label: 'Period', options: teams, value: 'studio' });
   team.dataset.t = 'team'; tool.dataset.t = 'tool'; off.dataset.t = 'off'; low.dataset.t = 'low';
-  const row = el('div', null, team, ' ', tool, ' ', off);
+  window.__did = [];
+  const more = SUI.menuButton({ label: 'More actions for Amina', items: () => [
+    { id: 'remove', label: 'Remove person', danger: true, onSelect: (x) => window.__did.push(x.id) },
+    { id: 'edit', label: 'Edit details', icon: 'edit', onSelect: (x) => window.__did.push(x.id) },
+    { id: 'pause', label: 'Pause access', sub: 'Until you resume it', onSelect: (x) => window.__did.push(x.id) },
+    { id: 'export', label: 'Export record', disabled: true, onSelect: (x) => window.__did.push(x.id) },
+    { id: 'reset', label: 'Reset sign-in', onSelect: (x) => window.__did.push(x.id) }] });
+  more.dataset.t = 'more';
+  const split = SUI.splitButton({ label: 'Export', icon: 'download', menuLabel: 'More export formats', primary: true, onClick: () => window.__did.push('csv'),
+    items: [{ id: 'pdf', label: 'Export as PDF', onSelect: (x) => window.__did.push(x.id) }, { id: 'sheet', label: 'Export as a spreadsheet', onSelect: (x) => window.__did.push(x.id) }] });
+  split.dataset.t = 'split';
+  window.__filt = [];
+  const opt = (a) => a.map((x) => ({ id: x.toLowerCase(), label: x }));
+  const bar = SUI.filterBar({ label: 'Filter people', search: { placeholder: 'Search people' }, values: { status: 'paused' }, onChange: (v, id) => window.__filt.push(JSON.stringify(v) + '|' + id),
+    filters: [{ id: 'team', label: 'Team', options: opt(['Creative', 'Finance', 'Sales']) }, { id: 'role', label: 'Role', options: opt(['Owner', 'Staff']) },
+      { id: 'status', label: 'Status', options: opt(['Active', 'Paused']) }, { id: 'tool', label: 'Tool', options: opt(['ChatGPT', 'Claude']) }, { id: 'device', label: 'Device', options: opt(['Laptop', 'Phone']) }] });
+  bar.dataset.t = 'bar';
+  window.__sheet = [];
+  const openSheet = el('button', { type: 'button', class: 'btn' }, 'Add person');
+  openSheet.dataset.t = 'sheet';
+  openSheet.addEventListener('click', () => {
+    const name = el('input', { type: 'text', 'aria-label': 'Name' });
+    const filler = el('div'); filler.style.height = '1400px';
+    window.__api = SUI.sheet({ title: 'Add a person', purpose: 'They can sign in once you save.', body: el('div', null, name, filler), dirty: () => name.value !== '',
+      primary: { label: 'Save person', onClick: (api) => { window.__sheet.push('save:' + name.value); api.close(true); } }, onClose: () => window.__sheet.push('closed') });
+  });
+  const row = el('div', null, team, ' ', tool, ' ', off, ' ', more, ' ', split, ' ', openSheet);
   row.style.cssText = 'display:flex;flex-wrap:wrap;gap:12px;padding:16px 0';
   const foot = el('div', null, low);
   foot.style.cssText = 'position:fixed;left:50%;bottom:16px;z-index:5';
-  document.querySelector('main').replaceChildren(el('h1', null, 'Control kit'), row);
+  document.querySelector('main').replaceChildren(el('h1', null, 'Control kit'), row, bar);
   document.body.append(foot);
 };
 
@@ -122,6 +148,149 @@ const mount = () => {
         await page.click(team);
         ok(T + 'opening another closes the first: one list at a time', (await page.evaluate(() => document.querySelectorAll('.u-pop').length)) === 1);
         await page.keyboard.press('Escape');
+      }
+      {
+        const M = T.replace('select', 'menu');
+        const ms = () => page.evaluate(() => { const p = document.querySelector('.u-pop-menu'); const a = document.activeElement;
+          return { open: !!p, focus: a && (a.dataset.t || a.dataset.id || a.tagName), expanded: document.querySelector('[data-t=more]').getAttribute('aria-expanded') }; });
+        const b = await page.evaluate(() => { const x = document.querySelector('[data-t=more]'); const r = x.getBoundingClientRect();
+          return { w: r.width, h: r.height, name: x.getAttribute('aria-label'), popup: x.getAttribute('aria-haspopup'), radius: getComputedStyle(x).borderTopLeftRadius }; });
+        ok(M + 'the More button is a named square box that says it opens a menu', b.name === 'More actions for Amina' && b.popup === 'menu' && b.radius === '10px' && b.w === b.h && b.h === (vname === 'mobile' ? 44 : 36));
+        await page.focus('[data-t=more]'); await page.keyboard.press('Enter');
+        let m = await ms();
+        ok(M + 'Enter opens it on the first item', m.open && m.focus === 'edit' && m.expanded === 'true');
+        const shape = await page.evaluate(() => { const p = document.querySelector('.u-pop-menu'), items = [...p.querySelectorAll('[role=menuitem]')], last = items[items.length - 1];
+          const sep = p.querySelector('[role=separator]'); const br = document.querySelector('[data-t=more]').getBoundingClientRect(), pr = p.getBoundingClientRect();
+          return { role: p.querySelector('.u-menu').getAttribute('role'), ids: items.map(x => x.dataset.id), sepBeforeLast: sep && sep.nextElementSibling === last, danger: last.classList.contains('danger'),
+            dangerColour: getComputedStyle(last).color !== getComputedStyle(items[0]).color, radius: getComputedStyle(items[0]).borderTopLeftRadius, rowH: items[0].getBoundingClientRect().height,
+            right: Math.abs(pr.right - br.right), gap: pr.top - br.bottom, bottom: innerHeight - pr.bottom, inside: pr.left >= 0 && pr.right <= innerWidth }; });
+        ok(M + 'the destructive item is last, under a rule, in the danger colour', shape.role === 'menu' && shape.ids.join() === 'edit,pause,export,reset,remove' && shape.sepBeforeLast && shape.danger && shape.dangerColour);
+        ok(M + 'rows have 8px corners' + (vname === 'mobile' ? ' and 44px targets' : ''), shape.radius === '8px' && shape.rowH >= (vname === 'mobile' ? 44 : 36));
+        ok(M + (vname === 'mobile' ? 'on a phone it is a sheet along the bottom' : 'it opens under the button, right edges aligned'), shape.inside && (vname === 'mobile' ? shape.bottom <= 12 : shape.right <= 1 && shape.gap >= 4 && shape.gap <= 8));
+        await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown');
+        ok(M + 'arrows move and skip a disabled item', (await ms()).focus === 'reset');
+        await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown');
+        ok(M + 'the arrows wrap round', (await ms()).focus === 'edit');
+        await page.keyboard.press('End');
+        ok(M + 'End goes to the last item', (await ms()).focus === 'remove');
+        await page.keyboard.press('p');
+        ok(M + 'a letter jumps to the item starting with it', (await ms()).focus === 'pause');
+        if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `menu-${vname}-${theme}.png`) });
+        await page.keyboard.press('Escape');
+        m = await ms();
+        ok(M + 'Esc closes it and focus returns to the button', !m.open && m.focus === 'more' && m.expanded === 'false');
+        await page.keyboard.press('ArrowUp');
+        ok(M + 'ArrowUp opens it on the last item', (await ms()).focus === 'remove');
+        await page.keyboard.press('Home'); await page.keyboard.press('Enter');
+        m = await ms();
+        ok(M + 'Enter runs the item, closes the menu and returns focus', !m.open && m.focus === 'more' && (await page.evaluate(() => window.__did.join())) === 'edit');
+        await page.click('[data-t=more]');
+        await page.evaluate(() => document.querySelector('.u-pop-menu [data-id=export]').click());
+        ok(M + 'a disabled item does nothing and the menu stays', (await ms()).open && (await page.evaluate(() => window.__did.join())) === 'edit');
+        await page.click('.u-pop-menu [data-id=pause]');
+        ok(M + 'a press runs the item', !(await ms()).open && (await page.evaluate(() => window.__did.join())) === 'edit,pause');
+        await page.click('[data-t=more]'); await page.click('main h1');
+        ok(M + 'a press outside closes it', !(await ms()).open);
+      }
+      {
+        const S = T.replace('select', 'split button');
+        await page.evaluate(() => { window.__did = []; });
+        const g = await page.evaluate(() => { const x = document.querySelector('[data-t=split]'), a = x.querySelector('.u-split-main'), b = x.querySelector('.u-split-more');
+          const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect(), ca = getComputedStyle(a), cb = getComputedStyle(b);
+          return { role: x.getAttribute('role'), group: x.getAttribute('aria-label'), name: b.getAttribute('aria-label'), popup: b.getAttribute('aria-haspopup'), joined: Math.abs(ar.right - br.left) < 0.5,
+            sameH: ar.height === br.height, h: ar.height, bw: br.width, left: ca.borderTopLeftRadius, mid: ca.borderTopRightRadius + cb.borderTopLeftRadius, right: cb.borderTopRightRadius, main: a.textContent }; });
+        ok(S + 'two joined parts in one 10px box, the chevron part named', g.role === 'group' && g.group === 'Export' && g.name === 'More export formats' && g.popup === 'menu' && g.joined && g.sameH
+          && g.left === '10px' && g.right === '10px' && g.mid === '0px0px' && g.main === 'Export' && g.h === (vname === 'mobile' ? 44 : 38) && g.bw >= (vname === 'mobile' ? 44 : 34));
+        await page.click('[data-t=split] .u-split-main');
+        ok(S + 'the main part does the common action without opening anything', (await page.evaluate(() => window.__did.join())) === 'csv' && !(await page.evaluate(() => !!document.querySelector('.u-pop'))));
+        await page.keyboard.press('Tab'); await page.keyboard.press('ArrowDown');
+        const o = await page.evaluate(() => { const p = document.querySelector('.u-pop-menu'), a = document.activeElement; const pr = p && p.getBoundingClientRect(), gr = document.querySelector('[data-t=split]').getBoundingClientRect();
+          return { open: !!p, focus: a.dataset.id, n: p ? p.querySelectorAll('[role=menuitem]').length : 0, right: p ? Math.abs(pr.right - gr.right) : 99 }; });
+        ok(S + 'Tab reaches the chevron part and ArrowDown opens the variants', o.open && o.focus === 'pdf' && o.n === 2 && (vname === 'mobile' || o.right <= 1));
+        if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `split-${vname}-${theme}.png`) });
+        await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
+        const d = await page.evaluate(() => ({ did: window.__did.join(), open: !!document.querySelector('.u-pop'), back: document.activeElement.classList.contains('u-split-more') }));
+        ok(S + 'choosing a variant runs it and focus returns to the chevron part', d.did === 'csv,sheet' && !d.open && d.back);
+      }
+      {
+        const F = T.replace('select', 'filter bar');
+        const fs = () => page.evaluate(() => { const b = document.querySelector('[data-t=bar]'), a = document.activeElement;
+          return { controls: [...b.querySelectorAll('.u-filter-row > *')].map(x => x.dataset.filter || (x.classList.contains('u-search') ? 'search' : x.classList.contains('u-filter-more') ? 'more' : '?')).join(),
+            chips: [...b.querySelectorAll('.u-chip')].map(x => x.textContent).join('|'), names: [...b.querySelectorAll('.u-chip')].map(x => x.getAttribute('aria-label')).join('|'),
+            clear: !!b.querySelector('.u-chip-clear'), hidden: b.querySelector('.u-chips').hidden, focus: a.dataset.filter ? (a.classList.contains('u-chip') ? 'chip:' : 'select:') + a.dataset.filter : a.tagName + '.' + a.className,
+            last: window.__filt[window.__filt.length - 1], n: window.__filt.length, vals: JSON.stringify(b.values()) }; });
+        let f = await fs();
+        const look = await page.evaluate(() => { const b = document.querySelector('[data-t=bar]'), c = b.querySelector('.u-chip');
+          return { role: b.getAttribute('role'), name: b.getAttribute('aria-label'), chipRadius: getComputedStyle(c).borderTopLeftRadius, chipH: c.getBoundingClientRect().height,
+            under: c.getBoundingClientRect().top >= b.querySelector('.u-filter-row').getBoundingClientRect().bottom, status: b.querySelector('[data-filter=status].u-select').textContent }; });
+        ok(F + 'search, three dropdown filters and More filters, in that order', f.controls === 'search,team,role,status,more' && look.role === 'search' && look.name === 'Filter people');
+        ok(F + 'an active filter is a removable 6px chip under the bar, with Clear all', f.chips === 'Status: Paused' && f.names === 'Remove filter Status: Paused' && f.clear && look.under && look.chipRadius === '6px'
+          && look.status === 'Paused' && look.chipH >= (vname === 'mobile' ? 44 : 28));
+        await page.click('[data-t=bar] [data-filter=team].u-select');
+        await page.click('.u-pop [role=option]:has-text("Finance")');
+        f = await fs();
+        ok(F + 'choosing a value adds its chip, tells the page and keeps focus on the filter', f.chips === 'Team: Finance|Status: Paused' && f.last === '{"status":"paused","team":"finance"}|team' && f.focus === 'select:team');
+        await page.click('[data-t=bar] .u-filter-more');
+        const extra = await page.evaluate(() => [...document.querySelectorAll('.u-pop-menu [role=menuitem]')].map(x => x.textContent).join());
+        await page.click('.u-pop-menu [data-id=device]');
+        const opened = await page.evaluate(() => ({ list: !!document.querySelector('.u-pop-select'), label: document.querySelector('.u-pop-select [role=listbox]').getAttribute('aria-label') }));
+        ok(F + 'More filters lists the rest; picking one adds that filter and opens it', extra === 'Tool,Device' && opened.list && opened.label === 'Device');
+        await page.click('.u-pop [role=option]:has-text("Phone")');
+        f = await fs();
+        ok(F + 'the added filter sits in the bar with its chip', f.controls === 'search,team,role,status,device,more' && f.chips === 'Team: Finance|Status: Paused|Device: Phone');
+        if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `filter-${vname}-${theme}.png`) });
+        await page.focus('[data-t=bar] .u-chip[data-filter=team]'); await page.keyboard.press('Enter');
+        f = await fs();
+        ok(F + 'removing a chip clears that filter and moves focus to the next chip', f.chips === 'Status: Paused|Device: Phone' && f.focus === 'chip:status' && f.last === '{"status":"paused","device":"phone"}|team');
+        await page.fill('[data-t=bar] input[type=search]', 'ami');
+        await page.waitForFunction(() => /"q":"ami"/.test(window.__filt[window.__filt.length - 1]));
+        ok(F + 'typing in search tells the page once it settles', /\|q$/.test((await fs()).last));
+        await page.click('[data-t=bar] .u-chip-clear');
+        f = await fs();
+        ok(F + 'Clear all removes every filter and the search text, and hides the chip row', f.vals === '{}' && f.hidden && f.controls === 'search,team,role,status,more' && f.last === '{}|null'
+          && (await page.inputValue('[data-t=bar] input[type=search]')) === '');
+      }
+      {
+        const H = T.replace('select', 'side sheet');
+        const hs = () => page.evaluate(() => { const n = document.querySelector('.u-sheet'), a = document.activeElement;
+          return { open: !!n, scrim: !!document.querySelector('.u-sheet-scrim'), focus: a.dataset.t || a.getAttribute('aria-label') || a.textContent, foot: n ? [...n.querySelectorAll('.u-sheet-foot button')].map(x => x.textContent).join() : '',
+            ask: n && n.querySelector('.u-sheet-ask') ? n.querySelector('.u-sheet-ask').textContent : '', log: window.__sheet.join() }; });
+        await page.click('[data-t=sheet]');
+        await page.waitForFunction(() => { const n = document.querySelector('.u-sheet.in'); return n && Math.abs(n.getBoundingClientRect().right - innerWidth) < 1; });
+        const g = await page.evaluate(() => { const n = document.querySelector('.u-sheet'), r = n.getBoundingClientRect(), f = n.querySelector('.u-sheet-foot').getBoundingClientRect(), b = n.querySelector('.u-sheet-body');
+          return { w: r.width, top: r.top, h: r.height, role: n.getAttribute('role'), modal: n.getAttribute('aria-modal'), title: document.getElementById(n.getAttribute('aria-labelledby')).textContent,
+            purpose: document.getElementById(n.getAttribute('aria-describedby')).textContent, footBottom: Math.abs(f.bottom - innerHeight), scrolls: b.scrollHeight > b.clientHeight,
+            btnH: Math.min(...[...n.querySelectorAll('button')].map(x => x.getBoundingClientRect().height)) }; });
+        ok(H + (vname === 'mobile' ? 'it fills the phone screen' : 'it is a 480px panel on the right, full height'), g.w === (vname === 'mobile' ? vw : 480) && g.top === 0 && g.h === vh);
+        ok(H + 'it is a modal dialog named by its title and described by its purpose', g.role === 'dialog' && g.modal === 'true' && g.title === 'Add a person' && g.purpose === 'They can sign in once you save.');
+        ok(H + 'the body scrolls and the footer stays at the bottom with Cancel then the primary', g.scrolls && g.footBottom < 1 && (await hs()).foot === 'Cancel,Save person' && g.btnH >= (vname === 'mobile' ? 44 : 36));
+        ok(H + 'focus starts in the first field', (await hs()).focus === 'Name');
+        await page.keyboard.press('Shift+Tab');
+        const wrapped = await page.evaluate(() => !!document.activeElement.closest('.u-sheet'));
+        await page.keyboard.press('Tab');
+        ok(H + 'Tab stays inside the sheet', wrapped && (await page.evaluate(() => !!document.activeElement.closest('.u-sheet'))));
+        if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `sheet-${vname}-${theme}.png`) });
+        await page.keyboard.press('Escape');
+        await page.waitForFunction(() => !document.querySelector('.u-sheet'));
+        let h = await hs();
+        ok(H + 'Esc closes it and focus returns to where it came from', !h.scrim && h.focus === 'sheet' && h.log === 'closed');
+        await page.click('[data-t=sheet]');
+        await page.fill('.u-sheet input', 'Amina');
+        await page.keyboard.press('Escape');
+        h = await hs();
+        ok(H + 'with unsaved changes, closing asks first', h.open && h.ask === 'Discard your unsaved changes?' && h.foot === 'Keep editing,Discard' && h.focus === 'Keep editing');
+        await page.keyboard.press('Escape');
+        h = await hs();
+        ok(H + 'Esc on the question keeps editing', h.open && h.foot === 'Cancel,Save person' && (await page.inputValue('.u-sheet input')) === 'Amina');
+        await page.click('.u-sheet-x');
+        await page.click('.u-sheet-foot .btn.danger');
+        await page.waitForFunction(() => !document.querySelector('.u-sheet'));
+        ok(H + 'Discard closes it', (await hs()).log === 'closed,closed');
+        await page.click('[data-t=sheet]');
+        await page.fill('.u-sheet input', 'Brian');
+        await page.click('.u-sheet-foot .btn.primary');
+        await page.waitForFunction(() => !document.querySelector('.u-sheet'));
+        ok(H + 'the primary action runs and can close without asking', (await hs()).log === 'closed,closed,save:Brian,closed');
       }
       ok(T + 'no horizontal page scroll', (await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)) <= 0);
       await ctx.close();
