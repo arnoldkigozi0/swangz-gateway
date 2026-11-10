@@ -92,6 +92,13 @@ Google address than the two sign-in hosts appears, or if one of the controls abo
 7. A `mailto:` link and a `zoommtg:` link on an allowed page do not open another program (or note which do).
 8. Chrome started with `--disable-extensions` still runs the Swangz extension, or opens no AI site without it.
 
+Policy names (checked 10 Nov 2026): all thirteen names in the file exist, with these types and values, in
+Chromium's policy definitions (`components/policy/resources/templates/policy_definitions`), none marked deprecated.
+Two notes from those definitions: `BrowserSignin` applies on Linux only from Chrome 145 (Windows and macOS from 70);
+and from Chrome 147 a `*` block entry no longer covers `chrome://` addresses, which this pack already assumes.
+Google's rendered policy list and the Windows registry layout for list policies could not be opened for this check;
+the numbered-subkey note above is unconfirmed until checked on a Windows computer (`chrome://policy` shows the lists).
+
 Sources: Chrome Enterprise "URL blocklist filter format" (read 10 Nov 2026: subdomain matching, the leading
 dot, path prefixes, and that `*` does not cover `chrome://`). The other policy names and values follow the pack
 already used for company browsers in `workspace_agent/agent.py` and were not re-read from Google's policy list

@@ -869,7 +869,7 @@ def security_events(ctx, days):
         events.append({"type": "signin", "severity": "medium" if r["n"] >= 5 else "low", "ts": r["last"],
                        "title": "Failed console sign-ins",
                        "text": f"{r['n']} failed sign-in{'s' if r['n'] != 1 else ''} to the control room from "
-                               f"{r['ip'] or 'an unknown address'} (usernames tried: {r['names'] or '—'}).",
+                               f"{r['ip'] or 'an unknown address'} (accounts: {r['names'] or '—'}; unknown means the username matched no account).",
                        "ip": r["ip"] or None, "place": ip_kind(r["ip"]), "href": "#/audit?q=failed%20sign-in",
                        "evidence": "Sign-in is throttled after repeated failures from one address."})
     for r in db.q("SELECT k.id, k.label, k.revoked, k.revoked_by, p.name AS person, k.person_id FROM keys k"
