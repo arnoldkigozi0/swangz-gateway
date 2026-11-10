@@ -635,3 +635,19 @@ and dark; fix what the render shows (button class names `quiet`/`danger`/`small`
 names and the `.form` wrapper in the sheet were written without a render); add a `#/kit` pass to
 `tests/browser/check.cjs`; save the four screenshots in `docs/screenshots/kit-page/`; then mark the PR
 ready and merge on green CI.
+### Dark donut orange contrast follow-up — 10 November 2026
+
+Branch `feature/donut-dark-contrast`, based on main `4e5b610`. The dark first arc and its legend dot
+use `--donut-orange: #F7AE62` (the reference amber) instead of `#F2793A`. BRIEF 10.1.3 allows this
+contrast adjustment; it changes no geometry. Light retains its existing darker orange.
+
+Computed WCAG contrast against the brightest ring-adjacent pixel in the existing #103 capture
+(`docs/screenshots/overview-room/overview-1440x852-dark.png`, pixel 845,626 = RGB 111,92,84) improves
+from 2.270:1 to 3.354:1. The sample covers radii 42–46 and 70–76 around ring centre 891,686, avoiding
+the coloured stroke and centre text. This is a calculation using an earlier capture, not a new
+rendered measurement. The regression also checks the BRIEF panel target and opaque fallback.
+
+Validation: `python3 -m unittest tests.test_static_js -v`: 9 tests in 3.016s, OK; `git diff --check`
+passed. Not run locally: Chromium, fresh screenshots/overlay, axe, motion/fallback captures, full
+Python suite. Chief assigned CI-only checks and Anvil holds the browser slot. CI must pass before
+merge; fresh visual acceptance remains unverified.
