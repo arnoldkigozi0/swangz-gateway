@@ -36,3 +36,7 @@ is retained for older cached pages. No library or font-loading script is added.
 - Inter variable 400–800, latin WOFF2 from Google Fonts v20 (`Inter-latin.woff2`, 48,256 bytes). Copyright 2020 The Inter
   Project Authors (Rasmus Andersson). Licence SIL OFL 1.1, text in `fonts/Inter-OFL.txt`.
 - Self-hosted (strict CSP, no font requests to Google at runtime).
+
+**`gateway/static/room-warm-tile.webp`** (10 Nov 2026) — `room-warm.webp` followed by its vertical mirror image
+(1600×1894), so the staff app's room continues without a seam on desktop pages that scroll. Derived from
+`room-warm.webp` only; same CC0 source and edits. WebP q80, **51,422 bytes**.
