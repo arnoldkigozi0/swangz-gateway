@@ -40,6 +40,39 @@ jobs:
         run: python packaging/smoke.py --binary dist/Swangz.exe --report smoke-results/Windows.json
       - name: Archive UNSIGNED-TEST app
         run: python packaging/archive.py
+      - name: Verify UNSIGNED-TEST archive and checksum
+        shell: python
+        run: |
+          import hashlib
+          from pathlib import Path
+          import platform
+          import tarfile
+          import zipfile
+
+          system = platform.system()
+          name = f"Swangz-UNSIGNED-TEST-{system}-{platform.machine()}"
+          archive = Path("artifacts") / (name + (".zip" if system == "Windows" else ".tar.gz"))
+          checksum = archive.with_name(archive.name + ".sha256")
+          for path in (archive, checksum):
+              if not path.is_file() or path.stat().st_size == 0:
+                  raise SystemExit(f"Missing or empty build output: {path}")
+          digest = hashlib.sha256()
+          with archive.open("rb") as source:
+              for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                  digest.update(chunk)
+          if checksum.read_text(encoding="utf-8") != f"{digest.hexdigest()}  {archive.name}\n":
+              raise SystemExit(f"Archive checksum mismatch: {archive}")
+          if system == "Windows":
+              with zipfile.ZipFile(archive) as handle:
+                  binary = handle.getinfo("Swangz.exe")
+                  valid = not binary.is_dir() and binary.file_size > 0
+          else:
+              with tarfile.open(archive, "r:gz") as handle:
+                  binary = handle.getmember("Swangz.app/Contents/MacOS/Swangz" if system == "Darwin" else "Swangz")
+                  valid = binary.isfile() and binary.size > 0
+          if not valid:
+              raise SystemExit(f"Missing or empty packaged binary: {archive}")
+          print(f"Verified nonempty UNSIGNED-TEST archive, packaged binary and SHA-256: {archive.name}")
       - uses: actions/upload-artifact@v4
         with:
           name: Swangz-UNSIGNED-TEST-${{ runner.os }}-${{ runner.arch }}
