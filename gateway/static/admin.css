@@ -1395,5 +1395,7 @@ html[data-theme="light"] .kpis-exact .kpi .foot > :not(.kpi-note) { background: 
 .kpis.kpis-exact.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .kpis-exact.two .kpi { min-height: 132px; }
 .overview-exact > .panel, .overview-side > .panel { border-radius: 22px; }
+/* the chart is drawn a frame after the panel: hold its 250px so the caption under it does not move on a cold load */
+.overview-exact .u-chart > div:first-child { min-height: 250px; }
 @media (min-width: 1201px) { .route-overview .overview-exact { margin-right: -6px; } }
 @media (max-width: 1000px) { .overview-exact { grid-template-columns: minmax(0, 1fr); } }
