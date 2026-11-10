@@ -6,9 +6,9 @@ After=swangz-gateway.service
 Type=oneshot
 User=swangz
 WorkingDirectory=/opt/swangz-gateway
-# Only GATEWAY_HOST / GATEWAY_PORT are read, to find the local address. It asks /healthz and reports; it opens no
-# database, writes nothing and never touches the gateway service itself.
-EnvironmentFile=-/opt/swangz-gateway/.env
+# The command reads /opt/swangz-gateway/.env itself, as the gateway does, and uses only GATEWAY_HOST / GATEWAY_PORT to
+# find the local address. It asks /healthz and reports; it opens no database, writes nothing and never touches the
+# gateway service itself.
 ExecStart=/usr/bin/python3 -m gateway health-check
 Nice=10
 UMask=0077

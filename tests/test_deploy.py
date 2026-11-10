@@ -197,9 +197,10 @@ class DeployFileTests(unittest.TestCase):
         timer = (ROOT / "deploy" / "swangz-gateway-health.timer").read_text()
         self.assertIn("ExecStart=/usr/bin/python3 -m gateway health-check", service)
         for line in ("Type=oneshot", "User=swangz", "ProtectSystem=strict", "NoNewPrivileges=true",
-                     "EnvironmentFile=-/opt/swangz-gateway/.env"):
+                     "WorkingDirectory=/opt/swangz-gateway"):
             self.assertIn(line, service)
         self.assertNotIn("ReadWritePaths", service)   # it writes nowhere
+        self.assertNotIn("EnvironmentFile", service)  # one parser for .env: the command's own
         self.assertNotRegex(service, r"restart|systemctl")
         self.assertIn("OnUnitActiveSec=5min", timer)
         setup = (ROOT / "deploy" / "setup-gateway-server.sh").read_text()
