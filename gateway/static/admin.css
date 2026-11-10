@@ -1237,3 +1237,10 @@ body:has(.side.drawer) .appbar, .scrim { -webkit-backdrop-filter: none; backdrop
 }
 @media (forced-colors:active) { .console-workspace, .console-search, .console-clock, .console-account, .console-bar .bell { background: Canvas; color: CanvasText; border-color: CanvasText; box-shadow: none; } }
 @media print { .appbar.console-bar { display: none !important; } }
+
+/* R15, BRIEF 10.3 scene: the signed-in console sits in the warm room at a .35 scrim (the range is .30 to .40), so the
+   room reads as a room through and around every panel. Sign-in keeps its own image and scrim. Light has no
+   reference still; it uses the staff app's .42 porcelain veil. Text that sits straight on the scene gets its
+   contrast from the local backing below, never from a darker scrim. */
+body:has(.shell) { --scene-image: url("/static/room-warm.webp"); --scene-scrim: rgba(12, 10, 9, .35); }
+html[data-theme="light"] body:has(.shell) { --scene-scrim: rgba(250, 244, 236, .42); }
