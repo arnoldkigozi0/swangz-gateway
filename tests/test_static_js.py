@@ -106,3 +106,30 @@ class DonutShareTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ControlKitPageTests(unittest.TestCase):
+    """The #/kit page: loaded by the console, owners only, out of the navigation, and it never calls the API."""
+    source = (STATIC / "admin-kit.js").read_text(encoding="utf-8")
+
+    def test_console_loads_the_page_after_the_core(self):
+        html = (STATIC / "admin.html").read_text(encoding="utf-8")
+        self.assertIn('<script src="/static/admin-kit.js"></script>', html)
+        self.assertLess(html.index("/static/admin.js"), html.index("/static/admin-kit.js"))
+
+    def test_owner_check_comes_before_any_control(self):
+        body = self.source[self.source.index("function pageKit()"):]
+        self.assertLess(body.index("A.isOwner()"), body.index("SUI.menuButton("))
+
+    def test_page_reads_and_changes_nothing(self):
+        for call in ("api(", "fetch(", "localStorage", "location.hash ="):
+            self.assertNotIn(call, self.source)
+
+    def test_every_kit_control_is_shown(self):
+        for control in ("SUI.menuButton(", "SUI.splitButton(", "SUI.select(", "SUI.filterBar(", "SUI.sheet(",
+                        "SUI.segmented(", "SUI.searchPill(", "A.switchInput(", "SUI.status(", "SUI.badge(",
+                        "SUI.progress(", "SUI.skeleton(", "SUI.stateBox(", "SUI.errorBox("):
+            self.assertIn(control, self.source)
+
+    def test_page_is_not_in_the_navigation(self):
+        self.assertNotIn("#/kit", (STATIC / "admin.js").read_text(encoding="utf-8"))
