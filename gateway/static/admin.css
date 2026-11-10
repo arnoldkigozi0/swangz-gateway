@@ -1288,6 +1288,9 @@ html[data-theme="light"] .console-bar .console-area { background: rgba(252, 248,
 .console-workspace small, .console-clock small { display: none; }
 .console-workspace strong { font-weight: inherit; }
 .side.rail-exact .rail-pages .count { top: -1px; right: -3px; }
+.side.rail-exact .rail-pages { width: 44px; height: 44px; min-height: 44px; margin: 0 auto; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; }
+.side.rail-exact .rail-pages:hover:not(.on) { background: var(--glass-rim); }
+.side.rail-exact .rail-pages.on { background: var(--rail-selected); color: var(--rail-on-selected); }
 
 /* The measured frame, where there is room for it. Values are the 1440x852 stills'. */
 @media (min-width: 1201px) {
@@ -1320,7 +1323,7 @@ html[data-theme="light"] .console-bar .console-area { background: rgba(252, 248,
   .console-workspace strong { font-size: 10px; font-weight: 600; white-space: nowrap; }
   .console-workspace small { display: block; font-size: 8px; color: var(--tx-2); }
   .console-workspace > svg { margin-left: auto; width: 10px; height: 10px; flex: none; }
-  .console-bar .console-area { align-self: center; color: var(--tx-1); font: 500 11px/38px var(--font); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .console-bar .console-area { align-self: center; justify-self: start; max-width: 100%; color: var(--tx-1); font: 500 11px/38px var(--font); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .console-search { width: 345px; padding: 0 7px 0 14px; gap: 9px; font: 500 11px/1.2 var(--font); color: var(--tx-2); }
   .console-search > svg { width: 13px; height: 13px; }
   .console-tools { gap: 0; }
