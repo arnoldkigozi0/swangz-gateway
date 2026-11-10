@@ -96,12 +96,19 @@ def main(argv=None):
     p = sub.add_parser("release-pilot")
     p.add_argument("action", choices=("add", "remove"))
     p.add_argument("person", type=int)
+    p = sub.add_parser("health-check", help="ask a running gateway's /healthz whether it is up; exit 1 when it is not")
+    p.add_argument("--url", help="default: http://127.0.0.1:<GATEWAY_PORT>/healthz")
+    p.add_argument("--expect-commit", default="", help="also fail unless this commit is the one running")
+    p.add_argument("--timeout", type=float, default=5)
     sub.add_parser("preflight", help="check the go-live configuration; contacts nothing and opens no database")
     args = parser.parse_args(argv)
     if args.cmd == "preflight":
         from . import preflight
 
         sys.exit(preflight.run(os.environ))
+    if args.cmd == "health-check":
+        from . import uptime
+        sys.exit(uptime.run(args, os.environ))
     settings = Settings.from_env()
 
     if args.cmd == "add-admin":
