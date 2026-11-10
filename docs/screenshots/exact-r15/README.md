@@ -36,3 +36,28 @@ Pages: Overview, People, Activity, Tools, Licences & spend, Security, Settings, 
 
 ## Not run
 Any reference colour sampling (10.4), motion, scroll frame rate, axe, and the repo's browser suites locally (CI runs them).
+
+# R15, piece 2: top-bar pill height and the page eyebrow (BRIEF 10.3 "Top bar", 10.7 "Page header")
+
+Builder's capture, not an acceptance. Same tooling as piece 1. `gateway/static/admin.css` only, above 1200px wide.
+
+## Measured at 1440x852 dark, Overview and People (target in brackets)
+- Workspace pill, search, clock, bell and avatar: all 38px tall, centre y 38 [38px, centre y 38]: 0px.
+- Bell and avatar 38px wide; avatar image 36px [36px]; workspace mark 24px [24px].
+- The "MONITOR" eyebrow is no longer on the page [10.7: no eyebrow line]; the area is the text beside the workspace
+  pill. It stays in the accessibility tree as the "You are here" landmark.
+- No horizontal overflow at 1440, 1100 or 390.
+
+## Unchanged on purpose, tagged
+- 10.1(3): at 1200px and below the pills stay 44px and the eyebrow stays visible. Phones need 44px targets, and
+  there the top bar has no room for the area text, so the eyebrow is the only place it shows.
+- 10.1(4): a page with a real breadcrumb trail (links) keeps it above the title.
+
+## Still defects against 10.3, not fixed here
+Search pill is x 564 to 984, 420 wide [588 to 933, 345]; workspace pill x 148 to 314 [175 to 310]; no accent New pill;
+clock x 1200 [1176 to 1252]; title x 148, centre y 108, about 38px tall [x 178, about y 93, 24px weight 600];
+the rail (x 17 to 91, with "All pages" and "More" words) and the KPI row. These all hang off the rail's position
+and width, which is the next piece.
+
+Files: `piece2-overview-1440x852-dark.png`, `piece2-overview-390x844-dark.png`, `piece2-overlay-overview-1440x852-dark.png`.
+Not run: axe, contrast re-measure (no colour or background changed), the repo's browser suites locally.
