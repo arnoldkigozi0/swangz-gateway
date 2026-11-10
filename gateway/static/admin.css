@@ -1275,3 +1275,74 @@ html[data-theme="light"] .console-bar .console-area { background: rgba(252, 248,
   .console-account .u-avatar { width: 36px; height: 36px; }
   .top > .crumbs.area-only { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
+
+/* R15 piece 3, BRIEF 10.3 "Rail", "Top bar", "Page header" and 10.7. New parts first, at every width. */
+.console-new-wrap { position: relative; flex: none; }
+.console-new { display: none; }
+.console-pop { position: absolute; top: calc(100% + 8px); right: 0; z-index: var(--z-nav); min-width: 168px; padding: 6px; display: grid; gap: 2px;
+  background: var(--ink-2); border: 1px solid var(--glass-rim); border-radius: 16px; box-shadow: var(--glass-shadow); }
+.console-pop[hidden] { display: none; }
+.console-pop a { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: var(--tx-1); font: 600 12.5px/1.2 var(--font); text-decoration: none; }
+.console-pop a:hover, .console-pop a:focus-visible { background: var(--glass-rim); outline: none; }
+.console-pop a svg { width: 16px; height: 16px; }
+.console-workspace small, .console-clock small { display: none; }
+.console-workspace strong { font-weight: inherit; }
+.side.rail-exact .rail-pages .count { top: -1px; right: -3px; }
+.side.rail-exact .rail-pages { width: 44px; height: 44px; min-height: 44px; margin: 0 auto; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; }
+.side.rail-exact .rail-pages:hover:not(.on) { background: var(--glass-rim); }
+.side.rail-exact .rail-pages.on { background: var(--rail-selected); color: var(--rail-on-selected); }
+
+/* The measured frame, where there is room for it. Values are the 1440x852 stills'. */
+@media (min-width: 1201px) {
+  .shell { --side-w: 129px; }
+  .side.rail-exact { width: 62px; height: calc(100dvh - 42px); top: 22px; margin: 22px 0 20px 67px; padding: 7px 0 8px; gap: 0;
+    align-items: center; border-radius: 31px; overflow: visible; }
+  html:not([data-theme="light"]) .side.rail-exact { background: rgba(30, 26, 24, .80); }
+  .side.rail-exact .brand { min-height: 36px; margin: 0; padding: 0; }
+  .side.rail-exact .brand img { width: 36px; height: 36px; padding: 5px; border-radius: 10px; }
+  .side.rail-exact > .nav { display: flex; flex-direction: column; align-items: center; padding: 0; border: 0; }
+  .side.rail-exact > .nav:not(.rail-foot) { flex: 1 1 auto; min-height: 0; margin-top: 28px; gap: 9px; width: 100%;
+    overflow: hidden auto; scrollbar-width: none; scrollbar-gutter: auto; }
+  .side.rail-exact > .nav:not(.rail-foot)::-webkit-scrollbar { display: none; }
+  .side.rail-exact > .rail-foot { flex: none; gap: 11px; padding-top: 8px; }
+  .side.rail-exact .nav :is(a, .rail-pages) { position: relative; display: grid; place-items: center; flex: none; width: 36px; height: 36px; min-height: 36px;
+    margin: 0; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--tx-1); cursor: pointer; }
+  .side.rail-exact .nav :is(a, .rail-pages) svg { width: 18px; height: 18px; }
+  .side.rail-exact .nav :is(a, .rail-pages):hover:not(.on) { background: var(--glass-rim); }
+  .side.rail-exact .nav :is(a.on, .rail-pages.on) { background: #F2EEEC; color: #1C1816; box-shadow: none; }
+  .side.rail-exact .nav :is(a, .rail-pages):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .side.rail-exact .nav :is(a, .rail-pages) .count { position: absolute; top: -3px; right: -3px; min-width: 14px; height: 14px; padding: 0 3px; margin: 0;
+    display: grid; place-items: center; border: 0; border-radius: 7px; font: 700 8px/14px var(--font);
+    background: linear-gradient(180deg, #F7AE62, #EE8F3E); color: #2A170A; }
+
+  .appbar.console-bar { grid-template-columns: 135px 248px 345px minmax(0, 1fr); column-gap: 15px; padding: 19px 77px 0 46px; }
+  .console-context { display: contents; }
+  .console-workspace { width: 135px; padding: 0 7px 0 4px; gap: 7px; font: 500 11px/1.2 var(--font); }
+  .console-workspace img { border-radius: 50%; }
+  .console-workspace > span { display: grid; gap: 2px; text-align: left; min-width: 0; }
+  .console-workspace strong { font-size: 10px; font-weight: 600; white-space: nowrap; }
+  .console-workspace small { display: block; font-size: 8px; color: var(--tx-2); }
+  .console-workspace > svg { margin-left: auto; width: 10px; height: 10px; flex: none; }
+  .console-bar .console-area { align-self: center; justify-self: start; max-width: 100%; color: var(--tx-1); font: 500 11px/38px var(--font); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .console-search { width: 345px; padding: 0 7px 0 14px; gap: 9px; font: 500 11px/1.2 var(--font); color: var(--tx-2); }
+  .console-search > svg { width: 13px; height: 13px; }
+  .console-tools { gap: 0; }
+  .console-new { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 83px; height: 38px; border: 0; border-radius: 19px;
+    background: linear-gradient(180deg, #F7AE62, #EE8F3E); color: #2A170A; font: 500 11px/1.2 var(--font); cursor: pointer; }
+  .console-new svg { width: 13px; height: 13px; }
+  .console-new:focus-visible { outline: 2px solid var(--tx-1); outline-offset: 3px; }
+  .console-clock { width: 76px; margin-left: 11px; padding: 0; display: grid; align-content: center; justify-items: center; gap: 2px; font-size: 10px; line-height: 1.2; }
+  .console-clock > svg { display: none; }
+  .console-clock small { display: block; font-size: 8px; font-weight: 500; color: var(--tx-2); }
+  .console-bar .bell { margin-left: 9px; }
+  .console-account { width: 36px; margin-left: 28px; border: 0; background: none; box-shadow: none; }
+
+  .top { grid-template-areas: "crumbs crumbs" "title actions" "lede actions"; padding: 21px 97px 18px 49px; }
+  .top h1 { font: 600 24px/1.25 var(--font); letter-spacing: 0; }
+  .top > .lede { margin-top: 3px; font-size: 11px; line-height: 18px; }
+  .top > .top-actions { align-self: start; margin-top: 6px; }
+  .top > .top-actions .btn { min-height: 34px; height: 34px; border-radius: 17px; }
+  .page { padding-left: 44px; padding-right: 97px; }
+  .build-foot { margin-left: 44px; margin-right: 97px; }
+  .shell #main::before { inset: 0 81px 16px 28px; }
+}

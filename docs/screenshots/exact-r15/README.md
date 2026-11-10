@@ -61,3 +61,44 @@ and width, which is the next piece.
 
 Files: `piece2-overview-1440x852-dark.png`, `piece2-overview-390x844-dark.png`, `piece2-overlay-overview-1440x852-dark.png`.
 Not run: axe, contrast re-measure (no colour or background changed), the repo's browser suites locally.
+
+# R15, piece 3: the rail, the top bar's positions and the page header (BRIEF 10.3, 10.7)
+
+Builder's capture, not an acceptance. Same tooling. `gateway/static/admin.js` and `admin.css`; the measured frame applies above 1200px.
+
+## Measured at 1440x852, dark and light, on Overview, People and Health (target in brackets)
+- Rail x 67 to 129, y 22 to 832 [67 to 129, 22 to 832]; brand 36x36 at (80, 30) [36x36 at y 30]; no words in the rail.
+- Icon centres y 112, 157, 202 ... 517, 45px apart [from 112, 45 apart]; active is a 36px circle; Help y 758, Settings y 805 [758, 805].
+- Workspace pill x 175 to 310 [175 to 310], two text lines; area text x 325 [325]; search x 588 to 933 [588 to 933];
+  New x 1082 to 1165 [1082 to 1165]; clock x 1176 to 1252, time and date [1176 to 1252]; avatar 36px at x 1327 [1327].
+  All 38px tall, centre y 38.
+- Title text x 178, centre y 93, 24px weight 600 [178, about 93]; subtitle 11px, box y 111 to 129 [y 117];
+  page actions right edge 1343, centre y 101, 34px tall [1343, 101, 34].
+- Content column x 173 to 1343. No horizontal overflow at 1440, 1100 or 390; no page errors.
+
+## What moved, and where it went (10.7 "drop the un-required", nothing removed from the product)
+- The rail shows nine pages (Overview, Live, Needs attention, Activity, People, Access requests, Tools, Licences & spend,
+  Security) and an All pages icon. The other ten pages, the emergency stop, theme and sign-out are in the All pages
+  drawer (checked: 21 links, the stop button and the account block are there). Stop all AI is also in the command
+  menu and Settings. When the page you are on has no rail icon, the All pages icon carries the selected circle (10.1(4)).
+- The labels toggle, rail search, rail bell, group buttons and "More" scroll button are gone from the rail.
+- New pill: Person, Tool, Policy, each opening the existing add form (`?add=1`); shown only to roles with `govern`.
+  Keyboard: arrows, Home, End, Escape returns focus (checked by hand in the capture script, not in a committed test).
+
+## Remaining differences
+- 10.1(1): Hub names, counts and mark; no title emoji.
+- 10.1(3): bell box is 38px at x 1261 to 1299 (centre 1280); the reference gives "x 1280" without saying which edge.
+- 10.1(3): no presence dot on the avatar: the console has no presence evidence.
+- 10.1(3): at 1200px and below the earlier rail (76px, 44px targets) and top bar stay; no New pill there.
+- 10.1(3): 8px second lines in the workspace and clock pills are the reference's size; they are below a comfortable
+  reading size and should be looked at in the accessibility review.
+- **Still defects:** the KPI row is three joined cards, not four 285px cards with 12px gaps at y 140 to 292; theme, sign-out
+  and Stop all AI are not yet in an avatar menu (10.7), only in the drawer; the backing plane from piece 1 remains.
+
+## Contrast
+Re-measured, 32 cells as in piece 1: every text run this piece touches is at 4.5:1 or more. The same pre-existing
+items remain below (tool colour chips, disabled pagers). One new reading, "90 days" on Settings at 390 light (1.09),
+is on a screen this piece does not restyle; not investigated, so treat it as open.
+
+Files: `piece3-overview-1440x852-dark.png`, `-light.png`, `piece3-overview-390x844-dark.png`, `piece3-people-1440x852-dark.png`,
+`piece3-overlay-overview-1440x852-dark.png`. Not run: axe, colour sampling, motion, the repo's browser suites locally.
