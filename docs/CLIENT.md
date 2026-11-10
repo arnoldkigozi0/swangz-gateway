@@ -179,6 +179,29 @@ and the key. `swangz logout` (or the button) tells the server first, so the key 
 does the same. If the server can't be reached the local removal still happens and the app says to have an admin
 disconnect the key.
 
+Disconnecting a device (the person's button, an admin, or `swangz logout`) ends **every** key of that device, including both
+keys during a rotation grace, and cuts its requests in flight. It never touches web or extension sessions, and signing out of
+the web app ends only that one session. A device key is never a web session and a web session or extension token is never a
+device key: each is refused on the other's endpoints. Each action is one audit entry with `before` (key ids) / `after`
+(counts), correlated `device:<id>` or `person:<id>`, and no token.
+
+Sessions have a kind (schema v23, `staff_sessions.kind`): `web` rows are accepted only as the `sgw_staff` cookie, `extension`
+rows only as a bearer token, and an extension session reaches only `/api/extension/*`, the gate (`/api/gate/*`), sign-out and `POST /api/tools/<id>/request` (the blocked page's "Request access");
+anywhere else it answers `403 {"code": "session_kind"}`. A row that existed before v23 became an `extension` row: nothing was
+deleted, the old cookies simply stop working, and the old bearer tokens keep working on the gate. `last_seen` is recorded at most
+once a minute.
+
+A session is checked against the person on every request. A person whose email is no longer an approved account gets `401` from
+every signed-in endpoint. A suspended person's, or one whose `access_until` has passed, **web** session keeps a read-only paused view
+(`paused_ok` routes, which refuse to register for anything but a GET and sign-out): `GET /api/me` trimmed to `{paused_view, name,
+status, reason, support_contact}`, `GET /api/hub/reports` and `/api/hub/reports/<id>` (their own), `GET /api/hub/notifications`
+and `POST /api/logout`. Every other signed-in route, `/go/<tool>` and `/device` answer `403 {"code": "person_paused"}`; an
+extension session of such a person gets `401`; the proxy, `/device` and device keys refuse them as before. `POST /api/login` for such a person starts a web session
+(`{"ok": true, "paused": true}`); `POST /api/extension/login` and invites still answer `403 person_paused`, and a wrong password is
+still the same `401` whatever the status. Suspending someone through the console still deletes their sessions. Google sign-in
+applies the same rule, and for everyone but the two approved owner addresses it requires the ID token's own `hd` claim to equal
+the company domain (`GATEWAY_COMPANY_DOMAIN`, default `swangzavenue.com`) as well as the email suffix.
+
 `device_unknown` keeps local data and asks the person to retry or reconnect. Only explicit
 `device_revoked` triggers automatic removal. Failed native deletion keeps a local cleanup marker with the
 server and key ID so **Retry local removal**, `swangz logout`, or `swangz cleanup` can finish later. The app
@@ -186,6 +209,38 @@ does not claim successful sign-out when cleanup fails. `cleanup` makes no server
 
 The device screen and terminal status expose `key_storage: keychain|file`; each heartbeat reports that mode.
 Server ingestion, idle expiry and rotation belong to the later G3b change and are not implemented here.
+
+## Key rotation in the app (server contract: schema v22, `POST /api/device/rotate`)
+
+At the end of every sync (start-up and each idle check-in) the app rotates the device key when it is older than the
+manifest's `credential.rotate_after_days` (30 if absent). Never while a coding agent started by the app is running: a
+run holds the key in its environment, so `swangz run` leaves a marker in `sessions/` (checked against live process
+ids) and rotation waits for the next check-in. Steps: call rotate; write the new key to the store and read it back
+(native item, or a protected `device.key.next` if the keychain refuses) **before** any use; make one check-in with it;
+only then make it current and delete the old item. A failed confirm leaves the old key in place and the new one staged,
+and the next check-in confirms it. `device.json` records only identities (`key_id`, `key_issued`, `next_key_id`), never a key.
+
+`device_key_rotated` never removes anything. The app reloads the key from the store (a staged key, or a newer one
+written by another window) and tries once more. With nothing newer it keeps everything, shows **Reconnect this device**
+(`swangz sync` exits 4), and tries the Hub again no faster than the 15-minute check-in interval; a newer key arriving
+clears the wait. Only `device_revoked` removes Swangz from the device, including a staged key. Heartbeats carry
+`key_storage` and, when the key is in a native store, `key_backend`.
+
+**One rotation at a time on a device.** The window and `swangz sync` are separate processes, and a second rotation
+during the 10-minute grace is reissued by the Hub, which revokes the first new key. So a rotation (finish a staged
+key, or rotate, write the new key and confirm it) is done under a lock file, `rotate.lock` in the data folder,
+created exclusively and private to the person. A process that finds it held skips rotation until its next check-in.
+A lock whose process has ended, or that is older than three minutes, is taken over; it is removed only if it is still
+the one that process wrote, and signing out deletes it. Taking over a stale lock is two steps (read, then remove), so
+two processes taking over the same stale lock at the same instant could in theory both rotate. That is rare, needs a
+crashed holder, and ends in **Reconnect this device** at worst; nothing is removed.
+
+**What a run in progress sees.** Each `sessions/` marker records the process id and when the run started. A marker
+older than seven days is ignored and removed even if its process id is live, because the number has been reused by
+something else; an older marker without a start time is aged by its file. When the new key is confirmed, requests
+still using the old key are cut at once, not after the 10 minutes: grace ends at the new key's first use. Managed
+Claude Code and Codex shells opened before the rotation therefore get "key renewed" (`device_key_rotated`) until they
+fetch the key again or a new shell is started; the app does not wait for or interrupt them.
 
 ## The app
 
@@ -199,7 +254,15 @@ Build a standalone program for the computer you are on (it carries its own Pytho
 pip install pyinstaller && python3 packaging/build.py
 ```
 
-See `packaging/README.md` for installers and signing.
+The manual `build-app.yml` Actions workflow builds Linux, Windows and macOS standalone apps,
+smokes each packaged executable against an isolated local gateway, and uploads archives named
+**UNSIGNED-TEST** with SHA-256 sidecars and per-OS smoke reports (seven-day retention). The smoke
+covers frozen imports and a hidden sign-in window, device-code sign-in, sync, credential read and
+sign-out. Windows' windowed executable reports its offline check through
+`Swangz.exe --self-check REPORT.json`; it has no console output. Updates remain disabled with no
+production keys. These artifacts have no trusted publisher signature; installers, code signing
+and notarization need separate decisions. See `packaging/README.md` for the build procedure,
+verification limits and pending tooling decisions.
 
 ## Inert browser-profile preparation (tests only)
 
@@ -297,7 +360,7 @@ The future Forge endpoint contract is same-origin, authenticated GETs at
 `/api/device/releases/<channel>/release.json`, `release.json.sig`, and `<file>`.
 The detached signature is exactly 512 binary bytes. The release response must provide
 `X-Swangz-Gateway-Version` as a strict `major.minor.patch`; absent/invalid version means no update.
-These endpoints and that header are a proposed client contract, **not implemented server support**.
+The gateway side of this contract is described in "Release distribution (gateway)" below.
 `client.latest` only triggers a check after sync; it never selects a URL, key, version or artifact.
 HTTPS is required outside the loopback-only fake-server route, regardless of `SWANGZ_ALLOW_HTTP`.
 Cross-origin redirects are refused before a redirected request can carry a device credential.
@@ -353,3 +416,47 @@ screens are **Not run**. This work is not a production-update or cross-platform 
 Sentinel follow-up to `9f505cf`: regression cases emulate Windows read-only replace/unlink failures,
 cover staging without the read-only attribute, `main(argv=None)` after recovery, and the credential
 helper's isolated stdout/stderr behavior. Tests are added for Probe to run; not executed under Codex.
+
+## Release distribution (gateway)
+
+`gateway/releases.py`. The gateway is a distribution point, never a source of trust: it may withhold an
+update, it cannot forge one, because it holds no signing key and the device re-verifies every byte. Releases
+are made and signed offline and published from the command line only; there is no HTTP or console upload.
+
+**Publish** (`python3 -m gateway ...`, audited as `command line`, correlation `release:<channel>:<version>`):
+
+- `release-publish DIR --channel stable|pilot` — `DIR` holds `release.json` (at most 64 KiB), `release.json.sig`
+  (exactly 512 raw bytes) and the listed artifacts. Refused unless the signature verifies
+  (`swangz_client.updater.verify`) against `swangz_client/release_keys.KEYS` (nothing pinned: refused); the
+  manifest's channel equals `--channel`; the version is strictly higher than every version already stored in
+  that channel (a rollback is a new, higher, signed version; a withdrawn version number is not reused); each
+  listed artifact exists, passes the client's filename rule, is at most 150 MiB and matches its size and SHA-256;
+  and the disk keeps 1 GiB free after the write. Only listed files are copied.
+- `release-withdraw --channel C` — deletes the channel's pointer; devices get 404. Files stay on disk.
+- `release-pilot add|remove PERSON` — the pilot list (a setting, `release_pilot`; no schema change).
+
+**Storage:** `data/releases/<channel>/<version>/` (folders 0700, files 0600), written to a temp folder then
+renamed; versions are never overwritten; `<channel>/current.json` is replaced atomically, so a crash leaves the
+previous release live. The current and one previous version are kept. Serving refuses symlinks and hard links.
+
+**Device routes** (the device's own key, `Authorization: Bearer`; browser and console sessions get 401; the
+usual `device_auth` refusals apply): `GET /api/device/releases/<stable|pilot>/<file>`.
+
+| File | Answer |
+|---|---|
+| `release.json` | `200 application/json`, the stored bytes, plus `X-Swangz-Gateway-Version: x.y.z` (this response only) |
+| `release.json.sig` | `200 application/octet-stream`, 512 bytes |
+| a name listed in the current `release.json` | `200 application/octet-stream`, streamed in 64 KiB blocks |
+
+All carry `Content-Length`, `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`; no ranges, no
+compression, no redirects. Anything else — no release, withdrawn, `pilot` for someone not on the pilot list,
+an unlisted or unsafe name, a missing file, a link — is `404` (`{"error": "No release is available."}`).
+Each device may download artifacts three times an hour (`429`, code `slow_down`); the manifest and signature
+are not limited. Each artifact download writes one audit record (`downloaded a release file`: person, device,
+`<channel> <version>`, file, outcome `ok`/`interrupted`/`failed`/`denied`); polling records nothing.
+
+`client.latest` in `/api/device/manifest` and `latest_client` in the heartbeat are the current version of the
+device's channel (`pilot` for people on the list, else `stable`), or `CLIENT_LATEST` when nothing is published.
+It is a hint only. The gateway refuses to start unless `gateway.__version__` is strict `x.y.z`.
+
+Verification: `tests.test_device_releases` (fake upstream, the fixture TEST key only).

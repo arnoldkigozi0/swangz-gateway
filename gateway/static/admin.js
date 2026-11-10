@@ -600,16 +600,19 @@
     if (code) history.replaceState(null, "", location.pathname + location.hash);
     const err = el("div", { class: "err", role: "alert" }, code ? (AUTH_ERRORS[code] || "Sign-in didn't work. Try again.") : "");
     const google = el("div", { class: "google-box" });
+    let optionsKnown;
     if (!GATEWAY) {
-      fetch("/auth/options", { credentials: "include" }).then((r) => (r.ok ? r.json() : {})).then((opt) => {
+      optionsKnown = fetch("/auth/options", { credentials: "include" }).then((r) => (r.ok ? r.json() : {})).then((opt) => {
         if (opt.google) google.append(el("a", { class: "btn google", href: "/auth/google/start?app=admin" }, googleMark(), "Continue with Google"),
           el("div", { class: "or" }, el("span", null, "or with your account email")));
       }).catch(() => { /* no Google button */ });
     }
-    const user = el("input", { type: "email", placeholder: "name@swangzavenue.com", autocomplete: "username", required: true, id: "si-user" });
-    const pass = el("input", { type: "password", autocomplete: "current-password", required: true, id: "si-pass" });
-    const go = el("button", { class: "btn primary block", type: "submit" }, "Sign in");
+    const user = el("input", { type: "email", placeholder: "Console email", autocomplete: "username", required: true, id: "si-user" });
+    const pass = el("input", { type: "password", placeholder: "Password", autocomplete: "current-password", required: true, id: "si-pass" });
+    const go = el("button", { class: "xg-primary", type: "submit" }, "Login");
+    let gate;
     const form = el("form", {
+      class: "xg-fields",
       onsubmit: async (e) => {
         e.preventDefault();
         go.disabled = true;
@@ -624,16 +627,22 @@
         }
       },
     },
-    el("div", { class: "signin-brand" }, el("img", { src: "/static/icon.svg", alt: "", width: 40, height: 40 }),
-      el("div", null, el("div", { class: "eyebrow" }, "Swangz AI Hub"), el("h1", null, "Control room"))),
-    el("p", { class: "muted" }, "Mission control for company AI: who is using what, what it costs, and the switches to govern it."),
-    google,
-    el("label", { class: "field", for: "si-user" }, "Email address", user),
-    el("label", { class: "field", for: "si-pass" }, "Password", pass),
+    SUI.xfield("user", "Console email", user),
+    SUI.xfield("lock", "Password", pass, SUI.eyeToggle(pass)),
     err, go,
-    el("p", { class: "hint" }, "Console users only. Staff sign in to Swangz AI Hub at the main address."));
-    app.replaceChildren(el("main", { class: "signin" }, el("div", { class: "signin-card" }, form),
-      el("div", { class: "signin-foot" }, SUI.themeButton())));
+    el("p", { class: "xg-links" }, "Not a console user? ", el("button", { type: "button", class: "xg-link", onclick: () => gate.swap("b") }, "Get access")));
+    gate = SUI.splitGate({
+      ready: optionsKnown,
+      brand: el("a", { class: "xg-brand", href: "/admin" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz ", el("b", null, "AI Hub"), el("small", null, "Control room")),
+      a: { title: "Login", body: [google, form], focus: user },
+      b: { title: "Get access", body: [el("div", { class: "xg-fields" },
+        el("p", { class: "xg-note" }, "The control room is for console users only: an owner adds you under Settings → Console users, with your Google email as the username."),
+        el("p", { class: "xg-note" }, "Staff sign in to Swangz AI Hub at the main address."),
+        el("a", { class: "xg-primary", href: "/" }, "Go to Swangz AI Hub"))] },
+      helloA: { h: "HELLO,\nFRIEND!", p: "Mission control for company AI: who is using what, what it costs, and the switches to govern it.", btn: "Get access" },
+      helloB: { h: "WELCOME\nBACK!", p: "Already a console user? Please login with your credentials.", btn: "Sign In" },
+    });
+    app.replaceChildren(gate.node);
     user.focus();
   }
 

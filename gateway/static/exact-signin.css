@@ -1,0 +1,171 @@
+/* The split sign-in (BRIEF §10.3, references login-02 / login-05), staff and console.
+   Every rule is scoped to .xgate (the <main> that SUI.splitGate builds) except two that must live outside it:
+   the font and the scene photo, which is chosen with body:has(.xgate) so no other page changes.
+   Visual only. Nothing here touches what a form sends or how a session starts.
+   Motion is transform + opacity only and is off under prefers-reduced-motion. */
+
+@font-face {
+  font-family: "Inter";
+  src: url("/static/fonts/Inter-latin.woff2") format("woff2");
+  font-style: normal; font-weight: 100 900; font-display: swap;
+}
+
+/* The reference has one look: a dark glass card over dark angular architecture, in both themes. */
+body:has(.xgate) { --scene-image: url("/static/login-welcome.webp"); --scene-scrim: rgba(12, 10, 9, .42); background-color: #0c0a09; } /* the photo is a ::before plane that checkers cannot see, so the page colour under it is dark too */
+
+.xgate {
+  --xg-font: "Helvetica Neue", Arial, sans-serif;     /* the system fallback; Inter is latched in at the reveal (below), never swapped in later */
+  --xg-ink: #fff;
+  --xg-ink-2: rgba(255, 255, 255, .78);
+  --xg-ink-3: rgba(255, 255, 255, .64);
+  --xg-rim: rgba(255, 255, 255, .14);
+  --xg-line: rgba(255, 255, 255, .14);
+  --xg-form: rgba(20, 20, 24, .55);
+  --xg-hello: rgba(70, 74, 78, .35);
+  --xg-bad: #FFB4AB;
+  --xg-dur: 570ms;                                  /* the seam planes: login-03/04 settle in about 570ms */
+  --xg-out: 140ms; --xg-in: 200ms; --xg-in-delay: 190ms;  /* the words: out in ~4 frames, a beat of bare glass, in over ~5 frames (frames 48-60 of glass-login.mp4 at 30fps) */
+  --xg-ease: cubic-bezier(.4, 0, .2, 1);
+  /* the seam, as a share of the card width: top edge, bottom edge (login-05: 420→490 of 1150; login-02: 535→610) */
+  --xg-a-top: 36.5%; --xg-a-bot: 42.6%; --xg-b-top: 46.5%; --xg-b-bot: 53%;
+  position: relative; box-sizing: border-box; min-height: 100vh; min-height: 100dvh;
+  display: grid; place-items: center; padding: 72px 24px;
+  font: 400 16px/1.5 var(--xg-font); color: var(--xg-ink); letter-spacing: 0;
+}
+.xgate *, .xgate *::before, .xgate *::after { box-sizing: border-box; }
+
+/* ---- brand, top left of the page (the reference's logo spot, §10.1.1) */
+.xgate .xg-brand { position: absolute; top: 24px; left: max(24px, calc((100vw - 1150px) / 2)); display: inline-flex; align-items: center; gap: 0;
+  min-height: 44px; padding: 0 6px; border-radius: 12px; color: var(--xg-ink); text-decoration: none; font: 500 15px/1.2 var(--xg-font); }
+.xgate .xg-brand img { width: 28px; height: 28px; margin-right: 8px; border-radius: 8px; }
+.xgate .xg-brand b { margin-left: .25em; font-weight: 700; }
+.xgate .xg-brand small { margin-left: 8px; padding-left: 10px; border-left: 1px solid var(--xg-line); font: 500 13px/1 var(--xg-font); color: var(--xg-ink-2); }
+
+/* ---- the card: 1150 wide, at least 640 tall, radius 24, one blur layer */
+.xgate .xgate-card { position: relative; display: grid; align-content: center; width: min(1150px, 100%); min-height: 640px; overflow: hidden;
+  border: 1px solid var(--xg-rim); border-radius: 24px; background: var(--xg-hello);
+  -webkit-backdrop-filter: blur(22px) saturate(1.05); backdrop-filter: blur(22px) saturate(1.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .10), 0 30px 80px rgba(0, 0, 0, .45); }
+
+/* the two planes: the darker form plane and the slanted seam line. They only decorate, never take a click. */
+.xgate .xg-pane { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.xgate .xg-pane::before, .xgate .xg-pane::after { content: ""; position: absolute; inset: 0; opacity: 0; transition: opacity var(--xg-dur) var(--xg-ease); }
+.xgate .xg-pane-form::before { background: var(--xg-form); clip-path: polygon(0 0, var(--xg-a-top) 0, var(--xg-a-bot) 100%, 0 100%); }
+.xgate .xg-pane-form::after  { background: var(--xg-form); clip-path: polygon(var(--xg-b-top) 0, 100% 0, 100% 100%, var(--xg-b-bot) 100%); }
+.xgate .xg-pane-hello::before { background: rgba(255, 255, 255, .30); clip-path: polygon(var(--xg-a-top) 0, calc(var(--xg-a-top) + 1px) 0, calc(var(--xg-a-bot) + 1px) 100%, var(--xg-a-bot) 100%); }
+.xgate .xg-pane-hello::after  { background: rgba(255, 255, 255, .30); clip-path: polygon(var(--xg-b-top) 0, calc(var(--xg-b-top) + 1px) 0, calc(var(--xg-b-bot) + 1px) 100%, var(--xg-b-bot) 100%); }
+.xgate [data-mode="a"] > .xg-pane::before, .xgate [data-mode="b"] > .xg-pane::after { opacity: 1; }
+
+/* ---- the four sections share one grid cell, so the card grows with the tallest (long errors, big text, zoom) */
+.xgate .xg-form, .xgate .xg-hello { position: relative; z-index: 1; grid-area: 1 / 1; align-self: center; margin-block: 56px; padding-top: 32px; min-width: 0;
+  opacity: 1; transform: none;
+  transition: opacity var(--xg-in) ease-out var(--xg-in-delay), transform var(--xg-in) ease-out var(--xg-in-delay), visibility 0s linear 0s; }
+.xgate .xg-form { width: 33.4%; }
+.xgate .xg-hello { width: 28%; max-width: 330px; }
+.xgate .xg-form-a  { margin-left: 7.3%; }
+.xgate .xg-hello-a { margin-left: 58.9%; }
+.xgate .xg-hello-b { margin-left: 4.5%; }
+.xgate .xg-form-b  { margin-left: 59%; }
+/* the section that is not showing: out of sight, out of reach (the script also makes it inert), parked to its own side */
+.xgate .xg-form[aria-hidden="true"], .xgate .xg-hello[aria-hidden="true"] { opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity var(--xg-out) ease-out 0s, transform var(--xg-out) ease-out 0s, visibility 0s linear var(--xg-out); }
+.xgate .xg-form-a[aria-hidden="true"], .xgate .xg-hello-b[aria-hidden="true"] { transform: translateX(-56px); }
+.xgate .xg-form-b[aria-hidden="true"], .xgate .xg-hello-a[aria-hidden="true"] { transform: translateX(56px); }
+
+/* ---- headings */
+.xgate .xg-title { margin: 0 0 12px; font: 700 34px/1.15 var(--xg-font); color: var(--xg-ink); letter-spacing: -.01em; }
+.xgate .xg-big { margin: 0 0 18px; font: 800 40px/54px var(--xg-font); text-transform: uppercase; color: var(--xg-ink); letter-spacing: 0; }
+.xgate .xg-hello p { margin: 0 0 28px; font: 400 16px/28px var(--xg-font); color: var(--xg-ink-2); max-width: 17em; }
+
+/* ---- underline fields: 1px line, 2px white on focus (the extra pixel is a shadow, so nothing moves), 18px icon */
+.xgate .xg-fields { display: flex; flex-direction: column; gap: 0; margin: 0; }
+.xgate .xfield { position: relative; display: flex; align-items: center; gap: 14px; min-height: 46px; margin-top: 15px; border-bottom: 1px solid var(--xg-line);
+  transition: border-color 200ms var(--xg-ease), box-shadow 200ms var(--xg-ease); }
+.xgate .xfield:focus-within { border-bottom-color: #fff; box-shadow: 0 1px 0 #fff; }
+.xgate .xfield > svg { flex: none; width: 18px; height: 18px; color: var(--xg-ink-2); }
+.xgate .xfield input { flex: 1 1 auto; min-width: 0; height: 44px; padding: 0; margin: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; outline: 0;
+  font: 400 16px/1.4 var(--xg-font); color: var(--xg-ink); caret-color: #fff; }
+.xgate .xfield input::placeholder { color: var(--xg-ink-3); opacity: 1; }
+.xgate .xfield input:-webkit-autofill { -webkit-text-fill-color: #fff; box-shadow: 0 0 0 1000px #1c1c20 inset; caret-color: #fff; transition: background-color 9999s; }
+.xgate .xg-eye { flex: none; display: inline-grid; place-items: center; width: 44px; height: 44px; margin: 0 -10px 0 0; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: var(--xg-ink-2); cursor: pointer; }
+.xgate .xg-eye svg { width: 18px; height: 18px; }
+.xgate .xg-eye:hover { color: #fff; background: rgba(255, 255, 255, .08); }
+.xgate .xg-eye[aria-pressed="true"] { color: #fff; }
+
+/* ---- the alert row keeps 30px (the reference's gap between the password and the button), so a one-line error moves nothing;
+   a longer one wraps and the card grows, never clipped */
+.xgate [role="alert"] { display: block; min-height: 28px; margin: 0; font: 500 14px/1.5 var(--xg-font); color: var(--xg-bad); overflow-wrap: anywhere; word-break: break-word; }
+
+/* ---- until the server has said whether Google is offered and the typeface is ready (or 1.2s has passed), nothing in the gate is painted:
+   the Google row and the font would otherwise move what is on screen (no layout shift). Inter is used only if it was loaded at the reveal. */
+.xgate.xg-wait > * { visibility: hidden; }
+.xgate.xg-inter { --xg-font: "Inter", "Helvetica Neue", Arial, sans-serif; }
+
+/* ---- buttons: primary = full-width 56px translucent pill; ghost = 230 x 54 with a rim and an arrow */
+.xgate .xg-primary { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 56px; padding: 0 24px; border-radius: 999px; text-decoration: none;
+  border: 1px solid rgba(255, 255, 255, .20); background: rgba(112, 116, 122, .42); color: #fff; font: 600 16px/1 var(--xg-font); cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 8px 24px rgba(0, 0, 0, .22);
+  transition: background-color 200ms var(--xg-ease), border-color 200ms var(--xg-ease); }
+.xgate .xg-primary:hover { background: rgba(132, 136, 142, .52); border-color: rgba(255, 255, 255, .32); }
+.xgate .xg-primary:disabled { cursor: progress; opacity: .6; }
+.xgate .xg-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 230px; min-height: 54px; padding: 0 28px; border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, .30); background: rgba(255, 255, 255, .06); color: #fff; font: 600 16px/1 var(--xg-font); cursor: pointer;
+  transition: background-color 200ms var(--xg-ease), border-color 200ms var(--xg-ease); }
+.xgate .xg-ghost:hover { background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .5); }
+
+/* ---- links and notes under the form */
+.xgate .xg-links { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 2px 6px; min-height: 44px; margin: 22px 0 0;
+  font: 400 14px/1.4 var(--xg-font); color: var(--xg-ink-2); text-align: center; }
+.xgate .xg-links.quiet { margin-top: 0; }
+.xgate .xg-link { min-height: 44px; padding: 0 6px; border: 0; background: none; color: #fff; font: 700 14px/1.4 var(--xg-font); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.xgate .xg-note { margin: 0 0 18px; font: 400 15px/1.6 var(--xg-font); color: var(--xg-ink-2); }
+
+/* ---- Google, where the server offers it: the same rim as the ghost pill, with its divider */
+.xgate .google-box { display: flex; flex-direction: column; gap: 6px; margin: 14px 0 4px; }
+.xgate .xg-gB { margin: 0 0 16px; }
+.xgate .xg-gB:empty { display: none; }
+.xgate .google-box:empty { display: none; }
+/* the server's Google answer was still outstanding at the reveal (the 1.2s cap): the row's room (94px, a Google button + its divider) is held open so a late answer fills it without a shift; if it says no, it stays a quiet gap until the next B to A swap (BRIEF 10.1 (3)/(4)). An answer that already came holds nothing. */
+.xgate.xg-late .xg-form-a .google-box:empty { display: flex; min-height: 94px; }
+.xgate.xg-late .xg-form-a .google-box { min-height: 94px; }
+/* a Google link that arrived after the reveal while the Get access pane was showing waits for the next swap, so the showing pane never grows under the reader (it is the card's height on a phone) */
+.xgate.xg-hold-b .xg-gB { display: none; }
+.xgate .google-box .btn, .xgate .xg-gB .btn { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; min-height: 52px; padding: 0 20px; border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, .30); background: rgba(255, 255, 255, .08); color: #fff; font: 600 15px/1 var(--xg-font); text-decoration: none; letter-spacing: 0; text-transform: none; }
+.xgate .google-box .btn:hover, .xgate .xg-gB .btn:hover { background: rgba(255, 255, 255, .16); border-color: rgba(255, 255, 255, .5); color: #fff; }
+.xgate .or { display: flex; align-items: center; gap: 12px; min-height: 36px; font: 400 13px/1 var(--xg-font); color: var(--xg-ink-3); }
+.xgate .or::before, .xgate .or::after { content: ""; flex: 1; height: 1px; background: var(--xg-line); }
+
+/* ---- keyboard focus: a white ring on everything you can press */
+.xgate :is(a, button):focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.xgate .xg-eye:focus-visible { outline-offset: 0; }
+
+/* ---- narrower than the card (and every 200% zoom of a laptop): one column, the greeting under the form */
+@media (max-width: 860px) {
+  .xgate { place-items: start center; padding: 76px 16px 24px; }
+  .xgate .xgate-card { display: flex; flex-direction: column; justify-content: center; min-height: 0; border-radius: 22px; background: var(--xg-form); }
+  .xgate .xg-pane { display: none; }
+  .xgate .xg-form, .xgate .xg-hello { align-self: stretch; width: auto; min-width: 0; max-width: none; margin: 0; transform: none !important; }
+  .xgate .xg-form { padding: 32px 24px 8px; }
+  .xgate .xg-hello { padding: 24px 0 32px; margin: 8px 24px 0; border-top: 1px solid var(--xg-line); }
+  .xgate .xg-form[aria-hidden="true"], .xgate .xg-hello[aria-hidden="true"] { display: none; }
+  .xgate .xg-title { font-size: 30px; margin-bottom: 14px; }
+  .xgate .xg-big { font-size: 28px; line-height: 38px; margin-bottom: 10px; }
+  .xgate .xg-hello p { max-width: none; margin-bottom: 20px; }
+  .xgate .xg-ghost { width: 100%; min-width: 0; }
+  .xgate .xg-brand { left: 16px; }
+}
+@media (max-width: 380px) { .xgate .xg-brand small { display: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .xgate, .xgate * { transition-duration: 0s !important; transition-delay: 0s !important; animation: none !important; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .xgate .xgate-card { -webkit-backdrop-filter: none; backdrop-filter: none; background: #2a2c2f; }
+  .xgate { --xg-form: #17171a; }
+}
+@media (forced-colors: active) {
+  .xgate .xgate-card, .xgate .xfield, .xgate .xg-primary, .xgate .xg-ghost { border-color: CanvasText; }
+  .xgate .xg-pane { display: none; }
+}

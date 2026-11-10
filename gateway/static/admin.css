@@ -798,7 +798,7 @@ h1, h2, h3 { text-wrap: balance; }
 .side-tools .side-search { margin: 0; flex: 1; min-width: 0; }
 .bell { position: relative; width: 38px; height: 38px; flex: none; }
 .bell.on { color: var(--accent-tx); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
-.bell-n { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--r-full); background: var(--bad); color: #fff;
+.bell-n { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--r-full); background: var(--bad); color: var(--on-bad);
   font-size: 10.5px; font-weight: 750; display: grid; place-items: center; line-height: 1; }
 .appbar .bell { width: 36px; height: 36px; }
 .sheet-tools { display: flex; align-items: center; gap: 8px; padding: 12px 0; flex-wrap: wrap; }

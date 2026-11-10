@@ -6,15 +6,21 @@
   const { el, icon, fmt, toast, copy } = SUI;
   const app = document.getElementById("app");
   const S = { me: null, studio: null, filter: { q: "", cat: "all", sort: "recommended", show: "all" } };
+  let pausedRefresh = null, pausedRender = 0, loading = 0, identityGeneration = 0;
+  const isPaused = () => !!S.me?.paused_view;
+  const pausedCall = (method, path) => method === "POST" && path === "/logout" || method === "GET" &&
+    (path === "/me" || path === "/hub/notifications" || /^\/hub\/reports(?:\/[1-9]\d{0,14}|\?limit=30&offset=\d+)?$/.test(path));
 
   class ApiError extends Error {
-    constructor(status, message) { super(message); this.status = status; }
+    constructor(status, message, code) { super(message); this.status = status; this.code = code; }
   }
   // Served by the gateway, GATEWAY is "" (same origin). Hosted elsewhere (Netlify), config.js sets it.
   const GATEWAY = (typeof window !== "undefined" && window.SWANGZ_GATEWAY || "").replace(/\/+$/, "");
   const gurl = (path) => GATEWAY + path;
 
   async function api(method, path, body) {
+    if (isPaused() && !pausedCall(method, path)) throw new ApiError(403, "Your access is paused.", "person_paused");
+    const generation = identityGeneration;
     const opts = { method, credentials: "include", headers: { "x-swangz-app": "1" } };
     if (body !== undefined) {
       opts.headers["content-type"] = "application/json";
@@ -25,8 +31,26 @@
     catch (e) { throw new ApiError(0, "Swangz AI Hub can't be reached. Check your connection and try again."); }
     let data = null;
     try { data = await res.json(); } catch (e) { /* empty */ }
-    if (!res.ok) throw new ApiError(res.status, (data && data.error) || "Something went wrong. Try again.");
+    if (!res.ok) {
+      if (data?.code === "person_paused" && path !== "/me") {
+        if (pausedRefresh) await pausedRefresh;
+        else if (!isPaused()) await refreshPaused();
+      }
+      throw new ApiError(res.status, (data && data.error) || "Something went wrong. Try again.", data?.code);
+    }
+    // A response started before suspension must not restore active data after the identity changed.
+    if (generation !== identityGeneration) throw new ApiError(403, "Your access is paused.", "person_paused");
     return data;
+  }
+
+  function refreshPaused() {
+    if (!pausedRefresh) {
+      identityGeneration++;
+      S.me = { paused_view: true };
+      pausedHome();
+      pausedRefresh = load().finally(() => { pausedRefresh = null; });
+    }
+    return pausedRefresh;
   }
 
   function greeting() {
@@ -154,13 +178,24 @@
 
   function showSignIn() {
     document.title = "Sign in · Swangz AI Hub";
-    const email = el("input", { class: "input", type: "email", autocomplete: "email", required: true, placeholder: "you@swangzavenue.com", id: "si-email" });
+    const email = el("input", { type: "email", autocomplete: "email", required: true, placeholder: "Work email", id: "si-email" });
     const pw = passwordInput("current-password", "si-pass");
+    pw.input.removeAttribute("class"); pw.input.setAttribute("placeholder", "Password");
     const err = el("div", { class: "form-error", role: "alert" }, authError());
-    const google = el("div");
-    googleButton("staff", "Continue with Google").then((b) => google.replaceWith(b));
-    const go = el("button", { class: "btn btn--solid btn--block", type: "submit" }, "Sign in");
+    const google = el("div", { class: "google-box" });
+    const googleB = el("div", { class: "xg-gB" });
+    // Google is offered only when the server says so; mode B reuses the same link (no divider there)
+    const optionsKnown = googleButton("staff", "Continue with Google").then((b) => {
+      google.replaceWith(b);
+      const link = b.querySelector("a[href]");
+      if (link) {
+        googleB.append(el("p", { class: "xg-note" }, "If your admin has already added your work email, continue with Google using that account."), link.cloneNode(true));
+      }
+    });
+    const go = el("button", { class: "xg-primary", type: "submit" }, "Login");
+    let gate;
     const form = el("form", {
+      class: "xg-fields",
       onsubmit: async (e) => {
         e.preventDefault();
         go.disabled = true;
@@ -171,13 +206,22 @@
         } catch (x) { err.textContent = x.message; go.disabled = false; }
       },
     },
-    el("div", null, el("div", { class: "eyebrow" }, "Welcome back"), el("h2", null, "Sign in to Swangz AI Hub")),
-    google,
-    el("label", { class: "field", for: "si-email" }, el("span", null, "Work email"), email),
-    el("label", { class: "field", for: "si-pass" }, el("span", null, "Password"), pw.node),
+    SUI.xfield("user", "Work email", email),
+    SUI.xfield("lock", "Password", pw.input, SUI.eyeToggle(pw.input)),
     err, go,
-    el("p", { class: "muted small" }, "First time here? Your admin sends you a sign-in link. Forgot your password? Ask them for a new one."));
-    app.replaceChildren(gateFrame(form));
+    el("p", { class: "xg-links" }, "First time here? ", el("button", { type: "button", class: "xg-link", onclick: () => gate.swap("b") }, "Get access")));
+    gate = SUI.splitGate({
+      ready: optionsKnown,
+      brand: el("a", { class: "xg-brand", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz ", el("b", null, "AI Hub")),
+      a: { title: "Login", body: [google, form], focus: email },
+      b: { title: "Get access", body: [el("div", { class: "xg-fields" },
+        el("p", { class: "xg-note" }, "Your admin adds your work email, then sends you a sign-in link. Forgot your password? Ask them for a new link."),
+        googleB,
+        el("button", { type: "button", class: "xg-primary", onclick: () => gate.swap("a") }, "Back to login"))] },
+      helloA: { h: "HELLO,\nFRIEND!", p: "Every AI tool Swangz pays for, in one place. Open any of them with your work account.", btn: "Get access" },
+      helloB: { h: "WELCOME\nBACK!", p: "Already set up? Please login with your credentials.", btn: "Sign In" },
+    });
+    app.replaceChildren(gate.node);
     email.focus();
   }
 
@@ -305,6 +349,7 @@
   }
 
   function frame(title, content, opts) {
+    if (isPaused()) return renderPaused();
     opts = opts || {};
     staffFontLatch();
     const me = S.me;
@@ -1224,6 +1269,94 @@
       } }, "Save")]);
   }
 
+  // Paused identities never enter the active portal or Hub report wizard. These views use only
+  // the existing read-only routes and text nodes; notification destinations are deliberately ignored.
+  function pausedHome() {
+    history.replaceState(null, "", location.pathname + "#/");
+    previousRoute = "#/";
+    return renderPaused();
+  }
+
+  async function renderPaused() {
+    const ticket = ++pausedRender, me = S.me;
+    document.title = "Access paused · Swangz AI Hub";
+    S.studio = null;
+    document.querySelectorAll(".drawer, .scrim, .hub-side-sheet, .hub-sheet-scrim, dialog[open]").forEach((n) => { if (n.close) n.close(); n.remove(); });
+    const hash = location.hash || "#/";
+    const detail = hash.match(/^#\/paused\/reports\/([1-9]\d{0,14})$/);
+    if (location.search || !["#/", "#/paused/reports", "#/paused/updates"].includes(hash) && !detail) return pausedHome();
+    const content = el("section", { class: "paused-content", tabindex: "-1", "aria-label": "Read-only workspace" });
+    const showContent = (...children) => { content.replaceChildren(...children); content.focus({ preventScroll: true }); };
+    const links = [["#/", "Home"], ["#/paused/reports", "Reports"], ["#/paused/updates", "Updates"]];
+    app.replaceChildren(el("main", { class: "shell paused-page", id: "main", tabindex: "-1" },
+      el("header", { class: "paused-header" }, el("a", { class: "wordmark", href: "#/" }, el("img", { src: "/static/icon.svg", alt: "" }), "Swangz AI Hub"),
+        el("div", { class: "paused-actions" }, SUI.themeButton(), el("button", { class: "btn btn--solid", type: "button", onclick: signOut }, "Sign out"))),
+      el("section", { class: "paused-panel" }, el("div", { class: "eyebrow" }, "Access paused"),
+        el("h1", null, me.name ? `${me.name}, your access is paused` : "Your access is paused"),
+        el("p", { class: "muted" }, me.reason || "Talk to your admin to have it restored."),
+        me.support_contact ? el("p", { class: "muted" }, "Contact: ", me.support_contact) : null,
+        el("nav", { class: "paused-nav", "aria-label": "Paused workspace" }, links.map(([href, label]) => el("a", {
+          class: "btn", href, "aria-current": href === (detail ? "#/paused/reports" : hash) ? "page" : null }, label))), content)));
+    const current = () => ticket === pausedRender && S.me === me && isPaused();
+    const label = (value) => String(value || "Unknown").replaceAll("_", " ");
+    const fact = (name, value) => value === null || value === undefined || value === "" ? [] : [el("dt", null, name), el("dd", null, String(value))];
+    if (hash === "#/") {
+      showContent(el("h2", null, "Your read-only workspace"), el("p", null, "You can read your own reports and updates. Tools and report changes are unavailable while your access is paused."));
+      return;
+    }
+    content.append(el("h2", null, detail ? "Report details" : hash === "#/paused/reports" ? "Your reports" : "Your updates"),
+      el("p", { role: "status" }, "Loading…"));
+    content.focus({ preventScroll: true });
+    try {
+      if (detail) {
+        const report = await api("GET", "/hub/reports/" + detail[1]);
+        if (!current()) return;
+        if (String(report.id) !== detail[1]) return pausedHome();
+        showContent(el("h2", null, report.tool_name), el("p", { class: "muted" }, "Read-only report. Declarations are reported by staff; they do not verify business value or vendor spend."),
+          el("dl", { class: "facts" }, ...fact("Status", label(report.state)), ...fact("Kind", label(report.kind)),
+            ...fact("Week beginning", report.week_start), ...fact("Version", report.version), ...fact("Currency", report.currency)),
+          ...[["Usage confirmation", report.usage_confirmation], ["Purpose / business problem", report.reason], ["Deliverables", report.deliverables],
+            ["Reported quality", report.quality], ["Reported business impact", report.impact], ["Issues", report.issues], ["Next steps", report.next_steps]]
+            .filter(([, value]) => value).map(([title, value]) => el("section", null, el("h3", null, title), el("p", null, value))),
+          el("a", { class: "btn", href: "#/paused/reports" }, "All reports"));
+      } else if (hash === "#/paused/updates") {
+        const data = await api("GET", "/hub/notifications");
+        if (!current()) return;
+        showContent(el("h2", null, "Your updates"), data.items.length ? el("ul", { class: "paused-list" }, data.items.map((item) =>
+          el("li", null, el("p", null, item.title), el("p", { class: "muted small" }, fmt.stamp(item.created))))) : el("p", null, "No updates yet."));
+      } else {
+        let pageRequest = 0;
+        const readPage = async (offset) => {
+          const request = ++pageRequest;
+          const data = await api("GET", "/hub/reports?limit=30&offset=" + offset);
+          if (!current() || request !== pageRequest) return;
+          const next = offset + data.items.length;
+          showContent(el("h2", null, "Your reports"), el("p", { class: "muted" }, "Read-only. Reports cannot be edited or submitted while your access is paused."),
+            data.items.length ? el("ul", { class: "paused-list" }, data.items.map((report) => el("li", null,
+              el("a", { class: "tlink", href: "#/paused/reports/" + report.id }, report.tool_name),
+              el("p", { class: "muted small" }, [label(report.kind), report.week_start, label(report.state)].filter(Boolean).join(" · "))))) : el("p", null, "No reports yet."),
+            el("p", { class: "muted small", role: "status" }, data.total ? `Showing ${offset + 1}–${next} of ${data.total}` : "0 reports"),
+            el("div", { class: "paused-actions" }, offset ? pageButton("Previous", Math.max(0, offset - 30)) : null,
+              next < data.total ? pageButton("Next", next) : null));
+        };
+        const pageButton = (title, offset) => el("button", { class: "btn", type: "button", onclick: async (event) => {
+          const button = event.currentTarget;
+          button.disabled = true;
+          try { await readPage(offset); } catch (e) {
+            if (current()) { button.disabled = false; if (e.status === 401) return load(); toast(e.message, true); }
+          }
+        } }, title);
+        await readPage(0);
+      }
+    } catch (e) {
+      if (!current()) return;
+      if (detail && e.status === 404) return pausedHome();
+      if (e.status === 401) return load();
+      showContent(el("h2", null, "Couldn't load this view"), el("p", { role: "alert" }, e.message),
+        el("button", { class: "btn", type: "button", onclick: renderPaused }, "Try again"));
+    }
+  }
+
   async function signOut() {
     // Offline or a server error: the session may still be live, so say so and stay signed in rather than pretend.
     try { await api("POST", "/logout"); } catch (e) { toast("Couldn't sign out. Try again.", true); return; }
@@ -1240,6 +1373,7 @@
     [/^#\/requests$/, pageRequests], [/^#\/privacy$/, pagePrivacy]];
 
   function render() {
+    if (isPaused()) return renderPaused();
     document.querySelectorAll(".drawer, .scrim").forEach((n) => n.remove());
     const [path, query] = (location.hash || "#/").split("?");
     const params = new URLSearchParams(query || "");
@@ -1250,16 +1384,21 @@
   }
 
   async function load() {
+    const ticket = ++loading;
     try {
       const me = await api("GET", "/me");
+      if (ticket !== loading) return;
+      if (me.paused_view && !isPaused()) identityGeneration++;
       S.me = me;
+      if (me.paused_view) return renderPaused();
       SUI.setGatewayOffset(180);
       // the device count on each coding tool's tile
       me.catalog.forEach((t) => { if (t.kind === "dev") t.connected = me.keys.filter((k) => !k.revoked && k.client === t.name).length; });
-      try { S.studio = await api("GET", "/studio"); } catch (e) { S.studio = null; }
+      try { const studio = await api("GET", "/studio"); if (S.me !== me) return; S.studio = studio; } catch (e) { if (S.me !== me) return; S.studio = null; }
       render();
     } catch (e) {
-      if (e.status === 401) showSignIn();
+      if (ticket !== loading) return;
+      if (e.status === 401) { S.me = null; S.studio = null; showSignIn(); }
       else app.replaceChildren(el("main", { class: "gate" }, gateArt(), el("section", { class: "gate-form" },
         el("form", null, el("div", { class: "eyebrow" }, "Connection"), el("h2", null, "Swangz AI Hub is temporarily unavailable"), el("p", { class: "muted" }, e.message),
           el("button", { class: "btn btn--solid", type: "button", onclick: load }, icon("refresh"), "Try again")))));
@@ -1267,6 +1406,7 @@
   }
 
   function route() {
+    if (isPaused()) return renderPaused();
     const m = (location.hash || "").match(/^#\/welcome\/([A-Za-z0-9_\-]+)$/);
     if (m) return showWelcome(m[1]);
     if (!S.me) return load();
@@ -1274,6 +1414,11 @@
   }
 
   // "/" focuses the tool search wherever there is one
+  document.addEventListener("keydown", (e) => {
+    if (isPaused() && (e.key === "/" || (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k")) {
+      e.preventDefault(); e.stopImmediatePropagation();
+    }
+  }, true);
   document.addEventListener("keydown", (e) => {
     if (e.key === "/" && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "")) {
       const box = document.querySelector("input.search");
@@ -1284,6 +1429,7 @@
   window.SWP = { S, api, gurl, frame, sectionHead, viewTabs, load, render, rememberRoute: () => { previousRoute = location.hash; }, page: (rx, fn) => ROUTES.push([rx, fn]) };
   let previousRoute = location.hash;
   window.addEventListener("hashchange", () => {
+    if (isPaused()) { previousRoute = location.hash; return renderPaused(); }
     if (window.HubUI && !HubUI.guard()) { history.pushState(null, "", previousRoute || "#/"); return; }
     previousRoute = location.hash; route();
   });

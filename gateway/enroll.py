@@ -36,10 +36,10 @@ import time
 import zipfile
 from urllib.parse import parse_qs, quote
 
-from . import credentials, entitle, security
+from . import credentials, entitle, releases, security
 from .admin import ApiError
 from .admin import route as admin_route
-from .staff import COOKIE, Ctx, _cookie, current_person, route
+from .staff import COOKIE, Ctx, _cookie, current_person, paused_person, route
 
 CLIENT_LATEST = "0.1.0"
 CLIENT_MINIMUM = "0.1.0"
@@ -313,7 +313,7 @@ def build_manifest(gw, h, person, device):
                      "company_browser": bool(tool and catalog.uses_workspace(tool)), "open": f"{base}/go/{t['id']}"})
     manifest = {"server": base, "person": {"name": person["name"], "email": person["email"], "department": person.get("department") or ""},
                 "device": {"id": device["device_id"], "name": device["name"], "os": device["os"], "owner_kind": device["owner_kind"]},
-                "client": {"latest": CLIENT_LATEST, "minimum": CLIENT_MINIMUM}, "packages": packages, "apps": apps,
+                "client": {"latest": releases.latest_hint(gw, person, CLIENT_LATEST), "minimum": CLIENT_MINIMUM}, "packages": packages, "apps": apps,
                 "credential": {"rotate_after_days": credentials.ROTATE_AFTER_DAYS, "issued": device.get("key_issued")},
                 "recording": RECORDING, "generated": time.time()}
     browser = _browser_block(gw, h, person, device)
@@ -369,7 +369,7 @@ def device_heartbeat(ctx):
               json.dumps(installed), device["device_id"]))
     ctx.db.x("UPDATE keys SET last_used = ? WHERE id = ?", (now, key["id"]))
     _record_key_storage(ctx, person, device, now)
-    return {"ok": True, "latest_client": CLIENT_LATEST, "server_time": now}
+    return {"ok": True, "latest_client": releases.latest_hint(ctx.gw, person, CLIENT_LATEST), "server_time": now}
 
 
 def _record_key_storage(ctx, person, device, now):
@@ -455,9 +455,9 @@ def device_package(ctx, pid, version):
 def device_signout(ctx):
     """The app signs itself out: this device's key is revoked, exactly like "disconnect this device"."""
     person, device, key = device_key_auth(ctx)
-    ids, _ = credentials.revoke_device_keys(ctx.db, ctx.gw.live, key["id"], "device", "this device was signed out.")
+    ids, cut = credentials.revoke_device_keys(ctx.db, ctx.gw.live, key["id"], "device", "this device was signed out.")
     ctx.gw.audit(person["name"], "signed a device out of Swangz", person["name"], device["name"], ctx.ip,
-                 before={"keys": ids}, correlation=f"device:{device['device_id']}")
+                 before={"keys": ids}, after={"keys_revoked": len(ids), "requests_cut": cut}, correlation=f"device:{device['device_id']}")
     return {"ok": True}
 
 
@@ -497,6 +497,8 @@ def page(h, gw, query):
         code = normalise_code(form.get("code"))
     else:
         form = {}
+    if not person and paused_person(ctx):
+        return _page(h, 403, "Your access is paused", "<p>Talk to your admin to have it restored.</p>")
     if not person:
         return _page(h, 401, "Sign in first",
                      "<p>Sign in to Swangz AI Hub in this browser, then open this page again to connect your device.</p>"

@@ -297,8 +297,8 @@ class HubHTTPTests(unittest.TestCase):
         self.rig=Rig();self.addCleanup(self.rig.close)
         self.db=self.rig.gw.db;self.pid=self.rig.person_id
         self.token='hub-staff-token';now=time.time()
-        self.db.x('INSERT INTO staff_sessions(token_hash,person_id,created,expires) VALUES(?,?,?,?)',(security.sha256(self.token),self.pid,now,now+3600))
-        self.headers={'authorization':'Bearer '+self.token,'x-swangz-app':'1'}
+        self.db.x('INSERT INTO staff_sessions(token_hash,person_id,created,expires,kind) VALUES(?,?,?,?,?)',(security.sha256(self.token),self.pid,now,now+3600,'web'))
+        self.headers={'cookie':'sgw_staff='+self.token,'x-swangz-app':'1'}
         self.start=reporting.week(self.rig.gw)['starts']-7*86400
 
     def staff(self,method,path,body=None):
@@ -322,7 +322,8 @@ class HubHTTPTests(unittest.TestCase):
         self.assertEqual(self.rig.openai('/responses',{'model':'gpt-5','input':'hi'})[0],200)
         self.db.x("UPDATE people SET status='suspended' WHERE id=?",(self.pid,))
         self.assertEqual(self.rig.openai('/responses',{'model':'gpt-5','input':'hi'})[0],403)
-        self.assertEqual(self.staff('GET','/hub/reports')[0],200) # reports/help remain accessible
+        self.assertEqual(self.staff('GET','/hub/reports')[0],200) # G5: a suspended person's web session is the read-only paused view
+        self.assertEqual(self.staff('PUT',f'/hub/reports/{rid}',{'reason':'again'})[0],403)
 
     def test_extension_and_studio_machine_readable_denials(self):
         rid=self.obligation('elevenlabs')
