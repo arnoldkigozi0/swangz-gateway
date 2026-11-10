@@ -323,6 +323,65 @@ class ConsoleTests(unittest.TestCase):
                                          {"x-gateway-admin": "1"})
         self.assertEqual(status, 429)
 
+    def test_a_failed_console_sign_in_records_the_account_or_unknown_never_what_was_typed(self):
+        rig, db = self.rig, self.rig.gw.db
+        post = lambda body: rig.request("POST", "/admin/api/login", body, {"x-gateway-admin": "1"})[0]
+        last = lambda: db.one("SELECT * FROM audit ORDER BY id DESC LIMIT 1")
+        self.assertEqual(post({"username": "Owner@SwangzAvenue.com", "password": "typed-wrong-secret"}), 401)
+        row = last()
+        self.assertEqual((row["actor"], row["action"], row["outcome"]), ("owner@swangzavenue.com", "failed sign-in", "refused"))
+        self.assertEqual(post({"username": "my-password-in-the-wrong-box", "password": "typed-wrong-secret"}), 401)
+        row = last()
+        self.assertEqual((row["actor"], row["action"], row["outcome"], row["reason"]), ("unknown", "failed sign-in", "refused", "unknown username"))
+        self.assertEqual(post({"password": "typed-wrong-secret"}), 401)
+        self.assertEqual(last()["actor"], "unknown")
+        everything = " ".join(str(v) for r in db.q("SELECT * FROM audit") for v in dict(r).values())
+        for typed in ("my-password-in-the-wrong-box", "typed-wrong-secret"):
+            self.assertNotIn(typed, everything)
+
+    def test_console_password_change_is_throttled_audited_and_ends_other_sessions(self):
+        rig, db = self.rig, self.rig.gw.db
+        here, elsewhere = rig.login(), rig.login()
+        change = lambda body, cookie=here: rig.request("POST", "/admin/api/password", body, {"x-gateway-admin": "1", "cookie": cookie})
+        me = lambda cookie: rig.request("GET", "/admin/api/me", headers={"cookie": cookie})[0]
+        last = lambda: db.one("SELECT * FROM audit ORDER BY id DESC LIMIT 1")
+        admin_id = db.scalar("SELECT id FROM admins WHERE username = 'owner@swangzavenue.com'")
+        other = db.x("INSERT INTO admins(username, pw_hash, role, created) VALUES('second@swangzavenue.com', 'x', 'viewer', ?)", (time.time(),)).lastrowid
+        db.x("INSERT INTO admin_sessions(token_hash, admin_id, created, expires, ip) VALUES('someone-elses', ?, ?, ?, '')",
+             (other, time.time(), time.time() + 3600))
+
+        # a wrong guess is refused, audited, and ends nothing
+        self.assertEqual(change({"current": "guess-number-0", "new": "another-long-password"})[0], 400)
+        row = last()
+        self.assertEqual((row["actor"], row["action"], row["outcome"], row["reason"], row["correlation"]),
+                         ("owner@swangzavenue.com", "tried to change own password", "refused", "current password was wrong", f"admin:{admin_id}"))
+        self.assertEqual(me(elsewhere), 200)
+        limit = rig.gw.throttle.limit
+        for n in range(1, limit):
+            self.assertEqual(change({"current": f"guess-number-{n}", "new": "another-long-password"})[0], 400, n)
+        rows = db.scalar("SELECT COUNT(*) FROM audit")
+        # locked: the right current password is refused too, nothing changes and no row is written
+        self.assertEqual(change({"current": "owner-password", "new": "another-long-password"})[0], 429)
+        self.assertEqual(db.scalar("SELECT COUNT(*) FROM audit"), rows)
+        self.assertTrue(security.check_password("owner-password", db.scalar("SELECT pw_hash FROM admins WHERE id = ?", (admin_id,))))
+        # the count is the account's, not the address's: signing in from here still works
+        self.assertEqual(rig.request("POST", "/admin/api/login", {"username": "owner@swangzavenue.com", "password": "owner-password"},
+                                     {"x-gateway-admin": "1"})[0], 200)
+        db.x("DELETE FROM admin_sessions WHERE admin_id = ? AND token_hash NOT IN (?, ?)", (admin_id, *[
+            security.sha256(c.split("=", 1)[1]) for c in (here, elsewhere)]))
+        rig.gw.throttle.failures.clear()                                                     # the window passes
+
+        status, _, payload = change({"current": "owner-password", "new": "another-long-password"})
+        self.assertEqual((status, json.loads(payload)["sessions_ended"]), (200, 1))
+        self.assertEqual((me(here), me(elsewhere)), (200, 401))                              # this session carries on
+        self.assertEqual(db.scalar("SELECT COUNT(*) FROM admin_sessions WHERE admin_id = ?", (other,)), 1)   # nobody else's
+        row = last()
+        self.assertEqual((row["action"], json.loads(row["after_json"]), row["correlation"]),
+                         ("changed own password", {"sessions_ended": 1, "sessions_kept": 1}, f"admin:{admin_id}"))
+        everything = " ".join(str(v) for r in db.q("SELECT * FROM audit") for v in dict(r).values())
+        for secret in ("owner-password", "another-long-password", "guess-number-0"):
+            self.assertNotIn(secret, everything)
+
     def test_people_keys_and_setup(self):
         rig = self.rig
         status, out = rig.api("POST", "/people", {"name": "Kato Brian", "department": "Post-production", "monthly_budget": 40})
@@ -563,9 +622,9 @@ class StaffAppTests(StaffBase):
         self.assertEqual(post("/login", {"email": "grace@swangzavenue.com", "password": "typed-wrong-secret"}), 401)
         row = last()
         self.assertEqual((row["actor"], row["action"], row["outcome"], row["reason"], row["correlation"]),
-                         ("Nansubuga Grace", "failed sign-in to Swangz AI Hub", "refused", "wrong password", f"person:{rig.person_id}"))
+                         ("Nansubuga Grace", "failed Swangz AI Hub sign-in", "refused", "wrong password", f"person:{rig.person_id}"))
         self.assertEqual(post("/extension/login", {"email": "grace@swangzavenue.com", "password": "typed-wrong-secret"}), 401)
-        self.assertEqual((last()["action"], last()["correlation"]), ("failed sign-in to the access extension", f"person:{rig.person_id}"))
+        self.assertEqual((last()["action"], last()["correlation"]), ("failed access extension sign-in", f"person:{rig.person_id}"))
         self.assertEqual(post("/login", {"email": "typed-in-the-wrong-box@swangzavenue.com", "password": "typed-wrong-secret"}), 401)
         row = last()
         self.assertEqual((row["actor"], row["outcome"], row["reason"], row["correlation"]),
