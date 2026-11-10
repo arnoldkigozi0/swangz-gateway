@@ -62,7 +62,7 @@
        counts (need attention, live requests) and uses by tool. Trends, leaders and licences live on their own pages. */
     const week = tr ? tr.days.slice(-8) : [];
     const usage = A.panel("AI usage", el("a", { class: "btn small quiet", href: "#/activity?tab=usage&range=30d" }, "Who used what", icon("chevronRight")),
-      tr ? el("div", { class: "body" }, SUI.columns({ label: "Uses per day over the last 8 days", yName: "Uses", height: 250, caption: "Requests, tool opens and website visits · times in " + SUI.tzLabel(true),
+      tr ? el("div", { class: "body" }, SUI.columns({ label: "Uses per day over the last 8 days", yName: "Uses", height: window.matchMedia("(min-width: 1001px)").matches ? 350 : 250, caption: "Requests, tool opens and website visits · times in " + SUI.tzLabel(true),
         data: week.map((d) => ({ label: fmt.weekday(d.start), short: fmt.dayMonth(d.start), value: d.requests + d.opens + d.visits,
           note: `${fmt.num(d.requests)} requests · ${fmt.num(d.opens)} opens · ${fmt.num(d.visits)} visits` })) }))
         : SUI.errorBox(trends.reason, () => A.render()));

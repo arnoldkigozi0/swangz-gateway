@@ -1390,12 +1390,14 @@ html[data-theme="light"] .kpis-exact .kpi .foot > :not(.kpi-note) { background: 
 @media (min-width: 1201px) { .route-overview .page > .kpis-exact:first-child { margin: -7px -6px 0 0; } }
 
 /* The Overview under the cards (BRIEF 10.7): AI usage on the left, two counts and uses by tool on the right. */
-.overview-exact { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.overview-exact { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
 .overview-side { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
 .kpis.kpis-exact.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .kpis-exact.two .kpi { min-height: 132px; }
+@media (min-width: 1001px) { .kpis-exact.two .kpi { min-height: 220px; } }
 .overview-exact > .panel, .overview-side > .panel { border-radius: 22px; }
 /* the chart is drawn a frame after the panel: hold its 250px so the caption under it does not move on a cold load */
 .overview-exact .u-chart > div:first-child { min-height: 250px; }
+@media (min-width: 1001px) { .overview-exact .u-chart > div:first-child { min-height: 350px; } }
 @media (min-width: 1201px) { .route-overview .overview-exact { margin-right: -6px; } }
 @media (max-width: 1000px) { .overview-exact { grid-template-columns: minmax(0, 1fr); } }

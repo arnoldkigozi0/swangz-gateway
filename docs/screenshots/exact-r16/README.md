@@ -30,31 +30,34 @@ Files: `overview-1440x852-dark.png`, `overview-1440x852-light.png`, `overview-39
 - 10.1(3): at 1200px and below the cards are fluid, 2-up, with an 11px caption.
 - 10.1(4): the spend sparkline left the card (the Trends tab below has the chart).
 
-## Not done / not verified
-The 50% overlay against `dashboard-01.jpg`, measured contrast of the 9px caption and the chip, axe, hover motion,
-a card with a real percentage in the chip (the fixture has no earlier period), roles other than owner.
-Other pages' `.kpis` strips are unchanged.
+## Measured, 1440x852 (ours against dashboard-02, read off the still by eye, so within a few px)
+| Block | Reference | Ours |
+|---|---|---|
+| AI usage panel | x180-752, y315-780 | x173-755, y310-780 |
+| Count card 1 | x770-1047, y315-535 | x767-1052, y310-530 |
+| Count card 2 | x1063-1342, y315-535 | x1064-1349, y310-530 |
+| Uses by tool | x770-1342, y555-780 | x767-1349, y542-791 |
 
-# R17: the Overview under the cards (BRIEF 10.7 "Overview = dashboard-02")
+The two columns are equal, so the chart sits under KPI cards 1-2 and the count cards under 3-4, as in the still.
+The chart is 350px tall above 1000px wide and 250px below it. `r17-overlay-overview-1440x852-dark.png` is the 50% overlay.
 
-Builder's note. **Written without a browser**: nothing in this section is measured or captured yet.
+## Checks run
+- **Layout shift on a cold load: 0** in all four cells (1440x852 and 390x844, dark and light). CI had found 0.025 from
+  the chart being drawn a frame late; its height is now held in CSS.
+- **axe (wcag2a, wcag2aa, wcag21aa): no violations** in the four cells. axe could not judge 55 runs over the photo,
+  so those were sampled:
+- **Sampled contrast** (every visible text run against the pixels behind it): worst 5.56:1 dark and 4.74:1 light at
+  1440; nothing below 4.5:1. At 390 the sampler flagged two runs that sit *under* the bottom tab bar at that scroll
+  position (the chart's value label, and the active tab's label, which the sampler reads against the wrong layer).
+  Looked at by eye they are a dark label on the white pill and a hidden label; not counted as failures, not proven by measurement.
+- No horizontal overflow at either width; no page errors.
 
-## What changed (`admin-monitor.js`, one appended block in `admin.css`, `docs/UI.md`)
-- Title is "Hello, <name>!" (the part of the console username before the first `@ . _ -`, capitalised).
-- The four tabs (Right now, Trends, Top tools & people, Licences) leave the Overview. In their place: **AI usage**
-  (tube chart, eight days) on the left; on the right two count cards, **Need attention** and **Live requests**, and
-  **Uses by tool** (top five, 30 days).
-- Nothing leaves the product: the top-three urgent list is Needs attention, the live preview is Live, trends and
-  leaders are Activity → Who used what, licence opportunities and renewals are Licences & spend.
-
-## Differences, tagged with BRIEF 10.1
-- 10.1(1): no emoji in the title; our names and numbers.
-- 10.1(3): Uses by tool is a ranked bar list with numbers, not a donut with a legend. The shared kit has no donut
-  yet; **this is a defect against 10.7 to close in a later piece, not a permanent difference.**
-- 10.1(4): each block's header carries one link to the page that owns the detail.
-
-## Not done / not verified
-Positions against dashboard-02, overlay, contrast, axe, phones, the look of the tube chart at this width.
+## Still different from dashboard-02
+- Uses by tool is a ranked bar list, not a donut (defect against 10.7, above).
+- At 1440x852 the page is 871px tall, so it scrolls by 19px; the reference fits the screen.
+- Our count cards have no round icon at the top left and the reference's wave line is not drawn.
+- With one day of data the chart has one tube; the reference has eight. Not padded (10.9.2).
+- Not run: motion, reduced-transparency and reduced-motion captures, the 4x CPU trace.
 
 ### Open colour difference on the first card (D1, from Probe's check of R16)
 The reference's first KPI card samples near `#8A6540` (BRIEF 10.4, corrected for compression); ours renders darker.
