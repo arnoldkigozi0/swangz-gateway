@@ -105,10 +105,8 @@
           note: SUI.plural(t.people, "person", "people") + " · 30 days" })))
           : A.empty("Once staff start using approved tools, they'll be ranked here.", "No AI activity yet", "tools"));
 
-    const identity = String(S.me.name || S.me.username || "").trim();
-    const first = identity.split("@")[0].split(/[\s._-]/)[0];
-    const who = /^(owner|admin|administrator)$/i.test(first) ? "" : first;
-    A.frame({ title: who ? `Hello, ${who.charAt(0).toUpperCase() + who.slice(1)}! 👋` : "Hello! 👋",
+    const who = String(S.me.display_name || "").trim().split(/\s+/)[0];
+    A.frame({ title: who ? `Hello, ${who}! 👋` : "Hello! 👋",
       lede: `Swangz AI Hub at a glance — ${fmt.weekday(Date.now() / 1000)}. Times in ${SUI.tzLabel()}.`,
       actions: [el("a", { class: "btn", href: "#/activity" }, icon("activity"), "Activity"), el("a", { class: "btn primary", href: "#/live" }, icon("live"), "Open Live")] },
     [kpis, el("div", { class: "overview-exact" }, usage, el("div", { class: "overview-side" }, counts, byTool))]);
