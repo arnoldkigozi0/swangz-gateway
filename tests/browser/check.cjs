@@ -425,7 +425,7 @@ async function layout(p, name, axe = false) {
       for (const route of ['people', 'tools', 'models', 'policies', 'incidents']) {
         await go(rp, url, '/admin#/' + route);
         const allowed = ['people', 'tools', 'models', 'policies'].includes(route) ? role === 'operations' : role === 'security';
-        const add = rp.locator('.top-actions .btn.primary');
+        const add = rp.locator('.top-actions .btn.primary, .top-actions .u-split.primary');
         check(`${role} ${route} action permissions ${theme} ${width}`, (await add.count() > 0) === allowed);
       }
     }
