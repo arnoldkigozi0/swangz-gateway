@@ -47,9 +47,9 @@ visits, so nothing was taken from them directly.
 
 | Candidate | Source | Author | Original | SHA-256 of the original |
 |---|---|---|---|---|
-| `room-hall-*` (in use, `gateway/static/`) | [Ornate office space (Unsplash)](https://commons.wikimedia.org/wiki/File:Ornate_office_space_(Unsplash).jpg) | Crew | 4000×2662 | `338b2064ac92ee6f243a9b0a79fe43fe048abd47463098b3a621cb75614cc1c5` |
+| `room-hall-*` (`docs/design/backgrounds/`) | [Ornate office space (Unsplash)](https://commons.wikimedia.org/wiki/File:Ornate_office_space_(Unsplash).jpg) | Crew | 4000×2662 | `338b2064ac92ee6f243a9b0a79fe43fe048abd47463098b3a621cb75614cc1c5` |
 | `room-lamp-*` (`docs/design/backgrounds/`) | [Books in stack with lamps (Unsplash)](https://commons.wikimedia.org/wiki/File:Books_in_stack_with_lamps_(Unsplash).jpg) | chuttersnap | 6016×4016 | `f36259cbc0d89fd9e2e739db30687ef4f7cfd72a243533f992662942ce9ad5cc` |
-| `room-suite-*` (`docs/design/backgrounds/`) | [Hotel room bedroom … Salford, 5 October 2025](https://commons.wikimedia.org/wiki/File:Hotel_room_bedroom_in_building_on_Chapel_Street,_Salford,_Greater_Manchester,_England,_on_5_October_2025.jpg) | MatthewHoobin | 4080×2296 | `5708c346927df45ea6d00bde26a0184e1678ea261dc59a561534fd3eacc6b0cc` |
+| `room-suite-*` (in use, `gateway/static/`) | [Hotel room bedroom … Salford, 5 October 2025](https://commons.wikimedia.org/wiki/File:Hotel_room_bedroom_in_building_on_Chapel_Street,_Salford,_Greater_Manchester,_England,_on_5_October_2025.jpg) | MatthewHoobin | 4080×2296 | `5708c346927df45ea6d00bde26a0184e1678ea261dc59a561534fd3eacc6b0cc` |
 
 Edits, the same for all three (`docs/design/backgrounds/build.py`): centre crop to 16:9, resize to 3840×2160, Gaussian
 blur radius 26 (so the room is out of focus and no text, logo or hard line survives), brightness set to an average of
@@ -58,8 +58,16 @@ glass panel above what text can take; the average ends at 31–34%), fine grain 
 suite candidates are also warmed (red ×1.08, blue ×0.80–0.82); the hall is not. After the 16:9 crop every source is still larger than
 3840×2160 (the smallest is the hall at 4000×2250), so nothing is upscaled.
 
-Computed from the files, not yet from a browser (photo fitted to 1440×852, blurred 22px, brightest point, scrim .35;
-`saturate(140%)` not modelled): third-level text on the lightest Overview panel reads 4.37 over the hall, 4.36 over the
-lamp and 4.09 over the suite, against 4.39 for `room-warm.webp` by the same sum (which measured 4.66 in the browser).
-On the smoked glass of other pages the lowest is the danger colour: 4.86, 4.86 and 4.64.
+Measured in a browser on Overview at 1440×852, scrim .35 (each text run against the pixels behind it; screenshots in
+`docs/screenshots/room-photo/`):
 
+| Candidate | Worst text, dark | Worst text, light |
+|---|---|---|
+| suite (in use) | 4.93 | 6.08 |
+| lamp | 4.88 | 6.03 |
+| hall | 4.45 (under 4.5) | 6.14 |
+| `room-warm.webp`, same run | 4.80 | 6.05 |
+
+The suite has the best worst case, so it ships. The scrim was tried once at .30 with the suite: Overview fell to 4.52,
+too close to the floor, so it stays at .35. Not checked: banding at 100% zoom, widths other than 1440 and 390, the
+staff app (which keeps `room-warm.webp`).

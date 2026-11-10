@@ -106,10 +106,10 @@ class RoomPhotoTests(unittest.TestCase):
 
     def test_three_widths_ship_and_the_1920_file_is_in_the_size_range(self):
         for width in (2560, 1920, 960):
-            name = "room-hall-%d.webp" % width
+            name = "room-suite-%d.webp" % width
             self.assertTrue((self.static / name).is_file(), name)
             self.assertIn('url("/static/%s")' % name, self.css)
-        size = (self.static / "room-hall-1920.webp").stat().st_size
+        size = (self.static / "room-suite-1920.webp").stat().st_size
         self.assertTrue(180_000 <= size <= 420_000, size)
 
     def test_a_gradient_sits_under_the_photo(self):
