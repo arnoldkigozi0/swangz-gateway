@@ -5,6 +5,7 @@ import threading
 import time
 import unittest
 
+from gateway import security
 from gateway.db import SCHEMA
 
 from .support import Rig, sse_events
@@ -496,6 +497,89 @@ class StaffAppTests(StaffBase):
         everything = " ".join(str(v) for row in rig.gw.db.q("SELECT * FROM audit") for v in dict(row).values())
         for secret in ("a-long-password", "another-long-password", "not-my-password"):
             self.assertNotIn(secret, everything)
+
+    def test_changing_your_password_ends_your_other_sessions_and_keeps_this_one(self):
+        rig, db = self.rig, self.rig.gw.db
+        self.staff("POST", "/welcome", {"token": self.invite(), "password": "a-long-password"})
+        here = self.cookie
+        sign_in = {"email": "grace@swangzavenue.com", "password": "a-long-password"}
+        status, h, _ = rig.request("POST", "/api/login", sign_in, {"x-swangz-app": "1"})
+        elsewhere = h["set-cookie"].split(";")[0]
+        status, _, payload = rig.request("POST", "/api/extension/login", sign_in, {"x-swangz-app": "1"})
+        extension = {"x-swangz-app": "1", "authorization": "Bearer " + json.loads(payload)["token"]}
+        other = db.x("INSERT INTO people(name, email, status, created) VALUES('Okello Brian', 'brian@swangzavenue.com', 'active', ?)",
+                     (time.time(),)).lastrowid
+        db.x("INSERT INTO staff_sessions(token_hash, person_id, created, expires, ip, kind) VALUES('someone-elses', ?, ?, ?, '', 'web')",
+             (other, time.time(), time.time() + 3600))
+        keys = db.scalar("SELECT COUNT(*) FROM keys WHERE person_id = ? AND revoked IS NULL", (rig.person_id,))
+        self.assertEqual(rig.request("GET", "/api/me", None, {"x-swangz-app": "1", "cookie": elsewhere})[0], 200)
+        self.assertEqual(rig.request("GET", "/api/gate/config", None, extension)[0], 200)
+
+        status, out = self.staff("POST", "/password", {"current": "a-long-password", "new": "another-long-password"}, cookie=here)
+        self.assertEqual((status, out["sessions_ended"]), (200, 2))
+        self.assertEqual(self.staff("GET", "/me", cookie=here)[0], 200)                       # this session carries on
+        self.assertEqual(rig.request("GET", "/api/me", None, {"x-swangz-app": "1", "cookie": elsewhere})[0], 401)
+        self.assertEqual(rig.request("GET", "/api/gate/config", None, extension)[0], 401)
+        self.assertEqual(db.scalar("SELECT COUNT(*) FROM staff_sessions WHERE person_id = ?", (other,)), 1)   # nobody else's
+        self.assertEqual(db.scalar("SELECT COUNT(*) FROM keys WHERE person_id = ? AND revoked IS NULL", (rig.person_id,)), keys)
+        row = db.one("SELECT * FROM audit ORDER BY id DESC LIMIT 1")
+        self.assertEqual((row["action"], json.loads(row["after_json"])),
+                         ("changed their Swangz AI Hub password", {"sessions_ended": 2, "sessions_kept": 1}))
+        # a refused change ends nothing
+        self.assertEqual(rig.request("POST", "/api/login", {**sign_in, "password": "another-long-password"}, {"x-swangz-app": "1"})[0], 200)
+        self.assertEqual(self.staff("POST", "/password", {"current": "wrong-wrong-wrong", "new": "yet-another-password"}, cookie=here)[0], 400)
+        self.assertEqual(self.staff("POST", "/password", {"current": "another-long-password", "new": "short"}, cookie=here)[0], 400)
+        self.assertEqual(db.scalar("SELECT COUNT(*) FROM staff_sessions WHERE person_id = ?", (rig.person_id,)), 2)
+
+    def test_guessing_the_current_password_is_throttled_per_person(self):
+        rig, db = self.rig, self.rig.gw.db
+        self.staff("POST", "/welcome", {"token": self.invite(), "password": "a-long-password"})
+        limit = rig.gw.throttle.limit
+        for n in range(limit):
+            self.assertEqual(self.staff("POST", "/password", {"current": f"guess-number-{n}", "new": "another-long-password"})[0], 400, n)
+        rows = db.scalar("SELECT COUNT(*) FROM audit")
+        # locked now: even the right current password is refused, nothing changes, and the lock writes no more rows
+        status, out = self.staff("POST", "/password", {"current": "a-long-password", "new": "another-long-password"})
+        self.assertEqual(status, 429, out)
+        self.assertEqual(db.scalar("SELECT COUNT(*) FROM audit"), rows)
+        self.assertTrue(security.check_password("a-long-password", db.scalar("SELECT pw_hash FROM people WHERE id = ?", (rig.person_id,))))
+        self.assertEqual(self.staff("GET", "/me")[0], 200)                                   # the session itself still works
+        # the count is the person's, not the address's: signing in from this address is not blocked by it
+        self.assertEqual(rig.request("POST", "/api/login", {"email": "grace@swangzavenue.com", "password": "a-long-password"},
+                                     {"x-swangz-app": "1"})[0], 200)
+        rig.gw.throttle.failures.clear()                                                     # the window passes
+        for n in range(limit - 1):
+            self.staff("POST", "/password", {"current": f"guess-number-{n}", "new": "another-long-password"})
+        self.assertEqual(self.staff("POST", "/password", {"current": "a-long-password", "new": "another-long-password"})[0], 200)
+        for n in range(limit - 1):                                                           # a success cleared the count
+            self.assertEqual(self.staff("POST", "/password", {"current": "nope-nope-nope", "new": "x" * 12})[0], 400, n)
+
+    def test_a_failed_staff_sign_in_is_in_the_audit_log_without_what_was_typed(self):
+        rig, db = self.rig, self.rig.gw.db
+        self.staff("POST", "/welcome", {"token": self.invite(), "password": "a-long-password"})
+        last = lambda: db.one("SELECT * FROM audit ORDER BY id DESC LIMIT 1")
+        post = lambda path, body: rig.request("POST", "/api" + path, body, {"x-swangz-app": "1"})[0]
+
+        self.assertEqual(post("/login", {"email": "grace@swangzavenue.com", "password": "typed-wrong-secret"}), 401)
+        row = last()
+        self.assertEqual((row["actor"], row["action"], row["outcome"], row["reason"], row["correlation"]),
+                         ("Nansubuga Grace", "failed sign-in to Swangz AI Hub", "refused", "wrong password", f"person:{rig.person_id}"))
+        self.assertEqual(post("/extension/login", {"email": "grace@swangzavenue.com", "password": "typed-wrong-secret"}), 401)
+        self.assertEqual((last()["action"], last()["correlation"]), ("failed sign-in to the access extension", f"person:{rig.person_id}"))
+        self.assertEqual(post("/login", {"email": "typed-in-the-wrong-box@swangzavenue.com", "password": "typed-wrong-secret"}), 401)
+        row = last()
+        self.assertEqual((row["actor"], row["outcome"], row["reason"], row["correlation"]),
+                         ("?", "refused", "unknown or unapproved email", None))
+        everything = " ".join(str(v) for r in db.q("SELECT * FROM audit") for v in dict(r).values())
+        for typed in ("typed-wrong-secret", "typed-in-the-wrong-box", "a-long-password"):
+            self.assertNotIn(typed, everything)
+        # the address throttle bounds the rows: once it locks, a further attempt writes nothing
+        rig.gw.throttle.failures.clear()
+        for n in range(rig.gw.throttle.limit):
+            self.assertEqual(post("/login", {"email": "grace@swangzavenue.com", "password": "typed-wrong-secret"}), 401)
+        rows = db.scalar("SELECT COUNT(*) FROM audit")
+        self.assertEqual(post("/login", {"email": "grace@swangzavenue.com", "password": "a-long-password"}), 429)
+        self.assertEqual(db.scalar("SELECT COUNT(*) FROM audit"), rows)
 
     def test_sign_in_and_own_devices(self):
         rig = self.rig

@@ -196,6 +196,16 @@ def _invited(ctx, token):
 # ---------------------------------------------------------------- signing in
 
 
+def _failed_sign_in(ctx, person, where):
+    """One audit row for a refused sign-in: who (when the email is a real person's), where from and when. Neither the
+    password nor the text typed as an email is recorded: an unknown email is often a mistyped one, or a password in the
+    wrong box. The per-address throttle caps these at its limit per window, so guessing cannot flood the log."""
+    known = bool(person and ctx.gw.settings.email_allowed(person["email"]))
+    ctx.gw.audit(person["name"] if known else "?", f"failed sign-in to {where}", "", "", ctx.ip,
+                 reason="wrong password" if known else "unknown or unapproved email", outcome="refused",
+                 correlation=f"person:{person['id']}" if known else None)
+
+
 @route("POST", r"/login", signed_in=False)
 def login(ctx):
     email = str(ctx.body.get("email") or "").strip().lower()
@@ -205,6 +215,7 @@ def login(ctx):
     person = ctx.db.one("SELECT * FROM people WHERE lower(email) = ? AND email != ''", (email,)) if email else None
     if not person or not ctx.gw.settings.email_allowed(person["email"]) or not person["pw_hash"] or not security.check_password(password, person["pw_hash"]):
         ctx.gw.throttle.fail("staff:" + ctx.ip)
+        _failed_sign_in(ctx, person, "Swangz AI Hub")
         raise ApiError(401, "That email and password don't match.")
     ctx.gw.throttle.clear("staff:" + ctx.ip)
     state = person_state(ctx, person)
@@ -271,9 +282,17 @@ def welcome(ctx):
 @route("POST", r"/password")
 def change_password(ctx):
     """A person changes their own password. Both the change and a wrong current password go in the audit log:
-    the first is an account-security event, the second is what guessing looks like. Neither password is recorded."""
+    the first is an account-security event, the second is what guessing looks like. Neither password is recorded.
+
+    Wrong guesses of the current password are counted per person on the sign-in throttle (a borrowed session must not
+    be a way to find the password, whatever address it comes from). A change ends every other session of the person,
+    web and extension, and keeps this one; devices and keys are not sessions and are untouched."""
     who = {"correlation": f"person:{ctx.person['id']}"}
+    guesses = f"password:{ctx.person['id']}"
+    if ctx.gw.throttle.blocked(guesses):
+        raise ApiError(429, "Too many attempts. Wait ten minutes and try again.")
     if not security.check_password(str(ctx.body.get("current") or ""), ctx.person["pw_hash"] or ""):
+        ctx.gw.throttle.fail(guesses)
         ctx.gw.audit(ctx.person["name"], "tried to change their Swangz AI Hub password", ctx.person["name"], "", ctx.ip,
                      reason="current password was wrong", outcome="refused", **who)
         raise ApiError(400, "Your current password isn't right.")
@@ -282,8 +301,12 @@ def change_password(ctx):
         raise ApiError(400, "Use at least 10 characters.")
     ctx.db.x("UPDATE people SET pw_hash = ? WHERE id = ?",
              (security.hash_password(new, ctx.gw.settings.pbkdf2_iterations), ctx.person["id"]))
-    ctx.gw.audit(ctx.person["name"], "changed their Swangz AI Hub password", ctx.person["name"], "", ctx.ip, **who)
-    return {"ok": True}
+    ctx.gw.throttle.clear(guesses)
+    mine = security.sha256(_cookie(ctx.h.headers.get("cookie") or "", COOKIE) or "")
+    ended = ctx.db.x("DELETE FROM staff_sessions WHERE person_id = ? AND token_hash != ?", (ctx.person["id"], mine)).rowcount
+    ctx.gw.audit(ctx.person["name"], "changed their Swangz AI Hub password", ctx.person["name"], "", ctx.ip,
+                 before={"sessions_ended": 0}, after={"sessions_ended": ended, "sessions_kept": 1}, **who)
+    return {"ok": True, "sessions_ended": ended}
 
 
 # ---------------------------------------------------------------- the person's own things
@@ -583,6 +606,7 @@ def extension_login(ctx):
     person = ctx.db.one("SELECT * FROM people WHERE lower(email) = ? AND email != ''", (email,)) if email else None
     if not person or not ctx.gw.settings.email_allowed(person["email"]) or not person["pw_hash"] or not security.check_password(password, person["pw_hash"]):
         ctx.gw.throttle.fail("ext:" + ctx.ip)
+        _failed_sign_in(ctx, person, "the access extension")
         raise ApiError(401, "That email and password don't match.")
     ctx.gw.throttle.clear("ext:" + ctx.ip)
     if not session_allowed(ctx, person):
