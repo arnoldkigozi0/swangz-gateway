@@ -48,6 +48,12 @@ jobs:
       - run: npx --prefix tests/browser playwright install --with-deps chromium
       - name: Check every application and browser JavaScript file
         run: python tests/browser/syntax.py
+      - name: Extension Python wrapper (must run, not skip)
+        run: |
+          python -c "import shutil; assert shutil.which('node'), 'Node must be available for test_extension'"
+          python -m unittest tests.test_extension -v
+      - name: Real Chromium extension continuity
+        run: xvfb-run -a node tests/browser/extension-chrome.cjs
       - name: Staff web app install, update and sign-out contract
         run: node tests/browser/pwa.cjs
       - name: Existing Gateway interaction and role checks
@@ -62,6 +68,10 @@ jobs:
         run: node tests/browser/staging.cjs
       - name: Tracker parity and responsive matrix
         run: node tests/browser/business.cjs
+      - name: Glass list primitives (panel, segmented control, search pill, progress, star)
+        run: node tests/browser/lists.cjs
+      - name: Chart empty-state and drawing checks
+        run: node tests/browser/charts.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
