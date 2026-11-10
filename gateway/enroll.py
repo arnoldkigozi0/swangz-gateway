@@ -39,7 +39,7 @@ from urllib.parse import parse_qs, quote
 from . import credentials, entitle, releases, security
 from .admin import ApiError
 from .admin import route as admin_route
-from .staff import COOKIE, Ctx, _cookie, current_person, route
+from .staff import COOKIE, Ctx, _cookie, current_person, paused_person, route
 
 CLIENT_LATEST = "0.1.0"
 CLIENT_MINIMUM = "0.1.0"
@@ -497,6 +497,8 @@ def page(h, gw, query):
         code = normalise_code(form.get("code"))
     else:
         form = {}
+    if not person and paused_person(ctx):
+        return _page(h, 403, "Your access is paused", "<p>Talk to your admin to have it restored.</p>")
     if not person:
         return _page(h, 401, "Sign in first",
                      "<p>Sign in to Swangz AI Hub in this browser, then open this page again to connect your device.</p>"
