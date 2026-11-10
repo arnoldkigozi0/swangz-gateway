@@ -1,0 +1,28 @@
+[
+  {
+    "selection": "desktop",
+    "interactions": 27,
+    "screens": 25,
+    "errors": [],
+    "axeFindings": 0,
+    "expectedStudio400": [
+      {
+        "url": "http://127.0.0.1:45737/api/studio/voice",
+        "status": 400
+      }
+    ]
+  },
+  {
+    "selection": "phone",
+    "interactions": 27,
+    "screens": 25,
+    "errors": [],
+    "axeFindings": 0,
+    "expectedStudio400": [
+      {
+        "url": "http://127.0.0.1:32809/api/studio/voice",
+        "status": 400
+      }
+    ]
+  }
+]

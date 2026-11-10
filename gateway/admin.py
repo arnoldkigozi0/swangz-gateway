@@ -11,7 +11,7 @@ import re
 import time
 from urllib.parse import parse_qs, unquote
 
-from . import authz, geo, guides, proxy, security, store
+from . import authz, credentials, geo, guides, proxy, security, store
 
 SESSION_COOKIE = "sgw_admin"
 SESSION_SECONDS = 12 * 3600
@@ -588,18 +588,20 @@ def suspend_person(ctx, pid, action):
     person = ctx.db.one("SELECT name,email FROM people WHERE id = ?", (pid,))
     if not person:
         raise ApiError(404, "no such person")
+    before = ctx.db.scalar("SELECT status FROM people WHERE id = ?", (pid,))
     ctx.db.x("UPDATE people SET status = ? WHERE id = ?", ("suspended" if action == "suspend" else "active", pid))
-    cut = 0
+    cut = sessions = turns_ended = 0
     if action == "suspend":
         from . import turns
 
         cut = ctx.gw.live.cut("this person's AI access was suspended by an administrator.", person_id=pid)
-        ctx.db.x("DELETE FROM staff_sessions WHERE person_id = ?", (pid,))
-        turns.end_all_for(ctx.db, pid, ctx.admin["username"], "their access was suspended")
+        sessions = ctx.db.x("DELETE FROM staff_sessions WHERE person_id = ?", (pid,)).rowcount
+        turns_ended = turns.end_all_for(ctx.db, pid, ctx.admin["username"], "their access was suspended")
         ctx.gw.workspaces.soon()
     ctx.audit("suspended a person" if action == "suspend" else "restored a person", person["name"],
-              f"{cut} request(s) cut" if cut else "", correlation=f"person:{pid}",
-              after={"status": "suspended" if action == "suspend" else "active"})
+              f"{cut} request(s) cut" if cut else "", correlation=f"person:{pid}", before={"status": before},
+              after={"status": "suspended" if action == "suspend" else "active",
+                     **({"requests_cut": cut, "web_sessions_ended": sessions, "turns_ended": turns_ended} if action == "suspend" else {})})
     return {"ok": True, "cut": cut}
 
 
@@ -644,11 +646,10 @@ def revoke_key(ctx, kid):
     row = ctx.db.one("SELECT k.*, p.name FROM keys k JOIN people p ON p.id = k.person_id WHERE k.id = ?", (kid,))
     if not row:
         raise ApiError(404, "no such key")
-    if not row["revoked"]:
-        ctx.db.x("UPDATE keys SET revoked = ?, revoked_by = ? WHERE id = ?", (time.time(), ctx.admin["username"], kid))
-    cut = ctx.gw.live.cut("this key was revoked by an administrator.", key_id=kid)
+    # a device that is mid-rotation holds two keys: ending it ends both
+    ids, cut = credentials.revoke_device_keys(ctx.db, ctx.gw.live, kid, ctx.admin["username"], "this key was revoked by an administrator.")
     ctx.audit("revoked a key", row["name"], f"{row['label']} ({row['hint']})" + (f", {cut} request(s) cut" if cut else ""),
-              correlation=f"device:{kid}")
+              before={"keys": ids}, after={"keys_revoked": len(ids), "requests_cut": cut}, correlation=f"device:{row['device_id'] or kid}")
     return {"ok": True, "cut": cut}
 
 
@@ -753,6 +754,7 @@ def get_settings(ctx):
             "retention_days": int(db.get_setting("retention_days", "90") or 0),
             **{k: int(db.get_setting(k, "0") or 0) for k in RETENTION_KEYS},
             "purpose_inference": db.get_setting("purpose_inference", "1") == "1",
+            "device_idle_days": credentials.idle_days(db),
             "workspace_paused": db.get_setting("workspace_paused", "0") == "1",
             "disabled_providers": [p for p in (db.get_setting("disabled_providers", "") or "").split(",") if p],
             "areas": SETTING_AREAS,
@@ -801,6 +803,14 @@ def put_settings(ctx):
             if unknown:
                 raise ApiError(400, "no such provider: " + ", ".join(unknown))
             changed[k] = ",".join(picked)
+    if "device_idle_days" in ctx.body:
+        try:
+            idle = int(ctx.body["device_idle_days"])
+        except (TypeError, ValueError, OverflowError):
+            raise ApiError(400, "device_idle_days must be a whole number of days")
+        if not credentials.IDLE_DAYS_MIN <= idle <= credentials.IDLE_DAYS_MAX:
+            raise ApiError(400, f"device_idle_days must be between {credentials.IDLE_DAYS_MIN} and {credentials.IDLE_DAYS_MAX}")
+        changed["device_idle_days"] = idle
     changed.update(_retention_changes(ctx.body))
     for flag in ("purpose_inference", "workspace_paused"):
         if flag in ctx.body:
@@ -822,7 +832,7 @@ def put_settings(ctx):
 SETTING_AREAS = {
     "retention_days": "admin", "store_bodies": "admin", "gate_log_full": "admin", "purpose_inference": "admin",
     "retention_bodies_days": "admin", "retention_site_days": "admin", "retention_launch_days": "admin",
-    "retention_audit_days": "admin",
+    "retention_audit_days": "admin", "device_idle_days": "admin",
     "block_secrets": "trust", "rate_per_min": "trust",
     "staff_self_keys": "govern", "support_contact": "govern", "workspace_paused": "emergency", "disabled_providers": "emergency",
 }

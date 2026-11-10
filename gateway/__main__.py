@@ -37,7 +37,7 @@ import subprocess
 import sys
 import time
 
-from . import authz, geo, pricing, security, store
+from . import authz, credentials, geo, pricing, security, store
 from .config import Settings, load_dotenv
 from .db import DB
 
@@ -158,9 +158,8 @@ def main(argv=None):
         row = db.one("SELECT k.*, p.name FROM keys k JOIN people p ON p.id = k.person_id WHERE k.id = ?", (args.key_id,))
         if not row:
             sys.exit("no such key")
-        db.x("UPDATE keys SET revoked = ?, revoked_by = ? WHERE id = ? AND revoked IS NULL",
-             (time.time(), "command line", args.key_id))
-        audit("revoked a key", row["name"], f"{row['label']} ({row['hint']})")
+        ids, _ = credentials.revoke_device_keys(db, None, args.key_id, "command line")
+        audit("revoked a key", row["name"], f"{row['label']} ({row['hint']})" + (f"; {len(ids)} keys of the same device" if len(ids) > 1 else ""))
         print(f"revoked {row['hint']} ({row['name']})")
     elif args.cmd == "people":
         for p in db.q("SELECT * FROM people ORDER BY name"):
