@@ -55,3 +55,8 @@ Builder's note. **Written without a browser**: nothing in this section is measur
 
 ## Not done / not verified
 Positions against dashboard-02, overlay, contrast, axe, phones, the look of the tube chart at this width.
+
+### Open colour difference on the first card (D1, from Probe's check of R16)
+The reference's first KPI card samples near `#8A6540` (BRIEF 10.4, corrected for compression); ours renders darker.
+This is a defect against 10.4, not one of the 10.1 allowed differences. It is not fixed here: the tint has to be
+sampled in a browser over the same point of the room before it is changed.
