@@ -67,10 +67,15 @@ Google address than the two sign-in hosts appears, or if one of the controls abo
   personal Google account into a provider's sign-in page. Chrome's `AllowedDomainsForApps` policy can limit Google
   sign-in to `swangzavenue.com`; it is **left out** because it would also lock out the two approved owner
   exceptions. Adding it is Arnold's decision.
-- **Parts of a page.** The lists are documented for page addresses. Whether a blocked address is also refused
-  inside a frame, or as a script or image, is not stated in Chrome's filter documentation and was not tested.
-- **Chrome's own pages.** A `*` entry does not cover `chrome://` or extension pages (Chrome's documentation says
-  so), which is why two are blocked by name and the rest (settings, new tab) stay open.
+- **Parts of a page (subresources).** The lists govern the addresses a person navigates to. Scripts, images,
+  fonts and background requests that an allowed page loads from other hosts are **not governed**: an allowed
+  provider page can still pull content from, and send data to, hosts that are not on the list. Whether a blocked
+  address inside a frame is refused was not tested.
+- **Chrome's own pages.** A `*` entry does not cover `chrome://` or extension pages: Chromium's policy definition
+  says that from Chrome 147 `*` alone no longer blocks internal `chrome://` addresses and they need their own
+  entry. Before 147 the same `*` may block them, so the result depends on the Chrome version installed. This pack
+  blocks only `chrome://flags` and `chrome://inspect` by name; every other `chrome://` page (settings, extensions,
+  new tab) stays open on 147 and later. Check `chrome://settings` and `chrome://extensions` on the installed version.
 - **Network or system level blocking.** None here; out of scope before 20 November.
 - **Separating people who share one operating-system login.** The policy is per computer, and Chrome's profile,
   cookies and signed-in provider sessions belong to the OS account. Two people on one OS login see each other's
