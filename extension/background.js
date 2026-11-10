@@ -184,11 +184,26 @@ async function endTab(tabId) {
   try { await gate("close", { id: rec.id, seconds }); } catch (e) { /* will be left open-ended */ }
 }
 
+// Tell the Hub to end this extension session, so the token is dead there too and not only forgotten here.
+// Best effort and never a condition: it starts after the local token is gone, nothing waits for it, it gives up
+// after 5 seconds, and its answer (or failure, or a Hub that is unreachable) changes nothing about being signed out.
+async function endServerSession(base, token) {
+  if (!base || !token) return;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    await fetch(base + "/api/logout", { method: "POST", signal: controller.signal, credentials: "omit",
+      headers: { "authorization": "Bearer " + token, "x-swangz-app": "1", "content-type": "application/json" }, body: "{}" });
+  } catch (e) { /* the session then ends at its own expiry */ } finally { clearTimeout(timeout); }
+}
+
 async function signOut() {
   if (signingOut) return signingOut;
   signingOut = (async () => {
-    S.token = null; S.open = {};
+    const base = S.base, token = S.token;
+    S.token = null; S.open = {};  // from here every decision is "not signed in", whatever the server answers
     await chrome.storage.local.remove("token");
+    endServerSession(base, token);  // not awaited: local sign-out never waits for the Hub
     // Keep base/hosts/policy to guard known sites and offer the correct sign-in.
     // Clear held account data before discarding the state needed to find it.
     if (await clearHeldSites()) {

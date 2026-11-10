@@ -32,7 +32,7 @@ PAUSED = ("Your access is paused. Talk to your admin to have it restored.", "per
 
 
 def route(method, pattern, signed_in=True, paused_ok=False):
-    """paused_ok marks a route a paused person (suspended, web session) may still reach. It is read-only by
+    """paused_ok marks a route a paused person (suspended or access ended, web session) may still reach. It is read-only by
     construction: anything but a GET (and signing out) refuses to register."""
     if paused_ok and method != "GET" and pattern != r"/logout":
         raise ValueError(f"paused_ok is for read-only routes: {method} {pattern}")
@@ -106,16 +106,18 @@ def _lookup(ctx, kinds):
 
 def current_person(ctx, kinds=("web",)):
     """The signed-in person, strictly: an active account on a web session (the default). Checked on every request, not
-    only at sign-in: a suspended person, or one whose account has ended, holds a session that opens nothing. The row
-    stays, so restoring them restores the session until it expires."""
+    only at sign-in: a suspended person, or one whose account has ended, holds a session that opens nothing here (it
+    reaches only the read-only paused view, through `paused_person`). The row stays, so restoring them restores the
+    session until it expires."""
     person, _ = _lookup(ctx, kinds)
     return person if person and session_allowed(ctx, person) else None
 
 
 def paused_person(ctx):
-    """A person whose access is paused (suspended) but whose web session is otherwise valid. Only routes registered
-    paused_ok ever see them. An ended account, an address outside the approved accounts, and every extension
-    session are not paused people: they get nothing."""
+    """A person whose access is paused (suspended or ended) but whose web session is otherwise valid. Only routes registered
+    paused_ok ever see them. "Paused" here is `person_state`: suspended, or an account whose access has ended; both
+    get the same read-only view. An address outside the approved accounts and every extension session are not
+    paused people: they get nothing."""
     person, _ = _lookup(ctx, ("web",))
     return person if person and person_state(ctx, person) == "paused" else None
 
@@ -214,17 +216,30 @@ def login(ctx):
     return 200, {"ok": True, **({"paused": True} if state == "paused" else {})}, _start_session(ctx, person["id"])
 
 
+def _end_session(ctx, token, kind, action):
+    """End exactly this one session of exactly this kind; the person's other sessions and their devices are untouched.
+    A device or API key is never a session, so one presented here ends nothing."""
+    if not token or security.split_key(token)[0]:
+        return False
+    digest = security.sha256(token)
+    row = ctx.db.one("SELECT s.person_id, p.name FROM staff_sessions s JOIN people p ON p.id = s.person_id WHERE s.token_hash = ? AND s.kind = ?", (digest, kind))
+    if not row or not ctx.db.x("DELETE FROM staff_sessions WHERE token_hash = ? AND kind = ?", (digest, kind)).rowcount:
+        return False
+    left = ctx.db.scalar("SELECT COUNT(*) FROM staff_sessions WHERE person_id = ? AND expires > ?", (row["person_id"], time.time()))
+    ctx.gw.audit(row["name"], action, row["name"], "", ctx.ip, before={"sessions_ended": 0},
+                 after={"sessions_ended": 1, "sessions_remaining": left}, correlation=f"person:{row['person_id']}")
+    return True
+
+
 @route("POST", r"/logout", signed_in=False, paused_ok=True)
 def logout(ctx):
-    token = _cookie(ctx.h.headers.get("cookie") or "", COOKIE)
-    if token:
-        digest = security.sha256(token)
-        row = ctx.db.one("SELECT s.person_id, p.name FROM staff_sessions s JOIN people p ON p.id = s.person_id WHERE s.token_hash = ? AND s.kind = 'web'", (digest,))
-        # this one session only: the person's other sessions and their devices are untouched
-        if row and ctx.db.x("DELETE FROM staff_sessions WHERE token_hash = ? AND kind = 'web'", (digest,)).rowcount:
-            left = ctx.db.scalar("SELECT COUNT(*) FROM staff_sessions WHERE person_id = ? AND expires > ?", (row["person_id"], time.time()))
-            ctx.gw.audit(row["name"], "signed out of the web app", row["name"], "", ctx.ip, before={"sessions_ended": 0},
-                         after={"sessions_ended": 1, "sessions_remaining": left}, correlation=f"person:{row['person_id']}")
+    """Ends the session that was presented, and only that one: the cookie's web session, and a bearer's extension
+    session. Each is matched by its own kind, so a web token sent as a bearer (or an extension token in the cookie)
+    ends nothing. Always answers 200 with the cookie cleared, whoever asks and whatever the person's status."""
+    _end_session(ctx, _cookie(ctx.h.headers.get("cookie") or "", COOKIE), "web", "signed out of the web app")
+    auth = (ctx.h.headers.get("authorization") or "").strip()
+    if auth[:7].lower() == "bearer ":
+        _end_session(ctx, auth[7:].strip(), "extension", "access extension session ended")
     return 200, {"ok": True}, {"Set-Cookie": _session_cookie(ctx, "", 0)}
 
 

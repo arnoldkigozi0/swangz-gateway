@@ -12,7 +12,7 @@ verified the email address.
 Google only proves *who* someone is. They still need an account here — a person with that email
 (staff) or a console user whose username is that email (admins) — and every existing rule applies:
 company Google accounts only (Google's own `hd` claim names the company domain; two approved owner addresses are exact
-matches), ended accounts are refused, and a suspended person gets only the read-only paused view.
+matches), and a suspended person or one whose account has ended gets only the read-only paused view.
 """
 
 import base64
@@ -171,7 +171,7 @@ def callback(h, gw, query):
     state = staff.person_state(ctx, person)
     if state == "refused":
         return _back(h, app, "paused")
-    # a paused (suspended) person gets a web session for the read-only view; every request is checked again
+    # a paused person (suspended, or access ended) gets a web session for the read-only view; every request is checked again
     gw.audit(person["name"], "signed in with Google" + (" (access paused: read-only view)" if state == "paused" else ""),
              "", "", ctx.ip, correlation=f"person:{person['id']}")
     return _back(h, app, headers=staff._start_session(ctx, person["id"]))
