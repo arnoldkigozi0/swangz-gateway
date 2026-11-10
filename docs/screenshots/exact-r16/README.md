@@ -34,3 +34,24 @@ Files: `overview-1440x852-dark.png`, `overview-1440x852-light.png`, `overview-39
 The 50% overlay against `dashboard-01.jpg`, measured contrast of the 9px caption and the chip, axe, hover motion,
 a card with a real percentage in the chip (the fixture has no earlier period), roles other than owner.
 Other pages' `.kpis` strips are unchanged.
+
+# R17: the Overview under the cards (BRIEF 10.7 "Overview = dashboard-02")
+
+Builder's note. **Written without a browser**: nothing in this section is measured or captured yet.
+
+## What changed (`admin-monitor.js`, one appended block in `admin.css`, `docs/UI.md`)
+- Title is "Hello, <name>!" (the part of the console username before the first `@ . _ -`, capitalised).
+- The four tabs (Right now, Trends, Top tools & people, Licences) leave the Overview. In their place: **AI usage**
+  (tube chart, eight days) on the left; on the right two count cards, **Need attention** and **Live requests**, and
+  **Uses by tool** (top five, 30 days).
+- Nothing leaves the product: the top-three urgent list is Needs attention, the live preview is Live, trends and
+  leaders are Activity → Who used what, licence opportunities and renewals are Licences & spend.
+
+## Differences, tagged with BRIEF 10.1
+- 10.1(1): no emoji in the title; our names and numbers.
+- 10.1(3): Uses by tool is a ranked bar list with numbers, not a donut with a legend. The shared kit has no donut
+  yet; **this is a defect against 10.7 to close in a later piece, not a permanent difference.**
+- 10.1(4): each block's header carries one link to the page that owns the detail.
+
+## Not done / not verified
+Positions against dashboard-02, overlay, contrast, axe, phones, the look of the tube chart at this width.

@@ -58,87 +58,45 @@
       ].map((card) => { card.append(el("span", { class: "kpi-go", "aria-hidden": "true" }, icon("arrowUp"))); return card; }));
     } else kpis = SUI.errorBox(trends.reason, () => A.render(), "The summary couldn't load");
 
-    const liveBox = el("div");
-    function drawLive() {
-      const live = (S.overview || ov).live;
-      liveBox.replaceChildren(live.length ? el("div", { class: "live-strip" }, live.slice(0, 6).map((t) => el("a", { class: "lv-mini", href: "#/live" },
-        SUI.status(t.streaming ? "streaming" : "waiting", t.streaming ? "Streaming" : "Waiting", { breathe: true }),
-        el("strong", null, t.person || "Unknown key"), el("span", { class: "muted" }, (t.client || "a tool") + (t.device ? " · " + t.device : "")),
-        el("span", { class: "elapsed u-num", "data-started": String(t.started) }, fmt.elapsed(t.started)))),
-      live.length > 6 ? el("a", { class: "lv-more", href: "#/live" }, `+${live.length - 6} more`) : null)
-        : el("div", { class: "live-quiet" }, SUI.status("idle", "Quiet", { plain: true }), el("span", { class: "muted" }, "Nobody is waiting on a model right now.")));
-    }
-    drawLive();
-
-    // a preview of the queue — its three most urgent items; the whole queue is Needs attention
-    const SEV_ORDER = { high: 0, medium: 1, low: 2, info: 3 };
-    const top = att ? att.slice().sort((a, b) => (SEV_ORDER[a.severity] ?? 4) - (SEV_ORDER[b.severity] ?? 4)).slice(0, 3) : [];
-    const nowTab = () => el("div", { class: "grid cols-2" },
-      A.panel("Most urgent", el("a", { class: "btn small quiet", href: "#/attention" }, att && att.length > top.length ? `All ${att.length}` : "Needs attention", icon("chevronRight")),
-        att === null ? SUI.errorBox(attention.reason, () => A.render())
-          : att.length ? el("ul", { class: "att-list" }, top.map(attentionItem))
-            : SUI.stateBox({ tone: "ok", icon: "checkCircle", title: "Nothing needs attention", text: "Everything looks normal.", compact: true })),
-      A.panel("Live activity", el("a", { class: "btn small quiet", href: "#/live" }, "Open Live", icon("chevronRight")), liveBox));
-
-    const trendsTab = () => {
-      if (!tr) return SUI.errorBox(trends.reason, () => A.render());
-      const label = (d) => fmt.weekday(d.start);
-      return el("div", { class: "grid cols-even" },
-        A.panel("Usage per day", "requests, opens and visits · 30 days", el("div", { class: "body" },
-          SUI.columns({ label: "Uses per day over the last 30 days", tone: 2, yName: "Uses", caption: "Times in " + SUI.tzLabel(true),
-            data: tr.days.map((d) => ({ label: label(d), short: fmt.dayMonth(d.start), value: d.requests + d.opens + d.visits,
-              note: `${fmt.num(d.requests)} requests · ${fmt.num(d.opens)} opens · ${fmt.num(d.visits)} visits` })) }))),
-        A.panel("Spend per day", "metered API spend · 30 days", el("div", { class: "body" },
-          SUI.line({ label: "Metered spend per day over the last 30 days", format: fmt.money, tick: fmt.moneyShort, yName: "Spend",
-            caption: "Estimated from the price table", data: tr.days.map((d) => ({ label: label(d), short: fmt.dayMonth(d.start), value: d.cost })) }))));
-    };
-
-    const leadersTab = () => {
-      if (!tr) return SUI.errorBox(trends.reason, () => A.render());
-      return el("div", { class: "grid cols-even" },
-        A.panel("Top tools", el("a", { class: "btn small quiet", href: "#/activity?tab=usage&range=30d&by=tool" }, "All tools", icon("chevronRight")),
-          tr.top_tools.length ? SUI.barList(tr.top_tools.map((t) => ({
-            label: t.tool, lead: A.toolLogo(t.tool_id, t.tool, "sm"), href: t.tool_id ? `#/tools?open=${t.tool_id}` : null,
-            value: t.requests + t.opens + t.visits, display: fmt.compact(t.requests + t.opens + t.visits) + " uses",
-            note: [t.requests && SUI.plural(t.requests, "request"), t.opens && SUI.plural(t.opens, "open"), t.visits && SUI.plural(t.visits, "visit"), SUI.plural(t.people, "person", "people")].filter(Boolean).join(" · ") })), { tone: 2 })
-            : A.empty("Once staff start using approved tools, they'll be ranked here.", "No AI activity yet", "tools")),
-        A.panel("Top people", el("a", { class: "btn small quiet", href: "#/activity?tab=usage&range=30d&by=person" }, "Everyone", icon("chevronRight")),
-          tr.top_people.length ? SUI.barList(tr.top_people.map((p) => ({
-            label: p.person, lead: SUI.avatar(p.person, "sm"), href: "#/people/" + p.person_id,
-            value: p.cost || (p.requests + p.opens + p.visits) / 1000, display: fmt.money(p.cost),
-            note: `${SUI.plural(p.tools, "tool")} · ${fmt.compact(p.requests + p.opens + p.visits)} uses` })))
-            : A.empty("People appear here once they use an approved tool.", "No AI activity yet", "people")));
-    };
-
-    const opportunities = licence ? [
-      ...licence.tools.filter((t) => t.idle.length && t.monthly_cost).map((t) => ({ t, text: `${SUI.plural(t.idle.length, "seat")} unused for 30 days`,
-        cost: t.monthly_cost / Math.max(t.assigned, 1) * t.idle.length })),
-      ...licence.tools.filter((t) => t.over_seats).map((t) => ({ t, text: `${t.assigned} people on ${SUI.plural(t.seats, "paid seat")}`, cost: null })),
-    ].sort((a, b) => (b.cost || 0) - (a.cost || 0)) : null;
-    const licTab = () => el("div", { class: "grid cols-even" },
-      A.panel("Licence opportunities", el("a", { class: "btn small quiet", href: "#/licences" }, "Licences", icon("chevronRight")),
-        opportunities === null ? SUI.errorBox(lic.reason, () => A.render())
-          : opportunities.length ? el("ul", { class: "mini-list" }, opportunities.map((o) => el("li", null, A.toolLogo(o.t.id, o.t.name, "sm"),
-            el("div", { class: "grow" }, el("strong", null, o.t.name), el("div", { class: "hint" }, o.text)),
-            o.cost ? el("span", { class: "u-num nowrap" }, "≈ " + fmt.money(o.cost) + "/mo") : SUI.badge("over-assigned", "warn"))))
-            : SUI.stateBox({ tone: "ok", icon: "checkCircle", title: "No waste found", text: "Every paid seat was used in the last 30 days.", compact: true })),
-      A.panel("Renewing soon", "next 30 days", licence && licence.renewals.length ? el("ul", { class: "mini-list" }, licence.renewals.map((t) => el("li", null,
-        A.toolLogo(t.id, t.name, "sm"), el("div", { class: "grow" }, el("strong", null, t.name), el("div", { class: "hint" }, t.monthly_cost != null ? fmt.money(t.monthly_cost) + " a month" : "cost not set")),
-        SUI.badge(fmt.date(t.renews_on), "warn", "calendar"))))
-        : SUI.stateBox({ icon: "calendar", compact: true, title: "No renewals soon", text: "Nothing renews in the next 30 days." })));
+    /* BRIEF 10.7: under the cards, the reference's three blocks and nothing else: AI usage over eight days, two
+       counts (need attention, live requests) and uses by tool. Trends, leaders and licences live on their own pages. */
+    const week = tr ? tr.days.slice(-8) : [];
+    const usage = A.panel("AI usage", el("a", { class: "btn small quiet", href: "#/activity?tab=usage&range=30d" }, "Who used what", icon("chevronRight")),
+      tr ? el("div", { class: "body" }, SUI.columns({ label: "Uses per day over the last 8 days", yName: "Uses", height: 250, caption: "Requests, tool opens and website visits · times in " + SUI.tzLabel(true),
+        data: week.map((d) => ({ label: fmt.weekday(d.start), short: fmt.dayMonth(d.start), value: d.requests + d.opens + d.visits,
+          note: `${fmt.num(d.requests)} requests · ${fmt.num(d.opens)} opens · ${fmt.num(d.visits)} visits` })) }))
+        : SUI.errorBox(trends.reason, () => A.render()));
 
     const urgent = att ? att.filter((i) => i.severity === "high" || i.severity === "medium").length : 0;
-    A.frame({ title: "Overview", lede: `Swangz AI Hub at a glance — ${fmt.weekday(Date.now() / 1000)}. Times in ${SUI.tzLabel()}.`,
-      actions: [el("a", { class: "btn", href: "#/activity" }, icon("activity"), "Activity"), el("a", { class: "btn primary", href: "#/live" }, icon("live"), "Open Live")] },
-    [kpis, A.pageTabs("#/", params, [
-      ["now", "Right now", nowTab, urgent || null],
-      ["trends", "Trends", trendsTab],
-      ["leaders", "Top tools & people", leadersTab],
-      ["licences", "Licences", licTab, opportunities && opportunities.length ? opportunities.length : null],
-    ])]);
+    const counts = el("div", { class: "kpis kpis-exact two" });
+    function drawCounts() {
+      const live = (S.overview || ov).live;
+      const streaming = live.filter((t) => t.streaming).length;
+      counts.replaceChildren(...[
+        A.kpi({ label: "Need attention", value: att === null ? "—" : String(att.length), tone: urgent ? "alert" : null,
+          note: att === null ? "couldn't load" : att.length ? (urgent ? `${urgent} high or medium` : "none high or medium") : "everything looks normal", href: "#/attention" }),
+        A.kpi({ label: "Live requests", value: String(live.length),
+          foot: live.length ? SUI.status("live", "Live", { breathe: true, plain: true }) : SUI.status("idle", "Quiet", { plain: true }),
+          note: live.length ? `${streaming} streaming · ${live.length - streaming} waiting` : "nobody is waiting on a model", href: "#/live" }),
+      ].map((card) => { card.append(el("span", { class: "kpi-go", "aria-hidden": "true" }, icon("arrowUp"))); return card; }));
+    }
+    drawCounts();
 
-    A.every(5000, async () => { await A.refreshOverview().catch(() => null); drawLive(); });
-    A.every(1000, () => document.querySelectorAll(".elapsed[data-started]").forEach((n) => { n.textContent = fmt.elapsed(Number(n.dataset.started)); }));
+    const byTool = A.panel("Uses by tool", el("a", { class: "btn small quiet", href: "#/activity?tab=usage&range=30d&by=tool" }, "All tools", icon("chevronRight")),
+      !tr ? SUI.errorBox(trends.reason, () => A.render())
+        : tr.top_tools.length ? SUI.barList(tr.top_tools.slice(0, 5).map((t) => ({
+          label: t.tool, lead: A.toolLogo(t.tool_id, t.tool, "sm"), href: t.tool_id ? `#/tools?open=${t.tool_id}` : null,
+          value: t.requests + t.opens + t.visits, display: fmt.compact(t.requests + t.opens + t.visits) + " uses",
+          note: SUI.plural(t.people, "person", "people") + " · 30 days" })))
+          : A.empty("Once staff start using approved tools, they'll be ranked here.", "No AI activity yet", "tools"));
+
+    const who = String(S.me.username || "").split("@")[0].split(/[._-]/)[0];
+    A.frame({ title: who ? `Hello, ${who.charAt(0).toUpperCase() + who.slice(1)}!` : "Overview",
+      lede: `Swangz AI Hub at a glance — ${fmt.weekday(Date.now() / 1000)}. Times in ${SUI.tzLabel()}.`,
+      actions: [el("a", { class: "btn", href: "#/activity" }, icon("activity"), "Activity"), el("a", { class: "btn primary", href: "#/live" }, icon("live"), "Open Live")] },
+    [kpis, el("div", { class: "overview-exact" }, usage, el("div", { class: "overview-side" }, counts, byTool))]);
+
+    A.every(5000, async () => { await A.refreshOverview().catch(() => null); drawCounts(); });
   }
 
   // ------------------------------------------------------------------ Needs attention

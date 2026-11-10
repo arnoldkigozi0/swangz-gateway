@@ -1388,3 +1388,12 @@ html[data-theme="light"] .kpis-exact .kpi .foot > :not(.kpi-note) { background: 
 }
 /* The measured row at 1440: y 140 to 292, four cards 285 wide from x 173 with 12px between them. */
 @media (min-width: 1201px) { .route-overview .page > .kpis-exact:first-child { margin: -7px -6px 0 0; } }
+
+/* The Overview under the cards (BRIEF 10.7): AI usage on the left, two counts and uses by tool on the right. */
+.overview-exact { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.overview-side { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
+.kpis.kpis-exact.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.kpis-exact.two .kpi { min-height: 132px; }
+.overview-exact > .panel, .overview-side > .panel { border-radius: 22px; }
+@media (min-width: 1201px) { .route-overview .overview-exact { margin-right: -6px; } }
+@media (max-width: 1000px) { .overview-exact { grid-template-columns: minmax(0, 1fr); } }
