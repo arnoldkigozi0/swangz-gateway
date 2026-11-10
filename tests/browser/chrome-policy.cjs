@@ -56,6 +56,22 @@ function handler(scheme) {
     if (host === 'accounts.google.com' && at.pathname === '/o/oauth2/v2/auth') {
       res.writeHead(302, { Location: 'https://' + spec.hub_host + '/auth/google/callback?code=x&swz=' + mark }); return res.end();
     }
+    /* Group C: an approved host that sends the browser somewhere else. `to` gets the case's mark, so a request
+       that arrives there is counted against the case; `n` hops stay on approved hosts before the last one. */
+    if (at.pathname === '/hop' || at.pathname === '/redirect') {
+      const how = at.searchParams.get('how') || '302', left = Number(at.searchParams.get('n') || 1);
+      const to = at.searchParams.get('to') || '';
+      const next = left > 1
+        ? 'https://' + (host === 'claude.ai' ? 'chatgpt.com' : 'claude.ai') + '/hop?how=' + how + '&n=' + (left - 1) + '&to=' + encodeURIComponent(to) + '&swz=' + mark
+        : marked(to, mark);
+      if (/^30[278]$/.test(how)) { res.writeHead(Number(how), { Location: next, 'Cache-Control': 'no-store' }); return res.end(); }
+      const q = JSON.stringify(next).replace(/</g, '\\u003c');
+      const body = how === 'meta' ? '<meta http-equiv="refresh" content="0;url=' + next.replace(/"/g, '%22') + '">'
+        : how === 'form' ? '<form id="f" method="post" action="' + next.replace(/"/g, '%22') + '"><input name="a" value="b"></form><script>document.getElementById("f").submit()</script>'
+        : '<script>location.' + (how === 'replace' ? 'replace(' + q + ')' : 'href = ' + q) + '</script>';
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end('<!doctype html><title>hop</title>' + body);
+    }
     const headers = { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' };
     if (host === spec.hub_host && at.pathname === '/auth/google/callback') headers['Set-Cookie'] = 'swz_fixture_session=1; Path=/; Secure; HttpOnly';
     res.writeHead(200, headers);
@@ -96,7 +112,18 @@ async function visit(context, c, address, n) {
   let error = '';
   try { await page.goto(marked(address, mark), { waitUntil: 'domcontentloaded', timeout: 20000 }); }
   catch (e) { error = (String(e.message).match(/net::(ERR_[A-Z_]+)/) || [])[1] || String(e.message).split('\n')[0].slice(0, 120); }
-  const seen = hits.filter(h => h.url.includes('swz=' + mark));
+  /* A hop case starts on an approved host, which is meant to answer; what counts is whether the place it sends
+     the browser to was reached. A page that moves by script does so after the load, so give it time. */
+  const target = c.kind === 'hop' ? new URL(new URL(address).searchParams.get('to')).host : '';
+  const arrived = () => hits.filter(h => h.url.includes('swz=' + mark) && (!target || h.host === target));
+  if (target && !error) {
+    for (let i = 0; i < 16 && !arrived().length; i++) await page.waitForTimeout(250);
+    if (!arrived().length && !failed.find(Boolean)) {
+      const text = await page.evaluate(() => document.documentElement.innerText).catch(() => '');
+      if (text.includes(BLOCKED)) error = BLOCKED;
+    }
+  }
+  const seen = arrived();
   const out = { id: c.id, expect: c.expect, address, reached: seen.length, hosts: [...new Set(seen.map(h => h.host))],
     error: error || (failed.find(Boolean) || '').replace('net::', ''), final: '' };
   try { out.final = new URL(page.url()).origin + new URL(page.url()).pathname; } catch (e) { out.final = page.url().slice(0, 80); }

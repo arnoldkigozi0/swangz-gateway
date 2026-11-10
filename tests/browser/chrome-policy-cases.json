@@ -1,5 +1,5 @@
 {
-  "about": "D-016 bypass cases as data (docs/CHROME-POLICY-BYPASS-TESTS.md). Step 1: groups A, B and D. Every host is served by the local fixture; nothing leaves the machine. expect: ALLOW must reach the fixture with the pack installed; ENFORCE must be refused by policy with zero fixture requests; RECORD is a prediction nobody has checked, so the result is reported and never fails the job.",
+  "about": "D-016 bypass cases as data (docs/CHROME-POLICY-BYPASS-TESTS.md). Groups A, B and D, and from C the redirects (C-1, C-7), script and meta moves (C-2) and form posts (C-5). A hop case starts on an approved host and counts only requests that arrive at the place it is sent to. C-2 and C-5 are RECORD on their first run: how Chrome reports a refused script-driven move has not been observed yet. Every host is served by the local fixture; nothing leaves the machine. expect: ALLOW must reach the fixture with the pack installed; ENFORCE must be refused by policy with zero fixture requests; RECORD is a prediction nobody has checked, so the result is reported and never fails the job.",
   "hub_host": "hub.swangz.test",
   "cases": [
     { "id": "A-1", "expect": "ALLOW", "urls": ["https://hub.swangz.test/", "https://claude.ai/", "https://chatgpt.com/", "https://gemini.google.com/", "https://github.com/copilot"] },
@@ -10,6 +10,10 @@
     { "id": "B-2", "expect": "ENFORCE", "urls": ["https://mail.google.com/", "https://drive.google.com/", "https://myaccount.google.com/", "https://google.com/", "https://www.google.com/search?q=x", "https://youtube.com/", "https://gmail.com/"] },
     { "id": "B-3", "expect": "ENFORCE", "urls": ["https://evil.accounts.google.com/"] },
     { "id": "B-4", "expect": "ENFORCE", "urls": ["https://github.com/", "https://github.com/someuser/repo"] },
+    { "id": "C-1", "expect": "ENFORCE", "kind": "hop", "urls": ["https://claude.ai/hop?how=302&to=https%3A%2F%2Fevil.test%2F", "https://claude.ai/hop?how=307&to=https%3A%2F%2Fevil.test%2F", "https://claude.ai/hop?how=308&to=https%3A%2F%2Fevil.test%2F", "https://claude.ai/hop?how=302&n=3&to=https%3A%2F%2Fevil.test%2F"] },
+    { "id": "C-2", "expect": "RECORD", "kind": "hop", "urls": ["https://claude.ai/hop?how=meta&to=https%3A%2F%2Fevil.test%2F", "https://claude.ai/hop?how=href&to=https%3A%2F%2Fevil.test%2F", "https://claude.ai/hop?how=replace&to=https%3A%2F%2Fevil.test%2F"] },
+    { "id": "C-5", "expect": "RECORD", "kind": "hop", "urls": ["https://claude.ai/hop?how=form&to=https%3A%2F%2Fevil.test%2F"] },
+    { "id": "C-7", "expect": "ENFORCE", "kind": "hop", "urls": ["https://claude.ai/redirect?to=https%3A%2F%2Fevil.test%2F"] },
     { "id": "D-1", "expect": "ENFORCE", "urls": ["https://claude.ai.evil.test/", "https://evil.test/claude.ai", "https://evil.test/?u=claude.ai", "https://claude-ai.test/", "https://claudeai.test/", "https://ciaude.ai/"] },
     { "id": "D-2", "expect": "ENFORCE", "unicode_host": "clаude.ai", "urls": [] },
     { "id": "D-3", "expect": "ENFORCE", "urls": ["https://claude.ai@evil.test/", "https://claude.ai:pw@evil.test/"] },
@@ -19,7 +23,8 @@
   "not_run": [
     { "id": "B-5", "reason": "omnibox typing is not driven yet" },
     { "id": "B-6", "reason": "launch-flag cases need their own browser start; step 2" },
-    { "id": "C, E, F, X, P", "reason": "step 2 of the plan" },
+    { "id": "C-3, C-4, C-6", "reason": "pop-ups, frames and subresources need their own page handling; next piece of step 2" },
+    { "id": "E, F, X, P", "reason": "step 2 of the plan" },
     { "id": "G, H", "reason": "step 3, after the pack fixes and Arnold's two decisions" },
     { "id": "I", "reason": "tier 2 (extension), not built" },
     { "id": "Windows, macOS, Playwright Chromium", "reason": "only the ubuntu Google Chrome cell exists" }
