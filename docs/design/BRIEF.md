@@ -391,6 +391,8 @@ dark areas and its composition fights the cards. Replace it; the scrim and glass
   the panel edge; `scrollbar-width: thin` + `scrollbar-color` for Firefox, `::-webkit-scrollbar` for Chrome. A
   panel never shows two scrollbars; tables scroll inside their panel with a sticky header; no horizontal page
   scroll at any width. `scrollbar-gutter: stable` so pages do not shift when a bar appears.
+  **Ruling (Chief, 11 Nov):** `scrollbar-gutter: stable` is set on boxes that scroll inside a page (the rail's list,
+  scrolling lists), not on `html`; the page itself is left as it is.
 - **Range sliders and progress bars:** track 4px, radius 2; filled part amber; slider thumb a 16×16 box, radius 5,
   white with a 1px rim, 2px focus ring; the value is shown as text beside it.
 
