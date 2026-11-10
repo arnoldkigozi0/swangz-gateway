@@ -34,6 +34,8 @@ class FakeClient:
         self.calls = []
         self.paths = SimpleNamespace(home="/tmp", data="/tmp")
         self.login_error = None
+        self.cleanup_pending = False
+        self.cleanup_error = None
 
     def signed_in(self):
         return self.signed
@@ -42,7 +44,8 @@ class FakeClient:
         return {"signed_in": self.signed, "server": "https://ai.swangzavenue.com", "person": {"name": "Nansubuga Grace", "email": "grace@swangzavenue.com"},
                 "device": {"name": "Grace's laptop", "owner_kind": "personal"}, "installed": {"claude-code": {"version": "1"}, "codex": {"version": "1"}},
                 "last_sync": time.time(), "update_available": True, "client_version": "0.1.0", "autostart": False,
-                "recording": "Swangz AI Hub records this device's name... It never reads your files, screen, keystrokes or other programs."}
+                "recording": "Swangz AI Hub records this device's name... It never reads your files, screen, keystrokes or other programs.",
+                "cleanup_pending": self.cleanup_pending}
 
     def packages(self):
         return MANIFEST_PACKAGES
@@ -71,6 +74,12 @@ class FakeClient:
         self.calls.append(("logout",))
         self.signed = False
         return True
+
+    def remove_everything(self):
+        self.calls.append(("cleanup",))
+        if self.cleanup_error:
+            raise self.cleanup_error
+        self.cleanup_pending = False
 
     def open_app(self, tool_id):
         self.calls.append(("open", tool_id))
@@ -125,6 +134,23 @@ class WindowTests(unittest.TestCase):
         self.assertEqual(app.page, "home")
         self.assertIn("Good", " ".join(self.everything()))
         self.assertIn(("sync",), self.client.calls)  # it syncs straight away
+
+    def test_incomplete_cleanup_is_retried_through_the_client_interface(self):
+        app = self.make(False)
+        self.client.cleanup_pending = True
+        app.show("signin")
+        self.assertIn("Credential removal is incomplete.", " ".join(self.everything()))
+        self.client.cleanup_error = core.keystore.KeyStoreError("Keychain is locked; retry removal.")
+        buttons(app.content)["Retry local removal"].invoke()
+        self.assertTrue(self.client.cleanup_pending)
+        self.assertIn("Keychain is locked; retry removal.", self.everything())
+        self.assertIn("Retry local removal", buttons(app.content))
+        self.client.cleanup_error = None
+        buttons(app.content)["Retry local removal"].invoke()
+        self.assertEqual(self.client.calls, [("cleanup",), ("cleanup",)])
+        self.assertFalse(self.client.cleanup_pending)
+        self.assertNotIn("Retry local removal", buttons(app.content))
+        self.assertEqual(app.page, "signin")
 
     def test_the_code_is_big_and_there_is_a_way_to_cancel(self):
         app = self.make(False)

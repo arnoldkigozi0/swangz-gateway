@@ -1,0 +1,92 @@
+{
+  "checks": [
+    "synthetic owner login",
+    "dark1440 toolbar visible",
+    "dark1440 no overflow",
+    "dark1440 all toolbar controls fit",
+    "dark1440 real clock and timezone",
+    "dark1440 real account name",
+    "dark1440 no fake presence",
+    "dark1440 toolbar axe navigation",
+    "dark1440 keyboard opens existing command search",
+    "dark1440 command search restores focus",
+    "dark1440 visible focus ring",
+    "dark1440 workspace opens existing navigation",
+    "dark1440 bell opens real notification sheet",
+    "dark1440 avatar opens account page",
+    "dark390 toolbar visible",
+    "dark390 no overflow",
+    "dark390 all toolbar controls fit",
+    "dark390 real clock and timezone",
+    "dark390 real account name",
+    "dark390 no fake presence",
+    "dark390 toolbar axe navigation",
+    "dark390 keyboard opens existing command search",
+    "dark390 command search restores focus",
+    "dark390 visible focus ring",
+    "dark390 workspace opens existing navigation",
+    "dark390 bell opens real notification sheet",
+    "dark390 avatar opens account page",
+    "light1440 toolbar visible",
+    "light1440 no overflow",
+    "light1440 all toolbar controls fit",
+    "light1440 real clock and timezone",
+    "light1440 real account name",
+    "light1440 no fake presence",
+    "light1440 toolbar axe navigation",
+    "light1440 keyboard opens existing command search",
+    "light1440 command search restores focus",
+    "light1440 visible focus ring",
+    "light1440 workspace opens existing navigation",
+    "light1440 bell opens real notification sheet",
+    "light1440 avatar opens account page",
+    "light390 toolbar visible",
+    "light390 no overflow",
+    "light390 all toolbar controls fit",
+    "light390 real clock and timezone",
+    "light390 real account name",
+    "light390 no fake presence",
+    "light390 toolbar axe navigation",
+    "light390 keyboard opens existing command search",
+    "light390 command search restores focus",
+    "light390 visible focus ring",
+    "light390 workspace opens existing navigation",
+    "light390 bell opens real notification sheet",
+    "light390 avatar opens account page",
+    "clock follows selected UTC mode",
+    "clock advances while page stays open",
+    "320 toolbar fits additional width",
+    "768 toolbar fits additional width",
+    "1280 toolbar fits additional width",
+    "synthetic viewer login",
+    "viewer header uses own identity",
+    "toolbar uses no animation or blur",
+    "toolbar excluded from print",
+    "no browser exceptions"
+  ],
+  "screenshots": [
+    "admin-1440-dark.png",
+    "admin-390-dark.png",
+    "admin-1440-light.png",
+    "admin-390-light.png"
+  ],
+  "errors": [],
+  "accessibility": [
+    {
+      "name": "dark1440 toolbar",
+      "violations": []
+    },
+    {
+      "name": "dark390 toolbar",
+      "violations": []
+    },
+    {
+      "name": "light1440 toolbar",
+      "violations": []
+    },
+    {
+      "name": "light390 toolbar",
+      "violations": []
+    }
+  ]
+}
