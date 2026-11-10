@@ -1,0 +1,36 @@
+{
+  "baseline": "d31bfe81ba28736cc70d00b27accda4e9307f1d5",
+  "integrated_main": "2b30af5f0c47c6bf447671a8de2f91742fec6ff6",
+  "files": [
+    {
+      "path": "gateway/static/admin.css",
+      "baseline_blob": "52245f4a4014e249bdb4eab26cfb163888fc6f29",
+      "current_sha256": "97da145a8bd154d99573bf0715089cda69839533fa93db5e20c95ae76be65f4d",
+      "identical": true
+    },
+    {
+      "path": "gateway/static/admin.js",
+      "baseline_blob": "fb37764999399a297b6ba2ba5c009c2723cd7375",
+      "current_sha256": "1a9a108e2a32bb082f154e8825b6ed887081e52b3612026c3b660424e786cfea",
+      "identical": true
+    },
+    {
+      "path": "tests/browser/check.cjs",
+      "baseline_blob": "6c1a83c7eede8bcf2129c5ec0c3f519319e02a6e",
+      "current_sha256": "6f4d294600f114102b89f0f5ea585f72e6d489adc084c405f614160cbf7e2f7f",
+      "identical": true
+    },
+    {
+      "path": "gateway/static/ui.css",
+      "baseline_blob": "86f925eda9623d233ff4e73d00c650c54d85caa2",
+      "current_sha256": "b71614a33fe22faae1e0aa3a30e7e33104f9e1c20239bb5584c384ddaac42d51",
+      "identical": true
+    },
+    {
+      "path": "gateway/static/ui.js",
+      "baseline_blob": "969b4bc54449099c9d09634038c2b6e706348446",
+      "current_sha256": "5fc383b3ad445613a6d971d63811fbeecf5dbd7141af391178a7fa83280ca30a",
+      "identical": true
+    }
+  ]
+}

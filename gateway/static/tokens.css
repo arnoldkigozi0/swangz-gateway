@@ -1,4 +1,4 @@
-/* Swangz design tokens — "Obsidian & Gold".
+/* Swangz design tokens — warm architectural glass.
    Near-black neutral surfaces (no blue cast), champagne gold as the brand, and a bright mint,
    sky and coral for states and data, so the dark UI reads rich rather than dull.
    Dark is the default; a light "Porcelain" theme is available on html[data-theme="light"].
@@ -6,10 +6,10 @@
    components (ui.css). Colour never carries meaning alone: every state has a word or an icon too. */
 
 @font-face {
-  font-family: "Archivo";
-  src: url("/static/fonts/Archivo-latin.woff2") format("woff2");
-  font-weight: 400 800;
-  font-stretch: 62% 125%;
+  font-family: "Plus Jakarta Sans";
+  src: url("/static/fonts/PlusJakartaSans-latin.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 200 800;
   font-display: swap;
 }
 
@@ -26,10 +26,28 @@
 
   /* Text */
   --tx-1: #F6F6F4;   /* 17.4:1 on ink-1 */
-  --tx-2: #A6A6A4;   /*  7.3:1 on ink-1 */
-  --tx-3: #95959D;   /* readable supporting copy */
+  --tx-2: #CEC6BD;
+  --tx-3: #B5ADA5;   /* readable even over the brightest scrimmed scene */
   --tx-4: #5E5E66;   /* rules and disabled marks only */
   --tx-inv: #0A0A0B;
+
+  /* Glass foundation. The scene scrim bounds contrast even over a white photo.
+     Dense text uses strong glass; nested wells never add another blur layer. */
+  --glass-bg: rgba(28, 24, 22, .52);
+  --glass-bg-strong: rgba(22, 19, 17, .68);
+  --glass-bg-accent: linear-gradient(160deg, rgba(245, 179, 43, .38), rgba(120, 72, 24, .30));
+  --glass-rim: rgba(255, 255, 255, .10);
+  --glass-rim-hover: rgba(255, 255, 255, .24);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, .08);
+  --glass-shadow: 0 20px 50px -20px rgba(0, 0, 0, .55);
+  --glass-blur: blur(22px) saturate(140%);
+  --scene-image: url("/static/admin-welcome.webp");
+  --scene-scrim: rgba(12, 10, 9, .78);
+  --radius-card: 22px;
+  --radius-pill: 999px;
+  --lift: translateY(-5px);
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  --dur-1: 160ms; --dur-2: 280ms; --dur-3: 520ms;
 
   /* Brand: champagne gold, bright enough to carry buttons on black */
   --primary: #F5B32B;
@@ -68,8 +86,8 @@
   --sheen: linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, 0));
   --focus-ring: 0 0 0 2px var(--ink-0), 0 0 0 4px var(--accent);
 
-  /* Type — Archivo throughout; numbers in proportional figures when big, tabular in columns */
-  --font: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  /* One self-hosted variable face for UI and headings; stable tabular figures. */
+  --font: "Plus Jakarta Sans", "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
   --t-display: clamp(2.5rem, 6vw, 4.75rem);
   --t-hero: clamp(2.4rem, 4.2vw, 3.25rem);   /* the one headline figure on a page */
@@ -86,14 +104,14 @@
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px;
   --s6: 32px; --s7: 48px; --s8: 64px; --s9: 96px; --s10: 128px;
 
-  /* Radius — tight, as in the Swangz Avenue Bookings app: controls are nearly square, containers
-     gently rounded, and nothing is a pill except pills (badges, counts, chips). */
-  --r-xs: 3px; --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-xl: 16px; --r-full: 999px;
+  /* Legacy names remain aliases so existing components share the new foundation. */
+  --r-xs: var(--radius-pill); --r-sm: 12px; --r-md: 16px;
+  --r-lg: var(--radius-card); --r-xl: 24px; --r-full: var(--radius-pill);
 
   /* Motion — fast and explanatory; a live request breathes, nothing flashes */
-  --e-out: cubic-bezier(.2, .7, .3, 1);
+  --e-out: var(--ease-out);
   --e-in-out: cubic-bezier(.4, 0, .2, 1);
-  --d-fast: 120ms; --d-base: 200ms; --d-slow: 320ms; --d-breathe: 2.8s;
+  --d-fast: var(--dur-1); --d-base: var(--dur-2); --d-slow: var(--dur-3); --d-breathe: 2.8s;
 
   /* Layers */
   --z-sticky: 10; --z-nav: 30; --z-sheet: 40; --z-cmd: 50; --z-toast: 60; --z-tip: 70;
@@ -106,6 +124,14 @@
 /* Porcelain — the light alternative. Warm off-white, ink-black type, the same gold. Not an
    inversion: its own steps, its own chart hues, softer shadows doing what hairlines do on black. */
 :root[data-theme="light"] {
+  --glass-bg: rgba(245, 240, 234, .55);
+  --glass-bg-strong: rgba(250, 247, 242, .82);
+  --glass-bg-accent: linear-gradient(160deg, rgba(245, 179, 43, .30), rgba(229, 190, 120, .18));
+  --glass-rim: rgba(255, 255, 255, .72);
+  --glass-rim-hover: rgba(120, 86, 15, .38);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, .85);
+  --glass-shadow: 0 20px 50px -20px rgba(65, 42, 24, .20);
+  --scene-scrim: rgba(245, 240, 234, .88);
   --ink-0: #F4F2ED;
   --ink-1: #FFFFFF;
   --ink-2: #FAF9F6;
@@ -117,7 +143,7 @@
 
   --tx-1: #15151A;
   --tx-2: #4D4D55;
-  --tx-3: #64646D;
+  --tx-3: #5F5953;
   --tx-4: #A9A9B1;
   --tx-inv: #FFFFFF;
 
@@ -153,7 +179,7 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--ink-0); color: var(--tx-1); }
-body { font: 400 var(--t-body)/1.55 var(--font); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+body { font: 400 var(--t-body)/1.55 var(--font); font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 a { color: inherit; }
 button, input, select, textarea { font: inherit; color: inherit; }
 code, pre, .mono { font-family: var(--mono); }
