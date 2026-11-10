@@ -1194,6 +1194,64 @@
     return bar;
   }
 
+  /* A side sheet: a panel that slides in from the right (480px; the whole width on phones) for a form or a record,
+     over a scrim. Title and one line saying what it is for; the body scrolls; the footer stays put with Cancel (quiet)
+     and one primary action. Esc, the cross, Cancel and a press on the scrim all close it — and when dirty() says there
+     are unsaved changes, the footer asks first ("Keep editing" / "Discard"). Focus is trapped inside and goes back to
+     where it came from.
+     o: { title, purpose, body (a node), primary: { label, onClick(api) — may return a promise; the button waits on it },
+          cancel: "Cancel", dirty: () => bool, onClose() }. Returns { node, body, close(force), busy(on) }. */
+  function sheet(o) {
+    const id = "u-sheet-" + (++kitSeq);
+    const quick = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let closed = false, asking = false;
+    const x = el("button", { type: "button", class: "u-sheet-x", "aria-label": "Close" }, icon("x"));
+    const cancel = el("button", { type: "button", class: "btn quiet" }, o.cancel || "Cancel");
+    const go = o.primary ? el("button", { type: "button", class: "btn primary" }, o.primary.label) : null;
+    const keep = el("button", { type: "button", class: "btn quiet" }, "Keep editing");
+    const drop = el("button", { type: "button", class: "btn danger" }, "Discard");
+    const ask = el("p", { class: "u-sheet-ask", role: "alert" }, "Discard your unsaved changes?");
+    const foot = el("footer", { class: "u-sheet-foot" }, cancel, go);
+    const body = el("div", { class: "u-sheet-body" }, o.body || null);
+    const node = el("aside", { class: "u-sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": id + "-t", "aria-describedby": o.purpose ? id + "-p" : null, tabindex: "-1" },
+      el("header", { class: "u-sheet-head" }, el("div", null, el("h2", { id: id + "-t" }, o.title), o.purpose ? el("p", { id: id + "-p" }, o.purpose) : null), x), body, foot);
+    const scrim = el("div", { class: "u-sheet-scrim" });
+    function close(force) {
+      if (closed) return;
+      if (!force && o.dirty && o.dirty()) { if (!asking) { asking = true; foot.classList.add("asking"); foot.replaceChildren(ask, keep, drop); keep.focus(); } return; }
+      closed = true;
+      if (kitOpen) kitOpen(false);
+      document.removeEventListener("keydown", onKey);
+      node.classList.remove("in"); scrim.classList.remove("in");
+      release();
+      setTimeout(() => { node.remove(); scrim.remove(); }, quick ? 0 : 200);
+      o.onClose && o.onClose();
+    }
+    function onKey(e) {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      e.preventDefault();
+      if (asking) keep.click(); else close(false);
+    }
+    function busy(on) { [cancel, go, x].forEach((b) => { if (b) b.disabled = !!on; }); if (go) go.classList.toggle("loading", !!on); node.setAttribute("aria-busy", on ? "true" : "false"); }
+    const api = { node, body, close, busy };
+    x.addEventListener("click", () => close(false));
+    cancel.addEventListener("click", () => close(false));
+    scrim.addEventListener("click", () => close(false));
+    keep.addEventListener("click", () => { asking = false; foot.classList.remove("asking"); foot.replaceChildren(...[cancel, go].filter(Boolean)); (go || cancel).focus(); });
+    drop.addEventListener("click", () => close(true));
+    if (go) go.addEventListener("click", () => {
+      const r = o.primary.onClick && o.primary.onClick(api);
+      if (r && typeof r.then === "function") { busy(true); r.then(() => busy(false), () => busy(false)); }
+    });
+    document.body.append(scrim, node);
+    const release = trapFocus(node);
+    document.addEventListener("keydown", onKey);
+    const first = body.querySelector("input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])");
+    (first || node).focus();
+    requestAnimationFrame(() => { node.classList.add("in"); scrim.classList.add("in"); });
+    return api;
+  }
+
   // ------------------------------------------------------------------ the command menu
 
   /* Ctrl+K anywhere. Static actions filter as you type; search(q) adds live results, grouped.
@@ -1397,6 +1455,6 @@
     tz, setGatewayOffset, setTzMode, tzLabel, startOfDay, startOfMonth, dateInput, fromDateInput, presetRange, fmt,
     initials, plural, debounce, gateway, avatar, logo, logoTint, status, badge, delta, evidence,
     skeleton, stateBox, errorBox, load, toast, copy, showTip, hideTip, infoTip,
-    columns, line, sparkline, barList, donut, donutParts, table, segmented, searchPill, progress, star, listPanel, rangeControl, trapFocus, popover, select, menu, menuButton, splitButton, filterBar, commandMenu, splitGate, xfield, eyeToggle,
+    columns, line, sparkline, barList, donut, donutParts, table, segmented, searchPill, progress, star, listPanel, rangeControl, trapFocus, popover, select, menu, menuButton, splitButton, filterBar, sheet, commandMenu, splitGate, xfield, eyeToggle,
   };
 })();

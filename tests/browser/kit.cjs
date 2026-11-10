@@ -38,7 +38,16 @@ const mount = () => {
     filters: [{ id: 'team', label: 'Team', options: opt(['Creative', 'Finance', 'Sales']) }, { id: 'role', label: 'Role', options: opt(['Owner', 'Staff']) },
       { id: 'status', label: 'Status', options: opt(['Active', 'Paused']) }, { id: 'tool', label: 'Tool', options: opt(['ChatGPT', 'Claude']) }, { id: 'device', label: 'Device', options: opt(['Laptop', 'Phone']) }] });
   bar.dataset.t = 'bar';
-  const row = el('div', null, team, ' ', tool, ' ', off, ' ', more, ' ', split);
+  window.__sheet = [];
+  const openSheet = el('button', { type: 'button', class: 'btn' }, 'Add person');
+  openSheet.dataset.t = 'sheet';
+  openSheet.addEventListener('click', () => {
+    const name = el('input', { type: 'text', 'aria-label': 'Name' });
+    const filler = el('div'); filler.style.height = '1400px';
+    window.__api = SUI.sheet({ title: 'Add a person', purpose: 'They can sign in once you save.', body: el('div', null, name, filler), dirty: () => name.value !== '',
+      primary: { label: 'Save person', onClick: (api) => { window.__sheet.push('save:' + name.value); api.close(true); } }, onClose: () => window.__sheet.push('closed') });
+  });
+  const row = el('div', null, team, ' ', tool, ' ', off, ' ', more, ' ', split, ' ', openSheet);
   row.style.cssText = 'display:flex;flex-wrap:wrap;gap:12px;padding:16px 0';
   const foot = el('div', null, low);
   foot.style.cssText = 'position:fixed;left:50%;bottom:16px;z-index:5';
@@ -240,6 +249,48 @@ const mount = () => {
         f = await fs();
         ok(F + 'Clear all removes every filter and the search text, and hides the chip row', f.vals === '{}' && f.hidden && f.controls === 'search,team,role,status,more' && f.last === '{}|null'
           && (await page.inputValue('[data-t=bar] input[type=search]')) === '');
+      }
+      {
+        const H = T.replace('select', 'side sheet');
+        const hs = () => page.evaluate(() => { const n = document.querySelector('.u-sheet'), a = document.activeElement;
+          return { open: !!n, scrim: !!document.querySelector('.u-sheet-scrim'), focus: a.dataset.t || a.getAttribute('aria-label') || a.textContent, foot: n ? [...n.querySelectorAll('.u-sheet-foot button')].map(x => x.textContent).join() : '',
+            ask: n && n.querySelector('.u-sheet-ask') ? n.querySelector('.u-sheet-ask').textContent : '', log: window.__sheet.join() }; });
+        await page.click('[data-t=sheet]');
+        await page.waitForFunction(() => { const n = document.querySelector('.u-sheet.in'); return n && Math.abs(n.getBoundingClientRect().right - innerWidth) < 1; });
+        const g = await page.evaluate(() => { const n = document.querySelector('.u-sheet'), r = n.getBoundingClientRect(), f = n.querySelector('.u-sheet-foot').getBoundingClientRect(), b = n.querySelector('.u-sheet-body');
+          return { w: r.width, top: r.top, h: r.height, role: n.getAttribute('role'), modal: n.getAttribute('aria-modal'), title: document.getElementById(n.getAttribute('aria-labelledby')).textContent,
+            purpose: document.getElementById(n.getAttribute('aria-describedby')).textContent, footBottom: Math.abs(f.bottom - innerHeight), scrolls: b.scrollHeight > b.clientHeight,
+            btnH: Math.min(...[...n.querySelectorAll('button')].map(x => x.getBoundingClientRect().height)) }; });
+        ok(H + (vname === 'mobile' ? 'it fills the phone screen' : 'it is a 480px panel on the right, full height'), g.w === (vname === 'mobile' ? vw : 480) && g.top === 0 && g.h === vh);
+        ok(H + 'it is a modal dialog named by its title and described by its purpose', g.role === 'dialog' && g.modal === 'true' && g.title === 'Add a person' && g.purpose === 'They can sign in once you save.');
+        ok(H + 'the body scrolls and the footer stays at the bottom with Cancel then the primary', g.scrolls && g.footBottom < 1 && (await hs()).foot === 'Cancel,Save person' && g.btnH >= (vname === 'mobile' ? 44 : 36));
+        ok(H + 'focus starts in the first field', (await hs()).focus === 'Name');
+        await page.keyboard.press('Shift+Tab');
+        const wrapped = await page.evaluate(() => !!document.activeElement.closest('.u-sheet'));
+        await page.keyboard.press('Tab');
+        ok(H + 'Tab stays inside the sheet', wrapped && (await page.evaluate(() => !!document.activeElement.closest('.u-sheet'))));
+        if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `sheet-${vname}-${theme}.png`) });
+        await page.keyboard.press('Escape');
+        await page.waitForFunction(() => !document.querySelector('.u-sheet'));
+        let h = await hs();
+        ok(H + 'Esc closes it and focus returns to where it came from', !h.scrim && h.focus === 'sheet' && h.log === 'closed');
+        await page.click('[data-t=sheet]');
+        await page.fill('.u-sheet input', 'Amina');
+        await page.keyboard.press('Escape');
+        h = await hs();
+        ok(H + 'with unsaved changes, closing asks first', h.open && h.ask === 'Discard your unsaved changes?' && h.foot === 'Keep editing,Discard' && h.focus === 'Keep editing');
+        await page.keyboard.press('Escape');
+        h = await hs();
+        ok(H + 'Esc on the question keeps editing', h.open && h.foot === 'Cancel,Save person' && (await page.inputValue('.u-sheet input')) === 'Amina');
+        await page.click('.u-sheet-x');
+        await page.click('.u-sheet-foot .btn.danger');
+        await page.waitForFunction(() => !document.querySelector('.u-sheet'));
+        ok(H + 'Discard closes it', (await hs()).log === 'closed,closed');
+        await page.click('[data-t=sheet]');
+        await page.fill('.u-sheet input', 'Brian');
+        await page.click('.u-sheet-foot .btn.primary');
+        await page.waitForFunction(() => !document.querySelector('.u-sheet'));
+        ok(H + 'the primary action runs and can close without asking', (await hs()).log === 'closed,closed,save:Brian,closed');
       }
       ok(T + 'no horizontal page scroll', (await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)) <= 0);
       await ctx.close();
