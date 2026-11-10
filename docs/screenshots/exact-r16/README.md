@@ -1,8 +1,17 @@
 # R16: the Overview's KPI row (BRIEF 10.3 "KPI cards", 10.7)
 
-Builder's note. **Written without a browser** (the team's one browser slot was in use): nothing below is measured
-yet. The positions are worked out from the R15 piece 3 measurements (content column x 173 to 1343, header ends y 147).
-CI runs the browser suites. No screenshots or overlay yet.
+Builder's capture, not an acceptance. System Chromium headless through Playwright, local synthetic fixture
+(`tests/browser/demo.py`), owner role, 10 November 2026.
+
+## Measured at 1440x852, dark and light (target in brackets)
+- Row x 173 to 1349, y 140 to 292 [first card x 173, y 140 to 292]: 0px.
+- Cards x 173-458, 470-755, 767-1052, 1064-1349: each 285 wide, 12px gaps [285, 12]: 0px. Radius 18.
+- Label box starts (19, 19) inside the card [(18, 22)]; arrow circle 24x24, 15px from the top and right edges;
+  value 24px weight 700, box y 232 to 260 [baseline y 255]; chip beside the value; caption 9px, y 261 to 273.
+- The next block (tabs) starts y 310. No horizontal overflow at 1440 or 390; no page errors.
+- 390x844: 2-up, cards 173 wide; the change chip sits under the value (beside it, it ran past the card).
+
+Files: `overview-1440x852-dark.png`, `overview-1440x852-light.png`, `overview-390x844-dark.png`.
 
 ## What changed (`gateway/static/admin-monitor.js`, `gateway/static/admin.css`)
 - The Overview's three joined cells are now four separate cards: AI spend (accent glass), AI requests, Active people,
@@ -10,8 +19,7 @@ CI runs the browser suites. No screenshots or overlay yet.
   page that holds its detail.
 - Card: radius 18, padding 18, 152px tall; label 11px top-left; arrow in a 24px circle top-right; value 24px weight
   700 bottom-left; change chip beside the value; one 9px caption under.
-- Intended at 1440: row y 140 to 292, cards 285 wide with 12px gaps from x 173 (so the row ends at x 1349, 6px past
-  the content column, as in the reference).
+- The row ends at x 1349, 6px past the content column (x 1343), as the reference's four 285px cards do.
 
 ## Differences, tagged with BRIEF 10.1
 - 10.1(1): our labels and numbers; each label names its period ("30 days", "today", "7 days").
@@ -23,5 +31,6 @@ CI runs the browser suites. No screenshots or overlay yet.
 - 10.1(4): the spend sparkline left the card (the Trends tab below has the chart).
 
 ## Not done / not verified
-Pixel positions, the 4px overlay, contrast of the 9px caption and the chip (both themes), axe, hover motion, phones.
+The 50% overlay against `dashboard-01.jpg`, measured contrast of the 9px caption and the chip, axe, hover motion,
+a card with a real percentage in the chip (the fixture has no earlier period), roles other than owner.
 Other pages' `.kpis` strips are unchanged.
