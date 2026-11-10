@@ -121,17 +121,18 @@
     A.keepParams("#/people", { open: p.id });
     const none = (x) => el("span", { class: "faint" }, x);
     const record = "#/people/" + p.id;
+    const wide = (n) => { n.classList.add("fact-wide"); return n; };
     pageSheet({ title: p.name, purpose: [p.title, p.department].filter(Boolean).join(" · ") || "No department", cancel: "Close",
       body: el("div", { class: "stack" },
         el("div", { class: "facts person-preview" },
           fact("Status", el("span", { class: "row" }, SUI.status(...personState(p), { plain: true }), p.live ? SUI.status("live", "Live", { breathe: true, plain: true }) : null)),
           fact("App sign-in", signInBadge(p.sign_in)),
-          fact("Email", p.email || none("none yet")),
+          wide(fact("Email", p.email || none("none yet"))),
           fact("Devices", SUI.plural(p.active_keys, "active key")),
           fact("Today", `${fmt.money(p.today.cost)} · ${SUI.plural(p.today.requests, "request")}`),
           fact("This month", fmt.money(p.month.cost) + (p.monthly_budget !== null ? " of " + fmt.money(p.monthly_budget) : " · no limit")),
           fact("Last used AI", p.last_seen ? fmt.ago(p.last_seen) : none("never")),
-          fact("Access ends", p.access_until ? fmt.date(p.access_until - 86400) : none("no end date"))),
+          wide(fact("Access ends", p.access_until ? fmt.date(p.access_until - 86400) : none("no end date")))),
         el("nav", { class: "person-preview-links", "aria-label": "Go to part of their record" },
           [["access", "Tools and access"], ["activity", "Activity"], ["devices", "Devices"], ["security", "Security"]].map(([tab, label]) =>
             el("a", { href: `${record}?tab=${tab}` }, label, icon("chevronRight"))))),
@@ -187,7 +188,7 @@
         el("label", { class: "field" }, o.brief ? "Name (required)" : "Name", f.name, nameErr),
         el("label", { class: "field" }, "Role / title", f.title),
         el("label", { class: "field" }, "Department", f.department),
-        el("label", { class: "field" }, "Email — they sign in with it", f.email,
+        el("label", { class: "field" }, o.brief ? "Email (required) — they sign in with it" : "Email — they sign in with it", f.email,
           el("span", { class: "hint" }, "A Swangz email (@swangzavenue.com). Only the two explicitly authorised owner/admin addresses are exceptions."), emailErr),
         o.brief ? accessEnds : null),
       o.brief ? null : el("div", { class: "form-grid" },
@@ -204,9 +205,9 @@
     const shown = o.brief ? ["name", "title", "department", "email", "access_until"] : Object.keys(f);
     const values = () => Object.fromEntries(shown.map((k) => [k, f[k].type === "checkbox" ? f[k].checked : f[k].value]));
     /* Says what is missing under the field, and puts focus on the first problem. */
-    function check(needEmail) {
+    function check() {
       nameErr.textContent = f.name.value.trim() ? "" : "Enter their name.";
-      emailErr.textContent = needEmail && !f.email.value.trim() ? "A sign-in link goes to their email, so enter it." : "";
+      emailErr.textContent = f.email.value.trim() ? "" : "Enter their Swangz email. They sign in with it.";
       const bad = nameErr.textContent ? f.name : emailErr.textContent ? f.email : null;
       if (bad) bad.focus();
       return !bad;
@@ -226,7 +227,7 @@
       body: el("div", { class: "stack" }, form.node, err), dirty: () => JSON.stringify(form.values()) !== first,
       primary: { label: { invite: "Add and create link", key: "Add and issue key" }[then] || "Add person", onClick: async (sheet) => {
         err.textContent = "";
-        if (!form.check(then === "invite")) return;
+        if (!form.check()) return;
         try {
           const v = form.values();
           const out = await api("POST", "/people", v);

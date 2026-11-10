@@ -512,6 +512,7 @@ li.plain { list-style: none; }
 .sheet-body .facts { border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; }
 .u-sheet-body .facts { border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; }
 .person-preview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.person-preview .fact-wide { grid-column: 1 / -1; }
 .person-preview-links { display: grid; border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; }
 .person-preview-links a { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0 16px; color: var(--tx-1); font-weight: 600; text-decoration: none; }
 .person-preview-links a + a { border-top: 1px solid var(--line); }
