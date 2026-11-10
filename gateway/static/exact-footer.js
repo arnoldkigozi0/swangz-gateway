@@ -62,7 +62,9 @@
     const { me, requestAccess, policy, gurl } = ctx || {};
     serial += 1;
     const link = (href, text) => el("a", { href }, text);
-    const col = (title, items) => el("div", { class: "xf-col" }, el("h3", null, title), el("ul", null, items.map(i => el("li", null, i))));
+    // Column titles are labels, not headings: "Requests" must stay the one heading of the Requests page.
+    const col = (title, items) => el("div", { class: "xf-col" }, el("p", { class: "xf-col-title", "aria-hidden": "true" }, title),
+      el("ul", { "aria-label": title }, items.map(i => el("li", null, i))));
     const dot = el("i", { class: "xf-dot", "data-state": "checking", "aria-hidden": "true" });
     const word = el("span", null, WORDS.checking);
     if (gurl) gatewayHealth(gurl, state => { dot.dataset.state = state; word.textContent = WORDS[state]; });
