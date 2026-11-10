@@ -329,7 +329,7 @@ The future Forge endpoint contract is same-origin, authenticated GETs at
 `/api/device/releases/<channel>/release.json`, `release.json.sig`, and `<file>`.
 The detached signature is exactly 512 binary bytes. The release response must provide
 `X-Swangz-Gateway-Version` as a strict `major.minor.patch`; absent/invalid version means no update.
-These endpoints and that header are a proposed client contract, **not implemented server support**.
+The gateway side of this contract is described in "Release distribution (gateway)" below.
 `client.latest` only triggers a check after sync; it never selects a URL, key, version or artifact.
 HTTPS is required outside the loopback-only fake-server route, regardless of `SWANGZ_ALLOW_HTTP`.
 Cross-origin redirects are refused before a redirected request can carry a device credential.
@@ -385,3 +385,47 @@ screens are **Not run**. This work is not a production-update or cross-platform 
 Sentinel follow-up to `9f505cf`: regression cases emulate Windows read-only replace/unlink failures,
 cover staging without the read-only attribute, `main(argv=None)` after recovery, and the credential
 helper's isolated stdout/stderr behavior. Tests are added for Probe to run; not executed under Codex.
+
+## Release distribution (gateway)
+
+`gateway/releases.py`. The gateway is a distribution point, never a source of trust: it may withhold an
+update, it cannot forge one, because it holds no signing key and the device re-verifies every byte. Releases
+are made and signed offline and published from the command line only; there is no HTTP or console upload.
+
+**Publish** (`python3 -m gateway ...`, audited as `command line`, correlation `release:<channel>:<version>`):
+
+- `release-publish DIR --channel stable|pilot` — `DIR` holds `release.json` (at most 64 KiB), `release.json.sig`
+  (exactly 512 raw bytes) and the listed artifacts. Refused unless the signature verifies
+  (`swangz_client.updater.verify`) against `swangz_client/release_keys.KEYS` (nothing pinned: refused); the
+  manifest's channel equals `--channel`; the version is strictly higher than every version already stored in
+  that channel (a rollback is a new, higher, signed version; a withdrawn version number is not reused); each
+  listed artifact exists, passes the client's filename rule, is at most 150 MiB and matches its size and SHA-256;
+  and the disk keeps 1 GiB free after the write. Only listed files are copied.
+- `release-withdraw --channel C` — deletes the channel's pointer; devices get 404. Files stay on disk.
+- `release-pilot add|remove PERSON` — the pilot list (a setting, `release_pilot`; no schema change).
+
+**Storage:** `data/releases/<channel>/<version>/` (folders 0700, files 0600), written to a temp folder then
+renamed; versions are never overwritten; `<channel>/current.json` is replaced atomically, so a crash leaves the
+previous release live. The current and one previous version are kept. Serving refuses symlinks and hard links.
+
+**Device routes** (the device's own key, `Authorization: Bearer`; browser and console sessions get 401; the
+usual `device_auth` refusals apply): `GET /api/device/releases/<stable|pilot>/<file>`.
+
+| File | Answer |
+|---|---|
+| `release.json` | `200 application/json`, the stored bytes, plus `X-Swangz-Gateway-Version: x.y.z` (this response only) |
+| `release.json.sig` | `200 application/octet-stream`, 512 bytes |
+| a name listed in the current `release.json` | `200 application/octet-stream`, streamed in 64 KiB blocks |
+
+All carry `Content-Length`, `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`; no ranges, no
+compression, no redirects. Anything else — no release, withdrawn, `pilot` for someone not on the pilot list,
+an unlisted or unsafe name, a missing file, a link — is `404` (`{"error": "No release is available."}`).
+Each device may download artifacts three times an hour (`429`, code `slow_down`); the manifest and signature
+are not limited. Each artifact download writes one audit record (`downloaded a release file`: person, device,
+`<channel> <version>`, file, outcome `ok`/`interrupted`/`failed`/`denied`); polling records nothing.
+
+`client.latest` in `/api/device/manifest` and `latest_client` in the heartbeat are the current version of the
+device's channel (`pilot` for people on the list, else `stable`), or `CLIENT_LATEST` when nothing is published.
+It is a hint only. The gateway refuses to start unless `gateway.__version__` is strict `x.y.z`.
+
+Verification: `tests.test_device_releases` (fake upstream, the fixture TEST key only).
