@@ -72,9 +72,10 @@ curl -fsS http://127.0.0.1:8787/healthz >/dev/null || { journalctl -u swangz-gat
 
 echo "== nightly backup"
 cp "$SRC/deploy/swangz-gateway-backup.service" "$SRC/deploy/swangz-gateway-backup.timer" \
-   "$SRC/deploy/swangz-gateway-backup-verify.service" "$SRC/deploy/swangz-gateway-backup-verify.timer" /etc/systemd/system/
+   "$SRC/deploy/swangz-gateway-backup-verify.service" "$SRC/deploy/swangz-gateway-backup-verify.timer" \
+   "$SRC/deploy/swangz-gateway-health.service" "$SRC/deploy/swangz-gateway-health.timer" /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable -q --now swangz-gateway-backup.timer swangz-gateway-backup-verify.timer
+systemctl enable -q --now swangz-gateway-backup.timer swangz-gateway-backup-verify.timer swangz-gateway-health.timer
 if [ -f "$APP/data/gateway.db" ]; then
   systemctl start swangz-gateway-backup.service \
     && echo "   first backup taken: $(ls -1t "$APP"/data/backups/gateway-*.db.gz 2>/dev/null | head -1)" \

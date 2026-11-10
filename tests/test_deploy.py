@@ -192,6 +192,20 @@ class DeployFileTests(unittest.TestCase):
         self.assertIn("swangz-gateway-backup.timer", setup)
         self.assertIn("open_firewall", setup)
 
+    def test_health_timer_runs_the_uptime_check_and_can_change_nothing(self):
+        service = (ROOT / "deploy" / "swangz-gateway-health.service").read_text()
+        timer = (ROOT / "deploy" / "swangz-gateway-health.timer").read_text()
+        self.assertIn("ExecStart=/usr/bin/python3 -m gateway health-check", service)
+        for line in ("Type=oneshot", "User=swangz", "ProtectSystem=strict", "NoNewPrivileges=true",
+                     "EnvironmentFile=-/opt/swangz-gateway/.env"):
+            self.assertIn(line, service)
+        self.assertNotIn("ReadWritePaths", service)   # it writes nowhere
+        self.assertNotRegex(service, r"restart|systemctl")
+        self.assertIn("OnUnitActiveSec=5min", timer)
+        setup = (ROOT / "deploy" / "setup-gateway-server.sh").read_text()
+        self.assertIn('"$SRC/deploy/swangz-gateway-health.service" "$SRC/deploy/swangz-gateway-health.timer"', setup)
+        self.assertRegex(setup, r"systemctl enable -q --now [^\n]*swangz-gateway-health\.timer")
+
     def test_firewall_keeps_ssh_open_on_its_real_port(self):
         with tempfile.TemporaryDirectory() as d:
             log = Path(d) / "log"
