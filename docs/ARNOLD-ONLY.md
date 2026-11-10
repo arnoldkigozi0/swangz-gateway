@@ -42,5 +42,5 @@ Vendor passwords. The Hub never stores, shares or types a provider password.
 ## Not on this list
 
 Unfinished team work is not Arnold's to do. The exact-match gaps, the footer scroll rate, the Chrome
-policy bypass tests and the pending reviews are listed in `docs/AGENT-PROGRESS.md` under 10 November
+policy bypass tests still to build and the pending reviews are listed in `docs/AGENT-PROGRESS.md` under 10 November
 ("Team work that is not finished") and stay with the team.
