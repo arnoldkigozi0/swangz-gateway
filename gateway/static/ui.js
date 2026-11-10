@@ -205,7 +205,8 @@
     money(v) {
       if (v === null || v === undefined) return "unpriced";
       if (v === 0) return "$0.00";
-      if (Math.abs(v) < 0.01) return "$" + v.toFixed(4);
+      // BRIEF 10.9(2): never more than two decimals; a real amount under a cent says so rather than reading as $0.00
+      if (Math.abs(v) < 0.01) return v > 0 ? "< $0.01" : "> -$0.01";
       return "$" + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     },
     moneyShort(v) {
