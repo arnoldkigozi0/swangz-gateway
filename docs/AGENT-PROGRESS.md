@@ -455,7 +455,7 @@ QA remain required. No ready/merge/deploy action.
 
 Branch feature/console-header-tubes, rebased on origin/main f580cb4. Changes: admin-monitor.js header emoji and role-safe greeting, shorter spend caption (plans amount remains in detail tooltip), zero-day tube option; ui.js opt-in zero stubs/labels/value chip; console mobileNav uses four specified routes, separate All pages attention badge; phone-nav.js extracts staff #70 lens for both apps with arrow-key focus; admin/index HTML load shared helper. CSS only in NEW exact-console-details.css, reusing exact-staff-bar.css; admin.css untouched to avoid Anvil's scene/panel work.
 
-Identity limitation: Forge checked /admin/api/me and confirmed there is no existing name field. Header now uses only the first whitespace-separated token of display_name, with neutral Hello when absent; never username or role. Forge's proposed read-only company people.name match requires its backend addition. This token is a display heuristic, not a guaranteed stored first name (titles may precede names). Item 3 remains dependent on that server contract.
+Identity limitation: Forge checked /admin/api/me and confirmed there is no existing name field. Header now uses only the first whitespace-separated token of display_name, with neutral Hello when absent; never username or role. (Superseded on the merged head `585b42c`: the greeting uses the full trimmed display_name, so titles and full names are kept.) Forge's proposed read-only company people.name match requires its backend addition. This token is a display heuristic, not a guaranteed stored first name (titles may precede names). Item 3 remains dependent on that server contract.
 
 Validation: browser syntax script checked39 JS files and staff synthetic model18PASS before rebase; node --check ui.js and extended charts.cjs passed. git diff --check passed. Added CI browser assertions for eight tubes/table rows, five zero stubs labelled0, selected-zero chip. Not run locally: Python/full suite, Chromium, screenshots/50%overlay, contrast/CLS/performance/fallback checks — Anvil holds sole browser slot and Chief explicitly assigned CI-only work. CI runs the chart regression. No claim of exact-match visual acceptance; architect review remains required. No new dependencies, production changes or admin.css edits.
 
@@ -585,7 +585,7 @@ Team work that is **not finished**. None of it is waiting on Arnold, and none of
    light-theme yellow arc is likely under 3:1; the legend is not centred with five rows.
 4. The wave line on the second count card is not built.
 5. The phone KPI caption overflow is not started.
-6. What #97 leaves of the header (emoji, amber primary, first name), the eight tubes and phone bar C is
+6. What #97 leaves of the header (emoji, amber primary, the recorded name), the eight tubes and phone bar C is
    unchecked.
 7. Sign-in, staff shell, light theme and phone rounds are untouched since their first merges.
 8. The "Collecting since…" wording and threshold decision is pending.
