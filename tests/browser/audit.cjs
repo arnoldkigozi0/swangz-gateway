@@ -47,7 +47,12 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       ok(T + 'trail names the page', (await here()) === 'Audit log');
       ok(T + 'the trail starts at Security', await p.locator('.crumbs a[href="#/security"], .console-trail a[href="#/security"]').count() >= 1);
       ok(T + 'one table, no chart, no tab strip', await p.locator('main table').count() === 1 && await p.locator('main .u-chart, main [role=tablist]').count() === 0);
-      ok(T + 'no primary button', await p.locator('main .btn.primary').count() === 0);
+      // Simple (BRIEF 10.10.7, the default): one sentence with the real number, one next step (the page's one primary), five columns, no notes line
+      ok(T + 'one primary button, the next step', await p.locator('main .btn.primary').count() === 1 && await p.locator('.next-step .btn.primary').count() === 1);
+      const sentence = (await p.locator('.ov-sentence').textContent()).trim();
+      ok(T + `Simple's sentence carries a number (${sentence})`, /\d|Nothing/.test(sentence) && sentence.split(/\s+/).length <= 12);
+      ok(T + 'Simple shows five columns', width < 640 || await p.locator('main .u-table thead th').count() === 5);
+      ok(T + 'Simple has no notes line', await p.locator('main .list-meta').count() === 0);
       const all = await rows();
       ok(T + `the fixture has audit entries (${all})`, all >= 1);
       ok(T + 'the old Load older button waits until there are more', await p.getByRole('button', { name: 'Load older' }).isHidden());
@@ -67,6 +72,13 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       await p.getByRole('searchbox').first().fill('');
       await p.waitForFunction(n => document.querySelectorAll('main .u-table tbody tr').length === n, all);
       checks++;
+
+      await open('#/audit?view=detailed', '.u-filter');
+      ok(T + 'Detailed has no primary, keeps the notes line and every column', await p.locator('main .btn.primary').count() === 0 && await p.locator('main .list-meta').count() === 1
+        && (width < 640 || await p.locator('main .u-table thead th').count() === 6));
+      await noOverflow('Detailed'); await axe('Detailed');
+      await open('#/audit?outcome=denied', '.u-filter');
+      ok(T + 'with Refused already on, the next step moves on', (await p.locator('.next-step .btn').getAttribute('href')) === '#/activity');
 
       // old links and filters arrive as chips
       await open('#/audit?outcome=denied&area=govern&range=7d', '.u-filter');

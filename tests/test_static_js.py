@@ -417,3 +417,43 @@ class ToolsLeadTests(unittest.TestCase):
     def test_tools_uses_the_shared_view_switch(self):
         govern = (STATIC / "admin-govern.js").read_text(encoding="utf-8")
         self.assertIn('A.viewMode("tools", "#/tools", params)', govern)
+
+
+def audit_lead(cases):
+    source = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
+    periods = re.search(r"\n  (const AUDIT_PERIODS = .*?;)\n", source).group(1)
+    fn = re.search(r"\n  (function auditLead\(n\) \{\n.*?\n  \})\n", source, re.S).group(1)
+    script = periods + fn + "\nconsole.log(JSON.stringify(" + json.dumps(cases) + ".map(auditLead)));"
+    out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30, check=True)
+    return json.loads(out.stdout)
+
+
+@unittest.skipUnless(shutil.which("node"), "Node is not installed")
+class AuditLeadTests(unittest.TestCase):
+    """BRIEF 10.10.7 on the Audit log: one sentence with the real number, then one next step that opens what it counts."""
+    BASE = {"entries": 12, "more": False, "refused": 0, "period": "", "outcome": ""}
+
+    def lead(self, **n):
+        return audit_lead([{**self.BASE, **n}])[0]
+
+    def test_the_sentence_carries_the_real_number_and_period(self):
+        self.assertEqual(self.lead()["sentence"], "12 changes were recorded in the last 30 days.")
+        self.assertEqual(self.lead(entries=1, period="7d")["sentence"], "1 change was recorded in the last 7 days.")
+        self.assertEqual(self.lead(entries=0, period="today")["sentence"], "Nothing was changed today.")
+        self.assertEqual(self.lead(refused=3, period="month")["sentence"], "3 changes were refused this month.")
+
+    def test_only_the_first_hundred_loaded_says_at_least(self):
+        self.assertEqual(self.lead(entries=100, more=True)["sentence"], "At least 100 changes were recorded in the last 30 days.")
+
+    def test_refused_changes_come_first_and_the_button_opens_them(self):
+        self.assertEqual(self.lead(refused=2)["action"]["href"], "#/audit?outcome=denied")
+        self.assertEqual(self.lead(refused=2, outcome="denied")["action"]["href"], "#/activity")
+        self.assertEqual(self.lead()["action"]["href"], "#/activity")
+
+    def test_sentences_stay_short(self):
+        for n in ({"entries": 100, "more": True, "refused": 40, "period": "custom"}, {"entries": 0}, {}, {"period": "7d", "more": True}):
+            self.assertLessEqual(len(self.lead(**n)["sentence"].split()), 12)
+
+    def test_audit_uses_the_shared_view_switch(self):
+        monitor = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
+        self.assertIn('A.viewMode("audit", "#/audit", params)', monitor)
