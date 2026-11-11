@@ -190,5 +190,20 @@ class RoomPhotoTests(unittest.TestCase):
         self.assertIn("var(--scene-image) center / cover no-repeat, var(--scene-fallback)", self.css)
 
 
+class ButtonDefectTests(unittest.TestCase):
+    """Probe's real-browser QA of 12 Nov (D1, D2)."""
+    root = pathlib.Path(__file__).resolve().parent.parent / "gateway" / "static"
+
+    def test_touch_hit_area_leaves_the_loading_spinner_alone(self):
+        css = (self.root / "controls.css").read_text(encoding="utf-8")
+        self.assertIn('.btn:not(.link):not(.loading):not([data-loading="true"]):not([aria-busy="true"])::before { content: "";', css)
+        self.assertNotIn(".btn:not(.link)::before {", css)
+
+    def test_console_page_actions_are_36px_on_desktop(self):
+        css = (self.root / "admin.css").read_text(encoding="utf-8")
+        self.assertIn(".top > .top-actions .btn { min-height: 36px; height: 36px;", css)
+        self.assertNotIn(".top > .top-actions .btn { min-height: 34px;", css)
+
+
 if __name__ == "__main__":
     unittest.main()
