@@ -2,8 +2,6 @@
   "URLBlocklist": [
     "*",
     "file://*",
-    "chrome://*",
-    "view-source:*",
     "chrome://flags",
     "chrome://inspect"
   ],
@@ -77,8 +75,6 @@
   "DeveloperToolsAvailability": 2,
   "RemoteDebuggingAllowed": false,
   "PasswordManagerEnabled": false,
-  "AutoLaunchProtocolsFromOrigins": [],
-  "ExternalProtocolDialogShowAlwaysOpenCheckbox": false,
   "ExtensionInstallBlocklist": [
     "*"
   ],

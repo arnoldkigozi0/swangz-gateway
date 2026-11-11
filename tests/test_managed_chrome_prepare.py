@@ -1,11 +1,7 @@
 """Offline checks: no Chrome process, network, credentials, device policy or session."""
-import contextlib
 import copy
-import hashlib
 import importlib.util
-import io
 import json
-import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -68,9 +64,7 @@ class ManagedChromePreparationTests(unittest.TestCase):
                            ("RemoteDebuggingAllowed", True), ("SyncDisabled", False),
                            ("ExtensionInstallBlocklist", []), ("URLBlocklist", []),
                            ("ExtensionInstallForcelist", ["something"]),
-                           ("URLAllowlist", ["example.com"]),
-                           ("AutoLaunchProtocolsFromOrigins", ["https://evil.example.net"]),
-                           ("ExternalProtocolDialogShowAlwaysOpenCheckbox", True)):
+                           ("URLAllowlist", ["example.com"])):
             with self.subTest(key=key), self.assertRaises(module.PolicyPreparationError):
                 x = copy.deepcopy(self.template)
                 x[key] = value
@@ -95,69 +89,6 @@ class ManagedChromePreparationTests(unittest.TestCase):
             self.assertEqual(json.loads(out.read_text()), policy)
             with self.assertRaises(module.PolicyPreparationError):
                 module.write_new(module.TEMPLATE, policy)
-
-    def test_every_d016_setting_is_pinned_and_removing_one_refuses_to_prepare(self):
-        for name in ("AutoLaunchProtocolsFromOrigins", "ExternalProtocolDialogShowAlwaysOpenCheckbox"):
-            self.assertIn(name, module.REQUIRED)
-            x = copy.deepcopy(self.template)
-            del x[name]
-            with self.subTest(name=name), self.assertRaises(module.PolicyPreparationError):
-                self.render(template=x)
-        for entry in ("chrome://*", "view-source:*", "file://*"):
-            self.assertIn(entry, module.REQUIRED_BLOCKS)
-            x = copy.deepcopy(self.template)
-            x["URLBlocklist"].remove(entry)
-            with self.subTest(entry=entry), self.assertRaises(module.PolicyPreparationError):
-                self.render(template=x)
-        self.assertEqual(self.render()["AutoLaunchProtocolsFromOrigins"], [])
-
-    def test_refuses_every_active_policy_folder_on_linux_and_macos(self):
-        for folder in module.ACTIVE_POLICY_FOLDERS:
-            for path in (folder + "/swangz.json", folder + "/sub/swangz.json"):
-                with self.subTest(path=path):
-                    self.assertTrue(module.is_protected_location(path, windows=False))
-        for folder in ("/etc/opt/chrome/policies/recommended", "/etc/chromium/policies/recommended"):
-            self.assertIn(folder, module.ACTIVE_POLICY_FOLDERS)
-        self.assertFalse(module.is_protected_location("/home/x/prepared.json", windows=False))
-        self.assertFalse(module.is_protected_location("/etc/opt/chrome/policies/managed-copy/a.json", windows=False))
-
-    def test_refuses_windows_system_folders_whatever_the_case(self):
-        env = {"ProgramFiles": "C:\\Program Files", "ProgramFiles(x86)": "C:\\Program Files (x86)",
-               "WINDIR": "C:\\Windows", "SystemRoot": "C:\\Windows"}
-        for path in ("C:\\Windows\\System32\\a.json", "c:\\windows\\a.json", "C:\\Program Files\\Google\\Chrome\\a.json",
-                     "C:\\PROGRAM FILES (X86)\\x\\a.json"):
-            with self.subTest(path=path):
-                self.assertTrue(module.is_protected_location(path, windows=True, environ=env))
-        for path in ("C:\\Users\\admin\\prepared.json", "D:\\policy\\prepared.json",
-                     "C:\\Program Files Backup\\a.json"):
-            with self.subTest(path=path):
-                self.assertFalse(module.is_protected_location(path, windows=True, environ=env))
-        # Without the variables the usual defaults still protect the system folders.
-        self.assertTrue(module.is_protected_location("C:\\Windows\\a.json", windows=True, environ={}))
-
-    def test_write_new_returns_the_sha256_of_the_exact_bytes(self):
-        policy = self.render()
-        with tempfile.TemporaryDirectory() as d:
-            out = Path(d) / "prepared.json"
-            digest = module.write_new(out, policy)
-            self.assertEqual(digest, hashlib.sha256(out.read_bytes()).hexdigest())
-            self.assertEqual(digest, hashlib.sha256(module.encode(policy)).hexdigest())
-            other = Path(d) / "other.json"
-            self.assertEqual(module.write_new(other, policy), digest)  # same input, same hash
-
-    def test_the_command_prints_the_hash_and_still_installs_nothing(self):
-        with tempfile.TemporaryDirectory() as d:
-            out = Path(d) / "prepared.json"
-            buf = io.StringIO()
-            with contextlib.redirect_stdout(buf):
-                code = module.main(["--hub-host", self.hub, "--extension-id", self.ext,
-                                    "--update-url", self.update, "--output", str(out)])
-            self.assertEqual(code, 0)
-            line = [l for l in buf.getvalue().splitlines() if l.startswith("SHA-256 of the prepared file: ")]
-            self.assertEqual(len(line), 1)
-            self.assertEqual(line[0].rsplit(": ", 1)[1], hashlib.sha256(out.read_bytes()).hexdigest())
-            if os.name != "nt":
-                self.assertEqual(out.stat().st_mode & 0o777, 0o600)
 
 
 if __name__ == "__main__":

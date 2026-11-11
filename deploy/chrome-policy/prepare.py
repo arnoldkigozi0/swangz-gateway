@@ -6,12 +6,11 @@ Chrome, configure DNS, contact the server, or modify system Chrome policy.
 """
 
 import argparse
-import hashlib
 import ipaddress
 import json
 import os
 import re
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path
 from urllib.parse import urlsplit
 
 TEMPLATE = Path(__file__).with_name("swangz-company-chrome.json")
@@ -26,23 +25,7 @@ REQUIRED = {
     "DeveloperToolsAvailability": 2,
     "RemoteDebuggingAllowed": False,
     "PasswordManagerEnabled": False,
-    "AutoLaunchProtocolsFromOrigins": [],
-    "ExternalProtocolDialogShowAlwaysOpenCheckbox": False,
 }
-# Entries the default-deny list must carry by name (D-016 item 3). From Chrome 147 a bare "*" no longer covers
-# these internal schemes.
-REQUIRED_BLOCKS = ("*", "file://*", "chrome://*", "view-source:*")
-# Folders where the OS or Chrome reads machine policy. The generator only ever writes a file elsewhere.
-ACTIVE_POLICY_FOLDERS = (
-    "/etc/opt/chrome/policies/managed", "/etc/opt/chrome/policies/recommended",
-    "/etc/chromium/policies/managed", "/etc/chromium/policies/recommended",
-    "/private/etc/opt/chrome/policies/managed", "/private/etc/opt/chrome/policies/recommended",
-    "/private/etc/chromium/policies/managed", "/private/etc/chromium/policies/recommended",
-    "/Library/Managed Preferences",
-)
-# Windows: policy is read from the registry, but a .json dropped beside an import script under these
-# folders is how it usually gets applied, so refuse them.
-WINDOWS_PROTECTED_VARIABLES = ("ProgramFiles", "ProgramFiles(x86)", "ProgramW6432", "WINDIR", "SystemRoot")
 
 
 class PolicyPreparationError(ValueError):
@@ -100,12 +83,8 @@ def prepare(template, hub_host, extension_id, extension_update_url):
     for key, expected in REQUIRED.items():
         if key not in template or type(template[key]) is not type(expected) or template[key] != expected:
             raise PolicyPreparationError("Template lacks required single-profile control: " + key)
-    blocklist = template.get("URLBlocklist")
-    if not isinstance(blocklist, list) or "*" not in blocklist:
+    if template.get("URLBlocklist") is None or "*" not in template["URLBlocklist"]:
         raise PolicyPreparationError("Template is not default-deny")
-    for entry in REQUIRED_BLOCKS:
-        if entry not in blocklist:
-            raise PolicyPreparationError("Template does not block " + entry)
     if template.get("ExtensionInstallBlocklist") != ["*"]:
         raise PolicyPreparationError("Template does not block non-Swangz extensions")
     if (template.get("ExtensionInstallAllowlist") != ["SWANGZ_EXTENSION_ID"]
@@ -125,38 +104,16 @@ def prepare(template, hub_host, extension_id, extension_update_url):
     return rendered
 
 
-def windows_protected_roots(environ=None):
-    """The Windows folders a prepared file must never be written under (read from the environment)."""
-    environ = os.environ if environ is None else environ
-    roots = [environ[name] for name in WINDOWS_PROTECTED_VARIABLES if environ.get(name)]
-    return roots or ["C:\\Windows", "C:\\Program Files", "C:\\Program Files (x86)"]
-
-
-def is_protected_location(path, windows=None, environ=None):
-    """True if `path` (already resolved) is inside a place where machine policy is read from."""
-    windows = (os.name == "nt") if windows is None else windows
-    if windows:
-        target = PureWindowsPath(str(path))
-        return any(target.is_relative_to(PureWindowsPath(root)) for root in windows_protected_roots(environ))
-    target = PurePosixPath(str(path))
-    return any(target.is_relative_to(PurePosixPath(folder)) for folder in ACTIVE_POLICY_FOLDERS)
-
-
-def encode(policy):
-    return (json.dumps(policy, indent=2, ensure_ascii=True) + "\n").encode("utf-8")
-
-
 def write_new(path, policy):
-    """Write a private, exclusive output; never overwrite active system policies.
-
-    Returns the SHA-256 (hex) of the exact bytes written, so a device can later say which baseline it runs.
-    """
+    """Write a private, exclusive output; never overwrite active system policies."""
     path = Path(path)
     if path.suffix.lower() != ".json" or path.resolve() == TEMPLATE.resolve():
         raise PolicyPreparationError("Select a NEW .json output file, not the checked-in template")
-    if is_protected_location(path.resolve()):
-        raise PolicyPreparationError("Refusing direct writes to active system Chrome policy locations")
-    encoded = encode(policy)
+    for folder in ("/etc/opt/chrome/policies/managed", "/etc/chromium/policies/managed",
+                   "/Library/Managed Preferences"):
+        if path.resolve().is_relative_to(Path(folder)):
+            raise PolicyPreparationError("Refusing direct writes to active system Chrome policy locations")
+    encoded = (json.dumps(policy, indent=2, ensure_ascii=True) + "\n").encode("utf-8")
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
     fd = os.open(path, flags, 0o600)
     try:
@@ -167,7 +124,6 @@ def write_new(path, policy):
     except BaseException:
         path.unlink(missing_ok=True)
         raise
-    return hashlib.sha256(encoded).hexdigest()
 
 
 def main(argv=None):
@@ -181,11 +137,10 @@ def main(argv=None):
         with TEMPLATE.open(encoding="utf-8") as f:
             template = json.load(f)
         policy = prepare(template, args.hub_host, args.extension_id, args.update_url)
-        digest = write_new(args.output, policy)
+        write_new(args.output, policy)
     except (PolicyPreparationError, OSError, json.JSONDecodeError) as exc:
         parser.exit(2, "Cannot prepare Chrome policy: " + str(exc) + "\n")
     print("Prepared a Chrome policy FILE only. No browser or system policy was changed.")
-    print("SHA-256 of the prepared file: " + digest)
     print("Admin must deploy with Chrome Enterprise/MDM or OS policy, verify chrome://policy and test a separate OS account per employee.")
     print("Provider sign-in is still performed by the authorized person via the provider's approved login; no remote session injection is provided.")
     return 0

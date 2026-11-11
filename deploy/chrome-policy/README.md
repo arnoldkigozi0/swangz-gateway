@@ -34,11 +34,8 @@ unlisted Web Store listing avoids that.
   A list pasted as one value is ignored.
 - **macOS:** the same names and values in a configuration profile for `com.google.Chrome`.
 
-Then confirm every row is OK with no "unknown policy" or error. **Note:** this pack blocks `chrome://*`, which
-includes `chrome://policy`, so the page cannot be opened from a managed profile. Verify once on a test computer
-with a copy of the pack that lacks the `chrome://*` entry (never installed on a staff computer), or read the
-installed policy straight from the OS (the Swangz app's policy check, work item W5, does this read-only). These
-locations are the standard ones and were not re-checked on a device for this pack.
+Then open `chrome://policy`, press *Reload policies* and confirm every row says OK with no "unknown policy" or
+error. These locations are the standard ones and were not re-checked on a device for this pack.
 
 ## What it enforces
 
@@ -50,8 +47,6 @@ locations are the standard ones and were not re-checked on a device for this pac
 | `BrowserAddPersonEnabled: false`, `BrowserGuestModeEnabled: false`, `IncognitoModeAvailability: 1` | No new profiles, no guest window, no incognito window (the extension gate does not run in those) |
 | `DeveloperToolsAvailability: 2`, `RemoteDebuggingAllowed: false` | No developer tools and no remote-debugging port, so a signed-in session cannot be copied out that way |
 | `PasswordManagerEnabled: false` | Chrome does not offer to save provider passwords on a company computer |
-| `URLBlocklist` entries `chrome://*`, `view-source:*`, `file://*` | Chrome's own pages (settings, extensions, policy, new tab) and page source are refused by name, because from Chrome 147 a bare `*` no longer covers `chrome://`. Not yet run in a real browser: it must be checked that this does not break the sign-in pages |
-| `AutoLaunchProtocolsFromOrigins: []`, `ExternalProtocolDialogShowAlwaysOpenCheckbox: false` | No website may start another program without asking, and the "always allow" box is not offered. This does **not** prove that `mailto:`, `zoommtg:` and similar links are refused; the prompt still appears (case X-1 in the bypass plan is deliberately weak) |
 | `ExtensionInstallBlocklist: ["*"]`, allow list and force list | Only the Swangz extension is installed, it is installed automatically and it cannot be removed or switched off |
 
 The split of work: this file decides **which sites a company computer can reach at all**; the extension still
@@ -83,9 +78,9 @@ Google address than the two sign-in hosts appears, or if one of the controls abo
   address inside a frame is refused was not tested.
 - **Chrome's own pages.** A `*` entry does not cover `chrome://` or extension pages: Chromium's policy definition
   says that from Chrome 147 `*` alone no longer blocks internal `chrome://` addresses and they need their own
-  entry. This pack lists `chrome://*` and `view-source:*` (plus `chrome://flags` and `chrome://inspect`). That is
-  the intended setting, not a measured result: check `chrome://settings` and `chrome://extensions` are refused on
-  the installed Chrome version, and that sign-in still works.
+  entry. Before 147 the same `*` may block them, so the result depends on the Chrome version installed. This pack
+  blocks only `chrome://flags` and `chrome://inspect` by name; every other `chrome://` page (settings, extensions,
+  new tab) stays open on 147 and later. Check `chrome://settings` and `chrome://extensions` on the installed version.
 - **Network or system level blocking.** None here; out of scope before 20 November.
 - **Separating people who share one operating-system login.** The policy is per computer, and Chrome's profile,
   cookies and signed-in provider sessions belong to the OS account. Two people on one OS login see each other's
@@ -98,7 +93,7 @@ Google address than the two sign-in hosts appears, or if one of the controls abo
 
 ## Checks still to run on a real company computer (not run)
 
-1. `chrome://policy` (on a test computer with the `chrome://*` entry removed, see above) shows every row OK on Windows, macOS and Linux.
+1. `chrome://policy` shows every row OK on Windows, macOS and Linux.
 2. Gmail, Drive, `myaccount.google.com`, a direct IP address, a `file://` path and a new-tab search are refused.
 3. "Continue with Google" completes on the Hub and on ChatGPT, Claude and Gemini; Microsoft sign-in on Copilot.
 4. The extension is present, cannot be removed, and still blocks a tool the person is not assigned.
