@@ -16,6 +16,24 @@ const fs = require('node:fs');
 const { AxeBuilder } = require('@axe-core/playwright');
 const KIT_OUT = process.env.KIT_PAGE_OUT || '/tmp/swangz-hub-kit-page';
 const kitFindings = [];
+/* Check 4: the keyboard ring is 2px, sits outside the box and reaches 3:1 on the page. The light colours are the two
+   ends of the measured light page background; dark uses the page ink. */
+const channels = (c) => c.startsWith('#') ? [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16)) : c.match(/\d+(\.\d+)?/g).slice(0, 3).map(Number);
+const luminance = (c) => { const [r, g, b] = channels(c).map(v => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }); return .2126 * r + .7152 * g + .0722 * b; };
+const contrast = (a, b) => { const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x); return (hi + .05) / (lo + .05); };
+async function focusRings(page, theme, say) {
+  const ink = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--ink-0').trim());
+  const backs = theme === 'light' ? ['#F6F2ED', '#FAF7F4'] : [ink];
+  await page.keyboard.press('Tab');
+  for (const selector of ['.u-select', '.u-more', '.u-split button', '.u-filter-more', '.u-chip']) {
+    await page.locator(`.kit-stage ${selector}:visible`).first().focus();
+    await page.waitForTimeout(400); // controls transition their outline; read it settled
+    const r = await page.evaluate(() => { const e = document.activeElement, c = getComputedStyle(e); return { on: e.matches(':focus-visible'), style: c.outlineStyle, width: c.outlineWidth, offset: c.outlineOffset, colour: c.outlineColor }; });
+    if (!r.on) say(`${selector}: not :focus-visible`);
+    if (r.style !== 'solid' || r.width !== '2px' || r.offset !== '2px') say(`${selector}: ring ${r.style} ${r.width} offset ${r.offset}`);
+    for (const back of backs) if (contrast(r.colour, back) < 3) say(`${selector}: ring ${r.colour} is ${contrast(r.colour, back).toFixed(2)}:1 on ${back}`);
+  }
+}
 async function kitPage(page, url, theme, vname) {
   const name = `${vname}-${theme}`, say = (m) => kitFindings.push(`${name}: ${m}`);
   const writes = [], seen = (r) => { if (/\/admin\/api\//.test(r.url()) && r.method() !== 'GET') writes.push(r.method() + ' ' + r.url()); };
@@ -45,6 +63,8 @@ async function kitPage(page, url, theme, vname) {
     await page.screenshot({ path: path.join(KIT_OUT, `${name}.png`) });
     const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
     for (const v of axe.violations) say(`axe ${v.id}: ` + v.nodes.map(n => n.target.join(' ')).join(' | '));
+    await focusRings(page, theme, say);
+    await page.screenshot({ path: path.join(KIT_OUT, `${name}-focus.png`) });
 
     const spec = (word) => page.locator('.kit-spec', { hasText: word });
     const searches = () => page.locator('input[type=search]:visible').count();
