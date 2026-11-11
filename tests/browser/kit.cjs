@@ -213,7 +213,7 @@ const mount = () => {
         return { radius: cs.borderTopLeftRadius, h: b.getBoundingClientRect().height, popup: b.getAttribute('aria-haspopup'), expanded: b.getAttribute('aria-expanded'), name: b.getAttribute('aria-label'), text: b.textContent,
           off: document.querySelector('[data-t=off]').disabled, offOpacity: getComputedStyle(document.querySelector('[data-t=off]')).opacity, ph: document.querySelector('[data-t=tool]').textContent }; });
       ok(T + 'the trigger is a 4px control that names itself and its value (BRIEF 10.10.6)', closed.radius === '4px' && closed.popup === 'listbox' && closed.expanded === 'false' && closed.name === 'Team: Finance' && closed.text === 'Finance');
-      ok(T + 'trigger height (38 on desktop, 44 on phones)', vname === 'mobile' ? closed.h >= 44 : Math.abs(closed.h - 38) <= 1);
+      ok(T + 'trigger height (36 on desktop, 44 on phones; BRIEF 10.10.6)', vname === 'mobile' ? closed.h >= 44 : Math.abs(closed.h - 36) <= 1);
       ok(T + 'disabled is disabled and dimmed; an empty one shows its placeholder', closed.off && closed.offOpacity === '0.45' && closed.ph === 'Any tool');
 
       await page.click(team);
@@ -222,7 +222,7 @@ const mount = () => {
         return { under: p.top - b.bottom, left: p.left - b.left, right: p.right, bottom: p.bottom, vw: innerWidth, vh: innerHeight, rowH: li.getBoundingClientRect().height, rowR: getComputedStyle(li).borderTopLeftRadius,
           expanded: document.querySelector('[data-t=team]').getAttribute('aria-expanded'), tick: !!document.querySelector('.u-pop [aria-selected=true] .tick'), search: !!document.querySelector('.u-pop input') }; });
       ok(T + 'a click opens a listbox with every option, the current one ticked, focus inside', s.open && s.options === 6 && s.selected.join() === 'Finance' && geo.tick && geo.expanded === 'true' && s.focus === 'listbox' && s.active === 'Finance' && s.described === s.actId);
-      ok(T + 'rows are 8px boxes; six options get no search field', geo.rowR === '8px' && !geo.search);
+      ok(T + 'rows have 3px corners; six options get no search field', geo.rowR === '3px' && !geo.search);
       if (vname === 'mobile') ok(T + 'on a phone the list is a sheet along the bottom with 44px rows', geo.rowH >= 44 && geo.vh - geo.bottom <= 12 && geo.right <= geo.vw);
       else ok(T + 'the list opens just under its trigger, inside the window', geo.under >= 4 && geo.under <= 8 && Math.abs(geo.left) <= 1 && geo.right <= geo.vw && geo.bottom <= geo.vh);
       if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `select-${vname}-${theme}.png`) });
@@ -324,8 +324,8 @@ const mount = () => {
           const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect(), ca = getComputedStyle(a), cb = getComputedStyle(b);
           return { role: x.getAttribute('role'), group: x.getAttribute('aria-label'), name: b.getAttribute('aria-label'), popup: b.getAttribute('aria-haspopup'), joined: Math.abs(ar.right - br.left) < 0.5,
             sameH: ar.height === br.height, h: ar.height, bw: br.width, left: ca.borderTopLeftRadius, mid: ca.borderTopRightRadius + cb.borderTopLeftRadius, right: cb.borderTopRightRadius, main: a.textContent }; });
-        ok(S + 'two joined parts in one 10px box, the chevron part named', g.role === 'group' && g.group === 'Export' && g.name === 'More export formats' && g.popup === 'menu' && g.joined && g.sameH
-          && g.left === '10px' && g.right === '10px' && g.mid === '0px0px' && g.main === 'Export' && g.h === (vname === 'mobile' ? 44 : 38) && g.bw >= (vname === 'mobile' ? 44 : 34));
+        ok(S + 'two joined parts in one 4px control, the chevron part named', g.role === 'group' && g.group === 'Export' && g.name === 'More export formats' && g.popup === 'menu' && g.joined && g.sameH
+          && g.left === '4px' && g.right === '4px' && g.mid === '0px0px' && g.main === 'Export' && g.h === (vname === 'mobile' ? 44 : 36) && g.bw >= (vname === 'mobile' ? 44 : 34));
         await page.click('[data-t=split] .u-split-main');
         ok(S + 'the main part does the common action without opening anything', (await page.evaluate(() => window.__did.join())) === 'csv' && !(await page.evaluate(() => !!document.querySelector('.u-pop'))));
         await page.keyboard.press('Tab'); await page.keyboard.press('ArrowDown');
