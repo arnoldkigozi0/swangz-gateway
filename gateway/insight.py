@@ -936,8 +936,11 @@ def attention(ctx):
     day, month = proxy.period_starts(now, ctx.gw.settings.tz_offset_minutes)
     items = []
 
-    def add(key, severity, area, title, text, href, count=None):
-        items.append({"key": key, "severity": severity, "area": area, "title": title, "text": text, "href": href, "count": count})
+    def add(key, severity, area, title, text, href, count=None, background=False):
+        """background: a standing note about the set-up (paid licences nobody opens, providers with no company key). It is
+        listed on Needs attention, but Overview leaves it out of what is waiting, so its count matches its sentence."""
+        items.append({"key": key, "severity": severity, "area": area, "title": title, "text": text, "href": href, "count": count,
+                      "background": background})
 
     if db.get_setting("paused", "0") == "1":
         add("paused", "high", "Access", "AI access is paused for everyone",
@@ -980,10 +983,11 @@ def attention(ctx):
             add(f"seats-{t['id']}", "medium", "Licences", f"{t['name']}: more people than paid seats",
                 f"{t['assigned']} people hold it; the plan pays for {t['seats']}.", f"#/tools?open={t['id']}&tab=access")
     if lic["summary"]["idle_seats"]:
-        add("idle", "low", "Licences", f"{lic['summary']['idle_seats']} seats unused for 30 days",
+        n_idle = lic["summary"]["idle_seats"]
+        add("idle", "low", "Licences", f"{n_idle} paid licence{'s' if n_idle != 1 else ''} nobody opened in 30 days",
             (f"About ${lic['summary']['idle_cost']:,.2f} a month is paying for seats nobody opens." if lic["summary"]["idle_cost"]
              else "Given to people who haven't used them in 30 days.") + " Reclaim them on the Licences page.",
-            "#/licences", lic["summary"]["idle_seats"])
+            "#/licences", n_idle, background=True)
     for t in lic["renewals"]:
         if t["renews_on"] <= now + 14 * DAY:
             add(f"renew-{t['id']}", "low", "Licences", f"{t['name']} renews {time.strftime('%d %b', time.gmtime(t['renews_on']))}",
@@ -1016,7 +1020,7 @@ def attention(ctx):
     if missing:
         add("providers", "info", "System", "Providers without a company key",
             ", ".join(p.label or p.name for p in missing) + " — staff tools pointed at these are refused.", "#/settings?tab=addresses",
-            len(missing))
+            len(missing), background=True)
     from .admin import _totals  # the same unpriced count the Live page shows
     unpriced = _totals(db, month)["unpriced"]
     if unpriced:

@@ -291,17 +291,21 @@
     const owner = A.can("govern");
     const [state, stateLabel] = personState(p);
     const since30 = Date.now() / 1000 - 30 * 86400;
-    const [usage, security, recent] = await Promise.allSettled([
-      api("GET", `/usage?person=${p.id}&since=${since30}`), api("GET", "/security?days=30"), api("GET", `/timeline?person=${p.id}&limit=1&since=${Date.now() / 1000 - 365 * 86400}`)]);
+    // "Last seen" counts only what the person did themselves: an AI request, a tool opened, a site visited. Access changes made
+    // by an admin, turns and sign-ins are not activity, so one call per kind and the newest wins.
+    const lastOf = (type) => api("GET", `/timeline?person=${p.id}&type=${type}&limit=1&since=${Date.now() / 1000 - 365 * 86400}`);
+    const [usage, security, ...recent] = await Promise.allSettled([
+      api("GET", `/usage?person=${p.id}&since=${since30}`), api("GET", "/security?days=30"), lastOf("request"), lastOf("launch"), lastOf("site")]);
     const myEvents = security.status === "fulfilled" ? security.value.events.filter((e) => e.person_id === p.id) : null;
     const used = usage.status === "fulfilled" ? usage.value.rows : null;
-    const last = recent.status === "fulfilled" && recent.value.items[0] ? recent.value.items[0] : null;
+    const own = recent.filter((r) => r.status === "fulfilled" && r.value.items[0]).map((r) => r.value.items[0]).filter((e) => ["request", "launch", "site"].includes(e.type));
+    const last = own.sort((a, b) => b.ts - a.ts)[0] || null;
     const activeKeys = p.keys.filter((k) => !k.revoked);
     const current = activeKeys.filter((k) => k.last_used).sort((a, b) => b.last_used - a.last_used)[0];
 
     // A slim line of facts rather than a tile each: the profile's content lives in the tabs below.
     const alerts = myEvents ? myEvents.filter((e) => e.severity !== "info").length : null;
-    const lastNote = last ? (last.type === "request" ? "AI request" : last.type === "launch" ? "opened " + (last.tool || "a tool") : "visited " + (last.tool || "a site")) : "no activity recorded";
+    const lastNote = !last ? "No activity recorded" : last.type === "request" ? "AI request" : last.type === "launch" ? "opened " + (last.tool || "a tool") : "visited " + (last.tool || "a site");
     const stats = el("div", { class: "statline" },
       stat("Last seen", last ? fmt.ago(last.ts) : "Never", lastNote, { title: last ? fmt.stamp(last.ts) : null }),
       stat("Current device", current ? current.label : "None", current ? "used " + fmt.ago(current.last_used) : activeKeys.length ? "not used yet" : "no active key",
@@ -321,7 +325,7 @@
       const tl = await api("GET", `/timeline?person=${p.id}&limit=6&since=${since30}`);
       const tools = used && used.length ? SUI.barList(used.slice().sort((a, b) => (b.requests + b.opens + b.visits) - (a.requests + a.opens + a.visits)).slice(0, 5).map((r) => ({
         label: r.tool, lead: A.toolLogo(r.tool_id, r.tool, "sm"), href: r.tool_id ? `#/tools?open=${r.tool_id}` : null, value: r.requests + r.opens + r.visits,
-        display: fmt.compact(r.requests + r.opens + r.visits) + " uses", note: r.requests ? fmt.money(r.cost) : r.seconds ? fmt.dur(r.seconds) + " on site" : null })), { tone: 2 })
+        display: SUI.plural(r.requests + r.opens + r.visits, "use"), note: r.requests ? fmt.money(r.cost) : r.seconds ? fmt.dur(r.seconds) + " on site" : null })), { tone: 2 })
         : A.empty("No tool use in the last 30 days.", null, "tools");
       return [live,
         el("div", { class: "grid cols-2" },
@@ -1289,55 +1293,64 @@
 
   // ------------------------------------------------------------------ Access requests
 
-  /* Access requests: the counts are the tabs, one row per request, and the decision sits at the right
-     edge of its row — Decline first, Grant last. */
+  /* Access requests on the control kit (BRIEF 10.10): one list, one filter row (Status, with the counts, and a search),
+     a pager, and the decision at the right edge of its row — Decline first, Grant last. No primary button: the page has
+     no single action, each row has its own. The Next step line names the oldest request that is still waiting. */
   async function pageRequests(params) {
     await A.toolIndex().catch(() => null);
     const owner = A.can("govern");
-    const state = ["open", "granted", "declined"].includes(params.get("state")) ? params.get("state") : "open";
-    const data = await api("GET", "/access-requests?state=" + encodeURIComponent(state));
+    const data = await api("GET", "/access-requests?state=any");
     const counts = data.counts || { open: data.open };
-    const st = { q: params.get("q") || "" };
-    const q = el("input", { type: "search", placeholder: "Search people, tools, reasons…", value: st.q, "aria-label": "Search requests" });
-    const tabs = [["open", "Open"], ["granted", "Granted"], ["declined", "Declined"]].map(([k, label]) =>
-      [k, el("span", { class: "seg-l" }, label, el("span", { class: "seg-n u-num" }, String(counts[k] || 0)))]);
+    // no ?state= means the open ones; ?state=any is every decision
+    const st = { q: params.get("q") || "", state: params.get("state") === "any" ? "" : ["granted", "declined"].includes(params.get("state")) ? params.get("state") : "open",
+      page: Number(params.get("page")) || 1, per: Number(params.get("per")) || 25 };
+    const STATES = [["open", "Open"], ["granted", "Granted"], ["declined", "Declined"]];
     const box = el("div");
     const meta = el("div", { class: "list-meta" });
-    function row(r) {
-      const decided = r.state !== "open";
-      return el("li", { class: "req s-" + r.state },
-        SUI.avatar(r.person),
-        el("div", { class: "req-main" },
-          el("div", { class: "req-line" }, A.personLink(r.person_id, r.person, { avatar: false }), el("span", { class: "muted" }, decided ? " asked for " : " is asking for "), A.toolLink(r.tool_id, r.tool, "xs")),
-          el("div", { class: "req-meta" }, el("span", null, r.department || "No department"), el("span", { title: fmt.stamp(r.created) }, "asked " + fmt.ago(r.created)),
-            decided ? el("span", { title: r.decided ? fmt.stamp(r.decided) : null }, `${r.state} by ${r.decided_by || "an owner"} ${fmt.ago(r.decided)}`) : null),
-          r.reason ? el("p", { class: "req-reason" }, r.reason) : null,
-          r.decision_note ? el("p", { class: "req-note" }, el("span", { class: "k" }, "Note "), r.decision_note) : null),
-        el("div", { class: "req-act" }, !decided && owner
-          ? [el("button", { class: "btn small quiet", type: "button", onclick: () => declineWithNote(r) }, "Decline"),
-            el("button", { class: "btn small primary", type: "button", onclick: () => decide(r, "grant") }, icon("check"), "Grant")]
-          : decided ? SUI.status(r.state === "granted" ? "ok" : "blocked", r.state === "granted" ? "Granted" : "Declined", { plain: true })
-            : SUI.status("pending", "Waiting for an owner", { plain: true })));
+    const pager = { page: st.page, size: st.per, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
+    const keep = () => A.keepParams("#/requests", { q: st.q, state: st.state === "open" ? null : st.state || "any", page: st.page > 1 ? st.page : null, per: st.per !== 25 ? st.per : null });
+    const rowMenu = (r) => [
+      { id: "person", label: "Their record", icon: "people", href: "#/people/" + r.person_id },
+      { id: "tool", label: "The tool", icon: "tools", href: "#/tools?open=" + r.tool_id },
+    ];
+    const decision = (r) => r.state === "open"
+      ? (owner ? el("span", { class: "req-act" },
+        el("button", { class: "btn small quiet", type: "button", onclick: () => declineWithNote(r) }, "Decline"),
+        el("button", { class: "btn small", type: "button", onclick: () => decide(r, "grant") }, icon("check"), "Grant"))
+        : SUI.status("pending", "Waiting for an owner", { plain: true }))
+      : el("div", null, SUI.status(r.state === "granted" ? "ok" : "blocked", r.state === "granted" ? "Granted" : "Declined", { plain: true }),
+        el("span", { class: "sub", title: r.decided ? fmt.stamp(r.decided) : null }, `by ${r.decided_by || "an owner"} ${fmt.ago(r.decided)}`));
+    function table(rows) {
+      return SUI.table({ caption: "Access requests", rows, pager, sort: ["created", st.state === "open" ? "asc" : "desc"], columns: [
+        { key: "person", label: "Person", lead: true, render: (r) => el("div", { class: "u-cell" }, SUI.avatar(r.person),
+          el("div", null, A.personLink(r.person_id, r.person, { avatar: false }), el("span", { class: "sub" }, r.department || "No department"))) },
+        { key: "tool", label: "Asked for", render: (r) => A.toolLink(r.tool_id, r.tool, "xs") },
+        { key: "reason", label: "Why", sort: false, hideSm: true, render: (r) => el("div", { class: "req-why" }, r.reason || el("span", { class: "faint" }, "No reason given"),
+          r.decision_note ? el("span", { class: "sub" }, "Note: " + r.decision_note) : null) },
+        { key: "created", label: "Asked", num: true, render: (r) => el("span", { title: fmt.stamp(r.created) }, fmt.ago(r.created)) },
+        { key: "state", label: "Decision", sort: false, render: decision },
+        { key: "act", label: "", srLabel: "Actions", sort: false, render: (r) => SUI.menuButton({ label: `More actions for ${r.person}'s request`, small: true, items: () => rowMenu(r) }) },
+      ] });
     }
     function draw() {
       const qq = st.q.trim().toLowerCase();
-      const items = data.items.filter((r) => !qq || [r.person, r.tool, r.reason, r.department].join(" ").toLowerCase().includes(qq));
-      const oldest = state === "open" && data.items.length ? Math.min(...data.items.map((r) => r.created)) : null;
-      meta.replaceChildren(...[el("span", null, SUI.plural(items.length, state + " request")),
-        oldest ? el("span", { title: fmt.stamp(oldest) }, "oldest asked " + fmt.ago(oldest)) : null,
-        el("span", null, state === "open" ? "granting turns the tool on for them at once" : "decisions are in the audit log too")].filter(Boolean));
-      box.replaceChildren(items.length ? el("ul", { class: "reqlist" }, items.map(row))
-        : SUI.stateBox({ icon: "requests", tone: state === "open" && !qq ? "ok" : null, title: qq ? "Nothing matches" : state === "open" ? "No open requests" : "Nothing here yet",
-          text: qq ? "Try another search." : state === "open" ? "When staff ask for a tool in Swangz AI Hub, it appears here." : "Decided requests appear here." }));
+      const items = data.items.filter((r) => (!st.state || r.state === st.state) && (!qq || [r.person, r.tool, r.reason, r.department].join(" ").toLowerCase().includes(qq)));
+      meta.replaceChildren(el("span", null, st.state === "open" ? "Granting turns the tool on for them at once" : "Decisions are in the audit log too"),
+        el("span", null, SUI.plural(items.length, (st.state ? st.state + " " : "") + "request")));
+      box.replaceChildren(items.length ? table(items)
+        : SUI.stateBox({ icon: "requests", tone: st.state === "open" && !qq ? "ok" : null, title: qq ? "Nothing matches" : st.state === "open" ? "No open requests" : "Nothing here yet",
+          text: qq ? "Try another search or status." : st.state === "open" ? "When staff ask for a tool in Swangz AI Hub, it appears here." : "Decided requests appear here." }));
     }
-    q.addEventListener("input", SUI.debounce(() => { st.q = q.value; A.keepParams("#/requests", { q: st.q || null }); draw(); }, 150));
+    const bar = SUI.filterBar({ label: "Filter access requests", search: { placeholder: "Person, tool or reason" }, values: st, filters: [
+      { id: "state", label: "Status", any: "All", options: STATES.map(([k, label]) => ({ id: k, label, sub: SUI.plural(counts[k] || 0, "request") })) },
+    ], onChange: (v) => { st.q = v.q || ""; st.state = v.state || ""; st.page = pager.page = 1; keep(); draw(); } });
     draw();
-    A.frame({ title: "Access requests", trail: [["Access requests"]], lede: "Staff asking for tools in Swangz AI Hub. Granting turns the tool on for them straight away." },
-      A.panel(null, null,
-        el("div", { class: "filterbar" }, el("div", { class: "fb-row" },
-          A.seg(tabs, state, (v) => { location.hash = "#/requests" + (v === "open" ? "" : "?state=" + v); }, "Which requests"), el("span", { class: "fb-gap" }),
-          el("label", { class: "fb-search" }, icon("search"), el("span", { class: "u-sr" }, "Search"), q))),
-        meta, box));
+    const open = data.items.filter((r) => r.state === "open");
+    const oldest = open.length ? Math.min(...open.map((r) => r.created)) : null;
+    const next = open.length ? `${SUI.plural(open.length, "request")} waiting for a decision. The oldest was asked ${fmt.ago(oldest)}${owner ? "; decide it first." : "; only an owner can decide."}`
+      : "Nothing is waiting for a decision.";
+    A.frame({ title: "Access requests", trail: [["Access requests"]], next, lede: "Staff asking for tools in Swangz AI Hub. Granting turns the tool on for them straight away." },
+      A.panel(null, null, el("div", { class: "filterbar" }, bar), meta, box));
   }
 
   function declineWithNote(r) {

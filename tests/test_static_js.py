@@ -1,5 +1,6 @@
 """Checks of the shared front-end kit that need no browser: the function is read out of ui.js and run in Node."""
 import json
+import os
 import pathlib
 import re
 import shutil
@@ -96,6 +97,30 @@ class GuidedTaskTests(unittest.TestCase):
         tiles = re.findall(r'\["([a-z]+-[a-z]+)", "[A-Z]', source)
         self.assertGreaterEqual(len(tiles), 6)
         self.assertLessEqual(set(tiles), tasks)
+
+    def test_overview_leaves_standing_notes_out_of_its_count(self):
+        # Probe's point-7 list: "Waiting for you" counted unopened licences next to a waiting request
+        source = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
+        self.assertIn("attention.value.items.filter((i) => !i.background)", source)
+
+    def test_period_choices_include_this_week_from_monday(self):
+        source = (STATIC / "admin-guide.js").read_text(encoding="utf-8")
+        self.assertIn('{ id: "week", label: "This week" }', source)
+        self.assertIn('week: "this week"', source)
+        week = re.search(r"\n  (function weekStart\(now\) \{\n.*?\n  \})\n", source, re.S).group(1)
+        sui = ("const SUI = { startOfDay: (t) => { const d = new Date(t * 1000); d.setHours(0, 0, 0, 0); return d.getTime() / 1000; },"
+               " dateInput: (t) => { const d = new Date(t * 1000); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); } };")
+        # Wed 11 Nov 2026 15:00, Mon 9 Nov 2026 08:00 and Sun 15 Nov 2026 23:00, local time: each week starts Mon 9 Nov 00:00
+        script = sui + week + ("console.log(JSON.stringify([[2026,10,11,15],[2026,10,9,8],[2026,10,15,23]].map(([y,m,d,h]) => {"
+                               " const s = new Date(weekStart(new Date(y, m, d, h).getTime() / 1000) * 1000);"
+                               " return [s.getDate(), s.getHours(), s.getDay()]; })));")
+        out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30, check=True, env={**os.environ, "TZ": "Africa/Kampala"})
+        self.assertEqual(json.loads(out.stdout), [[9, 0, 1]] * 3)
+
+    def test_a_single_use_reads_one_use(self):
+        source = (STATIC / "admin-govern.js").read_text(encoding="utf-8")
+        self.assertNotIn('+ " uses"', source)
+        self.assertIn('SUI.plural(r.requests + r.opens + r.visits, "use")', source)
 
     def test_stopping_all_ai_starts_on_the_safe_answer(self):
         source = (STATIC / "admin-guide.js").read_text(encoding="utf-8")

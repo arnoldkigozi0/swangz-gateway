@@ -1,0 +1,116 @@
+/* Swangz AI Hub: the buttons, icon buttons and pressed states both apps share (BRIEF 10.10.6). Loads straight after
+   tokens.css so a page's own stylesheet can still place and size a control. Five kinds on one base. Every animated
+   layer is a pseudo-element moved by transform or faded by opacity, so a hover never repaints the glass behind it. */
+
+.btn {
+  --btn-ink: var(--tx-1); --btn-face: transparent; --btn-edge: var(--btn-rim); --btn-wash: var(--btn-fill); --btn-wash-edge: var(--btn-rim-hi);
+  position: relative; isolation: isolate; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 36px; padding: 0 14px; border: 1px solid var(--btn-edge); border-radius: var(--radius-control); background: var(--btn-face); color: var(--btn-ink);
+  font: 600 13px/1 var(--font); letter-spacing: -.002em; white-space: nowrap; text-decoration: none; cursor: pointer;
+  transition: transform var(--d-fast) var(--e-out);
+}
+.btn svg { flex: none; width: 15px; height: 15px; }
+.btn::after {
+  content: ""; position: absolute; inset: -1px; z-index: -1; border-radius: inherit; pointer-events: none;
+  background: var(--btn-wash); box-shadow: inset 0 0 0 1px var(--btn-wash-edge); opacity: 0; transition: opacity var(--d-base) var(--e-out);
+}
+.btn:focus-visible::after, .btn.is-hover::after, .btn.is-focus::after { opacity: 1; }
+.btn:focus-visible, .btn.is-focus { outline: 2px solid var(--focus); outline-offset: 2px; }
+.btn:active, .btn.is-pressed { transform: translateY(1px); }
+.btn:disabled, .btn[aria-disabled="true"] { opacity: .4; cursor: default; transform: none; pointer-events: none; }
+
+/* Primary: near-white at rest, the accent sweeps in from the left behind the label. The label keeps one colour the
+   whole way, chosen to pass 4.5:1 on both ends, so no frame of the sweep can fall under it. */
+.btn:is(.primary, .gold, .btn--solid, .btn--primary) { --btn-ink: var(--btn-on-solid); --btn-face: var(--btn-solid); --btn-edge: transparent; }
+.btn:is(.primary, .gold, .btn--solid, .btn--primary)::after {
+  background: var(--btn-sweep); box-shadow: none; opacity: 1; transform: scaleX(0); transform-origin: left center; transition: transform var(--d-base) var(--e-out);
+}
+.btn:is(.primary, .gold, .btn--solid, .btn--primary):focus-visible::after,
+.btn:is(.primary, .gold, .btn--solid, .btn--primary).is-hover::after,
+.btn:is(.primary, .gold, .btn--solid, .btn--primary).is-focus::after { transform: scaleX(1); }
+.btn:is(.primary, .gold, .btn--solid, .btn--primary).is-half::after { transform: scaleX(.5); transition: none; }
+
+/* Quiet: text only. */
+.btn:is(.quiet, .btn--quiet, .btn--ghost) { --btn-ink: var(--tx-2); --btn-edge: transparent; --btn-wash-edge: transparent; padding: 0 12px; }
+.btn:is(.quiet, .btn--quiet, .btn--ghost):focus-visible, .btn:is(.quiet, .btn--quiet, .btn--ghost):is(.is-hover, .is-focus) { --btn-ink: var(--tx-1); }
+
+/* Danger: outlined, never filled. */
+.btn:is(.danger, .btn--danger) { --btn-ink: var(--bad-hi); --btn-edge: color-mix(in srgb, var(--bad) 55%, transparent); --btn-wash: var(--bad-soft); --btn-wash-edge: var(--bad); }
+.btn.danger.quiet { --btn-edge: transparent; --btn-wash-edge: transparent; }
+
+/* On glass or over a photo: its own tint, and the panel's blur rather than a second one. */
+.btn:is(.on-glass, .btn--on-glass) { --btn-ink: var(--btn-glass-ink); --btn-face: var(--btn-glass); --btn-edge: var(--btn-glass-rim); --btn-wash: var(--btn-glass-wash); --btn-wash-edge: var(--btn-glass-rim-hi); }
+
+.btn:is(.small, .btn--small) { min-height: 30px; padding: 0 11px; border-radius: var(--radius-control-sm); font-size: 12px; }
+.btn:is(.small, .btn--small) svg { width: 14px; height: 14px; }
+.btn.small.quiet { padding: 0 8px; }
+.btn:is(.large, .btn--large) { min-height: 42px; padding: 0 20px; font-size: 14px; }
+.btn:is(.block, .btn--block) { width: 100%; min-height: 42px; }
+.btn.icon-only { width: 36px; padding: 0; }
+.btn:is(.small, .btn--small).icon-only { width: 30px; }
+.btn.link { min-height: 0; padding: 0; border: 0; background: none; color: var(--tx-2); text-decoration: underline; text-underline-offset: 3px; }
+.btn.link::after, .btn:is(.google, .btn--google)::after { display: none; }
+
+/* Loading: the label goes clear and the S turns in its place, so the width cannot change. */
+.btn:is(.loading, [data-loading="true"], [aria-busy="true"]) { color: transparent; pointer-events: none; }
+.btn:is(.loading, [data-loading="true"], [aria-busy="true"]):disabled { opacity: 1; }
+.btn:is(.loading, [data-loading="true"], [aria-busy="true"]) svg { visibility: hidden; }
+.btn:is(.loading, [data-loading="true"], [aria-busy="true"])::before {
+  content: ""; position: absolute; top: 0; right: 0; bottom: 0; left: 0; width: 14px; height: 14px; margin: auto; transform: none;
+  background: var(--btn-ink); -webkit-mask: url("/static/s-loader.svg") center / contain no-repeat; mask: url("/static/s-loader.svg") center / contain no-repeat;
+  animation: ctl-turn 900ms linear infinite;
+}
+@keyframes ctl-turn { to { transform: rotate(360deg); } }
+
+.btn-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.btn-row.end { justify-content: flex-end; }
+.btn-row.split { justify-content: space-between; }
+
+/* Icon buttons: a soft light comes up behind the icon and the icon lifts into it. */
+.icon-btn, .theme-btn { box-sizing: border-box; display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 1px solid transparent; border-radius: var(--radius-control-sm); background: none; color: var(--tx-2); text-decoration: none; cursor: pointer; }
+.icon-btn svg, .theme-btn svg { width: 18px; height: 18px; }
+.icon-btn, .theme-btn, .u-sheet-x, .u-more:not(.worded), .staff-bell { position: relative; isolation: isolate; transition: transform var(--d-base) var(--e-out); }
+:is(.icon-btn, .theme-btn, .u-sheet-x, .u-more:not(.worded), .staff-bell)::before {
+  content: ""; position: absolute; inset: -4px; z-index: -1; border-radius: var(--radius-control); pointer-events: none;
+  background: radial-gradient(circle at 50% 55%, var(--stage-light), transparent 68%); opacity: 0; transform: scale(.7);
+  transition: opacity var(--d-base) var(--e-out), transform var(--d-base) var(--e-out);
+}
+:is(.icon-btn, .theme-btn, .u-sheet-x, .u-more:not(.worded), .staff-bell):is(:focus-visible, .is-hover, .is-focus) { color: var(--tx-1); transform: translateY(-1px); }
+:is(.icon-btn, .theme-btn, .u-sheet-x, .u-more:not(.worded), .staff-bell):is(:focus-visible, .is-hover, .is-focus)::before { opacity: 1; transform: none; }
+:is(.icon-btn, .theme-btn, .u-sheet-x, .u-more:not(.worded), .staff-bell):is(:active, .is-pressed) { transform: translateY(1px); }
+:is(.icon-btn, .theme-btn, .u-sheet-x, .u-more:not(.worded), .staff-bell)[aria-pressed="true"] { color: var(--accent-tx); }
+:is(.icon-btn, .theme-btn):is(:focus-visible, .is-focus) { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+@media (hover: hover) {
+  .btn:hover::after { opacity: 1; }
+  .btn:is(.primary, .gold, .btn--solid, .btn--primary):hover::after { transform: scaleX(1); }
+  .btn:is(.quiet, .btn--quiet, .btn--ghost):hover { --btn-ink: var(--tx-1); }
+  :is(.icon-btn, .theme-btn, .u-sheet-x, .u-more:not(.worded), .staff-bell):hover:not(:disabled) { color: var(--tx-1); transform: translateY(-1px); }
+  :is(.icon-btn, .theme-btn, .u-sheet-x, .u-more:not(.worded), .staff-bell):hover:not(:disabled)::before { opacity: 1; transform: none; }
+  :is(.icon-btn, .theme-btn, .u-sheet-x, .u-more:not(.worded), .staff-bell):active:not(:disabled) { transform: translateY(1px); }
+}
+/* its name appears under it, on screens wide enough that a label centred under a button at the edge cannot widen the page */
+@media (hover: hover) and (min-width: 721px) {
+  :is(.icon-btn, .theme-btn, .staff-bell)[aria-label]:is(:hover, :focus-visible)::after {
+    content: attr(aria-label); position: absolute; top: calc(100% + 8px); left: 50%; z-index: 5; transform: translateX(-50%); padding: 3px 7px; white-space: nowrap; pointer-events: none;
+    font: 500 11px/1.3 var(--font); color: var(--tx-1); background: var(--ink-3); border: 1px solid var(--line-hi); border-radius: var(--radius-control-sm); animation: ctl-label var(--d-fast) var(--e-out) both;
+  }
+}
+@keyframes ctl-label { from { opacity: 0; } }
+
+/* Touch: the box keeps its size and the part you can press grows to 44px. */
+@media (hover: none) {
+  .btn:not(.link)::before { content: ""; position: absolute; top: 50%; left: 0; right: 0; height: 44px; transform: translateY(-50%); }
+}
+
+/* Reduced motion: the same states, arriving at once. */
+@media (prefers-reduced-motion: reduce) {
+  .btn, .btn::after, .icon-btn, .theme-btn, .u-sheet-x, .u-more, .staff-bell,
+  :is(.icon-btn, .theme-btn, .u-sheet-x, .u-more, .staff-bell)::before { transition: none !important; }
+  .btn:active, .btn.is-pressed, :is(.icon-btn, .theme-btn, .u-sheet-x, .u-more, .staff-bell):is(:hover, :focus-visible, :active, .is-hover, .is-focus, .is-pressed) { transform: none; }
+  .btn:is(.loading, [data-loading="true"], [aria-busy="true"])::before { animation: none; }
+}
+@media (forced-colors: active) {
+  .btn { border-color: ButtonText; }
+  .btn::after { display: none; }
+}

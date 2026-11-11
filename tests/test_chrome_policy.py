@@ -11,7 +11,8 @@ HERE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
 PATH = os.path.join(HERE, "swangz-company-chrome.json")
 KNOWN = {"URLBlocklist", "URLAllowlist", "BrowserSignin", "SyncDisabled", "BrowserAddPersonEnabled",
          "BrowserGuestModeEnabled", "IncognitoModeAvailability", "DeveloperToolsAvailability", "RemoteDebuggingAllowed",
-         "PasswordManagerEnabled", "ExtensionInstallBlocklist", "ExtensionInstallAllowlist", "ExtensionInstallForcelist"}
+         "PasswordManagerEnabled", "AutoLaunchProtocolsFromOrigins", "ExternalProtocolDialogShowAlwaysOpenCheckbox",
+         "ExtensionInstallBlocklist", "ExtensionInstallAllowlist", "ExtensionInstallForcelist"}
 SIGN_IN = {".accounts.google.com", ".accounts.youtube.com", "login.microsoftonline.com", "login.live.com",
            "appleid.apple.com", "github.com/login", "github.com/session", "github.com/sessions",
            "www.google.com/recaptcha", "challenges.cloudflare.com"}
@@ -26,13 +27,16 @@ class ChromePolicyPackTests(unittest.TestCase):
     def test_only_known_policy_names_with_the_right_types(self):
         self.assertEqual(set(self.policy), KNOWN)
         for name, value in self.policy.items():
-            if name.startswith(("URL", "ExtensionInstall")):
+            if name == "AutoLaunchProtocolsFromOrigins":
+                self.assertEqual(value, [])  # the one list that must stay empty
+            elif name.startswith(("URL", "ExtensionInstall")):
                 self.assertTrue(value and all(isinstance(v, str) and v == v.strip() and v for v in value), name)
                 self.assertEqual(len(value), len(set(value)), name)
 
     def test_navigation_is_default_deny(self):
         self.assertIn("*", self.policy["URLBlocklist"])
-        self.assertIn("file://*", self.policy["URLBlocklist"])
+        for entry in ("file://*", "chrome://*", "view-source:*"):
+            self.assertIn(entry, self.policy["URLBlocklist"])
         for entry in self.policy["URLAllowlist"]:
             self.assertNotIn("*", entry, "an allow entry never carries a wildcard")
             self.assertNotRegex(entry, r"^(file|chrome|javascript|data)\b", entry)
@@ -56,7 +60,8 @@ class ChromePolicyPackTests(unittest.TestCase):
     def test_browser_sign_in_sync_and_extra_profiles_are_off(self):
         expect = {"BrowserSignin": 0, "SyncDisabled": True, "BrowserAddPersonEnabled": False,
                   "BrowserGuestModeEnabled": False, "IncognitoModeAvailability": 1, "DeveloperToolsAvailability": 2,
-                  "RemoteDebuggingAllowed": False, "PasswordManagerEnabled": False}
+                  "RemoteDebuggingAllowed": False, "PasswordManagerEnabled": False,
+                  "AutoLaunchProtocolsFromOrigins": [], "ExternalProtocolDialogShowAlwaysOpenCheckbox": False}
         for name, value in expect.items():
             self.assertIs(type(self.policy[name]), type(value), name)
             self.assertEqual(self.policy[name], value, name)

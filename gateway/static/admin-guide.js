@@ -8,7 +8,15 @@
   const { el, icon, fmt, toast } = SUI;
   const { S, api } = A;
 
-  const PERIODS = { today: "today", "7d": "the last 7 days", "30d": "the last 30 days" };
+  /* Each period as it reads after a verb: "used AI this week", "used AI in the last 7 days". */
+  const PERIODS = { today: "today", week: "this week", "7d": "in the last 7 days", "30d": "in the last 30 days" };
+  /* "This week" runs from Monday, in the time the console shows; the other periods are the kit's presets. */
+  function weekStart(now) {
+    const today = SUI.startOfDay(now);
+    const [y, m, d] = SUI.dateInput(today).split("-").map(Number);
+    return SUI.startOfDay(today - ((new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7) * 86400 + 7200);
+  }
+  const rangeOf = (id) => (id === "week" ? { since: weekStart(Date.now() / 1000), until: null } : SUI.presetRange(id));
   const many = (n, one, more) => n.toLocaleString() + " " + (n === 1 ? one : more);
 
   // ------------------------------------------------------------------ what Overview says first
@@ -171,7 +179,7 @@
     return el("label", { class: "field" }, label, input);
   }
   const dateIn = (days) => { const d = new Date(Date.now() + days * 86400000); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
-  const periodStep = (q) => ({ q, build: (st) => choices([{ id: "7d", label: "The last 7 days" }, { id: "30d", label: "The last 30 days" }], st.range, (v) => { st.range = v; }, q) });
+  const periodStep = (q) => ({ q, build: (st) => choices([{ id: "week", label: "This week" }, { id: "7d", label: "The last 7 days" }, { id: "30d", label: "The last 30 days" }], st.range, (v) => { st.range = v; }, q) });
 
   // ------------------------------------------------------------------ the six tasks
 
@@ -244,10 +252,11 @@
 
   async function seeSpend() {
     return { title: "See what we spent", state: { range: "7d" }, steps: [periodStep("Which period?")],
-      review: (st) => ({ label: "Show the total", lines: [`We add up AI spend for ${PERIODS[st.range]}.`, "Nothing changes."] }),
+      review: (st) => ({ label: "Show the total", lines: [`We add up AI spend ${PERIODS[st.range]}.`, "Nothing changes."] }),
       run: async (st) => {
-        const tr = await api("GET", "/trends?days=" + (st.range === "7d" ? 7 : 30));
-        return { icon: "wallet", title: `${fmt.money(tr.current.cost)} in ${PERIODS[st.range]}.`, text: "This is an estimate from our price list. Company plans are billed on top.", next: { label: "See where it went", href: `#/licences?tab=spend&range=${st.range}` } };
+        const cost = st.range === "week" ? (await api("GET", "/spend?" + A.rangeQuery(rangeOf("week")).toString())).total
+          : (await api("GET", "/trends?days=" + (st.range === "7d" ? 7 : 30))).current.cost;
+        return { icon: "wallet", title: `${fmt.money(cost)} spent ${PERIODS[st.range]}.`, text: "This is an estimate from our price list. Company plans are billed on top.", next: { label: "See where it went", href: "#/licences?tab=spend&" + (st.range === "week" ? "range=custom&from=" + SUI.dateInput(rangeOf("week").since) : "range=" + st.range) } };
       } };
   }
 
@@ -257,17 +266,17 @@
     return { title: "Check who is using what", state: { person: 0, range: "7d" }, steps: [
       { q: "Whose use do you want to see?", build: (st) => pickList(options, st.person, (v) => { st.person = v; }, "Person", "Search people") },
       periodStep("Which period?"),
-    ], review: (st) => ({ label: "Show the use", lines: [`We count AI use by ${st.person ? options.find((x) => x.id === st.person).label : "everyone"} in ${PERIODS[st.range]}.`, "Nothing changes."] }),
+    ], review: (st) => ({ label: "Show the use", lines: [`We count AI use by ${st.person ? options.find((x) => x.id === st.person).label : "everyone"} ${PERIODS[st.range]}.`, "Nothing changes."] }),
     run: async (st) => {
-      const q = A.rangeQuery(SUI.presetRange(st.range));
+      const q = A.rangeQuery(rangeOf(st.range));
       if (st.person) q.set("person", String(st.person));
       const out = await api("GET", "/usage?" + q.toString());
       const uses = out.rows.reduce((n, r) => n + r.requests + r.opens + r.visits, 0), when = PERIODS[st.range];
       if (st.person) {
         const name = options.find((x) => x.id === st.person).label;
-        return { icon: "activity", title: out.rows.length ? `${name} used ${many(out.tools.length, "tool", "tools")} in ${when}.` : `${name} did not use AI in ${when}.`, text: uses ? `That is ${many(uses, "use", "uses")} in all.` : "Their record is still there.", next: { label: `See ${name}'s activity`, href: `#/people/${st.person}?tab=activity` } };
+        return { icon: "activity", title: out.rows.length ? `${name} used ${many(out.tools.length, "tool", "tools")} ${when}.` : `${name} did not use AI ${when}.`, text: uses ? `That is ${many(uses, "use", "uses")} in all.` : "Their record is still there.", next: { label: `See ${name}'s activity`, href: `#/people/${st.person}?tab=activity` } };
       }
-      return { icon: "activity", title: out.people.length ? `${many(out.people.length, "person", "people")} used AI in ${when}.` : `Nobody used AI in ${when}.`, text: uses ? `That is ${many(uses, "use", "uses")} in all.` : "New use shows here as it happens.", next: { label: "See who used what", href: `#/activity?tab=usage&range=${st.range}&by=person` } };
+      return { icon: "activity", title: out.people.length ? `${many(out.people.length, "person", "people")} used AI ${when}.` : `Nobody used AI ${when}.`, text: uses ? `That is ${many(uses, "use", "uses")} in all.` : "New use shows here as it happens.", next: { label: "See who used what", href: `#/activity?tab=usage&range=${st.range}&by=person` } };
     } };
   }
 
@@ -337,7 +346,7 @@
         s.done ? el("span", null, s.label, el("span", { class: "u-sr" }, " (done)"))
           : s.task ? el("button", { type: "button", onclick: () => startTask(s.task) }, s.label) : el("a", { href: s.href }, s.label)))));
     } else if (o.att && o.att.length) {
-      third = A.panel("Waiting for you", el("a", { class: "btn small quiet", href: "#/attention" }, "See all " + o.att.length, icon("chevronRight")),
+      third = A.panel("Waiting for you", el("a", { class: "btn small quiet", href: "#/attention" }, "See all", icon("chevronRight")),
         el("ul", { class: "ov-wait" }, o.att.slice(0, 5).map((i) => el("li", null, el("a", { href: i.href || "#/attention", title: i.title }, i.title)))));
     }
     return el("div", { class: "ov-simple" }, A.panel("What do you want to do?", null, tiles(o.waiting, o.paused)), el("div", { class: "ov-side" }, numbers, third));

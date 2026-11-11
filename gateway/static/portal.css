@@ -28,30 +28,6 @@ main:focus { outline: none; }
 
 /* Buttons — the Swangz Avenue Bookings system, one size up for touch: an outline by default; the one
    primary action per place is solid off-white and fills with gold from the left on hover. */
-.btn { position: relative; isolation: isolate; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; gap: var(--s2);
-  min-height: 42px; padding: 0 18px; border-radius: var(--r-xs); border: 1px solid var(--ink-4); background: transparent; color: var(--tx-1);
-  font: 600 14px/1 var(--font); letter-spacing: -.002em; cursor: pointer; text-decoration: none; white-space: nowrap;
-  transition: background var(--d-base) var(--e-out), border-color var(--d-base) var(--e-out), color var(--d-base) var(--e-out); }
-.btn:hover { background: var(--ink-3); border-color: var(--line-hi); }
-.btn:active { transform: translateY(1px); }
-.btn:disabled { opacity: .4; cursor: default; transform: none; pointer-events: none; }
-.btn svg { width: 16px; height: 16px; flex: none; }
-.btn--solid { background: var(--tx-1); border-color: transparent; color: var(--ink-0); }
-.btn--solid::after { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--accent); transform: scaleX(0); transform-origin: left center;
-  transition: transform var(--d-base) var(--e-out); }
-.btn--solid:focus-visible { color: #1A1406; }
-.btn--solid:hover { background: var(--tx-1); border-color: transparent; color: #1A1406; }
-.btn--solid:hover::after, .btn--solid:focus-visible::after { transform: scaleX(1); }
-.btn--quiet { border-color: transparent; background: transparent; color: var(--tx-2); padding: 0 var(--s3); }
-.btn--quiet:hover { color: var(--tx-1); background: var(--ink-2); border-color: transparent; }
-.btn--danger { color: var(--bad-hi); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); background: transparent; }
-.btn--danger:hover { background: var(--bad-soft); border-color: color-mix(in srgb, var(--bad) 65%, var(--line)); }
-.btn--small { min-height: 34px; padding: 0 13px; font-size: 13px; border-radius: 2px; }
-.btn--small svg { width: 15px; height: 15px; }
-.btn--block { width: 100%; }
-.btn.icon-only { padding: 0; width: 42px; }
-.btn--small.icon-only { width: 34px; }
-@media (hover: none) { .btn { min-height: 44px; } }
 
 .field { display: flex; flex-direction: column; gap: var(--s2); }
 .field > span { font-size: var(--t-small); color: var(--tx-2); font-weight: 620; }
@@ -113,9 +89,6 @@ h1, h2, h3 { text-wrap: balance; }
 .topnav a.on { color: var(--tx-1); }
 .topnav a.on::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -13px; height: 2px; border-radius: 2px; background: var(--accent); }
 .top-right { display: flex; align-items: center; gap: var(--s2); margin-left: auto; }
-.icon-btn { position: relative; width: 38px; height: 38px; display: inline-grid; place-items: center; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--ink-2); color: var(--tx-2); text-decoration: none; }
-.icon-btn:hover { color: var(--tx-1); border-color: var(--line-hi); }
-.icon-btn svg { width: 18px; height: 18px; }
 .dot-count { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: var(--on-primary);
   font: 700 10.5px/18px var(--font); text-align: center; font-style: normal; }
 :root[data-theme="light"] .dot-count { background: var(--accent); color: #1A1406; }

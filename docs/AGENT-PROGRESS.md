@@ -726,7 +726,39 @@ owner-exceptions sentence.
 Observation for Sentinel carried over from run 1: staff prompt text appears in Grace's timeline because `store_bodies` defaults on; check
 against the point-3 rule that admins see metadata only.
 
+
+## Probe: ordered fix list from the point-7 failures, 11 November 2026 22:30 (main fa19c0d, static review)
+
+Checked against main fa19c0d by reading the code and the earlier browser runs. Browser re-check only when the Chromium slot is free after #141.
+Fixed and verified earlier: F2, F3, F6, F7, F8. F1 is fixed by 769a91b (#140), code-read only, not yet seen in a browser.
+
+Still open, in this order:
+
+1. **F4, "1 uses"** (gateway/static/admin-govern.js:289). Use "1 use" / "N uses". Owner: Forge. Done when a person with one use reads "1 use".
+2. **"Waiting for you" mixes unlike things** (gateway/insight.py:983 "N seats unused for 30 days", :1017 "Providers without a company key").
+   They are low-priority licence notes counted next to "1 tool request waiting". Keep them out of the Overview count (still on Needs attention),
+   or reword in plain terms ("5 paid licences nobody opened in 30 days"). Done when Overview's count matches the sentence above it.
+3. **Task 4 wording** (gateway/static/admin-guide.js:11 and :153). The guide asks "this week", the choices say "The last 7 days". Add a "This week"
+   choice or word the task "last 7 days". Done when the task text and the visible choice use the same words.
+4. Needs attention lists a renewal for a cancelled plan (gateway/insight.py:987, no cancelled filter; Money L1 #131 already skips it). Add the same filter.
+5. F5, block counts of the L2/L3 pages (only Overview is at three blocks); F9, person Access scroll (1028 px at 1440x852, 1920 px at 390x844).
+6. Jargon left on default screens: "seats", "company key", "audit log", "Gateway time", "metered". Reword or explain on first use.
+
+Not mine to fix (read-only QA). Top three go to @Forge/@Anvil.
+
 ### Run 1: main b4a9972 (Overview before #136), 8:20
 
 Result: four tasks PASS, one PARTIAL (spend this week), one PASS but hard to find (Stop all AI, only in the avatar menu). Failures F1–F9 are
 listed in the run-2 section above where they still apply. Screenshots of that run were not committed (8 MB of PNG); the run-2 set above replaces them.
+## Forge: rest handoff, 11 Nov 2026 14:10 EAT (PR #141, feature/bookings-buttons, draft)
+Head 2dba13f is pushed; the worktree is clean. Built: buttons on the Bookings model, kit page showing every state (hover, focus, pressed, loading, glass, icon buttons, tab strip). Not run: any browser screenshot (Chromium slot was not mine).
+CI on the head: the `browser` job failed (run 43009285809); the python jobs were still pending when I stopped. I did not read the failure log (run was still in progress).
+Exact next step at 16:00, in this order:
+1. `gh pr checks 141`; if `browser` is red, `gh run view 43009285809 --log-failed`, fix the product first (the test only if the test is wrong), push.
+2. Chromium check on the kit page (`/admin#kit`): light and dark, 390x844 and 1440x900, screenshots into docs/screenshots/bookings-buttons/, one line per remaining difference. Kill the browser after.
+3. Then F3, F6, F7, F2, then #134 (see its handoff above). #141 stays a draft until Chief says otherwise.
+
+## Forge: handoff, 11 Nov 2026 20:30 EAT
+- **#141** (feature/bookings-buttons): head 78eee73 pushed. Earlier CI failures were my radius change leaking into the kit's box controls (fixed with `--box-r*` tokens in tokens.css, ui.css uses them), the tab strip radius (12px) and a stale panel count in kit.cjs (9 to 11). Locally green, one at a time: people, touch, tools, lists, kit, charts, staff-font, admin-cls, updates-copy, logo-contrast, exact-footer. `signin.cjs` timed out on this laptop at 420 s (no assertion failed): CI decides it. Still draft; screenshots at 1440x852 / 390x844 not taken.
+- **#147** (Access requests) and **#148** (Last seen + panel cap): CI fully green at last look (python 3.10/3.12, browser, app-window). `gh pr ready` / `gh pr merge` are refused for me by the permission classifier, so @Chief marks ready and merges.
+- Next step: `gh pr checks 141`; if only `signin` is red, read its log and fix the product. Then merge main into #147/#148 if they conflict, then the next §10.10 page (Policies, Weekly reporting, Settings).

@@ -100,7 +100,7 @@ async function contrastOf(page, sel, label, min, nonText) {
         const bar = document.querySelector('.u-progress .bar i');
         return {
           panelBlur: cs(list, 'backdropFilter'), rowBlur: cs(document.querySelector('.u-list tbody tr'), 'backdropFilter'), segBlur: cs(document.querySelector('.u-seg'), 'backdropFilter'),
-          radius: cs(list, 'borderTopLeftRadius'), segRadius: cs(document.querySelector('.u-seg'), 'borderTopLeftRadius'), searchRadius: cs(document.querySelector('.u-search'), 'borderTopLeftRadius'),
+          radius: cs(list, 'borderTopLeftRadius'), segRadius: cs(document.querySelector('.u-seg'), 'borderTopLeftRadius'), searchRadius: cs(document.querySelector('.u-search'), 'borderTopLeftRadius'), tabRadius: cs(document.querySelector('.u-seg button'), 'borderTopLeftRadius'),
           pressed: document.querySelectorAll('.u-seg [aria-pressed="true"]').length, group: document.querySelector('.u-seg').getAttribute('role'),
           bars: [...document.querySelectorAll('.u-progress .bar')].map(b => [b.getAttribute('role'), b.getAttribute('aria-valuenow'), !!b.getAttribute('aria-label')]),
           firstTransform: cs(bar, 'transform'), firstP: bar.style.getPropertyValue('--p'),
@@ -113,7 +113,7 @@ async function contrastOf(page, sel, label, min, nonText) {
         };
       });
       ok(T + 'no live backdrop blur on the large list panel, rows, pills or search (it was repainted on every hover and filter)', s.panelBlur === 'none' && s.rowBlur === 'none' && s.segBlur === 'none');
-      ok(T + 'panel uses the card radius, the tab strip is a 12px box and search a 10px one (BRIEF 10.10.2)', s.radius === '22px' && s.segRadius === '12px' && s.searchRadius === '10px');
+      ok(T + 'panel uses the card radius, the tab strip bar is 14px with 9px tabs and search is a 4px control (BRIEF 10.10.6, which replaced 10.10.2)', s.radius === '22px' && s.segRadius === '14px' && s.tabRadius === '9px' && s.searchRadius === '4px');
       ok(T + 'filter pills are a labelled group with exactly one pressed', s.group === 'group' && s.pressed === 1);
       ok(T + 'every progress bar has role, value and a name', s.bars.length >= 5 && s.bars.every(b => b[0] === 'progressbar' && b[1] !== null && b[2]));
       const m = s.firstTransform.match(/matrix\(([^)]+)\)/); const sx = m ? parseFloat(m[1].split(',')[0]) : NaN;

@@ -209,6 +209,12 @@ class AttentionTests(LensBase):
         self.assertEqual(keys[0], "paused")
         for key in (f"budget-{self.pid}-daily", "seats-midjourney", "requests", "idle"):
             self.assertIn(key, keys)
+        # standing set-up notes stay on Needs attention but are marked so Overview leaves them out of what is waiting
+        background = {i["key"] for i in out["items"] if i["background"]}
+        self.assertIn("idle", background)
+        self.assertNotIn("requests", background)
+        self.assertLessEqual(background, {"idle", "providers"})
+        self.assertRegex(next(i["title"] for i in out["items"] if i["key"] == "idle"), r"^\d+ paid licences? nobody opened in 30 days$")
         sev = [insight.SEVERITY[i["severity"]] for i in out["items"]]
         self.assertEqual(sev, sorted(sev, reverse=True))
 
