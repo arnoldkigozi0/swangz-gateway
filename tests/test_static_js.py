@@ -429,3 +429,43 @@ class PeopleSimpleViewTests(unittest.TestCase):
         self.assertIn("const sizes = o.sizes || PAGE_SIZES;", ui)
         admin = (STATIC / "admin.js").read_text(encoding="utf-8")
         self.assertRegex(admin, r'=== "detailed" \? "detailed" : "simple"')
+
+
+def tools_lead(cases):
+    source = (STATIC / "admin-guide.js").read_text(encoding="utf-8")
+    many = re.search(r"\n  (const many = .*?;)\n", source).group(1)
+    fn = re.search(r"\n  (function toolsLead\(n\) \{\n.*?\n  \})\n", source, re.S).group(1)
+    script = many + fn + "\nconsole.log(JSON.stringify(" + json.dumps(cases) + ".map(toolsLead)));"
+    out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30, check=True)
+    return json.loads(out.stdout)
+
+
+@unittest.skipUnless(shutil.which("node"), "Node is not installed")
+class ToolsLeadTests(unittest.TestCase):
+    """BRIEF 10.10.7 on Tools: one sentence with the real number, then one next step that is never a dead end."""
+    BASE = {"inUse": 9, "idle": 0, "paid": 4, "monthly": "$120.00", "canGovern": True, "show": ""}
+
+    def lead(self, **n):
+        return tools_lead([{**self.BASE, **n}])[0]
+
+    def test_the_sentence_carries_the_real_number(self):
+        self.assertEqual(self.lead(idle=2)["sentence"], "2 tools were given but never opened.")
+        self.assertEqual(self.lead(idle=1)["sentence"], "1 tool was given but never opened.")
+        self.assertEqual(self.lead()["sentence"], "9 tools are in use; paid plans cost $120.00 a month.")
+        self.assertEqual(self.lead(inUse=0)["sentence"], "No tools are in use yet.")
+
+    def test_the_button_opens_exactly_the_tools_counted(self):
+        self.assertEqual(self.lead(idle=2)["action"]["href"], "#/tools?show=idle")
+        self.assertEqual(self.lead(idle=2, show="idle")["action"]["task"], "give-tool")
+
+    def test_a_role_is_only_offered_what_it_can_do(self):
+        self.assertEqual(self.lead(canGovern=False)["action"]["task"], "see-spend")
+        self.assertEqual(self.lead(inUse=0, canGovern=False)["action"]["href"], "#/tools?show=all")
+
+    def test_sentences_stay_short(self):
+        for n in ({"idle": 1234}, {}, {"inUse": 0}):
+            self.assertLessEqual(len(self.lead(**n)["sentence"].split()), 12)
+
+    def test_tools_uses_the_shared_view_switch(self):
+        govern = (STATIC / "admin-govern.js").read_text(encoding="utf-8")
+        self.assertIn('A.viewMode("tools", "#/tools", params)', govern)
