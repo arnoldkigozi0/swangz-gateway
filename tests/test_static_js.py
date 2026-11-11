@@ -195,7 +195,7 @@ class DonutShareTests(unittest.TestCase):
         self.assertIn('next: view === "simple" ? A.leadButton(lead.action)', overview)
         # Every card opens its list already filtered to the items it counts.
         for href in ('"#/licences?tab=spend&range=30d"', '"#/activity?tab=ai&range=30d"', '"#/activity?tab=usage&range=today&by=person"',
-                     '"#/security?days=7"', '"#/attention"', '"#/live"'):
+                     '"#/security?view=signals&days=7&severity=warnings"', '"#/attention"', '"#/live"'):
             self.assertIn("href: " + href, overview)
 
     def test_trail_puts_the_chain_in_the_top_bar_with_the_current_page_marked(self):

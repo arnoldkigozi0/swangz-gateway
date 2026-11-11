@@ -32,6 +32,12 @@ try:
         for tool in ('chatgpt','canva'):
             rig.gw.db.x("INSERT INTO launches(tool_id,person_id,ts,outcome) VALUES(?,?,?,'opened')",(tool,rig.person_id,start+60))
         reports=reporting.compile_closed(rig.gw)
+    if os.environ.get("HUB_SECURITY_FIXTURE"):
+        ask={"model":"claude-haiku-4-5","max_tokens":5,"messages":[{"role":"user","content":"use AKIAABCDEFGHIJKLMNOP"}]}
+        rig.anthropic(ask)
+        for _ in range(5):
+            rig.anthropic(ask,key="sgw_000000000000_badbadbadbadbadbadbadbad")
+        rig.request("POST","/admin/api/login",{"username":"owner@swangzavenue.com","password":"wrong"},{"x-gateway-admin":"1"})
     if os.environ.get("HUB_BUSINESS_FIXTURE"):
         from gateway import reporting
         for i,tool in enumerate(('chatgpt','canva','claude')):
