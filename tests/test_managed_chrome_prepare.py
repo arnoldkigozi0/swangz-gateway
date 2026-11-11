@@ -79,9 +79,13 @@ class ManagedChromePreparationTests(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 module.write_new(out, policy)
             alias = Path(d) / "alias.json"
-            alias.symlink_to(out)
-            with self.assertRaises(FileExistsError):
-                module.write_new(alias, policy)
+            try:
+                alias.symlink_to(out)
+            except (OSError, NotImplementedError):
+                pass  # Some Windows machines deny creating symlinks for standard accounts.
+            else:
+                with self.assertRaises(FileExistsError):
+                    module.write_new(alias, policy)
             self.assertEqual(json.loads(out.read_text()), policy)
             with self.assertRaises(module.PolicyPreparationError):
                 module.write_new(module.TEMPLATE, policy)
