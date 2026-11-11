@@ -750,7 +750,7 @@
       ] }) : SUI.stateBox({ tone: data.events.length ? null : "ok", icon: "shield", title: data.events.length ? "No signals match" : "No security signals",
         text: data.events.length ? "Try another search or filter." : "Nothing in this period." }));
     }
-    const keep = () => A.keepParams("#/security", { view: "signals", days: st.days, type: st.type, severity: st.severity, q: st.q, page: st.page > 1 ? st.page : null, per: st.per !== perDefault ? st.per : null });
+    const keep = () => A.keepParams("#/security", { view: "signals", days: st.days, type: st.type, severity: st.severity, q: st.q, page: st.page > 1 ? st.page : null, per: st.per !== 25 ? st.per : null });
     const reload = async () => {
       const mine = ++asked;
       try { const got = await api("GET", "/security?days=" + (st.days || 7)); if (mine !== asked) return; data = got; draw(); }
