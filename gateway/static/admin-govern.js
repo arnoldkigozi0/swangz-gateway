@@ -157,7 +157,7 @@
   function personRowActions(p) {
     return [
       { id: "preview", label: "Preview", icon: "people", onSelect: () => previewPerson(p) },
-      A.can("govern") && p.status === "active" ? { id: "key", label: "Issue a key", icon: "key", onSelect: () => issueKey(p) } : null,
+      A.can("govern") && p.status === "active" ? { id: "key", label: "Create access key", icon: "key", onSelect: () => issueKey(p) } : null,
       signInItem(p),
       mayStop(p) && p.status !== "active" ? { id: "restore", label: "Restore access", icon: "check", onSelect: () => setSuspended(p, false) } : null,
       suspendItem(p),
@@ -189,7 +189,7 @@
         el("label", { class: "field" }, "Role / title", f.title),
         el("label", { class: "field" }, "Department", f.department),
         el("label", { class: "field" }, o.brief ? "Email (required) — they sign in with it" : "Email — they sign in with it", f.email,
-          el("span", { class: "hint" }, "A Swangz email (@swangzavenue.com). Only the two explicitly authorised owner/admin addresses are exceptions."), emailErr),
+          el("span", { class: "hint" }, "Their Swangz email, ending in @swangzavenue.com."), emailErr),
         o.brief ? accessEnds : null),
       o.brief ? null : el("div", { class: "form-grid" },
         el("label", { class: "field" }, "Daily budget (USD)", f.daily_budget),
@@ -397,12 +397,15 @@
     }
 
     const ended = p.access_until && p.access_until <= Date.now() / 1000;
+    const step = personStep(p, alerts);
+    const stepTab = typeof step === "string" ? "" : step.tab;
     A.frame({
       title: p.name, lead: SUI.avatar(p.name, "lg"), status: el("span", { class: "row" }, SUI.status(state, stateLabel, { plain: true }), p.live.length ? SUI.status("live", "Live", { breathe: true, plain: true }) : null),
-      trail: [["People", "#/people"], [p.name]], next: personNext(p, alerts),
+      trail: [["People", "#/people"], [p.name]], next: personNext(p, step),
       lede: [[p.title, p.department].filter(Boolean).join(" · ") || "No department", p.email].filter(Boolean).join(" — ") +
         (p.access_until ? ` · access ${ended ? "ended" : "until"} ${fmt.date(p.access_until - 86400)}` : ""),
-      actions: [owner && p.status === "active" ? el("button", { class: "btn primary", onclick: () => issueKey(p) }, icon("key"), "Issue a key") : null,
+      actions: [stepTab === "access" && p.status === "active" && A.can("govern") ? el("a", { class: "btn primary", href: `#/people/${p.id}?tab=access` }, icon("plus"), "Give a tool") : null,
+        owner && p.status === "active" ? el("button", { class: "btn" + (stepTab === "devices" ? " primary" : ""), type: "button", title: "A key lets one of their devices or coding tools sign in to Swangz AI Hub", onclick: () => issueKey(p) }, icon("key"), "Create access key") : null,
         mayStop(p) && p.status !== "active" ? el("button", { class: "btn primary", onclick: () => setSuspended(p, false) }, "Restore access") : null,
         SUI.menuButton({ label: "More actions for " + p.name, items: () => [
           signInItem(p),
@@ -424,17 +427,21 @@
   }
 
   /* The one "Next step" line on a record: the most useful thing to do about this person now, worst first. */
-  function personNext(p, alerts) {
-    const go = (tab, text) => el("a", { href: `#/people/${p.id}?tab=${tab}` }, text);
+  /* The one thing to do next for a person: a sentence, or { tab, text } when it is a page to go to. The header's
+     primary button follows it, so the line and the button never point two ways. */
+  function personStep(p, alerts) {
     const state = personState(p)[0];
     if (alerts === null) return "Their security signals couldn't load, so there is no next step to show.";
-    if (state === "suspended") return go("security", "Check their security signals before restoring access");
-    if (state === "revoked") return go("account", "Their access has ended. Extend it, or leave it closed");
-    if (alerts) return go("security", `Look at ${SUI.plural(alerts, "security signal")} involving them`);
-    if (p.monthly_budget != null && p.month.cost >= p.monthly_budget) return go("account", "They have reached their monthly budget. Review it");
-    if (!p.tool_summary.enabled) return go("access", p.tool_summary.assigned ? "None of their tools are ready. See why" : "Give them their first tool");
-    if (p.sign_in === "none" && !p.keys.some((k) => !k.revoked)) return go("devices", "They can't sign in yet. See how to connect them");
+    if (state === "suspended") return { tab: "security", text: "Check their security signals before restoring access" };
+    if (state === "revoked") return { tab: "account", text: "Their access has ended. Extend it, or leave it closed" };
+    if (alerts) return { tab: "security", text: `Look at ${SUI.plural(alerts, "security signal")} involving them` };
+    if (p.monthly_budget != null && p.month.cost >= p.monthly_budget) return { tab: "account", text: "They have reached their monthly budget. Review it" };
+    if (!p.tool_summary.enabled) return { tab: "access", text: p.tool_summary.assigned ? "None of their tools are ready. See why" : "Give them their first tool" };
+    if (p.sign_in === "none" && !p.keys.some((k) => !k.revoked)) return { tab: "devices", text: "They can't sign in yet. See how to connect them" };
     return "Nothing needs doing for them right now.";
+  }
+  function personNext(p, step) {
+    return typeof step === "string" ? step : el("a", { href: `#/people/${p.id}?tab=${step.tab}` }, step.text);
   }
 
   const TOOL_STATE = { enabled: ["ok", "Ready"], past_due: ["waiting", "Payment due"], suspended: ["suspended", "Paused"], locked: ["none", "No subscription"], not_assigned: ["none", "Not given"] };
