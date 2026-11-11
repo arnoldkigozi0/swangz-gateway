@@ -26,10 +26,28 @@
     if (tab === "licences") return licencesList(params);
     if (tab === "spend") return spendList(params);
     if (tab === "renewals") return renewalsList(params);
-    return moneySummary();
+    return moneySummary(params);
   }
 
-  async function moneySummary() {
+  /* Licences & spend's sentence and next step (BRIEF 10.10.7). n: { failed, idle, idleCost, unpriced, soon, spend } with money
+     already formatted. Money being wasted first, then numbers that can't be trusted, then dates coming up — the same order as
+     Detailed's Next step line — and each button opens exactly what the sentence counts. Pure, so it can be tested. */
+  const moneyMany = (n, one, more) => n.toLocaleString() + " " + (n === 1 ? one : more);
+  function moneyLead(n) {
+    if (n.failed) return { sentence: "Some of the figures couldn't load.", action: { label: "Try again", retry: true } };
+    if (n.idle) return { sentence: `${moneyMany(n.idle, "paid seat was", "paid seats were")} not used in 30 days (about ${n.idleCost} a month).`,
+      action: { label: n.idle === 1 ? "See the idle seat" : "See the idle seats", href: "#/licences?tab=licences&show=idle" } };
+    if (n.unpriced) return { sentence: `${moneyMany(n.unpriced, "request has", "requests have")} no price yet, so spend is understated.`,
+      action: { label: "Set the missing prices", href: "#/settings?tab=providers&section=prices" } };
+    if (n.soon) return { sentence: `${moneyMany(n.soon, "plan renews", "plans renew")} in the next 30 days.`,
+      action: { label: n.soon === 1 ? "See the renewal" : "See the renewals", href: "#/licences?tab=renewals&show=soon" } };
+    return { sentence: `We spent ${n.spend} on AI in the last 30 days.`, action: { label: "See what cost us money", href: "#/licences?tab=spend&range=30d" } };
+  }
+
+  const moneyNum = (label, value, href) => el("a", { class: "ov-num", href }, el("span", null, label), el("strong", { class: "u-num" }, value), icon("chevronRight"));
+
+  async function moneySummary(params) {
+    const mode = A.viewMode("money", "#/licences", params);
     const [licR, spendR] = await Promise.allSettled([api("GET", "/licences"),
       api("GET", "/spend?" + A.rangeQuery(A.rangeFrom(new URLSearchParams(), "30d")).toString())]);
     const lic = licR.status === "fulfilled" ? licR.value : null;
@@ -65,7 +83,20 @@
           : soon.length ? el("a", { href: "#/licences?tab=renewals&show=soon" }, `Check ${SUI.plural(soon.length, "plan")} renewing in the next 30 days`)
             : "Nothing needs doing right now.";
 
-    A.frame({ title: "Licences & spend", trail: [[MONEY_ROOT[0]]], next, actions: [
+    if (mode.simple) {
+      /* Simple: the sentence with the real number, one next step, then two blocks — the four numbers as rows, and the chart. */
+      const lead = moneyLead({ failed: !lic || !d, idle: s ? s.idle_seats : 0, idleCost: s ? fmt.money(s.idle_cost) : "", unpriced: d ? d.unpriced : 0,
+        soon: soon.length, spend: d ? fmt.money(d.total || 0) : "" });
+      const numbers = A.panel("The numbers", null, el("div", { class: "ov-nums" },
+        moneyNum("AI spend", d ? fmt.money(d.total || 0) + " in 30 days" : "—", "#/licences?tab=spend&range=30d"),
+        moneyNum("Company plans", s ? fmt.money(s.subscriptions_month) + " a month" : "—", "#/licences?tab=licences&show=paid"),
+        moneyNum("Idle seats", s ? String(s.idle_seats) : "—", "#/licences?tab=licences&show=idle"),
+        moneyNum("Renewing in 30 days", lic ? SUI.plural(soon.length, "plan") : "—", "#/licences?tab=renewals&show=soon")));
+      A.frame({ title: "Licences & spend", trail: [[MONEY_ROOT[0]]], sentence: lead.sentence, next: A.leadButton(lead.action),
+        actions: [mode.switcher, el("a", { class: "btn", href: "#/reports" }, icon("report"), "Spend reports")] }, [numbers, chart]);
+      return;
+    }
+    A.frame({ title: "Licences & spend", trail: [[MONEY_ROOT[0]]], next, actions: [mode.switcher,
       el("a", { class: "btn", href: "#/reports" }, icon("report"), "Spend reports"),
       el("a", { class: "btn", href: A.gadmin("/export.csv") }, icon("download"), "Export activity CSV"),
     ] }, [cards, chart]);
