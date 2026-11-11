@@ -667,6 +667,69 @@ Next step: when the browser slot is free, screenshot #120 at 1440×852 and 390×
 what that shows, then merge on green CI. #119 (kit page, `feature/kit-page`, WIP `cb3e8f9`) is untouched
 and comes after Overview.
 
+## Probe: point-7 basic-user test, 11 November 2026 (Kampala time)
+
+Two runs on a throwaway demo (`DEMO_MODEL=1`, `tests/browser/demo.py`), owner account, fresh browser context,
+headless Chromium 1248 through Playwright 1.63, 1440×852 dark and 390×844 dark. Nothing on the live Hub was
+touched; the demo process and the browser were stopped afterwards. Chromium slot taken 13:58 and released ~14:20.
+No second opinion asked (QA walk, not a final verdict). Not run: the full suite, light theme beyond one Overview
+shot, a real phone, hover/animation checks.
+
+### Run 2: main c863c7d (has #136 Overview, Simple/Detailed, six task tiles) — screenshots in `docs/screenshots/point7-basic-user-c863c7d/`
+
+Overview at 1440×852: no scroll (852 px). A one-sentence answer ("1 person is waiting for a tool.") plus **three
+blocks**: What do you want to do? (six tiles), How it is going, Waiting for you. At 390×844 the sentence and the
+tile block fill the first screen, the other two blocks follow (page 1371 px, no sideways scroll).
+
+| # | Task | Clicks to start | Clicks to finish | Result |
+|---|---|---|---|---|
+| 1 | Add a person | 1 (tile) | 5 (tile, 3× Next, Add) | PASS. 4 steps, "No team yet" pre-selected, "Here is what will happen" screen, result offers "Give Kato Brian a tool". |
+| 2 | Give that person a tool | 1 | 7 (tile, person, Next, tool, Next, Next, Give access) | PASS. "30 days" default, plain summary ("It works on their next visit"), result offers "See Kato Brian's access". |
+| 3 | Answer a waiting request | 1 | 5 (tile, Next, Give access, Next, confirm) | PASS. Oldest chosen for you, safe default "Decide later", result offers "Answer the next request". |
+| 4 | Find what was spent this week | 1 | 3 (tile, Next, Show the total) | PASS with a caveat: the choices are "last 7 days / last 30 days"; there is no calendar "this week". Result "< $0.01 in the last 7 days" and a "See where it went" link. |
+| 5 | See what one person used | 1 | 5 (tile, person, Next, Next, Show the use) | PASS. "Nansubuga Grace used 1 tool in the last 7 days. That is 3 uses in all." |
+| 6 | Stop all AI | 1 | 4 (tile, "Yes, stop everything", Next, Stop all AI) | PASS and effective: banner "AI access is paused for everyone…" with "Resume access"; the Resume button turned it back on ("Access resumed."). Default answer is "No, keep it running". |
+
+All six start in one click from the landing page, none needs scrolling to find the way, every step is one
+question with a Back, and each ends with a next-step button. This is the first run where the guided flows exist,
+so the earlier "4 clicks to start" and "stop all AI hidden in the avatar menu" findings no longer apply.
+
+### Defects still on main c863c7d (exact element)
+
+- **F1, person page "LAST SEEN … visited a site" is false (honesty rule).** Kato Brian was only given a tool by an admin and
+  has never signed in, yet his page says "LAST SEEN just now · visited a site"; Grace, who only signed in and asked for a tool,
+  shows "6 min ago · visited a site". The stat counts any timeline event (admin and sign-in events too) and labels it a site visit.
+  Fix: count only the person's own requests, launches and visits, and word the label per event type. Owner: Forge.
+- **F2, Access requests (`#/requests`) shows only "GOVERN" in the trail**, at 1440 and 390: no page crumb (People shows
+  "Govern › People"). Page not restructured yet.
+- **F6, person header has a primary "Issue a key" button** beside Next step ("They can't sign in yet. See how to connect them"):
+  two competing primaries and an unexplained word. Still there.
+- **New, "Waiting for you · See all 3"** on Overview counts "5 seats unused for 30 days" and "Providers without a company key"
+  next to "1 tool request waiting", while the sentence above says only the one person is waiting. "Seats" is jargon on a default screen.
+- **New, Task 4 wording**: asks for "this week", offers "last 7 days". Add a "This week" choice or word the tile "last 7 days".
+- Not re-checked in run 2 (not on the six-task path): F4 "1 uses" plural, F5 block counts of the L2/L3 pages, F7, F9 phone scroll
+  lengths of person pages (person Access still scrolls: 1028 px at 1440×852, 1920 px at 390×844).
+
+### Fixed since run 1 (b4a9972)
+
+F3 (breadcrumb of Spend by person is now full: "Money › Licences & spend › Spend reports › Spend by person" at both sizes);
+F5 for Overview (three blocks); F8 (toast now "0 requests were cut."); the Add-person sheet no longer shows the internal
+owner-exceptions sentence.
+
+### Words a new user may still not know on the six-task path
+
+"seats", "company key", "audit log" (in "This is written in the audit log"), "Gateway time", "metered".
+
+### Verdict
+
+**Point-7 basic-user test on main c863c7d: PASS for all six tasks, with the four defects above to fix (F1 is the one that must not ship).**
+Observation for Sentinel carried over from run 1: staff prompt text appears in Grace's timeline because `store_bodies` defaults on; check
+against the point-3 rule that admins see metadata only.
+
+### Run 1: main b4a9972 (Overview before #136), 8:20
+
+Result: four tasks PASS, one PARTIAL (spend this week), one PASS but hard to find (Stop all AI, only in the avatar menu). Failures F1–F9 are
+listed in the run-2 section above where they still apply. Screenshots of that run were not committed (8 MB of PNG); the run-2 set above replaces them.
 ## Forge: rest handoff, 11 Nov 2026 14:10 EAT (PR #141, feature/bookings-buttons, draft)
 Head 2dba13f is pushed; the worktree is clean. Built: buttons on the Bookings model, kit page showing every state (hover, focus, pressed, loading, glass, icon buttons, tab strip). Not run: any browser screenshot (Chromium slot was not mine).
 CI on the head: the `browser` job failed (run 43009285809); the python jobs were still pending when I stopped. I did not read the failure log (run was still in progress).

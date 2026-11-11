@@ -768,15 +768,21 @@
 
   // ------------------------------------------------------------------ Audit
 
+  const AUDIT_RANGES = [["today", "Today"], ["7d", "7 days"], ["month", "This month"]];
+  const AUDIT_AREAS = [["govern", "Govern"], ["money", "Money"], ["trust", "Trust"], ["emergency", "Emergency"], ["admin", "Administration"]];
+  const AUDIT_OUTCOMES = [["ok", "Done"], ["denied", "Refused"], ["no-op", "Changed nothing"]];
+
+  /* L2: one filter row (search, period, who, outcome, area), one table. The server filters and hands back 100 at a time;
+     the pager steps through what has loaded and "Load older" fetches the next 100. */
   async function pageAudit(params) {
-    const st = { range: A.rangeFrom(params, "30d"), actor: params.get("actor") || "", q: params.get("q") || "", outcome: params.get("outcome") || "",
-      area: params.get("area") || "", correlation: params.get("correlation") || "" };
-    const body = el("div");
-    const more = el("button", { class: "btn", hidden: true }, "Load older");
-    const q = el("input", { type: "search", placeholder: "Search actions, targets, details…", value: st.q, "aria-label": "Search the audit log" });
-    const actor = el("select", { class: "fb-select", "aria-label": "Who" }, el("option", { value: "" }, "Every console user"));
-    const summary = el("div", { class: "list-meta", role: "status" });
-    let minId = null, rows = [];
+    const range = A.rangeFrom(params, "30d");
+    const st = { range: range.preset === "30d" ? "" : range.preset, actor: params.get("actor") || "", q: params.get("q") || "", outcome: params.get("outcome") || "",
+      area: params.get("area") || "", correlation: params.get("correlation") || "", page: Number(params.get("page")) || 1, per: Number(params.get("per")) || 25 };
+    let from = params.get("from") || "", to = params.get("to") || "";
+    const box = el("div"), summary = el("div", { class: "list-meta", role: "status" });
+    const more = el("button", { class: "btn", type: "button", hidden: true }, "Load older");
+    const pager = { page: st.page, size: st.per, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
+    let minId = null, rows = [], actors = [], asked = 0, hasMore = false;
     const cols = [
       { key: "ts", label: "When", lead: true, render: (a) => el("time", { title: fmt.stamp(a.ts), class: "u-num nowrap" }, fmt.clock(a.ts, true), el("span", { class: "sub" }, fmt.day(a.ts))) },
       { key: "actor", label: "Who", render: (a) => el("span", { class: "u-cell" }, SUI.avatar(a.actor, "sm"), el("strong", null, a.actor)) },
@@ -797,52 +803,51 @@
           el("div", { class: "json-diff" }, el("pre", { class: "was" }, a.before ? show(a.before) : "—"), el("pre", { class: "now" }, a.after ? show(a.after) : "—"))) : null,
         !a.detail && !a.reason && !changed ? "—" : null);
     }
+    function draw() {
+      summary.replaceChildren(el("span", null, SUI.plural(rows.length, "entry", "entries") + (hasMore ? " so far" : "")),
+        el("span", null, "can't be edited or cleared from the console"), el("span", null, "times in " + SUI.tzLabel(true)));
+      box.replaceChildren(rows.length ? SUI.table({ caption: "Audit log", columns: cols, rows, sort: ["ts", "desc"], pager })
+        : SUI.stateBox({ icon: "audit", title: "No audit entries", text: "Nothing matches. Try another period or filter." }));
+      more.hidden = !hasMore;
+    }
+    // "person:7" is the way a change names what it is about, so typing one searches that exactly
+    const aboutQuery = (q) => (/^[a-z_]+:\d+$/i.test(q) ? ["correlation", q] : ["q", q]);
     async function load(reset) {
-      const p = A.rangeQuery(st.range);
+      const mine = ++asked;
+      const p = A.rangeQuery(A.rangeFrom(new URLSearchParams({ range: st.range || "30d", from, to }), "30d"));
       p.set("limit", "100");
-      ["actor", "q", "outcome", "area", "correlation"].forEach((k) => { if (st[k]) p.set(k, st[k]); });
+      ["actor", "outcome", "area"].forEach((k) => { if (st[k]) p.set(k, st[k]); });
+      if (st.correlation) p.set("correlation", st.correlation);
+      if (st.q.trim()) { const [k, v] = aboutQuery(st.q.trim()); p.set(k, v); }
       if (!reset && minId) p.set("before", minId);
       const data = await api("GET", "/audit?" + p.toString());
-      if (actor.options.length === 1) data.actors.forEach((a) => actor.append(el("option", { value: a }, a)));
-      actor.value = st.actor;
+      if (mine !== asked) return;
+      actors = data.actors;
       rows = reset ? data.items : rows.concat(data.items);
       if (data.items.length) minId = Math.min(...data.items.map((a) => a.id));
-      more.hidden = !data.more;
-      summary.replaceChildren(el("span", null, SUI.plural(rows.length, "entry", "entries") + (data.more ? " so far" : "")),
-        el("span", null, "can't be edited or cleared from the console"), el("span", null, "times in " + SUI.tzLabel(true)));
-      body.replaceChildren(rows.length ? SUI.table({ caption: "Audit log", columns: cols, rows, sort: ["ts", "desc"] })
-        : SUI.stateBox({ icon: "audit", title: "No audit entries", text: "Nothing matches in this period." }));
+      hasMore = data.more;
+      draw();
     }
-    const apply = () => {
-      minId = null;
-      A.keepParams("#/audit", { range: st.range.preset, from: st.range.preset === "custom" ? st.range.from : null, to: st.range.preset === "custom" ? st.range.to : null,
-        actor: st.actor, q: st.q, outcome: st.outcome, area: st.area, correlation: st.correlation });
-      load(true).catch((e) => body.replaceChildren(SUI.errorBox(e, apply)));
-    };
-    actor.addEventListener("change", () => { st.actor = actor.value; apply(); });
-    const outcome = el("select", { "aria-label": "Outcome" }, [["", "Any outcome"], ["ok", "Done"], ["denied", "Refused"], ["no-op", "Changed nothing"]].map(([v, t]) => el("option", { value: v }, t)));
-    outcome.value = st.outcome;
-    const area = el("select", { "aria-label": "Area" }, [["", "Every area"], ["govern", "Govern"], ["money", "Money"], ["trust", "Trust"], ["emergency", "Emergency"], ["admin", "Administration"]].map(([v, t]) => el("option", { value: v }, t)));
-    area.value = st.area;
-    const corr = el("input", { type: "text", value: st.correlation, placeholder: "e.g. person:7, policy:2, incident:4", "aria-label": "About" });
-    outcome.addEventListener("change", () => { st.outcome = outcome.value; apply(); });
-    area.addEventListener("change", () => { st.area = area.value; apply(); });
-    corr.addEventListener("change", () => { st.correlation = corr.value.trim(); apply(); });
-    q.addEventListener("input", SUI.debounce(() => { st.q = q.value.trim(); apply(); }, 300));
+    const keep = () => A.keepParams("#/audit", { range: st.range, from: st.range === "custom" ? from : null, to: st.range === "custom" ? to : null,
+      actor: st.actor, q: st.q, outcome: st.outcome, area: st.area, correlation: st.correlation, page: st.page > 1 ? st.page : null, per: st.per !== 25 ? st.per : null });
+    const reload = () => { minId = null; load(true).catch((e) => box.replaceChildren(SUI.errorBox(e, reload))); };
     more.addEventListener("click", () => load(false).catch((e) => toast(e.message, true)));
     await load(true);
-    A.frame({ title: "Audit log", lead: el("span", { class: "audit-mark", "aria-hidden": "true" }, icon("audit")),
+    const periods = [...AUDIT_RANGES, ...(st.range === "custom" ? [["custom", "Custom dates"]] : [])].map(([id, label]) => ({ id, label }));
+    const bar = SUI.filterBar({ label: "Filter the audit log", search: { placeholder: "Action, target, detail, or person:7" }, values: st, filters: [
+      { id: "range", label: "Period", any: "30 days", options: periods },
+      { id: "actor", label: "Who", any: "Every console user", options: actors.map((a) => ({ id: a, label: a })) },
+      { id: "outcome", label: "Outcome", any: "Any outcome", options: AUDIT_OUTCOMES.map(([id, label]) => ({ id, label })) },
+      { id: "area", label: "Area", any: "Every area", options: AUDIT_AREAS.map(([id, label]) => ({ id, label })) },
+      { id: "correlation", label: "About", any: "Anything", options: st.correlation ? [{ id: st.correlation, label: st.correlation }] : [] },
+    ], onChange: (v) => { Object.assign(st, { q: v.q || "", range: v.range || "", actor: v.actor || "", outcome: v.outcome || "", area: v.area || "", correlation: v.correlation || "" });
+      if (st.range !== "custom") { from = ""; to = ""; }
+      st.page = pager.page = 1; keep(); reload(); } });
+    draw();
+    A.frame({ title: "Audit log", trail: [SEC_ROOT, ["Audit log"]],
       lede: ["What console users and the system changed, or tried to — sign-ins, settings, access, keys, every full record opened, every change a role refused — with before and after, the reason given, and the outcome. What staff did is under ",
         el("a", { href: "#/activity" }, "Activity"), "."] }, [
-      A.panel(null, null, (() => {
-        const fb = filterBar({ search: q, extra: actor,
-          fields: [{ key: "outcome", label: "Outcome", control: outcome }, { key: "area", label: "Area", control: area }, { key: "correlation", label: "About", control: corr }],
-          clear: (keys) => { keys.forEach((k) => { st[k] = ""; ({ outcome, area, correlation: corr })[k].value = ""; }); fb.draw(); apply(); },
-          range: SUI.rangeControl({ preset: st.range.preset, from: st.range.from, to: st.range.to, presets: ["today", "7d", "30d", "month", "custom"], onChange: (r) => { st.range = r; apply(); } }) });
-        [outcome, area, corr].forEach((c) => c.addEventListener("change", () => fb.draw()));
-        return fb.node;
-      })(),
-        summary, body, el("div", { class: "body center" }, more)),
+      A.panel(null, null, el("div", { class: "filterbar" }, bar), summary, box, el("div", { class: "body center" }, more)),
     ]);
   }
 
