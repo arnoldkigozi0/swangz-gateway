@@ -14,7 +14,7 @@ const ok = (label, v) => { assert.ok(v, label); results.checks.push(label); };
 const fs = require('node:fs');
 const { AxeBuilder } = require('@axe-core/playwright');
 const OVERVIEW_OUT = process.env.OVERVIEW_OUT || '/tmp/swangz-hub-overview-l1';
-const CARDS = ['#/licences?tab=spend&range=30d', '#/activity?tab=ai&range=30d', '#/activity?tab=usage&range=today&by=person', '#/security?days=7', '#/attention', '#/live'];
+const CARDS = ['#/licences?tab=spend&range=30d', '#/activity?tab=ai&range=30d', '#/activity?tab=usage&range=today&by=person', '#/security?view=signals&days=7&severity=warnings', '#/attention', '#/live'];
 const overviewFindings = [];
 async function overviewPass(page, url, theme) {
   for (const [width, height, vname] of [[1440, 852, 'desktop'], [390, 844, 'mobile']]) {

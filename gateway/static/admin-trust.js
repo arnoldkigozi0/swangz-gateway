@@ -12,26 +12,46 @@
 
   // ------------------------------------------------------------------ Incidents
 
+  const SEC_ROOT = ["Security", "#/security"];
+
   async function pageIncidents(params) {
-    const which = ["active", "closed", "all"].includes(params.get("status")) ? params.get("status") : "active";
-    const data = await api("GET", "/incidents?status=" + which);
+    const status = ["closed", "all"].includes(params.get("status")) ? params.get("status") : "";
+    const st = { q: params.get("q") || "", status, severity: SEVERITY[params.get("severity")] ? params.get("severity") : "",
+      page: Number(params.get("page")) || 1, per: Number(params.get("per")) || 25 };
+    let data = await api("GET", "/incidents?status=" + (st.status || "active")), asked = 0;
+    const box = el("div");
+    const pager = { page: st.page, size: st.per, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
     const c = data.counts || {};
     const active = (c.open || 0) + (c.investigating || 0) + (c.contained || 0);
     const closed = (c.resolved || 0) + (c.dismissed || 0);
-    const tabs = el("nav", { class: "sec-chips", "aria-label": "Filter" }, [["active", "Active", active], ["closed", "Closed", closed], ["all", "All", active + closed]].map(([k, t, n]) =>
-      el("a", { class: "sec-chip" + (which === k ? " on" : ""), href: "#/incidents?status=" + k, "aria-current": which === k ? "true" : null }, el("span", null, t), el("span", { class: "n u-num" }, String(n)))));
-    const table = data.items.length ? SUI.table({ caption: "Incidents", rows: data.items, sort: ["updated", "desc"], href: (i) => "#/incidents/" + i.id, columns: [
-      { key: "title", label: "Incident", lead: true, render: (i) => el("div", null, el("strong", null, i.title), el("span", { class: "sub" }, `#${i.id} · opened by ${i.created_by} ${fmt.ago(i.created)}`)) },
-      { key: "severity", label: "Severity", sort: (i) => ["low", "medium", "high", "critical"].indexOf(i.severity), render: (i) => SUI.status(...SEVERITY[i.severity], { plain: true }) },
-      { key: "status", label: "State", render: (i) => SUI.status(...STATE[i.status], { plain: true }) },
-      { key: "owner", label: "Owner", render: (i) => i.owner || "—", hideSm: true },
-      { key: "links", label: "Evidence", num: true, hideSm: true },
-      { key: "updated", label: "Last change", num: true, render: (i) => fmt.ago(i.updated) }] })
-      : SUI.stateBox({ tone: which === "active" ? "ok" : null, icon: "flag", title: which === "active" ? "No open incidents" : "None here",
-        text: which === "active" ? "Open one from a security signal, or by hand when something needs following through." : "Nothing in this list." });
-    A.frame({ title: "Incidents", lede: "When a signal needs following through: one place for who owns it, the evidence, what was done, and how it ended. Everything here is in the audit log too.",
+    function draw() {
+      const qq = st.q.trim().toLowerCase();
+      const rows = data.items.filter((i) => (!st.severity || i.severity === st.severity) && (!qq || [i.title, i.owner, i.created_by, "#" + i.id].join(" ").toLowerCase().includes(qq)));
+      box.replaceChildren(rows.length ? SUI.table({ caption: "Incidents", rows, sort: ["updated", "desc"], href: (i) => "#/incidents/" + i.id, pager, columns: [
+        { key: "title", label: "Incident", lead: true, render: (i) => el("div", null, el("strong", null, i.title), el("span", { class: "sub" }, `#${i.id} · opened by ${i.created_by} ${fmt.ago(i.created)}`)) },
+        { key: "severity", label: "Severity", sort: (i) => ["low", "medium", "high", "critical"].indexOf(i.severity), render: (i) => SUI.status(...SEVERITY[i.severity], { plain: true }) },
+        { key: "status", label: "State", render: (i) => SUI.status(...STATE[i.status], { plain: true }) },
+        { key: "owner", label: "Owner", render: (i) => i.owner || "—", hideSm: true },
+        { key: "links", label: "Evidence", num: true, hideSm: true },
+        { key: "updated", label: "Last change", num: true, render: (i) => fmt.ago(i.updated) }] })
+        : SUI.stateBox({ tone: !data.items.length && !st.status ? "ok" : null, icon: "flag", title: data.items.length ? "No incidents match" : st.status ? "None here" : "No open incidents",
+          text: data.items.length ? "Try another search or filter." : st.status ? "Nothing in this list." : "Open one from a security signal, or by hand when something needs following through." }));
+    }
+    const keep = () => A.keepParams("#/incidents", { status: st.status, severity: st.severity, q: st.q, page: st.page > 1 ? st.page : null, per: st.per !== 25 ? st.per : null });
+    const reload = async () => {
+      const mine = ++asked;
+      try { const got = await api("GET", "/incidents?status=" + (st.status || "active")); if (mine !== asked) return; data = got; draw(); }
+      catch (e) { if (mine === asked) box.replaceChildren(SUI.errorBox(e, reload)); }
+    };
+    const bar = SUI.filterBar({ label: "Filter incidents", search: { placeholder: "Title, owner or number" }, values: st, filters: [
+      { id: "status", label: "State", any: `Active (${active})`, options: [{ id: "closed", label: `Closed (${closed})` }, { id: "all", label: `All (${active + closed})` }] },
+      { id: "severity", label: "Severity", any: "Any severity", options: Object.entries(SEVERITY).map(([id, [, label]]) => ({ id, label })) },
+    ], onChange: (v, id) => { st.q = v.q || ""; st.status = v.status || ""; st.severity = v.severity || ""; st.page = pager.page = 1; keep();
+      if (id === "status" || id === null) reload(); else draw(); } });
+    draw();
+    A.frame({ title: "Incidents", trail: [SEC_ROOT, ["Incidents"]], lede: "When a signal needs following through: one place for who owns it, the evidence, what was done, and how it ended. Everything here is in the audit log too.",
       actions: A.can("trust") ? el("button", { class: "btn primary", onclick: () => openIncident({}) }, icon("plus"), "Open an incident") : null },
-    [tabs, A.panel(null, null, table)]);
+    A.panel(null, null, el("div", { class: "filterbar" }, bar), box));
     if (params.get("add") && A.can("trust")) {
       openIncident({ title: params.get("title") || "", source: params.get("source") || "", person: params.get("person"), request: params.get("request") });
     }
@@ -90,18 +110,25 @@
     const noteErr = el("span", { class: "err", role: "alert" });
     const notes = el("ol", { class: "incident-notes" }, i.notes_list.map((n) => el("li", { class: n.kind },
       el("div", { class: "meta" }, `${n.author} · ${fmt.stamp(n.ts)}`), el("div", null, n.text))));
-    const addNote = edit ? A.panelFoot(el("span", { class: "grow" }, noteErr), el("button", { class: "btn primary", onclick: async () => {
+    const addNote = edit ? A.panelFoot(el("span", { class: "grow" }, noteErr), el("button", { class: "btn", onclick: async () => {
       try { await api("POST", `/incidents/${i.id}/notes`, { text: note.value }); A.render(); } catch (e) { noteErr.textContent = e.message; }
     } }, "Add note")) : null;
-    A.frame({ title: i.title, crumbs: [el("a", { href: "#/incidents" }, "Incidents"), "#" + i.id], status: SUI.status(...STATE[i.status], { plain: true }), actions: moves }, [
-      facts,
-      i.summary ? A.panel("Summary", null, el("div", { class: "body" }, el("p", { class: "pre-wrap" }, i.summary))) : null,
-      i.resolution ? A.panel("How it ended", null, el("div", { class: "body" }, el("p", { class: "pre-wrap" }, i.resolution))) : null,
-      A.panel("Evidence", SUI.plural(i.links_list.length, "link"), el("div", { class: "body" }, evidence), addLink),
-      A.panel("Notes", "in order; nothing here can be edited", el("div", { class: "body stack" }, notes, edit ? note : null), addNote),
-      A.panel("Audit trail", null, el("ul", { class: "mini-list" }, i.trail.map((t) => el("li", null,
-        el("time", { class: "hint nowrap", title: fmt.stamp(t.ts) }, fmt.when(t.ts)), el("div", { class: "grow" }, el("strong", null, t.actor), " " + t.action), el("span", { class: "hint" }, t.detail || ""))))),
-    ]);
+    /* The one "Next step" line: a closed case is done; an open one needs evidence, then a note, then an ending. */
+    const here = "#/incidents/" + i.id;
+    const next = closed ? "This incident is closed, so nothing needs doing."
+      : !edit ? "Your role can read this incident but not change it."
+        : !i.links_list.length ? el("a", { href: here + "?tab=evidence" }, "Link the people, devices or requests this is about")
+          : !i.notes_list.some((n) => n.kind === "note") ? el("a", { href: here + "?tab=notes" }, "Add a note on what you found")
+            : "Decide how this ends, then resolve or dismiss it.";
+    A.frame({ title: i.title, trail: [SEC_ROOT, ["Incidents", "#/incidents"], ["#" + i.id]], next, status: SUI.status(...STATE[i.status], { plain: true }), actions: moves }, [A.pageTabs(here, params, [
+      ["overview", "Overview", () => el("div", { class: "stack" }, facts,
+        i.summary ? A.panel("Summary", null, el("div", { class: "body" }, el("p", { class: "pre-wrap" }, i.summary))) : null,
+        i.resolution ? A.panel("How it ended", null, el("div", { class: "body" }, el("p", { class: "pre-wrap" }, i.resolution))) : null)],
+      ["evidence", "Evidence", () => A.panel(null, SUI.plural(i.links_list.length, "link"), el("div", { class: "body" }, evidence), addLink), i.links_list.length || null],
+      ["notes", "Notes", () => A.panel(null, "in order; nothing here can be edited", el("div", { class: "body stack" }, notes, edit ? note : null), addNote), i.notes_list.length || null],
+      ["trail", "Audit trail", () => A.panel(null, null, el("ul", { class: "mini-list" }, i.trail.map((t) => el("li", null,
+        el("time", { class: "hint nowrap", title: fmt.stamp(t.ts) }, fmt.when(t.ts)), el("div", { class: "grow" }, el("strong", null, t.actor), " " + t.action), el("span", { class: "hint" }, t.detail || "")))))],
+    ], { label: i.title })]);
   }
 
   async function move(i, status) {

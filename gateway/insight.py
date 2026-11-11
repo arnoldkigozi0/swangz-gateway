@@ -943,13 +943,13 @@ def attention(ctx):
         add("paused", "high", "Access", "AI access is paused for everyone",
             "Requests and tool launches are refused until an owner resumes access.", "#/settings")
     sec = security_events(ctx, 7)
-    for kind, title, href in (("credential", "Credentials detected in requests", "#/security"),
-                              ("unusual", "Unusual usage", "#/security"),
-                              ("wrong_key", "Requests with unknown keys", "#/security"),
-                              ("signin", "Failed console sign-ins", "#/security"),
-                              ("denials", "Repeated refusals", "#/security"),
-                              ("new_place", "Used from a new place", "#/security"),
-                              ("off_hours", "Used at unusual hours", "#/security")):
+    for kind, title, href in (("credential", "Credentials detected in requests", "#/security?view=signals&days=7&type=credential"),
+                              ("unusual", "Unusual usage", "#/security?view=signals&days=7&type=unusual"),
+                              ("wrong_key", "Requests with unknown keys", "#/security?view=signals&days=7&type=wrong_key"),
+                              ("signin", "Failed console sign-ins", "#/security?view=signals&days=7&type=signin"),
+                              ("denials", "Repeated refusals", "#/security?view=signals&days=7&type=denials"),
+                              ("new_place", "Used from a new place", "#/security?view=signals&days=7&type=new_place"),
+                              ("off_hours", "Used at unusual hours", "#/security?view=signals&days=7&type=off_hours")):
         hits = [e for e in sec if e["type"] == kind]
         if hits:
             worst = max(hits, key=lambda e: SEVERITY[e["severity"]])

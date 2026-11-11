@@ -70,7 +70,7 @@
         A.kpi({ label: "Security events · 7 days", value: secCount === null ? "—" : String(secCount),
           tone: sec && sec.posture !== "healthy" ? "alert" : null,
           foot: sec ? SUI.status(sec.posture, { healthy: "Healthy", watch: "Worth a look", elevated: "Elevated" }[sec.posture], { plain: true }) : null,
-          note: sec ? zeroReason("security", { events: secCount }) || "warnings and above" : "couldn't load", href: "#/security?days=7" }),
+          note: sec ? zeroReason("security", { events: secCount }) || "warnings and above" : "couldn't load", href: "#/security?view=signals&days=7&severity=warnings" }),
       ].map((card) => { card.append(el("span", { class: "kpi-go", "aria-hidden": "true" }, icon("arrowUp"))); return card; }));
     } else kpis = SUI.errorBox(trends.reason, () => A.render(), "The summary couldn't load");
 
@@ -640,56 +640,130 @@
     suspended: ["Access suspended", "user"], denials: ["Repeated refusals", "stop"], new_place: ["New places", "pin"], new_device: ["New devices", "device"],
     off_hours: ["Unusual hours", "clock"], new_model: ["New models", "chip"],
   };
-  async function pageSecurity(params) {
-    const days = Number(params.get("days")) || 7;
-    const type = params.get("type") || "";
-    const data = await api("GET", "/security?days=" + days);
-    const postureText = {
-      healthy: ["healthy", "Healthy", "No medium or high signals in this period. Low and informational events are listed below for completeness."],
-      watch: ["watch", "Worth a look", "Something here deserves a check — start with the medium items. Nothing is a finding against anyone until you've looked."],
+  /* BRIEF 10.10: Security is an L1 (four number cards and one short list). All signals is the L2 under it, and every
+     card opens that list already filtered to what the card counts. ?days= or ?type= still land on the list, so links
+     from when this was one page keep working. */
+  const SEC_ROOT = ["Security", "#/security"];
+  const SEC_RANK = { high: 3, medium: 2, low: 1, info: 0 };
+  const SEC_DAYS = [["1", "24 hours"], ["30", "30 days"]];
+  const SEC_LEVELS = [["warnings", "Low and above", (e) => e.severity !== "info"], ["high", "High", (e) => e.severity === "high"],
+    ["medium", "Medium", (e) => e.severity === "medium"], ["low", "Low", (e) => e.severity === "low"], ["info", "Info", (e) => e.severity === "info"]];
+  const secSignals = (extra) => "#/security?view=signals&days=7" + (extra ? "&" + extra : "");
+
+  function pageSecurity(params) {
+    return params.get("view") === "signals" || params.has("days") || params.has("type") ? signalsList(params) : securitySummary();
+  }
+
+  function safeguardsSheet(data) {
+    const [state, label, text] = {
+      healthy: ["healthy", "Healthy", "No medium or high signals in this period. Low and informational events are in All signals for completeness."],
+      watch: ["watch", "Worth a look", "Something here deserves a check, so start with the medium items. Nothing is a finding against anyone until you've looked."],
       elevated: ["elevated", "Elevated", "A high-severity signal is open. Look at it first."],
     }[data.posture];
-    // One row of filter chips instead of a tile per kind: only kinds that happened, plus "All".
-    const total = Object.values(data.counts).reduce((a, n) => a + (n || 0), 0);
-    const chip = (k, label, ic, n) => el("a", { class: "sec-chip" + (type === k ? " on" : ""), href: `#/security?days=${days}` + (k ? "&type=" + k : ""), "aria-current": type === k ? "true" : null },
-      ic ? icon(ic) : null, el("span", null, label), el("span", { class: "n u-num" }, String(n)));
-    const kinds = Object.entries(SEC_TYPES).filter(([k]) => data.counts[k] || type === k);
-    const counts = [chip("", "All", null, total), ...kinds.map(([k, [label, ic]]) => chip(k, label, ic, data.counts[k] || 0))];
-    const events = data.events.filter((e) => !type || e.type === type);
-    const list = events.length ? el("ul", { class: "sec-list" }, events.map((e) => {
-      const [state, label] = SEV[e.severity] || SEV.info;
-      return el("li", { class: "sec sev-" + e.severity },
-        el("div", { class: "sec-head" }, el("span", { class: "u-label" }, (SEC_TYPES[e.type] || [e.title])[0]), SUI.status(state, label),
-          el("span", { class: "grow" }), el("time", { class: "hint", title: fmt.stamp(e.ts) }, fmt.ago(e.ts))),
-        el("p", { class: "sec-text" }, e.text),
-        el("div", { class: "ev-meta" },
-          e.person ? A.personLink(e.person_id, e.person) : null,
-          e.tool ? el("span", { class: "obj" }, icon("tools"), e.tool) : null,
-          e.device ? el("span", { class: "obj" }, icon("device"), e.device) : null,
-          e.ip ? A.where(e.ip, e.place) : null),
-        e.evidence ? el("div", { class: "sec-foot" }, SUI.evidence(e.evidence)) : null,
-        el("div", { class: "row sec-go" },
-          A.can("trust") && ["high", "medium", "low"].includes(e.severity) ? el("button", { class: "btn small quiet", onclick: () => A.openIncident({
+    const fact = (k, v) => el("div", null, el("div", { class: "k" }, k), el("div", { class: "v" }, v));
+    SUI.sheet({ title: "Safeguards", cancel: "Close", purpose: "How the gateway is set to protect itself right now.", body: el("div", { class: "stack" },
+      el("div", null, SUI.status(state, label), el("p", null, text)),
+      el("div", { class: "evidence-grid" },
+        fact("Credentials in requests", data.settings.block_secrets ? "Refused" : "Let through, flagged"),
+        fact("Rate limit", data.settings.rate_per_min ? data.settings.rate_per_min + " a minute per person" : "Off"),
+        fact("Kill switch", data.settings.paused ? "AI is paused" : "Ready")),
+      el("a", { class: "btn small", href: "#/settings?tab=access" }, "Change in Settings")) });
+  }
+
+  async function securitySummary() {
+    const [secR, incR] = await Promise.allSettled([api("GET", "/security?days=7"), api("GET", "/incidents?status=active")]);
+    const data = secR.status === "fulfilled" ? secR.value : null;
+    const inc = incR.status === "fulfilled" ? incR.value : null;
+    const failed = "couldn't load";
+    const of = (f) => (data ? data.events.filter(f) : []);
+    const warnings = of((e) => e.severity !== "info"), high = of((e) => e.severity === "high"), medium = of((e) => e.severity === "medium");
+    const signIns = of((e) => e.type === "signin"), credentials = of((e) => e.type === "credential");
+    const active = inc ? inc.items.length : 0;
+    const cards = el("div", { class: "kpis four kpis-exact" }, [
+      A.kpi({ label: "Signals · 7 days", value: data ? String(warnings.length) : "—", tone: high.length ? "alert" : null, href: secSignals("severity=warnings"),
+        tip: "Everything rated low or above. Severity says what to check first; it isn't a judgement on anyone.",
+        note: !data ? failed : warnings.length ? `${high.length} high, ${medium.length} medium` : "nothing to check" }),
+      A.kpi({ label: "Open incidents", value: inc ? String(active) : "—", tone: active ? "alert" : null, href: "#/incidents?status=active",
+        note: !inc ? failed : active ? "being followed through" : "none open" }),
+      A.kpi({ label: "Failed sign-ins · 7 days", value: data ? String(signIns.length) : "—", href: secSignals("type=signin"),
+        tip: "Grouped: one signal for each address and kind of sign-in, however many attempts it made.",
+        note: !data ? failed : signIns.length ? "grouped by address" : "none failed" }),
+      A.kpi({ label: "Credentials · 7 days", value: data ? String(credentials.length) : "—", tone: credentials.length ? "alert" : null, href: secSignals("type=credential"),
+        tip: "Requests whose text looked like a key or password. It can be a test or example key.",
+        note: !data ? failed : credentials.length ? "found in requests" : "none found in requests" }),
+    ].map((card) => { card.append(el("span", { class: "kpi-go", "aria-hidden": "true" }, icon("arrowUp"))); return card; }));
+
+    const first = warnings.slice().sort((a, b) => SEC_RANK[b.severity] - SEC_RANK[a.severity] || b.ts - a.ts).slice(0, 5);
+    const list = !data ? SUI.errorBox(secR.reason, () => A.render())
+      : first.length ? el("ul", { class: "sec-list sec-short" }, first.map((e) => { const [state, label] = SEV[e.severity] || SEV.info;
+        return el("li", { class: "sec sev-" + e.severity }, el("a", { class: "sec-link", href: e.href },
+          el("div", { class: "sec-head" }, el("span", { class: "u-label" }, (SEC_TYPES[e.type] || [e.title])[0]), SUI.status(state, label),
+            el("span", { class: "grow" }), el("time", { class: "hint", title: fmt.stamp(e.ts) }, fmt.ago(e.ts))),
+          el("p", { class: "sec-text", title: e.text }, e.text))); }))
+        : SUI.stateBox({ tone: "ok", icon: "shield", title: "Nothing to check", text: "No signals rated low or above in the last 7 days." });
+
+    /* The one "Next step" line: high signals first, then cases already open, then what is worth a look. */
+    const next = !data || !inc ? "Some of the figures couldn't load, so there is no next step to show."
+      : high.length ? el("a", { href: secSignals("severity=high") }, `Check ${SUI.plural(high.length, "high signal")}`)
+        : active ? el("a", { href: "#/incidents?status=active" }, `Follow through on ${SUI.plural(active, "open incident")}`)
+          : medium.length ? el("a", { href: secSignals("severity=medium") }, `Check ${SUI.plural(medium.length, "medium signal")}`)
+            : "Nothing needs doing right now.";
+
+    A.frame({ title: "Security", trail: [[SEC_ROOT[0]]], next, actions: [
+      data ? el("button", { class: "btn", type: "button", onclick: () => safeguardsSheet(data) }, icon("shield"), "Safeguards") : null,
+      el("a", { class: "btn", href: "#/devices" }, icon("device"), "Devices"),
+      el("a", { class: "btn", href: "#/audit" }, icon("audit"), "Audit log"),
+    ].filter(Boolean) }, [cards, A.panel("Check these first", el("a", { class: "btn small quiet", href: secSignals() }, "See all", icon("chevronRight")), list)]);
+  }
+
+  async function signalsList(params) {
+    const days = SEC_DAYS.some(([k]) => k === params.get("days")) ? params.get("days") : "";
+    const st = { q: params.get("q") || "", days, type: SEC_TYPES[params.get("type")] ? params.get("type") : "",
+      severity: SEC_LEVELS.some(([k]) => k === params.get("severity")) ? params.get("severity") : "",
+      page: Number(params.get("page")) || 1, per: Number(params.get("per")) || 25 };
+    let data = await api("GET", "/security?days=" + (st.days || 7)), asked = 0;
+    const box = el("div"), meta = el("div", { class: "list-meta", role: "status" });
+    const pager = { page: st.page, size: st.per, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
+    const details = (e) => SUI.sheet({ title: e.title, cancel: "Close", purpose: (SEC_TYPES[e.type] || [e.title])[0], body: el("div", { class: "stack" },
+      el("p", null, e.text), e.evidence ? SUI.evidence(e.evidence) : null, e.href ? el("a", { class: "btn small", href: e.href }, "Investigate", icon("chevronRight")) : null) });
+    function draw() {
+      const qq = st.q.trim().toLowerCase();
+      const want = (SEC_LEVELS.find(([k]) => k === st.severity) || [, , () => true])[2];
+      const rows = data.events.filter((e) => (!st.type || e.type === st.type) && want(e)
+        && (!qq || [e.title, e.text, e.person, e.tool, e.device, e.ip].join(" ").toLowerCase().includes(qq)));
+      const span = SEC_DAYS.find(([k]) => k === st.days);
+      meta.replaceChildren(el("span", null, SUI.plural(rows.length, "signal") + " · last " + (span ? span[1] : "7 days")));
+      box.replaceChildren(rows.length ? SUI.table({ caption: "All signals", rows, sort: ["ts", "desc"], href: (e) => e.href || null, pager, columns: [
+        { key: "title", label: "Signal", lead: true, render: (e) => el("div", null, el("strong", null, (SEC_TYPES[e.type] || [e.title])[0]), el("span", { class: "sub sec-cut", title: e.text }, e.text)) },
+        { key: "severity", label: "Severity", sort: (e) => SEC_RANK[e.severity], render: (e) => SUI.status(...(SEV[e.severity] || SEV.info), { plain: true }) },
+        { key: "person", label: "Who", render: (e) => (e.person ? A.personLink(e.person_id, e.person) : "—") },
+        { key: "where", label: "Where", sort: false, hideSm: true, render: (e) => (e.ip ? A.where(e.ip, e.place) : e.device || e.tool || "—") },
+        { key: "ts", label: "When", num: true, render: (e) => el("time", { title: fmt.stamp(e.ts) }, fmt.ago(e.ts)) },
+        { key: "act", label: "", srLabel: "Actions", sort: false, render: (e) => SUI.menuButton({ label: "More actions for " + e.title, small: true, items: () => [
+          { id: "details", label: "Details", icon: "info", onSelect: () => details(e) },
+          e.href ? { id: "investigate", label: "Investigate", icon: "chevronRight", href: e.href } : null,
+          A.can("trust") && e.severity !== "info" ? { id: "incident", label: "Open incident", icon: "flag", onSelect: () => A.openIncident({
             title: e.title + (e.person ? " — " + e.person : ""), severity: e.severity === "high" ? "high" : "medium", source: "security:" + e.type,
-            person: e.person_id, request: (e.href || "").startsWith("#/records/") ? e.href.slice(10) : null }) }, icon("flag"), "Open incident") : null,
-          e.href ? el("a", { class: "btn small", href: e.href }, "Investigate", icon("chevronRight")) : null));
-    })) : SUI.stateBox({ tone: "ok", icon: "shield", title: type ? "None of these" : "No security events", text: type ? "Nothing of this kind in this period." : "Everything looks normal." });
-    A.frame({ title: "Security", lede: ["Signals that may need investigating, each with its evidence and how sure it is. Severity says what to check first — it isn't a judgement on anyone. Not a history: what people did is under ",
-      el("a", { href: "#/activity" }, "Activity"), "."],
-      status: SUI.status(postureText[0], postureText[1], { plain: true }),
-      actions: seg([["1", "24 hours"], ["7", "7 days"], ["30", "30 days"]], String(days), (v) => { location.hash = `#/security?days=${v}` + (type ? "&type=" + type : ""); }, "Period") }, [
-      el("section", { class: "posture p-" + data.posture },
-        el("div", { class: "posture-main" }, el("div", { class: "u-label" }, "Current posture"),
-          el("div", { class: "posture-state" }, SUI.status(postureText[0], postureText[1])), el("p", null, postureText[2])),
-        el("div", { class: "posture-facts" },
-          el("div", null, el("span", { class: "k" }, "Credentials in requests"), el("span", { class: "v" }, data.settings.block_secrets ? "Refused" : "Let through, flagged")),
-          el("div", null, el("span", { class: "k" }, "Rate limit"), el("span", { class: "v" }, data.settings.rate_per_min ? data.settings.rate_per_min + " a minute per person" : "Off")),
-          el("div", null, el("span", { class: "k" }, "Kill switch"), el("span", { class: "v" }, data.settings.paused ? "AI is paused" : "Ready")),
-          el("a", { class: "btn small", href: "#/settings?tab=access" }, "Change in Settings"))),
-      el("nav", { class: "sec-chips", "aria-label": "Filter by kind" }, counts,
-        kinds.length ? null : el("span", { class: "hint" }, "Nothing of any kind in this period.")),
-      A.panel(type ? SEC_TYPES[type][0] : "Events", SUI.plural(events.length, "event") + ` · last ${days === 1 ? "24 hours" : days + " days"}`, list),
-    ]);
+            person: e.person_id, request: (e.href || "").startsWith("#/records/") ? e.href.slice(10) : null }) } : null,
+        ].filter(Boolean) }) },
+      ] }) : SUI.stateBox({ tone: data.events.length ? null : "ok", icon: "shield", title: data.events.length ? "No signals match" : "No security signals",
+        text: data.events.length ? "Try another search or filter." : "Nothing in this period." }));
+    }
+    const keep = () => A.keepParams("#/security", { view: "signals", days: st.days, type: st.type, severity: st.severity, q: st.q, page: st.page > 1 ? st.page : null, per: st.per !== 25 ? st.per : null });
+    const reload = async () => {
+      const mine = ++asked;
+      try { const got = await api("GET", "/security?days=" + (st.days || 7)); if (mine !== asked) return; data = got; draw(); }
+      catch (e) { if (mine === asked) box.replaceChildren(SUI.errorBox(e, reload)); }
+    };
+    const bar = SUI.filterBar({ label: "Filter signals", search: { placeholder: "Person, tool, device or address" }, values: st, filters: [
+      { id: "days", label: "Period", any: "7 days", options: SEC_DAYS.map(([id, label]) => ({ id, label })) },
+      { id: "type", label: "Kind", any: "Every kind", options: Object.entries(SEC_TYPES).map(([id, [label]]) => ({ id, label })) },
+      { id: "severity", label: "Severity", any: "Any severity", options: SEC_LEVELS.map(([id, label]) => ({ id, label })) },
+    ], onChange: (v, id) => { st.q = v.q || ""; st.days = v.days || ""; st.type = v.type || ""; st.severity = v.severity || ""; st.page = pager.page = 1; keep();
+      if (id === "days" || id === null) reload(); else draw(); } });
+    draw();
+    A.frame({ title: "All signals", trail: [SEC_ROOT, ["All signals"]], lede: ["Signals that may need investigating, each with its evidence. Severity says what to check first; it isn't a judgement on anyone. What people did is under ",
+      el("a", { href: "#/activity" }, "Activity"), "."] }, A.panel(null, null, el("div", { class: "filterbar" }, bar), meta, box));
   }
 
   // ------------------------------------------------------------------ Audit
