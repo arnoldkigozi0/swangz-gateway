@@ -385,7 +385,7 @@ const mount = () => {
         const g = await page.evaluate(() => { const n = document.querySelector('.u-sheet'), r = n.getBoundingClientRect(), f = n.querySelector('.u-sheet-foot').getBoundingClientRect(), b = n.querySelector('.u-sheet-body');
           return { w: r.width, top: r.top, h: r.height, role: n.getAttribute('role'), modal: n.getAttribute('aria-modal'), title: document.getElementById(n.getAttribute('aria-labelledby')).textContent,
             purpose: document.getElementById(n.getAttribute('aria-describedby')).textContent, footBottom: Math.abs(f.bottom - innerHeight), scrolls: b.scrollHeight > b.clientHeight,
-            btnH: Math.min(...[...n.querySelectorAll('button')].map(x => x.getBoundingClientRect().height)) }; });
+            btnH: Math.min(...[...n.querySelectorAll('.u-sheet-foot button')].map(x => x.getBoundingClientRect().height)) }; });
         ok(H + (vname === 'mobile' ? 'it fills the phone screen' : 'it is a 480px panel on the right, full height'), g.w === (vname === 'mobile' ? vw : 480) && g.top === 0 && g.h === vh);
         ok(H + 'it is a modal dialog named by its title and described by its purpose', g.role === 'dialog' && g.modal === 'true' && g.title === 'Add a person' && g.purpose === 'They can sign in once you save.');
         ok(H + 'the body scrolls and the footer stays at the bottom with Cancel then the primary', g.scrolls && g.footBottom < 1 && (await hs()).foot === 'Cancel,Save person' && g.btnH >= (vname === 'mobile' ? 44 : 36));
