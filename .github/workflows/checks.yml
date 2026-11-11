@@ -52,6 +52,10 @@ jobs:
         run: node tests/browser/people.cjs
         env:
           UI_OUTPUT: /tmp/swangz-hub-people-ui
+      - name: Tools on the control kit (filter bar, row menus, pages, tool record)
+        run: node tests/browser/tools.cjs
+        env:
+          UI_OUTPUT: /tmp/swangz-hub-tools-ui
       - name: Extension Python wrapper (must run, not skip)
         run: |
           python -c "import shutil; assert shutil.which('node'), 'Node must be available for test_extension'"
