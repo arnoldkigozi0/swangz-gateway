@@ -989,6 +989,9 @@ def attention(ctx):
              else "Given to people who haven't used them in 30 days.") + " Reclaim them on the Licences page.",
             "#/licences", n_idle, background=True)
     for t in lic["renewals"]:
+        # a cancelled (or never set up) plan does not renew, so it is nothing to check; the Licences page skips it too
+        if t["state"] in ("cancelled", "none"):
+            continue
         if t["renews_on"] <= now + 14 * DAY:
             add(f"renew-{t['id']}", "low", "Licences", f"{t['name']} renews {time.strftime('%d %b', time.gmtime(t['renews_on']))}",
                 f"{'$%s a month' % format(t['monthly_cost'], ',.2f') if t['monthly_cost'] else 'Cost not set'} — check it's still needed.",
