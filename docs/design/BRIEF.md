@@ -500,6 +500,50 @@ layer at a time and focus returns to the row it came from; on phones the tab bar
 edge, the drawer and the sheet are full-screen with a sticky action footer; a drawer never opens over a drawer —
 a link inside a drawer replaces its content and adds a crumb.
 
+**7. Little on each page, and the app leads the way (Arnold, 11 Nov 2026, clarifying "layering").** What the boss
+means by layered: **a page shows only a little, in the order a person needs it, so that even a very basic user
+always knows what they are looking at and what to do next.** The test reader is someone who has never used an admin
+tool. Points 1, 5 and 6 are the means; this point is the measure, and it wins when they disagree.
+
+- **One sentence first.** Under every page title, one plain sentence states the answer the page exists to give,
+  with the real number in it ("3 people are waiting for a tool." / "Nothing needs you right now."). A reader who
+  reads only that sentence has got the page.
+- **Then at most three things.** A screen at 1440×852 shows the sentence plus **at most three blocks** (this
+  tightens the "≤ 7 blocks" of point 1 for the default view). On a phone: the sentence plus **one** block per
+  screen height. Everything else is one deliberate step away — never further down the same page.
+- **Show the few, offer the rest.** Summary lists show 5 rows and "See all 42"; tables show **5 columns and 10
+  rows** by default (others under "Columns ▾", more rows by paging); a record shows its 4 most important facts and
+  keeps the rest under closed sections ("History", "Devices", "Advanced"); long text is cut to two lines with "More".
+- **Simple and Detailed.** Every list and record has a **Simple / Detailed** switch (segmented control, top right,
+  remembered per person, **Simple by default for everyone**). Simple is the rules above. Detailed is the full
+  table for people who work in it daily (with Compact from §10.9.3). Nothing exists only in Detailed that a task
+  needs — Simple must be enough to finish every common job.
+- **The app asks, the user answers.** Home (staff) and Overview (console) start with **"What do you want to do?"**
+  — at most six large task tiles in plain words (Add a person · Give someone a tool · Answer a request · See what
+  we spent · Check who is using what · Stop all AI). Each tile starts a guided flow: one question per step, the
+  safe answer pre-selected, a progress line ("Step 2 of 3"), Back always available, a final "Here is what will
+  happen" screen, then a clear result with the next suggested task. The full menus stay for people who know the way.
+- **Always a next step.** Every page, drawer, sheet, empty state, success message and error ends with one
+  suggested action as a button. A dead end — a screen with nothing to press but the menu — is a defect.
+- **First visit.** A new admin sees a "Set up in 4 steps" checklist on Overview (add people → add tools → give
+  access → check the first report) that ticks itself off from real data and disappears when done. A new member of
+  staff sees three steps (sign in → open a tool → ask for one you do not have).
+- **Plain words.** No internal or technical terms on a default screen (not "entitlement", "grant", "seat",
+  "policy", "provenance", "L2"): say "access", "give", "licence", "rule", "where this number comes from". A term
+  that must stay gets a dotted underline and a one-line popover. Buttons are verb + thing ("Give access", never
+  "Submit" or "OK"). Sentences of 12 words or fewer. Numbers always carry their unit and period ("$4.20 this week").
+- **Use every arranging tool before adding to a page:** tabs, the floating tab bar, dropdowns, accordions,
+  drawers, sheets, steppers, popovers, "See all" links, Simple/Detailed, paging, grouping with headings, and empty
+  space (≥ 24px between blocks). When something new must be shown, it goes down a level — a page never grows.
+- **Signposts.** The trail shows where you are; the active rail icon and tab are unmistakable; every drawer and
+  sheet says in its title what it is about and for whom ("Give Nansubuga Grace a tool").
+
+**The basic-user test (Probe runs it on every restructured area; merge-blocking).** With a fresh browser and no
+help, each of these is done from the landing page in **≤ 3 clicks to start, no scrolling to find the way, no
+jargon read**: add a person; give that person a tool; answer a waiting request; find what was spent this week;
+see what one person used; stop all AI. Probe records the click path and a screenshot of each step at 1440×852 and
+390×844, counts the blocks on each screen (> 3 in Simple = fail), and lists every word a new user would not know.
+
 **Round R18 — "structure and boxes"** goes **ahead of** the unfinished R15–R17 items, in this order: (a) tokens +
 box controls + scrollbars + rail in one PR (CSS only, both apps, both themes); (b) the background; (c) the
 "Page levels" table and the control kit page of point 5; (d) Overview as L1 with every card chained to its filtered list; (e) one chain per PR in the
