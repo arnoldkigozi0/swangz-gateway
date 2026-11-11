@@ -301,3 +301,54 @@ class ControlKitPageTests(unittest.TestCase):
 
     def test_page_is_not_in_the_navigation(self):
         self.assertNotIn("#/kit", (STATIC / "admin.js").read_text(encoding="utf-8"))
+
+
+def people_lead(cases):
+    source = (STATIC / "admin-guide.js").read_text(encoding="utf-8")
+    many = re.search(r"\n  (const many = .*?;)\n", source).group(1)
+    fn = re.search(r"\n  (function peopleLead\(n\) \{\n.*?\n  \})\n", source, re.S).group(1)
+    script = many + fn + "\nconsole.log(JSON.stringify(" + json.dumps(cases) + ".map(peopleLead)));"
+    out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30, check=True)
+    return json.loads(out.stdout)
+
+
+@unittest.skipUnless(shutil.which("node"), "Node is not installed")
+class PeopleLeadTests(unittest.TestCase):
+    """BRIEF 10.10.7 on People: one sentence with the real number, then one next step that is never a dead end."""
+    BASE = {"total": 12, "notSignedIn": 0, "usedToday": 4, "canGovern": True, "status": ""}
+
+    def lead(self, **n):
+        return people_lead([{**self.BASE, **n}])[0]
+
+    def test_the_sentence_carries_the_real_number(self):
+        self.assertEqual(self.lead(notSignedIn=3)["sentence"], "3 of 12 people have not signed in yet.")
+        self.assertEqual(self.lead(notSignedIn=1)["sentence"], "1 of 12 people has not signed in yet.")
+        self.assertEqual(self.lead()["sentence"], "12 people have access; 4 used AI today.")
+        self.assertEqual(self.lead(total=1, usedToday=0)["sentence"], "1 person has access; 0 used AI today.")
+        self.assertEqual(self.lead(total=0)["sentence"], "Nobody has access to the Hub yet.")
+
+    def test_the_button_opens_exactly_the_people_counted(self):
+        self.assertEqual(self.lead(notSignedIn=3)["action"]["href"], "#/people?status=invite")
+        # already looking at them: the next step moves on rather than reopening the same list
+        self.assertEqual(self.lead(notSignedIn=3, status="invite")["action"]["task"], "give-tool")
+
+    def test_a_role_is_only_offered_what_it_can_do(self):
+        self.assertEqual(self.lead(canGovern=False)["action"]["task"], "check-use")
+        self.assertEqual(self.lead(total=0, canGovern=False)["action"]["task"], "check-use")
+        self.assertEqual(self.lead(total=0)["action"]["task"], "add-person")
+        self.assertEqual(self.lead()["action"]["task"], "give-tool")
+
+    def test_sentences_stay_short(self):
+        for n in ({"notSignedIn": 1234}, {}, {"total": 0}):
+            self.assertLessEqual(len(self.lead(**n)["sentence"].split()), 12)
+
+
+class PeopleSimpleViewTests(unittest.TestCase):
+    def test_people_uses_the_shared_view_switch_and_a_ten_row_pager(self):
+        govern = (STATIC / "admin-govern.js").read_text(encoding="utf-8")
+        self.assertIn('A.viewMode("people", "#/people", params)', govern)
+        self.assertIn("sizes: [10, 25, 50]", govern)
+        ui = (STATIC / "ui.js").read_text(encoding="utf-8")
+        self.assertIn("const sizes = o.sizes || PAGE_SIZES;", ui)
+        admin = (STATIC / "admin.js").read_text(encoding="utf-8")
+        self.assertRegex(admin, r'=== "detailed" \? "detailed" : "simple"')
