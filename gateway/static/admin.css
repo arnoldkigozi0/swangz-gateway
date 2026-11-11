@@ -1531,6 +1531,7 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
   .route-security .kpis-exact .kpi .label .u-info { flex: none; width: 44px; height: 44px; margin: -14px; }
   .route-security .u-table th button, .route-incidents .u-table th button, .route-security .u-pager .btn, .route-incidents .u-pager .btn { min-height: 44px; }
   .route-security .u-table.cards td > .u-more { min-width: 44px; height: 44px; }
+}
 
 /* Phone touch size: the console's floating bar, the plans link above a list and a page's title action reach 44px. */
 @media (max-width: 640px) {
