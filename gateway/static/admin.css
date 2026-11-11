@@ -1473,8 +1473,8 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
 .console-trail a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
 .console-trail .sep { flex: none; color: var(--tx-3); }
 /* A long chain gives way from the left: the pages above shorten with an ellipsis so the current page stays readable. */
-.console-trail > a, .console-trail > .crumb-area { flex: 0 1000 auto; min-width: 3ch; overflow: hidden; text-overflow: ellipsis; }
-.console-trail > .crumb-here { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.console-trail > a, .console-trail > .crumb-area { flex: 0 1000 auto; min-width: 3ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.console-trail > .crumb-here { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .console-trail .crumb-here, .crumbs .crumb-here { color: var(--tx-1); font-weight: 600; }
 @media (min-width: 1201px) { .top > .crumbs.in-bar { display: none; } }
 @media (max-width: 1200px) { .console-trail { display: none; } }
@@ -1484,8 +1484,6 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
 .top:has(> .next-step + .lede) { grid-template-areas: "crumbs crumbs" "title actions" "sub sub" "lede lede"; }
 @media (max-width: 640px) { .top:has(> .next-step + .lede) { grid-template-areas: "crumbs" "title" "sub" "lede" "actions"; } }
 @media (min-width: 1201px) { .top:has(> .next-step + .lede) { grid-template-areas: "crumbs crumbs" "title actions" "sub actions" "lede actions"; } }
-.console-trail > a, .console-trail > .crumb-area, .console-trail > .sep { flex: none; }
-.console-trail > .crumb-here { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .next-label { margin-right: 8px; font-weight: 600; color: var(--tx-2); }
 .sheet-next { margin: 12px 0 0; color: var(--tx-1); font-size: 13.5px; }
 .sheet-trail a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
