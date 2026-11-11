@@ -87,7 +87,14 @@ class ChromePolicyPackTests(unittest.TestCase):
                 for name in names:
                     if name.endswith((".py", ".sh", ".ps1", ".service")):
                         with open(os.path.join(base, name), encoding="utf-8", errors="replace") as f:
-                            self.assertNotIn("swangz-company-chrome", f.read(), name)
+                            source = f.read()
+                        if folder == "deploy" and name == "prepare.py" and os.path.basename(base) == "chrome-policy":
+                            # Explicit offline preparation is allowed; automatic policy install remains forbidden.
+                            self.assertIn("O_EXCL", source)
+                            self.assertIn("Refusing direct writes to active system Chrome policy locations", source)
+                            self.assertNotIn("subprocess", source)
+                        else:
+                            self.assertNotIn("swangz-company-chrome", source, name)
 
 
 if __name__ == "__main__":

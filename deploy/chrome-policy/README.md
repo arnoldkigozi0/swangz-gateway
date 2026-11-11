@@ -6,6 +6,11 @@ personal devices: those keep the Swangz AI Hub Access extension as their only ga
 Status: **written and checked for shape only.** It has not been installed on a real device. The bypass tests
 below have not been run. Nothing in this folder is applied by the gateway, the Swangz app or any setup script.
 
+For **one admin-managed profile per employee OS account**, see [SINGLE-MANAGED-PROFILE.md](SINGLE-MANAGED-PROFILE.md).
+The opt-in `prepare.py` script validates the three placeholders and creates a separate configured JSON file,
+without installing it, opening a browser or signing into a provider. Real OS-managed deployment and
+per-employee device verification are still required.
+
 ## Before installing: three values to fill in
 
 | Placeholder | Replace with | Who provides it |

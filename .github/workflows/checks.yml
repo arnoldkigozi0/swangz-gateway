@@ -68,6 +68,10 @@ jobs:
           UI_OUTPUT: /tmp/swangz-hub-security-ui
       - name: Person Last seen counts only the person's own requests, opens and visits
         run: node tests/browser/lastseen.cjs
+      - name: Access requests on the control kit (filter bar, decision at the row edge, Next step)
+        run: node tests/browser/requests.cjs
+        env:
+          UI_OUTPUT: /tmp/swangz-hub-requests-ui
       - name: Devices on the control kit (list, row menu, device record)
         run: node tests/browser/devices.cjs
         env:
@@ -76,6 +80,10 @@ jobs:
         run: node tests/browser/audit.cjs
         env:
           UI_OUTPUT: /tmp/swangz-hub-audit-ui
+      - name: Models on the control kit (filter bar, row menu, pager)
+        run: node tests/browser/models.cjs
+        env:
+          UI_OUTPUT: /tmp/swangz-hub-models-ui
       - name: Extension Python wrapper (must run, not skip)
         run: |
           python -c "import shutil; assert shutil.which('node'), 'Node must be available for test_extension'"
