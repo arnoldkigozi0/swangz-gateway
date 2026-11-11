@@ -219,6 +219,16 @@ class AttentionTests(LensBase):
         self.assertEqual(sev, sorted(sev, reverse=True))
 
 
+    def test_a_cancelled_plan_is_not_a_renewal_to_check(self):
+        rig = self.rig
+        soon = time.strftime("%Y-%m-%d", time.gmtime(time.time() + 7 * 86400))
+        rig.api("PUT", "/subscriptions/canva", {"state": "active", "monthly_cost": 30, "seats": 1, "renews_on": soon})
+        rig.api("POST", f"/people/{self.pid}/tools/canva")  # someone still holds it, so the tool stays on the licence list
+        keys = lambda: [i["key"] for i in rig.api("GET", "/attention")[1]["items"]]
+        self.assertIn("renew-canva", keys())
+        rig.api("PUT", "/subscriptions/canva", {"state": "cancelled", "monthly_cost": 30, "seats": 1, "renews_on": soon})
+        self.assertNotIn("renew-canva", keys())
+
     def test_an_offline_computer_running_the_company_browsers(self):
         rig = self.rig
         self.assertNotIn("ws-offline", [i["key"] for i in rig.api("GET", "/attention")[1]["items"]])
