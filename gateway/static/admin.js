@@ -1037,6 +1037,7 @@
     const top = el("header", { class: "top" }, crumbs,
       el("div", { class: "title-row" }, o.lead || null, el("h1", null, o.title), o.status || null),
       o.actions ? el("div", { class: "top-actions" }, o.actions) : null,
+      o.sentence ? el("p", { class: "lede ov-sentence" }, o.sentence) : null,
       o.next ? el("p", { class: "lede next-step" }, el("strong", { class: "next-label" }, "Next step"), o.next) : null,
       o.lede ? el("p", { class: "lede" }, o.lede) : null);
     const routeSlug = (section === "#/" ? "overview" : section.slice(2)).replace(/[^a-z0-9-]/gi, "-");

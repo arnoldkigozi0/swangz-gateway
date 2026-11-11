@@ -62,6 +62,7 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
 
       // row menu: opening it stays on the list; Preview is a sheet with a linkable address
       const more = p.locator('main tbody tr .u-more').first();
+      if (width === 390) { const b = await more.boundingBox(); ok(T + `row More is a 44px target (${b.width}x${b.height})`, b.width >= 44 && b.height >= 44); }
       await more.click();
       ok(T + 'the menu did not follow the row link', /#\/people(\?|$)/.test(await p.evaluate(() => location.hash)));
       const items = await p.locator('.u-menu [role=menuitem]').allInnerTexts();
@@ -136,14 +137,23 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       ok(T + 'add has at most six fields', await sheet.locator('input, select, textarea').count() <= 6);
       await sheet.getByRole('button', { name: 'Add person' }).click();
       ok(T + 'a missing name is said and focused', /Enter their name/.test(await sheet.innerText()) && await p.evaluate(() => document.activeElement.type === 'text'));
-      await p.waitForTimeout(350); await axe('add'); await shot(p, 'people-add');
+      await p.waitForTimeout(350);
+      ok(T + 'an invalid field looks invalid', await sheet.getByLabel(/^Email/).evaluate(n => { const c = document.createElement('i'); c.style.color = 'var(--bad)'; document.body.append(c); const bad = getComputedStyle(c).color; c.remove(); return getComputedStyle(n).borderTopColor === bad; }));
+      await axe('add'); await shot(p, 'people-add');
       await sheet.locator('input[type=text]').first().fill('Kit Test ' + theme + width);
       await p.keyboard.press('Escape');
       ok(T + 'unsaved edits are asked about', /Discard your unsaved changes/.test(await sheet.innerText()));
       await sheet.getByRole('button', { name: 'Keep editing' }).click();
       await sheet.getByRole('button', { name: 'Add person' }).click();
       ok(T + 'a missing email is said before the server is asked', /Enter their Swangz email/.test(await sheet.innerText()));
-      await sheet.getByLabel(/^Email/).fill(`kit-${theme}${width}@swangzavenue.com`);
+      const emailBox = sheet.getByLabel(/^Email/);
+      ok(T + 'email is required and marked invalid', await emailBox.evaluate(n => n.required && n.getAttribute('aria-invalid') === 'true'));
+      ok(T + 'the filled name is no longer marked invalid', await sheet.locator('input[type=text]').first().getAttribute('aria-invalid') === null);
+      await emailBox.fill('not-an-address');
+      await sheet.getByRole('button', { name: 'Add person' }).click();
+      await p.waitForFunction(() => /doesn't look right/.test(document.querySelector('.u-sheet, [role=dialog]')?.textContent || ''));
+      ok(T + 'a refused email is marked invalid on the field', await emailBox.getAttribute('aria-invalid') === 'true');
+      await emailBox.fill(`kit-${theme}${width}@swangzavenue.com`);
       await sheet.getByRole('button', { name: 'Add person' }).click();
       await p.waitForFunction(() => /#\/people\/\d+/.test(location.hash));
       await sheet.waitFor({ state: 'detached' });
