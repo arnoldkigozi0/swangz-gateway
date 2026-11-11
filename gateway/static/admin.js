@@ -1016,10 +1016,29 @@
     /* BRIEF 10.10.1 "The trail": a page that passes trail: [[label, href], …, [label]] gets the whole chain in the top
        bar, each crumb a link and the last one the current page. At 1200px and below, where the bar has no room, the
        same chain shows above the title instead. */
-    const chain = (cls) => el("nav", { class: cls, "aria-label": "You are here" }, [el("span", { class: "crumb-area" }, area),
-      ...o.trail.map(([label, href]) => (href ? el("a", { href, title: label }, label) : el("span", { class: "crumb-here", "aria-current": "page" }, label)))]
-      .map((c, i) => [i ? el("span", { class: "sep", "aria-hidden": "true" }, "›") : null, c]));
-    const barTrail = o.trail ? chain("console-area console-trail") : null;
+    /* The bar's trail has one 248px column at 1440px (§10 measured), so it keeps the current page and as many of the pages
+       above it as fit a character budget; what gives way becomes "…" (a link to the nearest page it hides, titled with the
+       rest). The line under the title, which has room, always shows the whole chain. */
+    const chain = (cls, budget) => {
+      let items = [{ label: area }, ...o.trail.map(([label, href]) => ({ label, href }))];
+      const whole = items.map((c) => c.label).join(" › ");
+      let cut = [];
+      if (budget) {
+        let used = 0, keep = items.length;
+        while (keep > 0 && used + items[keep - 1].label.length + 3 <= budget - (keep > 1 ? 4 : 0)) { used += items[keep - 1].label.length + 3; keep--; }
+        if (keep === items.length) keep--; // the current page is always kept, even when it alone is over budget
+        if (keep > 0) { cut = items.slice(0, keep); items = items.slice(keep); }
+      }
+      const nodes = items.map((c, i) => (c.href ? el("a", { href: c.href, title: c.label }, c.label)
+        : i === items.length - 1 ? el("span", { class: "crumb-here", "aria-current": "page" }, c.label) : el("span", { class: "crumb-area" }, c.label)));
+      if (cut.length) {
+        const near = [...cut].reverse().find((c) => c.href);
+        nodes.unshift(near ? el("a", { href: near.href, title: cut.map((c) => c.label).join(" › "), class: "crumb-more" }, "…")
+          : el("span", { class: "crumb-more", title: cut.map((c) => c.label).join(" › ") }, "…"));
+      }
+      return el("nav", { class: cls, "aria-label": "You are here: " + whole }, nodes.map((c, i) => [i ? el("span", { class: "sep", "aria-hidden": "true" }, "›") : null, c]));
+    };
+    const barTrail = o.trail ? chain("console-area console-trail", 40) : null;
     const appbar = el("header", { class: "appbar console-bar", "aria-label": "Control room toolbar" },
       el("div", { class: "console-context" },
         el("button", { class: "console-workspace", type: "button", "aria-label": "Open navigation", "aria-haspopup": "dialog", onclick: () => openDrawer(active) },
