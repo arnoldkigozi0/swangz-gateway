@@ -1018,11 +1018,18 @@
     tickClock();
     if (o.title) every(15000, () => { if (clock.isConnected) tickClock(); });
     const area = NAV.find(([, links]) => links.some(([href]) => href === active))?.[0] || "Control room";
+    /* BRIEF 10.10.1 "The trail": a page that passes trail: [[label, href], …, [label]] gets the whole chain in the top
+       bar, each crumb a link and the last one the current page. At 1200px and below, where the bar has no room, the
+       same chain shows above the title instead. */
+    const chain = (cls) => el("nav", { class: cls, "aria-label": "You are here" }, [el("span", { class: "crumb-area" }, area),
+      ...o.trail.map(([label, href]) => (href ? el("a", { href }, label) : el("span", { class: "crumb-here", "aria-current": "page" }, label)))]
+      .map((c, i) => [i ? el("span", { class: "sep", "aria-hidden": "true" }, "›") : null, c]));
+    const barTrail = o.trail ? chain("console-area console-trail") : null;
     const appbar = el("header", { class: "appbar console-bar", "aria-label": "Control room toolbar" },
       el("div", { class: "console-context" },
         el("button", { class: "console-workspace", type: "button", "aria-label": "Open navigation", "aria-haspopup": "dialog", onclick: () => openDrawer(active) },
           el("img", { src: "/static/icon.svg", alt: "" }), el("span", null, el("strong", null, "Swangz AI Hub"), el("small", null, "Control room")), icon("chevronDown")),
-        el("span", { class: "console-area", "aria-hidden": "true" }, area)),
+        barTrail || el("span", { class: "console-area", "aria-hidden": "true" }, area)),
       el("button", { class: "console-search", type: "button", "aria-label": "Search", onclick: () => openCommand() }, icon("search"),
         el("span", null, "Search pages, people, tools…"), el("span", { class: "u-kbd", "aria-hidden": "true" }, /Mac/.test(navigator.platform || "") ? "⌘K" : "Ctrl K")),
       el("div", { class: "console-tools" }, newMenu(), clock, bell(),
@@ -1030,11 +1037,12 @@
     // Where you are: the area, then the pages above this one — never the page's own title again.
     const place = NAV.map(([group, links]) => ({ group, item: links.find(([href]) => href === active) })).find((x) => x.item);
     const trail = [place ? el("span", { class: "crumb-area" }, place.group) : null, ...[].concat(o.crumbs || []).filter(Boolean)].filter(Boolean);
-    const crumbs = trail.length ? el("nav", { class: "crumbs" + (o.crumbs ? "" : " area-only"), "aria-label": "You are here" },
+    const crumbs = o.trail && !o.crumbs ? chain("crumbs in-bar") : trail.length ? el("nav", { class: "crumbs" + (o.crumbs ? "" : " area-only"), "aria-label": "You are here" },
       trail.map((c, i) => [c, i < trail.length - 1 ? el("span", { class: "sep", "aria-hidden": "true" }, "/") : null])) : null;
     const top = el("header", { class: "top" }, crumbs,
       el("div", { class: "title-row" }, o.lead || null, el("h1", null, o.title), o.status || null),
       o.actions ? el("div", { class: "top-actions" }, o.actions) : null,
+      o.next ? el("p", { class: "lede next-step" }, el("strong", { class: "next-label" }, "Next step"), o.next) : null,
       o.lede ? el("p", { class: "lede" }, o.lede) : null);
     const routeSlug = (section === "#/" ? "overview" : section.slice(2)).replace(/[^a-z0-9-]/gi, "-");
     const page = el("div", { class: "page" + (o.wide ? " wide" : "") }, content);

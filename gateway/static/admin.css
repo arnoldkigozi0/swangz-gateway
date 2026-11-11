@@ -1478,6 +1478,25 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
     background: var(--ink-1); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 
+/* BRIEF 10.10.1, Overview as an L1. The trail sits in the top bar (each crumb a link, the last the current page); at
+   1200px and below the bar has no room for it, so the same chain shows above the title. One "Next step" line sits
+   under the title. With Uses by tool on Activity, the chart takes two thirds and the two counts stack beside it. */
+.console-trail { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.console-trail a { color: inherit; text-decoration: none; }
+.console-trail a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.console-trail a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.console-trail .sep { color: var(--tx-3); }
+.console-trail .crumb-here, .crumbs .crumb-here { color: var(--tx-1); font-weight: 600; }
+@media (min-width: 1201px) { .top > .crumbs.in-bar { display: none; } }
+@media (max-width: 1200px) { .console-trail { display: none; } }
+.top > .lede.next-step { color: var(--tx-1); }
+.top > .lede.next-step + .lede { grid-area: auto; grid-column: 1 / -1; }
+.next-label { margin-right: 8px; font-weight: 600; color: var(--tx-2); }
+@media (min-width: 1001px) {
+  .route-overview .overview-exact { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: stretch; }
+  .route-overview .overview-side .kpis-exact.two { grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); }
+  .route-overview .overview-side .kpis-exact.two .kpi { min-height: 0; }
+}
 /* ---- the control kit page (#/kit): specimens in a grid, each under the name of its state */
 .kit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
 .kit-grid.wide { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }

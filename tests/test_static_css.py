@@ -34,6 +34,15 @@ class FilterChipTextTests(unittest.TestCase):
         self.assertIn("line-height: 1.3", rule)
 
 
+class ConsoleTrailTests(unittest.TestCase):
+    def test_top_bar_trail_is_hidden_where_the_title_shows_it(self):
+        """.console-trail sets display: flex after the rule hiding .console-area, so it needs its own later rule."""
+        css = (STATIC / "admin.css").read_text(encoding="utf-8")
+        shown = css.index(".console-trail { display: flex")
+        hidden = css.index("@media (max-width: 1200px) { .console-trail { display: none; } }")
+        self.assertGreater(hidden, shown)
+
+
 class BoxRadiusTests(unittest.TestCase):
     def test_count_badges_and_info_icons_are_boxes(self):
         # BRIEF 10.10.2: count badges use the chip radius; only dots, avatars and the like stay round.

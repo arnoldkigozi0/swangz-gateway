@@ -646,3 +646,23 @@ Validation: `python3 -m unittest tests.test_static_js -v`: 9 tests in 3.016s, OK
 passed. Not run locally: Chromium, fresh screenshots/overlay, axe, motion/fallback captures, full
 Python suite. Chief assigned CI-only checks and Anvil holds the browser slot. CI must pass before
 merge; fresh visual acceptance remains unverified.
+
+
+## Overview as an L1 — 11 November 2026, 01:00 block (Kampala time)
+
+Asked for by Chief at 01:02. Draft PR #120, branch `feature/overview-l1`, based on main `31ecbfc`.
+
+Built: Overview holds seven blocks (four number cards, the AI usage chart, two count cards); every card
+opens its list filtered to what it counts; one "Next step" line under the title (`A.frame({ next })`);
+the trail in the top bar (`A.frame({ trail })`), also on Needs attention, Live and Activity so each
+links back; one primary button. *Uses by tool* shows on Activity → Who used what when grouped by tool.
+`docs/UI.md` Page levels and Canonical homes are updated.
+
+Validation: `python3 -m unittest tests.test_static_js tests.test_static_css`: 21 tests, OK;
+`node --check` on both changed scripts. Not run: any browser check. No-scroll at 1440×852, the 390×844
+layout, light and dark screenshots and the 2/3 + 1/3 layout are unverified; the one Chromium slot was
+held by Probe. Not built: the kit's breadcrumb dropdown, and Back restoring scroll position.
+
+Next step: when the browser slot is free, screenshot #120 at 1440×852 and 390×844 in both themes, fix
+what that shows, then merge on green CI. #119 (kit page, `feature/kit-page`, WIP `cb3e8f9`) is untouched
+and comes after Overview.
