@@ -46,6 +46,16 @@
     return { sentence: `${many(n.total, "person has", "people have")} access; ${n.usedToday.toLocaleString()} used AI today.`, action: onward };
   }
 
+  /* Tools' sentence and next step (BRIEF 10.10.7). n: { inUse, idle, paid, monthly, canGovern, show }. monthly is already
+     formatted money. The idle count is the "Given, not opened" filter the button opens. Pure, so it can be tested. */
+  function toolsLead(n) {
+    const onward = n.canGovern ? { label: "Give someone a tool", task: "give-tool" } : { label: "See what we spent", task: "see-spend" };
+    if (!n.inUse) return { sentence: "No tools are in use yet.", action: n.canGovern ? { label: "Give someone a tool", task: "give-tool" } : { label: "See all tools", href: "#/tools?show=all" } };
+    if (n.idle) return { sentence: `${many(n.idle, "tool was", "tools were")} given but never opened.`,
+      action: n.show === "idle" ? onward : { label: n.idle === 1 ? "See which tool" : "See which tools", href: "#/tools?show=idle" } };
+    return { sentence: `${many(n.inUse, "tool is", "tools are")} in use; paid plans cost ${n.monthly} a month.`, action: onward };
+  }
+
   /* "Set up in 4 steps": each step ticks itself from real records. */
   function setupSteps(n) {
     return [
@@ -342,5 +352,5 @@
     return el("div", { class: "ov-simple" }, A.panel("What do you want to do?", null, tiles(o.waiting, o.paused)), el("div", { class: "ov-side" }, numbers, third));
   }
 
-  Object.assign(A, { startTask, overviewLead, peopleLead, setupSteps, overviewSimple, leadButton });
+  Object.assign(A, { startTask, overviewLead, peopleLead, toolsLead, setupSteps, overviewSimple, leadButton });
 })();
