@@ -86,7 +86,9 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       // record: one primary and a More menu, Suspend last in the danger colour
       await p.locator('main [role=tablist]').first().waitFor();
       await p.waitForLoadState('networkidle');
-      ok(T + 'record has one primary', await p.locator('main .btn.primary').count() === 1 && await p.getByRole('button', { name: 'Issue a key' }).count() === 1);
+      const primaries = await p.locator('main .top .btn.primary').allInnerTexts();
+      // F6 (11 Nov): the header's one primary follows the Next step line; the key button is always there, named in plain words
+      ok(T + 'record has at most one primary, and it matches the Next step', primaries.length <= 1 && await p.getByRole('button', { name: 'Create access key' }).count() === 1);
       ok(T + 'suspend moved out of the header', await p.locator('main .btn.danger', { hasText: 'Suspend access' }).count() === 0);
       ok(T + 'record has one Next step line', await p.locator('main .next-step').count() === 1);
       const trailText = await p.evaluate(() => [...document.querySelectorAll('.console-trail, main .top > .crumbs.in-bar')].filter(t => t.getBoundingClientRect().width).map(t => t.textContent));
@@ -98,7 +100,7 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       ok(T + 'record menu ends with suspend', /Suspend access/.test(head[head.length - 1]));
       await shot(p, 'person-record-menu');
       await p.keyboard.press('Escape');
-      await p.getByRole('button', { name: 'Issue a key' }).click();
+      await p.getByRole('button', { name: 'Create access key' }).click();
       await sheet.waitFor();
       ok(T + 'issue key is a sheet with its field focused', await p.evaluate(() => document.activeElement.tagName === 'INPUT'));
       await p.waitForTimeout(350); await axe('issue key'); await shot(p, 'person-issue-key');
