@@ -431,6 +431,12 @@
       try { await api(give ? "POST" : "DELETE", `/people/${p.id}/tools/${t.id}`); toast(give ? `${t.name} given to ${p.name}.` : `${t.name} taken back.`); A.render(); }
       catch (e) { toast(e.message, true); }
     }
+    const toolItems = (t) => [
+      { id: "open", label: "Tool details", icon: "tools", href: `#/tools?open=${t.id}` },
+      { id: "explain", label: "Explain a decision", icon: "shield", href: `#/policies?tab=explain&person=${p.id}&tool=${t.id}` },
+      owner && t.grant !== "direct" ? { id: "team", label: "Team access", sub: "Changed on the tool", icon: "people", href: `#/tools?open=${t.id}&tab=access` } : null,
+      owner && t.grant === "direct" ? { id: "take", label: "Take back", icon: "lock", danger: true, onSelect: () => change(t, false) } : null,
+    ].filter(Boolean);
     const table = mine.length ? SUI.table({ caption: "Their tools", rows: mine, sort: ["name", "asc"], columns: [
       { key: "name", label: "Tool", lead: true, render: (t) => el("a", { class: "u-cell", href: `#/tools?open=${t.id}` }, SUI.logo(t, "sm"),
         el("div", null, el("strong", null, t.name), el("span", { class: "sub" }, t.category))) },
@@ -442,16 +448,14 @@
         if (!u) return el("span", { class: "faint" }, "not used");
         return el("span", null, SUI.plural(u.requests + u.opens + u.visits, "use"), el("span", { class: "sub" }, u.requests ? fmt.money(u.cost) : u.seconds ? fmt.dur(u.seconds) + " on site" : ""));
       } },
-      owner ? { key: "act", label: "", srLabel: "Actions", render: (t) => (t.grant === "direct"
-        ? el("button", { class: "btn small quiet danger", type: "button", onclick: (e) => { e.preventDefault(); e.stopPropagation(); change(t, false); } }, "Take back")
-        : el("a", { class: "btn small quiet", href: `#/tools?open=${t.id}&tab=access`, title: "Team access is changed on the tool" }, "Team access")) } : null,
-    ].filter(Boolean) }) : SUI.stateBox({ icon: "tools", title: "No tools yet", text: owner ? "Give them a tool below." : "An owner gives tools to people.", compact: true });
+      { key: "act", label: "", srLabel: "Actions", sort: false, render: (t) => SUI.menuButton({ label: "More actions for " + t.name, small: true, items: () => toolItems(t) }) },
+    ] }) : SUI.stateBox({ icon: "tools", title: "No tools yet", text: owner ? "Give them a tool below." : "An owner gives tools to people.", compact: true });
     let give = null;
     if (owner && giveable.length) {
-      const pick = el("select", { class: "fb-select", "aria-label": "Tool to give" }, el("option", { value: "" }, "Choose a tool…"),
-        giveable.map((t) => el("option", { value: t.id }, `${t.name} · ${t.category}`)));
-      const go = el("button", { class: "btn small primary", type: "button", disabled: true, onclick: () => { const t = giveable.find((x) => x.id === pick.value); if (t) change(t, true); } }, icon("plus"), "Give");
-      pick.addEventListener("change", () => { go.disabled = !pick.value; });
+      let chosen = null;
+      const go = el("button", { class: "btn small", type: "button", disabled: true, onclick: () => { if (chosen) change(chosen, true); } }, icon("plus"), "Give");
+      const pick = SUI.select({ label: "Tool to give", placeholder: "Choose a tool…", small: true, options: giveable.map((t) => ({ id: t.id, label: t.name, sub: t.category })),
+        onChange: (id) => { chosen = giveable.find((x) => x.id === id) || null; go.disabled = !chosen; } });
       give = el("div", { class: "give-row" }, el("span", { class: "u-label" }, "Give another tool"), pick, go,
         el("span", { class: "hint" }, `${giveable.length} subscribed tool${giveable.length === 1 ? "" : "s"} they don't have yet`));
     }

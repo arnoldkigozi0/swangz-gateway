@@ -100,6 +100,31 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       await sheet.getByRole('button', { name: 'Cancel' }).click();
       await sheet.waitFor({ state: 'detached' });
 
+      // their tools: one More per row, Take back last; giving is the kit picker, and the row comes and goes
+      await p.goto(url + `/admin#/people/${opened}?tab=access`); await p.locator('.give-row .u-select').waitFor();
+      await p.waitForLoadState('networkidle');
+      const toolRows = p.locator('main tbody tr');
+      const held = await toolRows.count();
+      ok(T + 'every tool row ends in one More button', held > 0 && await p.locator('main tbody tr .u-more').count() === held);
+      ok(T + 'the tools tab adds no second primary', await p.locator('main .btn.primary').count() === 1);
+      const give = p.locator('.give-row .btn');
+      ok(T + 'Give waits for a choice', await give.isDisabled());
+      await noOverflow('tools'); await axe('tools'); await shot(p, 'person-tools');
+      await p.locator('.give-row .u-select').click();
+      const option = p.locator('.u-pop-select [role=option]').first();
+      const toolName = (await option.innerText()).split('\n')[0].trim();
+      await shot(p, 'person-tools-give');
+      await option.click();
+      await give.click();
+      await p.waitForFunction((n) => document.querySelectorAll('main tbody tr').length === n, held + 1);
+      const given = toolRows.filter({ hasText: toolName }).first();
+      await given.locator('.u-more').click();
+      const toolMenu = await p.locator('.u-menu [role=menuitem]').allInnerTexts();
+      ok(T + 'a given tool can be taken back, last', /Take back/.test(toolMenu[toolMenu.length - 1]));
+      await shot(p, 'person-tools-menu');
+      await p.locator('.u-menu [data-id=take]').click();
+      await p.waitForFunction((n) => document.querySelectorAll('main tbody tr').length === n, held);
+
       // add: five fields, name checked under the field, edits asked about, then the record
       await p.goto(url + '/admin#/people'); await p.locator('.u-split').waitFor();
       await p.locator('.u-split-main').click();
