@@ -92,7 +92,7 @@ async function kitPage(page, url, theme, vname) {
       height: Math.max(document.documentElement.scrollHeight, document.querySelector('main')?.scrollHeight || 0) }));
     if (m.theme !== theme) say(`theme is ${m.theme}`);
     if (m.overflow > 0) say(`page scrolls sideways by ${m.overflow}px`);
-    if (m.panels !== 9) say(`${m.panels} panels, expected 9`);
+    if (m.panels !== 11) say(`${m.panels} panels, expected 11`);
     if (m.specs < 40) say(`only ${m.specs} specimens`);
     if (m.inNav) say('the page is linked from the navigation');
     if (m.empty.length) say('nothing visible in: ' + m.empty.join(', '));
