@@ -1499,6 +1499,12 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
   .route-overview .kpis-exact .kpi .label .u-info { flex: none; width: 44px; height: 44px; margin: -14px; }
   .route-overview .u-chart-foot button { flex: none; min-height: 44px; white-space: nowrap; }
 }
+/* People and Tools on a phone (BRIEF 10.10.7 Simple view): the Simple / Detailed switch, the next-step button and each
+   row's Open reach the kit's 44px touch size. */
+@media (max-width: 640px) {
+  .route-people .u-seg button, .route-tools .u-seg button { min-height: 44px; }
+  .route-people .btn:not(.link), .route-tools .btn:not(.link) { min-height: 44px; }
+}
 /* A row's More button in phone cards: the card rule's min-width: 0 outranks the kit's 44px touch width. */
 @media (max-width: 640px) { .u-table.cards td > .u-more { min-width: 44px; } }
 /* Money (BRIEF 10.10): the period sits on the same row as the search and filters, and on a phone every control
