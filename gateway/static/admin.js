@@ -101,11 +101,6 @@
       opens: "Tools opened from the Swangz AI Hub portal, with the browser and address they were opened from.",
       sites: "Visits to AI websites seen by the browser extension: which site, when and how long — never what was on the page.",
     },
-    "#/licences": {
-      licences: "Seats paid for against real use, and the idle ones you can reclaim.",
-      spend: "Metered AI spend for any period, where it went, and how each amount is worked out.",
-      renewals: "Plans that renew soon, so nothing renews by surprise.",
-    },
     "#/policies": {
       list: "The rules the gateway enforces now. A change applies to the next request.",
       simulate: "Try a rule against what really happened. Nothing is saved and nobody is affected.",
@@ -1022,7 +1017,7 @@
        bar, each crumb a link and the last one the current page. At 1200px and below, where the bar has no room, the
        same chain shows above the title instead. */
     const chain = (cls) => el("nav", { class: cls, "aria-label": "You are here" }, [el("span", { class: "crumb-area" }, area),
-      ...o.trail.map(([label, href]) => (href ? el("a", { href }, label) : el("span", { class: "crumb-here", "aria-current": "page" }, label)))]
+      ...o.trail.map(([label, href]) => (href ? el("a", { href, title: label }, label) : el("span", { class: "crumb-here", "aria-current": "page" }, label)))]
       .map((c, i) => [i ? el("span", { class: "sep", "aria-hidden": "true" }, "›") : null, c]));
     const barTrail = o.trail ? chain("console-area console-trail") : null;
     const appbar = el("header", { class: "appbar console-bar", "aria-label": "Control room toolbar" },
