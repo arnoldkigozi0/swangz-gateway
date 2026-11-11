@@ -726,6 +726,26 @@ owner-exceptions sentence.
 Observation for Sentinel carried over from run 1: staff prompt text appears in Grace's timeline because `store_bodies` defaults on; check
 against the point-3 rule that admins see metadata only.
 
+
+## Probe: ordered fix list from the point-7 failures, 11 November 2026 22:30 (main fa19c0d, static review)
+
+Checked against main fa19c0d by reading the code and the earlier browser runs. Browser re-check only when the Chromium slot is free after #141.
+Fixed and verified earlier: F2, F3, F6, F7, F8. F1 is fixed by 769a91b (#140), code-read only, not yet seen in a browser.
+
+Still open, in this order:
+
+1. **F4, "1 uses"** (gateway/static/admin-govern.js:289). Use "1 use" / "N uses". Owner: Forge. Done when a person with one use reads "1 use".
+2. **"Waiting for you" mixes unlike things** (gateway/insight.py:983 "N seats unused for 30 days", :1017 "Providers without a company key").
+   They are low-priority licence notes counted next to "1 tool request waiting". Keep them out of the Overview count (still on Needs attention),
+   or reword in plain terms ("5 paid licences nobody opened in 30 days"). Done when Overview's count matches the sentence above it.
+3. **Task 4 wording** (gateway/static/admin-guide.js:11 and :153). The guide asks "this week", the choices say "The last 7 days". Add a "This week"
+   choice or word the task "last 7 days". Done when the task text and the visible choice use the same words.
+4. Needs attention lists a renewal for a cancelled plan (gateway/insight.py:987, no cancelled filter; Money L1 #131 already skips it). Add the same filter.
+5. F5, block counts of the L2/L3 pages (only Overview is at three blocks); F9, person Access scroll (1028 px at 1440x852, 1920 px at 390x844).
+6. Jargon left on default screens: "seats", "company key", "audit log", "Gateway time", "metered". Reword or explain on first use.
+
+Not mine to fix (read-only QA). Top three go to @Forge/@Anvil.
+
 ### Run 1: main b4a9972 (Overview before #136), 8:20
 
 Result: four tasks PASS, one PARTIAL (spend this week), one PASS but hard to find (Stop all AI, only in the avatar menu). Failures F1–F9 are
