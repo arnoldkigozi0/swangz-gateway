@@ -57,6 +57,8 @@
 @media (max-width: 1000px) { .ov-simple { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 640px) {
   .top:has(> .ov-sentence) { grid-template-areas: "crumbs" "title" "say" "sub" "actions"; }
+  /* every page's next-step button reaches the kit's 44px touch size on a phone (BRIEF 10.10.7) */
+  .next-step .btn { min-height: 44px; }
   .task-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; }
   /* sentence + the tiles inside one phone screen, above the bottom bar (BRIEF 10.10.7) */
   .task-tile { min-height: 96px; padding: 12px; }
