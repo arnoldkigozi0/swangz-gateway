@@ -604,7 +604,7 @@
     const counts = Object.fromEntries(STATES.map(([k]) => [k, data.items.filter((d) => d.state === k).length]));
     const stateOptions = STATES.filter(([k]) => counts[k] || k === st.state).map(([k, label]) => ({ id: k, label, sub: SUI.plural(counts[k], "device") }));
     const box = el("div");
-    const pager = { page: st.page, size: st.per, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
+    const pager = { page: st.page, size: st.per, sizes: mode.simple ? [10, 25, 50] : undefined, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
     const rowActions = (d) => [
       { id: "open", label: "Open the record", icon: "device", href: "#/devices/" + d.id },
       { id: "activity", label: "Their activity", icon: "clock", href: `#/activity?tab=ai&person=${d.person_id}` },
@@ -747,7 +747,9 @@
     ];
     // "" is the default view, In use; old links that say show=used land on it too.
     const st = { q: params.get("q") || "", cat: params.get("cat") || "", show: params.get("show") || "",
-      page: Number(params.get("page")) || 1, per: Number(params.get("per")) || 25 };
+      page: Number(params.get("page")) || 1, per: Number(params.get("per")) || 0 };
+    const mode = A.viewMode("tools", "#/tools", params);
+    if (!st.per) st.per = mode.simple ? 10 : 25;
     if (st.show === "used" || (st.show !== "removed" && !SHOW.some(([k]) => k === st.show))) st.show = "";
     const counts = Object.fromEntries(SHOW.map(([k, , f]) => [k, data.tools.filter(f).length]));
     const showOptions = [...SHOW.filter(([k]) => k !== "used" && (k !== "idle" || counts.idle || st.show === "idle")).map(([k, label]) => ({ id: k, label, sub: SUI.plural(counts[k], "tool") })),
@@ -785,9 +787,10 @@
       }
       const want = SHOW.find(([k]) => k === (st.show || "used"))[2];
       const list = data.tools.filter((t) => want(t) && match(t));
-      box.replaceChildren(list.length ? SUI.table({ caption: "Tools", rows: list, sort: ["opens", "desc"], href: (t) => sheetHref(t), pager, columns: [
-        { key: "name", label: "Tool", lead: true, render: (t) => el("a", { class: "u-cell", href: sheetHref(t) }, SUI.logo(t, "sm"),
-          el("div", null, el("strong", null, t.name), el("span", { class: "sub" }, t.category))) },
+      const toolCol = { key: "name", label: "Tool", lead: true, render: (t) => el("a", { class: "u-cell", href: sheetHref(t) }, SUI.logo(t, "sm"),
+        el("div", null, el("strong", null, t.name), el("span", { class: "sub" }, t.category))) };
+      const columns = [
+        toolCol,
         { key: "state", label: "Subscription", sort: (t) => (onKey(t) ? "api" : t.subscription.state), render: (t) => {
           const sub = t.subscription;
           const money = sub.state !== "none" ? [sub.plan, sub.monthly_cost != null ? fmt.money(sub.monthly_cost) + "/mo" : null].filter(Boolean).join(" · ") : "";
@@ -799,19 +802,39 @@
             t.subscription.seats ? el("span", { class: "sub" }, `${t.subscription.seats} seats paid`) : null)
           : el("span", { class: "faint" }, "no one")) },
         { key: "opens", label: "Opens · 30 days", num: true, sort: (t) => t.usage_30d.opens, render: (t) => (t.usage_30d.opens ? fmt.num(t.usage_30d.opens) : el("span", { class: "faint" }, "—")) },
-        { key: "act", label: "", srLabel: "Actions", sort: false, render: (t) => SUI.menuButton({ label: "More actions for " + t.name, small: true, items: () => rowActions(t) }) },
-      ] }) : SUI.stateBox({ icon: "tools", title: "No tools match", text: !st.show && !st.q && !st.cat ? "Nothing is subscribed or given yet. Set Show to Not subscribed." : "Try another search or filter." }));
+        { key: "act", label: "", srLabel: "Actions", sort: false, render: (t) => mode.simple
+          ? el("div", { class: "row" }, el("a", { class: "btn small", href: sheetHref(t), "aria-label": "Open " + t.name }, "Open"),
+            SUI.menuButton({ label: "More actions for " + t.name, small: true, items: () => rowActions(t) }))
+          : SUI.menuButton({ label: "More actions for " + t.name, small: true, items: () => rowActions(t) }) },
+      ];
+      // Simple (BRIEF 10.10.7): five columns; how people sign in moves to Detailed and the tool's profile
+      const shown = mode.simple ? columns.filter((c) => c.key !== "signin") : columns;
+      const fresh = !st.show && !st.q && !st.cat;
+      box.replaceChildren(list.length ? SUI.table({ caption: "Tools", rows: list, sort: ["opens", "desc"], href: (t) => sheetHref(t), pager, columns: shown })
+        : SUI.stateBox({ icon: "tools", title: "No tools match", text: fresh ? "Nothing is subscribed or given yet." : "Try another search or filter.",
+          action: el("a", { class: "btn", href: "#/tools?show=all" }, "See all tools") }));
     }
-    const keep = () => A.keepParams("#/tools", { q: st.q, cat: st.cat, show: st.show, page: st.page > 1 ? st.page : null, per: st.per !== 25 ? st.per : null });
+    const keep = () => A.keepParams("#/tools", { q: st.q, cat: st.cat, show: st.show, page: st.page > 1 ? st.page : null, per: st.per !== (mode.simple ? 10 : 25) ? st.per : null });
     const bar = SUI.filterBar({ label: "Filter tools", search: { placeholder: "Name or category" }, values: st, filters: [
       { id: "show", label: "Show", any: "In use", options: showOptions },
       { id: "cat", label: "Category", any: "All categories", options: data.categories.map((c) => ({ id: c, label: c })) },
     ], onChange: (v) => { st.q = v.q || ""; st.cat = v.cat || ""; st.show = v.show || ""; st.page = pager.page = 1; keep(); draw(); } });
     draw();
-    A.frame({ title: "Tools", trail: [["Tools"]], lede: "What Swangz pays for, how people sign in, and who uses each tool. Open a tool for its full profile.",
-      actions: A.can("govern") ? el("button", { class: "btn primary", onclick: () => toolSheet(null) }, icon("plus"), "Add a tool") : null }, [
-      A.panel(null, null, el("div", { class: "filterbar" }, bar), meta, box),
-    ]);
+    const addTool = A.can("govern") ? el("button", { class: "btn primary", onclick: () => toolSheet(null) }, icon("plus"), "Add a tool") : null;
+    if (mode.simple) {
+      /* Simple: the sentence with the real number, one next step, then one panel (filters + the list). */
+      const lead = A.toolsLead({ inUse: counts.used, idle: counts.idle, paid: data.summary.paid, monthly: fmt.money(data.summary.monthly_cost), canGovern: A.can("govern"), show: st.show });
+      A.frame({ title: "Tools", trail: [["Tools"]], sentence: lead.sentence,
+        // "Add a tool" stays the page's one primary in the header, so the next step is a plain button
+        next: A.leadButton(Object.assign({}, lead.action, { quiet: true })), actions: [mode.switcher, addTool].filter(Boolean) }, [
+        A.panel(null, null, el("div", { class: "filterbar" }, bar), box),
+      ]);
+    } else {
+      A.frame({ title: "Tools", trail: [["Tools"]], lede: "What Swangz pays for, how people sign in, and who uses each tool. Open a tool for its full profile.",
+        actions: [mode.switcher, addTool].filter(Boolean) }, [
+        A.panel(null, null, el("div", { class: "filterbar" }, bar), meta, box),
+      ]);
+    }
     const open = params.get("open");
     if (open && S.tools[open]) toolSheet(S.tools[open], params.get("tab") || "overview");
     if (params.get("add") && A.can("govern")) toolSheet(null);
