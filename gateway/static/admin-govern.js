@@ -94,7 +94,7 @@
       { id: "invite", label: "Add and create sign-in link", icon: "send", onSelect: () => addPerson("invite") },
       { id: "key", label: "Add and issue a key", icon: "key", onSelect: () => addPerson("key") },
     ] }) : null;
-    A.frame({ title: "People", lede: "Everyone with Swangz AI Hub access — their status, devices, and what they spend.", actions: add }, [
+    A.frame({ title: "People", trail: [["People"]], lede: "Everyone with Swangz AI Hub access — their status, devices, and what they spend.", actions: add }, [
       A.panel(null, null, el("div", { class: "filterbar" }, bar), meta, box),
     ]);
     if (params.get("add") && A.can("govern")) addPerson();
@@ -396,7 +396,7 @@
     const ended = p.access_until && p.access_until <= Date.now() / 1000;
     A.frame({
       title: p.name, lead: SUI.avatar(p.name, "lg"), status: el("span", { class: "row" }, SUI.status(state, stateLabel, { plain: true }), p.live.length ? SUI.status("live", "Live", { breathe: true, plain: true }) : null),
-      crumbs: [el("a", { href: "#/people" }, "People")],
+      trail: [["People", "#/people"], [p.name]], next: personNext(p, alerts),
       lede: [[p.title, p.department].filter(Boolean).join(" · ") || "No department", p.email].filter(Boolean).join(" — ") +
         (p.access_until ? ` · access ${ended ? "ended" : "until"} ${fmt.date(p.access_until - 86400)}` : ""),
       actions: [owner && p.status === "active" ? el("button", { class: "btn primary", onclick: () => issueKey(p) }, icon("key"), "Issue a key") : null,
@@ -418,6 +418,20 @@
     ], { label: p.name })]);
     if (after === "key" && owner) issueKey(p);
     if (after === "invite" && owner) inviteLink(p);
+  }
+
+  /* The one "Next step" line on a record: the most useful thing to do about this person now, worst first. */
+  function personNext(p, alerts) {
+    const go = (tab, text) => el("a", { href: `#/people/${p.id}?tab=${tab}` }, text);
+    const state = personState(p)[0];
+    if (alerts === null) return "Their security signals couldn't load, so there is no next step to show.";
+    if (state === "suspended") return go("security", "Check their security signals before restoring access");
+    if (state === "revoked") return go("account", "Their access has ended. Extend it, or leave it closed");
+    if (alerts) return go("security", `Look at ${SUI.plural(alerts, "security signal")} involving them`);
+    if (p.monthly_budget != null && p.month.cost >= p.monthly_budget) return go("account", "They have reached their monthly budget. Review it");
+    if (!p.tool_summary.enabled) return go("access", p.tool_summary.assigned ? "None of their tools are ready. See why" : "Give them their first tool");
+    if (p.sign_in === "none" && !p.keys.some((k) => !k.revoked)) return go("devices", "They can't sign in yet. See how to connect them");
+    return "Nothing needs doing for them right now.";
   }
 
   const TOOL_STATE = { enabled: ["ok", "Ready"], past_due: ["waiting", "Payment due"], suspended: ["suspended", "Paused"], locked: ["none", "No subscription"], not_assigned: ["none", "Not given"] };
