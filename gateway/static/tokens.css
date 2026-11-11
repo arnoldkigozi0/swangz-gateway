@@ -45,11 +45,19 @@
   --scene-scrim: rgba(12, 10, 9, .78);
   --radius-card: 22px;
   --radius-pill: 999px;   /* round things only: avatars, dots, the bell's number (BRIEF 10.10.2) */
-  --radius-control: 10px; --radius-control-sm: 8px; --radius-chip: 6px;
+  --radius-control: 4px; --radius-control-sm: 3px; --radius-chip: 3px;   /* crisp rectangles (BRIEF 10.10.6) */
+  --radius-tabbar: 14px; --radius-tab: 9px;
   --scroll-thumb: rgba(255, 255, 255, .22); --scroll-thumb-hover: rgba(255, 255, 255, .40);
   --lift: translateY(-5px);
-  --ease-out: cubic-bezier(.22, 1, .36, 1);
-  --dur-1: 160ms; --dur-2: 280ms; --dur-3: 520ms;
+  --ease-out: cubic-bezier(.2, .7, .3, 1);
+  --dur-1: 120ms; --dur-2: 200ms; --dur-3: 320ms;
+
+  /* Buttons (BRIEF 10.10.6). The label on a solid button must pass 4.5:1 on --btn-solid and on both ends of --btn-sweep. */
+  --btn-solid: #F2F2F2; --btn-on-solid: #0D0D0D; --btn-sweep: linear-gradient(180deg, #F7AE62, #EE8F3E);
+  --btn-rim: rgba(255, 255, 255, .22); --btn-rim-hi: rgba(255, 255, 255, .42); --btn-fill: rgba(255, 255, 255, .08);
+  --btn-glass: rgba(13, 13, 13, .55); --btn-glass-ink: #F2F2F2; --btn-glass-rim: rgba(242, 242, 242, .28);
+  --btn-glass-wash: rgba(13, 13, 13, .56); --btn-glass-rim-hi: rgba(242, 242, 242, .55);
+  --stage-light: rgba(255, 255, 255, .16);
 
   /* Brand: champagne gold, bright enough to carry buttons on black */
   --primary: #F5B32B;
@@ -156,6 +164,11 @@
   --on-primary: #FFFFFF;
   --accent: #C9962A;
   --accent-tx: #78560F;
+  --btn-solid: #0D0D0D; --btn-on-solid: #F2F2F2; --btn-sweep: linear-gradient(180deg, #A35600, #8F4B00);
+  --btn-rim: rgba(13, 13, 13, .28); --btn-rim-hi: rgba(13, 13, 13, .5); --btn-fill: rgba(13, 13, 13, .06);
+  --btn-glass: rgba(250, 247, 244, .72); --btn-glass-ink: #0D0D0D; --btn-glass-rim: rgba(13, 13, 13, .28);
+  --btn-glass-wash: rgba(250, 247, 244, .7); --btn-glass-rim-hi: rgba(13, 13, 13, .55);
+  --stage-light: rgba(13, 13, 13, .13);
   --focus: var(--accent-tx);  /* --accent is 2.4:1 on the light page, under the 3:1 a ring needs */
   --accent-soft: #FAF2DF;
   --accent-dim: #E6D3A1;
@@ -192,12 +205,6 @@ html { scroll-padding-top: 80px; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 ::selection { background: var(--accent-dim); color: var(--tx-1); }
 [hidden] { display: none !important; }
-
-/* the theme switch used by both apps */
-.theme-btn { width: 38px; height: 38px; display: inline-grid; place-items: center; border-radius: var(--r-sm); border: 1px solid var(--line);
-  background: var(--ink-2); color: var(--tx-2); cursor: pointer; transition: color var(--d-fast), border-color var(--d-fast), background var(--d-fast); }
-.theme-btn:hover { color: var(--accent-tx); border-color: var(--line-hi); }
-.theme-btn svg { width: 18px; height: 18px; }
 
 /* a tool's logo, or its monogram on its brand colour */
 .logo { width: 44px; height: 44px; flex: none; border-radius: 12px; display: grid; place-items: center; overflow: hidden;

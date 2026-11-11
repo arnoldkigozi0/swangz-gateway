@@ -1,14 +1,6 @@
 /* Overview details and console bar C; isolated from admin.css scene/panel work. */
-.route-overview .top-actions .btn {
-  min-height: 34px; height: 34px; padding: 0 14px; border-radius: var(--radius-control);
-  background: var(--glass-bg); border: 1px solid var(--line-hi); color: var(--tx-1);
-}
-.route-overview .top-actions .btn:not(.primary):hover { background: var(--glass-bg-hover, var(--ink-2)); border-color: var(--tx-2); }
-.route-overview .top-actions .btn.primary::after { display: none; }
-.route-overview .top-actions .btn.primary {
-  background: var(--accent-pill, linear-gradient(180deg,#F7AE62,#EE8F3E));
-  color: #2A170A; border-color: transparent;
-}
+.route-overview .top-actions .btn { min-height: 34px; height: 34px; }
+.route-overview .top-actions .btn:not(.primary) { --btn-face: var(--glass-bg); }
 .route-overview .overview-exact > .panel:first-child > header { border-bottom: 0; }
 .route-overview .u-chart .axis text { fill: var(--tx-2); }
 .route-overview .u-chart .grid line { stroke-width: .5; }
