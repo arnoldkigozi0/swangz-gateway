@@ -52,6 +52,14 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       ok(T + `the fixture has audit entries (${all})`, all >= 1);
       ok(T + 'the old Load older button waits until there are more', await p.getByRole('button', { name: 'Load older' }).isHidden());
       await noOverflow('L2'); await axe('L2'); await small('L2'); await shot(p, 'audit');
+      if (width >= 1440) {
+        // a long list scrolls inside its panel and the page itself does not: one vertical scrollbar at 1440x852
+        await p.evaluate(() => { const b = document.querySelector('main .u-table tbody'); const r = b.querySelector('tr'); for (let i = 0; i < 80; i++) b.append(r.cloneNode(true)); });
+        const m = await p.evaluate(() => { const w = document.querySelector('main .u-table-wrap'); return { inner: w.scrollHeight > w.clientHeight + 1, page: document.documentElement.scrollHeight - innerHeight }; });
+        ok(T + `a long list scrolls inside its panel (${JSON.stringify(m)})`, m.inner);
+        ok(T + 'and the page itself does not scroll', m.page <= 1);
+        await open('#/audit', '.u-filter');
+      }
       await p.getByRole('searchbox').first().fill('zzz-nothing-like-this');
       await p.getByText('No audit entries').waitFor();
       ok(T + 'a search with no match says so', await rows() === 0);

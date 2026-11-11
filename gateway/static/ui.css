@@ -278,7 +278,7 @@ html[data-theme="light"] .u-tubes { --tube-a: rgba(70, 56, 40, .46); --tube-b: r
 /* BRIEF 10.10.2: a long table scrolls inside its panel, so the sticky header below has a box to stick to. Phones show cards and print
    shows every row, so the limit is screen and desktop only; a side sheet already scrolls as a whole, and two scrollbars are not allowed. */
 @media screen and (min-width: 761px) {
-  .u-table-wrap:not(.sheet *, .u-sheet *) { max-height: max(320px, calc(100dvh - 300px)); overflow-y: auto; scroll-padding-top: 48px; }
+  .u-table-wrap:not(.sheet *, .u-sheet *) { max-height: max(320px, calc(100dvh - 390px)); overflow-y: auto; scroll-padding-top: 48px; }
 }
 .u-table-more { padding: 12px 16px; border-top: 1px solid var(--line); display: flex; justify-content: center; }
 

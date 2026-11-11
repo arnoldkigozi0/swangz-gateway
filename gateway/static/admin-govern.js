@@ -256,17 +256,21 @@
     const owner = A.can("govern");
     const [state, stateLabel] = personState(p);
     const since30 = Date.now() / 1000 - 30 * 86400;
-    const [usage, security, recent] = await Promise.allSettled([
-      api("GET", `/usage?person=${p.id}&since=${since30}`), api("GET", "/security?days=30"), api("GET", `/timeline?person=${p.id}&limit=1&since=${Date.now() / 1000 - 365 * 86400}`)]);
+    // "Last seen" counts only what the person did themselves: an AI request, a tool opened, a site visited. Access changes made
+    // by an admin, turns and sign-ins are not activity, so one call per kind and the newest wins.
+    const lastOf = (type) => api("GET", `/timeline?person=${p.id}&type=${type}&limit=1&since=${Date.now() / 1000 - 365 * 86400}`);
+    const [usage, security, ...recent] = await Promise.allSettled([
+      api("GET", `/usage?person=${p.id}&since=${since30}`), api("GET", "/security?days=30"), lastOf("request"), lastOf("launch"), lastOf("site")]);
     const myEvents = security.status === "fulfilled" ? security.value.events.filter((e) => e.person_id === p.id) : null;
     const used = usage.status === "fulfilled" ? usage.value.rows : null;
-    const last = recent.status === "fulfilled" && recent.value.items[0] ? recent.value.items[0] : null;
+    const own = recent.filter((r) => r.status === "fulfilled" && r.value.items[0]).map((r) => r.value.items[0]).filter((e) => ["request", "launch", "site"].includes(e.type));
+    const last = own.sort((a, b) => b.ts - a.ts)[0] || null;
     const activeKeys = p.keys.filter((k) => !k.revoked);
     const current = activeKeys.filter((k) => k.last_used).sort((a, b) => b.last_used - a.last_used)[0];
 
     // A slim line of facts rather than a tile each: the profile's content lives in the tabs below.
     const alerts = myEvents ? myEvents.filter((e) => e.severity !== "info").length : null;
-    const lastNote = last ? (last.type === "request" ? "AI request" : last.type === "launch" ? "opened " + (last.tool || "a tool") : "visited " + (last.tool || "a site")) : "no activity recorded";
+    const lastNote = !last ? "No activity recorded" : last.type === "request" ? "AI request" : last.type === "launch" ? "opened " + (last.tool || "a tool") : "visited " + (last.tool || "a site");
     const stats = el("div", { class: "statline" },
       stat("Last seen", last ? fmt.ago(last.ts) : "Never", lastNote, { title: last ? fmt.stamp(last.ts) : null }),
       stat("Current device", current ? current.label : "None", current ? "used " + fmt.ago(current.last_used) : activeKeys.length ? "not used yet" : "no active key",
