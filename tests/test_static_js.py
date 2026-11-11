@@ -38,6 +38,70 @@ def zero_reason(calls):
     return json.loads(out.stdout)
 
 
+def overview_lead(cases):
+    source = (STATIC / "admin-guide.js").read_text(encoding="utf-8")
+    many = re.search(r"\n  (const many = .*?;)\n", source).group(1)
+    fn = re.search(r"\n  (function overviewLead\(n\) \{\n.*?\n  \})\n", source, re.S).group(1)
+    script = many + fn + "\nconsole.log(JSON.stringify(" + json.dumps(cases) + ".map(overviewLead)));"
+    out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30, check=True)
+    return json.loads(out.stdout)
+
+
+@unittest.skipUnless(shutil.which("node"), "Node is not installed")
+class OverviewLeadTests(unittest.TestCase):
+    BASE = {"loaded": True, "canStop": True, "canAnswer": True}
+
+    def lead(self, **n):
+        return overview_lead([{**self.BASE, **n}])[0]
+
+    def test_the_sentence_carries_the_real_number(self):
+        # BRIEF 10.10.7: one plain sentence with the real number
+        self.assertEqual(self.lead(urgent=2)["sentence"], "2 things need you now.")
+        self.assertEqual(self.lead(urgent=1)["sentence"], "1 thing needs you now.")
+        self.assertEqual(self.lead(waiting=3)["sentence"], "3 people are waiting for a tool.")
+        self.assertEqual(self.lead(waiting=1)["sentence"], "1 person is waiting for a tool.")
+        self.assertEqual(self.lead(secOpen=True, secEvents=4)["sentence"], "4 security warnings in the last 7 days.")
+        self.assertEqual(self.lead(items=5)["sentence"], "5 small things to look at.")
+
+    def test_the_most_pressing_thing_wins(self):
+        self.assertEqual(self.lead(paused=True, urgent=2, waiting=3)["sentence"], "AI is stopped for everyone.")
+        self.assertEqual(self.lead(urgent=2, waiting=3)["action"]["href"], "#/attention")
+        self.assertEqual(self.lead(waiting=3, items=9)["action"]["task"], "answer-request")
+
+    def test_a_failed_check_is_not_reported_as_nothing_to_do(self):
+        out = self.lead(loaded=False)
+        self.assertEqual(out["sentence"], "We could not check what needs you.")
+        self.assertTrue(out["action"]["retry"])
+
+    def test_a_role_is_only_offered_what_it_can_do(self):
+        self.assertEqual(self.lead(waiting=1, canAnswer=False)["action"]["href"], "#/requests")
+        self.assertEqual(self.lead(paused=True, canStop=False)["action"]["href"], "#/live")
+
+    def test_setup_then_calm(self):
+        step = {"label": "Add your tools", "href": "#/tools"}
+        self.assertEqual(self.lead(setupLeft=3, setupNext=step), {"sentence": "3 setup steps left.", "action": step})
+        self.assertEqual(self.lead()["sentence"], "Nothing needs you right now.")
+
+
+class GuidedTaskTests(unittest.TestCase):
+    def test_the_console_loads_the_guide(self):
+        html = (STATIC / "admin.html").read_text(encoding="utf-8")
+        self.assertIn('src="/static/admin-guide.js"', html)
+        self.assertIn('href="/static/guide.css"', html)
+
+    def test_every_tile_has_a_task_and_no_task_guesses_a_route(self):
+        source = (STATIC / "admin-guide.js").read_text(encoding="utf-8")
+        tasks = set(re.findall(r'"([a-z-]+)": ', re.search(r"const TASKS = \{(.*?)\n  \};", source, re.S).group(1)))
+        tasks |= set(re.findall(r"\b([a-z]+-[a-z]+)\": async", source))
+        tiles = re.findall(r'\["([a-z]+-[a-z]+)", "[A-Z]', source)
+        self.assertGreaterEqual(len(tiles), 6)
+        self.assertLessEqual(set(tiles), tasks)
+
+    def test_stopping_all_ai_starts_on_the_safe_answer(self):
+        source = (STATIC / "admin-guide.js").read_text(encoding="utf-8")
+        self.assertIn('state: { go: "no" }', source)
+
+
 @unittest.skipUnless(shutil.which("node"), "Node is not installed")
 class OverviewZeroReasonTests(unittest.TestCase):
     def test_a_zero_count_carries_one_line_on_why(self):
@@ -127,9 +191,8 @@ class DonutShareTests(unittest.TestCase):
         # Seven blocks: six number cards and the one chart. One primary button, one Next step line, the trail.
         self.assertEqual(overview.count("A.kpi({"), 6)
         self.assertEqual(overview.count("A.panel("), 1)
-        self.assertEqual(overview.count('class: "btn primary"'), 1)
-        self.assertIn('trail: [["Overview"]], next,', overview)
-        self.assertIn('"Nothing needs doing right now."', overview)
+        self.assertEqual(overview.count('class: "btn primary"'), 1)  # Detailed's; Simple's one primary is the next-step button
+        self.assertIn('next: view === "simple" ? A.leadButton(lead.action)', overview)
         # Every card opens its list already filtered to the items it counts.
         for href in ('"#/licences?tab=spend&range=30d"', '"#/activity?tab=ai&range=30d"', '"#/activity?tab=usage&range=today&by=person"',
                      '"#/security?days=7"', '"#/attention"', '"#/live"'):

@@ -37,8 +37,9 @@
 
   async function pageOverview(params) {
     await A.toolIndex().catch(() => null);
-    const [trends, attention, security, lic] = await Promise.allSettled([
-      api("GET", "/trends?days=30"), A.refreshAttention(), api("GET", "/security?days=7"), api("GET", "/licences")]);
+    const [trends, attention, security, lic, requests, staff] = await Promise.allSettled([
+      api("GET", "/trends?days=30"), A.refreshAttention(), api("GET", "/security?days=7"), api("GET", "/licences"),
+      api("GET", "/access-requests?state=open"), api("GET", "/people")]);
     const ov = S.overview;
     const tr = trends.status === "fulfilled" ? trends.value : null;
     const sec = security.status === "fulfilled" ? security.value : null;
@@ -97,21 +98,32 @@
     }
     drawCounts();
 
-    /* The one "Next step" line: the most useful thing to do now, from what the cards already show. */
+    /* BRIEF 10.10.7: one sentence with the real number, then one button for the most useful thing to do now. */
     const secOpen = sec && sec.posture !== "healthy";
-    const next = att === null ? "The list of things needing attention couldn't load, so there is no next step to show."
-      : urgent ? el("a", { href: "#/attention" }, `Review ${SUI.plural(urgent, "item")} that ${urgent === 1 ? "needs" : "need"} attention now`)
-        : secOpen ? el("a", { href: "#/security?days=7" }, "Look at this week's security events")
-          : att.length ? el("a", { href: "#/attention" }, `Look at ${SUI.plural(att.length, "item")} when you have a moment`)
-            : "Nothing needs doing right now.";
+    const waiting = requests.status === "fulfilled" ? requests.value.open : 0;
+    const tools = S.catalog ? S.catalog.tools : [];
+    const setup = staff.status === "fulfilled" && S.catalog ? A.setupSteps({ canGovern: A.can("govern"), people: staff.value.items.length, paid: S.catalog.summary.paid,
+      assigned: tools.reduce((n, t) => n + t.assigned_people + t.assigned_teams, 0), uses: tr ? tr.current.requests + tr.days.reduce((n, d) => n + d.opens + d.visits, 0) : 0 }) : null;
+    const left = setup ? setup.filter((s) => !s.done) : [];
+    const lead = A.overviewLead({ paused: !!(S.overview && S.overview.paused), canStop: A.can("emergency"), loaded: att !== null, urgent, waiting, canAnswer: A.can("govern"),
+      secOpen, secEvents: sec ? sec.events.filter((e) => e.severity !== "info").length : 0, items: att ? att.length : 0, setupLeft: left.length, setupNext: left[0] ? { label: left[0].label, task: left[0].task, href: left[0].href } : null });
+
+    /* Simple by default for everyone; the choice is kept per console user and carried in the address. */
+    const remembered = "swa-overview-view:" + S.me.username;
+    let saved = null;
+    try { saved = localStorage.getItem(remembered); } catch (e) { saved = null; }
+    const view = (params.get("view") || saved) === "detailed" ? "detailed" : "simple";
+    const switcher = SUI.segmented({ label: "How much to show", value: view, options: [{ id: "simple", label: "Simple" }, { id: "detailed", label: "Detailed" }],
+      onChange: (v) => { try { localStorage.setItem(remembered, v); } catch (e) { /* private window: the address still carries it */ } location.hash = "#/?view=" + v; } });
 
     const who = String(S.me.display_name || "").trim();
-    A.frame({ title: who ? `Hello, ${who}! 👋` : "Hello! 👋",
-      trail: [["Overview"]], next,
-      actions: [el("a", { class: "btn", href: "#/activity" }, icon("activity"), "Activity"), el("a", { class: "btn primary", href: "#/live" }, icon("live"), "Open Live")] },
-    [kpis, el("div", { class: "overview-exact" }, usage, el("div", { class: "overview-side" }, counts))]);
+    A.frame({ title: who ? `Hello, ${who}! 👋` : "Hello! 👋", sentence: view === "simple" ? lead.sentence : null,
+      trail: [["Overview"]], next: view === "simple" ? A.leadButton(lead.action) : el("span", null, lead.sentence + " ", A.leadButton(lead.action, true)),
+      actions: view === "simple" ? [switcher] : [switcher, el("a", { class: "btn", href: "#/activity" }, icon("activity"), "Activity"), el("a", { class: "btn primary", href: "#/live" }, icon("live"), "Open Live")] },
+    view === "simple" ? [A.overviewSimple({ tr, trError: trends.reason, att, waiting, setup, paused: !!(S.overview && S.overview.paused) })]
+      : [kpis, el("div", { class: "overview-exact" }, usage, el("div", { class: "overview-side" }, counts))]);
 
-    A.every(5000, async () => { await A.refreshOverview().catch(() => null); drawCounts(); });
+    if (view === "detailed") A.every(5000, async () => { await A.refreshOverview().catch(() => null); drawCounts(); });
   }
 
   // ------------------------------------------------------------------ Needs attention
