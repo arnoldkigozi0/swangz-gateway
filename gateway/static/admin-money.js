@@ -9,54 +9,119 @@
 
   // ------------------------------------------------------------------ Licences & spend
 
+  /* BRIEF 10.10: Money is an L1 (four number cards and one chart). Licences, What cost us money? and Renewals are L2
+     lists under it, one table each, and every card opens its list already filtered to what the card counts.
+     ?tab= still names the list, so links from when these were tabs land in the same place. */
+  const MONEY_ROOT = ["Licences & spend", "#/licences"];
+  const livePlan = (t) => t.state !== "none" && t.state !== "cancelled";
+  const renewingSoon = (lic) => lic.renewals.filter(livePlan);
+  const listState = (params) => ({ q: params.get("q") || "", page: Number(params.get("page")) || 1, per: Number(params.get("per")) || 25 });
+  const pageParams = (st) => ({ page: st.page > 1 ? st.page : null, per: st.per !== 25 ? st.per : null });
+  const toolRow = (t, sub) => el("a", { class: "u-cell", href: `#/tools?open=${t.id}&tab=billing` }, A.toolLogo(t.id, t.name, "sm"),
+    el("div", null, el("strong", null, t.name), el("span", { class: "sub" }, sub)));
+
   async function pageLicences(params) {
     await A.toolIndex().catch(() => null);
-    A.frame({ title: "Licences & spend", lede: "What Swangz pays for, whether it's used, and what metered AI cost — with how each number is worked out.",
-      actions: el("a", { class: "btn", href: A.gadmin("/export.csv") }, icon("download"), "Export activity CSV") },
-    A.pageTabs("#/licences", params, [
-      ["licences", "Licences", () => licencesTab()],
-      ["spend", "What cost us money?", () => spendTab(params)],
-      ["renewals", "Renewals", () => renewalsTab()],
-    ]));
+    const tab = params.get("tab");
+    if (tab === "licences") return licencesList(params);
+    if (tab === "spend") return spendList(params);
+    if (tab === "renewals") return renewalsList(params);
+    return moneySummary();
   }
 
-  async function licencesTab() {
+  async function moneySummary() {
+    const [licR, spendR] = await Promise.allSettled([api("GET", "/licences"),
+      api("GET", "/spend?" + A.rangeQuery(A.rangeFrom(new URLSearchParams(), "30d")).toString())]);
+    const lic = licR.status === "fulfilled" ? licR.value : null;
+    const d = spendR.status === "fulfilled" ? spendR.value : null;
+    const s = lic ? lic.summary : null;
+    const paid = lic ? lic.tools.filter((t) => t.monthly_cost).length : 0;
+    const soon = lic ? renewingSoon(lic) : [];
+    const failed = "couldn't load";
+    const cards = el("div", { class: "kpis four kpis-exact" }, [
+      A.kpi({ label: "AI spend · 30 days", value: d ? fmt.money(d.total || 0) : "—", tone: "gold", href: "#/licences?tab=spend&range=30d",
+        tip: "Each request is priced from the model price table the moment it runs. Vendor invoices aren't imported, and company plans are a fixed monthly cost on top.",
+        foot: d && d.total ? SUI.delta(d.change) : null, note: !d ? failed : d.total ? "vs the 30 days before" : "no priced requests in 30 days" }),
+      A.kpi({ label: "Company plans", value: s ? fmt.money(s.subscriptions_month) + "/mo" : "—", href: "#/licences?tab=licences&show=paid",
+        tip: "The monthly cost set on each subscription (Tools → a tool → Subscription). Metered API use is separate.",
+        note: s ? SUI.plural(paid, "paid plan") : failed }),
+      A.kpi({ label: "Idle seats", value: s ? String(s.idle_seats) : "—", tone: s && s.idle_seats ? "alert" : null, href: "#/licences?tab=licences&show=idle",
+        tip: "For each paid tool: monthly cost ÷ people given it × people who haven't used it in 30 days. An estimate, because vendors bill differently.",
+        note: !s ? failed : s.idle_seats ? `about ${fmt.money(s.idle_cost)}/mo unused` : "everyone given a tool is using it" }),
+      A.kpi({ label: "Renewing · 30 days", value: lic ? String(soon.length) : "—", href: "#/licences?tab=renewals&show=soon",
+        note: !lic ? failed : soon.length ? "next " + fmt.date(soon[0].renews_on) : "nothing renews soon" }),
+    ].map((card) => { card.append(el("span", { class: "kpi-go", "aria-hidden": "true" }, icon("arrowUp"))); return card; }));
+
+    const chart = A.panel("Spend per day", el("a", { class: "btn small quiet", href: "#/licences?tab=spend&range=30d" }, "What cost us money?", icon("chevronRight")),
+      d ? el("div", { class: "body" }, SUI.line({ label: "Metered spend per day over the last 30 days", format: fmt.money, tick: fmt.moneyShort, yName: "Spend",
+        height: window.matchMedia("(min-width: 1001px)").matches ? 300 : 220, emptyTitle: "No spend in the last 30 days", emptyText: "Metered spend appears once requests go through the gateway.",
+        data: d.series.length > 1 ? d.series.map((x) => ({ label: fmt.weekday(x.start), short: fmt.dayMonth(x.start), value: x.cost, note: SUI.plural(x.requests, "request") })) : [] }))
+        : SUI.errorBox(spendR.reason, () => A.render()));
+
+    /* The one "Next step" line: money being wasted first, then numbers that can't be trusted, then dates coming up. */
+    const next = !lic || !d ? "Some of the figures couldn't load, so there is no next step to show."
+      : s.idle_seats ? el("a", { href: "#/licences?tab=licences&show=idle" }, `Reclaim ${SUI.plural(s.idle_seats, "idle seat")}`)
+        : d.unpriced ? el("a", { href: "#/settings?tab=providers&section=prices" }, `Price ${SUI.plural(d.unpriced, "request")} with no price yet`)
+          : soon.length ? el("a", { href: "#/licences?tab=renewals&show=soon" }, `Check ${SUI.plural(soon.length, "plan")} renewing in the next 30 days`)
+            : "Nothing needs doing right now.";
+
+    A.frame({ title: "Licences & spend", trail: [[MONEY_ROOT[0]]], next, actions: [
+      el("a", { class: "btn", href: "#/reports" }, icon("report"), "Spend reports"),
+      el("a", { class: "btn", href: A.gadmin("/export.csv") }, icon("download"), "Export activity CSV"),
+    ] }, [cards, chart]);
+  }
+
+  async function licencesList(params) {
     const lic = await api("GET", "/licences");
-    const s = lic.summary;
     const owner = A.can("money");
-    const paid = lic.tools.filter((t) => t.monthly_cost);
+    const SHOW = [
+      ["paid", "Paid plans", (t) => t.monthly_cost],
+      ["idle", "Idle seats", (t) => t.idle.length],
+      ["over", "Over-assigned", (t) => t.over_seats],
+    ];
+    const st = { ...listState(params), show: params.get("show") || "" };
+    if (!SHOW.some(([k]) => k === st.show)) st.show = "";
+    const rows = lic.tools.map((t) => ({ ...t, util: t.assigned ? t.active / t.assigned : null }));
     const activeSeats = lic.tools.reduce((n, t) => n + t.active, 0);
     const assignedSeats = lic.tools.reduce((n, t) => n + t.assigned, 0);
-    const rows = lic.tools.map((t) => ({ ...t, util: t.assigned ? t.active / t.assigned : null }));
-    const table = rows.length ? SUI.table({ caption: "Licence utilisation", rows, sort: ["monthly_cost", "desc"], columns: [
-      { key: "name", label: "Tool", lead: true, render: (t) => el("a", { class: "u-cell", href: `#/tools?open=${t.id}&tab=billing` }, A.toolLogo(t.id, t.name, "sm"),
-        el("div", null, el("strong", null, t.name), el("span", { class: "sub" }, t.plan || (t.state === "none" ? (t.kind === "site" ? "no plan" : "API key") : t.state)))) },
-      { key: "assigned", label: "Given / seats", num: true, render: (t) => el("span", null, String(t.assigned) + (t.seats ? " / " + t.seats : ""),
-        t.over_seats ? el("span", { class: "sub" }, SUI.status("blocked", "over-assigned", { plain: true })) : null) },
-      { key: "util", label: "Active · 30 days", sort: (t) => (t.util === null ? -1 : t.util), render: (t) => (t.assigned ? el("div", { class: "util" },
-        el("span", { class: "u-num" }, `${t.active} of ${t.assigned}`), el("span", { class: "util-pct u-num" }, Math.round(t.util * 100) + "%"), utilBar(t.active, t.assigned))
-        : el("span", { class: "hint" }, "no one given it yet")) },
-      { key: "monthly_cost", label: "Cost / month", num: true, render: (t) => (t.monthly_cost != null ? fmt.money(t.monthly_cost) : "—") },
-      { key: "cost_per_active", label: "Per active user", num: true, render: (t) => (t.cost_per_active != null ? fmt.money(t.cost_per_active) : "—"), hideSm: true },
-      { key: "idle", label: "Not used in 30 days", sort: (t) => t.idle.length, render: (t) => (t.idle.length ? el("div", { class: "idle" }, t.idle.map((p) => el("span", { title: p.last ? "last used " + fmt.ago(p.last) : "never used" }, p.name,
-        owner ? el("button", { type: "button", "aria-label": `Reclaim ${t.name} from ${p.name}`, onclick: async () => {
-          const ok = await A.confirmAction(`Take ${t.name} back from ${p.name}?`, "Their access is removed so the seat can go to someone who needs it. If they have it through their team, change that on the Tools page.", "Take it back", true);
-          if (!ok) return;
-          try { await api("DELETE", `/people/${p.id}/tools/${t.id}`); toast("Seat freed."); A.render(); } catch (e) { toast(e.message, true); }
-        } }, "Reclaim") : null))) : t.assigned ? SUI.status("ok", "All in use", { plain: true }) : el("span", { class: "hint" }, "—")) },
-    ] }) : SUI.stateBox({ icon: "licences", title: "No licences yet", text: "Subscribe on the Tools page, then give the tool to people. Seats and their use appear here." });
-    return [
-      el("div", { class: "kpis four" },
-        A.kpi({ label: "Company plans", icon: "licences", value: fmt.money(s.subscriptions_month) + "/mo", tone: "gold hero",
-          note: `${SUI.plural(paid.length, "paid plan")} · metered spend is under What cost us money?`,
-          tip: "The monthly cost set on each subscription (Tools → a tool → Subscription). Metered API use is separate: What cost us money?" }),
-        A.kpi({ label: "Active seats", icon: "people", value: `${activeSeats}`, note: `of ${assignedSeats} given out · used in 30 days` }),
-        A.kpi({ label: "Idle seats", icon: "clock", value: String(s.idle_seats), tone: s.idle_seats ? "alert" : null, note: s.idle_seats ? "given, not used in 30 days" : "everyone given a tool is using it" }),
-        A.kpi({ label: "Estimated waste", icon: "trendDown", value: fmt.money(s.idle_cost) + "/mo", note: paid.length ? "idle seats × cost per seat" : "set plan costs to estimate",
-          tip: "For each paid tool: monthly cost ÷ people given it × people who haven't used it in 30 days. An estimate — vendors bill differently." })),
-      A.panel("Utilisation", "seats paid for against real use — reclaim the ones nobody opens", table,
-        el("div", { class: "body hint" }, "Used = opened from the portal, visited through the browser extension, or used through the gateway in the last 30 days.")),
-    ];
+    const meta = el("div", { class: "list-meta" }, el("span", null, `${activeSeats} of ${assignedSeats} seats used in 30 days`));
+    const box = el("div");
+    const pager = { page: st.page, size: st.per, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
+    const reclaim = async (t, p) => {
+      const ok = await A.confirmAction(`Take ${t.name} back from ${p.name}?`, "Their access is removed so the seat can go to someone who needs it. If they have it through their team, change that on the Tools page.", "Take it back", true);
+      if (!ok) return;
+      try { await api("DELETE", `/people/${p.id}/tools/${t.id}`); toast("Seat freed."); A.render(); } catch (e) { toast(e.message, true); }
+    };
+    function draw() {
+      const qq = st.q.trim().toLowerCase();
+      const want = (SHOW.find(([k]) => k === st.show) || [, , () => true])[2];
+      const list = rows.filter((t) => want(t) && (!qq || t.name.toLowerCase().includes(qq) || (t.plan || "").toLowerCase().includes(qq) || (t.category || "").toLowerCase().includes(qq)));
+      box.replaceChildren(list.length ? SUI.table({ caption: "Licence utilisation", rows: list, sort: ["monthly_cost", "desc"], href: (t) => `#/tools?open=${t.id}&tab=billing`, pager, columns: [
+        { key: "name", label: "Tool", lead: true, render: (t) => toolRow(t, t.plan || (t.state === "none" ? (t.kind === "site" ? "no plan" : "API key") : t.state)) },
+        { key: "assigned", label: "Given / seats", num: true, render: (t) => el("span", null, String(t.assigned) + (t.seats ? " / " + t.seats : ""),
+          t.over_seats ? el("span", { class: "sub" }, SUI.status("blocked", "over-assigned", { plain: true })) : null) },
+        { key: "util", label: "Active · 30 days", sort: (t) => (t.util === null ? -1 : t.util), render: (t) => (t.assigned ? el("div", { class: "util" },
+          el("span", { class: "u-num" }, `${t.active} of ${t.assigned}`), el("span", { class: "util-pct u-num" }, Math.round(t.util * 100) + "%"), utilBar(t.active, t.assigned))
+          : el("span", { class: "hint" }, "no one given it yet")) },
+        { key: "monthly_cost", label: "Cost / month", num: true, render: (t) => (t.monthly_cost != null ? fmt.money(t.monthly_cost) : "—") },
+        { key: "cost_per_active", label: "Per active user", num: true, render: (t) => (t.cost_per_active != null ? fmt.money(t.cost_per_active) : "—"), hideSm: true },
+        { key: "idle", label: "Not used in 30 days", sort: (t) => t.idle.length, render: (t) => (t.idle.length ? el("div", { class: "idle" }, t.idle.map((p) => el("span", { title: p.last ? "last used " + fmt.ago(p.last) : "never used" }, p.name,
+          owner ? el("button", { type: "button", "aria-label": `Reclaim ${t.name} from ${p.name}`, onclick: () => reclaim(t, p) }, "Reclaim") : null))) : t.assigned ? SUI.status("ok", "All in use", { plain: true }) : el("span", { class: "hint" }, "—")) },
+        { key: "act", label: "", srLabel: "Actions", sort: false, render: (t) => SUI.menuButton({ label: "More actions for " + t.name, small: true, items: () => [
+          { id: "subscription", label: "Subscription", icon: "wallet", href: `#/tools?open=${t.id}&tab=billing` },
+          { id: "access", label: "Who has access", icon: "people", href: `#/tools?open=${t.id}&tab=access` },
+          { id: "activity", label: "Activity", icon: "clock", href: "#/activity?tab=timeline&tool=" + encodeURIComponent(t.id) },
+        ] }) },
+      ] }) : SUI.stateBox({ icon: "licences", title: rows.length ? "No licences match" : "No licences yet",
+        text: rows.length ? "Try another search or filter." : "Subscribe on the Tools page, then give the tool to people. Seats and their use appear here." }));
+    }
+    const keep = () => A.keepParams("#/licences", { tab: "licences", q: st.q, show: st.show, ...pageParams(st) });
+    const bar = SUI.filterBar({ label: "Filter licences", search: { placeholder: "Tool, plan or category" }, values: st, filters: [
+      { id: "show", label: "Show", any: "All licences", options: SHOW.map(([k, label, f]) => ({ id: k, label, sub: SUI.plural(rows.filter(f).length, "tool") })) },
+    ], onChange: (v) => { st.q = v.q || ""; st.show = v.show || ""; st.page = pager.page = 1; keep(); draw(); } });
+    draw();
+    A.frame({ title: "Licences", trail: [MONEY_ROOT, ["Licences"]], lede: "Seats paid for against real use. Used means opened from the portal, visited through the browser extension, or used through the gateway in the last 30 days." },
+      A.panel(null, null, el("div", { class: "filterbar" }, bar), meta, box));
   }
 
   function utilBar(value, total) {
@@ -66,108 +131,117 @@
     return el("div", { class: "bar use" + (pct < 50 ? " low" : "") }, fill);
   }
 
-  /* What cost us money: metered spend for a window, every way it breaks down, against the window before. */
-  async function spendTab(params) {
-    const st = { range: A.rangeFrom(params, "30d"), by: params.get("by") || "person" };
-    const box = el("div", { class: "stack-lg" });
+  /* What cost us money: metered spend for a window, by one dimension at a time, against the window before. The chart
+     is on the Money summary; what is rising and how spend is worked out open in a sheet. */
+  async function spendList(params) {
     const LABEL = { person: "Person", tool: "Tool", department: "Department", model: "Model" };
-    async function load() {
-      box.classList.add("refreshing");
-      const d = await api("GET", "/spend?" + A.rangeQuery(st.range).toString());
-      box.classList.remove("refreshing");
-      const rows = { person: d.people, tool: d.tools, department: d.departments, model: d.models }[st.by];
-      const label = (r) => {
-        if (st.by === "person") return r.key ? A.personLink(r.key, r.label) : el("span", { class: "muted" }, r.label);
-        if (st.by === "tool") return A.toolLink(r.tool_id, r.label, "sm");
-        if (st.by === "model") return el("span", { class: "mono" }, r.label);
-        return el("strong", null, r.label);
-      };
-      const total = d.total || 0;
-      // Sharp rises read as one line, not a panel of tiles; the full list opens on demand.
-      let rising = null;
-      if (d.increases.length) {
-        const chip = (x) => el("span", { class: "rise" }, el("strong", null, x.label), el("span", { class: "faint" }, LABEL[x.dimension].toLowerCase()),
-          x.new ? SUI.badge("new", "warn") : SUI.delta(x.change));
-        const all = el("ul", { class: "mini-list rise-all", hidden: true }, d.increases.map((x) => el("li", null,
-          el("span", { class: "mini-ic warn" }, icon("trendUp")),
-          el("div", { class: "grow" }, el("strong", null, x.label), el("div", { class: "hint" }, `${LABEL[x.dimension]} · ${fmt.money(x.previous)} → ${fmt.money(x.cost)}`)),
-          x.new ? SUI.badge("new", "warn") : SUI.delta(x.change))));
-        const more = d.increases.length > 3 ? el("button", { class: "btn link", type: "button", "aria-expanded": "false", onclick: () => {
-          all.hidden = !all.hidden; more.setAttribute("aria-expanded", all.hidden ? "false" : "true");
-          more.textContent = all.hidden ? `See all ${d.increases.length}` : "Hide the list";
-        } }, `See all ${d.increases.length}`) : null;
-        rising = el("section", { class: "callout warn" },
-          el("div", { class: "callout-row" }, icon("trendUp"), el("span", { class: "callout-k" }, "Rising fast"),
-            el("div", { class: "rises" }, d.increases.slice(0, 3).map(chip)), more),
-          el("div", { class: "hint" }, "At least half again the period before, and $1 more — worth a look, not necessarily a problem."), all);
-      }
-      box.replaceChildren(...[
-        el("div", { class: "kpis four" },
-          A.kpi({ label: "Metered AI spend", icon: "wallet", value: fmt.money(total), tone: "gold hero",
-            foot: el("span", { class: "row" }, SUI.delta(d.change), el("span", { class: "note" }, `vs ${fmt.money(d.previous_total)} the period before`)),
-            tip: "Each request is priced from the model price table the moment it runs. Vendor invoices aren't imported." }),
-          A.kpi({ label: "Requests", icon: "spark", value: fmt.num(d.requests), note: total && d.requests ? `≈ ${fmt.money(total / d.requests)} each` : "in this period" }),
-          A.kpi({ label: "Unpriced", icon: "info", value: fmt.num(d.unpriced), href: d.unpriced ? "#/settings?tab=providers&section=prices" : null,
-            note: d.unpriced ? "requests with no price — price them" : "every model has a price" }),
-          A.kpi({ label: "Company plans", icon: "licences", value: fmt.money(d.subscriptions_month) + "/mo", href: "#/licences?tab=licences",
-            note: "fixed monthly, not metered — seats and idle ones under Licences" })),
-        rising,
-        d.series.length > 1 ? A.panel("Spend per day", "estimated from the price table · " + SUI.tzLabel(true), el("div", { class: "body" },
-          SUI.line({ label: "Metered spend per day", format: fmt.money, tick: fmt.moneyShort, yName: "Spend",
-            data: d.series.map((x) => ({ label: fmt.weekday(x.start), short: fmt.dayMonth(x.start), value: x.cost, note: SUI.plural(x.requests, "request") })) }))) : null,
-        A.panel("Where it went", A.seg([["person", "Person"], ["tool", "Tool"], ["department", "Department"], ["model", "Model"]], st.by, (v) => { st.by = v; apply(); }, "Break down by"),
-          rows.length ? SUI.table({ caption: "Spend by " + LABEL[st.by].toLowerCase(), rows, sort: ["cost", "desc"],
-            href: st.by === "person" ? (r) => (r.key ? "#/people/" + r.key : null) : st.by === "tool" ? (r) => (r.tool_id ? `#/tools?open=${r.tool_id}` : null) : null,
-            columns: [
-              { key: "label", label: LABEL[st.by], lead: true, render: label },
-              { key: "cost", label: "Spend", num: true, render: (r) => el("span", null, fmt.money(r.cost), el("span", { class: "sub" }, total ? Math.round(r.cost / total * 100) + "% of total" : "")) },
-              { key: "previous", label: "Period before", num: true, render: (r) => fmt.money(r.previous), hideSm: true },
-              { key: "change", label: "Change", num: true, sort: (r) => (r.change === null ? -Infinity : r.change), render: (r) => SUI.delta(r.change, { none: r.cost ? "new" : "—" }) },
-              { key: "requests", label: "Requests", num: true },
-              { key: "unpriced", label: "Unpriced", num: true, render: (r) => (r.unpriced ? SUI.status("waiting", String(r.unpriced), { plain: true }) : "—"), hideSm: true }] })
-            : SUI.stateBox({ icon: "wallet", title: "No spend in this period", text: "Metered spend appears once requests go through the gateway." })),
-        el("details", { class: "explain" },
-          el("summary", null, icon("info"), "How spend is worked out", el("span", { class: "hint" }, "estimated, unpriced, plans, and what isn't here")),
-          el("div", { class: "method" },
+    const st = { ...listState(params), range: A.rangeFrom(params, "30d"), by: params.get("by") || "" };
+    if (!["tool", "department", "model"].includes(st.by)) st.by = "";
+    const meta = el("div", { class: "list-meta" });
+    const box = el("div");
+    const pager = { page: st.page, size: st.per, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
+    let d = null, seq = 0;
+    const risingSheet = () => SUI.sheet({ title: "Rising fast", cancel: "Close", purpose: "At least half again the period before, and $1 more. Worth a look, not necessarily a problem.",
+      body: el("ul", { class: "mini-list rise-all" }, d.increases.map((x) => el("li", null,
+        el("span", { class: "mini-ic warn" }, icon("trendUp")),
+        el("div", { class: "grow" }, el("strong", null, x.label), el("div", { class: "hint" }, `${LABEL[x.dimension]} · ${fmt.money(x.previous)} → ${fmt.money(x.cost)}`)),
+        x.new ? SUI.badge("new", "warn") : SUI.delta(x.change)))) });
+    const methodSheet = () => SUI.sheet({ title: "How spend is worked out", cancel: "Close", purpose: "Estimated, unpriced, plans, and what isn't here.",
+      body: el("div", { class: "method" },
             el("div", null, SUI.status("ok", "Estimated", { plain: true }), el("p", null, "Each request through the gateway is priced from the model price table (Settings → Model prices) the moment it runs, using the tokens the provider reports. Changing a price later doesn't change past requests.")),
             el("div", null, SUI.status("waiting", "Unpriced", { plain: true }), el("p", null, "A model missing from the price table has no cost, so spend is understated until it's priced. Voice, image and video are metered in the service's own units.")),
             el("div", null, SUI.status("info", "Plans", { plain: true }), el("p", null, "Company plans are the fixed monthly cost set on each subscription — not metered here, and not split by person.")),
-            el("div", null, SUI.status("none", "Not here", { plain: true }), el("p", null, "Vendor invoices aren't imported, and a shared account's own credit use is matched by turn, not priced."))))].filter(Boolean));
+            el("div", null, SUI.status("none", "Not here", { plain: true }), el("p", null, "Vendor invoices aren't imported, and a shared account's own credit use is matched by turn, not priced."))) });
+    function draw() {
+      const by = st.by || "person";
+      const total = d.total || 0;
+      const label = (r) => {
+        if (by === "person") return r.key ? A.personLink(r.key, r.label) : el("span", { class: "muted" }, r.label);
+        if (by === "tool") return A.toolLink(r.tool_id, r.label, "sm");
+        if (by === "model") return el("span", { class: "mono" }, r.label);
+        return el("strong", null, r.label);
+      };
+      const qq = st.q.trim().toLowerCase();
+      const all = { person: d.people, tool: d.tools, department: d.departments, model: d.models }[by];
+      const rows = all.filter((r) => !qq || String(r.label).toLowerCase().includes(qq));
+      meta.replaceChildren(...[
+        el("span", { class: "row" }, `${fmt.money(total)} in this period`, SUI.delta(d.change), `vs ${fmt.money(d.previous_total)} before`),
+        el("span", null, SUI.plural(d.requests, "request") + (total && d.requests ? ` · about ${fmt.money(total / d.requests)} each` : "")),
+        d.unpriced ? el("a", { href: "#/settings?tab=providers&section=prices" }, `${fmt.num(d.unpriced)} with no price`) : el("span", null, "every model has a price"),
+        d.increases.length ? el("button", { class: "btn link", type: "button", onclick: risingSheet }, `${d.increases.length} rising fast`) : null,
+      ].filter(Boolean));
+      box.replaceChildren(rows.length ? SUI.table({ caption: "Spend by " + LABEL[by].toLowerCase(), rows, sort: ["cost", "desc"], pager,
+        href: by === "person" ? (r) => (r.key ? "#/people/" + r.key : null) : by === "tool" ? (r) => (r.tool_id ? `#/tools?open=${r.tool_id}` : null) : null,
+        columns: [
+          { key: "label", label: LABEL[by], lead: true, render: label },
+          { key: "cost", label: "Spend", num: true, render: (r) => el("span", null, fmt.money(r.cost), el("span", { class: "sub" }, total ? Math.round(r.cost / total * 100) + "% of total" : "")) },
+          { key: "previous", label: "Period before", num: true, render: (r) => fmt.money(r.previous), hideSm: true },
+          { key: "change", label: "Change", num: true, sort: (r) => (r.change === null ? -Infinity : r.change), render: (r) => SUI.delta(r.change, { none: r.cost ? "new" : "—" }) },
+          { key: "requests", label: "Requests", num: true },
+          { key: "unpriced", label: "Unpriced", num: true, render: (r) => (r.unpriced ? SUI.status("waiting", String(r.unpriced), { plain: true }) : "—"), hideSm: true }] })
+        : SUI.stateBox({ icon: "wallet", title: all.length ? "Nothing matches" : "No spend in this period", text: all.length ? "Try another search." : "Metered spend appears once requests go through the gateway." }));
     }
-    const apply = () => {
-      A.keepParams("#/licences", { tab: "spend", range: st.range.preset, from: st.range.preset === "custom" ? st.range.from : null, to: st.range.preset === "custom" ? st.range.to : null, by: st.by === "person" ? null : st.by });
-      load().catch((e) => box.replaceChildren(SUI.errorBox(e, apply)));
-    };
+    async function load() {
+      const mine = ++seq;
+      box.classList.add("refreshing");
+      const data = await api("GET", "/spend?" + A.rangeQuery(st.range).toString());
+      if (mine !== seq) return;
+      box.classList.remove("refreshing");
+      d = data;
+      draw();
+    }
+    const keep = () => A.keepParams("#/licences", { tab: "spend", range: st.range.preset, from: st.range.preset === "custom" ? st.range.from : null, to: st.range.preset === "custom" ? st.range.to : null,
+      by: st.by, q: st.q, ...pageParams(st) });
+    const reload = () => { keep(); load().catch((e) => { box.classList.remove("refreshing"); box.replaceChildren(SUI.errorBox(e, reload)); }); };
     await load();
-    return [el("div", { class: "filterbar card" }, SUI.rangeControl({ preset: st.range.preset, from: st.range.from, to: st.range.to, presets: ["today", "7d", "30d", "month", "custom"],
-      onChange: (r) => { st.range = r; apply(); } })), box];
+    const bar = SUI.filterBar({ label: "Filter spend", search: { placeholder: "Search this list" }, values: st, filters: [
+      { id: "by", label: "By", any: "Person", options: [{ id: "tool", label: "Tool" }, { id: "department", label: "Department" }, { id: "model", label: "Model" }] },
+    ], onChange: (v) => { st.q = v.q || ""; st.by = v.by || ""; st.page = pager.page = 1; keep(); draw(); } });
+    const range = SUI.rangeControl({ preset: st.range.preset, from: st.range.from, to: st.range.to, presets: ["today", "7d", "30d", "month", "custom"],
+      onChange: (r) => { st.range = r; st.page = pager.page = 1; reload(); } });
+    A.frame({ title: "What cost us money?", trail: [MONEY_ROOT, ["What cost us money?"]], lede: "Metered AI spend for any period, and where it went.",
+      actions: el("button", { class: "btn", type: "button", onclick: methodSheet }, icon("info"), "How spend is worked out") },
+      A.panel(null, null, el("div", { class: "filterbar filter-range" }, bar, range), meta, box));
   }
 
-  /* Renewals: the commitments coming up. Spend lives under What cost us money?, and each person's budget on their profile. */
-  async function renewalsTab() {
+  /* Renewals: the commitments coming up, soonest first. */
+  async function renewalsList(params) {
     const lic = await api("GET", "/licences");
-    const soon = lic.renewals.length ? el("ul", { class: "mini-list" }, lic.renewals.map((t) => el("li", null, A.toolLogo(t.id, t.name, "sm"),
-      el("div", { class: "grow" }, el("strong", null, t.name), el("div", { class: "hint" }, t.monthly_cost != null ? fmt.money(t.monthly_cost) + " a month" : "cost not set")),
-      SUI.badge("renews " + fmt.date(t.renews_on), "warn", "calendar")))) : SUI.stateBox({ icon: "calendar", compact: true, title: "No renewals soon", text: "Nothing renews in the next 30 days." });
-    const plans = lic.tools.filter((t) => t.state !== "none" && t.state !== "cancelled");
-    const all = plans.length ? SUI.table({ caption: "Every plan and when it renews", rows: plans, sort: ["renews_on", "asc"], href: (t) => `#/tools?open=${t.id}&tab=billing`, columns: [
-      { key: "name", label: "Tool", lead: true, render: (t) => el("a", { class: "u-cell", href: `#/tools?open=${t.id}&tab=billing` }, A.toolLogo(t.id, t.name, "sm"),
-        el("div", null, el("strong", null, t.name), el("span", { class: "sub" }, t.plan || "plan not named"))) },
-      { key: "seats", label: "Seats", num: true, render: (t) => (t.seats ? String(t.seats) : "—"), hideSm: true },
-      { key: "monthly_cost", label: "Cost / month", num: true, render: (t) => (t.monthly_cost != null ? fmt.money(t.monthly_cost) : "—") },
-      { key: "renews_on", label: "Renews", num: true, sort: (t) => t.renews_on || Infinity,
-        render: (t) => (t.renews_on ? fmt.date(t.renews_on) : el("span", { class: "faint" }, "no date set")) },
-    ] }) : SUI.stateBox({ icon: "licences", compact: true, title: "No plans yet", text: "Set a subscription on a tool (Tools → a tool → Subscription) and its renewal shows here." });
-    const undated = plans.filter((t) => !t.renews_on).length;
-    return [
-      el("div", { class: "grid cols-even" },
-        A.panel("Renewing in the next 30 days", null, soon),
-        A.panel("Before a renewal", null, el("div", { class: "body stack" },
-          el("p", { class: "hint" }, "Check the plan is still used: idle seats and what reclaiming them saves are under ", el("a", { href: "#/licences?tab=licences" }, "Licences"), "."),
-          el("p", { class: "hint" }, "Metered spend by person, tool and model is under ", el("a", { href: "#/licences?tab=spend" }, "What cost us money?"), "; each person's budget is on their profile."),
-          undated ? el("p", { class: "hint" }, SUI.status("waiting", `${SUI.plural(undated, "plan")} with no renewal date`, { plain: true }), " — set it on the tool's Subscription tab so it shows up here in time.") : null))),
-      A.panel("Every plan", "soonest first", all),
+    const plans = lic.tools.filter(livePlan);
+    const soonIds = new Set(renewingSoon(lic).map((t) => t.id));
+    const SHOW = [
+      ["soon", "Renewing in 30 days", (t) => soonIds.has(t.id)],
+      ["undated", "No date set", (t) => !t.renews_on],
     ];
+    const st = { ...listState(params), show: params.get("show") || "" };
+    if (!SHOW.some(([k]) => k === st.show)) st.show = "";
+    const undated = plans.filter((t) => !t.renews_on).length;
+    const meta = el("div", { class: "list-meta" },
+      el("span", null, SUI.plural(plans.length, "plan")),
+      undated ? el("span", null, `${undated} with no date: set it on the tool's Subscription tab`) : null,
+      el("a", { href: "#/licences?tab=licences&show=idle" }, "Before a renewal, check its idle seats"));
+    const box = el("div");
+    const pager = { page: st.page, size: st.per, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
+    function draw() {
+      const qq = st.q.trim().toLowerCase();
+      const want = (SHOW.find(([k]) => k === st.show) || [, , () => true])[2];
+      const list = plans.filter((t) => want(t) && (!qq || t.name.toLowerCase().includes(qq) || (t.plan || "").toLowerCase().includes(qq)));
+      box.replaceChildren(list.length ? SUI.table({ caption: "Every plan and when it renews", rows: list, sort: ["renews_on", "asc"], href: (t) => `#/tools?open=${t.id}&tab=billing`, pager, columns: [
+        { key: "name", label: "Tool", lead: true, render: (t) => toolRow(t, t.plan || "plan not named") },
+        { key: "seats", label: "Seats", num: true, render: (t) => (t.seats ? String(t.seats) : "—"), hideSm: true },
+        { key: "monthly_cost", label: "Cost / month", num: true, render: (t) => (t.monthly_cost != null ? fmt.money(t.monthly_cost) : "—") },
+        { key: "renews_on", label: "Renews", num: true, sort: (t) => t.renews_on || Infinity,
+          render: (t) => (t.renews_on ? fmt.date(t.renews_on) : el("span", { class: "faint" }, "no date set")) },
+      ] }) : SUI.stateBox({ icon: "calendar", title: plans.length ? "No plans match" : "No plans yet",
+        text: plans.length ? (st.show === "soon" && !st.q ? "Nothing renews in the next 30 days." : "Try another search or filter.") : "Set a subscription on a tool (Tools → a tool → Subscription) and its renewal shows here." }));
+    }
+    const keep = () => A.keepParams("#/licences", { tab: "renewals", q: st.q, show: st.show, ...pageParams(st) });
+    const bar = SUI.filterBar({ label: "Filter renewals", search: { placeholder: "Tool or plan" }, values: st, filters: [
+      { id: "show", label: "Show", any: "All plans", options: SHOW.map(([k, label, f]) => ({ id: k, label, sub: SUI.plural(plans.filter(f).length, "plan") })) },
+    ], onChange: (v) => { st.q = v.q || ""; st.show = v.show || ""; st.page = pager.page = 1; keep(); draw(); } });
+    draw();
+    A.frame({ title: "Renewals", trail: [MONEY_ROOT, ["Renewals"]], lede: "Plans that renew soon, so nothing renews by surprise." },
+      A.panel(null, null, el("div", { class: "filterbar" }, bar), meta, box));
   }
 
   // ------------------------------------------------------------------ Settings
@@ -924,18 +998,27 @@
       return;
     }
     const list = await api("GET", "/reports");
-    const groups = [];
-    list.items.forEach((r) => {
-      const group = (REPORT_ABOUT[r.kind] || ["Other"])[0];
-      let g = groups.find((x) => x[0] === group);
-      if (!g) groups.push(g = [group, []]);
-      g[1].push(r);
-    });
-    A.frame({ title: "Reports", lede: "The standard questions, answered for any period and ready to download. Every amount says what it rests on — estimated from prices and rates, allocated from a plan, or unpriced. Downloads are written to the audit log." },
-      el("div", { class: "report-groups" }, groups.map(([name, items]) => A.panel(name, null, el("ul", { class: "report-list" }, items.map((r) => el("li", null,
+    const groupOf = (r) => (REPORT_ABOUT[r.kind] || ["Other"])[0];
+    const about = (r) => (REPORT_ABOUT[r.kind] || [, ""])[1];
+    const groups = [...new Set(list.items.map(groupOf))];
+    const st = { q: params.get("q") || "", group: params.get("group") || "" };
+    if (!groups.includes(st.group)) st.group = "";
+    const box = el("div");
+    function draw() {
+      const qq = st.q.trim().toLowerCase();
+      const rows = list.items.filter((r) => (!st.group || groupOf(r) === st.group) && (!qq || r.title.toLowerCase().includes(qq) || about(r).toLowerCase().includes(qq)));
+      box.replaceChildren(rows.length ? el("ul", { class: "report-list" }, rows.map((r) => el("li", null,
         el("a", { href: "#/reports/" + r.kind }, el("span", { class: "mini-ic" }, icon("report")),
-          el("span", { class: "grow" }, el("strong", null, r.title), el("span", { class: "hint" }, (REPORT_ABOUT[r.kind] || [, ""])[1])),
-          icon("chevronRight")))))))));
+          el("span", { class: "grow" }, el("strong", null, r.title), el("span", { class: "hint" }, about(r))),
+          icon("chevronRight")))))
+        : SUI.stateBox({ icon: "report", title: "No reports match", text: "Try another search or group." }));
+    }
+    const bar = SUI.filterBar({ label: "Filter reports", search: { placeholder: "Report or question" }, values: st, filters: [
+      { id: "group", label: "Group", any: "All groups", options: groups.map((g) => ({ id: g, label: g })) },
+    ], onChange: (v) => { st.q = v.q || ""; st.group = v.group || ""; A.keepParams("#/reports", { q: st.q, group: st.group }); draw(); } });
+    draw();
+    A.frame({ title: "Spend reports", trail: [MONEY_ROOT, ["Spend reports"]], lede: "The standard questions, answered for any period and ready to download. Every amount says what it rests on: estimated from prices and rates, allocated from a plan, or unpriced. Downloads are written to the audit log." },
+      A.panel(null, null, el("div", { class: "filterbar" }, bar), box));
   }
 
   async function pageReport(params, kind) {
@@ -968,7 +1051,7 @@
       A.keepParams("#/reports/" + kind, { range: r.preset, from: r.preset === "custom" ? r.from : null, to: r.preset === "custom" ? r.to : null });
       draw(r);
     } });
-    A.frame({ title: meta.title, crumbs: [el("a", { href: "#/reports" }, "Reports")], lede: (REPORT_ABOUT[kind] || [, ""])[1], actions: dl },
+    A.frame({ title: meta.title, trail: [MONEY_ROOT, ["Spend reports", "#/reports"], [meta.title]], lede: (REPORT_ABOUT[kind] || [, ""])[1], actions: dl },
       A.panel(null, null, el("div", { class: "filterbar" }, ctl), holder));
     draw(range);
   }

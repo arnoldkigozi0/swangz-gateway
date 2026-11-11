@@ -692,19 +692,6 @@ a.stat:hover .v { text-decoration: underline; text-underline-offset: 3px; text-d
 .callout-row > svg { width: 16px; height: 16px; color: var(--warn-hi); flex: none; }
 .callout-k { font-weight: 700; font-size: 13.5px; }
 .callout .hint { padding-left: 30px; font-size: 12.5px; }
-.rises { display: flex; flex-wrap: wrap; gap: 6px 18px; flex: 1 1 auto; min-width: 0; }
-.rise { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; white-space: nowrap; }
-.rise strong { font-weight: 650; }
-.rise-all { margin: 6px -18px -12px; border-top: 1px solid var(--line); }
-details.explain { border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--ink-1); }
-details.explain > summary { display: flex; align-items: center; gap: 10px; padding: 13px 18px; cursor: pointer; list-style: none; font-weight: 650; font-size: 13.5px; }
-details.explain > summary::-webkit-details-marker { display: none; }
-details.explain > summary > svg { width: 15px; height: 15px; color: var(--tx-3); }
-details.explain > summary::after { content: ""; margin-left: auto; width: 8px; height: 8px; border-right: 1.5px solid var(--tx-3); border-bottom: 1.5px solid var(--tx-3); transform: rotate(45deg); transition: transform var(--d-fast); }
-details.explain[open] > summary::after { transform: rotate(-135deg); }
-details.explain > summary .hint { font-weight: 400; font-size: 12.5px; }
-details.explain > summary:hover { background: var(--ink-2); border-radius: var(--r-lg); }
-details.explain .method { padding: 6px 18px 18px; border-top: 1px solid var(--line); padding-top: 14px; }
 .method { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px 24px; }
 .method p { margin: 6px 0 0; color: var(--tx-2); font-size: 13px; }
 .u-bars .track-wrap { grid-column: 1 / -1; }
@@ -912,7 +899,6 @@ button.group-toggle:hover .gt-l, button.group-toggle:hover > svg { color: var(--
 .crumbs.area-only .crumb-area { color: var(--accent-tx); }
 @media (prefers-reduced-motion: reduce) { .group-toggle > svg { transition: none; } }
 /* Reports: a catalogue, one row per report saying what it answers */
-.report-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 18px; align-items: start; }
 .report-list { list-style: none; margin: 0; padding: 0; }
 .report-list li + li { border-top: 1px solid var(--line); }
 .report-list a { display: flex; align-items: center; gap: 12px; padding: 13px 18px; color: inherit; text-decoration: none; transition: background var(--d-fast); }
@@ -1485,7 +1471,10 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
 .console-trail a { color: inherit; text-decoration: none; }
 .console-trail a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .console-trail a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
-.console-trail .sep { color: var(--tx-3); }
+.console-trail .sep { flex: none; color: var(--tx-3); }
+/* A long chain gives way from the left: the pages above shorten with an ellipsis so the current page stays readable. */
+.console-trail > a, .console-trail > .crumb-area { flex: 0 1000 auto; min-width: 3ch; overflow: hidden; text-overflow: ellipsis; }
+.console-trail > .crumb-here { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .console-trail .crumb-here, .crumbs .crumb-here { color: var(--tx-1); font-weight: 600; }
 @media (min-width: 1201px) { .top > .crumbs.in-bar { display: none; } }
 @media (max-width: 1200px) { .console-trail { display: none; } }
@@ -1505,6 +1494,15 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
   .route-overview .top > .top-actions .btn, .route-overview .panel-actions .btn { min-height: 44px; height: 44px; }
   .route-overview .kpis-exact .kpi .label .u-info { flex: none; width: 44px; height: 44px; margin: -14px; }
   .route-overview .u-chart-foot button { flex: none; min-height: 44px; white-space: nowrap; }
+}
+/* Money (BRIEF 10.10): the period sits on the same row as the search and filters, and on a phone every control
+   reaches the kit's 44px touch size. */
+@media (min-width: 1001px) { .filterbar.filter-range { grid-template-columns: minmax(0, 1fr) auto; align-items: start; } }
+@media (max-width: 640px) {
+  .route-licences .top > .top-actions .btn, .route-reports .top > .top-actions .btn, .route-licences .panel-actions .btn { min-height: 44px; height: 44px; }
+  .route-licences .kpis-exact .kpi .label .u-info { flex: none; width: 44px; height: 44px; margin: -14px; }
+  .route-licences .u-chart-foot button { flex: none; min-height: 44px; white-space: nowrap; }
+  .route-licences .list-meta .btn.link { min-height: 44px; }
 }
 /* ---- the control kit page (#/kit): specimens in a grid, each under the name of its state */
 .kit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }

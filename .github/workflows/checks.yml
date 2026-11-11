@@ -56,6 +56,10 @@ jobs:
         run: node tests/browser/tools.cjs
         env:
           UI_OUTPUT: /tmp/swangz-hub-tools-ui
+      - name: Money on the control kit (summary, filtered lists, spend reports)
+        run: node tests/browser/money.cjs
+        env:
+          UI_OUTPUT: /tmp/swangz-hub-money-ui
       - name: Extension Python wrapper (must run, not skip)
         run: |
           python -c "import shutil; assert shutil.which('node'), 'Node must be available for test_extension'"
