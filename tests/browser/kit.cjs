@@ -34,6 +34,43 @@ async function focusRings(page, theme, say) {
     for (const back of backs) if (contrast(r.colour, back) < 3) say(`${selector}: ring ${r.colour} is ${contrast(r.colour, back).toFixed(2)}:1 on ${back}`);
   }
 }
+/* BRIEF 10.10.2: a long table scrolls inside its panel under a header that stays put, opaque so rows cannot show through it.
+   Mounts one table in a plain panel, one in a glass list and one in a side-sheet body. */
+async function stickyHeader(page, theme, vname) {
+  const T = `${theme} ${vname} sticky header: `;
+  const r = await page.evaluate(async () => {
+    const { el } = SUI, rows = Array.from({ length: 60 }, (_, i) => ({ id: i, name: 'Row ' + i, n: i }));
+    const make = () => SUI.table({ caption: 'Sticky', rows, columns: [
+      { key: 'name', label: 'Name', render: (x) => el('button', { type: 'button', class: 'btn small' }, x.name) }, { key: 'n', label: 'Number', num: true }] });
+    const plain = el('div', { class: 'panel' }, make()), list = SUI.listPanel({ title: 'List', body: make() }), sheet = el('div', { class: 'sheet-probe sheet' }, make());
+    sheet.style.position = 'static'; sheet.style.transform = 'none'; sheet.style.width = 'auto';
+    document.querySelector('main').replaceChildren(plain, list, sheet);
+    const measure = (box) => {
+      const wrap = box.querySelector('.u-table-wrap'), th = box.querySelector('thead th'), cs = getComputedStyle(th);
+      const limited = wrap.scrollHeight > wrap.clientHeight + 1;
+      wrap.scrollTop = wrap.scrollHeight;
+      const stuck = Math.abs(th.getBoundingClientRect().top - wrap.getBoundingClientRect().top) <= 1;
+      const buttons = box.querySelectorAll('tbody button'), target = buttons[Math.floor(buttons.length / 2)];
+      target.focus();
+      const clear = target.getBoundingClientRect().top >= th.getBoundingClientRect().bottom;
+      const out = { limited, stuck, clear, position: cs.position, background: cs.backgroundColor, transform: cs.transform, height: wrap.clientHeight };
+      wrap.scrollTop = 0;
+      return out;
+    };
+    return { plain: measure(plain), list: measure(list), sheet: measure(sheet), pageWide: document.documentElement.scrollWidth - innerWidth };
+  });
+  const solid = (c) => !/rgba\(.*,\s*0?\.\d+\)|rgba\(.*,\s*0\)|transparent/.test(c);
+  ok(T + 'a table in a side sheet keeps one scrollbar', !r.sheet.limited);
+  ok(T + 'no horizontal page scroll', r.pageWide <= 0);
+  if (vname === 'mobile') { ok(T + 'phones show cards with no inner scroll', !r.plain.limited && !r.list.limited); return; }
+  for (const [name, m] of [['panel', r.plain], ['list', r.list]]) {
+    ok(`${T}${name} scrolls inside itself`, m.limited && m.height >= 320);
+    ok(`${T}${name} header is CSS sticky with no transform`, m.position === 'sticky' && m.transform === 'none');
+    ok(`${T}${name} header stays at the top of the scroll box`, m.stuck);
+    ok(`${T}${name} header is opaque (${m.background})`, solid(m.background));
+    ok(`${T}${name} keyboard focus is not hidden under the header`, m.clear);
+  }
+}
 async function kitPage(page, url, theme, vname) {
   const name = `${vname}-${theme}`, say = (m) => kitFindings.push(`${name}: ${m}`);
   const writes = [], seen = (r) => { if (/\/admin\/api\//.test(r.url()) && r.method() !== 'GET') writes.push(r.method() + ' ' + r.url()); };
@@ -381,6 +418,7 @@ const mount = () => {
         ok(H + 'the primary action runs and can close without asking', (await hs()).log === 'closed,closed,save:Brian,closed');
       }
       ok(T + 'no horizontal page scroll', (await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)) <= 0);
+      await stickyHeader(page, theme, vname);
       await kitPage(page, info.url, theme, vname);
       await ctx.close();
     }
