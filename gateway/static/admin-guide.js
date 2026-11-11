@@ -44,7 +44,7 @@
     const onward = n.canGovern ? { label: "Give someone a tool", task: "give-tool" } : { label: "See what we spent", task: "see-spend" };
     if (!n.inUse) return { sentence: "No tools are in use yet.", action: n.canGovern ? { label: "Give someone a tool", task: "give-tool" } : { label: "See all tools", href: "#/tools?show=all" } };
     if (n.idle) return { sentence: `${many(n.idle, "tool was", "tools were")} given but never opened.`,
-      action: n.show === "idle" ? onward : { label: "See " + (n.idle === 1 ? "it" : "them"), href: "#/tools?show=idle" } };
+      action: n.show === "idle" ? onward : { label: n.idle === 1 ? "See which tool" : "See which tools", href: "#/tools?show=idle" } };
     return { sentence: `${many(n.inUse, "tool is", "tools are")} in use; paid plans cost ${n.monthly} a month.`, action: onward };
   }
 
