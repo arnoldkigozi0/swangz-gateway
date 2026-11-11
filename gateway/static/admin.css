@@ -742,6 +742,7 @@ a.stat:hover .v { text-decoration: underline; text-underline-offset: 3px; text-d
   .att > .btn { justify-self: start; }
   .req { grid-template-columns: auto minmax(0, 1fr); }
   .req-act { grid-column: 2; justify-content: flex-start; margin-top: 8px; }
+  .req-act .btn { min-height: 44px; }
   .step { grid-template-columns: 62px 26px minmax(0, 1fr); padding: 0 12px; gap: 0 8px; }
   .step.action .step-body { grid-template-columns: minmax(0, 1fr); gap: 2px; }
   .sheet > header, .sheet .sheet-body { padding-left: 16px; padding-right: 16px; }
