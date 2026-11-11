@@ -66,6 +66,8 @@ jobs:
         run: node tests/browser/security.cjs
         env:
           UI_OUTPUT: /tmp/swangz-hub-security-ui
+      - name: Person Last seen counts only the person's own requests, opens and visits
+        run: node tests/browser/lastseen.cjs
       - name: Access requests on the control kit (filter bar, decision at the row edge, Next step)
         run: node tests/browser/requests.cjs
         env:
