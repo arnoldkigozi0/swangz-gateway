@@ -656,7 +656,7 @@ a.stat:hover .v { text-decoration: underline; text-underline-offset: 3px; text-d
 .stat.alert::before { content: ""; position: absolute; inset: 0 0 auto; height: 2px; background: var(--bad); }
 .row.end { justify-content: flex-end; }
 .give-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 12px 18px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--ink-2) 60%, var(--ink-1)); }
-.give-row .fb-select { min-width: 240px; }
+.give-row .u-select { min-width: 240px; }
 
 .dev-ic { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: var(--ink-3); color: var(--accent-tx); flex: none; border: 1px solid var(--line-hi); font-weight: 700; font-size: 13px; }
 .dev-ic svg { width: 19px; height: 19px; }
