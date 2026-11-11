@@ -4,6 +4,7 @@ Captured by `tests/browser/people.cjs` in CI at 1440x852 and 390x844, in dark an
 The rows named "Kit Test" and "Kit Variant" are people the test adds as it goes.
 
 - `people-*`: the list, with the search and status filter, one ⋯ per row, and the split Add person button.
+- `people-add-*`: Add person with both required fields refused, each marked invalid.
 - `person-sheet-*`: the side sheet a row opens, with links into the record.
 - `person-tools-give-*`: their tools on the record's Access tab, one ⋯ per row, with the kit picker open to give another.
 - `person-record-*`: the record, with the trail and one Next step line under the description.
