@@ -52,6 +52,8 @@ jobs:
         run: node tests/browser/people.cjs
         env:
           UI_OUTPUT: /tmp/swangz-hub-people-ui
+      - name: Phone touch size on People and Tools (44px at 390)
+        run: node tests/browser/touch.cjs
       - name: Tools on the control kit (filter bar, row menus, pages, tool record)
         run: node tests/browser/tools.cjs
         env:

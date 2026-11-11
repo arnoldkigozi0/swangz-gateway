@@ -598,7 +598,11 @@ html[data-theme="light"] .u-donut .t5 { stroke: #1A9A62; color: #1A9A62; } html[
     box-shadow: 0 0 0 100vmax var(--scrim); animation-name: u-pop-up; }
   .u-pop-list li { min-height: 44px; }
   .u-menu [role="menuitem"] { min-height: 44px; }
-  .u-more, .u-more.sm { min-width: 44px; height: 44px; }
+  .u-more, .u-more.sm, .u-table.cards td > .u-more { min-width: 44px; height: 44px; }   /* td > * would otherwise zero the minimum */
+  .u-table th button { min-height: 44px; }
+  .u-table.cards td.lead .u-cell { min-height: 44px; }
+  .u-table.cards td.lead .u-cell a { display: inline-flex; align-items: center; min-height: 44px; }
+  .u-pager .btn, .u-pager .btn.small { min-height: 44px; height: 44px; }
   .u-split, .u-split.sm { height: 44px; }
   .u-filter-row .u-search { flex: 1 1 100%; min-height: 44px; }
   .u-filter-row .u-search input[type="search"] { width: 100%; }
