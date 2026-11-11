@@ -43,8 +43,26 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
         assert.deepEqual(bad, [], T + name + ' touch size'); checks++;
       };
 
-      // L2: the list opens on the open requests
+      // Simple (BRIEF 10.10.7), the default: one sentence with the real number, one next step, five columns, ten rows
+      await p.goto(url + '/admin'); await p.evaluate(() => localStorage.clear());
       await open('#/requests', '.u-filter');
+      const sentence = (await p.locator('main .ov-sentence').first().innerText()).trim();
+      ok(T + 'Simple: the sentence carries the real number', sentence === '2 requests are waiting for a decision.' && sentence.split(/\s+/).length <= 12);
+      ok(T + 'Simple: one next step, and it answers the two requests', await p.locator('main .next-step').count() === 1 && await p.locator('main .next-step').getByRole('button', { name: 'Answer 2 requests' }).count() === 1);
+      ok(T + 'Simple: one primary, the next step', await p.locator('main .btn.primary').count() === 1);
+      ok(T + 'Simple: one panel, one table, no tab strip or chart', await p.locator('main .panel').count() === 1 && await p.locator('main table').count() === 1 && await p.locator('main [role=tablist]').count() === 0 && await p.locator('main .u-chart').count() === 0);
+      const heads = (await p.locator('main .u-table thead th').allTextContents()).map(t => t.trim()).filter(Boolean);
+      ok(T + 'Simple: five columns, no Why', heads.length <= 5 && !heads.some(t => /^Why/.test(t)));
+      ok(T + 'Simple: the two open requests, each with its decision', await rows() === 2 && await p.getByRole('button', { name: 'Grant' }).count() === 2);
+      ok(T + 'Simple: a way to Detailed', await p.getByRole('radio', { name: 'Detailed' }).count() + await p.getByRole('button', { name: 'Detailed' }).count() >= 1);
+      await noOverflow('Simple'); await axe('Simple'); await small('Simple'); await shot(p, 'requests-simple');
+      await p.locator('main .next-step').getByRole('button', { name: 'Answer 2 requests' }).click();
+      await p.locator('.guide').first().waitFor();
+      ok(T + 'Simple: answering shows each reason', await p.locator('.guide').getByText(/illustrations/).count() >= 1);
+      await p.keyboard.press('Escape');
+
+      // L2 (Detailed): the list opens on the open requests
+      await open('#/requests?view=detailed', '.u-filter');
       ok(T + 'trail names the page', (await here()) === 'Access requests');
       ok(T + 'no tab strip, one table, no chart', await p.locator('main [role=tablist]').count() === 0 && await p.locator('main table').count() === 1 && await p.locator('main .u-chart').count() === 0);
       ok(T + 'no primary button on the list', await p.locator('main .btn.primary').count() === 0);
@@ -54,15 +72,15 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       ok(T + 'each open row can be declined or granted', await p.getByRole('button', { name: 'Grant' }).count() === 2 && await p.getByRole('button', { name: 'Decline' }).count() === 2);
       await noOverflow('L2'); await axe('L2'); await small('L2'); await shot(p, 'requests');
       // all statuses
-      await open('#/requests?state=any', '.u-filter');
+      await open('#/requests?view=detailed&state=any', '.u-filter');
       ok(T + 'state=any shows all four with no chip', await rows() === 4 && (await chips()).length === 0);
       ok(T + 'a decided row says who decided', await p.getByText('Approved for the campaign.').count() === 1 || await p.getByText(/by owner@swangzavenue\.com/).count() >= 1);
       await axe('L2 all'); await shot(p, 'requests-all');
-      await open('#/requests?state=declined', '.u-filter');
+      await open('#/requests?view=detailed&state=declined', '.u-filter');
       ok(T + 'declined has one row and the note', await rows() === 1 && await p.getByText(/not renewing that tool/).count() === 1);
       ok(T + 'nothing to decide on a declined row', await p.getByRole('button', { name: 'Grant' }).count() === 0);
       // search and chips
-      await open('#/requests', '.u-filter');
+      await open('#/requests?view=detailed', '.u-filter');
       await p.getByRole('searchbox').first().fill('zzz-nothing');
       await p.waitForTimeout(400);
       ok(T + 'a search with no match says so', await p.getByText('Nothing matches').count() === 1);
@@ -78,7 +96,7 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       ok(T + 'the row menu links the record and the tool', await p.locator('.u-menu [role=menuitem]').count() === 2);
       await p.keyboard.press('Escape');
       // decline asks first, and Cancel changes nothing
-      await open('#/requests', '.u-filter');
+      await open('#/requests?view=detailed', '.u-filter');
       await p.getByRole('button', { name: 'Decline' }).first().click();
       await p.getByRole('dialog').waitFor();
       await axe('decline dialog'); await shot(p, 'requests-decline');

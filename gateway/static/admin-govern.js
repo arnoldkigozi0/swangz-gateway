@@ -603,12 +603,13 @@
   /* One list, one filter row. The tab strip is the only one on the page; each tab has its own filter or none. */
   async function pageDevices(params) {
     const data = await api("GET", "/devices");
-    const st = { q: params.get("q") || "", state: params.get("state") || "", page: Number(params.get("page")) || 1, per: Number(params.get("per")) || 25 };
+    const st = { q: params.get("q") || "", state: params.get("state") || "", page: Number(params.get("page")) || 1, per: Number(params.get("per")) || (mode.simple ? 10 : 25) };
+    const perDefault = mode.simple ? 10 : 25;
     const STATES = [["active", "Active"], ["idle", "Idle"], ["unused", "Never used"], ["revoked", "Revoked"], ["suspended", "Owner suspended"]];
     const counts = Object.fromEntries(STATES.map(([k]) => [k, data.items.filter((d) => d.state === k).length]));
     const stateOptions = STATES.filter(([k]) => counts[k] || k === st.state).map(([k, label]) => ({ id: k, label, sub: SUI.plural(counts[k], "device") }));
     const box = el("div");
-    const pager = { page: st.page, size: st.per, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
+    const pager = { page: st.page, size: st.per, sizes: mode.simple ? [10, 25, 50] : undefined, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
     const rowActions = (d) => [
       { id: "open", label: "Open the record", icon: "device", href: "#/devices/" + d.id },
       { id: "activity", label: "Their activity", icon: "clock", href: `#/activity?tab=ai&person=${d.person_id}` },
@@ -621,7 +622,7 @@
         : SUI.stateBox({ icon: "device", title: data.items.length ? "No devices match" : "No devices yet",
           text: data.items.length ? "Try another search or status." : "A device appears when someone is issued a key, or connects one themselves in the staff app." }));
     }
-    const keep = () => { A.keepParams("#/devices", { tab: params.get("tab") && params.get("tab") !== "keys" ? params.get("tab") : null, q: st.q, state: st.state, page: st.page > 1 ? st.page : null, per: st.per !== 25 ? st.per : null }); };
+    const keep = () => { A.keepParams("#/devices", { tab: params.get("tab") && params.get("tab") !== "keys" ? params.get("tab") : null, q: st.q, state: st.state, page: st.page > 1 ? st.page : null, per: st.per !== perDefault ? st.per : null }); };
     const bar = SUI.filterBar({ label: "Filter devices", search: { placeholder: "Device, owner, app or address" }, values: st, filters: [
       { id: "state", label: "Status", any: "All", options: stateOptions },
     ], onChange: (v) => { st.q = v.q || ""; st.state = v.state || ""; st.page = pager.page = 1; keep(); draw(); } });
@@ -1299,6 +1300,7 @@
   async function pageRequests(params) {
     await A.toolIndex().catch(() => null);
     const owner = A.can("govern");
+    const mode = A.viewMode("requests", "#/requests", params);
     const data = await api("GET", "/access-requests?state=any");
     const counts = data.counts || { open: data.open };
     // no ?state= means the open ones; ?state=any is every decision
@@ -1325,12 +1327,13 @@
         { key: "person", label: "Person", lead: true, render: (r) => el("div", { class: "u-cell" }, SUI.avatar(r.person),
           el("div", null, A.personLink(r.person_id, r.person, { avatar: false }), el("span", { class: "sub" }, r.department || "No department"))) },
         { key: "tool", label: "Asked for", render: (r) => A.toolLink(r.tool_id, r.tool, "xs") },
-        { key: "reason", label: "Why", sort: false, hideSm: true, render: (r) => el("div", { class: "req-why" }, r.reason || el("span", { class: "faint" }, "No reason given"),
+        // Simple keeps five columns (BRIEF 10.10.7); the reason is still shown when answering a request
+        mode.simple ? null : { key: "reason", label: "Why", sort: false, hideSm: true, render: (r) => el("div", { class: "req-why" }, r.reason || el("span", { class: "faint" }, "No reason given"),
           r.decision_note ? el("span", { class: "sub" }, "Note: " + r.decision_note) : null) },
         { key: "created", label: "Asked", num: true, render: (r) => el("span", { title: fmt.stamp(r.created) }, fmt.ago(r.created)) },
         { key: "state", label: "Decision", sort: false, render: decision },
         { key: "act", label: "", srLabel: "Actions", sort: false, render: (r) => SUI.menuButton({ label: `More actions for ${r.person}'s request`, small: true, items: () => rowMenu(r) }) },
-      ] });
+      ].filter(Boolean) });
     }
     function draw() {
       const qq = st.q.trim().toLowerCase();
@@ -1349,8 +1352,14 @@
     const oldest = open.length ? Math.min(...open.map((r) => r.created)) : null;
     const next = open.length ? `${SUI.plural(open.length, "request")} waiting for a decision. The oldest was asked ${fmt.ago(oldest)}${owner ? "; decide it first." : "; only an owner can decide."}`
       : "Nothing is waiting for a decision.";
-    A.frame({ title: "Access requests", trail: [["Access requests"]], next, lede: "Staff asking for tools in Swangz AI Hub. Granting turns the tool on for them straight away." },
-      A.panel(null, null, el("div", { class: "filterbar" }, bar), meta, box));
+    const listPanel = A.panel(null, null, el("div", { class: "filterbar" }, bar), meta, box);
+    if (mode.simple) {
+      /* Simple: the sentence with the real number, one next step, then the one list. */
+      const lead = A.requestsLead({ open: open.length, canDecide: owner, state: st.state });
+      A.frame({ title: "Access requests", trail: [["Access requests"]], sentence: lead.sentence, next: A.leadButton(lead.action), actions: [mode.switcher] }, listPanel);
+      return;
+    }
+    A.frame({ title: "Access requests", trail: [["Access requests"]], next, actions: [mode.switcher], lede: "Staff asking for tools in Swangz AI Hub. Granting turns the tool on for them straight away." }, listPanel);
   }
 
   function declineWithNote(r) {

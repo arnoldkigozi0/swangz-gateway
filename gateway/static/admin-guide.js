@@ -56,6 +56,17 @@
     return { sentence: `${many(n.inUse, "tool is", "tools are")} in use; paid plans cost ${n.monthly} a month.`, action: onward };
   }
 
+  /* Access requests' sentence and next step (BRIEF 10.10.7). n: { open, canDecide, state }. state is the Status filter
+     ("open", "granted", "declined" or "" for all). The count is the open requests, and the button answers them one by one
+     with each reason shown, or opens the open list when another status is on screen. Pure, so it can be tested. */
+  function requestsLead(n) {
+    const onward = n.canDecide ? { label: "Give someone a tool", task: "give-tool" } : { label: "Check who is using what", task: "check-use" };
+    if (!n.open) return { sentence: "Nothing is waiting for a decision.", action: onward };
+    if (!n.canDecide) return { sentence: `${many(n.open, "request is", "requests are")} waiting for an owner.`, action: onward };
+    return { sentence: `${many(n.open, "request is", "requests are")} waiting for a decision.`,
+      action: n.state === "open" ? { label: "Answer " + many(n.open, "request", "requests"), task: "answer-request" } : { label: "See the open requests", href: "#/requests" } };
+  }
+
   /* "Set up in 4 steps": each step ticks itself from real records. */
   function setupSteps(n) {
     return [
@@ -352,5 +363,5 @@
     return el("div", { class: "ov-simple" }, A.panel("What do you want to do?", null, tiles(o.waiting, o.paused)), el("div", { class: "ov-side" }, numbers, third));
   }
 
-  Object.assign(A, { startTask, overviewLead, peopleLead, toolsLead, setupSteps, overviewSimple, leadButton });
+  Object.assign(A, { startTask, overviewLead, peopleLead, toolsLead, requestsLead, setupSteps, overviewSimple, leadButton });
 })();
