@@ -115,11 +115,34 @@ class DonutShareTests(unittest.TestCase):
             ratio = (fg + .05) / (lum(bg) + .05)
             self.assertGreaterEqual(ratio, 3.0, "%s on %s is %.2f:1" % (colour, bg, ratio))
 
-    def test_overview_draws_uses_by_tool_as_a_donut_and_keeps_its_empty_state(self):
+    def test_uses_by_tool_lives_on_who_used_what_and_overview_is_an_l1(self):
         source = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
-        self.assertIn('SUI.donut({ label: "Uses by tool over 30 days"', source)
-        self.assertIn('"No AI activity yet"', source)
+        overview = source.split("async function pageOverview(")[1].split("async function pageAttention(")[0]
+        usage = source.split("async function usageTab(")[1].split("async function aiTab(")[0]
+        # BRIEF 10.10.1: the donut left Overview for Activity > Who used what, grouped by tool. Nothing was deleted.
+        self.assertNotIn("SUI.donut(", overview)
+        self.assertIn('st.by === "tool" && rows.length', usage)
+        self.assertIn('SUI.donut({ label: "Uses by tool in this period"', usage)
+        self.assertIn('title: "No AI activity in this period"', usage)
+        # Seven blocks: six number cards and the one chart. One primary button, one Next step line, the trail.
+        self.assertEqual(overview.count("A.kpi({"), 6)
+        self.assertEqual(overview.count("A.panel("), 1)
+        self.assertEqual(overview.count('class: "btn primary"'), 1)
+        self.assertIn('trail: [["Overview"]], next,', overview)
+        self.assertIn('"Nothing needs doing right now."', overview)
+        # Every card opens its list already filtered to the items it counts.
+        for href in ('"#/licences?tab=spend&range=30d"', '"#/activity?tab=ai&range=30d"', '"#/activity?tab=usage&range=today&by=person"',
+                     '"#/security?days=7"', '"#/attention"', '"#/live"'):
+            self.assertIn("href: " + href, overview)
 
+    def test_trail_puts_the_chain_in_the_top_bar_with_the_current_page_marked(self):
+        source = (STATIC / "admin.js").read_text(encoding="utf-8")
+        self.assertIn('el("span", { class: "crumb-here", "aria-current": "page" }, label)', source)
+        self.assertIn('const barTrail = o.trail ? chain("console-area console-trail") : null;', source)
+        self.assertIn('o.next ? el("p", { class: "lede next-step" }, el("strong", { class: "next-label" }, "Next step"), o.next) : null,', source)
+        monitor = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
+        for page in ("Needs attention", "Live", "Activity"):
+            self.assertIn('title: "%s", trail: [["Overview", "#/"], ["%s"]]' % (page, page), monitor)
 
 if __name__ == "__main__":
     unittest.main()

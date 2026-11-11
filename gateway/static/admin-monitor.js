@@ -63,18 +63,18 @@
           note: spendWhy || "vs the 30 days before",
           href: "#/licences?tab=spend&range=30d" }),
         A.kpi({ label: "AI requests · 30 days", value: fmt.num(tr.current.requests),
-          foot: reqWhy ? null : SUI.delta(reqChange, { upIsGood: true }), note: reqWhy || "vs the 30 days before", href: "#/activity?tab=ai" }),
+          foot: reqWhy ? null : SUI.delta(reqChange, { upIsGood: true }), note: reqWhy || "vs the 30 days before", href: "#/activity?tab=ai&range=30d" }),
         A.kpi({ label: "Active people · today", value: String(today.people), note: zeroReason("people", { today: today.people, month: tr.current.people }) || `${tr.current.people} in 30 days`,
-          tip: "People who made an AI request, opened a tool from the portal, or visited an approved AI website.", href: "#/activity?tab=usage" }),
+          tip: "People who made an AI request, opened a tool from the portal, or visited an approved AI website.", href: "#/activity?tab=usage&range=today&by=person" }),
         A.kpi({ label: "Security events · 7 days", value: secCount === null ? "—" : String(secCount),
           tone: sec && sec.posture !== "healthy" ? "alert" : null,
           foot: sec ? SUI.status(sec.posture, { healthy: "Healthy", watch: "Worth a look", elevated: "Elevated" }[sec.posture], { plain: true }) : null,
-          note: sec ? zeroReason("security", { events: secCount }) || "warnings and above" : "couldn't load", href: "#/security" }),
+          note: sec ? zeroReason("security", { events: secCount }) || "warnings and above" : "couldn't load", href: "#/security?days=7" }),
       ].map((card) => { card.append(el("span", { class: "kpi-go", "aria-hidden": "true" }, icon("arrowUp"))); return card; }));
     } else kpis = SUI.errorBox(trends.reason, () => A.render(), "The summary couldn't load");
 
-    /* BRIEF 10.7: under the cards, the reference's three blocks and nothing else: AI usage over eight days, two
-       counts (need attention, live requests) and uses by tool. Trends, leaders and licences live on their own pages. */
+    /* BRIEF 10.10.1, an L1: four number cards, the one chart and two counts, seven blocks in all. Uses by tool lives
+       on Activity > Who used what (grouped by tool); trends, leaders and licences live on their own pages. */
     const week = tr ? tr.days.slice(-8) : [];
     const usage = A.panel("AI usage", el("a", { class: "btn small quiet", href: "#/activity?tab=usage&range=30d" }, "Who used what", icon("chevronRight")),
       tr ? el("div", { class: "body" }, SUI.columns({ label: "Uses per day over the last 8 days", showZero: true, yName: "Uses", height: window.matchMedia("(min-width: 1001px)").matches ? 350 : 250, caption: "Requests, tool opens and website visits · times in " + SUI.tzLabel(true),
@@ -97,18 +97,19 @@
     }
     drawCounts();
 
-    const byTool = A.panel("Uses by tool", el("a", { class: "btn small quiet", href: "#/activity?tab=usage&range=30d&by=tool" }, "All tools", icon("chevronRight")),
-      !tr ? SUI.errorBox(trends.reason, () => A.render())
-        : tr.top_tools.length ? SUI.donut({ label: "Uses by tool over 30 days", unit: "Uses", centre: "Uses · 30 days", other: "Other tools",
-          total: tr.days.reduce((n, d) => n + d.requests + d.opens + d.visits, 0),
-          rows: tr.top_tools.map((t) => ({ label: t.tool, href: t.tool_id ? `#/tools?open=${t.tool_id}` : null, value: t.requests + t.opens + t.visits, display: SUI.plural(t.requests + t.opens + t.visits, "use") })) })
-          : A.empty("Once staff start using approved tools, they'll be ranked here.", "No AI activity yet", "tools"));
+    /* The one "Next step" line: the most useful thing to do now, from what the cards already show. */
+    const secOpen = sec && sec.posture !== "healthy";
+    const next = att === null ? "The list of things needing attention couldn't load, so there is no next step to show."
+      : urgent ? el("a", { href: "#/attention" }, `Review ${SUI.plural(urgent, "item")} that ${urgent === 1 ? "needs" : "need"} attention now`)
+        : secOpen ? el("a", { href: "#/security?days=7" }, "Look at this week's security events")
+          : att.length ? el("a", { href: "#/attention" }, `Look at ${SUI.plural(att.length, "item")} when you have a moment`)
+            : "Nothing needs doing right now.";
 
     const who = String(S.me.display_name || "").trim();
     A.frame({ title: who ? `Hello, ${who}! 👋` : "Hello! 👋",
-      lede: `Swangz AI Hub at a glance — ${fmt.weekday(Date.now() / 1000)}. Times in ${SUI.tzLabel()}.`,
+      trail: [["Overview"]], next,
       actions: [el("a", { class: "btn", href: "#/activity" }, icon("activity"), "Activity"), el("a", { class: "btn primary", href: "#/live" }, icon("live"), "Open Live")] },
-    [kpis, el("div", { class: "overview-exact" }, usage, el("div", { class: "overview-side" }, counts, byTool))]);
+    [kpis, el("div", { class: "overview-exact" }, usage, el("div", { class: "overview-side" }, counts))]);
 
     A.every(5000, async () => { await A.refreshOverview().catch(() => null); drawCounts(); });
   }
@@ -120,7 +121,7 @@
     if (!out) throw new A.ApiError(0, "The list of things needing attention couldn't load");
     const groups = ["high", "medium", "low", "info"].map((sev) => [sev, out.items.filter((i) => i.severity === sev)]).filter(([, items]) => items.length);
     const names = { high: "Act now", medium: "Worth a look today", low: "When you have a moment", info: "For your information" };
-    A.frame({ title: "Needs attention", lede: "Everything worth a look — security, spend, licences, access and the system — on one page, most urgent first.",
+    A.frame({ title: "Needs attention", trail: [["Overview", "#/"], ["Needs attention"]], lede: "Everything worth a look — security, spend, licences, access and the system — on one page, most urgent first.",
       actions: el("button", { class: "btn", onclick: () => A.render() }, icon("refresh"), "Refresh") },
     out.items.length ? groups.map(([sev, items]) => A.panel(names[sev], SUI.plural(items.length, "item"), el("ul", { class: "att-list" }, items.map(attentionItem))))
       : A.panel(null, null, SUI.stateBox({ tone: "ok", icon: "checkCircle", title: "Nothing needs attention", text: "Everything looks normal. This page lists security signals, budgets, idle or over-assigned seats, renewals, waiting tool requests and missing provider keys as soon as they appear." })));
@@ -232,7 +233,7 @@
     // The first load is drawn into these nodes before the page is shown, so nothing fills in (and moves
     // what is below it) after the first paint. BRIEF 10.9.4: a cold load must not shift.
     await tick();
-    A.frame({ title: "Live", lede: "What is happening across Swangz AI Hub right now.", status: conn }, [
+    A.frame({ title: "Live", trail: [["Overview", "#/"], ["Live"]], lede: "What is happening across Swangz AI Hub right now.", status: conn }, [
       kpis,
       el("div", { class: "grid cols-2" },
         el("div", { class: "grid" },
@@ -314,7 +315,7 @@
   async function pageActivity(params) {
     await A.toolIndex().catch(() => null);
     const exportLink = el("a", { class: "btn", href: A.gadmin("/export.csv") }, icon("download"), "Export CSV");
-    A.frame({ title: "Activity", lede: ["What staff did through Gateway — AI requests, tools opened, AI websites visited, shared-account turns, and each person's sign-ins and access changes. Signals worth investigating are under ",
+    A.frame({ title: "Activity", trail: [["Overview", "#/"], ["Activity"]], lede: ["What staff did through Gateway — AI requests, tools opened, AI websites visited, shared-account turns, and each person's sign-ins and access changes. Signals worth investigating are under ",
       el("a", { href: "#/security" }, "Security"), "; what admins changed is in the ", el("a", { href: "#/audit" }, "Audit log"), "."],
       actions: exportLink },
     A.pageTabs("#/activity", params, [
@@ -478,9 +479,13 @@
           { key: "tool", label: "Tool", render: (r) => [A.toolLink(r.tool_id, r.tool, "sm"), r.apps.length && !(r.apps.length === 1 && r.apps[0] === r.tool) ? el("span", { class: "sub" }, "via " + r.apps.join(", ")) : null] },
           ...common];
       }
-      box.replaceChildren(rows.length ? SUI.table({ columns: cols, rows, sort: ["last", "desc"], caption: "Who used what",
+      /* Uses by tool, moved here from Overview (BRIEF 10.10.1): shown when the list is grouped by tool. */
+      const byTool = st.by === "tool" && rows.length ? el("div", { class: "body usage-by-tool" }, SUI.donut({ label: "Uses by tool in this period", unit: "Uses", centre: "Uses", other: "Other tools",
+        total: rows.reduce((n, t) => n + uses(t), 0),
+        rows: rows.slice().sort((x, y) => uses(y) - uses(x)).map((t) => ({ label: t.tool, href: t.tool_id ? `#/tools?open=${t.tool_id}` : null, value: uses(t), display: SUI.plural(uses(t), "use") })) })) : null;
+      box.replaceChildren(...[byTool, rows.length ? SUI.table({ columns: cols, rows, sort: ["last", "desc"], caption: "Who used what",
         href: st.by === "tool" ? (r) => (r.tool_id ? `#/tools?open=${r.tool_id}` : null) : (r) => `#/people/${r.person_id}` })
-        : SUI.stateBox({ icon: "people", title: "No AI activity in this period", text: "Once staff start using approved tools, who used what appears here." }));
+        : SUI.stateBox({ icon: "people", title: "No AI activity in this period", text: "Once staff start using approved tools, who used what appears here." })].filter(Boolean));
       const total = data.people.length;
       summary.textContent = `${SUI.plural(total, "person", "people")} · ${SUI.plural(data.tools.length, "tool")} · ${fmt.money(data.people.reduce((n, p) => n + p.cost, 0))} metered`;
     }

@@ -36,7 +36,7 @@ those items; nothing appears on two pages, the second page links to the first (C
 
 | Page (address) | Level | The one question | Parent | Children | What leaves the page, and where it goes |
 |---|---|---|---|---|---|
-| **Overview** (`#/`) | L1 | Is anything wrong, and what is the next step? | — (root of Monitor) | Needs attention, Live, Activity, Licences & spend, Security | Today 8 blocks (4 KPI cards, AI usage chart, two count cards, Uses by tool). Target ≤ 7: *Uses by tool* → Activity → Who used what; *AI usage chart* stays as the one chart. Each card's number links to its filtered L2. Adds one "Next step" line |
+| **Overview** (`#/`) | L1 | Is anything wrong, and what is the next step? | — (root of Monitor) | Needs attention, Live, Activity, Licences & spend, Security | Converted (11 Nov): 7 blocks (4 KPI cards, the AI usage chart, two count cards). *Uses by tool* now shows on Activity → Who used what when grouped by tool. Each card opens its list filtered to what it counts (spend 30 days, requests 30 days, today's people, security 7 days, the attention queue, live). One "Next step" line under the title; the trail is in the top bar. Not yet measured in a browser at 1440×852 |
 | **Needs attention** (`#/attention`) | L2 | Which items need someone now? | Overview | Person, Tool, Device, Record, Incident (each row's L3) | Nothing. Canonical home of the queue |
 | **Live** (`#/live`) | L2 | Which requests are running right now? | Overview | Record (Inspect) | Cut-request action is L4 (confirm dialog) |
 | **Activity** (`#/activity?tab=`) | L2 | What did people do? | Overview | Record, Person, Tool | Five tabs (Timeline · Who used what · AI requests · Tools opened · Websites visited), within the limit. *Who used what* has charts, so it moves to its own L1-style summary under Reports when the Money chain lands; the table tabs stay |
@@ -131,7 +131,7 @@ this table in the same commit, so the document stays the truth.
 |---|---|---|
 | A request in full | Record page (`#/records/<id>`) | Activity rows, device and person activity, Security evidence links |
 | What one person did | Person → Activity | Person → Overview (last few), Activity timeline filtered by person |
-| A tool's use | Tool → Usage | Tool → Overview (one line of facts), Overview → Uses by tool |
+| A tool's use | Tool → Usage | Tool → Overview (one line of facts), Activity → Who used what → Tool (Uses by tool) |
 | Who can use a tool and why | Tool → Access (per tool) · Person → Access (per person) | Licences (seats), staff drawer ("why it's available to you") |
 | The attention queue | Needs attention | Overview (a count), the bell |
 | Security signals | Security | Person → Security, device → Flagged, Overview strip |

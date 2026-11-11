@@ -312,7 +312,7 @@ input.switch:disabled { opacity: .5; cursor: default; }
 .fb-row > .u-range { flex: 1 1 auto; min-width: 0; max-width: 100%; }
 .fb-toggle { min-height: 36px; }
 .fb-toggle.on { border-color: var(--accent); background: var(--accent-soft); }
-.fb-count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: var(--on-primary); font-size: 11px; font-weight: 750;
+.fb-count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--radius-chip); background: var(--accent); color: var(--on-primary); font-size: 11px; font-weight: 750;
   display: inline-grid; place-items: center; }
 :root[data-theme="light"] .fb-count { color: #1A1406; }
 .fb-more { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; padding: 12px 0 2px; border-top: 1px dashed var(--line-hi); }
@@ -330,7 +330,7 @@ input.switch:disabled { opacity: .5; cursor: default; }
 .fb-select { width: auto; min-width: 170px; max-width: 240px; }
 .fb-row > .fb-search:last-child, .fb-row > .fb-select:last-child { margin-left: 0; }
 .seg-l { display: inline-flex; align-items: center; gap: 7px; }
-.seg-n { min-width: 18px; padding: 0 6px; border-radius: 9px; background: var(--ink-3); color: var(--tx-2); font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
+.seg-n { min-width: 18px; padding: 0 6px; border-radius: var(--radius-chip); background: var(--ink-3); color: var(--tx-2); font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
 .u-seg button[aria-pressed="true"] .seg-n { background: var(--accent-soft); color: var(--accent-tx); }
 .list-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0; padding: 9px 18px; border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--tx-3); }
 .list-meta > * + *::before { content: "·"; margin: 0 8px; color: var(--tx-4); }
@@ -510,6 +510,15 @@ li.plain { list-style: none; }
 .fact .v { overflow-wrap: anywhere; font-weight: 600; font-variant-numeric: tabular-nums; }
 .fact .how { margin-top: 2px; }
 .sheet-body .facts { border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; }
+.u-sheet-body .facts { border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; }
+.person-preview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.person-preview .fact-wide { grid-column: 1 / -1; }
+.person-preview-links { display: grid; border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; }
+.person-preview-links a { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0 16px; color: var(--tx-1); font-weight: 600; text-decoration: none; }
+.person-preview-links a + a { border-top: 1px solid var(--line); }
+.person-preview-links a:hover { background: var(--ink-3); }
+.person-preview-links a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.person-preview-links svg { flex: none; width: 16px; height: 16px; color: var(--tx-3); }
 
 .steps { list-style: none; margin: 0; padding: 8px 0; }
 .step { display: grid; grid-template-columns: 82px 28px minmax(0, 1fr); gap: 0 12px; padding: 0 18px; position: relative; }
@@ -1469,6 +1478,25 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
     background: var(--ink-1); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 
+/* BRIEF 10.10.1, Overview as an L1. The trail sits in the top bar (each crumb a link, the last the current page); at
+   1200px and below the bar has no room for it, so the same chain shows above the title. One "Next step" line sits
+   under the title. With Uses by tool on Activity, the chart takes two thirds and the two counts stack beside it. */
+.console-trail { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.console-trail a { color: inherit; text-decoration: none; }
+.console-trail a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.console-trail a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.console-trail .sep { color: var(--tx-3); }
+.console-trail .crumb-here, .crumbs .crumb-here { color: var(--tx-1); font-weight: 600; }
+@media (min-width: 1201px) { .top > .crumbs.in-bar { display: none; } }
+@media (max-width: 1200px) { .console-trail { display: none; } }
+.top > .lede.next-step { color: var(--tx-1); }
+.top > .lede.next-step + .lede { grid-area: auto; grid-column: 1 / -1; }
+.next-label { margin-right: 8px; font-weight: 600; color: var(--tx-2); }
+@media (min-width: 1001px) {
+  .route-overview .overview-exact { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: stretch; }
+  .route-overview .overview-side .kpis-exact.two { grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); }
+  .route-overview .overview-side .kpis-exact.two .kpi { min-height: 0; }
+}
 /* ---- the control kit page (#/kit): specimens in a grid, each under the name of its state */
 .kit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
 .kit-grid.wide { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }

@@ -71,6 +71,25 @@ class FilterChipTextTests(unittest.TestCase):
         self.assertIn("line-height: 1.3", rule)
 
 
+class ConsoleTrailTests(unittest.TestCase):
+    def test_top_bar_trail_is_hidden_where_the_title_shows_it(self):
+        """.console-trail sets display: flex after the rule hiding .console-area, so it needs its own later rule."""
+        css = (STATIC / "admin.css").read_text(encoding="utf-8")
+        shown = css.index(".console-trail { display: flex")
+        hidden = css.index("@media (max-width: 1200px) { .console-trail { display: none; } }")
+        self.assertGreater(hidden, shown)
+
+
+class BoxRadiusTests(unittest.TestCase):
+    def test_count_badges_and_info_icons_are_boxes(self):
+        # BRIEF 10.10.2: count badges use the chip radius; only dots, avatars and the like stay round.
+        for sheet, selector in (("admin.css", ".fb-count"), ("admin.css", ".seg-n"), ("admin.css", ".count"),
+                                ("portal.css", ".cat-part-h h2 .n"), ("ui.css", ".u-info")):
+            css = (STATIC / sheet).read_text(encoding="utf-8")
+            rule = re.search(r"(?m)^" + re.escape(selector) + r"\s*\{([^}]*)\}", css).group(1)
+            self.assertIn("border-radius: var(--radius-chip)", rule, selector)
+
+
 class ChartEmptyStateTests(unittest.TestCase):
     def test_an_empty_chart_keeps_its_height_and_uses_the_brief_sizes(self):
         # BRIEF 10.9(2): one 15px line on what will appear, one 11px line on why it is empty, same card size
