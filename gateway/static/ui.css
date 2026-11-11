@@ -275,6 +275,11 @@ html[data-theme="light"] .u-tubes { --tube-a: rgba(70, 56, 40, .46); --tube-b: r
 .u-table tbody tr:hover td { background: var(--ink-2); }
 .u-cell { display: flex; align-items: center; gap: 11px; min-width: 0; }
 .u-cell strong { font-weight: 650; }
+/* BRIEF 10.10.2: a long table scrolls inside its panel, so the sticky header below has a box to stick to. Phones show cards and print
+   shows every row, so the limit is screen and desktop only; a side sheet already scrolls as a whole, and two scrollbars are not allowed. */
+@media screen and (min-width: 761px) {
+  .u-table-wrap:not(.sheet *, .u-sheet *) { max-height: max(320px, calc(100dvh - 300px)); overflow-y: auto; scroll-padding-top: 48px; }
+}
 .u-table-more { padding: 12px 16px; border-top: 1px solid var(--line); display: flex; justify-content: center; }
 
 @media (max-width: 760px) {
@@ -297,9 +302,9 @@ html[data-theme="light"] .u-tubes { --tube-a: rgba(70, 56, 40, .46); --tube-b: r
 .u-list { overflow: hidden; }
 /* The panel is large and its rows change, so a live backdrop blur here was repainted on every hover and filter (software p95 100-683 ms,
    against 33-67 ms with it off). A denser tint carries the glass look instead; rim, highlight and shadow come from .u-glass-strong. */
-.u-list { --list-bg: rgba(22, 19, 17, .86); -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--list-bg); }
-:root[data-theme="light"] .u-list { --list-bg: rgba(250, 247, 242, .94); }
-@media (prefers-reduced-transparency: reduce) { .u-list, :root[data-theme="light"] .u-list { --list-bg: var(--ink-2); } }
+.u-list { --list-bg: rgba(22, 19, 17, .86); --list-head: #161311; -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--list-bg); }
+:root[data-theme="light"] .u-list { --list-bg: rgba(250, 247, 242, .94); --list-head: #FAF7F2; }
+@media (prefers-reduced-transparency: reduce) { .u-list, :root[data-theme="light"] .u-list { --list-bg: var(--ink-2); --list-head: var(--ink-2); } }
 .u-list > header { display: flex; align-items: center; justify-content: space-between; gap: 12px 18px; flex-wrap: wrap; padding: 16px 20px; border-bottom: 1px solid var(--glass-rim); }
 .u-list-title h2 { margin: 0; font-size: 16px; font-weight: 680; letter-spacing: -.01em; color: var(--tx-1); }
 .u-list-title p { margin: 2px 0 0; font-size: 12.5px; color: var(--tx-2); }
@@ -315,7 +320,7 @@ html[data-theme="light"] .u-tubes { --tube-a: rgba(70, 56, 40, .46); --tube-b: r
 .u-search input::-webkit-search-cancel-button { appearance: none; }
 
 /* The table inside a glass list: translucent, hairline rows, no blur on any row. */
-.u-list .u-table thead th { background: transparent; position: static; color: var(--tx-2); padding-top: 12px; padding-bottom: 10px; }
+.u-list .u-table thead th { background: var(--list-head); color: var(--tx-2); padding-top: 12px; padding-bottom: 10px; }
 .u-list .u-table th, .u-list .u-table td { border-bottom-color: var(--glass-rim); }
 .u-list .u-table td { color: var(--tx-1); }
 .u-list .u-table td:has(> .u-star) { width: 1%; padding-right: 0; }
