@@ -88,7 +88,9 @@
   :is(.icon-btn, .theme-btn, .u-sheet-x, .u-more:not(.worded), .staff-bell):hover:not(:disabled) { color: var(--tx-1); transform: translateY(-1px); }
   :is(.icon-btn, .theme-btn, .u-sheet-x, .u-more:not(.worded), .staff-bell):hover:not(:disabled)::before { opacity: 1; transform: none; }
   :is(.icon-btn, .theme-btn, .u-sheet-x, .u-more:not(.worded), .staff-bell):active:not(:disabled) { transform: translateY(1px); }
-  /* its name appears under it; built on demand so a hidden label can never widen the page */
+}
+/* its name appears under it, on screens wide enough that a label centred under a button at the edge cannot widen the page */
+@media (hover: hover) and (min-width: 721px) {
   :is(.icon-btn, .theme-btn, .staff-bell)[aria-label]:is(:hover, :focus-visible)::after {
     content: attr(aria-label); position: absolute; top: calc(100% + 8px); left: 50%; z-index: 5; transform: translateX(-50%); padding: 3px 7px; white-space: nowrap; pointer-events: none;
     font: 500 11px/1.3 var(--font); color: var(--tx-1); background: var(--ink-3); border: 1px solid var(--line-hi); border-radius: var(--radius-control-sm); animation: ctl-label var(--d-fast) var(--e-out) both;
