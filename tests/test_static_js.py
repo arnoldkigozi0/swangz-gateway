@@ -171,6 +171,44 @@ class ToolsChainTests(unittest.TestCase):
             self.assertIn(title, access)
 
 
+class MoneyChainTests(unittest.TestCase):
+    """Money on the control kit (BRIEF 10.10). The browser behaviour is in tests/browser/money.cjs."""
+    source = (STATIC / "admin-money.js").read_text(encoding="utf-8")
+
+    def section(self, start, end):
+        return self.source[self.source.index(start):self.source.index(end)]
+
+    def test_summary_is_four_cards_one_chart_and_each_card_opens_its_filtered_list(self):
+        summary = self.section("async function moneySummary(", "async function licencesList(")
+        self.assertEqual(summary.count("A.kpi({"), 4)
+        self.assertEqual(summary.count("A.panel("), 1)
+        self.assertEqual(summary.count("SUI.line("), 1)
+        self.assertNotIn("SUI.table(", summary)
+        self.assertNotIn('class: "btn primary"', summary)
+        self.assertIn('"Nothing needs doing right now."', summary)
+        for href in ('"#/licences?tab=spend&range=30d"', '"#/licences?tab=licences&show=paid"',
+                     '"#/licences?tab=licences&show=idle"', '"#/licences?tab=renewals&show=soon"'):
+            self.assertIn("href: " + href, summary)
+
+    def test_each_list_is_one_table_on_the_kit_filter_bar(self):
+        for start, end in (("async function licencesList(", "function utilBar("),
+                           ("async function spendList(", "async function renewalsList("),
+                           ("async function renewalsList(", "// ------------------------------------------------------------------ Settings")):
+            body = self.section(start, end)
+            self.assertEqual(body.count("SUI.filterBar("), 1, start)
+            self.assertEqual(body.count("SUI.table("), 1, start)
+            self.assertIn("pager", body, start)
+            self.assertNotIn("SUI.line(", body, start)
+            self.assertNotIn("A.seg(", body, start)
+
+    def test_no_page_of_the_chain_goes_back_to_tabs(self):
+        self.assertNotIn('A.pageTabs("#/licences"', self.source)
+
+    def test_reports_sit_under_money_in_the_trail(self):
+        self.assertIn('trail: [MONEY_ROOT, ["Spend reports"]]', self.source)
+        self.assertIn('trail: [MONEY_ROOT, ["Spend reports", "#/reports"], [meta.title]]', self.source)
+
+
 class ControlKitPageTests(unittest.TestCase):
     """The #/kit page: loaded by the console, owners only, out of the navigation, and it never calls the API."""
     source = (STATIC / "admin-kit.js").read_text(encoding="utf-8")
