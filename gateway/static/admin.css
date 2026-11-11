@@ -186,7 +186,7 @@ a.obj:hover > span { text-decoration: underline; text-underline-offset: 3px; }
 
 /* page tabs: views of one subject, underlined — unlike the boxed segmented filters (.u-seg) and the
    rounded filter chips, so a view and a filter never look like the same control */
-.tabs-wrap { display: grid; gap: 20px; min-width: 0; }
+.tabs-wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; min-width: 0; }
 /* The floating tab bar (BRIEF 10.10.6): as wide as its tabs, strong glass, sticky under the top bar at page level. */
 .tabs-wrap > .ptabs:not(.vertical) { justify-self: start; }
 .ptabs { display: flex; gap: 2px; flex-wrap: nowrap; width: max-content; max-width: 100%; box-sizing: border-box; padding: 6px; overflow-x: auto; scrollbar-width: none;
