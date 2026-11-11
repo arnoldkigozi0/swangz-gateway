@@ -148,6 +148,29 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class ToolsChainTests(unittest.TestCase):
+    """Tools on the control kit (BRIEF 10.10). The browser behaviour is in tests/browser/tools.cjs."""
+    source = (STATIC / "admin-govern.js").read_text(encoding="utf-8")
+
+    def test_remove_restore_and_delete_have_their_functions(self):
+        # They were called for five weeks after their definitions went, so every press threw a ReferenceError.
+        for name in ("toolAction", "deleteTool"):
+            self.assertIn("async function %s(" % name, self.source)
+
+    def test_list_uses_the_kit_filter_bar(self):
+        body = self.source[self.source.index("async function pageTools("):self.source.index("async function toolAction(")]
+        self.assertIn("SUI.filterBar(", body)
+        self.assertNotIn("A.seg(", body)
+        self.assertNotIn("fb-select", body)
+
+    def test_usage_tab_leaves_people_and_devices_to_access(self):
+        usage = self.source[self.source.index("async function usageTab("):self.source.index("async function accessTab(")]
+        access = self.source[self.source.index("async function accessTab("):self.source.index("async function billingTab(")]
+        for title in ("Who uses it", "Devices that ran it"):
+            self.assertNotIn(title, usage)
+            self.assertIn(title, access)
+
+
 class ControlKitPageTests(unittest.TestCase):
     """The #/kit page: loaded by the console, owners only, out of the navigation, and it never calls the API."""
     source = (STATIC / "admin-kit.js").read_text(encoding="utf-8")

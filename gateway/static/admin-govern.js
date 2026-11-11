@@ -687,39 +687,47 @@
       ["none", "Not subscribed", (t) => t.subscription.state === "none" && !onKey(t) && !held(t)],
       ["all", "All", () => true],
     ];
-    const st = { q: params.get("q") || "", cat: params.get("cat") || "", show: params.get("show") || "used" };
-    if (st.show !== "removed" && !SHOW.some(([k]) => k === st.show)) st.show = "used";
+    // "" is the default view, In use; old links that say show=used land on it too.
+    const st = { q: params.get("q") || "", cat: params.get("cat") || "", show: params.get("show") || "",
+      page: Number(params.get("page")) || 1, per: Number(params.get("per")) || 25 };
+    if (st.show === "used" || (st.show !== "removed" && !SHOW.some(([k]) => k === st.show))) st.show = "";
     const counts = Object.fromEntries(SHOW.map(([k, , f]) => [k, data.tools.filter(f).length]));
-    const tabs = [...SHOW.filter(([k]) => k !== "idle" || counts.idle || st.show === "idle").map(([k, label]) => [k, el("span", { class: "seg-l" }, label, el("span", { class: "seg-n u-num" }, String(counts[k])))]),
-      ...(data.removed.length ? [["removed", el("span", { class: "seg-l" }, "Removed", el("span", { class: "seg-n u-num" }, String(data.removed.length)))]] : [])];
-    const q = el("input", { type: "search", placeholder: "Search by name or category…", value: st.q, "aria-label": "Search tools" });
-    const cat = el("select", { class: "fb-select", "aria-label": "Category" }, el("option", { value: "" }, "All categories"), data.categories.map((c) => el("option", { value: c }, c)));
-    cat.value = st.cat;
+    const showOptions = [...SHOW.filter(([k]) => k !== "used" && (k !== "idle" || counts.idle || st.show === "idle")).map(([k, label]) => ({ id: k, label, sub: SUI.plural(counts[k], "tool") })),
+      ...(data.removed.length || st.show === "removed" ? [{ id: "removed", label: "Removed", sub: SUI.plural(data.removed.length, "tool") }] : [])];
     const opens = data.tools.reduce((n, t) => n + t.usage_30d.opens, 0);
     const meta = el("div", { class: "list-meta" },
       el("span", null, `${data.summary.total} in the catalogue · ${SUI.plural(data.categories.length, "category", "categories")}`),
       el("a", { href: "#/licences" }, `${SUI.plural(data.summary.paid, "paid plan")} · ${fmt.money(data.summary.monthly_cost)} a month`),
       el("span", null, `${fmt.num(opens)} opens from the portal in 30 days`));
     const box = el("div");
-    const sheetHref = (t) => { const p = new URLSearchParams(location.hash.split("?")[1] || ""); p.set("open", t.id); p.delete("tab"); return "#/tools?" + p.toString(); };
+    const sheetHref = (t, tab) => { const p = new URLSearchParams(location.hash.split("?")[1] || ""); p.set("open", t.id); if (tab) p.set("tab", tab); else p.delete("tab"); return "#/tools?" + p.toString(); };
+    const pager = { page: st.page, size: st.per, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
+    const rowActions = (t) => [
+      { id: "profile", label: "Open profile", icon: "tools", href: sheetHref(t) },
+      { id: "access", label: "Who has access", icon: "people", href: sheetHref(t, "access") },
+      t.kind === "dev" ? null : { id: "subscription", label: "Subscription", icon: "wallet", href: sheetHref(t, "billing") },
+      { id: "activity", label: "Activity", icon: "clock", href: "#/activity?tab=timeline&tool=" + encodeURIComponent(t.id) },
+      A.can("govern") ? { id: "remove", label: "Remove from the catalogue", icon: "x", danger: true, onSelect: () => toolAction(t, "archive") } : null,
+    ];
     function draw() {
       const qq = st.q.trim().toLowerCase();
       const match = (t) => (!st.cat || t.category === st.cat) && (!qq || t.name.toLowerCase().includes(qq) || t.category.toLowerCase().includes(qq));
       if (st.show === "removed") {
         const list = data.removed.filter(match);
-        box.replaceChildren(list.length ? SUI.table({ caption: "Removed tools", rows: list, sort: ["name", "asc"], columns: [
+        box.replaceChildren(list.length ? SUI.table({ caption: "Removed tools", rows: list, sort: ["name", "asc"], pager, columns: [
           { key: "name", label: "Tool", lead: true, render: (t) => el("div", { class: "u-cell" }, SUI.logo(t, "sm"), el("div", null, el("strong", null, t.name), el("span", { class: "sub" }, t.category || ""))) },
           { key: "builtin", label: "Origin", render: (t) => (t.builtin ? "Built in" : "Added by an admin") },
-          A.can("govern") ? { key: "act", label: "", srLabel: "Actions", render: (t) => el("div", { class: "row end" },
-            el("button", { class: "btn small", onclick: () => toolAction(t, "restore") }, "Restore"),
-            t.builtin ? null : el("button", { class: "btn small quiet danger", onclick: () => deleteTool(t) }, "Delete")) } : null,
+          A.can("govern") ? { key: "act", label: "", srLabel: "Actions", sort: false, render: (t) => SUI.menuButton({ label: "More actions for " + t.name, small: true, items: () => [
+            { id: "restore", label: "Restore", icon: "check", onSelect: () => toolAction(t, "restore") },
+            t.builtin ? null : { id: "delete", label: "Delete for good", icon: "x", danger: true, onSelect: () => deleteTool(t) },
+          ] }) } : null,
         ].filter(Boolean) }) : SUI.stateBox({ icon: "tools", title: "Nothing removed matches", text: "Try another search." }),
         el("div", { class: "body hint" }, "Staff can't see or open removed tools. Restoring one brings back its settings and who could use it."));
         return;
       }
-      const want = SHOW.find(([k]) => k === st.show)[2];
+      const want = SHOW.find(([k]) => k === (st.show || "used"))[2];
       const list = data.tools.filter((t) => want(t) && match(t));
-      box.replaceChildren(list.length ? SUI.table({ caption: "Tools", rows: list, sort: ["opens", "desc"], href: sheetHref, columns: [
+      box.replaceChildren(list.length ? SUI.table({ caption: "Tools", rows: list, sort: ["opens", "desc"], href: (t) => sheetHref(t), pager, columns: [
         { key: "name", label: "Tool", lead: true, render: (t) => el("a", { class: "u-cell", href: sheetHref(t) }, SUI.logo(t, "sm"),
           el("div", null, el("strong", null, t.name), el("span", { class: "sub" }, t.category))) },
         { key: "state", label: "Subscription", sort: (t) => (onKey(t) ? "api" : t.subscription.state), render: (t) => {
@@ -733,23 +741,48 @@
             t.subscription.seats ? el("span", { class: "sub" }, `${t.subscription.seats} seats paid`) : null)
           : el("span", { class: "faint" }, "no one")) },
         { key: "opens", label: "Opens · 30 days", num: true, sort: (t) => t.usage_30d.opens, render: (t) => (t.usage_30d.opens ? fmt.num(t.usage_30d.opens) : el("span", { class: "faint" }, "—")) },
-      ] }) : SUI.stateBox({ icon: "tools", title: "No tools match", text: st.show === "used" && !st.q && !st.cat ? "Nothing is subscribed or given yet — look under Not subscribed." : "Try another search or filter." }));
+        { key: "act", label: "", srLabel: "Actions", sort: false, render: (t) => SUI.menuButton({ label: "More actions for " + t.name, small: true, items: () => rowActions(t) }) },
+      ] }) : SUI.stateBox({ icon: "tools", title: "No tools match", text: !st.show && !st.q && !st.cat ? "Nothing is subscribed or given yet. Set Show to Not subscribed." : "Try another search or filter." }));
     }
-    const apply = () => { A.keepParams("#/tools", { q: st.q, cat: st.cat, show: st.show === "used" ? null : st.show }); draw(); };
-    q.addEventListener("input", SUI.debounce(() => { st.q = q.value; apply(); }, 150));
-    cat.addEventListener("change", () => { st.cat = cat.value; apply(); });
+    const keep = () => A.keepParams("#/tools", { q: st.q, cat: st.cat, show: st.show, page: st.page > 1 ? st.page : null, per: st.per !== 25 ? st.per : null });
+    const bar = SUI.filterBar({ label: "Filter tools", search: { placeholder: "Name or category" }, values: st, filters: [
+      { id: "show", label: "Show", any: "In use", options: showOptions },
+      { id: "cat", label: "Category", any: "All categories", options: data.categories.map((c) => ({ id: c, label: c })) },
+    ], onChange: (v) => { st.q = v.q || ""; st.cat = v.cat || ""; st.show = v.show || ""; st.page = pager.page = 1; keep(); draw(); } });
     draw();
-    A.frame({ title: "Tools", lede: "What Swangz pays for, how people sign in, and who uses each tool. Open a tool for its full profile.",
+    A.frame({ title: "Tools", trail: [["Tools"]], lede: "What Swangz pays for, how people sign in, and who uses each tool. Open a tool for its full profile.",
       actions: A.can("govern") ? el("button", { class: "btn primary", onclick: () => toolSheet(null) }, icon("plus"), "Add a tool") : null }, [
-      A.panel(null, null,
-        el("div", { class: "filterbar" }, el("div", { class: "fb-row" },
-          A.seg(tabs, st.show, (v) => { st.show = v; apply(); }, "Show"), el("span", { class: "fb-gap" }),
-          el("label", { class: "fb-search" }, icon("search"), el("span", { class: "u-sr" }, "Search"), q), cat)),
-        meta, box),
+      A.panel(null, null, el("div", { class: "filterbar" }, bar), meta, box),
     ]);
     const open = params.get("open");
     if (open && S.tools[open]) toolSheet(S.tools[open], params.get("tab") || "overview");
     if (params.get("add") && A.can("govern")) toolSheet(null);
+  }
+
+  async function toolAction(t, action) {
+    if (action === "archive") {
+      const ok = await A.confirmAction(`Remove ${t.name} from the catalogue?`, "Staff stop seeing it straight away and can't open it from the portal. Its history stays, and you can restore it from Show: Removed on the Tools page.", "Remove", true);
+      if (!ok) return false;
+    }
+    try { await api("POST", `/tools/${t.id}/${action}`); toast(action === "archive" ? "Removed from the catalogue." : "Restored."); S.tools = null; await A.render(); return true; }
+    catch (e) { toast(e.message, true); return false; }
+  }
+
+  async function deleteTool(t) {
+    const ok = await A.confirmAction(`Delete ${t.name} for good?`, "It's removed from the catalogue along with its subscription and every grant. Past launches stay in the log without a tool name. This can't be undone.", "Delete tool", true);
+    if (!ok) return;
+    try { await api("DELETE", `/tools/${t.id}`); toast("Deleted."); S.tools = null; await A.render(); } catch (e) { toast(e.message, true); }
+  }
+
+  /* The one thing to do next about a tool, worst first: [what is true, the link's words, the tab it opens]. */
+  function toolNext(t) {
+    const sub = t.subscription, held = t.assigned_people + t.assigned_teams > 0;
+    if (t.kind !== "dev" && sub.state === "past_due") return ["Payment is due.", "Update the subscription", "billing"];
+    if (t.kind === "site" && sub.state !== "active") return ["Staff can't open it without an active subscription.", "Add the subscription", "billing"];
+    if (!held) return ["Nobody has it yet.", "Give it to someone", "access"];
+    if (sub.seats && t.assigned_people > sub.seats) return [`${SUI.plural(t.assigned_people, "person", "people")} have it, with ${SUI.plural(sub.seats, "seat")} paid.`, "Review who has it", "access"];
+    if (t.kind === "site" && !t.usage_30d.opens) return ["Nobody has opened it in 30 days.", "Review who has it", "access"];
+    return ["Nothing needs doing.", "See how it is used", "usage"];
   }
 
   /* A tool's profile. Overview says what it is and where it stands; each other tab is one job: how it's used,
@@ -778,6 +811,10 @@
     let usage = null;
     const getUsage = () => (usage = usage || api("GET", `/tools/${t.id}/usage`));
     const goTab = (id, label) => el("a", { class: "btn small", href: here(t.id, id) }, label, icon("chevronRight"));
+    // The Next step line under the title; a grant or a removal on the Access tab can change it.
+    const nextLine = t ? el("p", { class: "next-step sheet-next" }) : null;
+    const drawNext = (x) => { const [fact_, words, id] = toolNext(x); nextLine.replaceChildren(el("strong", { class: "next-label" }, "Next step"), fact_ + " ", el("a", { href: here(x.id, id) }, words)); };
+    const renewNext = () => A.toolIndex(true).then(() => drawNext(S.tools[t.id])).catch(() => null);
 
     async function overviewTab() {
       const how = SIGNIN[t.kind === "dev" ? "api" : t.signin] || SIGNIN.seat;
@@ -801,7 +838,7 @@
           el("span", { class: "u-num" }, `${u.active_month} active of ${sub.seats} paid`)), A.bar(u.active_month, sub.seats)) : null,
         el("div", { class: "stack" }, el("h3", { class: "section-title" }, "How people sign in — " + how[0]), el("p", { class: "hint" }, how[1]),
           t.url ? el("div", null, el("a", { class: "btn small", href: t.url, target: "_blank", rel: "noopener noreferrer" }, "Visit website", icon("open"))) : null),
-        el("div", { class: "row wrap" }, goTab("usage", "Use and who uses it"), goTab("access", "Who can use it"),
+        el("div", { class: "row wrap" }, goTab("usage", "Use per day"), goTab("access", "Who has it and who uses it"),
           shared ? goTab("workspace", "Turns and company browsers") : null),
       ];
     }
@@ -811,16 +848,6 @@
       return [
         el("div", { class: "stack" }, el("h3", { class: "section-title" }, "Use per day · 30 days"),
           SUI.columns({ label: `${t.name} uses per day`, tone: 2, height: 130, yName: "Uses", data: u.series.map((d) => ({ label: fmt.weekday(d.start), short: fmt.dayMonth(d.start), value: d.uses })) })),
-        el("div", { class: "stack" }, el("h3", { class: "section-title" }, "Who uses it · 30 days"),
-          u.people.length ? SUI.table({ caption: "Who uses " + t.name, rows: u.people, cards: false, sort: ["last", "desc"], columns: [
-            { key: "person", label: "Person", render: (r) => A.personLink(r.person_id, r.person) },
-            { key: "uses", label: "Uses", num: true, sort: (r) => r.requests + r.opens + r.visits, render: (r) => fmt.num(r.requests + r.opens + r.visits) },
-            { key: "seconds", label: "Time", num: true, render: (r) => (r.seconds ? fmt.dur(r.seconds) : "—") },
-            { key: "cost", label: "Cost", num: true, render: (r) => (r.requests ? fmt.money(r.cost) : "—") },
-            { key: "last", label: "Last", num: true, render: (r) => fmt.ago(r.last) }] }) : A.empty("Nobody has used it in the last 30 days.")),
-        u.devices.length ? el("div", { class: "stack" }, el("h3", { class: "section-title" }, "Devices that ran it · 30 days"),
-          el("ul", { class: "mini-list boxed" }, u.devices.map((x) => el("li", null, el("span", { class: "mini-ic" }, icon("device")),
-            el("div", { class: "grow" }, A.deviceLink(x.key_id, x.label), el("div", { class: "hint" }, x.person + " · last " + fmt.ago(x.last))), el("span", { class: "u-num" }, fmt.num(x.requests)))))) : null,
         el("div", { class: "stack" }, el("h3", { class: "section-title" }, "Refused · 30 days"),
           u.denials.length ? el("ul", { class: "mini-list boxed" }, u.denials.map((x) => el("li", null, el("span", { class: "mini-ic bad" }, icon("stop")),
             el("div", { class: "grow" }, x.person_id ? A.personLink(x.person_id, x.person, { avatar: false }) : el("span", null, x.person || "An unknown key"), el("div", { class: "hint" }, x.reason)),
@@ -831,11 +858,11 @@
     }
 
     async function accessTab() {
-      const data = await api("GET", `/tools/${t.id}/access`);
+      const [data, u] = await Promise.all([api("GET", `/tools/${t.id}/access`), getUsage()]);
       const teams = data.teams.length ? el("div", { class: "row" }, data.teams.map((team) => {
         const btn = el("button", { class: "btn small" + (team.on ? " primary" : ""), disabled: !owner, "aria-pressed": team.on ? "true" : "false", "aria-label": `${team.name}: ${team.on ? "on" : "off"}`, onclick: async () => {
           const adding = !btn.classList.contains("primary");
-          try { await api(adding ? "POST" : "DELETE", `/teams/${encodeURIComponent(team.name)}/tools/${t.id}`); btn.classList.toggle("primary", adding); btn.textContent = adding ? "On" : "Off"; btn.setAttribute("aria-pressed", adding ? "true" : "false"); toast("Saved."); }
+          try { await api(adding ? "POST" : "DELETE", `/teams/${encodeURIComponent(team.name)}/tools/${t.id}`); btn.classList.toggle("primary", adding); btn.textContent = adding ? "On" : "Off"; btn.setAttribute("aria-pressed", adding ? "true" : "false"); renewNext(); toast("Saved."); }
           catch (e) { toast(e.message, true); }
         } }, team.on ? "On" : "Off");
         return el("div", { class: "team-toggle" }, el("span", null, team.name), btn);
@@ -849,7 +876,7 @@
             if (adding) await api("POST", `/people/${p.id}/tools/${t.id}`, until.value ? { until: until.value } : {});
             else await api("DELETE", `/people/${p.id}/tools/${t.id}`);
             btn.classList.toggle("primary", adding); btn.textContent = adding ? "On" : "Off"; btn.setAttribute("aria-pressed", adding ? "true" : "false");
-            toast(adding ? "Turned on." : "Turned off.");
+            renewNext(); toast(adding ? "Turned on." : "Turned off.");
           } catch (e) { toast(e.message, true); }
         });
         until.addEventListener("change", async () => {
@@ -888,6 +915,16 @@
         el("div", { class: "stack" }, el("h3", { class: "section-title" }, "People"),
           el("p", { class: "hint" }, "Turn the tool on per person. Add an end date first to give it for a limited time — access stops after that day."),
           rows.length ? el("div", { class: "assign-list" }, rows) : A.empty("No people yet.")),
+        el("div", { class: "stack" }, el("h3", { class: "section-title" }, "Who uses it · 30 days"),
+          u.people.length ? SUI.table({ caption: "Who uses " + t.name, rows: u.people, cards: false, sort: ["last", "desc"], columns: [
+            { key: "person", label: "Person", render: (r) => A.personLink(r.person_id, r.person) },
+            { key: "uses", label: "Uses", num: true, sort: (r) => r.requests + r.opens + r.visits, render: (r) => fmt.num(r.requests + r.opens + r.visits) },
+            { key: "seconds", label: "Time", num: true, render: (r) => (r.seconds ? fmt.dur(r.seconds) : "—") },
+            { key: "cost", label: "Cost", num: true, render: (r) => (r.requests ? fmt.money(r.cost) : "—") },
+            { key: "last", label: "Last", num: true, render: (r) => fmt.ago(r.last) }] }) : A.empty("Nobody has used it in the last 30 days.")),
+        u.devices.length ? el("div", { class: "stack" }, el("h3", { class: "section-title" }, "Devices that ran it · 30 days"),
+          el("ul", { class: "mini-list boxed" }, u.devices.map((x) => el("li", null, el("span", { class: "mini-ic" }, icon("device")),
+            el("div", { class: "grow" }, A.deviceLink(x.key_id, x.label), el("div", { class: "hint" }, x.person + " · last " + fmt.ago(x.last))), el("span", { class: "u-num" }, fmt.num(x.requests)))))) : null,
       ];
     }
 
@@ -1095,6 +1132,7 @@
       ];
     }
 
+    if (t) drawNext(t);
     // the tabs: an existing tool's profile, or the form for a new one
     let tabsUi = null;
     if (t) {
@@ -1114,9 +1152,16 @@
     const head = el("header", null,
       el("div", { class: "spread" },
         el("div", { class: "sheet-id" }, t ? SUI.logo(t, "lg") : el("span", { class: "dev-ic lg" }, icon("plus")),
-          el("div", null, el("div", { class: "eyebrow" }, t ? t.category : "Catalog"), el("h2", null, t ? t.name : "Add a tool"),
+          el("div", null, t ? el("nav", { class: "eyebrow sheet-trail", "aria-label": "You are here" }, el("a", { href: here() }, "Tools"), el("span", { "aria-hidden": "true" }, " › "), t.category) : el("div", { class: "eyebrow" }, "Catalog"), el("h2", null, t ? t.name : "Add a tool"),
             t ? el("div", { class: "row" }, subStatus(t), SUI.badge(KIND[t.kind] || t.kind, "outline")) : null)),
-        el("button", { class: "btn small quiet icon-only", onclick: close, "aria-label": "Close" }, icon("x"))),
+        el("div", { class: "row" }, t ? el("a", { class: "btn small primary", href: here(t.id, "access") }, owner ? "Manage access" : "Who has access") : null,
+          t ? SUI.menuButton({ label: "More about " + t.name, small: true, items: () => [
+            { id: "activity", label: "Activity timeline", icon: "clock", href: "#/activity?tab=timeline&tool=" + encodeURIComponent(t.id) },
+            t.kind === "dev" ? null : { id: "licences", label: "Licences and spend", icon: "wallet", href: "#/licences" },
+            { id: "requests", label: "Access requests", icon: "people", href: "#/requests?q=" + encodeURIComponent(t.name) },
+          ] }) : null,
+          el("button", { class: "btn small quiet icon-only", onclick: close, "aria-label": "Close" }, icon("x")))),
+      nextLine,
       tabsUi ? tabsUi.bar : null);
     node.append(head, body);
   }

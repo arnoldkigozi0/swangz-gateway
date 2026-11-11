@@ -161,6 +161,14 @@ class LightAreaLabelTests(unittest.TestCase):
         self.assertNotIn("box-shadow", rule)
 
 
+class StickyTableHeaderTests(unittest.TestCase):
+    def test_long_tables_scroll_in_their_panel_and_no_rule_turns_the_header_off(self):
+        css = (STATIC / "ui.css").read_text(encoding="utf-8")
+        self.assertIn(".u-table-wrap:not(.sheet *, .u-sheet *) { max-height:", css)
+        self.assertNotIn(".u-list .u-table thead th { background: transparent; position: static;", css)
+        self.assertRegex(css, r"\.u-table thead th \{ position: sticky; top: 0;")
+
+
 class RoomPhotoTests(unittest.TestCase):
     """BRIEF 10.10.3: the console room ships at three widths with a gradient under it."""
 

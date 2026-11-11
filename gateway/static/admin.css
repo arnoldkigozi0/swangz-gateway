@@ -1498,10 +1498,19 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
 .console-trail > a, .console-trail > .crumb-area, .console-trail > .sep { flex: none; }
 .console-trail > .crumb-here { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .next-label { margin-right: 8px; font-weight: 600; color: var(--tx-2); }
+.sheet-next { margin: 12px 0 0; color: var(--tx-1); font-size: 13.5px; }
+.sheet-trail a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 @media (min-width: 1001px) {
   .route-overview .overview-exact { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: stretch; }
   .route-overview .overview-side .kpis-exact.two { grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); }
   .route-overview .overview-side .kpis-exact.two .kpi { min-height: 0; }
+}
+/* Overview on a phone: every control reaches the kit's 44px touch size. The info button's negative margin keeps its
+   16px place in the label, so the bigger target moves nothing. */
+@media (max-width: 640px) {
+  .route-overview .top > .top-actions .btn, .route-overview .panel-actions .btn { min-height: 44px; height: 44px; }
+  .route-overview .kpis-exact .kpi .label .u-info { flex: none; width: 44px; height: 44px; margin: -14px; }
+  .route-overview .u-chart-foot button { flex: none; min-height: 44px; white-space: nowrap; }
 }
 /* ---- the control kit page (#/kit): specimens in a grid, each under the name of its state */
 .kit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
