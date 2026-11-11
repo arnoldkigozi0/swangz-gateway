@@ -200,8 +200,12 @@ class DonutShareTests(unittest.TestCase):
 
     def test_trail_puts_the_chain_in_the_top_bar_with_the_current_page_marked(self):
         source = (STATIC / "admin.js").read_text(encoding="utf-8")
-        self.assertIn('el("span", { class: "crumb-here", "aria-current": "page" }, label)', source)
-        self.assertIn('const barTrail = o.trail ? chain("console-area console-trail") : null;', source)
+        self.assertIn('el("span", { class: "crumb-here", "aria-current": "page" }, c.label)', source)
+        # the bar's one column keeps the current page and what fits; the rest becomes a "..." link (F3, 11 Nov)
+        self.assertIn('const barTrail = o.trail ? chain("console-area console-trail", 40) : null;', source)
+        self.assertIn('class: "crumb-more"', source)
+        govern = (STATIC / "admin-govern.js").read_text(encoding="utf-8")
+        self.assertIn('A.frame({ title: "Access requests", trail: [["Access requests"]]', govern)
         self.assertIn('o.next ? el("p", { class: "lede next-step" }, el("strong", { class: "next-label" }, "Next step"), o.next) : null,', source)
         monitor = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
         for page in ("Needs attention", "Live", "Activity"):
