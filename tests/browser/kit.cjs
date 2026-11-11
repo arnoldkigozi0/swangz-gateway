@@ -212,7 +212,7 @@ const mount = () => {
       const closed = await page.evaluate(() => { const b = document.querySelector('[data-t=team]'); const cs = getComputedStyle(b);
         return { radius: cs.borderTopLeftRadius, h: b.getBoundingClientRect().height, popup: b.getAttribute('aria-haspopup'), expanded: b.getAttribute('aria-expanded'), name: b.getAttribute('aria-label'), text: b.textContent,
           off: document.querySelector('[data-t=off]').disabled, offOpacity: getComputedStyle(document.querySelector('[data-t=off]')).opacity, ph: document.querySelector('[data-t=tool]').textContent }; });
-      ok(T + 'the trigger is a 10px box that names itself and its value', closed.radius === '10px' && closed.popup === 'listbox' && closed.expanded === 'false' && closed.name === 'Team: Finance' && closed.text === 'Finance');
+      ok(T + 'the trigger is a 4px control that names itself and its value (BRIEF 10.10.6)', closed.radius === '4px' && closed.popup === 'listbox' && closed.expanded === 'false' && closed.name === 'Team: Finance' && closed.text === 'Finance');
       ok(T + 'trigger height (38 on desktop, 44 on phones)', vname === 'mobile' ? closed.h >= 44 : Math.abs(closed.h - 38) <= 1);
       ok(T + 'disabled is disabled and dimmed; an empty one shows its placeholder', closed.off && closed.offOpacity === '0.45' && closed.ph === 'Any tool');
 
@@ -280,7 +280,7 @@ const mount = () => {
           return { open: !!p, focus: a && (a.dataset.t || a.dataset.id || a.tagName), expanded: document.querySelector('[data-t=more]').getAttribute('aria-expanded') }; });
         const b = await page.evaluate(() => { const x = document.querySelector('[data-t=more]'); const r = x.getBoundingClientRect();
           return { w: r.width, h: r.height, name: x.getAttribute('aria-label'), popup: x.getAttribute('aria-haspopup'), radius: getComputedStyle(x).borderTopLeftRadius }; });
-        ok(M + 'the More button is a named square box that says it opens a menu', b.name === 'More actions for Amina' && b.popup === 'menu' && b.radius === '10px' && b.w === b.h && b.h === (vname === 'mobile' ? 44 : 36));
+        ok(M + 'the More button is a named square box that says it opens a menu', b.name === 'More actions for Amina' && b.popup === 'menu' && b.radius === '3px' && b.w === b.h && b.h === (vname === 'mobile' ? 44 : 34));
         await page.focus('[data-t=more]'); await page.keyboard.press('Enter');
         let m = await ms();
         ok(M + 'Enter opens it on the first item', m.open && m.focus === 'edit' && m.expanded === 'true');
@@ -290,7 +290,7 @@ const mount = () => {
             dangerColour: getComputedStyle(last).color !== getComputedStyle(items[0]).color, radius: getComputedStyle(items[0]).borderTopLeftRadius, rowH: items[0].getBoundingClientRect().height,
             right: Math.abs(pr.right - br.right), gap: pr.top - br.bottom, bottom: innerHeight - pr.bottom, inside: pr.left >= 0 && pr.right <= innerWidth }; });
         ok(M + 'the destructive item is last, under a rule, in the danger colour', shape.role === 'menu' && shape.ids.join() === 'edit,pause,export,reset,remove' && shape.sepBeforeLast && shape.danger && shape.dangerColour);
-        ok(M + 'rows have 8px corners' + (vname === 'mobile' ? ' and 44px targets' : ''), shape.radius === '8px' && shape.rowH >= (vname === 'mobile' ? 44 : 36));
+        ok(M + 'rows have 3px corners (BRIEF 10.10.6)' + (vname === 'mobile' ? ' and 44px targets' : ''), shape.radius === '3px' && shape.rowH >= (vname === 'mobile' ? 44 : 36));
         ok(M + (vname === 'mobile' ? 'on a phone it is a sheet along the bottom' : 'it opens under the button, right edges aligned'), shape.inside && (vname === 'mobile' ? shape.bottom <= 12 : shape.right <= 1 && shape.gap >= 4 && shape.gap <= 8));
         await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown');
         ok(M + 'arrows move and skip a disabled item', (await ms()).focus === 'reset');
@@ -349,7 +349,7 @@ const mount = () => {
           return { role: b.getAttribute('role'), name: b.getAttribute('aria-label'), chipRadius: getComputedStyle(c).borderTopLeftRadius, chipH: c.getBoundingClientRect().height,
             under: c.getBoundingClientRect().top >= b.querySelector('.u-filter-row').getBoundingClientRect().bottom, status: b.querySelector('[data-filter=status].u-select').textContent }; });
         ok(F + 'search, three dropdown filters and More filters, in that order', f.controls === 'search,team,role,status,more' && look.role === 'search' && look.name === 'Filter people');
-        ok(F + 'an active filter is a removable 6px chip under the bar, with Clear all', f.chips === 'Status: Paused' && f.names === 'Remove filter Status: Paused' && f.clear && look.under && look.chipRadius === '6px'
+        ok(F + 'an active filter is a removable 3px chip under the bar, with Clear all', f.chips === 'Status: Paused' && f.names === 'Remove filter Status: Paused' && f.clear && look.under && look.chipRadius === '3px'
           && look.status === 'Paused' && look.chipH >= (vname === 'mobile' ? 44 : 28));
         await page.click('[data-t=bar] [data-filter=team].u-select');
         await page.click('.u-pop [role=option]:has-text("Finance")');

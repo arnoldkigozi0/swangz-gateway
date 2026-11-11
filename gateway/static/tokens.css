@@ -46,8 +46,7 @@
   --radius-card: 22px;
   --radius-pill: 999px;   /* round things only: avatars, dots, the bell's number (BRIEF 10.10.2) */
   --radius-control: 4px; --radius-control-sm: 3px; --radius-chip: 3px;   /* crisp rectangles (BRIEF 10.10.6) */
-  --radius-tabbar: 12px; --radius-tab: 9px;   /* the tab strip is a 12px box (BRIEF 10.10.2) */
-  --box-r: 10px; --box-r-sm: 8px; --box-r-chip: 6px;   /* the kit's box controls keep their size; only buttons are the 4px rectangles */
+  --radius-tabbar: 14px; --radius-tab: 9px;
   --scroll-thumb: rgba(255, 255, 255, .22); --scroll-thumb-hover: rgba(255, 255, 255, .40);
   --lift: translateY(-5px);
   --ease-out: cubic-bezier(.2, .7, .3, 1);
