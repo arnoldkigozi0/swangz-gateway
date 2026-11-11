@@ -66,6 +66,10 @@ jobs:
         run: node tests/browser/security.cjs
         env:
           UI_OUTPUT: /tmp/swangz-hub-security-ui
+      - name: Access requests on the control kit (filter bar, decision at the row edge, Next step)
+        run: node tests/browser/requests.cjs
+        env:
+          UI_OUTPUT: /tmp/swangz-hub-requests-ui
       - name: Devices on the control kit (list, row menu, device record)
         run: node tests/browser/devices.cjs
         env:

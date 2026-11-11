@@ -38,6 +38,15 @@ try:
         for _ in range(5):
             rig.anthropic(ask,key="sgw_000000000000_badbadbadbadbadbadbadbad")
         rig.request("POST","/admin/api/login",{"username":"owner@swangzavenue.com","password":"wrong"},{"x-gateway-admin":"1"})
+    if os.environ.get("HUB_REQUESTS_FIXTURE"):
+        now=time.time()
+        ids=[t['id'] for t in rig.gw.db.q("SELECT id FROM tools WHERE id NOT IN ('chatgpt','canva','claude') ORDER BY id LIMIT 4")]
+        rows=[(ids[0],'Client decks need generated illustrations this week.','open',now-5*86400,None,'',''),
+              (ids[1],'','open',now-3600,None,'',''),
+              (ids[2],'Voice-over drafts for the October campaign.','granted',now-9*86400,now-8*86400,'owner@swangzavenue.com','Approved for the campaign.'),
+              (ids[3],'Trying it out.','declined',now-12*86400,now-11*86400,'owner@swangzavenue.com','We are not renewing that tool; try Canva instead.')]
+        for tool,reason,state,created,decided,by,note in rows:
+            rig.gw.db.x("INSERT INTO access_requests(tool_id,person_id,reason,state,created,decided,decided_by,decision_note) VALUES(?,?,?,?,?,?,?,?)",(tool,rig.person_id,reason,state,created,decided,by,note))
     if os.environ.get("HUB_BUSINESS_FIXTURE"):
         from gateway import reporting
         for i,tool in enumerate(('chatgpt','canva','claude')):
