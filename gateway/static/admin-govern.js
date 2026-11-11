@@ -603,13 +603,12 @@
   /* One list, one filter row. The tab strip is the only one on the page; each tab has its own filter or none. */
   async function pageDevices(params) {
     const data = await api("GET", "/devices");
-    const st = { q: params.get("q") || "", state: params.get("state") || "", page: Number(params.get("page")) || 1, per: Number(params.get("per")) || (mode.simple ? 10 : 25) };
-    const perDefault = mode.simple ? 10 : 25;
+    const st = { q: params.get("q") || "", state: params.get("state") || "", page: Number(params.get("page")) || 1, per: Number(params.get("per")) || 25 };
     const STATES = [["active", "Active"], ["idle", "Idle"], ["unused", "Never used"], ["revoked", "Revoked"], ["suspended", "Owner suspended"]];
     const counts = Object.fromEntries(STATES.map(([k]) => [k, data.items.filter((d) => d.state === k).length]));
     const stateOptions = STATES.filter(([k]) => counts[k] || k === st.state).map(([k, label]) => ({ id: k, label, sub: SUI.plural(counts[k], "device") }));
     const box = el("div");
-    const pager = { page: st.page, size: st.per, sizes: mode.simple ? [10, 25, 50] : undefined, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
+    const pager = { page: st.page, size: st.per, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
     const rowActions = (d) => [
       { id: "open", label: "Open the record", icon: "device", href: "#/devices/" + d.id },
       { id: "activity", label: "Their activity", icon: "clock", href: `#/activity?tab=ai&person=${d.person_id}` },
@@ -622,7 +621,7 @@
         : SUI.stateBox({ icon: "device", title: data.items.length ? "No devices match" : "No devices yet",
           text: data.items.length ? "Try another search or status." : "A device appears when someone is issued a key, or connects one themselves in the staff app." }));
     }
-    const keep = () => { A.keepParams("#/devices", { tab: params.get("tab") && params.get("tab") !== "keys" ? params.get("tab") : null, q: st.q, state: st.state, page: st.page > 1 ? st.page : null, per: st.per !== perDefault ? st.per : null }); };
+    const keep = () => { A.keepParams("#/devices", { tab: params.get("tab") && params.get("tab") !== "keys" ? params.get("tab") : null, q: st.q, state: st.state, page: st.page > 1 ? st.page : null, per: st.per !== 25 ? st.per : null }); };
     const bar = SUI.filterBar({ label: "Filter devices", search: { placeholder: "Device, owner, app or address" }, values: st, filters: [
       { id: "state", label: "Status", any: "All", options: stateOptions },
     ], onChange: (v) => { st.q = v.q || ""; st.state = v.state || ""; st.page = pager.page = 1; keep(); draw(); } });
