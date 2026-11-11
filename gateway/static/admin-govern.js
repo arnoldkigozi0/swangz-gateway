@@ -1267,7 +1267,7 @@
     }
     q.addEventListener("input", SUI.debounce(() => { st.q = q.value; A.keepParams("#/requests", { q: st.q || null }); draw(); }, 150));
     draw();
-    A.frame({ title: "Access requests", lede: "Staff asking for tools in Swangz AI Hub. Granting turns the tool on for them straight away." },
+    A.frame({ title: "Access requests", trail: [["Access requests"]], lede: "Staff asking for tools in Swangz AI Hub. Granting turns the tool on for them straight away." },
       A.panel(null, null,
         el("div", { class: "filterbar" }, el("div", { class: "fb-row" },
           A.seg(tabs, state, (v) => { location.hash = "#/requests" + (v === "open" ? "" : "?state=" + v); }, "Which requests"), el("span", { class: "fb-gap" }),
