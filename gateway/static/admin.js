@@ -567,6 +567,23 @@
     history.replaceState(null, "", base + (keep.toString() ? "?" + keep.toString() : ""));
   }
 
+  /* BRIEF 10.10.7 Simple / Detailed: Simple by default for everyone, remembered per console user and page, and carried
+     in the address (?view=) so a link reproduces it. Switching keeps the page's filters and is a history entry. */
+  function viewMode(name, base, params) {
+    const remembered = "swa-" + name + "-view:" + (S.me ? S.me.username : "");
+    let saved = null;
+    try { saved = localStorage.getItem(remembered); } catch (e) { saved = null; }
+    const view = (params.get("view") || saved) === "detailed" ? "detailed" : "simple";
+    const switcher = SUI.segmented({ label: "How much to show", value: view, options: [{ id: "simple", label: "Simple" }, { id: "detailed", label: "Detailed" }],
+      onChange: (v) => {
+        try { localStorage.setItem(remembered, v); } catch (e) { /* private window: the address still carries it */ }
+        const keep = new URLSearchParams(location.hash.split("?")[1] || "");
+        keep.set("view", v); keep.delete("page");
+        location.hash = base + "?" + keep.toString();
+      } });
+    return { view, simple: view === "simple", switcher };
+  }
+
   // ------------------------------------------------------------------ sign-in
 
   const AUTH_ERRORS = {
@@ -1238,7 +1255,7 @@
     S, api, ApiError, gadmin, gurl, GATEWAY, isOwner, can, roleLabel, every, clearTimers, panel, empty, kpi, pageTabs, settingRow, switchInput, panelFoot, dialog, confirmAction, sheet, bar,
     purposeChip, purposeIndex, purposeName, PURPOSE_SOURCE, refreshNotes, NOTE_SEV,
     toolIndex, toolFor, toolLogo, toolLink, personLink, deviceLink, where, actionsList, ACTION, outcomeStatus, flagBadges, agentBadges,
-    totalTokens, units, reqEvent, eventItem, eventDays, launchList, rangeFrom, rangeQuery, keepParams, frame, render, page, setDirty, confirmLeave, isDirty,
+    totalTokens, units, reqEvent, eventItem, eventDays, launchList, rangeFrom, rangeQuery, keepParams, viewMode, frame, render, page, setDirty, confirmLeave, isDirty,
     setPaused, refreshOverview, refreshAttention, openCommand,
   };
 

@@ -44,6 +44,7 @@
     const data = await api("GET", "/people");
     const items = data.items;
     const st = { q: params.get("q") || "", dept: params.get("dept") || "", status: params.get("status") || "" };
+    const mode = A.viewMode("people", "#/people", params);
     // The counts are the filter: one row of tabs instead of a tile per number.
     const STATUS = [
       ["", "Everyone", () => true],
@@ -69,12 +70,27 @@
       const want = STATUS.find(([k]) => k === st.status)[2];
       const rows = items.filter((p) => (!st.dept || p.department === st.dept) && want(p)
         && (!qq || [p.name, p.email, p.department, p.title].join(" ").toLowerCase().includes(qq)));
+      const person = { key: "name", label: "Person", lead: true, render: (p) => el("div", { class: "u-cell" }, SUI.avatar(p.name),
+        el("div", null, el("a", { href: "#/people/" + p.id }, el("strong", null, p.name)), el("span", { class: "sub" }, [p.title, p.department].filter(Boolean).join(" · ") || "No department"))) };
+      const status = { key: "status", label: "Status", sort: (p) => personState(p)[0], render: (p) => el("div", null,
+        el("div", { class: "row" }, SUI.status(...personState(p), { plain: true }), p.live ? SUI.status("live", "Live", { breathe: true, plain: true }) : null),
+        personNote(p) ? el("span", { class: "sub" }, personNote(p)) : null) };
+      const month = { key: "month", label: "Spent this month", num: true, sort: (p) => p.month.cost, render: (p) => el("span", null, fmt.money(p.month.cost),
+        el("span", { class: "sub" }, p.monthly_budget !== null ? "of " + fmt.money(p.monthly_budget) : "no limit")) };
+      const lastSeen = { key: "last_seen", label: "Last used AI", num: true, render: (p) => el("span", { title: p.last_seen ? fmt.stamp(p.last_seen) : null }, fmt.ago(p.last_seen)) };
+      /* Simple (BRIEF 10.10.7): five columns, ten rows a page, and every row ends in Open + ⋯ (10.10.6 action column). */
+      if (mode.simple) {
+        box.replaceChildren(rows.length ? SUI.table({ caption: "People", rows, sort: ["last_seen", "desc"], href: (p) => "#/people/" + p.id,
+          pager: { sizes: [10, 25, 50], page: Number(params.get("page")) || 1, onChange: (pg) => A.keepParams("#/people", { page: pg > 1 ? pg : null }) },
+          columns: [person, status, month, lastSeen,
+            { key: "act", label: "", srLabel: "Actions", sort: false, render: (p) => el("div", { class: "row" },
+              el("a", { class: "btn small", href: "#/people/" + p.id, "aria-label": "Open " + p.name }, "Open"),
+              SUI.menuButton({ label: "More actions for " + p.name, small: true, items: () => personRowActions(p) })) },
+          ] }) : nobody());
+        return;
+      }
       box.replaceChildren(rows.length ? SUI.table({ caption: "People", rows, sort: ["last_seen", "desc"], href: (p) => "#/people/" + p.id, columns: [
-        { key: "name", label: "Person", lead: true, render: (p) => el("div", { class: "u-cell" }, SUI.avatar(p.name),
-          el("div", null, el("a", { href: "#/people/" + p.id }, el("strong", null, p.name)), el("span", { class: "sub" }, [p.title, p.department].filter(Boolean).join(" · ") || "No department"))) },
-        { key: "status", label: "Status", sort: (p) => personState(p)[0], render: (p) => el("div", null,
-          el("div", { class: "row" }, SUI.status(...personState(p), { plain: true }), p.live ? SUI.status("live", "Live", { breathe: true, plain: true }) : null),
-          personNote(p) ? el("span", { class: "sub" }, personNote(p)) : null) },
+        person, status,
         { key: "active_keys", label: "Devices", num: true, hideSm: true },
         { key: "today", label: "Today", num: true, hideSm: true, sort: (p) => p.today.cost, render: (p) => el("span", null, fmt.money(p.today.cost), el("span", { class: "sub" }, SUI.plural(p.today.requests, "request")),
           p.daily_budget !== null ? A.bar(p.today.cost, p.daily_budget) : null) },
@@ -82,9 +98,18 @@
           el("span", { class: "sub" }, p.monthly_budget !== null ? "of " + fmt.money(p.monthly_budget) : "no limit"), p.monthly_budget !== null ? A.bar(p.month.cost, p.monthly_budget) : null) },
         { key: "last_seen", label: "Last used AI", num: true, render: (p) => el("span", { title: p.last_seen ? fmt.stamp(p.last_seen) : null }, fmt.ago(p.last_seen)) },
         { key: "act", label: "", srLabel: "Actions", sort: false, render: (p) => SUI.menuButton({ label: "More actions for " + p.name, small: true, items: () => personRowActions(p) }) },
-      ] }) : SUI.stateBox({ icon: "people", title: items.length ? "Nobody matches" : "Nobody yet", text: items.length ? "Try another search or filter." : "Add the first person, then send them a sign-in link or issue a key." }));
+      ] }) : nobody());
     }
-    const apply = () => { A.keepParams("#/people", { q: st.q, dept: st.dept, status: st.status }); draw(); };
+    /* An empty list still ends in one thing to press (BRIEF 10.10.7: no dead ends). */
+    function nobody() {
+      const clear = el("a", { class: "btn", href: mode.simple ? "#/people" : "#/people?view=detailed" }, "Show everyone");
+      const first = A.can("govern") ? el("button", { class: "btn", type: "button", onclick: () => addPerson() }, icon("plus"), "Add a person")
+        : el("a", { class: "btn", href: "#/activity" }, "Check who is using what");
+      return SUI.stateBox({ icon: "people", title: items.length ? "Nobody matches" : "Nobody yet",
+        text: items.length ? "Try another search or filter." : "Add the first person, then send them a sign-in link or issue a key.",
+        action: items.length ? clear : first });
+    }
+    const apply = () => { A.keepParams("#/people", { q: st.q, dept: st.dept, status: st.status, page: null }); params.delete("page"); draw(); };
     const bar = SUI.filterBar({ label: "Filter people", search: { placeholder: "Name, email, department" }, values: st,
       filters: [{ id: "status", label: "Status", any: "Everyone", options: statusOptions }]
         .concat(depts.length > 1 ? [{ id: "dept", label: "Department", any: "All departments", options: depts.map((d) => ({ id: d, label: d })) }] : []),
@@ -94,9 +119,19 @@
       { id: "invite", label: "Add and create sign-in link", icon: "send", onSelect: () => addPerson("invite") },
       { id: "key", label: "Add and issue a key", icon: "key", onSelect: () => addPerson("key") },
     ] }) : null;
-    A.frame({ title: "People", trail: [["People"]], lede: "Everyone with Swangz AI Hub access — their status, devices, and what they spend.", actions: add }, [
-      A.panel(null, null, el("div", { class: "filterbar" }, bar), meta, box),
-    ]);
+    if (mode.simple) {
+      /* Simple: the sentence with the real number, one next step, then one panel (filters + the list). */
+      const lead = A.peopleLead({ total: items.length, notSignedIn: counts.invite, usedToday, canGovern: A.can("govern"), status: st.status });
+      A.frame({ title: "People", trail: [["People"]], sentence: lead.sentence,
+        // the header's Add person stays the one primary (its place on every page), so the next step is a plain button
+        next: A.leadButton(Object.assign({}, lead.action, { quiet: true })), actions: [mode.switcher, add].filter(Boolean) }, [
+        A.panel(null, null, el("div", { class: "filterbar" }, bar), box),
+      ]);
+    } else {
+      A.frame({ title: "People", trail: [["People"]], lede: "Everyone with Swangz AI Hub access — their status, devices, and what they spend.", actions: [mode.switcher, add].filter(Boolean) }, [
+        A.panel(null, null, el("div", { class: "filterbar" }, bar), meta, box),
+      ]);
+    }
     if (params.get("add") && A.can("govern")) addPerson();
     const opened = items.find((p) => String(p.id) === params.get("open"));
     if (opened) previewPerson(opened);

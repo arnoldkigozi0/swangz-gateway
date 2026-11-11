@@ -35,6 +35,17 @@
     return { sentence: "Nothing needs you right now.", action: { label: "Check who is using what", task: "check-use" } };
   }
 
+  /* People's sentence and next step (BRIEF 10.10.7). n: { total, notSignedIn, usedToday, canGovern, status }. Pure, so it can be tested.
+     The count is the same filter the button opens, so the link shows exactly those people. "Add person" is the page's
+     primary in the header, so the next step only repeats it when nobody is on the Hub yet. */
+  function peopleLead(n) {
+    const onward = n.canGovern ? { label: "Give someone a tool", task: "give-tool" } : { label: "Check who is using what", task: "check-use" };
+    if (!n.total) return { sentence: "Nobody has access to the Hub yet.", action: n.canGovern ? { label: "Add a person", task: "add-person" } : onward };
+    if (n.notSignedIn) return { sentence: `${n.notSignedIn.toLocaleString()} of ${many(n.total, "person", "people")} ${n.notSignedIn === 1 ? "has" : "have"} not signed in yet.`,
+      action: n.status === "invite" ? onward : { label: "See who has not signed in", href: "#/people?status=invite" } };
+    return { sentence: `${many(n.total, "person has", "people have")} access; ${n.usedToday.toLocaleString()} used AI today.`, action: onward };
+  }
+
   /* "Set up in 4 steps": each step ticks itself from real records. */
   function setupSteps(n) {
     return [
@@ -331,5 +342,5 @@
     return el("div", { class: "ov-simple" }, A.panel("What do you want to do?", null, tiles(o.waiting, o.paused)), el("div", { class: "ov-side" }, numbers, third));
   }
 
-  Object.assign(A, { startTask, overviewLead, setupSteps, overviewSimple, leadButton });
+  Object.assign(A, { startTask, overviewLead, peopleLead, setupSteps, overviewSimple, leadButton });
 })();

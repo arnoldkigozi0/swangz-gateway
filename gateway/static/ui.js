@@ -748,7 +748,7 @@
     const t = el("table", { class: "u-table" + (o.cards === false ? "" : " cards") }, o.caption ? el("caption", { class: "u-sr" }, o.caption) : null,
       el("thead", null, head), tbody);
     const value = (c, r) => (typeof c.sort === "function" ? c.sort(r) : r[c.key]);
-    const foot = o.pager && o.rows.length > PAGE_SIZES[0] ? pagerFoot(o.pager, o.rows.length, () => draw()) : null;
+    const foot = o.pager && o.rows.length > (o.pager.sizes || PAGE_SIZES)[0] ? pagerFoot(o.pager, o.rows.length, () => draw()) : null;
     function draw() {
       head.querySelectorAll("th").forEach((th, i) => {
         if (cols[i].key === sortKey && cols[i].sort !== false) th.setAttribute("aria-sort", dir === "asc" ? "ascending" : "descending");
@@ -781,17 +781,19 @@
     return foot ? el("div", null, wrap, foot.node) : wrap;
   }
 
-  /* Pagination for a table over 25 rows (BRIEF 10.10.2). o: { page, size, onChange(page, size) }; the page keeps the
-     numbers in its address. The controls are built once, so a keyboard user's focus survives a page turn. */
+  /* Pagination for a table over 25 rows (BRIEF 10.10.2). o: { page, size, sizes?, onChange(page, size) }; the page keeps the
+     numbers in its address. sizes overrides 25 / 50 / 100 (a Simple view shows 10 rows, BRIEF 10.10.7). The controls are
+     built once, so a keyboard user's focus survives a page turn. */
   const PAGE_SIZES = [25, 50, 100];
   function pagerFoot(o, total, redraw) {
-    let page = o.page || 1, size = PAGE_SIZES.includes(o.size) ? o.size : PAGE_SIZES[0];
+    const sizes = o.sizes || PAGE_SIZES;
+    let page = o.page || 1, size = sizes.includes(o.size) ? o.size : sizes[0];
     const last = () => Math.max(1, Math.ceil(total / size));
     const turn = (to) => { page = to; redraw(); o.onChange && o.onChange(page, size); };
     const range = el("span", { class: "u-pager-range u-num", role: "status" });
     const prev = el("button", { type: "button", class: "btn small", onclick: () => turn(page - 1) }, "Previous");
     const next = el("button", { type: "button", class: "btn small", onclick: () => turn(page + 1) }, "Next");
-    const per = select({ label: "Rows per page", small: true, value: String(size), options: PAGE_SIZES.map((n) => ({ id: String(n), label: n + " per page" })),
+    const per = select({ label: "Rows per page", small: true, value: String(size), options: sizes.map((n) => ({ id: String(n), label: n + " per page" })),
       onChange: (v) => { size = Number(v); turn(1); } });
     const node = el("div", { class: "u-pager" }, range, per, prev, next);
     return { node, slice(rows) {
