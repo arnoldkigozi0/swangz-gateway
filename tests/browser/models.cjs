@@ -47,6 +47,12 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       ok(T + 'trail names the page', (await here()) === 'Models');
       ok(T + 'one table, no chart, no tab strip', await p.locator('main table').count() === 1 && await p.locator('main .u-chart, main [role=tablist]').count() === 0);
       ok(T + 'one primary button', await p.locator('main .btn.primary').count() === 1);
+      // Simple (BRIEF 10.10.7, the default): one sentence with the real number, one next step, five columns, no notes line
+      const sentence = (await p.locator('.ov-sentence').textContent()).trim();
+      ok(T + `Simple's sentence carries a number (${sentence})`, /\d/.test(sentence) && sentence.split(/\s+/).length <= 12);
+      ok(T + 'Simple has one next-step button', await p.locator('.next-step .btn').count() === 1);
+      ok(T + 'Simple shows five columns', width < 640 || await p.locator('main .u-table thead th').count() === 5);
+      ok(T + 'Simple has no notes line', await p.locator('main .list-meta').count() === 0);
       const all = await rows();
       ok(T + `the fixture has models (${all})`, all >= 1);
       await noOverflow('L2'); await axe('L2'); await small('L2'); await shot(p, 'models');
@@ -64,6 +70,9 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       await p.locator('.u-pop-menu [role=menuitem]', { hasText: /rule/i }).first().click();
       await p.getByRole('dialog').waitFor();
       await p.keyboard.press('Escape'); await p.waitForTimeout(400);
+      await open('#/models?view=detailed', '.u-filter');
+      ok(T + 'Detailed keeps the notes line and every column', await p.locator('main .list-meta').count() === 1 && (width < 640 || await p.locator('main .u-table thead th').count() === 8));
+      await noOverflow('Detailed'); await axe('Detailed');
       // old links arrive as a chip
       await open('#/models?status=unlisted', '.u-filter');
       ok(T + 'the status arrives as a chip', (await p.locator('.u-chips .u-chip').allTextContents()).some(t => t.includes('Unlisted')));
