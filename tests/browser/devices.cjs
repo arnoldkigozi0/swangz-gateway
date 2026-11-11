@@ -48,7 +48,12 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       ok(T + 'trail names the page', (await here()) === 'Devices');
       ok(T + 'one tab strip of two', await p.locator('main [role=tablist]').count() === 1 && await p.locator('main [role=tab]').count() === 2);
       ok(T + 'one table, no chart', await p.locator('main table').count() === 1 && await p.locator('main .u-chart').count() === 0);
-      ok(T + 'no primary button on the list', await p.locator('main .btn.primary').count() === 0);
+      // Simple (BRIEF 10.10.7, the default): one sentence with the real number, one next step, five columns, ten rows a page
+      const sentence = (await p.locator('.ov-sentence').textContent()).trim();
+      ok(T + `Simple's sentence carries a number (${sentence})`, /\d/.test(sentence) && sentence.split(/\s+/).length <= 12);
+      ok(T + 'Simple has one next-step button, the only primary', await p.locator('.next-step .btn').count() === 1 && await p.locator('main .btn.primary').count() <= 1);
+      ok(T + 'Simple shows five columns', width < 640 || await p.locator('main .u-table thead th').count() === 5);
+      ok(T + 'Simple has no list notes', await p.locator('main .list-meta').count() === 0);
       const all = await rows();
       ok(T + 'the fixture has a device', all >= 1);
       await noOverflow('L2'); await axe('L2'); await small('L2'); await shot(p, 'devices');
@@ -61,6 +66,10 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       await open('#/devices?state=revoked', '.u-filter');
       ok(T + 'the status filter arrives as a chip', (await chips()).some(t => t.includes('Revoked')));
       ok(T + 'nothing is revoked yet', await rows() === 0);
+      await open('#/devices?view=detailed', '.u-filter');
+      ok(T + 'Detailed has the full table and no primary', await p.locator('main .btn.primary').count() === 0 && (width < 640 || await p.locator('main .u-table thead th').count() === 8));
+      await noOverflow('Detailed'); await axe('Detailed');
+      await p.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('swa-devices-view')).forEach(k => localStorage.removeItem(k)));
       await open('#/devices?tab=browsers', '.ptabs');
       await noOverflow('Browsers'); await axe('Browsers');
 
