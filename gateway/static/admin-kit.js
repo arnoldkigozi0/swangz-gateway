@@ -31,10 +31,29 @@
       A.frame({ title: "Control kit" }, SUI.stateBox({ icon: "lock", title: "Owners only", text: "The control kit is a reference page for the people who look after the console." }));
       return;
     }
+    const icon = (name, label, cls, o) => el("button", Object.assign({ type: "button", class: "icon-btn " + (cls || ""), "aria-label": label, onclick: said(label) }, o || {}), SUI.icon(name));
     const buttons = group("Buttons", ".btn",
-      spec("Outline (default)", btn("", "Export")), spec("Primary", btn("primary", "Save changes")),
-      spec("Quiet", btn("quiet", "Cancel")), spec("Danger", btn("danger", "Remove access")),
-      spec("Small", btn("small", "Edit")), spec("Disabled", btn("", "Export", { disabled: true }), btn("primary", "Save changes", { disabled: true })));
+      spec("Secondary (default)", btn("", "Export")), spec("Primary: the accent sweeps in on hover and focus", btn("primary", "Save changes")),
+      spec("Quiet", btn("quiet", "Cancel")), spec("Danger: outlined, never filled", btn("danger", "Remove access")),
+      spec("On glass", btn("on-glass", "Export")),
+      spec("Small, large", btn("small", "Edit"), btn("large", "Add person")),
+      spec("Hover (secondary, quiet, danger)", btn("is-hover", "Export"), btn("quiet is-hover", "Cancel"), btn("danger is-hover", "Remove")),
+      spec("Hover and half-way sweep (primary)", btn("primary is-hover", "Save changes"), btn("primary is-half", "Save changes")),
+      spec("Focus ring", btn("is-focus", "Export"), btn("primary is-focus", "Save")),
+      spec("Pressed", btn("is-pressed", "Export"), btn("primary is-pressed", "Save changes")),
+      spec("Loading: the width stays", btn("", "Export", { "aria-busy": "true" }), btn("primary", "Save changes", { "aria-busy": "true" })),
+      spec("Disabled", btn("", "Export", { disabled: true }), btn("primary", "Save changes", { disabled: true })));
+
+    const iconButtons = group("Icon buttons: the stage light", ".icon-btn",
+      spec("Rest", icon("search", "Search"), icon("bell", "Notifications")),
+      spec("Hover: light and lift", icon("search", "Search", "is-hover"), icon("bell", "Notifications", "is-hover")),
+      spec("Focus", icon("search", "Search", "is-focus")),
+      spec("Pressed on: amber icon", icon("bell", "Notifications", "", { "aria-pressed": "true" })),
+      spec("Disabled", icon("search", "Search", "", { disabled: true })));
+
+    const tabStrip = group("Tab strip", ".ptabs",
+      spec("Floating bar: 14px bar, 9px tabs", el("div", { class: "ptabs", role: "group", "aria-label": "Kit tab strip" },
+        ...["Active", "Paused", "Ended"].map((t, i) => el("button", { type: "button", class: i ? "" : "on", "aria-pressed": String(!i), onclick: said(t) }, t, el("span", { class: "tab-count" }, String(19 - i * 7)))))));
 
     const menus = group("Menu and More button", "SUI.menuButton",
       spec("Dots", SUI.menuButton({ label: "More actions for Amina", items: ACTIONS })),
@@ -107,7 +126,7 @@
       spec("Error, with retry", SUI.errorBox(new Error("The gateway did not answer"), said("Try again"), "This list couldn't load"))));
 
     A.frame({ title: "Control kit", lede: "Every shared control in every state. Nothing on this page reads or changes data." },
-      [buttons, menus, splits, selects, filters, sheets, small, states, boxes]);
+      [buttons, iconButtons, tabStrip, menus, splits, selects, filters, sheets, small, states, boxes]);
   }
 
   A.page(/^#\/?kit$/, pageKit);

@@ -475,7 +475,7 @@ def _page(h, status, title, body):
     doc = ("<!doctype html><html lang=en><head><meta charset=utf-8>"
            "<meta name=viewport content='width=device-width, initial-scale=1'>"
            f"<title>{html.escape(title)} · Swangz AI Hub</title>"
-           "<link rel=stylesheet href=/static/tokens.css><link rel=stylesheet href=/static/portal.css></head>"
+           "<link rel=stylesheet href=/static/tokens.css><link rel=stylesheet href=/static/controls.css><link rel=stylesheet href=/static/portal.css></head>"
            "<body><main class=launch-msg><div class='launch-card device-card'>"
            f"<img src=/static/icon.svg alt='' width=40 height=40><h1>{html.escape(title)}</h1>{body}"
            "</div></main></body></html>")

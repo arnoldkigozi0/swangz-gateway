@@ -6,5 +6,5 @@ data/
 __pycache__/
 *.pyc
 deploy/netlify/dist/
-node_modules/
+node_modules
 tests/browser/test-results/

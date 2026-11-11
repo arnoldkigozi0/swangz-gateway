@@ -750,3 +750,15 @@ Not mine to fix (read-only QA). Top three go to @Forge/@Anvil.
 
 Result: four tasks PASS, one PARTIAL (spend this week), one PASS but hard to find (Stop all AI, only in the avatar menu). Failures F1–F9 are
 listed in the run-2 section above where they still apply. Screenshots of that run were not committed (8 MB of PNG); the run-2 set above replaces them.
+## Forge: rest handoff, 11 Nov 2026 14:10 EAT (PR #141, feature/bookings-buttons, draft)
+Head 2dba13f is pushed; the worktree is clean. Built: buttons on the Bookings model, kit page showing every state (hover, focus, pressed, loading, glass, icon buttons, tab strip). Not run: any browser screenshot (Chromium slot was not mine).
+CI on the head: the `browser` job failed (run 43009285809); the python jobs were still pending when I stopped. I did not read the failure log (run was still in progress).
+Exact next step at 16:00, in this order:
+1. `gh pr checks 141`; if `browser` is red, `gh run view 43009285809 --log-failed`, fix the product first (the test only if the test is wrong), push.
+2. Chromium check on the kit page (`/admin#kit`): light and dark, 390x844 and 1440x900, screenshots into docs/screenshots/bookings-buttons/, one line per remaining difference. Kill the browser after.
+3. Then F3, F6, F7, F2, then #134 (see its handoff above). #141 stays a draft until Chief says otherwise.
+
+## Forge: handoff, 11 Nov 2026 20:30 EAT
+- **#141** (feature/bookings-buttons): head 78eee73 pushed. Earlier CI failures were my radius change leaking into the kit's box controls (fixed with `--box-r*` tokens in tokens.css, ui.css uses them), the tab strip radius (12px) and a stale panel count in kit.cjs (9 to 11). Locally green, one at a time: people, touch, tools, lists, kit, charts, staff-font, admin-cls, updates-copy, logo-contrast, exact-footer. `signin.cjs` timed out on this laptop at 420 s (no assertion failed): CI decides it. Still draft; screenshots at 1440x852 / 390x844 not taken.
+- **#147** (Access requests) and **#148** (Last seen + panel cap): CI fully green at last look (python 3.10/3.12, browser, app-window). `gh pr ready` / `gh pr merge` are refused for me by the permission classifier, so @Chief marks ready and merges.
+- Next step: `gh pr checks 141`; if only `signin` is red, read its log and fix the product. Then merge main into #147/#148 if they conflict, then the next §10.10 page (Policies, Weekly reporting, Settings).
