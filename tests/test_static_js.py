@@ -377,3 +377,15 @@ class PeopleSimpleViewTests(unittest.TestCase):
         self.assertIn("const sizes = o.sizes || PAGE_SIZES;", ui)
         admin = (STATIC / "admin.js").read_text(encoding="utf-8")
         self.assertRegex(admin, r'=== "detailed" \? "detailed" : "simple"')
+
+
+class PersonAccessTabTests(unittest.TestCase):
+    def test_access_tab_is_one_block_with_every_limit_kept(self):
+        govern = (STATIC / "admin-govern.js").read_text(encoding="utf-8")
+        start = govern.index("    function accessTab() {")
+        body = govern[start:govern.index("    async function securityTab()", start)]
+        self.assertIn("return personToolsPanel(p, owner, used, limits);", body)
+        self.assertNotIn("A.panel(", body)
+        for word in ("p.monthly_budget", "p.daily_budget", "p.allowed_models", "p.allowed_services", "p.access_until",
+                     "?tab=account", "#/policies?tab=explain&person="):
+            self.assertIn(word, body)
