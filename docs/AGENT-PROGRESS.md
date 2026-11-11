@@ -666,3 +666,11 @@ held by Probe. Not built: the kit's breadcrumb dropdown, and Back restoring scro
 Next step: when the browser slot is free, screenshot #120 at 1440×852 and 390×844 in both themes, fix
 what that shows, then merge on green CI. #119 (kit page, `feature/kit-page`, WIP `cb3e8f9`) is untouched
 and comes after Overview.
+
+## Forge: rest handoff, 11 Nov 2026 14:10 EAT (PR #141, feature/bookings-buttons, draft)
+Head 2dba13f is pushed; the worktree is clean. Built: buttons on the Bookings model, kit page showing every state (hover, focus, pressed, loading, glass, icon buttons, tab strip). Not run: any browser screenshot (Chromium slot was not mine).
+CI on the head: the `browser` job failed (run 43009285809); the python jobs were still pending when I stopped. I did not read the failure log (run was still in progress).
+Exact next step at 16:00, in this order:
+1. `gh pr checks 141`; if `browser` is red, `gh run view 43009285809 --log-failed`, fix the product first (the test only if the test is wrong), push.
+2. Chromium check on the kit page (`/admin#kit`): light and dark, 390x844 and 1440x900, screenshots into docs/screenshots/bookings-buttons/, one line per remaining difference. Kill the browser after.
+3. Then F3, F6, F7, F2, then #134 (see its handoff above). #141 stays a draft until Chief says otherwise.
