@@ -40,6 +40,12 @@ async function overviewPass(page, url, theme) {
       if (JSON.stringify(m.cards) !== JSON.stringify(CARDS)) say('card links: ' + JSON.stringify(m.cards));
       if (m.primaries !== 1) say(`${m.primaries} primary buttons`);
       if (!m.next) say('no Next step line');
+      if (vname === 'mobile') {
+        // the kit's touch rule: every control on the page, not only the ones found so far; a link inside a sentence is exempt
+        const small = await page.evaluate(() => [...document.querySelectorAll('main a, main button')].filter(n => !n.closest('p, .hint')).map(n => [n, n.getBoundingClientRect()])
+          .filter(([, r]) => r.width && r.height < 44).map(([n, r]) => `${n.className || n.tagName} "${(n.textContent || n.getAttribute('aria-label') || '').trim().slice(0, 30)}" ${Math.round(r.width)}x${Math.round(r.height)}`));
+        for (const s of small) say('under 44px: ' + s);
+      }
       await page.screenshot({ path: path.join(OVERVIEW_OUT, `${name}.png`) });
       const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
       for (const v of axe.violations) say(`axe ${v.id}: ` + v.nodes.map(n => n.target.join(' ')).join(' | '));
