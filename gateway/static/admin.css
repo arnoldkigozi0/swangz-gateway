@@ -517,7 +517,7 @@ li.plain { list-style: none; }
 .person-preview-links a { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0 16px; color: var(--tx-1); font-weight: 600; text-decoration: none; }
 .person-preview-links a + a { border-top: 1px solid var(--line); }
 .person-preview-links a:hover { background: var(--ink-3); }
-.person-preview-links a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.person-preview-links a:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .person-preview-links svg { flex: none; width: 16px; height: 16px; color: var(--tx-3); }
 
 .steps { list-style: none; margin: 0; padding: 8px 0; }
@@ -1484,7 +1484,7 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
 .console-trail { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .console-trail a { color: inherit; text-decoration: none; }
 .console-trail a:hover { text-decoration: underline; text-underline-offset: 3px; }
-.console-trail a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.console-trail a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
 .console-trail .sep { color: var(--tx-3); }
 .console-trail .crumb-here, .crumbs .crumb-here { color: var(--tx-1); font-weight: 600; }
 @media (min-width: 1201px) { .top > .crumbs.in-bar { display: none; } }
