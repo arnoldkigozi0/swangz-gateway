@@ -604,7 +604,7 @@
     const counts = Object.fromEntries(STATES.map(([k]) => [k, data.items.filter((d) => d.state === k).length]));
     const stateOptions = STATES.filter(([k]) => counts[k] || k === st.state).map(([k, label]) => ({ id: k, label, sub: SUI.plural(counts[k], "device") }));
     const box = el("div");
-    const pager = { page: st.page, size: st.per, sizes: mode.simple ? [10, 25, 50] : undefined, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
+    const pager = { page: st.page, size: st.per, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
     const rowActions = (d) => [
       { id: "open", label: "Open the record", icon: "device", href: "#/devices/" + d.id },
       { id: "activity", label: "Their activity", icon: "clock", href: `#/activity?tab=ai&person=${d.person_id}` },
@@ -761,7 +761,7 @@
       el("span", null, `${fmt.num(opens)} opens from the portal in 30 days`));
     const box = el("div");
     const sheetHref = (t, tab) => { const p = new URLSearchParams(location.hash.split("?")[1] || ""); p.set("open", t.id); if (tab) p.set("tab", tab); else p.delete("tab"); return "#/tools?" + p.toString(); };
-    const pager = { page: st.page, size: st.per, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
+    const pager = { page: st.page, size: st.per, sizes: mode.simple ? [10, 25, 50] : undefined, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
     const rowActions = (t) => [
       { id: "profile", label: "Open profile", icon: "tools", href: sheetHref(t) },
       { id: "access", label: "Who has access", icon: "people", href: sheetHref(t, "access") },
