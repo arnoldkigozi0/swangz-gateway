@@ -171,7 +171,7 @@
       name: el("input", { type: "text", value: p.name || "", required: true }),
       title: el("input", { type: "text", value: p.title || "", placeholder: "e.g. Director" }),
       department: el("input", { type: "text", value: p.department || "", placeholder: "e.g. Production" }),
-      email: el("input", { type: "email", value: p.email || "" }),
+      email: el("input", { type: "email", value: p.email || "", required: !!o.brief }),
       daily_budget: el("input", { type: "number", min: "0", step: "0.01", value: p.daily_budget ?? "", placeholder: "no limit" }),
       monthly_budget: el("input", { type: "number", min: "0", step: "0.01", value: p.monthly_budget ?? "", placeholder: "no limit" }),
       allowed_models: el("input", { type: "text", value: p.allowed_models || "", placeholder: "all models" }),
@@ -205,15 +205,18 @@
     const shown = o.brief ? ["name", "title", "department", "email", "access_until"] : Object.keys(f);
     const values = () => Object.fromEntries(shown.map((k) => [k, f[k].type === "checkbox" ? f[k].checked : f[k].value]));
     /* Says what is missing under the field, and puts focus on the first problem. */
+    const mark = (input, node, message) => { node.textContent = message; if (message) input.setAttribute("aria-invalid", "true"); else input.removeAttribute("aria-invalid"); };
     function check() {
-      nameErr.textContent = f.name.value.trim() ? "" : "Enter their name.";
-      emailErr.textContent = f.email.value.trim() ? "" : "Enter their Swangz email. They sign in with it.";
+      mark(f.name, nameErr, f.name.value.trim() ? "" : "Enter their name.");
+      mark(f.email, emailErr, f.email.value.trim() ? "" : "Enter their Swangz email. They sign in with it.");
       const bad = nameErr.textContent ? f.name : emailErr.textContent ? f.email : null;
       if (bad) bad.focus();
       return !bad;
     }
-    f.name.addEventListener("blur", () => { if (o.brief && nameErr.textContent) nameErr.textContent = f.name.value.trim() ? "" : "Enter their name."; });
-    return { node, values, check, focus: () => f.name.focus() };
+    f.name.addEventListener("blur", () => { if (o.brief && nameErr.textContent) mark(f.name, nameErr, f.name.value.trim() ? "" : "Enter their name."); });
+    /* The server refused the address: say so under the field, like any other problem with it. */
+    const refuseEmail = (message) => { mark(f.email, emailErr, message); f.email.focus(); };
+    return { node, values, check, refuseEmail, focus: () => f.name.focus() };
   }
 
   /* What to open once the new person's record has drawn. Held here, not in the address: a link must never be able
@@ -234,7 +237,7 @@
           afterAdd = then ? { id: out.id, then } : null;
           sheet.close(true);
           location.hash = "#/people/" + out.id;
-        } catch (e) { err.textContent = e.message; }
+        } catch (e) { if (/\b(email|address)\b/i.test(e.message)) form.refuseEmail(e.message); else err.textContent = e.message; }
       } } });
   }
 
