@@ -48,6 +48,7 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       };
 
       // Simple (the default, BRIEF 10.10.7): one sentence with a real number, one next step, two blocks, no cards
+      await p.goto(url + '/admin');
       await p.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('swa-security-view')).forEach(k => localStorage.removeItem(k)));
       await open('#/security', 'main .ov-num');
       const sentence = (await p.locator('.ov-sentence').textContent()).trim();
