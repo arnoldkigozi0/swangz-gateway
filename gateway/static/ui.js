@@ -1238,7 +1238,8 @@
     const keep = el("button", { type: "button", class: "btn quiet" }, "Keep editing");
     const drop = el("button", { type: "button", class: "btn danger" }, "Discard");
     const ask = el("p", { class: "u-sheet-ask", role: "alert" }, "Discard your unsaved changes?");
-    const foot = el("footer", { class: "u-sheet-foot" }, cancel, go);
+    const backBtn = o.back ? el("button", { type: "button", class: "btn" }, icon("chevronLeft"), "Back") : null;
+    const foot = el("footer", { class: "u-sheet-foot" }, cancel, backBtn, go);
     const body = el("div", { class: "u-sheet-body" }, o.body || null);
     const node = el("aside", { class: "u-sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": id + "-t", "aria-describedby": o.purpose ? id + "-p" : null, tabindex: "-1" },
       el("header", { class: "u-sheet-head" }, el("div", null, el("h2", { id: id + "-t" }, o.title), o.purpose ? el("p", { id: id + "-p" }, o.purpose) : null), x), body, foot);
@@ -1259,12 +1260,19 @@
       e.preventDefault();
       if (asking) keep.click(); else close(false);
     }
-    function busy(on) { [cancel, go, x].forEach((b) => { if (b) b.disabled = !!on; }); if (go) go.classList.toggle("loading", !!on); node.setAttribute("aria-busy", on ? "true" : "false"); }
-    const api = { node, body, close, busy };
+    function busy(on) { [cancel, backBtn, go, x].forEach((b) => { if (b) b.disabled = !!on; }); if (go) go.classList.toggle("loading", !!on); node.setAttribute("aria-busy", on ? "true" : "false"); }
+    /* For a sheet with steps: the action's label and kind, the cancel label, and whether Back shows. */
+    function setFoot(f) {
+      if (go && f.primary) { go.textContent = f.primary; go.classList.toggle("danger", !!f.danger); go.classList.toggle("primary", !f.danger); }
+      if (f.cancel) cancel.textContent = f.cancel;
+      if (backBtn) backBtn.style.display = f.back ? "" : "none";
+    }
+    const api = { node, body, close, busy, setFoot };
+    if (backBtn) backBtn.addEventListener("click", () => o.back());
     x.addEventListener("click", () => close(false));
     cancel.addEventListener("click", () => close(false));
     scrim.addEventListener("click", () => close(false));
-    keep.addEventListener("click", () => { asking = false; foot.classList.remove("asking"); foot.replaceChildren(...[cancel, go].filter(Boolean)); (go || cancel).focus(); });
+    keep.addEventListener("click", () => { asking = false; foot.classList.remove("asking"); foot.replaceChildren(...[cancel, backBtn, go].filter(Boolean)); (go || cancel).focus(); });
     drop.addEventListener("click", () => close(true));
     if (go) go.addEventListener("click", () => {
       const r = o.primary.onClick && o.primary.onClick(api);

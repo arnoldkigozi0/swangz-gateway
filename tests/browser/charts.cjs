@@ -21,7 +21,7 @@ async function overviewPass(page, url, theme) {
     const name = `${vname}-${theme}`, say = (m) => overviewFindings.push(`${name}: ${m}`);
     try {
       const open = async () => {
-        await page.goto(url + '/admin#/'); await page.reload();
+        await page.goto(url + '/admin#/?view=detailed'); await page.reload();
         await page.waitForSelector('main h1');
         await page.waitForFunction(() => !document.querySelector('main .u-skel-rows, main .u-skel-cards'));
       };
@@ -46,9 +46,30 @@ async function overviewPass(page, url, theme) {
           .filter(([, r]) => r.width && r.height < 44).map(([n, r]) => `${n.className || n.tagName} "${(n.textContent || n.getAttribute('aria-label') || '').trim().slice(0, 30)}" ${Math.round(r.width)}x${Math.round(r.height)}`));
         for (const s of small) say('under 44px: ' + s);
       }
-      await page.screenshot({ path: path.join(OVERVIEW_OUT, `${name}.png`) });
+      await page.screenshot({ path: path.join(OVERVIEW_OUT, `${name}-detailed.png`) });
       const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
       for (const v of axe.violations) say(`axe ${v.id}: ` + v.nodes.map(n => n.target.join(' ')).join(' | '));
+      // BRIEF 10.10.7: Simple is a sentence, at most three blocks, up to six tiles and one next-step button
+      await page.goto(url + '/admin#/?view=simple'); await page.reload();
+      await page.waitForSelector('main .task-tile');
+      await page.waitForTimeout(500);
+      const s = await page.evaluate(() => ({ overflow: document.documentElement.scrollWidth - innerWidth, tall: document.documentElement.scrollHeight - innerHeight,
+        blocks: document.querySelectorAll('main .ov-simple .panel').length, tiles: document.querySelectorAll('main .task-tile').length,
+        sentence: document.querySelector('main .ov-sentence')?.textContent, primaries: [...document.querySelectorAll('main .btn.primary')].filter(b => b.getBoundingClientRect().width).length }));
+      if (s.overflow > 0) say(`Simple scrolls sideways by ${s.overflow}px`);
+      if (vname === 'desktop' && s.tall > 0) say(`Simple scrolls by ${s.tall}px at 1440x852`);
+      if (s.blocks > 3) say(`Simple has ${s.blocks} blocks`);
+      if (s.tiles < 1 || s.tiles > 6) say(`Simple has ${s.tiles} tiles`);
+      if (!s.sentence) say('Simple has no sentence');
+      if (s.primaries > 1) say(`Simple has ${s.primaries} primary buttons`);
+      if (vname === 'mobile') {
+        const small = await page.evaluate(() => [...document.querySelectorAll('main a, main button')].filter(n => !n.closest('p, .hint')).map(n => [n, n.getBoundingClientRect()])
+          .filter(([, r]) => r.width && r.height < 44).map(([n, r]) => `${n.className || n.tagName} "${(n.textContent || '').trim().slice(0, 30)}" ${Math.round(r.width)}x${Math.round(r.height)}`));
+        for (const t of small) say('Simple under 44px: ' + t);
+      }
+      await page.screenshot({ path: path.join(OVERVIEW_OUT, `${name}.png`) });
+      const axeSimple = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+      for (const v of axeSimple.violations) say(`Simple axe ${v.id}: ` + v.nodes.map(n => n.target.join(' ')).join(' | '));
       if (vname === 'desktop') for (const href of CARDS) {
         await open();
         await page.locator(`main a.kpi-link[href="${href}"]`).click();
