@@ -1490,7 +1490,13 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
 @media (min-width: 1201px) { .top > .crumbs.in-bar { display: none; } }
 @media (max-width: 1200px) { .console-trail { display: none; } }
 .top > .lede.next-step { color: var(--tx-1); }
-.top > .lede.next-step + .lede { grid-area: auto; grid-column: 1 / -1; }
+/* A record has both: its description stays under the name, with the Next step line below it. */
+.top > .lede.next-step + .lede { grid-area: sub; }
+.top:has(> .next-step + .lede) { grid-template-areas: "crumbs crumbs" "title actions" "sub sub" "lede lede"; }
+@media (max-width: 640px) { .top:has(> .next-step + .lede) { grid-template-areas: "crumbs" "title" "sub" "lede" "actions"; } }
+@media (min-width: 1201px) { .top:has(> .next-step + .lede) { grid-template-areas: "crumbs crumbs" "title actions" "sub actions" "lede actions"; } }
+.console-trail > a, .console-trail > .crumb-area, .console-trail > .sep { flex: none; }
+.console-trail > .crumb-here { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .next-label { margin-right: 8px; font-weight: 600; color: var(--tx-2); }
 .sheet-next { margin: 12px 0 0; color: var(--tx-1); font-size: 13.5px; }
 .sheet-trail a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }

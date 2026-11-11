@@ -87,6 +87,10 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       await p.waitForLoadState('networkidle');
       ok(T + 'record has one primary', await p.locator('main .btn.primary').count() === 1 && await p.getByRole('button', { name: 'Issue a key' }).count() === 1);
       ok(T + 'suspend moved out of the header', await p.locator('main .btn.danger', { hasText: 'Suspend access' }).count() === 0);
+      ok(T + 'record has one Next step line', await p.locator('main .next-step').count() === 1);
+      const trailText = await p.evaluate(() => [...document.querySelectorAll('.console-trail, main .top > .crumbs.in-bar')].filter(t => t.getBoundingClientRect().width).map(t => t.textContent));
+      ok(T + 'one trail shows the chain to this person', trailText.length === 1 && /Govern.*People.*Nansubuga/.test(trailText[0]));
+      ok(T + 'the description stays under the name', await p.evaluate(() => { const r = s => document.querySelector(s).getBoundingClientRect(); return r('main .top > .lede:not(.next-step)').top >= r('main .top > .title-row').bottom - 1 && r('main .next-step').top >= r('main .top > .lede:not(.next-step)').bottom - 1; }));
       await noOverflow('record'); await axe('record'); await shot(p, 'person-record');
       await p.getByRole('button', { name: /^More actions for/ }).first().click();
       const head = await p.locator('.u-menu [role=menuitem]').allInnerTexts();
@@ -144,6 +148,15 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       await p.waitForFunction(() => /#\/people\/\d+/.test(location.hash));
       await sheet.waitFor({ state: 'detached' });
       await p.locator('main h1', { hasText: 'Kit Test' }).waitFor();
+      await p.waitForLoadState('networkidle');
+      const nextLink = p.locator('main .next-step a');
+      ok(T + 'a new person with no tools is told to get one', /first tool/.test(await nextLink.innerText()) && /tab=access/.test(await nextLink.getAttribute('href')));
+      await p.getByRole('button', { name: /^More actions for/ }).first().click();
+      await p.locator('.u-menu [role=menuitem]', { hasText: 'Suspend access' }).click();
+      await p.locator('dialog button.danger, dialog .btn.danger').click();
+      await p.waitForFunction(() => /restoring access/.test(document.querySelector('main .next-step')?.textContent || ''));
+      ok(T + 'a suspended person points at their signals', /tab=security/.test(await nextLink.getAttribute('href')));
+      await shot(p, 'person-next-suspended');
 
       // split variant: add and issue a key lands on the record with the key sheet open
       await p.goto(url + '/admin#/people'); await p.locator('.u-split').waitFor();
