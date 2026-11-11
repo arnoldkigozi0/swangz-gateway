@@ -538,8 +538,10 @@
   }
 
   const devIcon = (d) => el("span", { class: "dev-ic sm" }, icon(d.app === "Claude Code" || d.app === "Codex" ? "terminal" : "device"));
-  function deviceTable(rows, noOwner) {
-    return SUI.table({ caption: "Devices", rows, sort: ["last_used", "desc"], href: (d) => "#/devices/" + d.id, columns: [
+  const canRevoke = (d) => (A.can("emergency") || A.can("govern")) && d.state !== "revoked";
+  const DEV_ROOT = ["Devices", "#/devices"];
+  function deviceTable(rows, noOwner, extra, pager) {
+    return SUI.table({ caption: "Devices", rows, pager, sort: ["last_used", "desc"], href: (d) => "#/devices/" + d.id, columns: [
       { key: "label", label: "Device", lead: true, render: (d) => el("div", { class: "u-cell" }, devIcon(d),
         el("div", null, el("a", { href: "#/devices/" + d.id }, el("strong", null, d.label)), el("span", { class: "sub mono" }, d.hint))) },
       noOwner ? null : { key: "person", label: "Owner", render: (d) => A.personLink(d.person_id, d.person) },
@@ -548,34 +550,40 @@
       { key: "last_ip", label: "From", render: (d) => (d.last_ip ? A.where(d.last_ip, d.place) : "—"), hideSm: true },
       { key: "requests_30d", label: "30 days", num: true, render: (d) => el("span", null, fmt.num(d.requests_30d), el("span", { class: "sub" }, fmt.money(d.cost_30d))) },
       { key: "state", label: "Status", render: (d) => deviceStatus(d.state, true) },
+      extra ? { key: "act", label: "", srLabel: "Actions", sort: false, render: extra } : null,
     ].filter(Boolean) });
   }
 
+  /* One list, one filter row. The tab strip is the only one on the page; each tab has its own filter or none. */
   async function pageDevices(params) {
     const data = await api("GET", "/devices");
-    const st = { q: params.get("q") || "", state: params.get("state") || "" };
-    const STATES = [["", "All"], ["active", "Active"], ["idle", "Idle"], ["unused", "Never used"], ["revoked", "Revoked"], ["suspended", "Owner suspended"]];
-    const counts = Object.fromEntries(STATES.map(([k]) => [k, k ? data.items.filter((d) => d.state === k).length : data.items.length]));
-    const tabs = STATES.filter(([k]) => !k || counts[k] || k === st.state).map(([k, label]) => [k, el("span", { class: "seg-l" }, label, el("span", { class: "seg-n u-num" }, String(counts[k])))]);
-    const q = el("input", { type: "search", placeholder: "Search device, owner, app, address…", value: st.q, "aria-label": "Search devices" });
+    const st = { q: params.get("q") || "", state: params.get("state") || "", page: Number(params.get("page")) || 1, per: Number(params.get("per")) || 25 };
+    const STATES = [["active", "Active"], ["idle", "Idle"], ["unused", "Never used"], ["revoked", "Revoked"], ["suspended", "Owner suspended"]];
+    const counts = Object.fromEntries(STATES.map(([k]) => [k, data.items.filter((d) => d.state === k).length]));
+    const stateOptions = STATES.filter(([k]) => counts[k] || k === st.state).map(([k, label]) => ({ id: k, label, sub: SUI.plural(counts[k], "device") }));
     const box = el("div");
+    const pager = { page: st.page, size: st.per, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
+    const rowActions = (d) => [
+      { id: "open", label: "Open the record", icon: "device", href: "#/devices/" + d.id },
+      { id: "activity", label: "Their activity", icon: "clock", href: `#/activity?tab=ai&person=${d.person_id}` },
+      canRevoke(d) ? { id: "revoke", label: "Revoke device", icon: "lock", danger: true, onSelect: () => revokeKey(d) } : null,
+    ];
     function draw() {
-      const qq = st.q.toLowerCase();
+      const qq = st.q.trim().toLowerCase();
       const rows = data.items.filter((d) => (!st.state || d.state === st.state) && (!qq || [d.label, d.person, d.app, d.platform, d.last_ip, d.hint].join(" ").toLowerCase().includes(qq)));
-      box.replaceChildren(rows.length ? deviceTable(rows) : SUI.stateBox({ icon: "device", title: data.items.length ? "No devices match" : "No devices yet",
-        text: data.items.length ? "Try another search or status." : "A device appears when someone is issued a key, or connects one themselves in the staff app." }));
+      box.replaceChildren(rows.length ? deviceTable(rows, false, (d) => SUI.menuButton({ label: "More actions for " + d.label, small: true, items: () => rowActions(d) }), pager)
+        : SUI.stateBox({ icon: "device", title: data.items.length ? "No devices match" : "No devices yet",
+          text: data.items.length ? "Try another search or status." : "A device appears when someone is issued a key, or connects one themselves in the staff app." }));
     }
-    const apply = () => { A.keepParams("#/devices", { q: st.q, state: st.state }); draw(); };
-    q.addEventListener("input", SUI.debounce(() => { st.q = q.value.trim(); apply(); }, 150));
+    const keep = () => { A.keepParams("#/devices", { tab: params.get("tab") && params.get("tab") !== "keys" ? params.get("tab") : null, q: st.q, state: st.state, page: st.page > 1 ? st.page : null, per: st.per !== 25 ? st.per : null }); };
+    const bar = SUI.filterBar({ label: "Filter devices", search: { placeholder: "Device, owner, app or address" }, values: st, filters: [
+      { id: "state", label: "Status", any: "All", options: stateOptions },
+    ], onChange: (v) => { st.q = v.q || ""; st.state = v.state || ""; st.page = pager.page = 1; keep(); draw(); } });
     draw();
-    const keysTab = () => A.panel(null, null,
-      el("div", { class: "filterbar" }, el("div", { class: "fb-row" },
-        A.seg(tabs, st.state, (v) => { st.state = v; apply(); }, "Status"), el("span", { class: "fb-gap" }),
-        el("label", { class: "fb-search" }, icon("search"), el("span", { class: "u-sr" }, "Search"), q))),
+    const keysTab = () => A.panel(null, null, el("div", { class: "filterbar" }, bar),
       el("div", { class: "list-meta" }, el("span", null, "One gateway key per laptop or coding tool"),
-        el("span", null, "platform from the tool's user agent where it says"), el("span", null, "places from named networks or the offline table, never an online lookup")),
-      box);
-    const browsersTab = () => A.panel(null, "from the portal's Open button · 90 days", data.browsers.length ? SUI.table({ caption: "Browsers", rows: data.browsers, sort: ["last", "desc"], columns: [
+        el("span", null, "places from named networks or the offline table, never an online lookup")), box);
+    const browsersTab = () => A.panel(null, "from the portal's Open button · 90 days", data.browsers.length ? SUI.table({ caption: "Browsers", rows: data.browsers, sort: ["last", "desc"], pager: { page: 1, size: 25 }, columns: [
       { key: "person", label: "Person", lead: true, render: (b) => A.personLink(b.person_id, b.person) },
       { key: "browser", label: "Browser", render: (b) => b.browser || "Unknown" },
       { key: "os", label: "System", render: (b) => b.os || "Unknown" },
@@ -583,13 +591,23 @@
       { key: "last", label: "Last", num: true, render: (b) => fmt.ago(b.last) },
       { key: "last_ip", label: "Last address", render: (b) => (b.last_ip ? el("span", { class: "mono faint" }, b.last_ip) : "—"), hideSm: true }] })
       : A.empty("Nobody has opened a tool from the portal yet."));
-    A.frame({ title: "Devices", lede: "Every laptop and coding tool holding a gateway key — what it runs, where it connects from, and when it was last used." },
+    A.frame({ title: "Devices", trail: [["Devices"]], lede: "Every laptop and coding tool holding a gateway key — what it runs, where it connects from, and when it was last used." },
       A.pageTabs("#/devices", params, [
         ["keys", "Gateway keys", keysTab, counts.active || null],
         ["browsers", "Browsers", browsersTab],
       ]));
   }
 
+  /* The one "Next step" line on a device: worst first. */
+  function deviceNext(d) {
+    const go = (tab, text) => el("a", { href: `#/devices/${d.id}?tab=${tab}` }, text);
+    if (d.state === "revoked") return "This key is revoked, so nothing more can be done with it. Issue a new key if the person still needs one.";
+    if (d.state === "suspended") return el("a", { href: "#/people/" + d.person_id }, "The owner is suspended, so this device is refused. Review their account");
+    if (d.flagged.length) return go("flagged", `Look at ${SUI.plural(d.flagged.length, "flagged or refused request")} from this device`);
+    if (d.state === "unused") return "This key has never been used. If nobody needs it, revoke it.";
+    if (d.state === "idle") return go("activity", "It has not been used lately. Check the last requests, and revoke the key if the device is gone");
+    return "Nothing needs doing for this device.";
+  }
 
   async function pageDevice(params, kid) {
     await A.toolIndex().catch(() => null);
@@ -606,26 +624,36 @@
       { key: "first", label: "First", num: true, render: (x) => fmt.when(x.first) },
       { key: "last", label: "Last", num: true, render: (x) => fmt.when(x.last) },
       { key: "requests", label: "Requests", num: true }] }) : A.empty("No requests from this device yet.");
+    const total = d.series.reduce((n, x) => n + x.requests, 0), spent = d.series.reduce((n, x) => n + x.cost, 0);
     A.frame({
-      title: d.label, lead: el("span", { class: "dev-ic lg" }, icon(d.app === "Claude Code" || d.app === "Codex" ? "terminal" : "device")), status: deviceStatus(d.state, true),
-      crumbs: [el("a", { href: "#/devices" }, "Devices"), el("a", { href: "#/people/" + d.person_id }, d.person)],
-      lede: `${d.person}'s device` + (d.app ? ` · ${d.app}` : "") + (d.platform && d.platform !== d.app ? ` · ${d.platform}` : ""),
+      title: d.label, trail: [DEV_ROOT, [d.label]], next: deviceNext(d),
+      lead: el("span", { class: "dev-ic lg" }, icon(d.app === "Claude Code" || d.app === "Codex" ? "terminal" : "device")), status: deviceStatus(d.state, true),
       actions: [el("a", { class: "btn", href: `#/activity?tab=ai&person=${d.person_id}` }, icon("activity"), "Their activity"),
-        (A.can("emergency") || A.can("govern")) && d.state !== "revoked" ? [el("span", { class: "act-gap" }), el("button", { class: "btn danger", onclick: () => revokeKey(d) }, icon("lock"), "Revoke device")] : null],
+        canRevoke(d) ? [el("span", { class: "act-gap" }), el("button", { class: "btn danger", onclick: () => revokeKey(d) }, icon("lock"), "Revoke device")] : null],
     }, [
-      el("div", { class: "statline" },
-        stat("Last seen", d.last_used ? fmt.ago(d.last_used) : "Never", d.last_used ? fmt.stamp(d.last_used) : "no requests yet"),
-        stat("Runs", d.app || "Not identified", platformOf(d) || "platform not stated", { wide: true }),
-        stat("Last address", d.ips[0] ? d.ips[0].ip : "—", d.ips[0] ? placeOf(d.ips[0]) : "", { href: `#/devices/${kid}?tab=addresses` }),
-        stat("30 days", SUI.plural(d.series.reduce((n, x) => n + x.requests, 0), "request"), fmt.money(d.series.reduce((n, x) => n + x.cost, 0)) + " estimated"),
-        stat("Flagged or refused", d.flagged.length ? String(d.flagged.length) : "None", d.flagged.length ? "worth a look" : "nothing flagged",
-          { href: `#/devices/${kid}?tab=flagged`, tone: d.flagged.length ? "alert" : null })),
       A.pageTabs("#/devices/" + kid, params, [
-        ["activity", "Activity", async () => [
+        ["overview", "Overview", async () => A.panel(null, null, el("div", { class: "facts" },
+          fact("Owner", A.personLink(d.person_id, d.person)), fact("Status", deviceStatus(d.state, true)),
+          fact("Runs", d.app || "Not identified", platformOf(d) ? "Platform from the tool's user agent: " + platformOf(d) : "The tool did not state a platform"),
+          fact("Last seen", d.last_used ? fmt.stamp(d.last_used) : "never"),
+          fact("Last address", d.ips[0] ? el("span", null, el("span", { class: "mono" }, d.ips[0].ip || "—"), " · " + placeOf(d.ips[0])) : "—", d.ips[0] ? howKnown(d.ips[0]) : null),
+          fact("Last 30 days", `${SUI.plural(total, "request")} · ${fmt.money(spent)}`, "Estimated from the price table"),
+          fact("Key", el("span", { class: "mono" }, d.hint), "Only the key's ends are ever shown"),
+          fact("Issued", fmt.date(d.created) + (d.created_by ? (d.created_by === "self" ? " · by them in the app" : " · by " + d.created_by) : "")),
+          fact("First used", d.first_used ? fmt.stamp(d.first_used) : "never"),
+          fact("All-time use", `${SUI.plural(d.totals.requests, "request")} · ${fmt.tokens(d.totals.tokens)} tokens · ${fmt.money(d.totals.cost)} estimated`),
+          d.revoked ? fact("Revoked", fmt.stamp(d.revoked) + (d.revoked_by ? (d.revoked_by === "self" ? " · by them" : " · by " + d.revoked_by) : "")) : null))],
+        ["usage", "Usage", async () => el("div", { class: "stack" },
           A.panel("Requests per day", "30 days · " + SUI.tzLabel(true), el("div", { class: "body" }, SUI.columns({ label: "Requests per day from this device", tone: 2, yName: "Requests",
             data: d.series.map((x) => ({ label: fmt.weekday(x.start), short: fmt.dayMonth(x.start), value: x.requests, note: fmt.money(x.cost) })) }))),
-          A.panel("Everything done from this device", el("a", { class: "btn small quiet", href: `#/activity?tab=ai&person=${d.person_id}` }, "All their requests", icon("chevronRight")),
-            recent.items.length ? A.eventDays(recent.items.map(A.reqEvent), { noPerson: true, noDevice: true }).node : A.empty("No requests yet."))]],
+          el("div", { class: "grid cols-even" },
+            A.panel("Applications", "from the tool's user agent", d.apps.length ? el("ul", { class: "mini-list" }, d.apps.map((a) => el("li", null, el("span", { class: "mini-ic" }, icon("terminal")),
+              el("div", { class: "grow" }, el("strong", null, a.client || "Not identified"), el("div", { class: "hint" }, (a.platform || "platform not stated") + " · last " + fmt.ago(a.last))),
+              el("span", { class: "u-num" }, fmt.num(a.requests))))) : A.empty("Nothing yet.")),
+            A.panel("Models", "requests · estimated cost", d.models.length ? SUI.barList(d.models.map((m) => ({ label: m.model, value: m.requests, display: fmt.num(m.requests), note: fmt.money(m.cost) })))
+              : A.empty("Nothing yet."))))],
+        ["activity", "Activity", async () => A.panel("Everything done from this device", el("a", { class: "btn small quiet", href: `#/activity?tab=ai&person=${d.person_id}` }, "All their requests", icon("chevronRight")),
+          recent.items.length ? A.eventDays(recent.items.map(A.reqEvent), { noPerson: true, noDevice: true }).node : A.empty("No requests yet."))],
         ["flagged", "Flagged", async () => A.panel(null, "credential detections and refusals from this device", d.flagged.length ? el("ol", { class: "events flat" }, d.flagged.map((r) => el("li", { class: "ev t-request" },
           el("time", { class: "ev-time", title: fmt.stamp(r.ts) }, fmt.when(r.ts)),
           el("div", { class: "ev-body" }, el("div", { class: "ev-head" }, A.flagBadges(r.flags), el("span", { class: "muted" }, r.client || "a tool"),
@@ -638,23 +666,8 @@
           el("a", { class: "grow", href: "#/sessions/" + encodeURIComponent(x.session) }, el("strong", null, x.first_prompt || "(no typed prompt)"),
             el("div", { class: "hint" }, `${x.client || "a tool"} · ${SUI.plural(x.requests, "request")} · ${fmt.when(x.last)}`)),
           el("span", { class: "u-num" }, fmt.money(x.cost))))) : A.empty("No sessions yet.")), d.sessions.length || null],
-        ["apps", "Apps & models", async () => el("div", { class: "grid cols-even" },
-          A.panel("Applications", "from the tool's user agent", d.apps.length ? el("ul", { class: "mini-list" }, d.apps.map((a) => el("li", null, el("span", { class: "mini-ic" }, icon("terminal")),
-            el("div", { class: "grow" }, el("strong", null, a.client || "Not identified"), el("div", { class: "hint" }, (a.platform || "platform not stated") + " · last " + fmt.ago(a.last))),
-            el("span", { class: "u-num" }, fmt.num(a.requests))))) : A.empty("Nothing yet.")),
-          A.panel("Models", "requests · estimated cost", d.models.length ? SUI.barList(d.models.map((m) => ({ label: m.model, value: m.requests, display: fmt.num(m.requests), note: fmt.money(m.cost) })))
-            : A.empty("Nothing yet.")))],
-        ["addresses", "Addresses & location", async () => A.panel(null, "named networks are exact; the offline table is approximate; nothing is looked up online", ips), d.ips.length || null],
-        ["key", "Gateway key", async () => A.panel(null, null, el("div", { class: "facts" },
-          fact("Owner", A.personLink(d.person_id, d.person)), fact("Status", deviceStatus(d.state, true)),
-          fact("Key", el("span", { class: "mono" }, d.hint), "Only the key's ends are ever shown"),
-          fact("Issued", fmt.date(d.created) + (d.created_by ? (d.created_by === "self" ? " · by them in the app" : " · by " + d.created_by) : "")),
-          fact("First used", d.first_used ? fmt.stamp(d.first_used) : "never"), fact("Last seen", d.last_used ? fmt.stamp(d.last_used) : "never"),
-          fact("Application", d.app || "—", "From the tool's user agent"), fact("Platform", platformOf(d) || "Not stated by the tool", "From the user agent"),
-          fact("All-time use", `${SUI.plural(d.totals.requests, "request")} · ${fmt.tokens(d.totals.tokens)} tokens`),
-          fact("All-time cost", fmt.money(d.totals.cost), "Estimated from the price table"),
-          d.revoked ? fact("Revoked", fmt.stamp(d.revoked) + (d.revoked_by ? (d.revoked_by === "self" ? " · by them" : " · by " + d.revoked_by) : "")) : null))],
-      ]),
+        ["addresses", "Addresses", async () => A.panel(null, "named networks are exact; the offline table is approximate; nothing is looked up online", ips), d.ips.length || null],
+      ], { label: d.label }),
     ]);
   }
 
