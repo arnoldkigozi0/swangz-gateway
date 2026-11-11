@@ -43,7 +43,8 @@
     const ov = S.overview;
     const tr = trends.status === "fulfilled" ? trends.value : null;
     const sec = security.status === "fulfilled" ? security.value : null;
-    const att = attention.status === "fulfilled" && attention.value ? attention.value.items : null;
+    // Standing set-up notes (unopened licences, providers with no company key) stay on Needs attention, out of Overview's count.
+    const att = attention.status === "fulfilled" && attention.value ? attention.value.items.filter((i) => !i.background) : null;
     const licence = lic.status === "fulfilled" ? lic.value : null;
 
     let kpis;

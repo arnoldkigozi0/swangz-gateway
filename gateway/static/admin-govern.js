@@ -286,7 +286,7 @@
       const tl = await api("GET", `/timeline?person=${p.id}&limit=6&since=${since30}`);
       const tools = used && used.length ? SUI.barList(used.slice().sort((a, b) => (b.requests + b.opens + b.visits) - (a.requests + a.opens + a.visits)).slice(0, 5).map((r) => ({
         label: r.tool, lead: A.toolLogo(r.tool_id, r.tool, "sm"), href: r.tool_id ? `#/tools?open=${r.tool_id}` : null, value: r.requests + r.opens + r.visits,
-        display: fmt.compact(r.requests + r.opens + r.visits) + " uses", note: r.requests ? fmt.money(r.cost) : r.seconds ? fmt.dur(r.seconds) + " on site" : null })), { tone: 2 })
+        display: SUI.plural(r.requests + r.opens + r.visits, "use"), note: r.requests ? fmt.money(r.cost) : r.seconds ? fmt.dur(r.seconds) + " on site" : null })), { tone: 2 })
         : A.empty("No tool use in the last 30 days.", null, "tools");
       return [live,
         el("div", { class: "grid cols-2" },
