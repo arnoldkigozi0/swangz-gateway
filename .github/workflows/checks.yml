@@ -74,6 +74,10 @@ jobs:
         run: node tests/browser/audit.cjs
         env:
           UI_OUTPUT: /tmp/swangz-hub-audit-ui
+      - name: Models on the control kit (filter bar, row menu, pager)
+        run: node tests/browser/models.cjs
+        env:
+          UI_OUTPUT: /tmp/swangz-hub-models-ui
       - name: Extension Python wrapper (must run, not skip)
         run: |
           python -c "import shutil; assert shutil.which('node'), 'Node must be available for test_extension'"

@@ -15,41 +15,56 @@
   const CHANNEL = { request: "Requests through the gateway", launch: "Opening from Swangz AI Hub", site: "Website visits" };
   const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-  function countTabs(base, counts, current, order, labels) {
-    return el("nav", { class: "sec-chips", "aria-label": "Filter" }, order.filter((k) => k === "" || counts[k]).map((k) =>
-      el("a", { class: "sec-chip" + (current === k ? " on" : ""), href: base + (k ? (base.includes("?") ? "&" : "?") + "status=" + k : ""), "aria-current": current === k ? "true" : null },
-        el("span", null, labels[k]), el("span", { class: "n u-num" }, String(k ? counts[k] || 0 : Object.values(counts).reduce((a, n) => a + n, 0))))));
-  }
-
   // ------------------------------------------------------------------ Models
 
   async function pageModels(params) {
     const data = await api("GET", "/models");
-    const status = params.get("status") || "";
+    const edit = A.can("govern");
+    const st = { q: params.get("q") || "", status: params.get("status") || "", page: Number(params.get("page")) || 1, per: Number(params.get("per")) || 25 };
     const counts = {};
     data.items.forEach((m) => { counts[m.status] = (counts[m.status] || 0) + 1; });
-    const rows = data.items.filter((m) => !status || m.status === status);
-    const edit = A.can("govern");
-    const table = rows.length ? SUI.table({ caption: "Models", rows, sort: ["requests", "desc"], columns: [
-      { key: "id", label: "Model", lead: true, render: (m) => el("div", { class: "model-cell" }, el("span", { class: "mono strong nowrap" }, m.id),
-        el("span", { class: "sub" }, [m.provider, m.label || (m.governed_by ? "by the rule for " + m.governed_by : "")].filter(Boolean).join(" · "))) },
-      { key: "status", label: "Status", render: (m) => el("div", null, SUI.status(...(STATUS[m.status] || STATUS.unlisted), { plain: true }),
-        m.status === "restricted" && m.allowed_departments.length ? el("span", { class: "sub" }, "Only " + m.allowed_departments.join(", ")) : null) },
-      { key: "classification", label: "Data class", render: (m) => (m.classification ? CLASS[m.classification] : el("span", { class: "faint" }, "—")), hideSm: true },
-      { key: "requests", label: "Requests · 30 d", num: true, render: (m) => fmt.num(m.requests) },
-
-      { key: "cost", label: "Est. cost", num: true, render: (m) => el("span", { class: "row end nowrap" }, fmt.money(m.cost),
-        m.unpriced ? el("span", { class: "basis unpriced", "data-tip": `${m.unpriced} request(s) with no price${m.priced ? " when they ran" : " — add one in Settings → Model prices"}`, tabindex: "0" }, `${fmt.num(m.unpriced)} unpriced`) : null) },
-      { key: "refused", label: "Refused", num: true, render: (m) => (m.refused ? el("span", { class: "neg" }, fmt.num(m.refused)) : "0"), hideSm: true },
-      { key: "last", label: "Last used", num: true, render: (m) => el("span", { class: "nowrap", title: m.people ? SUI.plural(m.people, "person", "people") + " in 30 days" : null }, fmt.ago(m.last)), hideSm: true },
-      edit ? { key: "act", label: "", sort: false, srLabel: "Edit", cls: "act", render: (m) => el("button", { class: "btn small quiet", onclick: () => editModel(m, data) }, m.registered ? "Edit" : "Rules") } : null,
-    ].filter(Boolean) }) : SUI.stateBox({ icon: "chip", title: "No models here", text: status ? "None with this status." : "Models appear once they are used through the gateway, priced, or registered." });
-    A.frame({ title: "Models", lede: "Every chat model the gateway has seen, priced or registered, and the rule on each. A model nobody registered is unlisted: allowed, as before the registry. A rule for claude-opus-4 also covers claude-opus-4-1 and later versions of it.",
+    const order = ["approved", "experimental", "restricted", "deprecated", "disabled", "unlisted"];
+    const statusOptions = order.filter((k) => counts[k] || k === st.status).map((k) => ({ id: k, label: STATUS[k][1], sub: SUI.plural(counts[k] || 0, "model") }));
+    const box = el("div");
+    const pager = { page: st.page, size: st.per, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
+    const removeModel = async (m) => {
+      const ok = await A.confirmAction(`Remove the rule for ${m.id}?`, "It goes back to unlisted, which is allowed, as before the registry. Its history stays.", "Remove rule", true);
+      if (!ok) return;
+      try { await api("DELETE", "/models/" + encodeURIComponent(m.id)); toast("Removed from the registry: unlisted, so allowed."); A.render(); } catch (e) { toast(e.message, true); }
+    };
+    function draw() {
+      const qq = st.q.trim().toLowerCase();
+      const rows = data.items.filter((m) => (!st.status || m.status === st.status) && (!qq || [m.id, m.provider, m.label, m.governed_by].join(" ").toLowerCase().includes(qq)));
+      box.replaceChildren(rows.length ? SUI.table({ caption: "Models", rows, sort: ["requests", "desc"], pager, columns: [
+        { key: "id", label: "Model", lead: true, render: (m) => el("div", { class: "model-cell" }, el("span", { class: "mono strong nowrap" }, m.id),
+          el("span", { class: "sub" }, [m.provider, m.label || (m.governed_by ? "by the rule for " + m.governed_by : "")].filter(Boolean).join(" · "))) },
+        { key: "status", label: "Status", render: (m) => el("div", null, SUI.status(...(STATUS[m.status] || STATUS.unlisted), { plain: true }),
+          m.status === "restricted" && m.allowed_departments.length ? el("span", { class: "sub" }, "Only " + m.allowed_departments.join(", ")) : null) },
+        { key: "classification", label: "Data class", render: (m) => (m.classification ? CLASS[m.classification] : el("span", { class: "faint" }, "—")), hideSm: true },
+        { key: "requests", label: "Requests · 30 d", num: true, render: (m) => fmt.num(m.requests) },
+        { key: "cost", label: "Est. cost", num: true, render: (m) => el("span", { class: "row end nowrap" }, fmt.money(m.cost),
+          m.unpriced ? el("span", { class: "basis unpriced", "data-tip": `${m.unpriced} request(s) with no price${m.priced ? " when they ran" : " — add one in Settings → Model prices"}`, tabindex: "0" }, `${fmt.num(m.unpriced)} unpriced`) : null) },
+        { key: "refused", label: "Refused", num: true, render: (m) => (m.refused ? el("span", { class: "neg" }, fmt.num(m.refused)) : "0"), hideSm: true },
+        { key: "last", label: "Last used", num: true, render: (m) => el("span", { class: "nowrap", title: m.people ? SUI.plural(m.people, "person", "people") + " in 30 days" : null }, fmt.ago(m.last)), hideSm: true },
+        { key: "act", label: "", srLabel: "Actions", sort: false, render: (m) => SUI.menuButton({ label: "More actions for " + m.id, small: true, items: () => [
+          edit ? { id: "edit", label: m.registered ? "Edit the rule" : "Set a rule", icon: "edit", onSelect: () => editModel(m, data) } : null,
+          { id: "requests", label: "Requests using it", icon: "clock", href: "#/activity?tab=ai&model=" + encodeURIComponent(m.id) },
+          edit && m.registered ? { id: "remove", label: "Remove the rule", icon: "x", danger: true, onSelect: () => removeModel(m) } : null,
+        ].filter(Boolean) }) },
+      ] }) : SUI.stateBox({ icon: "chip", title: data.items.length ? "No models match" : "No models here",
+        text: data.items.length ? "Try another search or status." : "Models appear once they are used through the gateway, priced, or registered." }));
+    }
+    const keep = () => A.keepParams("#/models", { q: st.q, status: st.status, page: st.page > 1 ? st.page : null, per: st.per !== 25 ? st.per : null });
+    const bar = SUI.filterBar({ label: "Filter models", search: { placeholder: "Model, provider or name" }, values: st, filters: [
+      { id: "status", label: "Status", any: "All", options: statusOptions },
+    ], onChange: (v) => { st.q = v.q || ""; st.status = v.status || ""; st.page = pager.page = 1; keep(); draw(); } });
+    draw();
+    A.frame({ title: "Models", trail: [["Models"]], lede: "Every chat model the gateway has seen, priced or registered, and the rule on each. A model nobody registered is unlisted: allowed, as before the registry. A rule for claude-opus-4 also covers claude-opus-4-1 and later versions of it.",
       actions: edit ? el("button", { class: "btn primary", onclick: () => editModel(null, data) }, icon("plus"), "Register a model") : null }, [
-      countTabs("#/models", counts, status, ["", "approved", "experimental", "restricted", "deprecated", "disabled", "unlisted"],
-        { "": "All", approved: "Approved", experimental: "Experimental", restricted: "Restricted", deprecated: "Deprecated", disabled: "Disabled", unlisted: "Unlisted" }),
-      A.panel(null, null, table,
-        el("div", { class: "body hint" }, "Disabled: refused for everyone. Restricted: only the departments named. Experimental and deprecated are allowed and marked. Costs are estimated from the price table."))]);
+      A.panel(null, null, el("div", { class: "filterbar" }, bar),
+        el("div", { class: "list-meta" }, el("span", null, "Disabled: refused for everyone"), el("span", null, "Restricted: only the departments named"),
+          el("span", null, "Costs are estimated from the price table")), box),
+    ]);
   }
 
   function editModel(m, data) {
