@@ -436,6 +436,114 @@ both apps; no page builds its own. Vanilla JS and CSS, no new dependencies.
 - **Build order:** the kit page first (`/admin#kit`, visible to owners only: every control in every state), then
   pages adopt it chain by chain in the order of §10.10.1. A page is not "restructured" until it uses only kit controls.
 
+**6. Bookings-grade buttons and layering (Arnold, 11 Nov 2026: "so slick, just like we did in the Swangz Bookings
+app, and the layering — but here improve everything").** The source is the live Bookings app
+(`swangz-bookings.netlify.app`; its `public/ui.css` §1–2, `tokens.css`, `admin.css` `.ftabs` / `.modal--drawer`).
+The values below are read from that code. **This point replaces the radii in point 2**: controls are crisp
+rectangles, not soft boxes. Glass, colours and card radii stay.
+
+| Token | Value (was) | Used by |
+|---|---|---|
+| `--radius-control` | **4px** (10) | Buttons, inputs, selects, search, dropdown triggers, split buttons, top-bar items |
+| `--radius-control-sm` | **3px** (8) | Small buttons, menu rows, table row hover, icon buttons, the slider thumb |
+| `--radius-chip` | **3px** (6) | Chips, badges with text, filter tags, keyboard hints |
+| tab strip | bar **14px**, tab **9px** (12 / 8) | Every tab strip — the Bookings floating tab bar |
+| rail | bar **14px**, icon box **4px** (16 / 10) | Side bar |
+| motion | `--d-fast:120ms; --d-base:200ms; --d-slow:320ms; --e-out:cubic-bezier(.2,.7,.3,1); --e-in-out:cubic-bezier(.4,0,.2,1)` | Every control transition |
+
+**Buttons — five kinds, one base.** Base: inline-flex, **36px** tall (30px small, 42px large), padding 0 14px
+(11 / 20), gap 6px, 13px weight 600, letter-spacing −.002em, 1px border, icon 15px, never wraps. Pressed =
+`translateY(1px)`. Disabled = 40% opacity, no pointer. On touch screens the visible size stays and the hit area
+grows to 44px.
+- **Primary — the accent sweep (the Bookings signature).** Rest: solid near-white `#F2F2F2`, text `#0D0D0D`. On
+  hover and on keyboard focus the amber (`--accent-pill`) **sweeps in from the left** behind the label:
+  a `::after` layer, `transform: scaleX(0→1)`, origin left, 200ms `--e-out`; it sweeps back out on leave. One
+  primary per screen. This replaces the resting amber fill on buttons (amber stays on the first KPI card, the
+  selected bar and the live pulse).
+- **Secondary** (the default for a plain button): transparent, 1px rim `rgba(255,255,255,.22)`, hover fills
+  `rgba(255,255,255,.08)` and brightens the rim.
+- **Quiet:** text only, muted; hover brightens the text and adds a faint fill.
+- **Danger:** outlined in the danger colour, **never filled**; hover adds a faint danger tint.
+- **On glass / over the photo:** `rgba(13,13,13,.55)` + the panel's existing blur (no second blur layer, §7.2),
+  rim `rgba(242,242,242,.28)`; hover `.8` and rim `.55`.
+- **Icon button — the stage light.** 34×34, radius 3. Hover and focus: the icon lifts 1px and a soft radial
+  light fades up behind it (`radial-gradient(circle at 50% 55%, rgba(255,255,255,.16), transparent 68%)`, from
+  `scale(.7)` opacity 0 to `scale(1)` opacity 1, 200ms). Pressed-on state = amber icon. Its label appears under it.
+- **Loading:** the label goes transparent and the S loader (14px) sits centred; the width does not change.
+
+**Improved over Bookings (required):** a 2px focus ring 2px outside every control (Bookings relies on the sweep
+alone); under reduced motion the sweep and the stage light become an instant colour change; the split button's two
+halves sweep together and are divided by a 1px line; the sweep is transform-only (no layout, no repaint of the
+glass behind it) and must hold ≥ 55 fps on the laptop; light theme inverts it (rest `#0D0D0D`, amber sweeps in,
+label stays readable at ≥ 4.5:1 at every point of the sweep — Probe samples the half-way frame).
+
+**Layering — the Bookings dashboard pattern, made the rule for every area** (it is how points 1 and 5 look in
+practice):
+1. **Band:** each area opens with a compact title band (title, one-line purpose, the Next-step line, the primary
+   button right) — 96px, no photo of its own; the room is the background.
+2. **Floating tab bar:** directly under the band, sticky under the top bar while the page scrolls, as wide as its
+   tabs (not full width), strong glass, radius 14 with 9px tabs and 6px padding. It is the area's L2 pages. The
+   address carries the tab (`#people/active`), so every tab is a link and Back works.
+3. **One panel:** under the bar exactly one panel — one table, or one card list, or one chart. Never two.
+4. **Action column:** every table's last column is one button — **"Take action"** when the row needs a decision,
+   otherwise **"Open"** — plus the `⋯` menu. The row click does the same as Open.
+5. **Drawer for the record (L3):** Open slides a drawer from the right, **560px**, full height, 320ms
+   `--e-in-out`, with its own tabs; each tab loads only when first opened. The list stays visible behind it and
+   keeps its filter and scroll. The address carries the record (`#people/active/<id>/tools`).
+6. **Decision sheet (L4):** "Take action" opens **one** sheet that shows everything needed to decide — the
+   request, who, what it costs, what else that person already has — and the two answers (Approve / Decline) plus
+   "Full details" (opens the drawer). Nobody should have to leave the sheet to make the decision.
+7. **Search everywhere:** `/` or Ctrl+K from any layer finds people, tools, requests, dates and pages.
+
+**Improved over Bookings (required):** the breadcrumb chain of point 1 runs through all layers; Esc closes one
+layer at a time and focus returns to the row it came from; on phones the tab bar scrolls sideways with a fade
+edge, the drawer and the sheet are full-screen with a sticky action footer; a drawer never opens over a drawer —
+a link inside a drawer replaces its content and adds a crumb.
+
+**7. Little on each page, and the app leads the way (Arnold, 11 Nov 2026, clarifying "layering").** What the boss
+means by layered: **a page shows only a little, in the order a person needs it, so that even a very basic user
+always knows what they are looking at and what to do next.** The test reader is someone who has never used an admin
+tool. Points 1, 5 and 6 are the means; this point is the measure, and it wins when they disagree.
+
+- **One sentence first.** Under every page title, one plain sentence states the answer the page exists to give,
+  with the real number in it ("3 people are waiting for a tool." / "Nothing needs you right now."). A reader who
+  reads only that sentence has got the page.
+- **Then at most three things.** A screen at 1440×852 shows the sentence plus **at most three blocks** (this
+  tightens the "≤ 7 blocks" of point 1 for the default view). On a phone: the sentence plus **one** block per
+  screen height. Everything else is one deliberate step away — never further down the same page.
+- **Show the few, offer the rest.** Summary lists show 5 rows and "See all 42"; tables show **5 columns and 10
+  rows** by default (others under "Columns ▾", more rows by paging); a record shows its 4 most important facts and
+  keeps the rest under closed sections ("History", "Devices", "Advanced"); long text is cut to two lines with "More".
+- **Simple and Detailed.** Every list and record has a **Simple / Detailed** switch (segmented control, top right,
+  remembered per person, **Simple by default for everyone**). Simple is the rules above. Detailed is the full
+  table for people who work in it daily (with Compact from §10.9.3). Nothing exists only in Detailed that a task
+  needs — Simple must be enough to finish every common job.
+- **The app asks, the user answers.** Home (staff) and Overview (console) start with **"What do you want to do?"**
+  — at most six large task tiles in plain words (Add a person · Give someone a tool · Answer a request · See what
+  we spent · Check who is using what · Stop all AI). Each tile starts a guided flow: one question per step, the
+  safe answer pre-selected, a progress line ("Step 2 of 3"), Back always available, a final "Here is what will
+  happen" screen, then a clear result with the next suggested task. The full menus stay for people who know the way.
+- **Always a next step.** Every page, drawer, sheet, empty state, success message and error ends with one
+  suggested action as a button. A dead end — a screen with nothing to press but the menu — is a defect.
+- **First visit.** A new admin sees a "Set up in 4 steps" checklist on Overview (add people → add tools → give
+  access → check the first report) that ticks itself off from real data and disappears when done. A new member of
+  staff sees three steps (sign in → open a tool → ask for one you do not have).
+- **Plain words.** No internal or technical terms on a default screen (not "entitlement", "grant", "seat",
+  "policy", "provenance", "L2"): say "access", "give", "licence", "rule", "where this number comes from". A term
+  that must stay gets a dotted underline and a one-line popover. Buttons are verb + thing ("Give access", never
+  "Submit" or "OK"). Sentences of 12 words or fewer. Numbers always carry their unit and period ("$4.20 this week").
+- **Use every arranging tool before adding to a page:** tabs, the floating tab bar, dropdowns, accordions,
+  drawers, sheets, steppers, popovers, "See all" links, Simple/Detailed, paging, grouping with headings, and empty
+  space (≥ 24px between blocks). When something new must be shown, it goes down a level — a page never grows.
+- **Signposts.** The trail shows where you are; the active rail icon and tab are unmistakable; every drawer and
+  sheet says in its title what it is about and for whom ("Give Nansubuga Grace a tool").
+
+**The basic-user test (Probe runs it on every restructured area; merge-blocking).** With a fresh browser and no
+help, each of these is done from the landing page in **≤ 3 clicks to start, no scrolling to find the way, no
+jargon read**: add a person; give that person a tool; answer a waiting request; find what was spent this week;
+see what one person used; stop all AI. Probe records the click path and a screenshot of each step at 1440×852 and
+390×844, counts the blocks on each screen (> 3 in Simple = fail), and lists every word a new user would not know.
+
 **Round R18 — "structure and boxes"** goes **ahead of** the unfinished R15–R17 items, in this order: (a) tokens +
 box controls + scrollbars + rail in one PR (CSS only, both apps, both themes); (b) the background; (c) the
 "Page levels" table and the control kit page of point 5; (d) Overview as L1 with every card chained to its filtered list; (e) one chain per PR in the
