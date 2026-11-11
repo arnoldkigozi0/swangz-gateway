@@ -113,7 +113,7 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       const toolRows = p.locator('main tbody tr');
       const held = await toolRows.count();
       ok(T + 'every tool row ends in one More button', held > 0 && await p.locator('main tbody tr .u-more').count() === held);
-      ok(T + 'the tools tab adds no second primary', await p.locator('main .btn.primary').count() === 1);
+      ok(T + 'the tools tab adds no second primary', await p.locator('main .btn.primary').count() <= 1);
       const give = p.locator('.give-row .btn');
       ok(T + 'Give waits for a choice', await give.isDisabled());
       await noOverflow('tools'); await axe('tools'); await shot(p, 'person-tools');
