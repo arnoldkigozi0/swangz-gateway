@@ -47,7 +47,6 @@
   const moneyNum = (label, value, href) => el("a", { class: "ov-num", href }, el("span", null, label), el("strong", { class: "u-num" }, value), icon("chevronRight"));
 
   async function moneySummary(params) {
-    const mode = A.viewMode("money", "#/licences", params);
     const [licR, spendR] = await Promise.allSettled([api("GET", "/licences"),
       api("GET", "/spend?" + A.rangeQuery(A.rangeFrom(new URLSearchParams(), "30d")).toString())]);
     const lic = licR.status === "fulfilled" ? licR.value : null;
@@ -70,9 +69,11 @@
         note: !lic ? failed : soon.length ? "next " + fmt.date(soon[0].renews_on) : "nothing renews soon" }),
     ].map((card) => { card.append(el("span", { class: "kpi-go", "aria-hidden": "true" }, icon("arrowUp"))); return card; }));
 
+    /* Simple shows the four numbers as rows above the chart, so its chart is shorter to keep both above the fold at 1440x852. */
+    const mode = A.viewMode("money", "#/licences", params);
     const chart = A.panel("Spend per day", el("a", { class: "btn small quiet", href: "#/licences?tab=spend&range=30d" }, "What cost us money?", icon("chevronRight")),
       d ? el("div", { class: "body" }, SUI.line({ label: "Metered spend per day over the last 30 days", format: fmt.money, tick: fmt.moneyShort, yName: "Spend",
-        height: window.matchMedia("(min-width: 1001px)").matches ? 300 : 220, emptyTitle: "No spend in the last 30 days", emptyText: "Metered spend appears once requests go through the gateway.",
+        height: window.matchMedia("(min-width: 1001px)").matches ? (mode.simple ? 240 : 300) : 220, emptyTitle: "No spend in the last 30 days", emptyText: "Metered spend appears once requests go through the gateway.",
         data: d.series.length > 1 ? d.series.map((x) => ({ label: fmt.weekday(x.start), short: fmt.dayMonth(x.start), value: x.cost, note: SUI.plural(x.requests, "request") })) : [] }))
         : SUI.errorBox(spendR.reason, () => A.render()));
 
