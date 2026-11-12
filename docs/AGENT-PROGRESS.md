@@ -782,3 +782,17 @@ Lane B queue remains open: sign-in full visual pass; light theme/Monitor; phone 
 staff shell; Probe's remaining fix lists. The 10 Nov twelve-item list above remains historical:
 each item needs reconciliation against merged PRs and actual reviewer evidence, including glass/photo,
 donut/legend, count-card wave, Collecting since, D-016 C-I and SECURITY-REVIEW.md. No item is dropped.
+
+### #182 review follow-up — 12 November 2026
+
+Probe posted real-Chromium review of `ceea4db` on #182 (comment 6833397250): 24/24 isolated
+forced-colours checks passed on the synthetic demo, both apps, light/dark at 390x844. Full GitHub
+CI passed on that head (Python 3.10/3.12, app-window and browser). Probe found a visible eye-toggle
+border extending 10px beyond its field at 390 and 1440. The forced-colours rule now resets its right
+margin to zero; the browser check asserts containment and the existing 44px touch target.
+New-head rendered verification and CI remain pending. No reference overlay was produced; normal
+sign-in exact-match acceptance remains open. Probe's historical light-theme focus-ring contrast
+finding also remains open pending verification on current main. Windows High Contrast and other
+browser engines were not tested. No local browser or fixture was started for this follow-up.
+Follow-up validation: `python3 -m unittest tests.test_static_css -q`: 27 tests in 1.423s, OK;
+`node --check tests/browser/signin.cjs` and `git diff --check` passed. Full suites run on GitHub CI.

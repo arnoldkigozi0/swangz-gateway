@@ -470,11 +470,16 @@ async function forcedColorChecks(browser, info, app) {
           const n = document.createElement('span'); n.style.color = value; document.body.append(n);
           const c = getComputedStyle(n).color; n.remove(); return c;
         };
+        const eye = document.querySelector('.xg-form-a .xg-eye');
+        const eyeBox = eye.getBoundingClientRect();
+        const fieldBox = eye.closest('.xfield').getBoundingClientRect();
         return { scene: style('body').getPropertyValue('--scene-image').trim(),
           background: style('.xgate-card').backgroundColor, canvas: system('Canvas'),
           heading: style('.xg-form-a .xg-title').color, ink: system('CanvasText'),
           button: style('.xg-form-a .xg-primary').color, buttonInk: system('ButtonText'),
-          blur: style('.xgate-card').backdropFilter };
+          blur: style('.xgate-card').backdropFilter,
+          eyeContained: eyeBox.left >= fieldBox.left && eyeBox.right <= fieldBox.right + 1,
+          eyeTarget: eyeBox.width >= 44 && eyeBox.height >= 44 };
       });
       const label = `${app.name} forced colours ${scheme}`;
       eq(label + ': photo removed', state.scene, 'none');
@@ -482,6 +487,8 @@ async function forcedColorChecks(browser, info, app) {
       eq(label + ': heading uses system ink', state.heading, state.ink);
       eq(label + ': button uses system ink', state.button, state.buttonInk);
       eq(label + ': no blur', state.blur, 'none');
+      ok(label + ': eye border stays within field', state.eyeContained);
+      ok(label + ': eye retains 44px touch target', state.eyeTarget);
       await page.locator('.xg-form-a input').first().focus();
       await page.keyboard.press('Tab');
       ok(label + ': form remains keyboard reachable', await page.evaluate(() => !!document.activeElement.closest('.xgate')));
