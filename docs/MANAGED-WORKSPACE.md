@@ -71,8 +71,11 @@ inside the browser's data folder.
 
 **W4. Revocation.** The heartbeat answer carries the workspace state. On `suspended` or a revoked device key the
 client closes the browser process it started and refuses to start it again. On `retired`, or a higher `generation`
-for a company seat, it purges that profile with the existing `_purge`. A person's own-account profile is never
-purged without that person's action. The Devices page shows state and last policy result. Provider-side sessions
+for a company seat, it purges that profile with the existing `_purge`. Because 9.1 gives each person one
+workspace folder per device, a purge removes everything in it, own-account sign-ins included (the app cannot remove
+one provider's data without reading inside the folder, which W3 forbids). The app and the Devices page say so before
+an admin retires a device; the person's provider accounts, chats and projects stay with the provider (W7). Purge
+happens only on an authenticated answer that says `retired` or a higher `generation`; see 9.1. The Devices page shows state and last policy result. Provider-side sessions
 are not ended by any of this; see R-4.
 
 **W5. Policy check beyond the browser's own pages.** The client reads the effective machine policy from where the
@@ -137,16 +140,24 @@ own items on 15 Nov and wraps up, including the hosted server.
 Today `swangz_client/shell.py` `open_url` calls `webbrowser.open`, which hands the address to whatever browser the
 person has set as default. That stops for provider tools.
 
-- "Open" on any tool (staff app, tray, deep link, a link in a Hub page) starts the workspace browser of W3: a
-  Chromium-family browser found on the machine (Chrome, Chromium, Edge, Brave in that order), launched by the app
-  with the person's single workspace data folder. A second "Open" reuses the running workspace (new tab), it does
-  not start another profile.
-- If no Chromium-family browser is installed, the app says so in plain words with one button to the install
-  page. It does **not** fall back to the default browser.
+- "Open" on any tool (staff app, tray, deep link, a link in a Hub page) starts the workspace browser of W3:
+  Google Chrome, or else Chromium installed from the distribution's package (.deb), launched by the app with the
+  person's single workspace data folder. Edge, Brave and snap Chromium are never used: they do not read the
+  managed policy this stream prepares (`deploy/chrome-policy/`), so a workspace in them would be unmanaged. A
+  second "Open" reuses the running workspace (new tab), it does not start another profile.
+- The workspace never opens `/go/<tool>`: the workspace folder has no Hub session, so `/go/` would only reach the
+  Hub sign-in. Instead the client asks the Hub for the provider address with a device-key call (new in W3; same
+  access check and launch record as `/go/`), checks the answer against the tool's allowed hosts, and starts the
+  browser on that address. Deep links and links in Hub pages carry a tool id only, never an address or a key. No
+  key or token ever goes on the browser's command line (other processes can read it).
+- If neither browser is installed, the app says so in plain words with one button to the install page. It does
+  **not** fall back to the default browser.
 - Links clicked inside the workspace stay inside it. A provider's own sign-in hop (Google, Microsoft, Apple) is
   allowed as part of official sign-in and stays in the same window.
-- `open_url` may still use the default browser for exactly two things: the Hub's own help page and the browser
-  install page. A test lists every caller of `open_url` and fails on a new one.
+- `open_url` may still use the default browser for exactly three things: the Hub's device approval page
+  (`/device`, opened during enrolment at `swangz_client/core.py:599` and again from the app window, where the
+  person is signed in to the Hub; enrolment breaks without it), the Hub's own help page and the browser install
+  page. A test lists every caller of `open_url` and fails on a new one.
 - Why not a web view inside the app window: Google and other providers refuse sign-in inside embedded web
   views, and it would mean shipping a browser engine. The workspace is a real browser window that the app owns,
   starts and closes. Documents say "the Swangz workspace window", not "inside the app window".
@@ -168,7 +179,13 @@ a `--undecided-domains-ok` switch for CI and the laptop demo only.
 Windows and macOS: the same steps as automated tests on CI runners; anything that cannot run is listed as
 not proven, for Arnold to try on a real machine on 15 Nov.
 
-**9.4 Order and branches.** W2, then W3 with 9.1, then W4, W5, W6, W7. Each is its own PR **into the branch
+**Device state does not exist yet.** Today a device can only have its keys revoked, sign out or expire idle;
+there is no suspend, reactivate or retire for a device, so steps 3 and 4 need it built. W2 therefore starts with
+its own migration PR (device workspace state and generation, append-only) before the contract-2 PR. On the client,
+only an authenticated manifest or heartbeat answer that says `retired` or a higher `generation` may purge. A bare
+401 or 403, a network failure or a server error closes the workspace and refuses Open, but never purges.
+
+**9.4 Order and branches.** W2 (migration PR, then contract 2), then W3 with 9.1, then W4, W5, W6, W7. Each is its own PR **into the branch
 `feature/managed-workspace`**, not into main, and may be merged into that branch on green so the pieces can be
 tested together. One final PR from `feature/managed-workspace` into main stays open for Arnold's written approval
 (hard limit 4 still holds for main). Probe tests on the integration branch.
