@@ -1,5 +1,5 @@
 {
-  "about": "D-016 bypass cases as data (docs/CHROME-POLICY-BYPASS-TESTS.md). Groups A, B and D, and from C the redirects (C-1, C-7), script and meta moves (C-2) and form posts (C-5). A hop case starts on an approved host and counts only requests that arrive at the place it is sent to. C-2 and C-5 are RECORD on their first run: how Chrome reports a refused script-driven move has not been observed yet. Every host is served by the local fixture; nothing leaves the machine. expect: ALLOW must reach the fixture with the pack installed; ENFORCE must be refused by policy with zero fixture requests; RECORD is a prediction nobody has checked, so the result is reported and never fails the job.",
+  "about": "D-016 bypass cases as data (docs/CHROME-POLICY-BYPASS-TESTS.md). Groups A, B, D and all of C: redirects (C-1, C-7), script and meta moves (C-2), pop-ups and new tabs (C-3; the driver clicks #go so the pop-up blocker sees a gesture, and C-3h is a pop-up that opens an approved page which then redirects off-list), frames (C-4), form posts (C-5) and subresources (C-6: script, img, fetch, XHR, WebSocket). A hop case starts on an approved host and counts only requests that arrive at the place it is sent to. C-2, C-3, C-4, C-5 and C-6 are RECORD on their first run: how Chrome reports a refused script-driven move has not been observed yet. Every host is served by the local fixture; nothing leaves the machine. expect: ALLOW must reach the fixture with the pack installed; ENFORCE must be refused by policy with zero fixture requests; RECORD is a prediction nobody has checked, so the result is reported and never fails the job.",
   "hub_host": "hub.swangz.test",
   "cases": [
     { "id": "A-1", "expect": "ALLOW", "urls": ["https://hub.swangz.test/", "https://claude.ai/", "https://chatgpt.com/", "https://gemini.google.com/", "https://github.com/copilot"] },
@@ -12,7 +12,13 @@
     { "id": "B-4", "expect": "ENFORCE", "urls": ["https://github.com/", "https://github.com/someuser/repo"] },
     { "id": "C-1", "expect": "ENFORCE", "kind": "hop", "urls": ["https://claude.ai/hop?how=302&to=https%3A%2F%2Fevil.test%2F", "https://claude.ai/hop?how=307&to=https%3A%2F%2Fevil.test%2F", "https://claude.ai/hop?how=308&to=https%3A%2F%2Fevil.test%2F", "https://claude.ai/hop?how=302&n=3&to=https%3A%2F%2Fevil.test%2F"] },
     { "id": "C-2", "expect": "RECORD", "kind": "hop", "urls": ["https://claude.ai/hop?how=meta&to=https%3A%2F%2Fevil.test%2F", "https://claude.ai/hop?how=href&to=https%3A%2F%2Fevil.test%2F", "https://claude.ai/hop?how=replace&to=https%3A%2F%2Fevil.test%2F"] },
+    { "id": "C-3", "expect": "RECORD", "kind": "hop", "click": "left", "urls": ["https://claude.ai/hop?how=open&to=https%3A%2F%2Fevil.test%2F", "https://claude.ai/hop?how=blank&to=https%3A%2F%2Fevil.test%2F"] },
+    { "id": "C-3m", "expect": "RECORD", "kind": "hop", "click": "middle", "urls": ["https://claude.ai/hop?how=link&to=https%3A%2F%2Fevil.test%2F"] },
+    { "id": "C-3c", "expect": "RECORD", "kind": "hop", "click": "ctrl", "urls": ["https://claude.ai/hop?how=link&to=https%3A%2F%2Fevil.test%2F"] },
+    { "id": "C-3h", "expect": "RECORD", "kind": "hop", "click": "left", "target": "evil.test", "urls": ["https://claude.ai/hop?how=open&to=https%3A%2F%2Fchatgpt.com%2Fhop%3Fhow%3D302%26to%3Dhttps%253A%252F%252Fevil.test%252F"] },
+    { "id": "C-4", "expect": "RECORD", "kind": "hop", "urls": ["https://claude.ai/hop?how=iframe&to=https%3A%2F%2Fevil.test%2F"] },
     { "id": "C-5", "expect": "RECORD", "kind": "hop", "urls": ["https://claude.ai/hop?how=form&to=https%3A%2F%2Fevil.test%2F"] },
+    { "id": "C-6", "expect": "RECORD", "kind": "hop", "urls": ["https://claude.ai/hop?how=script&to=https%3A%2F%2Fevil.test%2F", "https://claude.ai/hop?how=img&to=https%3A%2F%2Fevil.test%2F", "https://claude.ai/hop?how=fetch&to=https%3A%2F%2Fevil.test%2F", "https://claude.ai/hop?how=xhr&to=https%3A%2F%2Fevil.test%2F", "https://claude.ai/hop?how=ws&to=https%3A%2F%2Fevil.test%2F"] },
     { "id": "C-7", "expect": "ENFORCE", "kind": "hop", "urls": ["https://claude.ai/redirect?to=https%3A%2F%2Fevil.test%2F"] },
     { "id": "D-1", "expect": "ENFORCE", "urls": ["https://claude.ai.evil.test/", "https://evil.test/claude.ai", "https://evil.test/?u=claude.ai", "https://claude-ai.test/", "https://claudeai.test/", "https://ciaude.ai/"] },
     { "id": "D-2", "expect": "ENFORCE", "unicode_host": "clаude.ai", "urls": [] },
@@ -23,7 +29,6 @@
   "not_run": [
     { "id": "B-5", "reason": "omnibox typing is not driven yet" },
     { "id": "B-6", "reason": "launch-flag cases need their own browser start; step 2" },
-    { "id": "C-3, C-4, C-6", "reason": "pop-ups, frames and subresources need their own page handling; next piece of step 2" },
     { "id": "E, F, X, P", "reason": "step 2 of the plan" },
     { "id": "G, H", "reason": "step 3, after the pack fixes and Arnold's two decisions" },
     { "id": "I", "reason": "tier 2 (extension), not built" },
