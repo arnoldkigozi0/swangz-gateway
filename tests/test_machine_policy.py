@@ -407,8 +407,9 @@ class HeartbeatTests(unittest.TestCase):
 
     def test_off_by_default(self):
         body = self.client._heartbeat_body()
-        self.assertNotIn("policy", body)
-        self.assertNotIn("browser_contract", body)
+        self.assertNotIn("policy", body)  # no report until the managed workspace turns the check on
+        # W4 (#191) always asks for the contract-2 answer; without it the field is absent. Either way, never another value.
+        self.assertIn(body.get("browser_contract", 2), (2,))
 
     def test_on_it_reports_ok_and_hash_with_contract_2(self):
         self.client.policy_check = lambda: {"ok": True, "sha256": "a" * 64}
