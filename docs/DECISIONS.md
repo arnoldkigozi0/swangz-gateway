@@ -690,3 +690,31 @@ bounds it. Wall-clock age alone: the clock can be moved; the failure count cover
 **Consequences.** A suspension reaches an offline device's window at the latest about 30 min after the link drops, or
 at the next authenticated answer. Implemented in PR #191 (`swangz_client/workspace_state.py` `failure()`), test 7 of
 the W4 note.
+
+## D-022 | 2026-11-13 | Shared company accounts stay out of the Swangz app for the 20 Nov release
+
+**Context.** Chief's queue item "shared tools through turns" asked whether the Swangz app should hand out turns on
+shared company accounts (`signin = 'shared'`, `gateway/turns.py`) and open the Neko company browser in the managed
+workspace window. Today the app refuses them (D-020) and `/api/device/open` answers 409 `shared_account`; turns work
+through the staff web app's `/go/` and the extension. Full analysis: `docs/SHARED-TURNS-THREAT-NOTE.md`.
+
+**Decision.** Keep refusing in the app and on `/api/device/open`; turns stay in the staff web app, unchanged. Fix the
+manifest so every shared tool has `workspace: false` (`gateway/enroll.py`: today a shared tool with no company
+browser is marked `true` and only the server refusal stops it). `/device/open` keeps running `launch_checks` and
+`managed.launch_refusal` before the `shared_account` refusal and never touches `tool_turns` or `gw.workspaces`. The
+staff web app's `/go/` for a shared tool gets no device or enforce-mode gate: the shared session lives in a remote
+company browser, not on the device.
+
+**Alternatives rejected.** (b) `/device/open` takes a turn and returns the Neko address for the workspace window:
+breaks MANAGED-WORKSPACE §2.2 (no shared provider identity) and §2.6 (no remote browsers for this path), which only
+Arnold can change; needs the Neko origin in the workspace allowlist (on Swangz's own computers a random
+`*.trycloudflare.com` quick tunnel, so a wildcard or a server-supplied per-turn host); and puts the reusable per-turn
+Neko `usr`/`pwd` on the browser command line (W3 A1). Pointing the app at `/go/` in the default browser: rejected in
+D-020.
+
+**Consequences.** No migration, no new route. If (b) is reopened after Arnold's yes on §2.2/§2.6: a fixed Neko host
+in machine policy (never a wildcard tunnel), a single-use launch code (≥128 bits, ≤60 s, bound to turn + device)
+instead of `usr`/`pwd` in the URL, a nullable `device_id` on `tool_turns` in a new migration, and closing on the
+existing heartbeat with the agent's release as the real boundary. Existing risk R-10: `/go/` already sends `usr`/`pwd`
+in a 302 `Location` into the person's browser history; the single-use code is its fix, after 20 Nov. Tests T1–T6 in
+the threat note.
