@@ -8,17 +8,18 @@ Two kinds of test, both standard library only:
   ubuntu, windows and macos runners of `.github/workflows/browser-profiles.yml`, they are what proves behaviour on
   that OS. A skip on every runner is listed in the PR as "not proven".
 
-The launcher of W3 (browser discovery, launch arguments) is covered once it lands on `feature/managed-workspace`;
-until then those tests skip with a reason instead of passing quietly.
+The launcher of W3 (#186, `swangz_client/workspace_launcher.py`): browser discovery and the launch arguments are
+table tests for every OS; no test starts a browser, so a real launch on each OS stays NOT PROVEN here.
 """
 
-import importlib
+import ntpath
 import os
 import stat
 import sys
 import tempfile
 import unittest
 from pathlib import Path, PurePosixPath, PureWindowsPath
+from unittest import mock
 from unittest.mock import patch
 
 from swangz_client import browser_profiles as bp
@@ -137,18 +138,87 @@ class NativeDataFolderTests(unittest.TestCase):
 
 
 LAUNCHER = None
-for _name in ("swangz_client.workspace", "swangz_client.launcher"):
-    try:
-        LAUNCHER = importlib.import_module(_name)
-        break
-    except ImportError:
-        pass
+from swangz_client import workspace_launcher as LAUNCHER  # W3, merged from #186
+
+URL = "https://claude.ai/new"
+# where the workspace folder lands on each OS (the data_dir arithmetic above), including a space in the name
+FOLDERS = {"linux": "/home/grace/.local/share/swangz/profiles/p1",
+           "darwin": "/Users/grace/Library/Application Support/Swangz/profiles/p1",
+           "win32": "C:\\Users\\Grace Nakato\\AppData\\Local\\Swangz\\profiles\\p1"}
+WIN_ENV = {"ProgramFiles": "C:\\Program Files", "ProgramFiles(x86)": "C:\\Program Files (x86)",
+           "LocalAppData": "C:\\Users\\Grace Nakato\\AppData\\Local", "PATH": "C:\\evil"}
 
 
-@unittest.skipIf(LAUNCHER is None, "W3 launcher not on this branch yet: launch arguments are NOT PROVEN by this run")
-class LaunchArgumentTests(unittest.TestCase):  # filled in against W3's contract when it lands
-    def test_placeholder(self):  # pragma: no cover
-        self.fail("W3 has landed: replace this placeholder with the launch-argument matrix")
+def windows_candidates(env):
+    """Windows path rules on every runner: the same arithmetic Windows itself would do."""
+    with mock.patch.object(LAUNCHER.os, "path", ntpath):
+        return LAUNCHER.candidates("win32", env)
+
+
+class LaunchArgumentTests(unittest.TestCase):
+    """Table tests of W3's browser discovery and argument list for each OS. They prove the arithmetic everywhere;
+    that Chrome really starts on each OS is NOT proven here (no browser is launched)."""
+
+    def test_browser_comes_from_fixed_locations_only_never_path(self):
+        self.assertEqual(LAUNCHER.candidates("linux"), list(LAUNCHER.LINUX_BROWSERS))
+        self.assertEqual(LAUNCHER.candidates("darwin"), list(LAUNCHER.MAC_BROWSERS))
+        win = windows_candidates(WIN_ENV)
+        self.assertEqual(win[0], "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe")
+        self.assertEqual(win[2], "C:\\Users\\Grace Nakato\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe")
+        self.assertEqual(len(win), 3)
+        self.assertFalse(any("evil" in c for c in win))
+        self.assertEqual(LAUNCHER.candidates("freebsd"), [])
+        for plat in ("linux", "darwin"):
+            for c in LAUNCHER.candidates(plat):
+                self.assertTrue(PurePosixPath(c).is_absolute(), c)
+
+    def test_windows_ignores_relative_or_missing_roots(self):
+        self.assertEqual(windows_candidates({"ProgramFiles": "Program Files", "PATH": "C:\\x"}), [])
+        self.assertEqual(windows_candidates({}), [])
+
+    def test_find_browser_takes_the_first_present_and_refuses_when_none(self):
+        present = {LAUNCHER.MAC_BROWSERS[0]}
+        self.assertEqual(LAUNCHER.find_browser("darwin", exists=present.__contains__), LAUNCHER.MAC_BROWSERS[0])
+        with self.assertRaises(LAUNCHER.LaunchError) as e:
+            LAUNCHER.find_browser("darwin", exists=lambda p: False)
+        self.assertEqual(e.exception.code, "no_browser")
+
+    def test_linux_skips_a_present_but_unusable_binary(self):
+        first, second = LAUNCHER.LINUX_BROWSERS[0], LAUNCHER.LINUX_BROWSERS[1]
+        got = LAUNCHER.find_browser("linux", exists=lambda p: True, usable_linux=lambda p: p != first)
+        self.assertEqual(got, second)
+        with self.assertRaises(LAUNCHER.LaunchError):
+            LAUNCHER.find_browser("linux", exists=lambda p: True, usable_linux=lambda p: False)
+
+    def test_argument_list_per_os_folder_is_one_item_and_the_address_is_last(self):
+        binaries = {"linux": LAUNCHER.LINUX_BROWSERS[0], "darwin": LAUNCHER.MAC_BROWSERS[0],
+                    "win32": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"}
+        for plat, folder in FOLDERS.items():
+            with self.subTest(plat):
+                argv = LAUNCHER.build_argv(binaries[plat], folder, URL)
+                self.assertEqual(argv[0], binaries[plat])
+                self.assertEqual(argv[1], "--user-data-dir=" + folder)   # spaces stay inside one item: no shell
+                self.assertEqual(argv[-1], URL)
+                self.assertEqual(tuple(argv[2:-1]), LAUNCHER.FIXED_SWITCHES)
+                for item in argv[1:-1]:
+                    self.assertFalse(any(item.startswith(f) for f in LAUNCHER.FORBIDDEN_SWITCHES), item)
+
+    def test_an_address_that_looks_like_a_switch_is_refused(self):
+        with self.assertRaises(LAUNCHER.LaunchError) as e:
+            LAUNCHER.build_argv(LAUNCHER.MAC_BROWSERS[0], FOLDERS["darwin"], "--remote-debugging-port=9222")
+        self.assertEqual(e.exception.code, "unsafe_address")
+
+    def test_no_fixed_switch_is_a_forbidden_one(self):
+        for s in LAUNCHER.FIXED_SWITCHES:
+            self.assertFalse(any(s == f or s.startswith(f + "=") for f in LAUNCHER.FORBIDDEN_SWITCHES), s)
+        for f in ("--remote-debugging-port", "--load-extension", "--proxy-server", "--user-agent", "--incognito"):
+            self.assertIn(f, LAUNCHER.FORBIDDEN_SWITCHES)
+
+    def test_child_environment_drops_keys_and_proxies_on_every_os(self):
+        env = {"PATH": "/usr/bin", "HOME": "/home/grace", "SWANGZ_KEY": "s", "ANTHROPIC_BASE_URL": "x",
+               "openai_api_key": "k", "Http_Proxy": "p", "MY_AUTH_TOKEN": "t", "LANG": "en_UG.UTF-8"}
+        out = LAUNCHER.child_env(env)
+        self.assertEqual(out, {"PATH": "/usr/bin", "HOME": "/home/grace", "LANG": "en_UG.UTF-8"})
 
 
 if __name__ == "__main__":
