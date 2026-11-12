@@ -36,6 +36,8 @@
     const edit = A.can("govern");
     const mode = A.viewMode("models", "#/models", params);
     const perDefault = mode.simple ? 10 : 25;
+    /* Simple on a phone (BRIEF 10.10.7: one screen per block): the five most used, then "See all N". */
+    let short = mode.simple && !params.get("per") && !params.get("page") && matchMedia("(max-width: 640px)").matches;
     const st = { q: params.get("q") || "", status: params.get("status") || "", page: Number(params.get("page")) || 1, per: Number(params.get("per")) || perDefault };
     const counts = {};
     data.items.forEach((m) => { counts[m.status] = (counts[m.status] || 0) + 1; });
@@ -53,7 +55,10 @@
       const rows = data.items.filter((m) => (!st.status || m.status === st.status) && (!qq || [m.id, m.provider, m.label, m.governed_by].join(" ").toLowerCase().includes(qq)));
       // Simple (BRIEF 10.10.7): five columns — the model, its status, requests, cost and the row menu
       const SIMPLE = ["id", "status", "requests", "cost", "act"];
-      box.replaceChildren(rows.length ? SUI.table({ caption: "Models", rows, sort: ["requests", "desc"], pager, columns: [
+      const cut = short && rows.length > 5;
+      const shown = cut ? rows.slice().sort((a, b) => (b.requests || 0) - (a.requests || 0)).slice(0, 5) : rows;
+      const more = cut ? el("button", { class: "btn see-all", type: "button", onclick: () => { short = false; draw(); } }, "See all " + rows.length) : null;
+      box.replaceChildren(rows.length ? SUI.table({ caption: "Models", rows: shown, sort: ["requests", "desc"], pager: cut ? undefined : pager, columns: [
         { key: "id", label: "Model", lead: true, render: (m) => el("div", { class: "model-cell" }, el("span", { class: "mono strong nowrap" }, m.id),
           el("span", { class: "sub" }, [m.provider, m.label || (m.governed_by ? "by the rule for " + m.governed_by : "")].filter(Boolean).join(" · "))) },
         { key: "status", label: "Status", render: (m) => el("div", null, SUI.status(...(STATUS[m.status] || STATUS.unlisted), { plain: true }),
@@ -70,7 +75,7 @@
           edit && m.registered ? { id: "remove", label: "Remove the rule", icon: "x", danger: true, onSelect: () => removeModel(m) } : null,
         ].filter(Boolean) }) },
       ].filter((c) => !mode.simple || SIMPLE.includes(c.key)) }) : SUI.stateBox({ icon: "chip", title: data.items.length ? "No models match" : "No models here",
-        text: data.items.length ? "Try another search or status." : "Models appear once they are used through the gateway, priced, or registered." }));
+        text: data.items.length ? "Try another search or status." : "Models appear once they are used through the gateway, priced, or registered." }), ...(more ? [el("div", { class: "see-all-row" }, more)] : []));
     }
     const keep = () => A.keepParams("#/models", { q: st.q, status: st.status, page: st.page > 1 ? st.page : null, per: st.per !== perDefault ? st.per : null });
     const bar = SUI.filterBar({ label: "Filter models", search: { placeholder: "Model, provider or name" }, values: st, filters: [
