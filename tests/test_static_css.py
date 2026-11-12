@@ -45,6 +45,14 @@ class StaffTopBarTests(unittest.TestCase):
         self.assertIn("border: 1px solid var(--staff-rim)", bell)
         self.assertIn("background: var(--staff-pill-bg)", bell)
 
+    def test_bell_turns_opaque_with_its_neighbours(self):
+        # BRIEF 10.9: with reduced transparency the bell goes solid like the clock and search beside it.
+        block = self.css.split("@media (prefers-reduced-transparency: reduce) {", 1)[1].split("\n}", 1)[0]
+        lists = [line for line in block.splitlines() if ".staff-clock" in line]
+        self.assertEqual(len(lists), 2)
+        for line in lists:
+            self.assertIn(".staff-bell", line)
+
     def test_phone_search_keeps_its_label(self):
         phone = self.css.split("@media (max-width: 900px)")[1]
         self.assertNotRegex(phone, r"\.staff-search :is\(span,kbd\) \{ display: none")

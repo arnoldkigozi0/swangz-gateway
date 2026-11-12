@@ -143,8 +143,8 @@ html[data-theme="light"] .staff-exact {
 @media (prefers-reduced-transparency: reduce) {
   .staff-exact { background-image: none; background-color: #241F1C; }
   html[data-theme="light"] .staff-exact { background-color: #FAF4EC; }
-  .staff-exact :is(.staff-rail,.staff-workspace,.staff-search,.staff-clock,.staff-pop) { backdrop-filter: none; -webkit-backdrop-filter: none; background: #241F1C; }
-  html[data-theme="light"] .staff-exact :is(.staff-rail,.staff-workspace,.staff-search,.staff-clock,.staff-pop) { background: #FAF4EC; }
+  .staff-exact :is(.staff-rail,.staff-workspace,.staff-search,.staff-clock,.staff-bell,.staff-pop) { backdrop-filter: none; -webkit-backdrop-filter: none; background: #241F1C; }
+  html[data-theme="light"] .staff-exact :is(.staff-rail,.staff-workspace,.staff-search,.staff-clock,.staff-bell,.staff-pop) { background: #FAF4EC; }
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .staff-exact { --staff-rail-bg: #241F1C; --staff-pill-bg: #241F1C; }
