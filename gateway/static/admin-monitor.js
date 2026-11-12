@@ -78,9 +78,17 @@
     /* BRIEF 10.10.1, an L1: four number cards, the one chart and two counts, seven blocks in all. Uses by tool lives
        on Activity > Who used what (grouped by tool); trends, leaders and licences live on their own pages. */
     const week = tr ? tr.days.slice(-8) : [];
+    /* BRIEF 10.9(2): fewer than 3 days with any use is not a trend yet. The chart gives way to its empty state, which
+       says since when the gateway has been collecting and what it has so far; nothing is padded or invented. */
+    const usedDays = week.filter((d) => d.requests + d.opens + d.visits > 0);
+    const collecting = usedDays.length < 3;
+    const soFar = usedDays.reduce((n, d) => n + d.requests + d.opens + d.visits, 0);
     const usage = A.panel("AI usage", el("a", { class: "btn small quiet", href: "#/activity?tab=usage&range=30d" }, "Who used what", icon("chevronRight")),
       tr ? el("div", { class: "body" }, SUI.columns({ label: "Uses per day over the last 8 days", showZero: true, yName: "Uses", height: window.matchMedia("(min-width: 1001px)").matches ? 350 : 250, caption: "Requests, tool opens and website visits · times in " + SUI.tzLabel(true),
-        data: week.map((d) => ({ label: fmt.weekday(d.start), short: fmt.dayMonth(d.start), value: d.requests + d.opens + d.visits,
+        emptyTitle: tr.first_use ? "Collecting since " + fmt.dayMonth(tr.first_use) : "No uses recorded yet",
+        emptyText: usedDays.length ? `The chart starts once 3 days have uses. So far ${fmt.num(soFar)} ${soFar === 1 ? "use" : "uses"} on ${usedDays.length} ${usedDays.length === 1 ? "day" : "days"}.`
+          : "Requests, tool opens and website visits will appear here, one column per day, once 3 days have uses.",
+        data: collecting ? [] : week.map((d) => ({ label: fmt.weekday(d.start), short: fmt.dayMonth(d.start), value: d.requests + d.opens + d.visits,
           note: `${fmt.num(d.requests)} requests · ${fmt.num(d.opens)} opens · ${fmt.num(d.visits)} visits` })) }))
         : SUI.errorBox(trends.reason, () => A.render()));
 
