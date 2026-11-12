@@ -187,11 +187,18 @@ const BASE_ARGS = ['--host-resolver-rules=MAP * 127.0.0.1', '--ignore-certificat
    counts what Chrome opened by itself. Playwright refuses a bare address among the switches, so a "spawn" case starts
    google-chrome itself, without a driver, and can only count requests (zero is the pass, as for STOP). */
 const pause = ms => new Promise(r => setTimeout(r, ms));
+/* A Chrome that has already gone (refused a switch, crashed, never started) sends nothing, which would read as a pass
+   for STOP. So the exit is watched: if Chrome ended before the harness stopped it, the row says so and fails. */
 async function spawned(dir, args, ms) {
   const proc = spawn('google-chrome', ['--user-data-dir=' + dir, ...BASE_ARGS, ...args], { stdio: 'ignore' });
+  let gone = '';
+  proc.on('exit', (code, signal) => { gone = gone || 'Chrome exited early (' + (signal || 'code ' + code) + ')'; });
+  proc.on('error', e => { gone = gone || 'Chrome did not start (' + e.code + ')'; });
   await pause(ms);
-  proc.kill('SIGTERM');
+  const early = gone;
+  if (!early) proc.kill('SIGTERM');
   await pause(500);
+  return { early };
 }
 async function launched(chromium, work, c, address, n) {
   const mark = markOf(c, n), start = marked(address, mark);
@@ -199,8 +206,9 @@ async function launched(chromium, work, c, address, n) {
   const row = { id: c.id, expect: c.expect, address: c.launch.join(' ').replace('{url}', address), reached: 0, error: '', final: '' };
   const arrived = () => hits.filter(h => h.url.includes('swz=' + mark));
   if (c.spawn) {
-    await spawned(path.join(work, 'launch-' + mark), args, 5000);
+    const { early } = await spawned(path.join(work, 'launch-' + mark), args, 5000);
     row.reached = arrived().length;
+    if (early) row.early = row.error = early;
     return row;
   }
   let context;
@@ -225,6 +233,7 @@ async function launched(chromium, work, c, address, n) {
   return row;
 }
 function verdict(mode, r) {
+  if (r.early) return 'FAIL: ' + r.early + ', so nothing was tested';
   if (r.expect === 'RECORD' && r.error.startsWith('launch:')) return 'recorded: ' + r.error;
   const signedIn = !r.signin || (r.signin.back_on_hub && r.signin.via_google && r.signin.cookie);
   if (mode === 'control') return r.reached > 0 && signedIn ? 'reached' : 'FAIL: did not reach the fixture without policy, so this case proves nothing';
