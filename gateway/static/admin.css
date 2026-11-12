@@ -1357,7 +1357,7 @@ html:not([data-theme="light"]) .shell:not(.route-overview) .page .panel:not(.pan
   .top h1 { font: 600 24px/1.25 var(--font); letter-spacing: 0; }
   .top > .lede { margin-top: 3px; font-size: 11px; line-height: 18px; }
   .top > .top-actions { align-self: start; margin-top: 6px; }
-  .top > .top-actions .btn { min-height: 34px; height: 34px; border-radius: var(--radius-control); }
+  .top > .top-actions .btn { min-height: 36px; height: 36px; border-radius: var(--radius-control); } /* BRIEF 10.10.6 */
   .page { padding-left: 44px; padding-right: 97px; }
   .build-foot { margin-left: 44px; margin-right: 97px; }
   .shell #main::before { inset: 0 81px 16px 28px; }
@@ -1516,4 +1516,9 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
   .console-tabbar .stb-bar a { height: 44px; }
   .list-meta a { display: inline-flex; align-items: center; min-height: 44px; }
   .top-actions .btn { min-height: 44px; }
+}
+/* Audit log Simple (BRIEF 10.10.7): the sentence and the next step sit above the list, so a long page of entries scrolls
+   inside its panel with that much less room, and the page itself still does not scroll at 1440x852 (BRIEF 10.10.2). */
+@media screen and (min-width: 761px) {
+  .route-audit main:has(> .top > .ov-sentence) .u-table-wrap { max-height: max(280px, calc(100dvh - 500px)); }
 }

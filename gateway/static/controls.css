@@ -100,7 +100,7 @@
 
 /* Touch: the box keeps its size and the part you can press grows to 44px. */
 @media (hover: none) {
-  .btn:not(.link)::before { content: ""; position: absolute; top: 50%; left: 0; right: 0; height: 44px; transform: translateY(-50%); }
+  .btn:not(.link):not(.loading):not([data-loading="true"]):not([aria-busy="true"])::before { content: ""; position: absolute; top: 50%; left: 0; right: 0; height: 44px; transform: translateY(-50%); }
 }
 
 /* Reduced motion: the same states, arriving at once. */

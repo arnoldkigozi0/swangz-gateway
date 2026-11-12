@@ -793,16 +793,32 @@
   const AUDIT_AREAS = [["govern", "Govern"], ["money", "Money"], ["trust", "Trust"], ["emergency", "Emergency"], ["admin", "Administration"]];
   const AUDIT_OUTCOMES = [["ok", "Done"], ["denied", "Refused"], ["no-op", "Changed nothing"]];
 
+  /* The Audit log's sentence and next step (BRIEF 10.10.7). n: { entries, more, refused, period, outcome }. Refused changes come
+     first because they are what someone should look at; "more" means only the first 100 have loaded, so counts say so.
+     When the Refused filter is already on, the next step moves on to what staff did. Pure, so it can be tested. */
+  const AUDIT_PERIODS = { "": "the last 30 days", today: "today", "7d": "the last 7 days", month: "this month", custom: "these dates" };
+  function auditLead(n) {
+    const span = AUDIT_PERIODS[n.period] || "this period", when = /^(today|this )/.test(span) ? span : "in " + span;
+    const onward = { label: "See what staff did", href: "#/activity" };
+    const count = (k, one, many) => (n.more ? "At least " + k.toLocaleString() + " " + many : k.toLocaleString() + " " + (k === 1 ? one : many));
+    if (!n.entries) return { sentence: `Nothing was changed ${when}.`, action: onward };
+    if (n.refused && n.outcome !== "denied") return { sentence: `${count(n.refused, "change was", "changes were")} refused ${when}.`,
+      action: { label: n.refused === 1 ? "See the refused change" : "See the refused changes", href: "#/audit?outcome=denied" } };
+    return { sentence: `${count(n.entries, "change was", "changes were")} recorded ${when}.`, action: onward };
+  }
+
   /* L2: one filter row (search, period, who, outcome, area), one table. The server filters and hands back 100 at a time;
      the pager steps through what has loaded and "Load older" fetches the next 100. */
   async function pageAudit(params) {
+    const mode = A.viewMode("audit", "#/audit", params);
+    const perDefault = mode.simple ? 10 : 25;
     const range = A.rangeFrom(params, "30d");
     const st = { range: range.preset === "30d" ? "" : range.preset, actor: params.get("actor") || "", q: params.get("q") || "", outcome: params.get("outcome") || "",
-      area: params.get("area") || "", correlation: params.get("correlation") || "", page: Number(params.get("page")) || 1, per: Number(params.get("per")) || 25 };
+      area: params.get("area") || "", correlation: params.get("correlation") || "", page: Number(params.get("page")) || 1, per: Number(params.get("per")) || perDefault };
     let from = params.get("from") || "", to = params.get("to") || "";
     const box = el("div"), summary = el("div", { class: "list-meta", role: "status" });
     const more = el("button", { class: "btn", type: "button", hidden: true }, "Load older");
-    const pager = { page: st.page, size: st.per, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
+    const pager = { page: st.page, size: st.per, sizes: mode.simple ? [10, 25, 50] : undefined, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
     let minId = null, rows = [], actors = [], asked = 0, hasMore = false;
     const cols = [
       { key: "ts", label: "When", lead: true, render: (a) => el("time", { title: fmt.stamp(a.ts), class: "u-num nowrap" }, fmt.clock(a.ts, true), el("span", { class: "sub" }, fmt.day(a.ts))) },
@@ -824,10 +840,18 @@
           el("div", { class: "json-diff" }, el("pre", { class: "was" }, a.before ? show(a.before) : "—"), el("pre", { class: "now" }, a.after ? show(a.after) : "—"))) : null,
         !a.detail && !a.reason && !changed ? "—" : null);
     }
+    // Simple (BRIEF 10.10.7): five columns — when, who, what, on what, and the detail; where it came from is in Detailed
+    const columns = mode.simple ? cols.filter((c) => c.key !== "ip") : cols;
+    const sentence = el("span"), next = el("span");
     function draw() {
+      if (mode.simple) {
+        const lead = auditLead({ entries: rows.length, more: hasMore, refused: rows.filter((a) => a.outcome === "denied").length, period: st.range, outcome: st.outcome });
+        sentence.textContent = lead.sentence;
+        next.replaceChildren(A.leadButton(lead.action));
+      }
       summary.replaceChildren(el("span", null, SUI.plural(rows.length, "entry", "entries") + (hasMore ? " so far" : "")),
         el("span", null, "can't be edited or cleared from the console"), el("span", null, "times in " + SUI.tzLabel(true)));
-      box.replaceChildren(rows.length ? SUI.table({ caption: "Audit log", columns: cols, rows, sort: ["ts", "desc"], pager })
+      box.replaceChildren(rows.length ? SUI.table({ caption: "Audit log", columns, rows, sort: ["ts", "desc"], pager })
         : SUI.stateBox({ icon: "audit", title: "No audit entries", text: "Nothing matches. Try another period or filter." }));
       more.hidden = !hasMore;
     }
@@ -850,7 +874,7 @@
       draw();
     }
     const keep = () => A.keepParams("#/audit", { range: st.range, from: st.range === "custom" ? from : null, to: st.range === "custom" ? to : null,
-      actor: st.actor, q: st.q, outcome: st.outcome, area: st.area, correlation: st.correlation, page: st.page > 1 ? st.page : null, per: st.per !== 25 ? st.per : null });
+      actor: st.actor, q: st.q, outcome: st.outcome, area: st.area, correlation: st.correlation, page: st.page > 1 ? st.page : null, per: st.per !== perDefault ? st.per : null });
     const reload = () => { minId = null; load(true).catch((e) => box.replaceChildren(SUI.errorBox(e, reload))); };
     more.addEventListener("click", () => load(false).catch((e) => toast(e.message, true)));
     await load(true);
@@ -865,7 +889,15 @@
       if (st.range !== "custom") { from = ""; to = ""; }
       st.page = pager.page = 1; keep(); reload(); } });
     draw();
-    A.frame({ title: "Audit log", trail: [SEC_ROOT, ["Audit log"]],
+    if (mode.simple) {
+      /* Simple: the sentence with the real number, one next step, then one panel (filters + the list). The page has no other
+         action, so the next step is the one primary. Both follow the filters. */
+      A.frame({ title: "Audit log", trail: [SEC_ROOT, ["Audit log"]], sentence, next, actions: [mode.switcher] }, [
+        A.panel(null, null, el("div", { class: "filterbar" }, bar), box, el("div", { class: "body center" }, more)),
+      ]);
+      return;
+    }
+    A.frame({ title: "Audit log", trail: [SEC_ROOT, ["Audit log"]], actions: [mode.switcher],
       lede: ["What console users and the system changed, or tried to — sign-ins, settings, access, keys, every full record opened, every change a role refused — with before and after, the reason given, and the outcome. What staff did is under ",
         el("a", { href: "#/activity" }, "Activity"), "."] }, [
       A.panel(null, null, el("div", { class: "filterbar" }, bar), summary, box, el("div", { class: "body center" }, more)),
@@ -878,5 +910,5 @@
   A.page(/^#\/activity$/, pageActivity);
   A.page(/^#\/security$/, pageSecurity);
   A.page(/^#\/audit$/, pageAudit);
-  Object.assign(A, { attentionItem, seg, field, fact, people, personSelect, toolSelect, filterBar });
+  Object.assign(A, { attentionItem, seg, field, fact, people, personSelect, toolSelect, filterBar, auditLead });
 })();

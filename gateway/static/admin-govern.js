@@ -1324,12 +1324,13 @@
   async function pageRequests(params) {
     await A.toolIndex().catch(() => null);
     const owner = A.can("govern");
+    const mode = A.viewMode("requests", "#/requests", params);
     const data = await api("GET", "/access-requests?state=any");
     const counts = data.counts || { open: data.open };
     // no ?state= means the open ones; ?state=any is every decision
     const st = { q: params.get("q") || "", state: params.get("state") === "any" ? "" : ["granted", "declined"].includes(params.get("state")) ? params.get("state") : "open",
       page: Number(params.get("page")) || 1, per: Number(params.get("per")) || 25 };
-    const STATES = [["open", "Open"], ["granted", "Granted"], ["declined", "Declined"]];
+    const STATES = [["open", "Open"], ["granted", "Given"], ["declined", "Declined"]];
     const box = el("div");
     const meta = el("div", { class: "list-meta" });
     const pager = { page: st.page, size: st.per, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
@@ -1341,26 +1342,27 @@
     const decision = (r) => r.state === "open"
       ? (owner ? el("span", { class: "req-act" },
         el("button", { class: "btn small quiet", type: "button", onclick: () => declineWithNote(r) }, "Decline"),
-        el("button", { class: "btn small", type: "button", onclick: () => decide(r, "grant") }, icon("check"), "Grant"))
+        el("button", { class: "btn small", type: "button", onclick: () => decide(r, "grant") }, icon("check"), "Give"))
         : SUI.status("pending", "Waiting for an owner", { plain: true }))
-      : el("div", null, SUI.status(r.state === "granted" ? "ok" : "blocked", r.state === "granted" ? "Granted" : "Declined", { plain: true }),
+      : el("div", null, SUI.status(r.state === "granted" ? "ok" : "blocked", r.state === "granted" ? "Given" : "Declined", { plain: true }),
         el("span", { class: "sub", title: r.decided ? fmt.stamp(r.decided) : null }, `by ${r.decided_by || "an owner"} ${fmt.ago(r.decided)}`));
     function table(rows) {
       return SUI.table({ caption: "Access requests", rows, pager, sort: ["created", st.state === "open" ? "asc" : "desc"], columns: [
         { key: "person", label: "Person", lead: true, render: (r) => el("div", { class: "u-cell" }, SUI.avatar(r.person),
           el("div", null, A.personLink(r.person_id, r.person, { avatar: false }), el("span", { class: "sub" }, r.department || "No department"))) },
         { key: "tool", label: "Asked for", render: (r) => A.toolLink(r.tool_id, r.tool, "xs") },
-        { key: "reason", label: "Why", sort: false, hideSm: true, render: (r) => el("div", { class: "req-why" }, r.reason || el("span", { class: "faint" }, "No reason given"),
+        // Simple keeps five columns (BRIEF 10.10.7); the reason is still shown when answering a request
+        mode.simple ? null : { key: "reason", label: "Why", sort: false, hideSm: true, render: (r) => el("div", { class: "req-why" }, r.reason || el("span", { class: "faint" }, "No reason given"),
           r.decision_note ? el("span", { class: "sub" }, "Note: " + r.decision_note) : null) },
         { key: "created", label: "Asked", num: true, render: (r) => el("span", { title: fmt.stamp(r.created) }, fmt.ago(r.created)) },
         { key: "state", label: "Decision", sort: false, render: decision },
         { key: "act", label: "", srLabel: "Actions", sort: false, render: (r) => SUI.menuButton({ label: `More actions for ${r.person}'s request`, small: true, items: () => rowMenu(r) }) },
-      ] });
+      ].filter(Boolean) });
     }
     function draw() {
       const qq = st.q.trim().toLowerCase();
       const items = data.items.filter((r) => (!st.state || r.state === st.state) && (!qq || [r.person, r.tool, r.reason, r.department].join(" ").toLowerCase().includes(qq)));
-      meta.replaceChildren(el("span", null, st.state === "open" ? "Granting turns the tool on for them at once" : "Decisions are in the audit log too"),
+      meta.replaceChildren(el("span", null, st.state === "open" ? "Giving turns the tool on for them at once" : "Decisions are in the audit log too"),
         el("span", null, SUI.plural(items.length, (st.state ? st.state + " " : "") + "request")));
       box.replaceChildren(items.length ? table(items)
         : SUI.stateBox({ icon: "requests", tone: st.state === "open" && !qq ? "ok" : null, title: qq ? "Nothing matches" : st.state === "open" ? "No open requests" : "Nothing here yet",
@@ -1374,8 +1376,14 @@
     const oldest = open.length ? Math.min(...open.map((r) => r.created)) : null;
     const next = open.length ? `${SUI.plural(open.length, "request")} waiting for a decision. The oldest was asked ${fmt.ago(oldest)}${owner ? "; decide it first." : "; only an owner can decide."}`
       : "Nothing is waiting for a decision.";
-    A.frame({ title: "Access requests", trail: [["Access requests"]], next, lede: "Staff asking for tools in Swangz AI Hub. Granting turns the tool on for them straight away." },
-      A.panel(null, null, el("div", { class: "filterbar" }, bar), meta, box));
+    const listPanel = A.panel(null, null, el("div", { class: "filterbar" }, bar), meta, box);
+    if (mode.simple) {
+      /* Simple: the sentence with the real number, one next step, then the one list. */
+      const lead = A.requestsLead({ open: open.length, canDecide: owner, state: st.state });
+      A.frame({ title: "Access requests", trail: [["Access requests"]], sentence: lead.sentence, next: A.leadButton(lead.action), actions: [mode.switcher] }, listPanel);
+      return;
+    }
+    A.frame({ title: "Access requests", trail: [["Access requests"]], next, actions: [mode.switcher], lede: "Staff asking for tools in Swangz AI Hub. Granting turns the tool on for them straight away." }, listPanel);
   }
 
   function declineWithNote(r) {
