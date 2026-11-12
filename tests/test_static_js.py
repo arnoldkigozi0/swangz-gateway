@@ -584,3 +584,42 @@ class PlainWordsTests(unittest.TestCase):
         monitor = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
         self.assertIn('data && !first.length ? el("p", { class: "ov-calm" }', monitor)
         self.assertIn(".ov-calm {", (STATIC / "guide.css").read_text(encoding="utf-8"))
+
+
+def models_lead(cases):
+    source = (STATIC / "admin-rules.js").read_text(encoding="utf-8")
+    many = re.search(r"\n  (const modelsMany = .*?;)\n", source).group(1)
+    fn = re.search(r"\n  (function modelsLead\(n\) \{\n.*?\n  \})\n", source, re.S).group(1)
+    script = many + fn + "\nconsole.log(JSON.stringify(" + json.dumps(cases) + ".map(modelsLead)));"
+    out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30, check=True)
+    return json.loads(out.stdout)
+
+
+@unittest.skipUnless(shutil.which("node"), "Node is not installed")
+class ModelsLeadTests(unittest.TestCase):
+    """BRIEF 10.10.7 on Models: one sentence with the real number, then one next step that opens what it counts."""
+    BASE = {"total": 8, "used": 5, "unpriced": 0, "noRule": 0, "canMoney": True, "status": ""}
+
+    def lead(self, **n):
+        return models_lead([{**self.BASE, **n}])[0]
+
+    def test_the_sentence_carries_the_real_number(self):
+        self.assertEqual(self.lead(unpriced=2)["sentence"], "2 models have requests with no price yet.")
+        self.assertEqual(self.lead(noRule=1)["sentence"], "1 model is in use with no rule yet.")
+        self.assertEqual(self.lead()["sentence"], "5 models were used in the last 30 days.")
+        self.assertEqual(self.lead(total=0)["sentence"], "No AI models have been used yet.")
+
+    def test_missing_prices_come_first(self):
+        self.assertIn("price", self.lead(unpriced=1, noRule=3)["sentence"])
+
+    def test_the_button_opens_exactly_the_models_counted(self):
+        self.assertEqual(self.lead(noRule=2)["action"]["href"], "#/models?status=unlisted")
+        self.assertEqual(self.lead(noRule=2, status="unlisted")["action"]["href"], "#/activity?tab=ai")
+        self.assertEqual(self.lead(unpriced=2)["action"]["href"], "#/settings?tab=providers&section=prices")
+
+    def test_a_role_is_only_offered_what_it_can_do(self):
+        self.assertEqual(self.lead(unpriced=2, canMoney=False)["action"]["href"], "#/activity?tab=ai")
+
+    def test_sentences_stay_short(self):
+        for n in ({"unpriced": 1234}, {"noRule": 2}, {}, {"total": 0}):
+            self.assertLessEqual(len(self.lead(**n)["sentence"].split()), 12)
