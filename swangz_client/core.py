@@ -1048,27 +1048,26 @@ class Client:
         return key
 
     def workspace_app(self, app):
-        """True when this tool opens in the Swangz workspace window: the manifest is contract 2 and marks the app."""
+        """True when this tool opens with a provider address from /api/device/open: contract 2 and the app is marked."""
         browser = (self.store.manifest() or {}).get("browser") or {}
         return isinstance(browser, dict) and browser.get("contract") == 2 and app.get("workspace") is True
 
     def open_app(self, tool_id):
-        """Open a website tool. A workspace tool opens in the Swangz workspace window (W3) and never in the default
-        browser, whatever goes wrong; any other tool opens through Swangz (/go/), which checks access, records it and,
-        for a shared account, puts the person in a company browser of their own."""
+        """Open a website tool in the Swangz workspace window (W3, section 9.1). Every website tool opens there: a
+        marked tool at the provider address the Hub gives this device, any other (shared accounts, tools the Hub hands
+        out itself) at the Hub's own /go/ address, which the workspace browser follows. Never the default browser:
+        without a contract-2 workspace on this device nothing opens and the person is told why."""
         for app in self.apps():
             if app["id"] == tool_id:
-                if self.workspace_app(app):
-                    return self._open_in_workspace(app)
-                same_origin_url(app["open"], self.store.device()["server"])
-                self.open_url(app["open"])
-                return app["open"]
+                return self._open_in_workspace(app)
         raise KeyError(tool_id)
 
     def _open_in_workspace(self, app):
         from . import workspace_launcher as wl  # imports browser_profiles, which imports this module
         manifest = self.store.manifest() or {}
         browser = manifest.get("browser") or {}
+        if not isinstance(browser, dict) or browser.get("contract") != 2:
+            raise wl.LaunchError("no_workspace")
         if (browser.get("workspace") or {}).get("state") != "active":
             raise wl.LaunchError("not_active")
         device = self.store.device() or {}
@@ -1076,9 +1075,12 @@ class Client:
             owner = wl.owner(device.get("server"), browser.get("person_id"), browser.get("device_id"))
         except wl.LaunchError:
             raise wl.LaunchError("folder") from None
-        # The Hub decides (same checks and launch record as /go/); the address is checked again here.
-        out = self._guard(lambda: self.api().call("POST", "/device/open", {"tool": app["id"]}))
         if getattr(self, "launcher", None) is None:
             self.launcher = wl.Launcher(self.paths.data)
-        self.launcher.open(app["id"], out.get("url"), app.get("hosts"), owner)
+        if self.workspace_app(app):
+            # The Hub decides (same checks and launch record as /go/); the address is checked again here.
+            out = self._guard(lambda: self.api().call("POST", "/device/open", {"tool": app["id"]}))
+            self.launcher.open(app["id"], out.get("url"), app.get("hosts"), owner)
+        else:
+            self.launcher.open_hub(app["id"], app.get("open"), device.get("server"), owner, browser.get("device_id"))
         return "workspace"

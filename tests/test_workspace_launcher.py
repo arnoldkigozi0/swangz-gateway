@@ -301,14 +301,16 @@ class ProcessTests(Base):
 class OpenAppTests(Base):
     """Test 9: a workspace tool never reaches open_url, on any refusal path."""
 
-    def client(self, state="active", workspace=True, url=URL, api_error=None):
+    def client(self, state="active", workspace=True, url=URL, api_error=None, contract=2, apps=None):
         paths = core.Paths(self.tmp / "home", self.data)
         opened = mock.Mock()
         c = core.Client(paths, sleep=lambda s: None, open_url=opened)
         app = {"id": "chatgpt", "name": "ChatGPT", "open": "https://hub.example/go/chatgpt?d=dev-1", "hosts": HOSTS,
                "workspace": workspace, "company_browser": False}
-        manifest = {"apps": [app], "browser": {"contract": 2, "person_id": "7", "device_id": "dev-1",
-                                                "workspace": {"state": state, "generation": 1}}}
+        manifest = {"apps": apps or [app], "browser": {"contract": contract, "person_id": "7", "device_id": "dev-1",
+                                                       "workspace": {"state": state, "generation": 1}}}
+        if contract is None:
+            del manifest["browser"]
         c.store.manifest = lambda: manifest
         c.store.device = lambda: {"server": "https://hub.example"}
         c._reconnect_pending = lambda: False
@@ -348,11 +350,87 @@ class OpenAppTests(Base):
         opened.assert_not_called()
         self.assertEqual(self.calls, [])
 
-    def test_other_tools_keep_go(self):
+    def test_other_tools_open_go_in_the_workspace(self):
+        """Shared-account and other Hub-handled tools open the Hub's /go/ address in the workspace window."""
         c, opened, api = self.client(workspace=False)
-        self.assertEqual(c.open_app("chatgpt"), "https://hub.example/go/chatgpt?d=dev-1")
-        opened.assert_called_once()
+        self.launcher.finder = lambda: "/opt/google/chrome/chrome"
+        self.assertEqual(c.open_app("chatgpt"), "workspace")
         api.call.assert_not_called()
+        opened.assert_not_called()
+        self.assertEqual(self.calls[0][0][-1], "https://hub.example/go/chatgpt?d=dev-1")
+
+    def test_no_tool_ever_reaches_open_url_on_a_contract_2_device(self):
+        """Manager review of #186: on a contract-2 device open_app never calls shell.open_url, for any tool."""
+        apps = [{"id": "chatgpt", "open": "https://hub.example/go/chatgpt?d=dev-1", "hosts": HOSTS, "workspace": True},
+                {"id": "midjourney", "open": "https://hub.example/go/midjourney?d=dev-1", "workspace": False,
+                 "signin": "shared", "company_browser": True},
+                {"id": "canva", "open": "https://hub.example/go/canva?d=dev-1", "workspace": False, "signin": "own"},
+                {"id": "bad", "open": "https://evil.example/go/bad?d=dev-1", "workspace": False}]
+        for state in ("active", "suspended", "retired"):
+            c, opened, _ = self.client(state=state, apps=apps)
+            self.launcher.finder = lambda: "/opt/google/chrome/chrome"
+            with mock.patch("swangz_client.shell.open_url") as shell_open, mock.patch("webbrowser.open") as wb:
+                for app in apps:
+                    try:
+                        c.open_app(app["id"])
+                    except (wl.LaunchError, core.ApiFailure):
+                        pass
+            opened.assert_not_called()
+            shell_open.assert_not_called()
+            wb.assert_not_called()
+
+    def test_without_a_workspace_nothing_opens(self):
+        for contract in (None, 1):
+            for workspace in (True, False):
+                c, opened, api = self.client(contract=contract, workspace=workspace)
+                with self.assertRaises(wl.LaunchError) as ctx:
+                    c.open_app("chatgpt")
+                self.assertEqual(ctx.exception.code, "no_workspace")
+                self.assertIn("Update Swangz", str(ctx.exception))
+                opened.assert_not_called()
+                api.call.assert_not_called()
+        self.assertEqual(self.calls, [])
+
+
+class HubUrlTests(unittest.TestCase):
+    """The Hub's own /go/ address: exactly the enrolled origin, this tool, this device, nothing else."""
+
+    S = "https://hub.example"
+
+    def test_accepts_the_exact_go_address(self):
+        for url in ("https://hub.example/go/canva", "https://hub.example/go/canva?d=dev-1"):
+            self.assertEqual(wl.check_hub_url(url, self.S, "canva", "dev-1"), url)
+        self.assertEqual(wl.check_hub_url("https://hub.example:8443/go/canva", "https://hub.example:8443", "canva"),
+                         "https://hub.example:8443/go/canva")
+
+    def test_refuses_anything_else(self):
+        bad = ["http://hub.example/go/canva", "https://hub.example.evil.example/go/canva", "https://evil.example/go/canva",
+               "https://user@hub.example/go/canva", "https://user:pw@hub.example/go/canva", "https://hub.example:444/go/canva",
+               "https://hub.example/go/chatgpt", "https://hub.example/go/canva/x", "https://hub.example/admin",
+               "https://hub.example/go/canva#x", "https://hub.example/go/canva?d=other", "https://hub.example/go/canva?d=dev-1&x=1",
+               "https://hub.example/go/canva?token=t", "https://hub.example/go/canva ", "https://hub.example\\@evil/go/canva",
+               "https://sub.hub.example/go/canva", "", None, "https://hub.example/go/" + "a" * 2100]
+        for url in bad:
+            with self.assertRaises(wl.LaunchError, msg=url):
+                wl.check_hub_url(url, self.S, "canva", "dev-1")
+        for server in ("http://hub.example", "https://hub.example/x", "", None, "https://u@hub.example"):
+            with self.assertRaises(wl.LaunchError, msg=server):
+                wl.check_hub_url("https://hub.example/go/canva", server, "canva")
+        with self.assertRaises(wl.LaunchError):
+            wl.check_hub_url("https://hub.example/go/../admin", self.S, "../admin")
+
+
+class BrowserListTests(unittest.TestCase):
+    """Section 9.1 as amended: Google Chrome, and on Linux the .deb Chromium; never Edge, Brave or snap."""
+
+    def test_only_chrome_and_deb_chromium(self):
+        env = {"ProgramFiles": "C:\\Program Files", "ProgramFiles(x86)": "C:\\Program Files (x86)", "LocalAppData": "C:\\L"}
+        everything = wl.candidates("linux", env) + wl.candidates("darwin", env) + wl.candidates("win32", env)
+        for path in everything:
+            low = path.lower()
+            self.assertFalse(any(w in low for w in ("edge", "brave", "snap", "opera", "vivaldi", "firefox")), path)
+            self.assertTrue("chrome" in low or "chromium" in low, path)
+        self.assertTrue(all(p.startswith(("/opt/google/chrome/", "/usr/lib/chromium")) for p in wl.candidates("linux", env)))
 
 
 @unittest.skipUnless(POSIX, "path tracing uses POSIX paths")
@@ -391,7 +469,9 @@ class NoReadingTests(Base):
 class InventoryTests(unittest.TestCase):
     """§9.1 and E1: every caller of open_url is listed; a new one fails here. I2: only two modules name the profiles root."""
 
-    ALLOWED = {("core.py", "login"), ("core.py", "open_app"), ("gui.py", "_show_code"), ("gui.py", "open_app")}
+    # core.login and gui._show_code: the Hub's own /device approval page (not an AI tool); gui.open_app: only the
+    # Chrome install page (INSTALL_PAGE), after a no_browser refusal. core.open_app has none: tools never leave the workspace.
+    ALLOWED = {("core.py", "login"), ("gui.py", "_show_code"), ("gui.py", "open_app")}
 
     def test_open_url_callers(self):
         found = set()

@@ -369,8 +369,8 @@ class App:
     def open_app(self, tool_id):
         from .workspace_launcher import INSTALL_PAGE, LaunchError
         try:
-            how = self.client.open_app(tool_id)
-            self.say("Opened in the Swangz workspace window." if how == "workspace" else "Opened in your browser.")
+            self.client.open_app(tool_id)
+            self.say("Opened in the Swangz workspace window.")
         except LaunchError as exc:  # plain words; the only way out is the browser install page, never the default browser
             self.say(str(exc), bad=True)
             if exc.install and messagebox.askyesno("Google Chrome is needed", str(exc) + "\n\nOpen the Chrome install page?"):

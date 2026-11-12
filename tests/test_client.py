@@ -194,8 +194,13 @@ class PersonalDeviceTests(ClientBase):
         self.tamper_entitlement("canva", True)
         self.sign_in()
         self.client.sync()
-        self.assertEqual(self.client.open_app("canva"), f"{self.server}/go/canva")
-        self.assertEqual(self.opened[-1], f"{self.server}/go/canva")
+        # Section 9.1: a tool opens only in the Swangz workspace window; without one nothing opens, never the default browser.
+        from swangz_client import workspace_launcher as wl
+        before = list(self.opened)
+        with patch.object(self.client.store, "manifest", return_value={**(self.client.store.manifest() or {}), "browser": {"contract": 1}}):
+            with self.assertRaises(wl.LaunchError):
+                self.client.open_app("canva")
+        self.assertEqual(self.opened, before)
         with self.assertRaises(KeyError):
             self.client.open_app("chatgpt")
 
