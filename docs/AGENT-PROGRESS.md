@@ -764,6 +764,26 @@ Exact next step at 16:00, in this order:
 - Next step: `gh pr checks 141`; if only `signin` is red, read its log and fix the product. Then merge main into #147/#148 if they conflict, then the next §10.10 page (Policies, Weekly reporting, Settings).
 
 
+## Lane B M1: Models desktop scrolling — 12 November 2026
+
+Split from the preserved combined implementation `c85be0f` onto main `0135ac2`.
+Models Simple uses the existing Audit Simple table-height allowance for the sentence and next step above the list. A long table scrolls inside its panel at 1440x852. Existing browser coverage adds 80 synthetic rows and checks internal scrolling and no document overflow.
+
+The combined version passed 102 targeted checks in 124.398s and syntax checks for 53 JavaScript files.
+Not run on this split: local browser, screenshots/overlays or test suites (Probe owns the sole
+browser/test slot after the 22:43 crash). Full suites run on CI; fresh rendered review is pending.
+Reference differences follow BRIEF 10.10.6/7 (10.1.6); hit-area padding follows 10.1.3.
+Copy and keyboard semantics are retained. No visual acceptance is claimed.
+
+Split validation: changed browser scripts pass `node --check`; `git diff --check` passes.
+
+Probe verified #188 product head `d4eff95` in real Chromium: `models.cjs` 100/100. At
+1440x852, Simple light/dark default/long have zero document overflow; the wrapper is
+352px high and scrolls internally. Without this CSS, overflow is 24px. Detailed remains
+462px with no overflow. Evidence is saved in `docs/screenshots/models-scroll-height/`.
+Prism inspected the long-list dark capture and notes. Probe's verdict is single-model.
+No Models reference still exists: BRIEF 10.10.2 is the criterion; no overlay was made.
+Phone checks and fresh CI on the evidence commit remain unverified here.
 ## Lane B: sign-in system-colour fallback — 12 November 2026
 
 Branch `fix/lane-b-signin`, based on main `0135ac2`. Forced-colours mode now explicitly uses
