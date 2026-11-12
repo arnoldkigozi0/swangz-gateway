@@ -607,6 +607,15 @@ class SecurityLeadTests(unittest.TestCase):
         self.assertIn("A.securityLead({", monitor)
 
 
+def requests_lead(cases):
+    source = (STATIC / "admin-guide.js").read_text(encoding="utf-8")
+    many = re.search(r"\n  (const many = .*?;)\n", source).group(1)
+    fn = re.search(r"\n  (function requestsLead\(n\) \{\n.*?\n  \})\n", source, re.S).group(1)
+    script = many + fn + "\nconsole.log(JSON.stringify(" + json.dumps(cases) + ".map(requestsLead)));"
+    out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30, check=True)
+    return json.loads(out.stdout)
+
+
 def models_lead(cases):
     source = (STATIC / "admin-rules.js").read_text(encoding="utf-8")
     many = re.search(r"\n  (const modelsMany = .*?;)\n", source).group(1)
@@ -614,6 +623,40 @@ def models_lead(cases):
     script = many + fn + "\nconsole.log(JSON.stringify(" + json.dumps(cases) + ".map(modelsLead)));"
     out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30, check=True)
     return json.loads(out.stdout)
+
+
+@unittest.skipUnless(shutil.which("node"), "Node is not installed")
+class RequestsLeadTests(unittest.TestCase):
+    """BRIEF 10.10.7 on Access requests: one sentence with the real number, then one next step that is never a dead end."""
+    BASE = {"open": 2, "canDecide": True, "state": "open"}
+
+    def lead(self, **n):
+        return requests_lead([{**self.BASE, **n}])[0]
+
+    def test_the_sentence_carries_the_real_number(self):
+        self.assertEqual(self.lead()["sentence"], "2 requests are waiting for a decision.")
+        self.assertEqual(self.lead(open=1)["sentence"], "1 request is waiting for a decision.")
+        self.assertEqual(self.lead(open=0)["sentence"], "Nothing is waiting for a decision.")
+        self.assertEqual(self.lead(canDecide=False)["sentence"], "2 requests are waiting for an owner.")
+
+    def test_the_button_answers_exactly_the_requests_counted(self):
+        self.assertEqual(self.lead()["action"], {"label": "Answer 2 requests", "task": "answer-request"})
+        self.assertEqual(self.lead(state="granted")["action"]["href"], "#/requests")
+        self.assertEqual(self.lead(state="")["action"]["href"], "#/requests")
+
+    def test_never_a_dead_end_and_a_role_is_only_offered_what_it_can_do(self):
+        self.assertEqual(self.lead(open=0)["action"]["task"], "give-tool")
+        self.assertEqual(self.lead(open=0, canDecide=False)["action"]["task"], "check-use")
+        self.assertEqual(self.lead(canDecide=False)["action"]["task"], "check-use")
+
+    def test_sentences_stay_short(self):
+        for n in ({"open": 12345}, {"open": 0}, {"canDecide": False}):
+            self.assertLessEqual(len(self.lead(**n)["sentence"].split()), 12)
+
+    def test_requests_uses_the_shared_view_switch(self):
+        govern = (STATIC / "admin-govern.js").read_text(encoding="utf-8")
+        self.assertIn('A.viewMode("requests", "#/requests", params)', govern)
+        self.assertIn("A.requestsLead(", govern)
 
 
 @unittest.skipUnless(shutil.which("node"), "Node is not installed")
