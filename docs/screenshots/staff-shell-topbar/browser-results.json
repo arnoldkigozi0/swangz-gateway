@@ -1,0 +1,189 @@
+{
+  "cells": [
+    {
+      "name": "1440-852-dark",
+      "geometry": {
+        ".staff-rail": {
+          "x": 67,
+          "y": 22,
+          "width": 62,
+          "height": 810
+        },
+        ".staff-workspace": {
+          "x": 175,
+          "y": 19,
+          "width": 135,
+          "height": 38
+        },
+        ".staff-search": {
+          "x": 588,
+          "y": 19,
+          "width": 345,
+          "height": 38
+        },
+        ".staff-new": {
+          "x": 1082,
+          "y": 19,
+          "width": 83,
+          "height": 38
+        },
+        ".staff-account": {
+          "x": 1327,
+          "y": 19,
+          "width": 36,
+          "height": 38
+        }
+      },
+      "violations": 0
+    },
+    {
+      "name": "390-844-dark",
+      "geometry": {
+        ".staff-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        ".staff-workspace": {
+          "x": 16,
+          "y": 16,
+          "width": 59,
+          "height": 44
+        },
+        ".staff-search": {
+          "x": 81,
+          "y": 16,
+          "width": 187,
+          "height": 44
+        },
+        ".staff-new": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        ".staff-account": {
+          "x": 330,
+          "y": 16,
+          "width": 44,
+          "height": 44
+        }
+      },
+      "violations": 0
+    },
+    {
+      "name": "1440-852-light",
+      "geometry": {
+        ".staff-rail": {
+          "x": 67,
+          "y": 22,
+          "width": 62,
+          "height": 810
+        },
+        ".staff-workspace": {
+          "x": 175,
+          "y": 19,
+          "width": 135,
+          "height": 38
+        },
+        ".staff-search": {
+          "x": 588,
+          "y": 19,
+          "width": 345,
+          "height": 38
+        },
+        ".staff-new": {
+          "x": 1082,
+          "y": 19,
+          "width": 83,
+          "height": 38
+        },
+        ".staff-account": {
+          "x": 1327,
+          "y": 19,
+          "width": 36,
+          "height": 38
+        }
+      },
+      "violations": 0
+    },
+    {
+      "name": "390-844-light",
+      "geometry": {
+        ".staff-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        ".staff-workspace": {
+          "x": 16,
+          "y": 16,
+          "width": 59,
+          "height": 44
+        },
+        ".staff-search": {
+          "x": 81,
+          "y": 16,
+          "width": 187,
+          "height": 44
+        },
+        ".staff-new": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        ".staff-account": {
+          "x": 330,
+          "y": 16,
+          "width": 44,
+          "height": 44
+        }
+      },
+      "violations": 0
+    }
+  ],
+  "errors": [],
+  "checks": [
+    "1440-852-dark no horizontal overflow",
+    "1440-852-dark home grid is not console 129px",
+    "1440-852-dark home metadata is visible and fits",
+    "1440-852-dark .staff-rail geometry",
+    "1440-852-dark .staff-workspace geometry",
+    "1440-852-dark .staff-search geometry",
+    "1440-852-dark .staff-new geometry",
+    "1440-852-dark .staff-account geometry",
+    "1440-852-dark axe",
+    "1440-852-dark account keyboard opens",
+    "1440-852-dark account End",
+    "1440-852-dark search retains report route",
+    "390-844-dark no horizontal overflow",
+    "390-844-dark axe",
+    "390-844-dark account keyboard opens",
+    "390-844-dark account End",
+    "390-844-dark search retains report route",
+    "390-844-dark all routes reachable",
+    "1440-852-light no horizontal overflow",
+    "1440-852-light home grid is not console 129px",
+    "1440-852-light home metadata is visible and fits",
+    "1440-852-light .staff-rail geometry",
+    "1440-852-light .staff-workspace geometry",
+    "1440-852-light .staff-search geometry",
+    "1440-852-light .staff-new geometry",
+    "1440-852-light .staff-account geometry",
+    "1440-852-light axe",
+    "1440-852-light account keyboard opens",
+    "1440-852-light account End",
+    "1440-852-light search retains report route",
+    "390-844-light no horizontal overflow",
+    "390-844-light axe",
+    "390-844-light account keyboard opens",
+    "390-844-light account End",
+    "390-844-light search retains report route",
+    "390-844-light all routes reachable",
+    "No browser exceptions"
+  ],
+  "scope": "Staff shell only. Main launchpad content is inherited; all visual differences require review."
+}

@@ -76,17 +76,19 @@ html[data-theme="light"] .staff-exact {
 .staff-exact .staff-search svg { width: 13px; height: 13px; }
 .staff-exact .staff-search kbd { margin-left: auto; font: 500 9px/1 var(--font); border-radius: var(--radius-chip); padding: 4px 7px; background: rgba(128,110,95,.18); }
 .staff-exact .staff-tools { display: grid; grid-template-columns: 83px 76px 38px 36px; align-items: center; gap: 16px; margin-right: -20px; justify-self: end; }
-.staff-exact .staff-new { position: relative; isolation: isolate; width: 83px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--btn-solid); color: var(--btn-on-solid); border-color: transparent; cursor: pointer; transition: transform var(--d-fast) var(--e-out); }
-.staff-exact .staff-new::after { content: ""; position: absolute; inset: -1px; z-index: -1; border-radius: inherit; background: var(--btn-sweep); transform: scaleX(0); transform-origin: left center; transition: transform var(--d-base) var(--e-out); }
-.staff-exact .staff-new:focus-visible::after, .staff-exact .staff-new[aria-expanded="true"]::after { transform: scaleX(1); }
-@media (hover: hover) { .staff-exact .staff-new:hover::after { transform: scaleX(1); } }
+/* The New pill is the console's amber (BRIEF 10.7 accent) in both themes, so the two apps' top bars read as one system. */
+.staff-exact .staff-new { width: 83px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-color: transparent; cursor: pointer;
+  background: var(--accent-pill); color: #2A170A; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; transition: transform var(--d-fast) var(--e-out), filter var(--d-fast) var(--e-out); }
+.staff-exact .staff-new:is(:focus-visible, [aria-expanded="true"]) { filter: brightness(1.06); }
+@media (hover: hover) { .staff-exact .staff-new:hover { filter: brightness(1.06); } }
 .staff-exact .staff-new:active { transform: translateY(1px); }
-@media (prefers-reduced-motion: reduce) { .staff-exact .staff-new, .staff-exact .staff-new::after { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .staff-exact .staff-new { transition: none; } }
 .staff-exact .staff-new svg { width: 13px; height: 13px; }
 .staff-exact .staff-clock { position: relative; left: -5px; width: 76px; display: grid; align-content: center; justify-items: center; gap: 2px; }
 .staff-exact .staff-clock strong { font-size: 10px; font-weight: 600; }
 .staff-exact .staff-clock small { font-size: 8px; color: var(--staff-muted); }
-.staff-exact .staff-bell { position: relative; left: -9px; width: 38px; height: 38px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--staff-tx); }
+/* The bell sits in a pill like the console's, so every top-bar control has the same box. */
+.staff-exact .staff-bell { position: relative; left: -9px; width: 38px; height: 38px; border: 1px solid var(--staff-rim); border-radius: var(--radius-control); background: var(--staff-pill-bg); color: var(--staff-tx); box-shadow: inset 0 1px rgba(255,255,255,.06); }
 .staff-exact .staff-bell .dot-count { top: 1px; right: 1px; min-width: 14px; height: 14px; padding: 0 3px; font: 700 8px/14px var(--font); background: var(--staff-danger); color: #fff; }
 .staff-exact .staff-account { width: 36px; height: 38px; padding: 0; display: grid; place-items: center; }
 .staff-exact .staff-account .u-avatar { width: 36px; height: 36px; font-size: 11px; background: var(--accent-pill); color: var(--on-primary); }
@@ -122,9 +124,14 @@ html[data-theme="light"] .staff-exact {
 @media (max-width: 900px) {
   .staff-exact { padding: 0 16px 24px; }
   .staff-exact .hub-staff-side.staff-rail { display: none; }
-  .staff-exact .staff-topbar .inner { grid-template-columns: 135px minmax(44px,1fr) auto; gap: 8px; padding: 16px 0 0; height: 76px; }
-  .staff-exact .staff-search { justify-content: center; padding: 0; min-width: 44px; min-height: 44px; }
-  .staff-exact .staff-search :is(span,kbd) { display: none; }
+  /* The workspace pill keeps only its mark and chevron (the button's name stays "Open navigation"), so search has room for its label. */
+  .staff-exact .staff-topbar .inner { grid-template-columns: auto minmax(44px,1fr) auto; gap: 8px; padding: 16px 0 0; height: 76px; }
+  .staff-exact .staff-workspace { padding: 0 8px 0 9px; gap: 6px; }
+  .staff-exact .staff-workspace span { display: none; }
+  /* Phones keep the search label, as the console does; an icon alone in a wide box read as an empty field. */
+  .staff-exact .staff-search { padding: 0 12px; gap: 8px; min-width: 44px; min-height: 44px; }
+  .staff-exact .staff-search span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .staff-exact .staff-search kbd { display: none; }
   .staff-exact .staff-new { display: none; }
   .staff-exact .staff-tools { gap: 6px; }
   .staff-exact :is(.staff-workspace,.staff-bell,.staff-account) { min-height: 44px; }

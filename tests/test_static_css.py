@@ -24,6 +24,33 @@ class FontShorthandTests(unittest.TestCase):
             self.assertIn(part, rule)
 
 
+class StaffTopBarTests(unittest.TestCase):
+    """BRIEF 4 item 12: the staff top bar uses the console's system (amber New, boxed bell, a labelled search on phones)."""
+    css = (STATIC / "exact-staff.css").read_text(encoding="utf-8")
+
+    def rule(self, selector, text=None):
+        return re.search(re.escape(selector) + r"\s*\{([^}]*)\}", text or self.css).group(1)
+
+    def test_new_is_the_amber_accent_in_both_themes(self):
+        self.assertIn("background: var(--accent-pill)", self.rule(".staff-exact .staff-new"))
+        self.assertIn("--accent-pill: linear-gradient(180deg,#F7AE62,#EE8F3E)", self.css)
+        self.assertNotIn("--btn-sweep", self.css.split(".staff-exact .staff-new svg")[0].split(".staff-exact .staff-tools")[1])
+
+    def test_new_label_keeps_contrast_on_the_amber(self):
+        for stop in ("#F7AE62", "#EE8F3E"):
+            self.assertGreaterEqual(_contrast("#2A170A", stop), 4.5)
+
+    def test_bell_sits_in_a_pill(self):
+        bell = self.rule(".staff-exact .staff-bell")
+        self.assertIn("border: 1px solid var(--staff-rim)", bell)
+        self.assertIn("background: var(--staff-pill-bg)", bell)
+
+    def test_phone_search_keeps_its_label(self):
+        phone = self.css.split("@media (max-width: 900px)")[1]
+        self.assertNotRegex(phone, r"\.staff-search :is\(span,kbd\) \{ display: none")
+        self.assertIn(".staff-exact .staff-search span { flex: 1", phone)
+        self.assertIn(".staff-exact .staff-workspace span { display: none; }", phone)
+
 
 def _luminance(colour):
     channels = [int(colour[i:i + 2], 16) / 255 for i in (1, 3, 5)]
