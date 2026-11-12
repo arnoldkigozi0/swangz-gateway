@@ -784,3 +784,44 @@ Probe verified #188 product head `d4eff95` in real Chromium: `models.cjs` 100/10
 Prism inspected the long-list dark capture and notes. Probe's verdict is single-model.
 No Models reference still exists: BRIEF 10.10.2 is the criterion; no overlay was made.
 Phone checks and fresh CI on the evidence commit remain unverified here.
+## Lane B: sign-in system-colour fallback — 12 November 2026
+
+Branch `fix/lane-b-signin`, based on main `0135ac2`. Forced-colours mode now explicitly uses
+Canvas/CanvasText, ButtonFace/ButtonText, Field/FieldText and Highlight, removes the scene photo
+and blur, and keeps keyboard focus visible. BRIEF 10.1.3 permits this system-palette difference.
+Ordinary light/dark geometry and the later box-control requirement are retained.
+
+Validation: `python3 -m unittest tests.test_static_css tests.test_static_js -q`: 102 tests in
+86.962s, OK. `node --check tests/browser/signin.cjs` and `git diff --check` passed. The existing
+sign-in browser suite now includes both apps at 390x844 in light/dark forced-colours palettes,
+checking the effective system colours, photo removal, no blur and keyboard reachability.
+Not run: new browser cases, screenshots/overlays, axe, full suite or real Windows High Contrast.
+Probe must inspect the finished artifact; this is not a completed sign-in exact-match verdict.
+
+Lane B queue remains open: sign-in full visual pass; light theme/Monitor; phone bar and KPI caption;
+staff shell; Probe's remaining fix lists. The 10 Nov twelve-item list above remains historical:
+each item needs reconciliation against merged PRs and actual reviewer evidence, including glass/photo,
+donut/legend, count-card wave, Collecting since, D-016 C-I and SECURITY-REVIEW.md. No item is dropped.
+
+### #182 review follow-up — 12 November 2026
+
+Probe posted real-Chromium review of `ceea4db` on #182 (comment 6833397250): 24/24 isolated
+forced-colours checks passed on the synthetic demo, both apps, light/dark at 390x844. Full GitHub
+CI passed on that head (Python 3.10/3.12, app-window and browser). Probe found a visible eye-toggle
+border extending 10px beyond its field at 390 and 1440. The forced-colours rule now resets its right
+margin to zero; the browser check asserts containment and the existing 44px touch target.
+New-head rendered verification and CI remain pending. No reference overlay was produced; normal
+sign-in exact-match acceptance remains open. Probe's historical light-theme focus-ring contrast
+finding also remains open pending verification on current main. Windows High Contrast and other
+browser engines were not tested. No local browser or fixture was started for this follow-up.
+Follow-up validation: `python3 -m unittest tests.test_static_css -q`: 27 tests in 1.423s, OK;
+`node --check tests/browser/signin.cjs` and `git diff --check` passed. Full suites run on GitHub CI.
+
+Probe independently verified local product head `5ea4a64` in real Chromium: 32/32 isolated
+forced-colours checks passed, both apps light/dark at 390x844. Eight additional forced-colours
+geometry cases at 390 and 1440 show the eye contained, 44x44, no horizontal scroll. Captures,
+geometry JSON and scope notes are saved in `docs/screenshots/lane-b-signin/`; Prism inspected the
+phone-light console and desktop-dark staff captures and the geometry JSON. This closes the eye
+overhang finding for this product head. Probe's verdict is single-model. Normal-mode overlays,
+the main re-test and real Windows High Contrast remain unverified. The historical 2.39:1 focus
+finding was on People, not a current sign-in measurement. New-head CI remains pending.
