@@ -27,6 +27,14 @@ _WINDOWS = os.name == "nt"
 FLAGS = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_DIRECTORY", 0)
 
 
+KEYS_V1 = frozenset({"version", "profile_id", "origin", "person_id", "device_id", "os_user", "seat", "state", "created"})
+
+
+def _generation_ok(value):
+    """W4 ruling 3: an int >= 1 that is not a bool."""
+    return type(value) is int and value >= 1
+
+
 class ProfileError(Exception):
     def __init__(self, code):
         self.code = code
@@ -194,9 +202,14 @@ class Profiles:
         try:
             _check(path)
             m = json.loads(self._read_file(path / MARKER))
-            if set(m) != {"version", "profile_id", "origin", "person_id", "device_id", "os_user", "seat", "state", "created"}:
+            if not isinstance(m, dict) or type(m.get("version")) is not int:
                 raise ValueError
-            if type(m["version"]) is not int or m["version"] != 1 or m["profile_id"] != path.name or not FOLDER.fullmatch(path.name):
+            keys = set(m)
+            if m["version"] == 1 and keys == KEYS_V1:
+                m = {**m, "generation": 1}
+            elif m["version"] != 2 or keys != KEYS_V1 | {"generation"} or not _generation_ok(m["generation"]):
+                raise ValueError
+            if m["profile_id"] != path.name or not FOLDER.fullmatch(path.name):
                 raise ValueError
             if m["state"] != "prepared" or type(m["created"]) not in (int, float) or not math.isfinite(m["created"]) or m["created"] <= 0:
                 raise ValueError
@@ -280,10 +293,38 @@ class Profiles:
         except (KeyError, TypeError, ValueError):
             raise ProfileError("owner_invalid") from None
 
-    def prepare(self, owner):
+    def find(self, owner):
+        """-> [(profile_id, generation)] of valid folders whose marker matches this owner exactly. Reads markers only."""
         fields = self._owner(owner)
         with self._locked():
+            return self._find(fields)
+
+    def _find(self, fields):
+        found = []
+        for path in self.root.iterdir():
+            if not FOLDER.fullmatch(path.name):
+                continue
+            try:
+                m = self._marker(path)
+            except ProfileError:
+                continue
+            if all(m[k] == v for k, v in fields.items()):
+                found.append((path.name, m["generation"]))
+        return found
+
+    def prepare(self, owner, generation=1):
+        """The owner's folder at this workspace generation (W4). An older-generation folder of the same owner must be
+        purged first (`purge_pending`); a newer one means the answer went backwards (`generation_rollback`)."""
+        fields = self._owner(owner)
+        if not _generation_ok(generation):
+            raise ProfileError("generation_invalid")
+        with self._locked():
             self._cleanup()
+            for _, have in self._find(fields):
+                if have < generation:
+                    raise ProfileError("purge_pending")
+                if have > generation:
+                    raise ProfileError("generation_rollback")
             matches = []
             for path in self.root.iterdir():
                 if not FOLDER.fullmatch(path.name):
@@ -304,7 +345,8 @@ class Profiles:
             stage = self.root / (".tmp-" + profile_id)
             stage.mkdir(mode=0o700)
             _check(stage)
-            marker = {"version": 1, "profile_id": profile_id, **fields, "state": "prepared", "created": time.time()}
+            marker = {"version": 2, "profile_id": profile_id, **fields, "state": "prepared", "created": time.time(),
+                      "generation": generation}
             temp = stage / (".marker-" + secrets.token_hex(16))
             fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
             with os.fdopen(fd, "w", encoding="utf-8") as f:
