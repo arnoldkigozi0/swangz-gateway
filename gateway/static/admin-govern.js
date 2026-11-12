@@ -1324,7 +1324,7 @@
     // no ?state= means the open ones; ?state=any is every decision
     const st = { q: params.get("q") || "", state: params.get("state") === "any" ? "" : ["granted", "declined"].includes(params.get("state")) ? params.get("state") : "open",
       page: Number(params.get("page")) || 1, per: Number(params.get("per")) || 25 };
-    const STATES = [["open", "Open"], ["granted", "Granted"], ["declined", "Declined"]];
+    const STATES = [["open", "Open"], ["granted", "Given"], ["declined", "Declined"]];
     const box = el("div");
     const meta = el("div", { class: "list-meta" });
     const pager = { page: st.page, size: st.per, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
@@ -1336,9 +1336,9 @@
     const decision = (r) => r.state === "open"
       ? (owner ? el("span", { class: "req-act" },
         el("button", { class: "btn small quiet", type: "button", onclick: () => declineWithNote(r) }, "Decline"),
-        el("button", { class: "btn small", type: "button", onclick: () => decide(r, "grant") }, icon("check"), "Grant"))
+        el("button", { class: "btn small", type: "button", onclick: () => decide(r, "grant") }, icon("check"), "Give"))
         : SUI.status("pending", "Waiting for an owner", { plain: true }))
-      : el("div", null, SUI.status(r.state === "granted" ? "ok" : "blocked", r.state === "granted" ? "Granted" : "Declined", { plain: true }),
+      : el("div", null, SUI.status(r.state === "granted" ? "ok" : "blocked", r.state === "granted" ? "Given" : "Declined", { plain: true }),
         el("span", { class: "sub", title: r.decided ? fmt.stamp(r.decided) : null }, `by ${r.decided_by || "an owner"} ${fmt.ago(r.decided)}`));
     function table(rows) {
       return SUI.table({ caption: "Access requests", rows, pager, sort: ["created", st.state === "open" ? "asc" : "desc"], columns: [
@@ -1356,7 +1356,7 @@
     function draw() {
       const qq = st.q.trim().toLowerCase();
       const items = data.items.filter((r) => (!st.state || r.state === st.state) && (!qq || [r.person, r.tool, r.reason, r.department].join(" ").toLowerCase().includes(qq)));
-      meta.replaceChildren(el("span", null, st.state === "open" ? "Granting turns the tool on for them at once" : "Decisions are in the audit log too"),
+      meta.replaceChildren(el("span", null, st.state === "open" ? "Giving turns the tool on for them at once" : "Decisions are in the audit log too"),
         el("span", null, SUI.plural(items.length, (st.state ? st.state + " " : "") + "request")));
       box.replaceChildren(items.length ? table(items)
         : SUI.stateBox({ icon: "requests", tone: st.state === "open" && !qq ? "ok" : null, title: qq ? "Nothing matches" : st.state === "open" ? "No open requests" : "Nothing here yet",

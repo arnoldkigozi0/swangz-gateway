@@ -53,7 +53,7 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       ok(T + 'Simple: one panel, one table, no tab strip or chart', await p.locator('main .panel').count() === 1 && await p.locator('main table').count() === 1 && await p.locator('main [role=tablist]').count() === 0 && await p.locator('main .u-chart').count() === 0);
       const heads = (await p.locator('main .u-table thead th').allTextContents()).map(t => t.trim()).filter(Boolean);
       ok(T + 'Simple: five columns, no Why', heads.length <= 5 && !heads.some(t => /^Why/.test(t)));
-      ok(T + 'Simple: the two open requests, each with its decision', await rows() === 2 && await p.getByRole('button', { name: 'Grant' }).count() === 2);
+      ok(T + 'Simple: the two open requests, each with its decision', await rows() === 2 && await p.getByRole('button', { name: 'Give' }).count() === 2);
       ok(T + 'Simple: a way to Detailed', await p.getByRole('radio', { name: 'Detailed' }).count() + await p.getByRole('button', { name: 'Detailed' }).count() >= 1);
       await noOverflow('Simple'); await axe('Simple'); await small('Simple'); await shot(p, 'requests-simple');
       await p.locator('main .next-step').getByRole('button', { name: 'Answer 2 requests' }).click();
@@ -69,7 +69,7 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       ok(T + 'the open filter is a chip', (await chips()).some(t => t.includes('Open')));
       ok(T + 'two requests are open', await rows() === 2);
       ok(T + 'the Next step names the waiting requests', /2 requests waiting/.test(await p.locator('main .next-step').first().innerText()) && await p.locator('main .next-step').count() === 1);
-      ok(T + 'each open row can be declined or granted', await p.getByRole('button', { name: 'Grant' }).count() === 2 && await p.getByRole('button', { name: 'Decline' }).count() === 2);
+      ok(T + 'each open row can be declined or granted', await p.getByRole('button', { name: 'Give' }).count() === 2 && await p.getByRole('button', { name: 'Decline' }).count() === 2);
       await noOverflow('L2'); await axe('L2'); await small('L2'); await shot(p, 'requests');
       // all statuses
       await open('#/requests?view=detailed&state=any', '.u-filter');
@@ -78,7 +78,7 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       await axe('L2 all'); await shot(p, 'requests-all');
       await open('#/requests?view=detailed&state=declined', '.u-filter');
       ok(T + 'declined has one row and the note', await rows() === 1 && await p.getByText(/not renewing that tool/).count() === 1);
-      ok(T + 'nothing to decide on a declined row', await p.getByRole('button', { name: 'Grant' }).count() === 0);
+      ok(T + 'nothing to decide on a declined row', await p.getByRole('button', { name: 'Give' }).count() === 0);
       // search and chips
       await open('#/requests?view=detailed', '.u-filter');
       await p.getByRole('searchbox').first().fill('zzz-nothing');
@@ -105,7 +105,7 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       ok(T + 'Cancel leaves both requests open', await state() === 2);
       // grant: the row leaves the open list
       if (theme === 'light' && width === 390) {
-        await p.getByRole('button', { name: 'Grant' }).first().click();
+        await p.getByRole('button', { name: 'Give' }).first().click();
         await p.waitForFunction(() => document.querySelectorAll('main .u-table tbody tr').length === 1);
         ok(T + 'granting removes the row from the open list', await state() === 1);
       }
