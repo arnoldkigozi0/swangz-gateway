@@ -16,7 +16,7 @@ const net = require('net');
 const os = require('os');
 const path = require('path');
 const url = require('url');
-const { execFileSync } = require('child_process');
+const { execFileSync, spawn } = require('child_process');
 
 const root = path.resolve(__dirname, '../..');
 const PACK = path.join(root, 'deploy/chrome-policy/swangz-company-chrome.json');
@@ -184,26 +184,33 @@ const BASE_ARGS = ['--host-resolver-rules=MAP * 127.0.0.1', '--ignore-certificat
 /* F and B-6: a local user starting Chrome with switches. Each address gets a browser of its own, with its own new
    user data directory (F-2: policy must hold in a profile nobody set up), the case's switches added to the harness's.
    "{url}" in the switches puts the marked address on the command line (B-6); the case then never calls goto, and
-   counts what Chrome opened by itself. kind "observe" (F-1) counts browser contexts over CDP instead of requests. */
+   counts what Chrome opened by itself. Playwright refuses a bare address among the switches, so a "spawn" case starts
+   google-chrome itself, without a driver, and can only count requests (zero is the pass, as for STOP). */
+const pause = ms => new Promise(r => setTimeout(r, ms));
+async function spawned(dir, args, ms) {
+  const proc = spawn('google-chrome', ['--user-data-dir=' + dir, ...BASE_ARGS, ...args], { stdio: 'ignore' });
+  await pause(ms);
+  proc.kill('SIGTERM');
+  await pause(500);
+}
 async function launched(chromium, work, c, address, n) {
   const mark = markOf(c, n), start = marked(address, mark);
   const args = c.launch.map(a => a.replace('{url}', start));
   const row = { id: c.id, expect: c.expect, address: c.launch.join(' ').replace('{url}', address), reached: 0, error: '', final: '' };
+  const arrived = () => hits.filter(h => h.url.includes('swz=' + mark));
+  if (c.spawn) {
+    await spawned(path.join(work, 'launch-' + mark), args, 5000);
+    row.reached = arrived().length;
+    return row;
+  }
   let context;
   try {
     context = await chromium.launchPersistentContext(path.join(work, 'launch-' + mark), { channel: 'chrome', headless: false,
       ignoreHTTPSErrors: true, timeout: 20000, args: BASE_ARGS.concat(args) });
   } catch (e) { row.error = 'launch: ' + String(e.message).split('\n')[0].slice(0, 100); return row; }
   try {
-    if (c.kind === 'observe') {
-      const page = context.pages()[0] || await context.newPage();
-      await page.waitForTimeout(1500);
-      const { targetInfos } = await (await context.newCDPSession(page)).send('Target.getTargets');
-      const ids = new Set(targetInfos.filter(t => t.type === 'page').map(t => t.browserContextId));
-      row.observe = ids.size + ' browser context' + (ids.size === 1 ? '' : 's') + ' with pages';
-    } else if (c.launch.some(a => a.includes('{url}'))) {
-      const arrived = () => hits.filter(h => h.url.includes('swz=' + mark));
-      for (let i = 0; i < 16 && !arrived().length; i++) await new Promise(r => setTimeout(r, 250));
+    if (c.launch.some(a => a.includes('{url}'))) {
+      for (let i = 0; i < 16 && !arrived().length; i++) await pause(250);
       row.reached = arrived().length;
       row.hosts = [...new Set(arrived().map(h => h.host))];
       for (const p of context.pages()) {
@@ -218,7 +225,6 @@ async function launched(chromium, work, c, address, n) {
   return row;
 }
 function verdict(mode, r) {
-  if (r.observe !== undefined) return 'recorded: ' + r.observe;
   if (r.expect === 'RECORD' && r.error.startsWith('launch:')) return 'recorded: ' + r.error;
   const signedIn = !r.signin || (r.signin.back_on_hub && r.signin.via_google && r.signin.cookie);
   if (mode === 'control') return r.reached > 0 && signedIn ? 'reached' : 'FAIL: did not reach the fixture without policy, so this case proves nothing';
