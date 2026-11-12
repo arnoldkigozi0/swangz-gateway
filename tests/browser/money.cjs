@@ -48,8 +48,25 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
         assert.deepEqual(bad, [], T + name + ' touch size'); checks++;
       };
 
-      // L1: four number cards, one chart, no table, one next step, and nothing below the fold on a desktop
-      await open('#/licences', '.kpis-exact .kpi');
+      // Simple (BRIEF 10.10.7, the default): one sentence with the real number, one next-step button, two blocks, no cards
+      await open('#/licences', '.ov-sentence');
+      ok(T + 'Simple is the default (no number cards)', await p.locator('main .kpis-exact').count() === 0);
+      const sentence = (await p.locator('.ov-sentence').textContent()).trim();
+      ok(T + `Simple's sentence carries a number (${sentence})`, /\d/.test(sentence) && sentence.split(/\s+/).length <= 14);
+      ok(T + 'Simple has one next-step button', await p.locator('.next-step .btn').count() === 1);
+      ok(T + 'Simple has at most three blocks', await p.locator('main .page > .panel, main .page > .kpis').count() <= 3);
+      ok(T + 'Simple has at most one primary', await p.locator('main .btn.primary').count() <= 1);
+      ok(T + 'Simple has no table', await p.locator('main table').count() === 0);
+      const nums = await p.locator('main .ov-num').evaluateAll(n => n.map(a => a.getAttribute('href')));
+      assert.deepEqual(nums, ['#/licences?tab=spend&range=30d', '#/licences?tab=licences&show=paid', '#/licences?tab=licences&show=idle', '#/licences?tab=renewals&show=soon'], T + 'Simple number links'); checks++;
+      if (width > 1200) {
+        const bottom = await p.evaluate(() => Math.max(...[...document.querySelectorAll('main .page > .panel')].map(n => n.getBoundingClientRect().bottom)));
+        ok(T + `Simple fits above the fold (ends at ${bottom} of ${height})`, bottom <= height);
+      }
+      await noOverflow('Simple'); await axe('Simple'); await small('Simple'); await shot(p, 'money-simple');
+
+      // Detailed (L1): four number cards, one chart, no table, one next step, and nothing below the fold on a desktop
+      await open('#/licences?view=detailed', '.kpis-exact .kpi');
       ok(T + 'L1 has four cards', await p.locator('main .kpis-exact .kpi').count() === 4);
       ok(T + 'L1 has one panel and one chart', await p.locator('main .panel').count() === 1 && await p.locator('main .u-chart').count() === 1);
       ok(T + 'L1 has no table or tab strip', await p.locator('main table, main [role=tablist]').count() === 0);

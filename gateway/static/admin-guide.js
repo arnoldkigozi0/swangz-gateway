@@ -70,6 +70,19 @@
     return { sentence: "Nothing needs checking right now.", action: { label: "See what admins changed", href: "#/audit" } };
   }
 
+  /* Devices' sentence and next step (BRIEF 10.10.7). n: { total, active, idle, unused, requests, state }. A device that was never
+     used, or has gone quiet, is a key someone may have lost, so those come first; each count is the Status filter its button
+     opens. When that filter is already showing, the next step moves on. Pure, so it can be tested. */
+  function devicesLead(n) {
+    const onward = { label: "Check who is using what", task: "check-use" };
+    if (!n.total) return { sentence: "No devices are connected yet.", action: { label: "See the people", href: "#/people" } };
+    if (n.unused) return { sentence: `${many(n.unused, "device has", "devices have")} never been used.`,
+      action: n.state === "unused" ? onward : { label: n.unused === 1 ? "See the unused device" : "See the unused devices", href: "#/devices?state=unused" } };
+    if (n.idle) return { sentence: `${many(n.idle, "device has", "devices have")} not been used lately.`,
+      action: n.state === "idle" ? onward : { label: n.idle === 1 ? "See the quiet device" : "See the quiet devices", href: "#/devices?state=idle" } };
+    return { sentence: `${many(n.active, "device is", "devices are")} active; ${many(n.requests, "AI request", "AI requests")} in 30 days.`, action: onward };
+  }
+
   /* "Set up in 4 steps": each step ticks itself from real records. */
   function setupSteps(n) {
     return [
@@ -366,5 +379,5 @@
     return el("div", { class: "ov-simple" }, A.panel("What do you want to do?", null, tiles(o.waiting, o.paused)), el("div", { class: "ov-side" }, numbers, third));
   }
 
-  Object.assign(A, { startTask, overviewLead, peopleLead, toolsLead, securityLead, setupSteps, overviewSimple, leadButton });
+  Object.assign(A, { startTask, overviewLead, peopleLead, toolsLead, securityLead, setupSteps, overviewSimple, leadButton, devicesLead });
 })();
