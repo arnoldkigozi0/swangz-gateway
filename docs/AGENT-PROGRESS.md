@@ -1,5 +1,22 @@
 # Agent progress
 
+**12 Nov 20:30 NEW FIRST PRIORITY (Arnold): managed workspace, to end of 14 Nov.** Spec: docs/MANAGED-WORKSPACE.md section 9 (PR #175). Every provider opens in the Swangz workspace browser, never an outside one; downloads allowed. Every W PR targets `feature/managed-workspace`, not main; one final PR into main stays OPEN for Arnold's written approval. #150 (W1) approved by Arnold; #156 closed. R15-R17 and Probe's re-test are second.
+
+| Item | Owner | Branch | Status | Next step |
+|---|---|---|---|---|
+| #175 docs review | Sentinel | docs/managed-workspace-direction-12nov | review | verdict, then merge on green |
+| W2 browser contract 2 | Forge | feature/w2-contract | todo | manifest fields, heartbeat |
+| W3 workspace on device + 9.1 | Prism | feature/w3-workspace | todo | no webbrowser.open for providers |
+| W4 revocation | Forge | feature/w4-revocation | todo | after W2 |
+| W5 policy check | Forge | feature/w5-policy | todo | after W4 |
+| W6 cross-platform tests | Prism | feature/w6-matrix | todo | after W3 |
+| W7 keys and automations untouched | Prism | feature/w7-existing | todo | after W6 |
+| Review of each W PR | Sentinel | | todo | one verdict per head |
+| Test each W + 9.3 five-step demo | Probe | | todo | on the team laptop, real output in PR |
+| Server rehearsal, docs/SERVER-DAY.md | Probe | docs/server-day | todo | 1 vCPU / 1 GB container, timings, memory |
+| Arnold's 15 Nov list in order with times | Chief | docs/ARNOLD-ONLY.md | todo | write 14 Nov, from SERVER-DAY.md |
+Anvil is parked. Sprint report is PR #174. The feature/managed-workspace branch was created from main by Chief (push result not confirmed: network down).
+
 **11 Nov 21:40 status.** Main fa19c0d, CI green. 34 PRs merged today (docs/daily/2026-11-11.md). Open: #141 (python 3.10/3.12 FAIL, fix first), #147 and #148 (green, merge next), #149 (docs), #150 (draft, green). Report written without merging. No blockers for Arnold.
 
 **11 Nov 00:55 honest state (R18: boss review, BRIEF §10.10).** Main `31ecbfc`. Sprint ran to 01:00; unfinished chains start the 04:00 shift.
