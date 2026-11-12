@@ -47,8 +47,29 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
         assert.deepEqual(bad, [], T + name + ' touch size'); checks++;
       };
 
-      // L1: four number cards, one short list, no table or tabs, one next step, nothing below the fold on a desktop
-      await open('#/security', '.kpis-exact .kpi');
+      // Simple (the default, BRIEF 10.10.7): one sentence with a real number, one next step, two blocks, no cards
+      await p.goto(url + '/admin');
+      await p.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('swa-security-view')).forEach(k => localStorage.removeItem(k)));
+      await open('#/security', 'main .ov-num');
+      const sentence = (await p.locator('.ov-sentence').textContent()).trim();
+      ok(T + `Simple sentence carries a number and is short (${sentence})`, /\d/.test(sentence) && sentence.split(/\s+/).length <= 12);
+      ok(T + 'Simple has one next step, a button', await p.locator('.next-step').count() === 1 && await p.locator('.next-step .btn').count() === 1);
+      ok(T + 'Simple has two blocks and no cards', await p.locator('main .panel').count() === 2 && await p.locator('main .kpi').count() === 0);
+      ok(T + 'Simple has no table, chart or tab strip', await p.locator('main table, main .u-chart, main [role=tablist]').count() === 0);
+      ok(T + 'Simple has at most one primary', await p.locator('main .btn.primary').count() <= 1);
+      ok(T + 'Simple offers Detailed', await p.getByRole('button', { name: 'Detailed' }).count() === 1);
+      const simpleLinks = await p.locator('main .ov-num').evaluateAll(n => n.map(a => a.getAttribute('href')));
+      assert.deepEqual(simpleLinks, ['#/security?view=signals&days=7&severity=warnings', '#/incidents?status=active', '#/security?view=signals&days=7&type=signin', '#/security?view=signals&days=7&type=credential'], T + 'Simple number links'); checks++;
+      const simpleListed = await p.locator('main .sec-list li').count();
+      ok(T + `Simple list has one to five rows (${simpleListed})`, simpleListed >= 1 && simpleListed <= 5);
+      if (width > 1200) {
+        const fit = await p.evaluate(() => Math.max(...[...document.querySelectorAll('main .panel')].map(n => n.getBoundingClientRect().bottom)) <= innerHeight);
+        ok(T + 'Simple fits above the fold', fit);
+      }
+      await noOverflow('Simple'); await axe('Simple'); await small('Simple'); await shot(p, 'security-simple');
+
+      // Detailed L1: four number cards, one short list, no table or tabs, one next step, nothing below the fold on a desktop
+      await open('#/security?view=detailed', '.kpis-exact .kpi');
       ok(T + 'L1 has four cards', await p.locator('main .kpis-exact .kpi').count() === 4);
       ok(T + 'L1 has one panel', await p.locator('main .panel').count() === 1);
       ok(T + 'L1 has no table, chart or tab strip', await p.locator('main table, main .u-chart, main [role=tablist]').count() === 0);
