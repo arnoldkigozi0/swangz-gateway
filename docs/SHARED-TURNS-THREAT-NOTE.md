@@ -74,7 +74,7 @@ These rules apply only if (b) is reopened later, with Arnold's yes on §2.2 and 
   worthless. The command line otherwise stays as W3 I1 fixed it.
 - **Existing risk, recorded, not a blocker.** The staff web app's `/go/` already sends `usr`/`pwd` in a 302
   `Location`, so it reaches the person's own browser history. It is valid only for the turn, and the agent deletes the
-  sign-in and recycles the container on release. This is risk **R-10** in MANAGED-WORKSPACE §6. The single-use code
+  sign-in and recycles the container on release. Record it as risk **R-10** in MANAGED-WORKSPACE §6 (one row, in the same PR as the fix). The single-use code
   above is its fix, after 20 Nov.
 
 ### Q3: Turn end and closing the window
