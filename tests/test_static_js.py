@@ -394,8 +394,8 @@ class MoneyLeadTests(unittest.TestCase):
         return money_lead([{**self.BASE, **n}])[0]
 
     def test_the_sentence_carries_the_real_number(self):
-        self.assertEqual(self.lead(idle=3)["sentence"], "3 paid seats were not used in 30 days (about $40 a month).")
-        self.assertEqual(self.lead(idle=1)["sentence"], "1 paid seat was not used in 30 days (about $40 a month).")
+        self.assertEqual(self.lead(idle=3)["sentence"], "3 paid licences nobody opened in 30 days (about $40 a month).")
+        self.assertEqual(self.lead(idle=1)["sentence"], "1 paid licence nobody opened in 30 days (about $40 a month).")
         self.assertEqual(self.lead(unpriced=7)["sentence"], "7 requests have no price yet, so spend is understated.")
         self.assertEqual(self.lead(soon=1)["sentence"], "1 plan renews in the next 30 days.")
         self.assertEqual(self.lead()["sentence"], "We spent $212.40 on AI in the last 30 days.")

@@ -201,6 +201,8 @@ a.obj:hover > span { text-decoration: underline; text-underline-offset: 3px; }
 .ptabs.more { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); }
 .tab-count { font-size: 11px; font-weight: 700; padding: 0 7px; line-height: 18px; border-radius: var(--radius-chip); background: var(--ink-3); color: var(--tx-2); font-variant-numeric: tabular-nums; }
 .ptabs button.on .tab-count { background: var(--accent-soft); color: var(--accent-tx); }
+/* tab buttons reach the kit's 44px touch size on a phone */
+@media (max-width: 640px) { .ptabs:not(.vertical) button { min-height: 44px; } }
 .tab-body, .tab-pane, .tab-pane-wrap { display: grid; gap: 18px; align-content: start; min-width: 0; }
 .tab-pane-wrap:focus { outline: none; }
 .tab-pane > *, .tab-pane-wrap > * { min-width: 0; }  /* a wide chart or table scrolls inside its box, never widens the view */
@@ -1248,6 +1250,8 @@ html[data-theme="light"] .shell { --plane: rgba(252, 248, 242, .94); }
   background: var(--plane); border: 1px solid var(--glass-rim); }
 :where(.shell:not(.route-overview) .page) > :where(:not(.panel, .kpis)) { background: var(--plane); box-shadow: 0 0 0 8px var(--plane); border-radius: 10px; }
 .shell:not(.route-overview) .build-foot { width: fit-content; background: var(--plane); box-shadow: 0 0 0 8px var(--plane); border-radius: 10px; }
+/* Devices: the tab bar and the panel carry their own surfaces, so the wrapper needs no plane (it spread 8px past the column). */
+.shell.route-devices .page > .tabs-wrap { background: none; box-shadow: none; }
 html:not([data-theme="light"]) .shell:not(.route-overview) .page .panel:not(.panel .panel) {
   background: var(--glass-bg-strong); border-color: var(--glass-rim); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); }
 @media (max-width: 900px) { .shell:not(.route-overview) #main > .top::before { inset: 0 8px -8px 8px; border-radius: 18px; } }

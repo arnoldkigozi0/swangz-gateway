@@ -72,3 +72,7 @@
   .ov-setup a, .ov-setup button { display: inline-flex; align-items: center; }
 }
 @media (prefers-reduced-motion: reduce) { .task-tile, .task-tile:hover, .task-tile:active { transition: none; transform: none; } }
+
+/* Simple on a phone: a short list ends with one "See all N" (BRIEF 10.10.7). */
+.see-all-row { display: flex; justify-content: center; padding-top: 12px; }
+@media (max-width: 640px) { .see-all-row .btn { min-height: 44px; width: 100%; } }
