@@ -721,9 +721,12 @@
         line("Problems being followed up", inc ? String(active) : failed, "#/incidents?status=active"),
         line("Failed sign-ins", data ? SUI.plural(signIns.length, "address", "addresses") : failed, secSignals("type=signin")),
         line("Possible passwords or keys sent to AI", data ? String(credentials.length) : failed, secSignals("type=credential"))));
+      /* With nothing to check, the block is one line, not an empty panel (Probe, 12 Nov: a big empty box on a phone). */
+      const check = data && !first.length ? el("p", { class: "ov-calm" }, icon("shield"), el("span", null, "Nothing to check in the last 7 days."))
+        : A.panel("Check these first", el("a", { class: "btn small quiet", href: secSignals() }, "See all", icon("chevronRight")), list);
       A.frame({ title: "Security", trail: [[SEC_ROOT[0]]], sentence: lead.sentence, next: A.leadButton(lead.action),
         actions: [mode.switcher, data ? el("button", { class: "btn", type: "button", onclick: () => safeguardsSheet(data) }, icon("shield"), "Safeguards") : null].filter(Boolean) },
-      el("div", { class: "ov-simple" }, A.panel("Check these first", el("a", { class: "btn small quiet", href: secSignals() }, "See all", icon("chevronRight")), list), numbers));
+      el("div", { class: "ov-simple" }, check, numbers));
       return;
     }
 
