@@ -311,6 +311,14 @@ class ProbeShellDefectTests(unittest.TestCase):
             self.assertIn(sel, block)
         self.assertIn("height: 44px; transform: translateY(-50%);", block)
 
+    def test_footer_ask_button_and_phone_bar_items_get_a_44px_target(self):
+        """Probe S5/S6 (13 Nov): the bottom bar's items are 42px tall, the footer's Ask button 38px."""
+        staff = (STATIC / "exact-staff.css").read_text(encoding="utf-8").split("@media (hover: none), (max-width: 640px) {")[-1]
+        self.assertIn(".xf-ask button)::before", staff)
+        bar = (STATIC / "exact-staff-bar.css").read_text(encoding="utf-8")
+        self.assertIn(".stb-bar a { position: relative; }", bar)
+        self.assertIn('.stb-bar a::before { content: ""; position: absolute; top: 50%; left: 0; right: 0; height: 44px; transform: translateY(-50%); }', bar)
+
     def test_rails_keep_the_10_10_4_radius_of_16(self):
         # BRIEF 10.10.4 (10 Nov review) replaced 10.3's full pill (31) with 16
         self.assertIn("border-radius: 16px; overflow: visible; }", (STATIC / "admin.css").read_text(encoding="utf-8"))
