@@ -1,11 +1,13 @@
 name: Inert browser profile checks
 on:
   push:
-    branches: [main]
+    branches: [main, feature/managed-workspace]
     paths:
       - '.github/workflows/browser-profiles.yml'
       - 'swangz_client/**'
       - 'tests/test_browser_profiles.py'
+      - 'tests/test_w6_matrix.py'
+      - 'tests/test_w7_existing_contexts.py'
       - 'tests/test_workspace_launcher.py'
       - 'tests/test_machine_policy.py'
       - 'deploy/chrome-policy/**'
@@ -15,6 +17,8 @@ on:
       - '.github/workflows/browser-profiles.yml'
       - 'swangz_client/**'
       - 'tests/test_browser_profiles.py'
+      - 'tests/test_w6_matrix.py'
+      - 'tests/test_w7_existing_contexts.py'
       - 'tests/test_workspace_launcher.py'
       - 'tests/test_machine_policy.py'
       - 'deploy/chrome-policy/**'
@@ -46,7 +50,7 @@ jobs:
       # Windows retirement is unsupported; mocked checks do not establish native support.
       # This inert suite never launches a browser or accesses a provider.
       - name: Test inert profile preparation and refusal limits
-        run: python -m unittest tests.test_browser_profiles tests.test_workspace_launcher -v
+        run: python -m unittest tests.test_browser_profiles tests.test_workspace_launcher tests.test_w6_matrix tests.test_w7_existing_contexts -v
       # W5: the policy readers for all three systems, against stand-ins; the Windows job also reads the real registry.
       - name: Test the read-only machine policy check
         run: python -m unittest tests.test_machine_policy -v
