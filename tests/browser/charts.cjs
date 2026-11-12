@@ -41,9 +41,10 @@ async function overviewPass(page, url, theme) {
       if (m.primaries !== 1) say(`${m.primaries} primary buttons`);
       if (!m.next) say('no Next step line');
       if (vname === 'mobile') {
-        // the kit's touch rule: every control on the page, not only the ones found so far; a link inside a sentence is exempt
+        // the kit's touch rule: every control on the page, not only the ones found so far; a link inside a sentence is exempt;
+        // a .btn's target is its 44px ::before hit layer (Probe D3), so the larger of the box and that layer is measured
         const small = await page.evaluate(() => [...document.querySelectorAll('main a, main button')].filter(n => !n.closest('p, .hint')).map(n => [n, n.getBoundingClientRect()])
-          .filter(([, r]) => r.width && r.height < 44).map(([n, r]) => `${n.className || n.tagName} "${(n.textContent || n.getAttribute('aria-label') || '').trim().slice(0, 30)}" ${Math.round(r.width)}x${Math.round(r.height)}`));
+          .filter(([n, r]) => r.width && Math.max(r.height, parseFloat(getComputedStyle(n, '::before').height) || 0) < 44).map(([n, r]) => `${n.className || n.tagName} "${(n.textContent || n.getAttribute('aria-label') || '').trim().slice(0, 30)}" ${Math.round(r.width)}x${Math.round(r.height)}`));
         for (const s of small) say('under 44px: ' + s);
       }
       await page.screenshot({ path: path.join(OVERVIEW_OUT, `${name}-detailed.png`) });
@@ -64,7 +65,7 @@ async function overviewPass(page, url, theme) {
       if (s.primaries > 1) say(`Simple has ${s.primaries} primary buttons`);
       if (vname === 'mobile') {
         const small = await page.evaluate(() => [...document.querySelectorAll('main a, main button')].filter(n => !n.closest('p, .hint')).map(n => [n, n.getBoundingClientRect()])
-          .filter(([, r]) => r.width && r.height < 44).map(([n, r]) => `${n.className || n.tagName} "${(n.textContent || '').trim().slice(0, 30)}" ${Math.round(r.width)}x${Math.round(r.height)}`));
+          .filter(([n, r]) => r.width && Math.max(r.height, parseFloat(getComputedStyle(n, '::before').height) || 0) < 44).map(([n, r]) => `${n.className || n.tagName} "${(n.textContent || '').trim().slice(0, 30)}" ${Math.round(r.width)}x${Math.round(r.height)}`));
         for (const t of small) say('Simple under 44px: ' + t);
       }
       await page.screenshot({ path: path.join(OVERVIEW_OUT, `${name}.png`) });
