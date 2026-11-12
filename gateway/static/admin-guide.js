@@ -67,6 +67,20 @@
       action: n.state === "open" ? { label: "Answer " + many(n.open, "request", "requests"), task: "answer-request" } : { label: "See the open requests", href: "#/requests" } };
   }
 
+  /* Security's sentence and next step (BRIEF 10.10.7). n: { loaded, high, medium, warnings, open } — warnings are every
+     signal rated low or above in 7 days, open is open incidents. Worst first; the count is the filter the button opens,
+     and "nothing" still leads somewhere. Pure, so it can be tested. */
+  function securityLead(n) {
+    const list = (q) => "#/security?view=signals&days=7&severity=" + q;
+    if (!n.loaded) return { sentence: "We could not load the security checks.", action: { label: "Try again", retry: true } };
+    if (n.high) return { sentence: many(n.high, "serious warning", "serious warnings") + " in the last 7 days.",
+      action: { label: n.high === 1 ? "Check it now" : "Check them now", href: list("high") } };
+    if (n.open) return { sentence: many(n.open, "problem is", "problems are") + " still being followed up.", action: { label: n.open === 1 ? "Follow it up" : "Follow them up", href: "#/incidents?status=active" } };
+    if (n.medium) return { sentence: many(n.medium, "warning is", "warnings are") + " worth a look this week.", action: { label: "Look at them", href: list("medium") } };
+    if (n.warnings) return { sentence: many(n.warnings, "small warning", "small warnings") + " in the last 7 days.", action: { label: "See the warnings", href: list("warnings") } };
+    return { sentence: "Nothing needs checking right now.", action: { label: "See what admins changed", href: "#/audit" } };
+  }
+
   /* Devices' sentence and next step (BRIEF 10.10.7). n: { total, active, idle, unused, requests, state }. A device that was never
      used, or has gone quiet, is a key someone may have lost, so those come first; each count is the Status filter its button
      opens. When that filter is already showing, the next step moves on. Pure, so it can be tested. */
@@ -376,5 +390,5 @@
     return el("div", { class: "ov-simple" }, A.panel("What do you want to do?", null, tiles(o.waiting, o.paused)), el("div", { class: "ov-side" }, numbers, third));
   }
 
-  Object.assign(A, { startTask, overviewLead, peopleLead, toolsLead, requestsLead, setupSteps, overviewSimple, leadButton, devicesLead });
+  Object.assign(A, { startTask, overviewLead, peopleLead, toolsLead, requestsLead, securityLead, setupSteps, overviewSimple, leadButton, devicesLead });
 })();
