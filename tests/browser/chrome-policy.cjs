@@ -29,9 +29,11 @@ const spec = JSON.parse(fs.readFileSync(path.join(__dirname, 'chrome-policy-case
 const DROPPED = ['RemoteDebuggingAllowed', 'DeveloperToolsAvailability', 'ExtensionInstallBlocklist', 'ExtensionInstallAllowlist', 'ExtensionInstallForcelist'];
 const BLOCKED = 'ERR_BLOCKED_BY_ADMINISTRATOR';
 
-function render() {
+/* full: the process step (P cases) installs the pack with RemoteDebuggingAllowed and DeveloperToolsAvailability
+   left in, since nothing drives that browser; the extension entries still wait for tier 2. */
+function render(full) {
   const pack = JSON.parse(fs.readFileSync(PACK, 'utf8'));
-  for (const name of DROPPED) delete pack[name];
+  for (const name of DROPPED) if (!full || name.startsWith('Extension')) delete pack[name];
   const text = JSON.stringify(pack, null, 2).split('SWANGZ_HUB_HOST').join(spec.hub_host);
   assert.ok(!/SWANGZ_/.test(text), 'a placeholder is left in the rendered pack');
   assert.ok(JSON.parse(text).URLBlocklist.includes('*'), 'the rendered pack is not default-deny');
@@ -189,16 +191,49 @@ const BASE_ARGS = ['--host-resolver-rules=MAP * 127.0.0.1', '--ignore-certificat
 const pause = ms => new Promise(r => setTimeout(r, ms));
 /* A Chrome that has already gone (refused a switch, crashed, never started) sends nothing, which would read as a pass
    for STOP. So the exit is watched: if Chrome ended before the harness stopped it, the row says so and fails. */
-async function spawned(dir, args, ms) {
+async function spawned(dir, args, ms, during) {
   const proc = spawn('google-chrome', ['--user-data-dir=' + dir, ...BASE_ARGS, ...args], { stdio: 'ignore' });
   let gone = '';
   proc.on('exit', (code, signal) => { gone = gone || 'Chrome exited early (' + (signal || 'code ' + code) + ')'; });
   proc.on('error', e => { gone = gone || 'Chrome did not start (' + e.code + ')'; });
   await pause(ms);
   const early = gone;
+  const seen = during && !early ? await during() : undefined;
   if (!early) proc.kill('SIGTERM');
   await pause(500);
-  return { early };
+  return { early, seen };
+}
+/* P-1: Chrome asked for a remote debugging port. The control run proves the port opens without the pack; the process
+   step (full pack, RemoteDebuggingAllowed false) must leave it closed. Nothing here speaks CDP; a TCP connect is all. */
+const PORT = 9333;
+const connects = () => new Promise(resolve => {
+  const s = net.connect(PORT, '127.0.0.1');
+  s.once('connect', () => { s.destroy(); resolve(true); }); s.once('error', () => resolve(false));
+});
+async function debugPort(work, c, n) {
+  /* A Chrome that had already exited leaves the port closed too, so that must fail, not pass. */
+  const { early, seen: open } = await spawned(path.join(work, 'port-' + markOf(c, n)), ['--remote-debugging-port=' + PORT, 'about:blank'], 5000, connects);
+  return { id: c.id, expect: c.expect, address: '--remote-debugging-port=' + PORT, reached: open ? 1 : 0, port: open ? 'open' : 'closed',
+    early, error: early, final: '' };
+}
+/* X-1, weak on purpose: an approved page with a link to another program's scheme. xdg-open and xdg-email are shims
+   first on PATH that only write a line to a marker file. Chrome normally asks before it starts a program and nobody
+   answers, so no start proves little; the row says how many starts and what Chrome reported, and never fails. */
+let MARKER = '';
+async function protocol(context, c, address, n) {
+  const before = fs.existsSync(MARKER) ? fs.readFileSync(MARKER, 'utf8').split('\n').filter(Boolean).length : 0;
+  const page = await context.newPage();
+  const row = { id: c.id, expect: c.expect, address: decodeURIComponent(new URL(address).searchParams.get('to')), reached: 0, error: '', final: '' };
+  page.on('requestfailed', r => { if (r.isNavigationRequest() && !row.error) row.error = ((r.failure() || {}).errorText || '').replace('net::', ''); });
+  try {
+    await page.goto(marked(address, markOf(c, n)), { waitUntil: 'domcontentloaded', timeout: 20000 });
+    await page.click('#go', { timeout: 5000 });
+    await page.waitForTimeout(2500);
+  } catch (e) { row.error = row.error || String(e.message).split('\n')[0].slice(0, 100); }
+  const after = fs.existsSync(MARKER) ? fs.readFileSync(MARKER, 'utf8').split('\n').filter(Boolean).length : 0;
+  row.launched = after - before;
+  await page.close().catch(() => {});
+  return row;
 }
 async function launched(chromium, work, c, address, n) {
   const mark = markOf(c, n), start = marked(address, mark);
@@ -234,6 +269,9 @@ async function launched(chromium, work, c, address, n) {
 }
 function verdict(mode, r) {
   if (r.early) return 'FAIL: ' + r.early + ', so nothing was tested';
+  if (r.launched !== undefined) return 'recorded (weak): ' + r.launched + ' program start' + (r.launched === 1 ? '' : 's') + (r.error ? ', ' + r.error : '');
+  if (r.port) return mode === 'control' ? (r.port === 'open' ? 'reached (port open)' : 'FAIL: the port did not open without policy, so this case proves nothing')
+    : r.port === 'closed' ? 'refused (port closed)' : 'FAIL: remote debugging port open under the full pack';
   if (r.expect === 'RECORD' && r.error.startsWith('launch:')) return 'recorded: ' + r.error;
   const signedIn = !r.signin || (r.signin.back_on_hub && r.signin.via_google && r.signin.cookie);
   if (mode === 'control') return r.reached > 0 && signedIn ? 'reached' : 'FAIL: did not reach the fixture without policy, so this case proves nothing';
@@ -250,7 +288,8 @@ function verdict(mode, r) {
 }
 function report(mode, version, rows) {
   const lines = ['### Chrome policy pack, ' + mode + ' run', '', version + ' on ' + os.platform() + ' ' + os.release(), '',
-    mode === 'enforced' ? 'Driven without: ' + DROPPED.join(', ') + '.' : 'No policy file installed.', '',
+    mode === 'enforced' ? 'Driven without: ' + DROPPED.join(', ') + '.' : mode === 'process' ? 'Full pack, not driven; only the extension entries left out (tier 2).'
+      : 'No policy file installed.', '',
     '| Case | Expected | Address | Fixture requests | Browser error | Result |', '|---|---|---|---|---|---|',
     ...rows.map(r => `| ${r.id} | ${r.expect} | \`${r.address}\` | ${r.reached} | ${r.error || ''} | ${r.verdict} |`), '',
     'Not run: ' + spec.not_run.map(n => n.id + ' (' + n.reason + ')').join('; ') + '.', ''];
@@ -259,21 +298,28 @@ function report(mode, version, rows) {
 
 (async () => {
   const mode = process.argv[2];
-  if (mode === 'render') { fs.writeFileSync(process.argv[3], render()); return; }
-  assert.ok(['control', 'enforced'].includes(mode), 'usage: chrome-policy.cjs render OUT | control | enforced');
+  if (mode === 'render') { fs.writeFileSync(process.argv[3], render(process.argv[4] === 'full')); return; }
+  assert.ok(['control', 'enforced', 'process'].includes(mode), 'usage: chrome-policy.cjs render OUT [full] | control | enforced | process');
   if (process.env.GITHUB_ACTIONS !== 'true') { console.log('Not run: needs a machine-wide Chrome policy file and ports 80 and 443, CI only'); return; }
   if (mode === 'control') assert.deepEqual(installed(), [], 'a policy file is installed during the control run');
   else {
     assert.deepEqual(installed(), ['swangz-test.json'], 'expected exactly the rendered pack in ' + POLICY_DIR);
-    assert.equal(fs.readFileSync(path.join(POLICY_DIR, 'swangz-test.json'), 'utf8'), render(), 'the installed file is not the rendered pack');
+    assert.equal(fs.readFileSync(path.join(POLICY_DIR, 'swangz-test.json'), 'utf8'), render(mode === 'process'), 'the installed file is not the rendered pack');
   }
   fs.mkdirSync(OUT, { recursive: true });
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'swz-policy-'));
   const stop = await fixture(work);
+  /* X-1's shims: first on PATH for every browser this run starts. */
+  const shims = path.join(work, 'shims');
+  MARKER = path.join(work, 'program-starts.txt');
+  fs.mkdirSync(shims);
+  for (const name of ['xdg-open', 'xdg-email']) fs.writeFileSync(path.join(shims, name), '#!/bin/sh\necho "$0 $*" >> ' + JSON.stringify(MARKER) + '\n', { mode: 0o755 });
+  process.env.PATH = shims + ':' + process.env.PATH;
   const { chromium } = require('playwright');
-  const context = await chromium.launchPersistentContext(path.join(work, 'profile'), { channel: 'chrome', headless: false, ignoreHTTPSErrors: true,
+  /* The process step drives nothing: the full pack is expected to stop a driver attaching at all. */
+  const context = mode === 'process' ? null : await chromium.launchPersistentContext(path.join(work, 'profile'), { channel: 'chrome', headless: false, ignoreHTTPSErrors: true,
     args: BASE_ARGS });
-  const version = context.browser() ? 'Chrome ' + context.browser().version() : execFileSync('google-chrome', ['--version']).toString().trim();
+  const version = context && context.browser() ? 'Chrome ' + context.browser().version() : execFileSync('google-chrome', ['--version']).toString().trim();
   const rows = [];
   try {
     for (const c of spec.cases) {
@@ -284,15 +330,22 @@ function report(mode, version, rows) {
         for (const address of expand(c)) rows.push({ id: c.id, expect: c.expect, address, reached: 0, error: '', verdict: 'not run without policy (no fixture behind it)' });
         continue;
       }
+      /* P cases need the full pack, so they run in the control pass and the process step only; the process step runs
+         nothing else. */
+      if ((mode === 'process') !== (c.step === 'process') && !(mode === 'control' && c.step === 'process')) {
+        if (mode === 'enforced') rows.push({ id: c.id, expect: c.expect, address: '', reached: 0, error: '', verdict: 'runs in the process step, with the full pack' });
+        continue;
+      }
       let n = 0;
       for (const address of expand(c)) {
-        const r = c.launch ? await launched(chromium, work, c, address, ++n) : await visit(context, c, address, ++n);
+        const r = c.step === 'process' ? await debugPort(work, c, ++n) : c.kind === 'protocol' ? await protocol(context, c, address, ++n)
+          : c.launch ? await launched(chromium, work, c, address, ++n) : await visit(context, c, address, ++n);
         r.verdict = verdict(mode, r); rows.push(r);
       }
     }
-  } finally { await context.close(); stop(); }
+  } finally { if (context) await context.close(); stop(); }
   const text = report(mode, version, rows);
-  fs.writeFileSync(path.join(OUT, mode + '.json'), JSON.stringify({ mode, version, os: os.platform() + ' ' + os.release(), dropped: mode === 'enforced' ? DROPPED : [], rows, not_run: spec.not_run }, null, 2));
+  fs.writeFileSync(path.join(OUT, mode + '.json'), JSON.stringify({ mode, version, os: os.platform() + ' ' + os.release(), dropped: mode === 'enforced' ? DROPPED : mode === 'process' ? DROPPED.filter(n => n.startsWith('Extension')) : [], rows, not_run: spec.not_run }, null, 2));
   fs.writeFileSync(path.join(OUT, mode + '.md'), text);
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, text + '\n');
   console.log(text);
