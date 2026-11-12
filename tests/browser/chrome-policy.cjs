@@ -12,6 +12,7 @@ const assert = require('assert');
 const fs = require('fs');
 const http = require('http');
 const https = require('https');
+const net = require('net');
 const os = require('os');
 const path = require('path');
 const url = require('url');
@@ -105,6 +106,12 @@ async function fixture(dir) {
   const tls = https.createServer({ key: fs.readFileSync(path.join(dir, 'key.pem')), cert: fs.readFileSync(path.join(dir, 'cert.pem')) }, handler('https'));
   const plain = http.createServer(handler('http'));
   tls.on('upgrade', logUpgrade('https')); plain.on('upgrade', logUpgrade('http'));
+  /* F-4: a local user starting Chrome with --proxy-server. The plain server doubles as that proxy and tunnels every
+     CONNECT back to the fixture, so the control run still reaches it and the hit log still names the host. */
+  plain.on('connect', (req, sock, head) => {
+    const up = net.connect(443, '127.0.0.1', () => { sock.write('HTTP/1.1 200 Connection established\r\n\r\n'); up.write(head); up.pipe(sock); sock.pipe(up); });
+    up.on('error', () => sock.destroy()); sock.on('error', () => up.destroy());
+  });
   await listen(tls, 443); await listen(plain, 80);
   return () => { tls.close(); plain.close(); };
 }
@@ -124,8 +131,9 @@ function expand(c) {
   }
   return list;
 }
+const markOf = (c, n) => c.id.replace(/[^A-Za-z0-9]/g, '') + 'n' + n;
 async function visit(context, c, address, n) {
-  const mark = c.id.replace(/[^A-Za-z0-9]/g, '') + 'n' + n;
+  const mark = markOf(c, n);
   const page = await context.newPage();
   const opened = [];   // C-3: pop-ups and new tabs the case opens
   const onPage = p => { if (p !== page) opened.push(p); };
@@ -172,7 +180,46 @@ async function visit(context, c, address, n) {
   await page.close();
   return out;
 }
+const BASE_ARGS = ['--host-resolver-rules=MAP * 127.0.0.1', '--ignore-certificate-errors', '--no-first-run', '--no-default-browser-check'];
+/* F and B-6: a local user starting Chrome with switches. Each address gets a browser of its own, with its own new
+   user data directory (F-2: policy must hold in a profile nobody set up), the case's switches added to the harness's.
+   "{url}" in the switches puts the marked address on the command line (B-6); the case then never calls goto, and
+   counts what Chrome opened by itself. kind "observe" (F-1) counts browser contexts over CDP instead of requests. */
+async function launched(chromium, work, c, address, n) {
+  const mark = markOf(c, n), start = marked(address, mark);
+  const args = c.launch.map(a => a.replace('{url}', start));
+  const row = { id: c.id, expect: c.expect, address: c.launch.join(' ').replace('{url}', address), reached: 0, error: '', final: '' };
+  let context;
+  try {
+    context = await chromium.launchPersistentContext(path.join(work, 'launch-' + mark), { channel: 'chrome', headless: false,
+      ignoreHTTPSErrors: true, timeout: 20000, args: BASE_ARGS.concat(args) });
+  } catch (e) { row.error = 'launch: ' + String(e.message).split('\n')[0].slice(0, 100); return row; }
+  try {
+    if (c.kind === 'observe') {
+      const page = context.pages()[0] || await context.newPage();
+      await page.waitForTimeout(1500);
+      const { targetInfos } = await (await context.newCDPSession(page)).send('Target.getTargets');
+      const ids = new Set(targetInfos.filter(t => t.type === 'page').map(t => t.browserContextId));
+      row.observe = ids.size + ' browser context' + (ids.size === 1 ? '' : 's') + ' with pages';
+    } else if (c.launch.some(a => a.includes('{url}'))) {
+      const arrived = () => hits.filter(h => h.url.includes('swz=' + mark));
+      for (let i = 0; i < 16 && !arrived().length; i++) await new Promise(r => setTimeout(r, 250));
+      row.reached = arrived().length;
+      row.hosts = [...new Set(arrived().map(h => h.host))];
+      for (const p of context.pages()) {
+        const text = await p.evaluate(() => document.documentElement.innerText).catch(() => '');
+        if (text.includes(BLOCKED)) { row.error = BLOCKED; row.final = p.url().slice(0, 80); }
+      }
+    } else {
+      Object.assign(row, await visit(context, c, address, n), { address: row.address + ' ' + address });
+    }
+  } catch (e) { row.error = row.error || String(e.message).split('\n')[0].slice(0, 100); }
+  finally { await context.close().catch(() => {}); }
+  return row;
+}
 function verdict(mode, r) {
+  if (r.observe !== undefined) return 'recorded: ' + r.observe;
+  if (r.expect === 'RECORD' && r.error.startsWith('launch:')) return 'recorded: ' + r.error;
   const signedIn = !r.signin || (r.signin.back_on_hub && r.signin.via_google && r.signin.cookie);
   if (mode === 'control') return r.reached > 0 && signedIn ? 'reached' : 'FAIL: did not reach the fixture without policy, so this case proves nothing';
   if (r.expect === 'ALLOW') return r.reached > 0 && signedIn && !r.error ? 'allowed' : 'FAIL: an approved address was refused';
@@ -210,7 +257,7 @@ function report(mode, version, rows) {
   const stop = await fixture(work);
   const { chromium } = require('playwright');
   const context = await chromium.launchPersistentContext(path.join(work, 'profile'), { channel: 'chrome', headless: false, ignoreHTTPSErrors: true,
-    args: ['--host-resolver-rules=MAP * 127.0.0.1', '--ignore-certificate-errors', '--no-first-run', '--no-default-browser-check'] });
+    args: BASE_ARGS });
   const version = context.browser() ? 'Chrome ' + context.browser().version() : execFileSync('google-chrome', ['--version']).toString().trim();
   const rows = [];
   try {
@@ -223,7 +270,10 @@ function report(mode, version, rows) {
         continue;
       }
       let n = 0;
-      for (const address of expand(c)) { const r = await visit(context, c, address, ++n); r.verdict = verdict(mode, r); rows.push(r); }
+      for (const address of expand(c)) {
+        const r = c.launch ? await launched(chromium, work, c, address, ++n) : await visit(context, c, address, ++n);
+        r.verdict = verdict(mode, r); rows.push(r);
+      }
     }
   } finally { await context.close(); stop(); }
   const text = report(mode, version, rows);
