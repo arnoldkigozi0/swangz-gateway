@@ -44,7 +44,7 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       const unclipped = async (name) => { if (width > 1200) ok(T + name + ' shows the current page in full', await p.locator('.console-trail .crumb-here').evaluate(n => n.scrollWidth <= n.clientWidth + 1)); };
       const small = async (name) => {
         if (width > 640) return;
-        const bad = await p.evaluate(() => [...document.querySelectorAll('.top-actions .btn, .panel-actions .btn, .list-meta .btn')].filter(b => b.getBoundingClientRect().height < 44).map(b => b.textContent));
+        const bad = await p.evaluate(() => [...document.querySelectorAll('.top-actions .btn, .panel-actions .btn, .list-meta .btn')].filter(b => Math.max(b.getBoundingClientRect().height, parseFloat(getComputedStyle(b, '::before').height) || 0) < 44).map(b => b.textContent));
         assert.deepEqual(bad, [], T + name + ' touch size'); checks++;
       };
 

@@ -204,6 +204,19 @@ class ButtonDefectTests(unittest.TestCase):
         self.assertIn(".top > .top-actions .btn { min-height: 36px; height: 36px;", css)
         self.assertNotIn(".top > .top-actions .btn { min-height: 34px;", css)
 
+    def test_phone_buttons_keep_their_size_and_grow_only_the_hit_area(self):
+        """D3: at 640px and narrower a .btn stays 36 / 30 px tall; the shared ::before layer makes the 44px target."""
+        controls = (self.root / "controls.css").read_text(encoding="utf-8")
+        self.assertIn("@media (hover: none), (max-width: 640px) {\n  .btn:not(.link):not(.loading)", controls)
+        admin = (self.root / "admin.css").read_text(encoding="utf-8")
+        guide = (self.root / "guide.css").read_text(encoding="utf-8")
+        for gone in (".route-people .btn:not(.link), .route-tools .btn:not(.link)", "  .top-actions .btn { min-height: 44px; }",
+                     ".route-overview .top > .top-actions .btn, .route-overview .panel-actions .btn { min-height: 44px",
+                     ".route-licences .top > .top-actions .btn, .route-reports", ".route-security .top > .top-actions .btn, .route-incidents"):
+            self.assertNotIn(gone, admin)
+        self.assertNotIn(".next-step .btn { min-height: 44px; }", guide)
+        self.assertNotIn(".route-overview .panel-actions .btn { min-height: 44px; }", guide)
+
 
 if __name__ == "__main__":
     unittest.main()
