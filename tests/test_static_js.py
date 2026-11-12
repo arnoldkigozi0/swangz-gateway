@@ -520,3 +520,48 @@ class DevicesLeadTests(unittest.TestCase):
     def test_sentences_stay_short(self):
         for n in ({"unused": 1234}, {"idle": 2}, {}, {"total": 0}):
             self.assertLessEqual(len(self.lead(**n)["sentence"].split()), 12)
+
+
+def security_lead(cases):
+    source = (STATIC / "admin-guide.js").read_text(encoding="utf-8")
+    many = re.search(r"\n  (const many = .*?;)\n", source).group(1)
+    fn = re.search(r"\n  (function securityLead\(n\) \{\n.*?\n  \})\n", source, re.S).group(1)
+    script = many + fn + "\nconsole.log(JSON.stringify(" + json.dumps(cases) + ".map(securityLead)));"
+    out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30, check=True)
+    return json.loads(out.stdout)
+
+
+@unittest.skipUnless(shutil.which("node"), "Node is not installed")
+class SecurityLeadTests(unittest.TestCase):
+    """BRIEF 10.10.7 on Security: worst first, the real number in the sentence, the button opens what was counted."""
+    BASE = {"loaded": True, "high": 0, "medium": 0, "warnings": 0, "open": 0}
+
+    def lead(self, **n):
+        return security_lead([{**self.BASE, **n}])[0]
+
+    def test_worst_comes_first_and_opens_exactly_what_it_counts(self):
+        both = self.lead(high=2, medium=3, warnings=9, open=1)
+        self.assertEqual(both["sentence"], "2 serious warnings in the last 7 days.")
+        self.assertEqual(both["action"]["href"], "#/security?view=signals&days=7&severity=high")
+        self.assertEqual(self.lead(open=1, medium=3, warnings=3)["action"]["href"], "#/incidents?status=active")
+        self.assertEqual(self.lead(open=1)["sentence"], "1 problem is still being followed up.")
+        self.assertEqual(self.lead(medium=1, warnings=1)["action"]["href"], "#/security?view=signals&days=7&severity=medium")
+        self.assertEqual(self.lead(warnings=4)["action"]["href"], "#/security?view=signals&days=7&severity=warnings")
+
+    def test_nothing_and_failure_are_never_a_dead_end(self):
+        calm = self.lead()
+        self.assertEqual(calm["sentence"], "Nothing needs checking right now.")
+        self.assertEqual(calm["action"]["href"], "#/audit")
+        self.assertTrue(self.lead(loaded=False)["action"]["retry"])
+
+    def test_sentences_stay_short_and_plain(self):
+        for n in ({"high": 1234}, {"open": 2}, {"medium": 5}, {"warnings": 1}, {}, {"loaded": False}):
+            sentence = self.lead(**n)["sentence"]
+            self.assertLessEqual(len(sentence.split()), 12)
+            for word in ("incident", "signal", "severity", "policy"):
+                self.assertNotIn(word, sentence.lower())
+
+    def test_security_uses_the_shared_view_switch(self):
+        monitor = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
+        self.assertIn('A.viewMode("security", "#/security", params)', monitor)
+        self.assertIn("A.securityLead({", monitor)
