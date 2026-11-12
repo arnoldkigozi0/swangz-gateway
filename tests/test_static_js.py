@@ -565,3 +565,22 @@ class SecurityLeadTests(unittest.TestCase):
         monitor = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
         self.assertIn('A.viewMode("security", "#/security", params)', monitor)
         self.assertIn("A.securityLead({", monitor)
+
+
+class PlainWordsTests(unittest.TestCase):
+    """Probe, 12 Nov: the console says licences, not seats or idle; Devices' keys tab is Coding tools; Security with
+    nothing to check is one line, not an empty panel."""
+
+    def test_no_seat_or_idle_wording_on_screen(self):
+        money = (STATIC / "admin-money.js").read_text(encoding="utf-8")
+        govern = (STATIC / "admin-govern.js").read_text(encoding="utf-8")
+        for old in ('"Idle seats"', '"idle seat"', "seats used in 30 days", "check its idle seats", "Seats paid for against"):
+            self.assertNotIn(old, money)
+        self.assertNotIn("seats paid`", govern)
+        self.assertIn('["keys", "Coding tools", keysTab', govern)
+        self.assertNotIn('"Gateway keys"', govern)
+
+    def test_security_with_nothing_to_check_is_one_line(self):
+        monitor = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
+        self.assertIn('data && !first.length ? el("p", { class: "ov-calm" }', monitor)
+        self.assertIn(".ov-calm {", (STATIC / "guide.css").read_text(encoding="utf-8"))

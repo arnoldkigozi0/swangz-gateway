@@ -655,7 +655,7 @@
       { key: "last_ip", label: "Last address", render: (b) => (b.last_ip ? el("span", { class: "mono faint" }, b.last_ip) : "—"), hideSm: true }] })
       : A.empty("Nobody has opened a tool from the portal yet."));
     const tabs = () => A.pageTabs("#/devices", params, [
-        ["keys", "Laptops and tools", keysTab, counts.active || null],
+        ["keys", "Coding tools", keysTab, counts.active || null],
         ["browsers", "Browsers", browsersTab],
       ]);
     if (mode.simple) {
@@ -828,7 +828,7 @@
         { key: "signin", label: "Sign-in", sort: (t) => (SIGNIN[t.kind === "dev" ? "api" : t.signin] || SIGNIN.seat)[0], render: (t) => (SIGNIN[t.kind === "dev" ? "api" : t.signin] || SIGNIN.seat)[0], hideSm: true },
         { key: "people", label: "Given to", num: true, sort: (t) => t.assigned_people, render: (t) => (held(t)
           ? el("span", null, SUI.plural(t.assigned_people, "person", "people"), t.assigned_teams ? el("span", { class: "sub" }, SUI.plural(t.assigned_teams, "team")) : null,
-            t.subscription.seats ? el("span", { class: "sub" }, `${t.subscription.seats} seats paid`) : null)
+            t.subscription.seats ? el("span", { class: "sub" }, `${SUI.plural(t.subscription.seats, "licence")} paid`) : null)
           : el("span", { class: "faint" }, "no one")) },
         { key: "opens", label: "Opens · 30 days", num: true, sort: (t) => t.usage_30d.opens, render: (t) => (t.usage_30d.opens ? fmt.num(t.usage_30d.opens) : el("span", { class: "faint" }, "—")) },
         { key: "act", label: "", srLabel: "Actions", sort: false, render: (t) => mode.simple
@@ -890,7 +890,7 @@
     if (t.kind !== "dev" && sub.state === "past_due") return ["Payment is due.", "Update the subscription", "billing"];
     if (t.kind === "site" && sub.state !== "active") return ["Staff can't open it without an active subscription.", "Add the subscription", "billing"];
     if (!held) return ["Nobody has it yet.", "Give it to someone", "access"];
-    if (sub.seats && t.assigned_people > sub.seats) return [`${SUI.plural(t.assigned_people, "person", "people")} have it, with ${SUI.plural(sub.seats, "seat")} paid.`, "Review who has it", "access"];
+    if (sub.seats && t.assigned_people > sub.seats) return [`${SUI.plural(t.assigned_people, "person", "people")} have it, with ${SUI.plural(sub.seats, "licence")} paid.`, "Review who has it", "access"];
     if (t.kind === "site" && !t.usage_30d.opens) return ["Nobody has opened it in 30 days.", "Review who has it", "access"];
     return ["Nothing needs doing.", "See how it is used", "usage"];
   }
@@ -936,7 +936,7 @@
         t.description ? el("p", { class: "muted lead-text" }, t.description) : null,
         el("div", { class: "facts" },
           fact("Subscription", sub.state === "none" ? (t.kind === "site" ? "None yet" : "Metered on our API key") : [SUB_LABEL[sub.state], sub.plan].filter(Boolean).join(" · ")),
-          fact("Seats", sub.seats ? `${sub.seats} paid` : "—"),
+          fact("Licences", sub.seats ? `${sub.seats} paid` : "—"),
           fact("Given to", `${SUI.plural(t.assigned_people, "person", "people")}` + (t.assigned_teams ? ` · ${SUI.plural(t.assigned_teams, "team")}` : "")),
           fact("Active this month", SUI.plural(u.active_month, "person", "people")),
           fact(t.kind === "site" ? "Monthly cost" : "API cost · 30 days", t.kind === "site" ? (sub.monthly_cost != null ? fmt.money(sub.monthly_cost) : "—") : fmt.money(u.cost_30d),

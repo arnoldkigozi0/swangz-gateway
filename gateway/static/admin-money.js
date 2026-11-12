@@ -62,7 +62,7 @@
       A.kpi({ label: "Company plans", value: s ? fmt.money(s.subscriptions_month) + "/mo" : "—", href: "#/licences?tab=licences&show=paid",
         tip: "The monthly cost set on each subscription (Tools → a tool → Subscription). Metered API use is separate.",
         note: s ? SUI.plural(paid, "paid plan") : failed }),
-      A.kpi({ label: "Idle seats", value: s ? String(s.idle_seats) : "—", tone: s && s.idle_seats ? "alert" : null, href: "#/licences?tab=licences&show=idle",
+      A.kpi({ label: "Unused licences", value: s ? String(s.idle_seats) : "—", tone: s && s.idle_seats ? "alert" : null, href: "#/licences?tab=licences&show=idle",
         tip: "For each paid tool: monthly cost ÷ people given it × people who haven't used it in 30 days. An estimate, because vendors bill differently.",
         note: !s ? failed : s.idle_seats ? `about ${fmt.money(s.idle_cost)}/mo unused` : "everyone given a tool is using it" }),
       A.kpi({ label: "Renewing · 30 days", value: lic ? String(soon.length) : "—", href: "#/licences?tab=renewals&show=soon",
@@ -79,7 +79,7 @@
 
     /* The one "Next step" line: money being wasted first, then numbers that can't be trusted, then dates coming up. */
     const next = !lic || !d ? "Some of the figures couldn't load, so there is no next step to show."
-      : s.idle_seats ? el("a", { href: "#/licences?tab=licences&show=idle" }, `Reclaim ${SUI.plural(s.idle_seats, "idle seat")}`)
+      : s.idle_seats ? el("a", { href: "#/licences?tab=licences&show=idle" }, `See ${SUI.plural(s.idle_seats, "unused licence")}`)
         : d.unpriced ? el("a", { href: "#/settings?tab=providers&section=prices" }, `Price ${SUI.plural(d.unpriced, "request")} with no price yet`)
           : soon.length ? el("a", { href: "#/licences?tab=renewals&show=soon" }, `Check ${SUI.plural(soon.length, "plan")} renewing in the next 30 days`)
             : "Nothing needs doing right now.";
@@ -108,7 +108,7 @@
     const owner = A.can("money");
     const SHOW = [
       ["paid", "Paid plans", (t) => t.monthly_cost],
-      ["idle", "Idle seats", (t) => t.idle.length],
+      ["idle", "Unused licences", (t) => t.idle.length],
       ["over", "Over-assigned", (t) => t.over_seats],
     ];
     const st = { ...listState(params), show: params.get("show") || "" };
@@ -116,7 +116,7 @@
     const rows = lic.tools.map((t) => ({ ...t, util: t.assigned ? t.active / t.assigned : null }));
     const activeSeats = lic.tools.reduce((n, t) => n + t.active, 0);
     const assignedSeats = lic.tools.reduce((n, t) => n + t.assigned, 0);
-    const meta = el("div", { class: "list-meta" }, el("span", null, `${activeSeats} of ${assignedSeats} seats used in 30 days`));
+    const meta = el("div", { class: "list-meta" }, el("span", null, `${activeSeats} of ${assignedSeats} licences used in 30 days`));
     const box = el("div");
     const pager = { page: st.page, size: st.per, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
     const reclaim = async (t, p) => {
@@ -145,14 +145,14 @@
           { id: "activity", label: "Activity", icon: "clock", href: "#/activity?tab=timeline&tool=" + encodeURIComponent(t.id) },
         ] }) },
       ] }) : SUI.stateBox({ icon: "licences", title: rows.length ? "No licences match" : "No licences yet",
-        text: rows.length ? "Try another search or filter." : "Subscribe on the Tools page, then give the tool to people. Seats and their use appear here." }));
+        text: rows.length ? "Try another search or filter." : "Subscribe on the Tools page, then give the tool to people. Licences and their use appear here." }));
     }
     const keep = () => A.keepParams("#/licences", { tab: "licences", q: st.q, show: st.show, ...pageParams(st) });
     const bar = SUI.filterBar({ label: "Filter licences", search: { placeholder: "Tool, plan or category" }, values: st, filters: [
       { id: "show", label: "Show", any: "All licences", options: SHOW.map(([k, label, f]) => ({ id: k, label, sub: SUI.plural(rows.filter(f).length, "tool") })) },
     ], onChange: (v) => { st.q = v.q || ""; st.show = v.show || ""; st.page = pager.page = 1; keep(); draw(); } });
     draw();
-    A.frame({ title: "Licences", trail: [MONEY_ROOT, ["Licences"]], lede: "Seats paid for against real use. Used means opened from the portal, visited through the browser extension, or used through the gateway in the last 30 days." },
+    A.frame({ title: "Licences", trail: [MONEY_ROOT, ["Licences"]], lede: "Licences paid for against real use. Used means opened from the portal, visited through the browser extension, or used through the gateway in the last 30 days." },
       A.panel(null, null, el("div", { class: "filterbar" }, bar), meta, box));
   }
 
@@ -251,7 +251,7 @@
     const meta = el("div", { class: "list-meta" },
       el("span", null, SUI.plural(plans.length, "plan")),
       undated ? el("span", null, `${undated} with no date: set it on the tool's Subscription tab`) : null,
-      el("a", { href: "#/licences?tab=licences&show=idle" }, "Before a renewal, check its idle seats"));
+      el("a", { href: "#/licences?tab=licences&show=idle" }, "Before a renewal, check its unused licences"));
     const box = el("div");
     const pager = { page: st.page, size: st.per, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
     function draw() {
@@ -1017,7 +1017,7 @@
     tools: ["Tools and models", "Which tools are used, by how many people, and how often?"],
     models: ["Tools and models", "Which models do requests go to, and what do they cost?"],
     purposes: ["Tools and models", "What is AI being used for — declared, from the tool, or inferred?"],
-    licences: ["Licences", "Which seats are paid for, used, or idle?"],
+    licences: ["Licences", "Which licences are paid for, used, or unused?"],
     security: ["Trust", "Which signals came up, with the evidence behind each?"],
     shared: ["Trust", "Who held each shared company account, and for how long?"],
   };

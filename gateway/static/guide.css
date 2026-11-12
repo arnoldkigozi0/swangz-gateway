@@ -76,3 +76,7 @@
 /* Simple on a phone: a short list ends with one "See all N" (BRIEF 10.10.7). */
 .see-all-row { display: flex; justify-content: center; padding-top: 12px; }
 @media (max-width: 640px) { .see-all-row .btn { min-height: 44px; width: 100%; } }
+
+/* Simple with nothing to check: one quiet line where the list would be (Security). */
+.ov-calm { display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 0; color: var(--tx-2); align-self: start; }
+.ov-calm svg { width: 18px; height: 18px; flex: none; }
