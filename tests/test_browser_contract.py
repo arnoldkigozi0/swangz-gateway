@@ -60,7 +60,7 @@ class NegotiationTests(Base):
     def test_anything_else_omits_the_block_and_the_old_manifest_is_unchanged(self):
         plain = self.get("")[1]
         self.assertNotIn("browser", plain)
-        for q in ("?browser_contract=2", "?browser_contract=01", "?browser_contract=true", "?browser_contract=",
+        for q in ("?browser_contract=3", "?browser_contract=01", "?browser_contract=true", "?browser_contract=",
                   "?browser_contract", "?browser_contract=1&browser_contract=1", "?browser_contract=1&browser_contract=2",
                   "?browser_contract=2&browser_contract=1", "?Browser_Contract=1", "?browser_contract=1%20", "?browser_contract=%31x"):
             status, out = self.get(q)
