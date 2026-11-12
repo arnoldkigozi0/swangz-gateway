@@ -126,3 +126,57 @@ commit hash. Until then every screen and document says "not production ready".
 3. `warn` or `enforce` as the default once evidence exists.
 4. Whether prompt bodies are stored at all (R-8).
 5. Approval of each PR in this stream before merge.
+
+## 9. Owner direction, 12 Nov 2026 (overrides anything above that conflicts)
+
+Arnold, 12 Nov evening: this stream is now the first priority. Team works to the end of 14 Nov; Arnold does his
+own items on 15 Nov and wraps up, including the hosted server.
+
+**9.1 Every provider opens inside the Swangz workspace browser. Never in an outside browser.**
+
+Today `swangz_client/shell.py` `open_url` calls `webbrowser.open`, which hands the address to whatever browser the
+person has set as default. That stops for provider tools.
+
+- "Open" on any tool (staff app, tray, deep link, a link in a Hub page) starts the workspace browser of W3: a
+  Chromium-family browser found on the machine (Chrome, Chromium, Edge, Brave in that order), launched by the app
+  with the person's single workspace data folder. A second "Open" reuses the running workspace (new tab), it does
+  not start another profile.
+- If no Chromium-family browser is installed, the app says so in plain words with one button to the install
+  page. It does **not** fall back to the default browser.
+- Links clicked inside the workspace stay inside it. A provider's own sign-in hop (Google, Microsoft, Apple) is
+  allowed as part of official sign-in and stays in the same window.
+- `open_url` may still use the default browser for exactly two things: the Hub's own help page and the browser
+  install page. A test lists every caller of `open_url` and fails on a new one.
+- Why not a web view inside the app window: Google and other providers refuse sign-in inside embedded web
+  views, and it would mean shipping a browser engine. The workspace is a real browser window that the app owns,
+  starts and closes. Documents say "the Swangz workspace window", not "inside the app window".
+
+**9.2 Downloads are allowed (decision 8.1 is made).** `DownloadRestrictions=0`. Files leave the workspace only
+through the browser's normal download. Record the choice in the generator so A2's refusal is satisfied for this
+item. `AllowedDomainsForApps` (8.2) is still open; the generator keeps refusing on it until Arnold decides, with
+a `--undecided-domains-ok` switch for CI and the laptop demo only.
+
+**9.3 "Working" means this demo passes on the team laptop, on Linux, recorded by Probe:**
+
+1. Enrol the device; press Open on ChatGPT, Claude and Gemini: each opens in the workspace window, on the
+   provider's official address, and the default browser's process list is unchanged.
+2. Sign in by hand to one provider; close; Open again: still signed in (the folder persisted), no second profile.
+3. Suspend the device in the console: within one heartbeat the workspace window closes and Open is refused with
+   a plain message. Reactivate: Open works and the sign-in is still there.
+4. Retire: the profile folder is gone.
+5. With the prepared policy installed in a container only: the bypass cases of W6 pass.
+Windows and macOS: the same steps as automated tests on CI runners; anything that cannot run is listed as
+not proven, for Arnold to try on a real machine on 15 Nov.
+
+**9.4 Order and branches.** W2, then W3 with 9.1, then W4, W5, W6, W7. Each is its own PR **into the branch
+`feature/managed-workspace`**, not into main, and may be merged into that branch on green so the pieces can be
+tested together. One final PR from `feature/managed-workspace` into main stays open for Arnold's written approval
+(hard limit 4 still holds for main). Probe tests on the integration branch.
+
+**9.5 Server ready for 15 Nov.** No purchase by the team. By end of 14 Nov: `deploy/` setup script run end to end
+on a fresh local VM or container of the target size (1 vCPU, 1 GB), with timings and memory use written down;
+a single page `docs/SERVER-DAY.md` that Arnold follows on the 15th: rent, DNS, one command, Google sign-in
+return address, provider keys, first owners, health check, how to point the apps at the new address, rollback.
+
+**9.6 What is left for Arnold on 15 Nov** goes in `docs/ARNOLD-ONLY.md`, in the order he should do it, each with
+the time it takes. Nothing else may be parked there: unfinished team work is not Arnold's.
