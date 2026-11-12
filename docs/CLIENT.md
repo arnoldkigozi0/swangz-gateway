@@ -235,6 +235,33 @@ byte for byte; `apps[].open` links carry `?d=<device_id>` **only** under contrac
   ever takes access away.
 - No provider password, cookie, token or session is read, stored or sent by any of this.
 
+### Opening a provider in the workspace window (W3, `POST /api/device/open`)
+
+The workspace browser never opens `/go/<tool>` (it has no Hub session). The app asks for the provider address with its device key:
+
+```
+POST /api/device/open
+Authorization: Bearer <device key>      X-Swangz-App: 1      Content-Type: application/json
+{"tool": "chatgpt"}
+
+200 {"ok": true, "tool": {"id": "chatgpt", "name": "ChatGPT"}, "url": "https://chatgpt.com/",
+     "allowed_hosts": ["chat.openai.com", "chatgpt.com", "sora.com"], "workspace": {"state": "active", "generation": 1}}
+```
+
+- Checks, in order: the device key (`401 device_unknown | device_revoked | device_key_rotated`, `403 person_paused | access_ended |
+  paused | not_enrolled`), the tool (`404 unknown_tool`), then exactly `/go/`'s checks (`staff.launch_checks`: `403 locked |
+  not_assigned | past_due | suspended | weekly_report_required` with `details.report`, or `policy` for a company rule), then this
+  device's workspace (`403 workspace_suspended | workspace_retired | workspace_policy`), then the address (`409 no_address |
+  host_not_allowed | unsafe_address | shared_account`). Errors are `{"error": "<plain words>", "code", "details"}`.
+- Every answer after the key check is recorded as a launch, `opened` or `refused` with its rule, exactly as `/go/` records it.
+- The address is https only, port 443, no user name or password, a DNS name (no IP, not `localhost`, not the Hub), no query or fragment
+  field named like a credential (`token`, `access_token`, `api_key`, `password`, ...), at most 2048 characters, and on one of the tool's
+  `hosts` (exact or a subdomain). A tool with no hosts is refused (`host_not_allowed`): the admin sets them.
+- **The app must still** check `url` against `allowed_hosts` itself before starting the browser, pass `url` and nothing else on the
+  command line (never the key), and treat any non-200 as "do not open". `shared_account` tools are opened from the Hub (turns are not
+  wired into the workspace).
+- Not `GET`: the call records a launch. The answer is `Cache-Control: no-store` and carries no key, token or Hub session.
+
 ## Disconnecting
 
 If the server says a device was disconnected (`401 device_revoked`), the app removes everything it installed
