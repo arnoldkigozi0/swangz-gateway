@@ -65,6 +65,14 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
         await open('#/models', '.u-filter');
       }
       await noOverflow('L2'); await axe('L2'); await small('L2'); await shot(p, 'models');
+      if (width >= 1440) {
+        // A long list has one scrollbar, inside the panel; the Simple header and footer stay in the viewport (Probe M1).
+        await p.evaluate(() => { const b = document.querySelector('main .u-table tbody'); const r = b.querySelector('tr'); for (let i = 0; i < 80; i++) b.append(r.cloneNode(true)); });
+        const m = await p.evaluate(() => { const w = document.querySelector('main .u-table-wrap'); return { inner: w.scrollHeight > w.clientHeight + 1, page: document.documentElement.scrollHeight - innerHeight }; });
+        ok(T + `a long list scrolls inside its panel (${JSON.stringify(m)})`, m.inner);
+        ok(T + 'and the page itself does not scroll', m.page <= 1);
+        await open('#/models', '.u-filter');
+      }
       await p.getByRole('searchbox').first().fill('zzz-no-such-model');
       await p.getByText('No models match').waitFor();
       ok(T + 'a search with no match says so', await rows() === 0);

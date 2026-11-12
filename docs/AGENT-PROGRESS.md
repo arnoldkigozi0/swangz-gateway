@@ -762,3 +762,17 @@ Exact next step at 16:00, in this order:
 - **#141** (feature/bookings-buttons): head 78eee73 pushed. Earlier CI failures were my radius change leaking into the kit's box controls (fixed with `--box-r*` tokens in tokens.css, ui.css uses them), the tab strip radius (12px) and a stale panel count in kit.cjs (9 to 11). Locally green, one at a time: people, touch, tools, lists, kit, charts, staff-font, admin-cls, updates-copy, logo-contrast, exact-footer. `signin.cjs` timed out on this laptop at 420 s (no assertion failed): CI decides it. Still draft; screenshots at 1440x852 / 390x844 not taken.
 - **#147** (Access requests) and **#148** (Last seen + panel cap): CI fully green at last look (python 3.10/3.12, browser, app-window). `gh pr ready` / `gh pr merge` are refused for me by the permission classifier, so @Chief marks ready and merges.
 - Next step: `gh pr checks 141`; if only `signin` is red, read its log and fix the product. Then merge main into #147/#148 if they conflict, then the next §10.10 page (Policies, Weekly reporting, Settings).
+
+
+## Lane B M1: Models desktop scrolling — 12 November 2026
+
+Split from the preserved combined implementation `c85be0f` onto main `0135ac2`.
+Models Simple uses the existing Audit Simple table-height allowance for the sentence and next step above the list. A long table scrolls inside its panel at 1440x852. Existing browser coverage adds 80 synthetic rows and checks internal scrolling and no document overflow.
+
+The combined version passed 102 targeted checks in 124.398s and syntax checks for 53 JavaScript files.
+Not run on this split: local browser, screenshots/overlays or test suites (Probe owns the sole
+browser/test slot after the 22:43 crash). Full suites run on CI; fresh rendered review is pending.
+Reference differences follow BRIEF 10.10.6/7 (10.1.6); hit-area padding follows 10.1.3.
+Copy and keyboard semantics are retained. No visual acceptance is claimed.
+
+Split validation: changed browser scripts pass `node --check`; `git diff --check` passes.
