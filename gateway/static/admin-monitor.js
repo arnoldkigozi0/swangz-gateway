@@ -822,7 +822,7 @@
     let minId = null, rows = [], actors = [], asked = 0, hasMore = false;
     const cols = [
       { key: "ts", label: "When", lead: true, render: (a) => el("time", { title: fmt.stamp(a.ts), class: "u-num nowrap" }, fmt.clock(a.ts, true), el("span", { class: "sub" }, fmt.day(a.ts))) },
-      { key: "actor", label: "Who", render: (a) => el("span", { class: "u-cell" }, SUI.avatar(a.actor, "sm"), el("strong", null, a.actor)) },
+      { key: "actor", label: "Who", render: (a) => el("span", { class: "u-cell audit-who" }, SUI.avatar(a.actor, "sm"), el("strong", null, ...whoParts(a.actor))) },
       { key: "action", label: "Action", render: (a) => el("div", null,
         el("span", { class: "audit-action" + (a.outcome === "denied" || /failed|revoked|suspended|deleted|removed|paused|stopped/.test(a.action) ? " neg" : "") }, a.action),
         a.outcome && a.outcome !== "ok" ? el("span", { class: "sub" }, a.outcome === "denied" ? "refused: outside their role" : a.outcome === "no-op" ? "changed nothing" : a.outcome) : null) },
@@ -830,6 +830,8 @@
       { key: "detail", label: "Detail", sort: false, render: (a) => auditDetail(a), hideSm: true },
       { key: "ip", label: "From", render: (a) => (a.ip ? A.where(a.ip, a.place) : el("span", { class: "faint" }, "—")), hideSm: true },
     ];
+    // an email may break only after its "@" on a narrow phone, never mid-word (Probe C1, 12 Nov)
+    function whoParts(who) { const at = String(who).indexOf("@"); return at > 0 ? [who.slice(0, at + 1), el("wbr"), who.slice(at + 1)] : [who]; }
     function auditDetail(a) {
       const show = (v) => JSON.stringify(v, null, 1).replace(/^\{\n|\n\}$/g, "").replace(/"([^"]+)":/g, "$1:");
       const changed = a.before || a.after;

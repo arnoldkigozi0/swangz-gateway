@@ -265,3 +265,28 @@ class NextStepInkTests(unittest.TestCase):
         self.assertIn(".next-step .btn { text-decoration: none; color: var(--btn-ink); }", guide)
         admin = (STATIC / "admin.css").read_text(encoding="utf-8")
         self.assertIn(".lede a { color: var(--tx-1);", admin)  # the rule it has to beat: (0,2,0) > (0,1,1)
+
+
+class ProbeShellDefectTests(unittest.TestCase):
+    """Probe's 12 Nov list: Audit on a phone (C1, C2) and staff touch targets (S2, S3)."""
+
+    def test_audit_email_breaks_after_the_at_sign_and_meta_line_stacks_without_orphan_dots(self):
+        css = (STATIC / "admin.css").read_text(encoding="utf-8")
+        self.assertIn(".route-audit .audit-who strong { min-width: 0; overflow-wrap: anywhere; }", css)
+        phone = css.split(".route-audit .audit-who strong")[1]
+        self.assertIn(".route-audit .list-meta { flex-direction: column; align-items: flex-start; }", phone)
+        self.assertIn(".route-audit .list-meta > * + *::before { content: none; }", phone)
+        js = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
+        self.assertIn('[who.slice(0, at + 1), el("wbr"), who.slice(at + 1)]', js)
+
+    def test_staff_phone_links_tabs_and_rows_get_a_44px_target(self):
+        css = (STATIC / "exact-staff.css").read_text(encoding="utf-8")
+        block = css.split("@media (hover: none), (max-width: 640px) {")[-1]
+        for sel in (".home-h .tlink", ".u-seg button", ".tr-main", ".drawer .hub-staff-nav > a::before"):
+            self.assertIn(sel, block)
+        self.assertIn("height: 44px; transform: translateY(-50%);", block)
+
+    def test_rails_keep_the_10_10_4_radius_of_16(self):
+        # BRIEF 10.10.4 (10 Nov review) replaced 10.3's full pill (31) with 16
+        self.assertIn("border-radius: 16px; overflow: visible; }", (STATIC / "admin.css").read_text(encoding="utf-8"))
+        self.assertIn("border: 1px solid var(--staff-rim); border-radius: 16px;", (STATIC / "exact-staff.css").read_text(encoding="utf-8"))

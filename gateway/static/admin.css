@@ -1517,3 +1517,11 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
 @media screen and (min-width: 761px) {
   .route-audit main:has(> .top > .ov-sentence) .u-table-wrap { max-height: max(280px, calc(100dvh - 500px)); }
 }
+
+/* Audit log on a phone (Probe C1/C2, 12 Nov): an email in "Who" breaks after its "@" (the <wbr>), and only a domain too
+   long for the cell breaks anywhere; the meta line under the count stacks, so no "·" is left at the start of a line. */
+.route-audit .audit-who strong { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .route-audit .list-meta { flex-direction: column; align-items: flex-start; }
+  .route-audit .list-meta > * + *::before { content: none; }
+}
