@@ -533,6 +533,9 @@ class Client:
         self.sleep, self.open_url, self.run = sleep, open_url or shell.open_url, run
         from .workspace_state import WorkspaceState
         self.workspace = WorkspaceState(self)
+        # W5: set (by the managed workspace) to a callable returning {"ok": bool, "sha256": str}, e.g.
+        # `machine_policy.report`. While it is None the heartbeat is exactly what it was before (contract 1).
+        self.policy_check = None
 
     # ------------------------------------------------------------ who this device is
 
@@ -809,6 +812,15 @@ class Client:
                 "packages": [{"id": pid, "version": r.get("version", "?")} for pid, r in state["installed"].items()]}
         if storage == "keychain":  # which native store holds it; a file has no backend to name
             body["key_backend"] = keystore.backend_name()
+        if self.policy_check is not None:
+            try:
+                report = self.policy_check()
+            except Exception:  # a check that cannot run is a failing check, never a missed heartbeat
+                report = None
+            ok = isinstance(report, dict) and report.get("ok") is True
+            sha = report.get("sha256") if isinstance(report, dict) and isinstance(report.get("sha256"), str) else ""
+            body["browser_contract"] = 2
+            body["policy"] = {"ok": ok, "sha256": sha}
         return body
 
     def heartbeat(self):
