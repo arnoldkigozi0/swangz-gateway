@@ -193,12 +193,15 @@ byte for byte; `apps[].open` links carry `?d=<device_id>` **only** under contrac
   unchanged. The whole answer stays well under 2 KB; **one heartbeat a minute at most is a client rule**, the server does not
   throttle it. A malformed `policy` report is ignored; a bad hash is dropped.
 - **Where the app's `policy` report comes from (W5, `swangz_client/machine_policy.py`).** Read-only and **machine scope only**:
-  Linux every `*.json` in `/etc/opt/chrome/policies/managed` (.deb Chromium `/etc/chromium/policies/managed`), macOS
+  Linux every file in `/etc/opt/chrome/policies/managed` (Debian Chromium `/etc/chromium/policies/managed`, Ubuntu
+  `chromium-browser` `/etc/chromium-browser/policies/managed`; Chrome applies every file there, so any file that is not
+  valid `*.json` policy, hidden files included, fails the check), macOS
   `/Library/Managed Preferences/com.google.Chrome.plist` (Chromium `org.chromium.Chromium`), Windows
   `HKLM\Software\Policies\Google\Chrome` (Chromium `...\Chromium`) in the 64-bit registry view (DWORD 0/1 read as
   true/false, list subkeys in number order). Per-user copies (macOS `/Library/Managed Preferences/<user>/`, HKCU), Linux's
   `recommended` folder and Windows' `Recommended` key are never read. The family checked is the one the workspace launcher
-  starts (`machine_policy.report()` asks `find_browser`; a path with `/chromium` is Chromium); no browser found is `ok: false`.
+  starts (`machine_policy.report()` asks `find_browser` and looks its exact path up in `machine_policy.BROWSERS`); no
+  browser found, or a path with no known policy folder, is `ok: false`.
   Fails closed (`ok: false`): an unreadable, invalid or oversized (> 1 MB) file, a symlink in place of a policy file or of the
   Linux folder, a key given twice in one JSON file, or two sources that disagree. `ok` is true only if every `REQUIRED` setting of the policy pack holds, `URLBlocklist` carries `*`, `file://*`, `chrome://*`
   and `view-source:*`, `URLAllowlist` is not open (`*`, `*://*`, `http://*`, `https://*`), `ExtensionInstallBlocklist` is `["*"]`,

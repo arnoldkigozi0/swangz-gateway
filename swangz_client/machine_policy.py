@@ -2,7 +2,9 @@
 
 Reads the effective machine policy from where the OS keeps it, READ-ONLY:
 
-* Linux: every `*.json` in `/etc/opt/chrome/policies/managed` (Chromium: `/etc/chromium/policies/managed`);
+* Linux: every file in `/etc/opt/chrome/policies/managed` (Debian Chromium: `/etc/chromium/policies/managed`, Ubuntu's
+  chromium-browser: `/etc/chromium-browser/policies/managed`). Chrome applies every file there, so a file that is not
+  valid `*.json` policy fails the check rather than being skipped;
 * macOS: `/Library/Managed Preferences/com.google.Chrome.plist` (Chromium: `org.chromium.Chromium`);
 * Windows: `HKLM\\Software\\Policies\\Google\\Chrome` (Chromium: `...\\Chromium`) in the 64-bit view; a list policy
   is a subkey whose values are named 1, 2, 3, ...
@@ -52,7 +54,14 @@ JSON_STRING = frozenset({"AutoLaunchProtocolsFromOrigins"})  # a "dictionary" po
 OPEN_ALLOW = frozenset({"*", "*://*", "http://*", "https://*"})
 MAX_BYTES = 1 << 20
 
-LINUX_DIRS = {"chrome": "/etc/opt/chrome/policies/managed", "chromium": "/etc/chromium/policies/managed"}
+LINUX_DIRS = {"chrome": "/etc/opt/chrome/policies/managed", "chromium": "/etc/chromium/policies/managed",
+              "chromium-browser": "/etc/chromium-browser/policies/managed"}
+# The exact browser the workspace launcher may start (workspace_launcher.LINUX_BROWSERS / MAC_BROWSERS) -> the policy
+# family it reads. Anything else has no known policy home, so its check fails.
+BROWSERS = {"/opt/google/chrome/chrome": "chrome", "/usr/lib/chromium/chromium": "chromium",
+            "/usr/lib/chromium-browser/chromium-browser": "chromium-browser",
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome": "chrome"}
+WINDOWS_TAIL = ("google", "chrome", "application", "chrome.exe")
 MAC_DOMAINS = {"chrome": "com.google.Chrome", "chromium": "org.chromium.Chromium"}
 MAC_ROOT = "/Library/Managed Preferences"
 WINDOWS_KEYS = {"chrome": r"Software\Policies\Google\Chrome", "chromium": r"Software\Policies\Chromium"}
@@ -89,8 +98,8 @@ def read_linux(browser="chrome", root=None):
         raise Unreadable(folder.name)
     out = []
     for path in sorted(folder.iterdir()):
-        if path.suffix != ".json" or path.name.startswith("."):
-            continue
+        if path.suffix != ".json":  # Chrome loads it anyway: a policy we can't judge fails the check
+            raise Unreadable(path.name)
         try:
             value = json.loads(_bounded(path).decode("utf-8"), object_pairs_hook=_no_duplicates)
         except (OSError, UnicodeDecodeError, ValueError):
@@ -261,6 +270,9 @@ class Result:
 def check(browser="chrome", platform=None, **where):
     """Read and judge the machine policy. Any failure to read is a failing result, never an exception."""
     platform = platform or sys.platform
+    table = WINDOWS_KEYS if platform == "win32" else MAC_DOMAINS if platform == "darwin" else LINUX_DIRS
+    if browser not in table:
+        return Result(False, None, ["unknown_browser"], [])
     try:
         if platform == "win32":
             sources = read_windows(browser, where.get("registry"))
@@ -282,8 +294,14 @@ def check(browser="chrome", platform=None, **where):
 def browser_kind(binary):
     """The policy family of the browser the workspace launcher starts: .deb Chromium reads Chromium's policy, not
     Chrome's, so checking Chrome's would report a policy that browser never loads."""
-    name = str(binary or "").replace("\\", "/").lower()
-    return "chromium" if "/chromium" in name else "chrome"
+    if not isinstance(binary, str):
+        return None
+    if binary in BROWSERS:
+        return BROWSERS[binary]
+    parts = tuple(binary.replace("\\", "/").lower().split("/"))
+    if len(parts) > 4 and ":" in parts[0] and parts[-4:] == WINDOWS_TAIL:  # %ProgramFiles%\Google\Chrome\...
+        return "chrome"
+    return None
 
 
 def report(browser=None, finder=None):
@@ -295,5 +313,7 @@ def report(browser=None, finder=None):
                 from .workspace_launcher import find_browser as finder
             browser = browser_kind(finder())
         except Exception:
+            return {"ok": False, "sha256": ""}
+        if browser is None:
             return {"ok": False, "sha256": ""}
     return check(browser).report()

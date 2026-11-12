@@ -219,9 +219,14 @@ class LinuxTests(Fixture):
             p.unlink()
         self.assertEqual(self.linux(("list.json", b"[]")).problems, ["unreadable:list.json"])
 
-    def test_other_files_in_the_folder_are_ignored(self):
-        result = self.linux(("swangz.json", self.policy), ("README", b"not policy"), (".hidden.json", b"{"))
-        self.assertTrue(result.ok, result)
+    def test_any_other_file_in_the_folder_fails_the_check(self):
+        # Chrome applies every file in the folder, not just *.json: one we don't read could undo the policy.
+        for name, data in (("README", b"not policy"), ("extra.conf", b'{"URLAllowlist": ["*"]}'),
+                           (".hidden.json", b"{"), (".hidden", b"{}")):
+            for p in (self.tmp / "managed").glob("*"):
+                p.unlink()
+            result = self.linux(("swangz.json", self.policy), (name, data))
+            self.assertEqual((result.ok, result.problems), (False, ["unreadable:" + name]), name)
 
     def test_the_report_carries_two_fields_and_no_site_or_value(self):
         bad = self.linux(("swangz.json", dict(self.policy, URLAllowlist=["secret-intranet.example", "*"])))
@@ -240,6 +245,7 @@ class LinuxTests(Fixture):
     def test_chromium_has_its_own_folder(self):
         self.assertEqual(mp.LINUX_DIRS["chromium"], "/etc/chromium/policies/managed")
         self.assertEqual(mp.LINUX_DIRS["chrome"], "/etc/opt/chrome/policies/managed")
+        self.assertEqual(mp.LINUX_DIRS["chromium-browser"], "/etc/chromium-browser/policies/managed")
 
 
 class FailClosedTests(Fixture):
@@ -285,10 +291,32 @@ class WhichBrowserTests(unittest.TestCase):
 
     def test_browser_kind(self):
         for path, kind in (("/opt/google/chrome/chrome", "chrome"), ("/usr/lib/chromium/chromium", "chromium"),
-                           ("/usr/lib/chromium-browser/chromium-browser", "chromium"),
+                           ("/usr/lib/chromium-browser/chromium-browser", "chromium-browser"),
                            ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "chrome"),
-                           ("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", "chrome"), (None, "chrome")):
+                           ("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", "chrome"),
+                           (None, None), ("/usr/bin/chromium", None), ("/home/me/chromium/chrome", None),
+                           ("/snap/bin/chromium", None), ("/opt/google/chrome/chrome-beta", None)):
             self.assertEqual(mp.browser_kind(path), kind, path)
+
+    def test_every_launcher_browser_has_an_exact_policy_home(self):
+        from swangz_client import workspace_launcher as wl
+        for path in wl.LINUX_BROWSERS:
+            self.assertIn(mp.browser_kind(path), mp.LINUX_DIRS, path)
+        for path in wl.MAC_BROWSERS:
+            self.assertIn(mp.browser_kind(path), mp.MAC_DOMAINS, path)
+        for root in ("C:\\Program Files", "C:\\Program Files (x86)", "C:\\Users\\a\\AppData\\Local"):
+            self.assertEqual(mp.browser_kind("\\".join((root, *wl.WINDOWS_TAIL))), "chrome", root)
+
+    def test_an_unknown_browser_or_family_fails(self):
+        self.assertEqual(mp.report(finder=lambda: "/usr/local/bin/chrome"), {"ok": False, "sha256": ""})
+        self.assertEqual(mp.check("chromium-browser", platform="darwin").problems, ["unknown_browser"])
+        self.assertEqual(mp.check("chromium-browser", platform="win32").problems, ["unknown_browser"])
+
+    def test_ubuntu_chromium_browser_reads_its_own_folder(self):
+        seen = []
+        with mock.patch.object(mp, "read_linux", side_effect=lambda b, r=None: seen.append(b) or []):
+            mp.report(finder=lambda: "/usr/lib/chromium-browser/chromium-browser")
+        self.assertEqual(seen, ["chromium-browser"])
 
     def test_report_checks_the_launchers_browser_family(self):
         seen = []
