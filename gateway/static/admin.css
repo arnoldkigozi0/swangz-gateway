@@ -1357,7 +1357,7 @@ html:not([data-theme="light"]) .shell:not(.route-overview) .page .panel:not(.pan
   .top h1 { font: 600 24px/1.25 var(--font); letter-spacing: 0; }
   .top > .lede { margin-top: 3px; font-size: 11px; line-height: 18px; }
   .top > .top-actions { align-self: start; margin-top: 6px; }
-  .top > .top-actions .btn { min-height: 34px; height: 34px; border-radius: var(--radius-control); }
+  .top > .top-actions .btn { min-height: 36px; height: 36px; border-radius: var(--radius-control); } /* BRIEF 10.10.6 */
   .page { padding-left: 44px; padding-right: 97px; }
   .build-foot { margin-left: 44px; margin-right: 97px; }
   .shell #main::before { inset: 0 81px 16px 28px; }
