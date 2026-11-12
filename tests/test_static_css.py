@@ -164,6 +164,20 @@ class OverviewCountIconTests(unittest.TestCase):
         self.assertIn('label: "Live requests", icon: "live"', js)
 
 
+class LiveWaveTests(unittest.TestCase):
+    """dashboard-02's wave on the second count card plots real readings (requests in flight at each refresh), never ornament."""
+    def test_the_live_card_draws_its_own_readings_in_amber_beside_the_arrow(self):
+        js = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
+        self.assertIn("liveReadings.push(live.length);", js)
+        self.assertIn("if (liveReadings.length > 24) liveReadings.shift();", js)
+        self.assertIn("SUI.sparkline(liveReadings)", js)
+        css = (STATIC / "admin.css").read_text(encoding="utf-8")
+        self.assertIn(".kpis-exact .kpi .spark:has(.live-wave) { position: absolute; top: 18px; right: 48px;", css)
+        self.assertIn(".kpis-exact .live-wave .u-spark .line { stroke: var(--viz-1);", css)
+        ui = (STATIC / "ui.js").read_text(encoding="utf-8")
+        self.assertIn('preserveAspectRatio: "none", "aria-hidden": "true" });', ui)  # the card states the number
+
+
 class ConsoleRoomTests(unittest.TestCase):
     def test_other_console_pages_back_only_bare_text_and_dark_panels_are_one_layer_of_glass(self):
         css = (pathlib.Path(__file__).resolve().parent.parent / "gateway" / "static" / "admin.css").read_text(encoding="utf-8")

@@ -86,15 +86,22 @@
 
     const urgent = att ? att.filter((i) => i.severity === "high" || i.severity === "medium").length : 0;
     const counts = el("div", { class: "kpis kpis-exact two" });
+    /* The wave on the second count card (dashboard-02) is real data, never ornament that looks like a chart: the number
+       of requests in flight at each refresh since this page opened, the last 24 readings (2 minutes at 5 s). */
+    const liveReadings = [];
     function drawCounts() {
       const live = (S.overview || ov).live;
       const streaming = live.filter((t) => t.streaming).length;
+      liveReadings.push(live.length);
+      if (liveReadings.length > 24) liveReadings.shift();
       counts.replaceChildren(...[
         A.kpi({ label: "Need attention", icon: "attention", value: att === null ? "—" : String(att.length), tone: urgent ? "alert" : null,
           note: att === null ? "couldn't load" : att.length ? (urgent ? `${urgent} high or medium` : "none high or medium") : zeroReason("attention", { items: 0 }), href: "#/attention" }),
         A.kpi({ label: "Live requests", icon: "live", value: String(live.length),
           foot: live.length ? SUI.status("live", "Live", { breathe: true, plain: true }) : SUI.status("idle", "Quiet", { plain: true }),
-          note: live.length ? `${streaming} streaming · ${live.length - streaming} waiting` : zeroReason("live", { live: 0 }), href: "#/live" }),
+          note: live.length ? `${streaming} streaming · ${live.length - streaming} waiting` : zeroReason("live", { live: 0 }), href: "#/live",
+          spark: el("span", { class: "live-wave", title: liveReadings.length > 1 ? `Requests in flight at each 5-second refresh since this page opened (last ${liveReadings.length})` : "The line starts at the next 5-second refresh" },
+            SUI.sparkline(liveReadings)) }),
       ].map((card) => { card.append(el("span", { class: "kpi-go", "aria-hidden": "true" }, icon("arrowUp"))); return card; }));
     }
     drawCounts();
