@@ -167,5 +167,15 @@ body:has(.xgate) { --scene-image: url("/static/login-welcome.webp"); --scene-scr
 }
 @media (forced-colors: active) {
   .xgate .xgate-card, .xgate .xfield, .xgate .xg-primary, .xgate .xg-ghost { border-color: CanvasText; }
+  body:has(.xgate) { --scene-image: none; --scene-scrim: transparent; background: Canvas; }
+  .xgate { --xg-ink: CanvasText; --xg-ink-2: CanvasText; --xg-ink-3: CanvasText;
+    --xg-bad: CanvasText; --xg-line: CanvasText; --xg-rim: CanvasText; }
+  .xgate .xgate-card { background: Canvas; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
   .xgate .xg-pane { display: none; }
+  .xgate :is(.xg-primary, .xg-ghost, .xg-eye, .google-box .btn, .xg-gB .btn) {
+    background: ButtonFace; color: ButtonText; border: 1px solid ButtonText; box-shadow: none; }
+  .xgate :is(.xg-link, .xg-brand) { color: LinkText; }
+  .xgate .xfield input { color: FieldText; background: Field; caret-color: FieldText; }
+  .xgate .xfield:focus-within { border-bottom-color: Highlight; box-shadow: 0 1px 0 Highlight; }
+  .xgate :is(a, button):focus-visible { outline-color: Highlight; }
 }
