@@ -254,8 +254,13 @@ def trends(ctx):
         return row
 
     rows, _ = usage_rows(db, since, now + 1)
+    # BRIEF 10.9(2): the earliest use on record of any kind, so a chart with too few days can say "Collecting since".
+    first = [db.scalar(f"SELECT MIN(r.ts) FROM requests r WHERE {COUNTED}"),
+             db.scalar("SELECT MIN(ts) FROM launches WHERE outcome = 'opened'"),
+             db.scalar("SELECT MIN(started) FROM site_usage WHERE outcome = 'allowed'")]
+    first = [t for t in first if t is not None]
     return {
-        "days": [series[k] for k in sorted(series)], "since": since, "tz_offset_minutes": ctx.gw.settings.tz_offset_minutes,
+        "days": [series[k] for k in sorted(series)], "since": since, "first_use": min(first) if first else None, "tz_offset_minutes": ctx.gw.settings.tz_offset_minutes,
         "current": totals(since, now + 1), "previous": totals(since - days * DAY, since),
         "top_people": _people_totals(rows)[:8], "top_tools": _tool_totals(rows)[:8],
         "tools_used": len(_tool_totals(rows)), "people_active": len({x["person_id"] for x in rows}),

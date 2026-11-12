@@ -164,6 +164,15 @@ class OverviewCountIconTests(unittest.TestCase):
         self.assertIn('label: "Live requests", icon: "live"', js)
 
 
+class CollectingSinceTests(unittest.TestCase):
+    """BRIEF 10.9(2): the Overview chart with fewer than 3 days of use shows its empty state and "Collecting since"."""
+    def test_the_usage_chart_gives_way_below_three_days_and_never_pads(self):
+        js = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
+        self.assertIn("const collecting = usedDays.length < 3;", js)
+        self.assertIn('"Collecting since " + fmt.dayMonth(tr.first_use)', js)
+        self.assertIn("data: collecting ? [] : week.map(", js)
+
+
 class LiveWaveTests(unittest.TestCase):
     """dashboard-02's wave on the second count card plots real readings (requests in flight at each refresh), never ornament."""
     def test_the_live_card_draws_its_own_readings_in_amber_beside_the_arrow(self):
