@@ -26,6 +26,17 @@ script ran for real on Ubuntu 24.04 under a 1 GB / 1 CPU limit; those parts were
 - 1 vCPU, 1 GB RAM, **25 GB disk or more**, public IPv4, your SSH public key.
 - Firewall at the provider, if it has one: allow TCP 22, 80, 443 and UDP 443.
 - Write down the server's IP address.
+- After your first SSH login, check that the server refuses passwords and installs security
+  updates by itself:
+
+  ```bash
+  sudo sshd -T | grep -E '^(passwordauthentication|permitrootlogin)'   # "no" and "prohibit-password" (or "no")
+  systemctl is-enabled unattended-upgrades                             # "enabled"
+  ```
+
+  If either is wrong, fix it before step 3: set `PasswordAuthentication no` in
+  `/etc/ssh/sshd_config` and run `sudo systemctl reload ssh`, or
+  `sudo apt-get install -y unattended-upgrades && sudo dpkg-reconfigure -plow unattended-upgrades`.
 
 ## 2. Point the name at it (5 min plus waiting, Arnold)
 
@@ -48,6 +59,9 @@ sudo bash deploy/setup-gateway-server.sh ai.swangzavenue.com
 
 Expected: it prints `== packages`, `== firewall`, and so on, and ends with the address. In the
 rehearsal it ended with exit 0.
+
+Caddy comes from Caddy's own apt repository rather than Ubuntu's, because Ubuntu's 2.6.2 is behind on
+fixes; apt checks every package against that repository's signing key, which the script fetches once over https.
 
 Rehearsal timings (fresh Ubuntu 24.04, 1 GB memory cap, no swap, 1 CPU):
 
@@ -82,7 +96,26 @@ systemctl list-timers | grep -E 'swangz|backup|health'
 and 7. A FAIL about the public address means step 2 is not done. If `commit` is empty, the script was
 not run from a git clone; redo step 3.
 
+After step 6, run `preflight` again: `GATEWAY_REQUIRE_FIXED_RETURN` must show `ok`.
+
 Open `https://ai.swangzavenue.com/` and `/admin` in a browser: both must load with a padlock.
+
+The rehearsal could not test the firewall, the service user or the port binding, so check them here.
+All four must pass before anyone signs in:
+
+```bash
+sudo ufw status verbose                    # Status: active; allowed only SSH, 80/tcp, 443/tcp and 443/udp
+sudo ss -ltnp | grep 8787                  # 127.0.0.1:8787 only, never 0.0.0.0 or [::]
+systemctl show swangz-gateway -p User      # User=swangz
+```
+
+And from your own computer, not the server:
+
+```bash
+curl -m5 http://<server ip>:8787/healthz   # must fail (time out or connection refused)
+```
+
+If any of these is wrong, stop and send Chief the output; do not continue to step 5.
 
 ## 5. First owners (3 min each, Arnold)
 
@@ -100,7 +133,11 @@ email is refused. Then sign in at `/admin`.
    exactly: `https://ai.swangzavenue.com/auth/google/callback`. **Keep the old addresses in the list**
    until step 11 is finished, so the laptop keeps working.
 2. Put `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `/opt/swangz-gateway/.env` (file mode 600).
-3. `sudo systemctl restart swangz-gateway`. The sign-in pages now show Continue with Google.
+3. Add the line `GATEWAY_REQUIRE_FIXED_RETURN=1` to the same `.env`. It is required in production:
+   without it `preflight` fails once the Google client is set, and Google sign-in could take its
+   return address from a request's Host header.
+4. `sudo systemctl restart swangz-gateway`. The sign-in pages now show Continue with Google. Run
+   `preflight` again (step 4): `GATEWAY_REQUIRE_FIXED_RETURN` must say `ok`.
 
 Screens and field names: `deploy/NETLIFY.md` Part 2.
 
