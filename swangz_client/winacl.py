@@ -83,7 +83,10 @@ def current_sid():
 
 
 def restrict(path):
-    """Give the folder a protected DACL with one entry: the current user, full control, inherited by children."""
+    """Make the current user the folder's owner and give it a protected DACL with one entry: the current user, full
+    control, inherited by children. Setting the owner matters for administrators: a folder an elevated (or
+    administrator-group) process creates is owned by BUILTIN\\Administrators, not by the user, and owner_only
+    would then refuse it for good."""
     advapi, kernel = _libs()
     buf, sid = _user_sid(advapi, kernel)
     size = ctypes.sizeof(ACL_SIZE) + 64 + advapi.GetLengthSid(sid)
@@ -92,8 +95,9 @@ def restrict(path):
         raise OSError("acl")
     if not advapi.AddAccessAllowedAceEx(acl, ACL_REVISION, OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE, FILE_ALL_ACCESS, sid):
         raise OSError("ace")
-    err = advapi.SetNamedSecurityInfoW(path, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
-                                       None, None, acl, None)
+    err = advapi.SetNamedSecurityInfoW(path, SE_FILE_OBJECT,
+                                       OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                                       sid, None, acl, None)
     if err:
         raise OSError(err, "set security")
 
