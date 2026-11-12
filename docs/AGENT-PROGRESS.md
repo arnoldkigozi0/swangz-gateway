@@ -772,3 +772,9 @@ Exact next step at 16:00, in this order:
 - Tests: tests/test_workspace_launcher.py (29; Windows ACL test runs only on the windows-latest matrix).
 - Next step: Windows matrix result for `AclTests.test_native_acl`; then W4 (heartbeat `suspended` → `Launcher.close()`,
   `retired`/higher generation → `Profiles.retire_owner`).
+
+## Forge: managed workspace server side, 12 Nov 2026 (branches feature/w2-state-migration -> feature/w2-contract-2, base feature/managed-workspace)
+- W2/W4 server: v26 migration (7 `devices` columns, `gateway/workspace_schema.py`), `gateway/managed.py` (contract 2 block, heartbeat answer, admin suspend/reactivate/retire/reset, /go refusal), policy mode/baseline settings, console devices list fields. Doc: docs/CLIENT.md "Managed workspace contract 2".
+- Tests: `tests/test_managed_workspace.py` (36), migration tests in `tests/test_workspace_state.py`. Real results are in the PR body.
+- W5 generator (DownloadRestrictions=0, refuse unless `--undecided-domains-ok`): NOT started; it needs W1 (feature/managed-workspace-w1) in the integration branch first.
+- Not done / limits: GitHub was unreachable (DNS) when this was written, so nothing is pushed and no PR is open; no automatic generation bump on seat reassignment; the `d=` claim is advisory.

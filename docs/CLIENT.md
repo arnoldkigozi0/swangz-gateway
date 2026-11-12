@@ -172,6 +172,45 @@ describes what the app may prepare; no client, browser launch or UI exists for i
 
 Client integration needs its own review before it is built.
 
+## Managed workspace contract 2 (server side: W2, W4, W5; schema v26)
+
+`GET /api/device/manifest?browser_contract=2` returns contract 1's block plus the workspace state and the policy baseline.
+Negotiation is exactly as strict as for 1 (one parameter, value exactly `2`, after percent-decoding). Contract 1 answers are unchanged
+byte for byte; `apps[].open` links carry `?d=<device_id>` **only** under contract 2.
+
+```json
+"browser": {"contract": 2, "person_id": "7", "device_id": "a1b2c3d4e5f6", "profiles": [{"kind": "personal"}],
+            "workspace": {"state": "active", "generation": 1},
+            "policy": {"sha256": null, "mode": "warn"}}
+```
+
+- `workspace.state`: `active` | `suspended` | `retired`, stored per device (`devices.workspace_state`), separate from the device key.
+  `generation` starts at 1.
+- `policy.sha256`: the baseline hash the admin pinned (Settings `managed_policy_sha256`, 64 hex or `null`); `policy.mode`: `warn`
+  (default) or `enforce` (Settings `managed_policy_mode`). Both are "trust" area settings.
+- **Heartbeat.** `POST /api/device/heartbeat` with `{"browser_contract": 2, "policy": {"ok": true, "sha256": "<64 hex>"}, ...}`.
+  The answer then also carries `workspace` and `policy` (the same two objects). Without an integer `browser_contract` of 2 the answer is
+  unchanged. The whole answer stays well under 2 KB; **one heartbeat a minute at most is a client rule**, the server does not
+  throttle it. A malformed `policy` report is ignored; a bad hash is dropped.
+- **What the app does** (for Prism, W3/W6/W7): `suspended` closes the workspace at the next heartbeat and keeps the profile folder
+  (reactivating keeps the sign-in); `retired`, or a `generation` higher than the one on disk, means close it and delete the profile
+  folder. The server says `retired` only after an administrator's explicit `retire`; a person the account rule no longer
+  allows, or an unreadable stored state, is told `suspended` (closed, nothing deleted). A suspended or retired workspace does not revoke the device key, the device, any gateway API key or any automation (W7).
+- **Admin.** `POST /admin/api/devices/<device_id>/workspace` with `{"action": "suspend" | "reactivate" | "retire" | "reset"}`
+  (`suspend`: govern or emergency, so the security role can stop a workspace; `reactivate`, `retire` and `reset`: govern only,
+  because `retire` purges the folder; a refusal is `403` and audited as denied). Answer: `{"ok": true, "workspace": {"state", "generation"}, "changed": bool}`. `reactivate` from
+  `retired` starts a new generation; `reset` bumps the generation (a seat changed hands; no automatic trigger exists yet);
+  `suspend`/`reset` on a retired workspace is `409 workspace_retired`; unknown device `404`; repeating an action changes and audits
+  nothing. Every change is audited with before/after and `correlation=device:<id>`. The console devices list
+  (`GET /admin/api/devices`) now carries `workspace_state`, `workspace_generation`, `policy_ok`, `policy_reported`, `policy_source`.
+- **Open is refused, in plain words.** `/go/<tool>?d=<device_id>` returns 403 and logs a `refused` launch (rule `workspace_suspended`,
+  `workspace_retired` or `workspace_policy`) when that device (it must be the signed-in person's own) is suspended or retired, or, in
+  `enforce` mode, has no fresh (10 minutes) passing policy report for the pinned baseline. **Honest limit:** `d` is an advisory claim
+  the app adds; a request with no `d` is not refused by this check. Real enforcement is the app closing the workspace plus the
+  machine policy on the managed browser. The policy report is `reported by the app`, a tamper signal and never proof, and it only
+  ever takes access away.
+- No provider password, cookie, token or session is read, stored or sent by any of this.
+
 ## Disconnecting
 
 If the server says a device was disconnected (`401 device_revoked`), the app removes everything it installed
