@@ -1,5 +1,12 @@
 # What only Arnold can do (10 November 2026)
 
+## Decisions waiting on Arnold, first (12 Nov 2026)
+
+1. **#150 was merged without approval.** #149 (managed-workspace spec, docs) merged 23:34 and #150 (W1, Chrome policy baseline) 23:35 Kampala time on 11 Nov, against the rule that no managed-workspace PR merges without Arnold's written approval. The merger is not identifiable (shared account). Nothing was deployed, no OS policy installed, nothing bought. Arnold chooses: keep #150, or merge the revert, draft PR #156. Both are left open and unmerged.
+2. **R-8, who may read prompts and replies (F-18).** The options and a recommendation are in PR #160. The default is unchanged until Arnold decides.
+3. **The five owner decisions** in `docs/MANAGED-WORKSPACE.md` section 8. W2 to W7 PRs stay open with `needs-arnold`.
+4. **Commit trailers.** About 14 commits on main since 11 Nov 21:00 carry a Co-Authored-By trailer, against the standing rule. Main history was not rewritten; removing them needs Arnold.
+
 Everything below is waiting on Arnold: a purchase, an account, a decision or a device. The team has not bought, created or changed any of it. Item numbers are those in `docs/GO-LIVE-ASKS.md`, which says where each value goes.
 
 ## Before the Hub can go live on its own address
