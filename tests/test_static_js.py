@@ -481,3 +481,42 @@ class ToolsLeadTests(unittest.TestCase):
     def test_tools_uses_the_shared_view_switch(self):
         govern = (STATIC / "admin-govern.js").read_text(encoding="utf-8")
         self.assertIn('A.viewMode("tools", "#/tools", params)', govern)
+
+
+def devices_lead(cases):
+    source = (STATIC / "admin-guide.js").read_text(encoding="utf-8")
+    many = re.search(r"\n  (const many = .*?;)\n", source).group(1)
+    fn = re.search(r"\n  (function devicesLead\(n\) \{\n.*?\n  \})\n", source, re.S).group(1)
+    script = many + fn + "\nconsole.log(JSON.stringify(" + json.dumps(cases) + ".map(devicesLead)));"
+    out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30, check=True)
+    return json.loads(out.stdout)
+
+
+@unittest.skipUnless(shutil.which("node"), "Node is not installed")
+class DevicesLeadTests(unittest.TestCase):
+    """BRIEF 10.10.7 on Devices: one sentence with the real number, then one next step that opens what it counts."""
+    BASE = {"total": 6, "active": 4, "idle": 0, "unused": 0, "requests": 120, "state": ""}
+
+    def lead(self, **n):
+        return devices_lead([{**self.BASE, **n}])[0]
+
+    def test_the_sentence_carries_the_real_number(self):
+        self.assertEqual(self.lead(unused=2)["sentence"], "2 devices have never been used.")
+        self.assertEqual(self.lead(unused=1)["sentence"], "1 device has never been used.")
+        self.assertEqual(self.lead(idle=3)["sentence"], "3 devices have not been used lately.")
+        self.assertEqual(self.lead()["sentence"], "4 devices are active; 120 AI requests in 30 days.")
+        self.assertEqual(self.lead(total=0, active=0)["sentence"], "No devices are connected yet.")
+
+    def test_never_used_comes_before_quiet(self):
+        self.assertIn("never", self.lead(unused=1, idle=5)["sentence"])
+
+    def test_the_button_opens_exactly_the_devices_counted(self):
+        self.assertEqual(self.lead(unused=2)["action"]["href"], "#/devices?state=unused")
+        self.assertEqual(self.lead(idle=2)["action"]["href"], "#/devices?state=idle")
+        self.assertEqual(self.lead(unused=2, state="unused")["action"]["task"], "check-use")
+        self.assertEqual(self.lead(idle=2, state="idle")["action"]["task"], "check-use")
+        self.assertEqual(self.lead(total=0)["action"]["href"], "#/people")
+
+    def test_sentences_stay_short(self):
+        for n in ({"unused": 1234}, {"idle": 2}, {}, {"total": 0}):
+            self.assertLessEqual(len(self.lead(**n)["sentence"].split()), 12)
