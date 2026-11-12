@@ -273,7 +273,7 @@ class MoneyChainTests(unittest.TestCase):
     def test_summary_is_four_cards_one_chart_and_each_card_opens_its_filtered_list(self):
         summary = self.section("async function moneySummary(", "async function licencesList(")
         self.assertEqual(summary.count("A.kpi({"), 4)
-        self.assertEqual(summary.count("A.panel("), 1)
+        self.assertEqual(summary.count("A.panel("), 2)  # the chart, and Simple's numbers panel
         self.assertEqual(summary.count("SUI.line("), 1)
         self.assertNotIn("SUI.table(", summary)
         self.assertNotIn('class: "btn primary"', summary)
@@ -292,6 +292,14 @@ class MoneyChainTests(unittest.TestCase):
             self.assertIn("pager", body, start)
             self.assertNotIn("SUI.line(", body, start)
             self.assertNotIn("A.seg(", body, start)
+
+    def test_simple_is_the_default_with_two_blocks_under_one_next_step(self):
+        summary = self.section("async function moneySummary(", "async function licencesList(")
+        self.assertIn('A.viewMode("money", "#/licences", params)', summary)
+        simple = summary[summary.index("if (mode.simple) {"):summary.index("return;", summary.index("if (mode.simple) {"))]
+        self.assertIn("[numbers, chart]", simple)
+        self.assertEqual(simple.count("A.leadButton("), 1)
+        self.assertNotIn("kpis", simple)
 
     def test_no_page_of_the_chain_goes_back_to_tabs(self):
         self.assertNotIn('A.pageTabs("#/licences"', self.source)
@@ -368,6 +376,50 @@ class PeopleLeadTests(unittest.TestCase):
             self.assertLessEqual(len(self.lead(**n)["sentence"].split()), 12)
 
 
+def money_lead(cases):
+    source = (STATIC / "admin-money.js").read_text(encoding="utf-8")
+    many = re.search(r"\n  (const moneyMany = .*?;)\n", source).group(1)
+    fn = re.search(r"\n  (function moneyLead\(n\) \{\n.*?\n  \})\n", source, re.S).group(1)
+    script = many + fn + "\nconsole.log(JSON.stringify(" + json.dumps(cases) + ".map(moneyLead)));"
+    out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30, check=True)
+    return json.loads(out.stdout)
+
+
+@unittest.skipUnless(shutil.which("node"), "Node is not installed")
+class MoneyLeadTests(unittest.TestCase):
+    """BRIEF 10.10.7 on Licences & spend: one sentence with the real number; the button opens what it counts."""
+    BASE = {"failed": False, "idle": 0, "idleCost": "$40", "unpriced": 0, "soon": 0, "spend": "$212.40"}
+
+    def lead(self, **n):
+        return money_lead([{**self.BASE, **n}])[0]
+
+    def test_the_sentence_carries_the_real_number(self):
+        self.assertEqual(self.lead(idle=3)["sentence"], "3 paid seats were not used in 30 days (about $40 a month).")
+        self.assertEqual(self.lead(idle=1)["sentence"], "1 paid seat was not used in 30 days (about $40 a month).")
+        self.assertEqual(self.lead(unpriced=7)["sentence"], "7 requests have no price yet, so spend is understated.")
+        self.assertEqual(self.lead(soon=1)["sentence"], "1 plan renews in the next 30 days.")
+        self.assertEqual(self.lead()["sentence"], "We spent $212.40 on AI in the last 30 days.")
+
+    def test_waste_comes_before_untrusted_numbers_and_dates(self):
+        self.assertIn("idle", self.lead(idle=2, unpriced=5, soon=1)["action"]["href"])
+        self.assertIn("prices", self.lead(unpriced=5, soon=1)["action"]["href"])
+        self.assertIn("renewals", self.lead(soon=1)["action"]["href"])
+
+    def test_the_button_opens_exactly_what_is_counted(self):
+        self.assertEqual(self.lead(idle=2)["action"]["href"], "#/licences?tab=licences&show=idle")
+        self.assertEqual(self.lead(soon=2)["action"]["href"], "#/licences?tab=renewals&show=soon")
+        self.assertEqual(self.lead()["action"]["href"], "#/licences?tab=spend&range=30d")
+
+    def test_a_failed_load_is_never_a_dead_end(self):
+        lead = self.lead(failed=True, idle=3)
+        self.assertTrue(lead["action"]["retry"])
+        self.assertNotIn("3", lead["sentence"])
+
+    def test_sentences_stay_short(self):
+        for n in ({"idle": 1234}, {"unpriced": 99}, {"soon": 4}, {}):
+            self.assertLessEqual(len(self.lead(**n)["sentence"].split()), 14)
+
+
 class PeopleSimpleViewTests(unittest.TestCase):
     def test_people_uses_the_shared_view_switch_and_a_ten_row_pager(self):
         govern = (STATIC / "admin-govern.js").read_text(encoding="utf-8")
@@ -377,6 +429,18 @@ class PeopleSimpleViewTests(unittest.TestCase):
         self.assertIn("const sizes = o.sizes || PAGE_SIZES;", ui)
         admin = (STATIC / "admin.js").read_text(encoding="utf-8")
         self.assertRegex(admin, r'=== "detailed" \? "detailed" : "simple"')
+
+
+class PersonAccessTabTests(unittest.TestCase):
+    def test_access_tab_is_one_block_with_every_limit_kept(self):
+        govern = (STATIC / "admin-govern.js").read_text(encoding="utf-8")
+        start = govern.index("    function accessTab() {")
+        body = govern[start:govern.index("    async function securityTab()", start)]
+        self.assertIn("return personToolsPanel(p, owner, used, limits);", body)
+        self.assertNotIn("A.panel(", body)
+        for word in ("p.monthly_budget", "p.daily_budget", "p.allowed_models", "p.allowed_services", "p.access_until",
+                     "?tab=account", "#/policies?tab=explain&person="):
+            self.assertIn(word, body)
 
 
 def tools_lead(cases):
@@ -417,6 +481,45 @@ class ToolsLeadTests(unittest.TestCase):
     def test_tools_uses_the_shared_view_switch(self):
         govern = (STATIC / "admin-govern.js").read_text(encoding="utf-8")
         self.assertIn('A.viewMode("tools", "#/tools", params)', govern)
+
+
+def devices_lead(cases):
+    source = (STATIC / "admin-guide.js").read_text(encoding="utf-8")
+    many = re.search(r"\n  (const many = .*?;)\n", source).group(1)
+    fn = re.search(r"\n  (function devicesLead\(n\) \{\n.*?\n  \})\n", source, re.S).group(1)
+    script = many + fn + "\nconsole.log(JSON.stringify(" + json.dumps(cases) + ".map(devicesLead)));"
+    out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30, check=True)
+    return json.loads(out.stdout)
+
+
+@unittest.skipUnless(shutil.which("node"), "Node is not installed")
+class DevicesLeadTests(unittest.TestCase):
+    """BRIEF 10.10.7 on Devices: one sentence with the real number, then one next step that opens what it counts."""
+    BASE = {"total": 6, "active": 4, "idle": 0, "unused": 0, "requests": 120, "state": ""}
+
+    def lead(self, **n):
+        return devices_lead([{**self.BASE, **n}])[0]
+
+    def test_the_sentence_carries_the_real_number(self):
+        self.assertEqual(self.lead(unused=2)["sentence"], "2 devices have never been used.")
+        self.assertEqual(self.lead(unused=1)["sentence"], "1 device has never been used.")
+        self.assertEqual(self.lead(idle=3)["sentence"], "3 devices have not been used lately.")
+        self.assertEqual(self.lead()["sentence"], "4 devices are active; 120 AI requests in 30 days.")
+        self.assertEqual(self.lead(total=0, active=0)["sentence"], "No devices are connected yet.")
+
+    def test_never_used_comes_before_quiet(self):
+        self.assertIn("never", self.lead(unused=1, idle=5)["sentence"])
+
+    def test_the_button_opens_exactly_the_devices_counted(self):
+        self.assertEqual(self.lead(unused=2)["action"]["href"], "#/devices?state=unused")
+        self.assertEqual(self.lead(idle=2)["action"]["href"], "#/devices?state=idle")
+        self.assertEqual(self.lead(unused=2, state="unused")["action"]["task"], "check-use")
+        self.assertEqual(self.lead(idle=2, state="idle")["action"]["task"], "check-use")
+        self.assertEqual(self.lead(total=0)["action"]["href"], "#/people")
+
+    def test_sentences_stay_short(self):
+        for n in ({"unused": 1234}, {"idle": 2}, {}, {"total": 0}):
+            self.assertLessEqual(len(self.lead(**n)["sentence"].split()), 12)
 
 
 def models_lead(cases):

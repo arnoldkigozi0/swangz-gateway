@@ -391,16 +391,19 @@
     }
 
     function accessTab() {
-      const none = (x) => el("span", { class: "faint" }, x);
-      const limits = A.panel("Other limits", el("a", { class: "btn small quiet", href: `#/people/${p.id}?tab=account` }, owner || A.can("money") ? "Change" : "Details", icon("chevronRight")),
-        el("div", { class: "facts" },
-          fact("Account", p.status === "active" ? (p.access_until ? (ended ? "Ended " : "Open until ") + fmt.date(p.access_until - 86400) : "Open, no end date") : "Suspended"),
-          fact("Monthly budget", p.monthly_budget !== null ? `${fmt.money(p.month.cost)} of ${fmt.money(p.monthly_budget)}` : none("no limit")),
-          fact("Daily budget", p.daily_budget !== null && p.daily_budget !== undefined ? fmt.money(p.daily_budget) : none("no limit")),
-          fact("Models", p.allowed_models || none("any model")),
-          fact("Services", p.allowed_services || none("every service switched on"))),
-        el("div", { class: "body hint" }, "Policies can take more away for everyone they match — see ", el("a", { href: "#/policies?tab=explain&person=" + p.id }, "Explain a decision"), "."));
-      return [personToolsPanel(p, owner, used), limits];
+      /* The limits fold into one line under their tools (BRIEF 10.10.7: a record keeps few blocks); every value stays,
+         and the full form is one step away on Account. */
+      const limitWords = [
+        p.status !== "active" ? "Account suspended" : p.access_until ? (ended ? "Account ended " : "Account open until ") + fmt.date(p.access_until - 86400) : "Account open, no end date",
+        p.monthly_budget !== null && p.monthly_budget !== undefined ? `${fmt.money(p.month.cost)} of ${fmt.money(p.monthly_budget)} this month` : "no monthly budget",
+        p.daily_budget !== null && p.daily_budget !== undefined ? `${fmt.money(p.daily_budget)} a day` : "no daily budget",
+        p.allowed_models ? "models: " + p.allowed_models : "any model",
+        p.allowed_services ? "services: " + p.allowed_services : "every service",
+      ];
+      const limits = el("div", { class: "body hint person-limits" }, el("strong", null, "Limits: "), limitWords.join(" · ") + ". ",
+        el("a", { href: `#/people/${p.id}?tab=account` }, owner || A.can("money") ? "Change limits" : "See limits"), " · ",
+        el("a", { href: "#/policies?tab=explain&person=" + p.id }, "Explain a decision"));
+      return personToolsPanel(p, owner, used, limits);
     }
 
     async function securityTab() {
@@ -485,7 +488,7 @@
 
   const TOOL_STATE = { enabled: ["ok", "Ready"], past_due: ["waiting", "Payment due"], suspended: ["suspended", "Paused"], locked: ["none", "No subscription"], not_assigned: ["none", "Not given"] };
   /* What a person has, as a table; giving another tool is one picker rather than a tile per tool. */
-  function personToolsPanel(p, owner, used) {
+  function personToolsPanel(p, owner, used, extra) {
     const tools = p.tools || [];
     const use = Object.fromEntries((used || []).filter((r) => r.tool_id).map((r) => [r.tool_id, r]));
     const mine = tools.filter((t) => t.assigned);
@@ -529,7 +532,8 @@
     } }, "Remove all") : null;
     return A.panel("Tools", el("div", { class: "row" }, el("span", { class: "sub" }, `${p.tool_summary.enabled} ready · ${p.tool_summary.assigned} given`), removeAll),
       give, table,
-      el("div", { class: "body hint" }, "A tool the company isn't subscribed to can't be given yet, and team access is changed on the tool itself — both on the Tools page. To give a tool for a limited time, set an end date there under Who can use it."));
+      extra || null,
+      el("div", { class: "body hint" }, "Only tools the company pays for can be given. Team access and end dates are set on the tool."));
   }
 
   async function inviteLink(p) {
@@ -586,7 +590,10 @@
   const devIcon = (d) => el("span", { class: "dev-ic sm" }, icon(d.app === "Claude Code" || d.app === "Codex" ? "terminal" : "device"));
   const canRevoke = (d) => (A.can("emergency") || A.can("govern")) && d.state !== "revoked";
   const DEV_ROOT = ["Devices", "#/devices"];
-  function deviceTable(rows, noOwner, extra, pager) {
+  /* simple (BRIEF 10.10.7): five columns — the device, its owner, when it was last seen, its status and the row's actions;
+     what it runs, where from and its 30-day use stay in Detailed and on the device's record. */
+  const DEVICE_SIMPLE = ["label", "person", "last_used", "state", "act"];
+  function deviceTable(rows, noOwner, extra, pager, simple) {
     return SUI.table({ caption: "Devices", rows, pager, sort: ["last_used", "desc"], href: (d) => "#/devices/" + d.id, columns: [
       { key: "label", label: "Device", lead: true, render: (d) => el("div", { class: "u-cell" }, devIcon(d),
         el("div", null, el("a", { href: "#/devices/" + d.id }, el("strong", null, d.label)), el("span", { class: "sub mono" }, d.hint))) },
@@ -597,18 +604,20 @@
       { key: "requests_30d", label: "30 days", num: true, render: (d) => el("span", null, fmt.num(d.requests_30d), el("span", { class: "sub" }, fmt.money(d.cost_30d))) },
       { key: "state", label: "Status", render: (d) => deviceStatus(d.state, true) },
       extra ? { key: "act", label: "", srLabel: "Actions", sort: false, render: extra } : null,
-    ].filter(Boolean) });
+    ].filter((c) => c && (!simple || DEVICE_SIMPLE.includes(c.key))) });
   }
 
   /* One list, one filter row. The tab strip is the only one on the page; each tab has its own filter or none. */
   async function pageDevices(params) {
     const data = await api("GET", "/devices");
-    const st = { q: params.get("q") || "", state: params.get("state") || "", page: Number(params.get("page")) || 1, per: Number(params.get("per")) || 25 };
+    const mode = A.viewMode("devices", "#/devices", params);
+    const perDefault = mode.simple ? 10 : 25;
+    const st = { q: params.get("q") || "", state: params.get("state") || "", page: Number(params.get("page")) || 1, per: Number(params.get("per")) || perDefault };
     const STATES = [["active", "Active"], ["idle", "Idle"], ["unused", "Never used"], ["revoked", "Revoked"], ["suspended", "Owner suspended"]];
     const counts = Object.fromEntries(STATES.map(([k]) => [k, data.items.filter((d) => d.state === k).length]));
     const stateOptions = STATES.filter(([k]) => counts[k] || k === st.state).map(([k, label]) => ({ id: k, label, sub: SUI.plural(counts[k], "device") }));
     const box = el("div");
-    const pager = { page: st.page, size: st.per, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
+    const pager = { page: st.page, size: st.per, sizes: mode.simple ? [10, 25, 50] : undefined, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
     const rowActions = (d) => [
       { id: "open", label: "Open the record", icon: "device", href: "#/devices/" + d.id },
       { id: "activity", label: "Their activity", icon: "clock", href: `#/activity?tab=ai&person=${d.person_id}` },
@@ -617,16 +626,18 @@
     function draw() {
       const qq = st.q.trim().toLowerCase();
       const rows = data.items.filter((d) => (!st.state || d.state === st.state) && (!qq || [d.label, d.person, d.app, d.platform, d.last_ip, d.hint].join(" ").toLowerCase().includes(qq)));
-      box.replaceChildren(rows.length ? deviceTable(rows, false, (d) => SUI.menuButton({ label: "More actions for " + d.label, small: true, items: () => rowActions(d) }), pager)
+      const menu = (d) => SUI.menuButton({ label: "More actions for " + d.label, small: true, items: () => rowActions(d) });
+      const act = mode.simple ? (d) => el("div", { class: "row" }, el("a", { class: "btn small", href: "#/devices/" + d.id, "aria-label": "Open " + d.label }, "Open"), menu(d)) : menu;
+      box.replaceChildren(rows.length ? deviceTable(rows, false, act, pager, mode.simple)
         : SUI.stateBox({ icon: "device", title: data.items.length ? "No devices match" : "No devices yet",
           text: data.items.length ? "Try another search or status." : "A device appears when someone is issued a key, or connects one themselves in the staff app." }));
     }
-    const keep = () => { A.keepParams("#/devices", { tab: params.get("tab") && params.get("tab") !== "keys" ? params.get("tab") : null, q: st.q, state: st.state, page: st.page > 1 ? st.page : null, per: st.per !== 25 ? st.per : null }); };
+    const keep = () => { A.keepParams("#/devices", { tab: params.get("tab") && params.get("tab") !== "keys" ? params.get("tab") : null, q: st.q, state: st.state, page: st.page > 1 ? st.page : null, per: st.per !== perDefault ? st.per : null }); };
     const bar = SUI.filterBar({ label: "Filter devices", search: { placeholder: "Device, owner, app or address" }, values: st, filters: [
       { id: "state", label: "Status", any: "All", options: stateOptions },
     ], onChange: (v) => { st.q = v.q || ""; st.state = v.state || ""; st.page = pager.page = 1; keep(); draw(); } });
     draw();
-    const keysTab = () => A.panel(null, null, el("div", { class: "filterbar" }, bar),
+    const keysTab = () => mode.simple ? A.panel(null, null, el("div", { class: "filterbar" }, bar), box) : A.panel(null, null, el("div", { class: "filterbar" }, bar),
       el("div", { class: "list-meta" }, el("span", null, "One gateway key per laptop or coding tool"),
         el("span", null, "places from named networks or the offline table, never an online lookup")), box);
     const browsersTab = () => A.panel(null, "from the portal's Open button · 90 days", data.browsers.length ? SUI.table({ caption: "Browsers", rows: data.browsers, sort: ["last", "desc"], pager: { page: 1, size: 25 }, columns: [
@@ -637,11 +648,19 @@
       { key: "last", label: "Last", num: true, render: (b) => fmt.ago(b.last) },
       { key: "last_ip", label: "Last address", render: (b) => (b.last_ip ? el("span", { class: "mono faint" }, b.last_ip) : "—"), hideSm: true }] })
       : A.empty("Nobody has opened a tool from the portal yet."));
-    A.frame({ title: "Devices", trail: [["Devices"]], lede: "Every laptop and coding tool holding a gateway key — what it runs, where it connects from, and when it was last used." },
-      A.pageTabs("#/devices", params, [
+    const tabs = () => A.pageTabs("#/devices", params, [
         ["keys", "Gateway keys", keysTab, counts.active || null],
         ["browsers", "Browsers", browsersTab],
-      ]));
+      ]);
+    if (mode.simple) {
+      /* Simple: the sentence with the real number, one next step, then the two tabs and the list. */
+      const lead = A.devicesLead({ total: data.items.length, active: counts.active, idle: counts.idle, unused: counts.unused, state: st.state,
+        requests: data.items.reduce((n, d) => n + (d.requests_30d || 0), 0) });
+      A.frame({ title: "Devices", trail: [["Devices"]], sentence: lead.sentence, next: A.leadButton(lead.action), actions: [mode.switcher] }, tabs());
+      return;
+    }
+    A.frame({ title: "Devices", trail: [["Devices"]], actions: [mode.switcher],
+      lede: "Every laptop and coding tool holding a gateway key — what it runs, where it connects from, and when it was last used." }, tabs());
   }
 
   /* The one "Next step" line on a device: worst first. */
