@@ -764,6 +764,10 @@ Exact next step at 16:00, in this order:
 - Next step: `gh pr checks 141`; if only `signin` is red, read its log and fix the product. Then merge main into #147/#148 if they conflict, then the next §10.10 page (Policies, Weekly reporting, Settings).
 
 
+## Lane B D3b: Models/Audit phone buttons — 12 November 2026
+
+Split from the preserved combined implementation `c85be0f` onto main `0135ac2`.
+At widths <=640px the Models See all button is visibly 36px and small Models/Audit pager buttons are 30px. The existing shared pseudo-element retains a 44px target. Models reserves 8px under See all for the target and focus ring. Existing browser checks cover visible size and target height at 390 and 640 in both themes, and click below the visible See all box.
 ## Lane B M1: Models desktop scrolling — 12 November 2026
 
 Split from the preserved combined implementation `c85be0f` onto main `0135ac2`.
@@ -777,6 +781,20 @@ Copy and keyboard semantics are retained. No visual acceptance is claimed.
 
 Split validation: changed browser scripts pass `node --check`; `git diff --check` passes.
 
+Probe reviewed #189 product head `fa6fab4`: CSS passes; shipped `models.cjs` fails because
+its raw mouse click targets a button below the viewport. `audit.cjs` passed 162/162.
+The test now scrolls See all into view before measuring/clicking its expanded target.
+Probe's temporary copy with this exact one-line correction passed `models.cjs` 164/164;
+that is separate from fresh verification of this committed artifact, which is pending.
+Evidence is saved in `docs/screenshots/models-audit-phone-buttons/`, with unmodified
+and patched runs labelled separately. Prism inspected the 390px light focus capture.
+The measured visible heights are 36px See all / 30px small pager with 44px targets;
+focus is not clipped at 390/640 light/dark. No new product CSS changed in this correction.
+
+Probe subsequently ran the unmodified committed `tests/browser/models.cjs` at local
+`d09774a`: 164 checks passed, exit 0, all six cells. This closes the earlier test FAIL.
+The result applies to the corrected script; `audit.cjs` was not repeated (unchanged,
+162/162 on `fa6fab4`). Fresh remote CI remains required before #189 is ready.
 Probe verified #188 product head `d4eff95` in real Chromium: `models.cjs` 100/100. At
 1440x852, Simple light/dark default/long have zero document overflow; the wrapper is
 352px high and scrolls internally. Without this CSS, overflow is 24px. Detailed remains
