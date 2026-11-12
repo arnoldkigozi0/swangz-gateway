@@ -1513,3 +1513,8 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
   .list-meta a { display: inline-flex; align-items: center; min-height: 44px; }
   .top-actions .btn { min-height: 44px; }
 }
+/* Audit log Simple (BRIEF 10.10.7): the sentence and the next step sit above the list, so a long page of entries scrolls
+   inside its panel with that much less room, and the page itself still does not scroll at 1440x852 (BRIEF 10.10.2). */
+@media screen and (min-width: 761px) {
+  .route-audit main:has(> .top > .ov-sentence) .u-table-wrap { max-height: max(280px, calc(100dvh - 500px)); }
+}
