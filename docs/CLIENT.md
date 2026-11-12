@@ -192,15 +192,27 @@ byte for byte; `apps[].open` links carry `?d=<device_id>` **only** under contrac
   The answer then also carries `workspace` and `policy` (the same two objects). Without an integer `browser_contract` of 2 the answer is
   unchanged. The whole answer stays well under 2 KB; **one heartbeat a minute at most is a client rule**, the server does not
   throttle it. A malformed `policy` report is ignored; a bad hash is dropped.
-- **Where the app's `policy` report comes from (W5, `swangz_client/machine_policy.py`).** Read-only: Linux every `*.json` in
-  `/etc/opt/chrome/policies/managed` (Chromium `/etc/chromium/policies/managed`), macOS `/Library/Managed Preferences/com.google.Chrome.plist`
-  and the per-user copy, Windows `HKLM\Software\Policies\Google\Chrome` (DWORD 0/1 read as true/false, list subkeys in number
-  order). `ok` is true only if every `REQUIRED` setting of the policy pack holds, `URLBlocklist` carries `*`, `file://*`, `chrome://*`
+- **Where the app's `policy` report comes from (W5, `swangz_client/machine_policy.py`).** Read-only and **machine scope only**:
+  Linux every `*.json` in `/etc/opt/chrome/policies/managed` (.deb Chromium `/etc/chromium/policies/managed`), macOS
+  `/Library/Managed Preferences/com.google.Chrome.plist` (Chromium `org.chromium.Chromium`), Windows
+  `HKLM\Software\Policies\Google\Chrome` (Chromium `...\Chromium`) in the 64-bit registry view (DWORD 0/1 read as
+  true/false, list subkeys in number order). Per-user copies (macOS `/Library/Managed Preferences/<user>/`, HKCU), Linux's
+  `recommended` folder and Windows' `Recommended` key are never read. The family checked is the one the workspace launcher
+  starts (`machine_policy.report()` asks `find_browser`; a path with `/chromium` is Chromium); no browser found is `ok: false`.
+  Fails closed (`ok: false`): an unreadable, invalid or oversized (> 1 MB) file, a symlink in place of a policy file or of the
+  Linux folder, a key given twice in one JSON file, or two sources that disagree. `ok` is true only if every `REQUIRED` setting of the policy pack holds, `URLBlocklist` carries `*`, `file://*`, `chrome://*`
   and `view-source:*`, `URLAllowlist` is not open (`*`, `*://*`, `http://*`, `https://*`), `ExtensionInstallBlocklist` is `["*"]`,
   the allow and force lists are filled in, and no two policy sources disagree. Missing or unreadable policy is `ok: false`; the check
   never raises. `sha256` is the **baseline hash**: canonical JSON (sorted, compact) of the policies the pack sets, the same on all
   three systems; `deploy/chrome-policy/prepare.py` prints it as "Baseline SHA-256" and that is the value to pin. The report is only
   sent while the managed workspace turns the check on (`Client.policy_check`); until then the heartbeat is exactly as before.
+- **What the report cannot prove (W5 limits).** It reads where the OS keeps policy, not `chrome://policy`, so it says the policy is
+  *installed*, not that the running browser applied it. On **Windows computers that are not joined to a domain (Active Directory or
+  Microsoft Entra ID) or enrolled in Chrome Browser Cloud Management**, Chrome ignores some policies set in the registry (for example
+  force-installing an extension that is not from the Chrome Web Store), so the report can say `ok: true` for settings Chrome does not
+  apply: company Windows devices must be joined or enrolled, and an admin checks `chrome://policy` once per device. A person with
+  administrator rights on the computer can change both the policy and the app; the report is a tamper signal, not a lock. Duplicate
+  keys are detected in JSON files only (Python's plist reader keeps the last one). The server only ever uses the report to refuse.
 - **What the app does** (for Prism, W3/W6/W7): `suspended` closes the workspace at the next heartbeat and keeps the profile folder
   (reactivating keeps the sign-in); `retired`, or a `generation` higher than the one on disk, means close it and delete the profile
   folder. The server says `retired` only after an administrator's explicit `retire`; a person the account rule no longer

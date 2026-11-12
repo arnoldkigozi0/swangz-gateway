@@ -45,13 +45,15 @@ class FakeRegistry:
     """The calls `read_windows` makes, over a nested dict. Opening a missing key raises OSError, as winreg does."""
 
     HKEY_LOCAL_MACHINE = "HKLM"
+    KEY_READ, KEY_WOW64_64KEY = 0x20019, 0x0100
 
     def __init__(self, tree):
         self.tree = tree  # {"Software\\Policies\\Google\\Chrome": FakeKey}
         self.opened = []
 
-    def OpenKey(self, parent, sub):
+    def OpenKey(self, parent, sub, reserved=0, access=None):
         self.opened.append(sub)
+        self.access = getattr(self, "access", []) + [access]
         if parent == self.HKEY_LOCAL_MACHINE:
             if sub not in self.tree:
                 raise FileNotFoundError(sub)
@@ -107,6 +109,7 @@ class Fixture(unittest.TestCase):
         return mp.check("chrome", platform="linux", root=folder)
 
     def mac(self, device=None, user=None, name="com.google.Chrome.plist"):
+        """`user` writes a per-user copy, which is NOT machine scope and must be ignored."""
         root = self.tmp / "Managed Preferences"
         root.mkdir(exist_ok=True)
         if device is not None:
@@ -114,7 +117,7 @@ class Fixture(unittest.TestCase):
         if user is not None:
             (root / "ada").mkdir(exist_ok=True)
             (root / "ada" / name).write_bytes(plistlib.dumps(user))
-        return mp.check("chrome", platform="darwin", root=root, user="ada")
+        return mp.check("chrome", platform="darwin", root=root)
 
     def windows(self, policy, where=mp.WINDOWS_KEYS["chrome"], browser="chrome"):
         registry = FakeRegistry({where: as_registry(policy)} if policy is not None else {})
@@ -239,16 +242,88 @@ class LinuxTests(Fixture):
         self.assertEqual(mp.LINUX_DIRS["chrome"], "/etc/opt/chrome/policies/managed")
 
 
+class FailClosedTests(Fixture):
+    """Sentinel's W5 checklist item 3: anything doubtful is a failing check, never a pass and never an exception."""
+
+    def test_a_key_given_twice_in_one_file_fails(self):
+        text = prepare.encode(self.policy).decode()
+        doubled = text.replace('"IncognitoModeAvailability": 1', '"IncognitoModeAvailability": 0, "IncognitoModeAvailability": 1')
+        self.assertNotEqual(text, doubled)
+        result = self.linux(("swangz.json", doubled.encode()))
+        self.assertFalse(result.ok)
+        self.assertEqual(result.problems, ["unreadable:swangz.json"])
+
+    @unittest.skipIf(os.name == "nt", "symlinks need privileges on Windows")
+    def test_a_symlinked_file_or_folder_fails(self):
+        real = self.tmp / "real.json"
+        real.write_bytes(prepare.encode(self.policy))
+        folder = self.tmp / "managed"
+        folder.mkdir()
+        (folder / "swangz.json").symlink_to(real)
+        self.assertEqual(mp.check("chrome", platform="linux", root=folder).problems, ["unreadable:swangz.json"])
+        (folder / "swangz.json").unlink()
+        (folder / "swangz.json").write_bytes(prepare.encode(self.policy))
+        self.assertTrue(mp.check("chrome", platform="linux", root=folder).ok)
+        link = self.tmp / "linked"
+        link.symlink_to(folder, target_is_directory=True)
+        self.assertEqual(mp.check("chrome", platform="linux", root=link).problems, ["unreadable:linked"])
+
+    def test_a_folder_in_place_of_a_file_fails(self):
+        folder = self.tmp / "managed"
+        (folder / "swangz.json").mkdir(parents=True)
+        self.assertEqual(mp.check("chrome", platform="linux", root=folder).problems, ["unreadable:swangz.json"])
+
+    def test_the_policy_file_removed_is_a_failing_report(self):
+        result = self.linux(("swangz.json", self.policy))
+        self.assertEqual(result.report(), {"ok": True, "sha256": mp.baseline_sha(self.policy)})
+        (self.tmp / "managed" / "swangz.json").unlink()
+        self.assertEqual(mp.check("chrome", platform="linux", root=self.tmp / "managed").report(), {"ok": False, "sha256": ""})
+
+
+class WhichBrowserTests(unittest.TestCase):
+    """Checklist item 1: the report is about the browser the launcher starts (Chrome, or .deb Chromium)."""
+
+    def test_browser_kind(self):
+        for path, kind in (("/opt/google/chrome/chrome", "chrome"), ("/usr/lib/chromium/chromium", "chromium"),
+                           ("/usr/lib/chromium-browser/chromium-browser", "chromium"),
+                           ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "chrome"),
+                           ("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", "chrome"), (None, "chrome")):
+            self.assertEqual(mp.browser_kind(path), kind, path)
+
+    def test_report_checks_the_launchers_browser_family(self):
+        seen = []
+        with mock.patch.object(mp, "check", side_effect=lambda b: seen.append(b) or mp.Result(False, None, [], [])):
+            mp.report(finder=lambda: "/usr/lib/chromium/chromium")
+            mp.report(finder=lambda: "/opt/google/chrome/chrome")
+            mp.report("chromium")
+        self.assertEqual(seen, ["chromium", "chrome", "chromium"])
+
+    def test_no_browser_is_a_failing_report(self):
+        def none():
+            raise RuntimeError("no_browser")
+        self.assertEqual(mp.report(finder=none), {"ok": False, "sha256": ""})
+
+
 class MacTests(Fixture):
     def test_device_wide_plist(self):
         result = self.mac(self.policy)
         self.assertTrue(result.ok, result)
         self.assertEqual(result.sources, ["com.google.Chrome.plist"])
 
-    def test_per_user_plist_is_read_too_and_a_conflict_fails(self):
-        self.assertTrue(self.mac(user=self.policy).ok)
+    def test_a_per_user_plist_is_not_machine_scope_and_is_never_read(self):
+        self.assertEqual(self.mac(user=self.policy).problems, ["missing"])
         result = self.mac(device=self.policy, user={"IncognitoModeAvailability": 0})
-        self.assertIn("conflict:IncognitoModeAvailability", result.problems)
+        self.assertTrue(result.ok, result)
+        self.assertEqual(result.sources, ["com.google.Chrome.plist"])
+
+    @unittest.skipIf(os.name == "nt", "symlinks need privileges on Windows")
+    def test_a_symlinked_plist_fails(self):
+        real = self.tmp / "elsewhere.plist"
+        real.write_bytes(plistlib.dumps(self.policy))
+        root = self.tmp / "Managed Preferences"
+        root.mkdir()
+        (root / "com.google.Chrome.plist").symlink_to(real)
+        self.assertEqual(mp.check("chrome", platform="darwin", root=root).problems, ["unreadable:com.google.Chrome.plist"])
 
     def test_missing_and_unreadable(self):
         self.assertEqual(self.mac().problems, ["missing"])
@@ -258,8 +333,8 @@ class MacTests(Fixture):
         root = self.tmp / "Managed Preferences"
         root.mkdir()
         (root / "org.chromium.Chromium.plist").write_bytes(plistlib.dumps(self.policy))
-        self.assertTrue(mp.check("chromium", platform="darwin", root=root, user="ada").ok)
-        self.assertFalse(mp.check("chrome", platform="darwin", root=root, user="ada").ok)
+        self.assertTrue(mp.check("chromium", platform="darwin", root=root).ok)
+        self.assertFalse(mp.check("chrome", platform="darwin", root=root).ok)
 
 
 class WindowsTests(Fixture):
@@ -288,6 +363,19 @@ class WindowsTests(Fixture):
         self.assertTrue(result.ok, result)
         registry = FakeRegistry({mp.WINDOWS_KEYS["chromium"]: as_registry(self.policy)})
         self.assertFalse(mp.check("chrome", platform="win32", registry=registry).ok)
+
+    def test_only_the_64_bit_view_of_hklm_is_read(self):
+        registry = FakeRegistry({mp.WINDOWS_KEYS["chrome"]: as_registry(self.policy)})
+        self.assertTrue(mp.check("chrome", platform="win32", registry=registry).ok)
+        self.assertTrue(registry.access)
+        self.assertTrue(all(a == registry.KEY_READ | registry.KEY_WOW64_64KEY for a in registry.access), registry.access)
+
+    def test_recommended_is_not_read(self):
+        key = as_registry(self.policy)
+        key.subkeys["Recommended"] = FakeKey({"IncognitoModeAvailability": 0})
+        registry = FakeRegistry({mp.WINDOWS_KEYS["chrome"]: key})
+        self.assertTrue(mp.check("chrome", platform="win32", registry=registry).ok)
+        self.assertNotIn("Recommended", registry.opened)
 
     def test_a_registry_error_is_a_failing_check(self):
         class Broken(FakeRegistry):

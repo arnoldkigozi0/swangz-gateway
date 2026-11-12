@@ -3,10 +3,14 @@
 Reads the effective machine policy from where the OS keeps it, READ-ONLY:
 
 * Linux: every `*.json` in `/etc/opt/chrome/policies/managed` (Chromium: `/etc/chromium/policies/managed`);
-* macOS: `/Library/Managed Preferences/com.google.Chrome.plist` and the per-user copy in
-  `/Library/Managed Preferences/<user>/` (Chromium: `org.chromium.Chromium`);
-* Windows: `HKLM\\Software\\Policies\\Google\\Chrome` (Chromium: `...\\Chromium`); a list policy is a subkey whose
-  values are named 1, 2, 3, ...
+* macOS: `/Library/Managed Preferences/com.google.Chrome.plist` (Chromium: `org.chromium.Chromium`);
+* Windows: `HKLM\\Software\\Policies\\Google\\Chrome` (Chromium: `...\\Chromium`) in the 64-bit view; a list policy
+  is a subkey whose values are named 1, 2, 3, ...
+
+Machine scope only: per-user copies (macOS `/Library/Managed Preferences/<user>/`, Windows HKCU) and Linux's
+`recommended` folder are never read, so a person can't make the check pass from their own account. Anything doubtful
+fails the check: an unreadable, invalid or oversized file, a symlink in place of a file or of the folder, a key given
+twice in one file, or two sources that disagree.
 
 It checks every control `deploy/chrome-policy/prepare.py` requires plus the default-deny and extension lists, and
 reports `{"ok": bool, "sha256": "<64 hex>"}` for the heartbeat (W2 contract 2). It never writes policy, never opens
@@ -24,6 +28,7 @@ import hashlib
 import json
 import os
 import plistlib
+import stat
 import sys
 from pathlib import Path
 
@@ -58,9 +63,13 @@ class Unreadable(Exception):
 
 
 def _bounded(path):
-    """Read one policy file. A symlink is followed (Chrome follows it too); only regular files are read."""
+    """Read one policy file: a regular file, never through a symlink, at most MAX_BYTES."""
     path = Path(path)
-    if not path.is_file():
+    try:
+        info = os.lstat(path)
+    except OSError:
+        raise Unreadable(path.name) from None
+    if not stat.S_ISREG(info.st_mode):  # a symlink, folder or device in place of the file fails closed
         raise Unreadable(path.name)
     with open(path, "rb") as f:
         data = f.read(MAX_BYTES + 1)
@@ -72,14 +81,18 @@ def _bounded(path):
 def read_linux(browser="chrome", root=None):
     """-> list of (source, dict). Files are read in name order, as Chrome does."""
     folder = Path(root or LINUX_DIRS[browser])
-    if not folder.is_dir():
+    try:
+        info = os.lstat(folder)
+    except FileNotFoundError:
         return []
+    if not stat.S_ISDIR(info.st_mode):  # a symlinked folder is not the machine's own policy
+        raise Unreadable(folder.name)
     out = []
     for path in sorted(folder.iterdir()):
         if path.suffix != ".json" or path.name.startswith("."):
             continue
         try:
-            value = json.loads(_bounded(path).decode("utf-8"))
+            value = json.loads(_bounded(path).decode("utf-8"), object_pairs_hook=_no_duplicates)
         except (OSError, UnicodeDecodeError, ValueError):
             raise Unreadable(path.name) from None
         if not isinstance(value, dict):
@@ -88,13 +101,24 @@ def read_linux(browser="chrome", root=None):
     return out
 
 
-def read_macos(browser="chrome", root=None, user=None):
+def _no_duplicates(pairs):
+    out = {}
+    for key, value in pairs:
+        if key in out:
+            raise ValueError("duplicate key")
+        out[key] = value
+    return out
+
+
+def read_macos(browser="chrome", root=None):
+    """The device-wide managed plist only; the per-user copy is not machine scope."""
     root = Path(root or MAC_ROOT)
-    user = user or os.environ.get("USER") or ""
     name = MAC_DOMAINS[browser] + ".plist"
     out = []
-    for path in (root / name, root / user / name) if user else (root / name,):
-        if not path.exists():
+    for path in (root / name,):
+        try:
+            os.lstat(path)
+        except FileNotFoundError:
             continue
         try:
             value = plistlib.loads(_bounded(path))
@@ -111,7 +135,8 @@ def read_windows(browser="chrome", registry=None):
     if registry is None:
         import winreg as registry  # pragma: no cover - Windows only
     try:
-        key = registry.OpenKey(registry.HKEY_LOCAL_MACHINE, WINDOWS_KEYS[browser])
+        key = registry.OpenKey(registry.HKEY_LOCAL_MACHINE, WINDOWS_KEYS[browser], 0,
+                               registry.KEY_READ | registry.KEY_WOW64_64KEY)
     except OSError:
         return []
     policy = {}
@@ -131,8 +156,10 @@ def read_windows(browser="chrome", registry=None):
             except OSError:
                 break
             i += 1
+            if sub not in LISTS:
+                continue  # `Recommended` and anything else: not machine-enforced list policy, not read
             entries = []
-            with registry.OpenKey(key, sub) as lst:
+            with registry.OpenKey(key, sub, 0, registry.KEY_READ | registry.KEY_WOW64_64KEY) as lst:
                 j = 0
                 while True:
                     try:
@@ -140,7 +167,7 @@ def read_windows(browser="chrome", registry=None):
                     except OSError:
                         break
                     j += 1
-                    if name.isdigit():
+                    if name.isdigit():  # Chrome reads only the numbered values of a list key, so do we
                         entries.append((int(name), value))
             policy[sub] = [v for _, v in sorted(entries)]
     return [("HKLM\\" + WINDOWS_KEYS[browser], _from_registry(policy))] if policy else []
@@ -238,7 +265,7 @@ def check(browser="chrome", platform=None, **where):
         if platform == "win32":
             sources = read_windows(browser, where.get("registry"))
         elif platform == "darwin":
-            sources = read_macos(browser, where.get("root"), where.get("user"))
+            sources = read_macos(browser, where.get("root"))
         else:
             sources = read_linux(browser, where.get("root"))
     except Unreadable as exc:
@@ -252,6 +279,21 @@ def check(browser="chrome", platform=None, **where):
     return Result(not problems, baseline_sha(merged), problems, [name for name, _ in sources])
 
 
-def report(browser="chrome"):
-    """The heartbeat field for this computer: `Client.policy_check = machine_policy.report`."""
+def browser_kind(binary):
+    """The policy family of the browser the workspace launcher starts: .deb Chromium reads Chromium's policy, not
+    Chrome's, so checking Chrome's would report a policy that browser never loads."""
+    name = str(binary or "").replace("\\", "/").lower()
+    return "chromium" if "/chromium" in name else "chrome"
+
+
+def report(browser=None, finder=None):
+    """The heartbeat field for this computer: `Client.policy_check = machine_policy.report`. With no browser named it
+    checks the family of the one the launcher would start; no browser found is a failing check."""
+    if browser is None:
+        try:
+            if finder is None:
+                from .workspace_launcher import find_browser as finder
+            browser = browser_kind(finder())
+        except Exception:
+            return {"ok": False, "sha256": ""}
     return check(browser).report()
