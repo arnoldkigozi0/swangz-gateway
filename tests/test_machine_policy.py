@@ -314,7 +314,8 @@ class WhichBrowserTests(unittest.TestCase):
 
     def test_ubuntu_chromium_browser_reads_its_own_folder(self):
         seen = []
-        with mock.patch.object(mp, "read_linux", side_effect=lambda b, r=None: seen.append(b) or []):
+        with mock.patch.object(mp, "read_linux", side_effect=lambda b, r=None: seen.append(b) or []), \
+                mock.patch.object(mp.sys, "platform", "linux"):  # the Linux reader, on every CI runner
             mp.report(finder=lambda: "/usr/lib/chromium-browser/chromium-browser")
         self.assertEqual(seen, ["chromium-browser"])
 
