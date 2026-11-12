@@ -652,7 +652,7 @@
   const secSignals = (extra) => "#/security?view=signals&days=7" + (extra ? "&" + extra : "");
 
   function pageSecurity(params) {
-    return params.get("view") === "signals" || params.has("days") || params.has("type") ? signalsList(params) : securitySummary();
+    return params.get("view") === "signals" || params.has("days") || params.has("type") ? signalsList(params) : securitySummary(params);
   }
 
   function safeguardsSheet(data) {
@@ -671,7 +671,8 @@
       el("a", { class: "btn small", href: "#/settings?tab=access" }, "Change in Settings")) });
   }
 
-  async function securitySummary() {
+  async function securitySummary(params) {
+    const mode = A.viewMode("security", "#/security", params);
     const [secR, incR] = await Promise.allSettled([api("GET", "/security?days=7"), api("GET", "/incidents?status=active")]);
     const data = secR.status === "fulfilled" ? secR.value : null;
     const inc = incR.status === "fulfilled" ? incR.value : null;
@@ -710,7 +711,23 @@
           : medium.length ? el("a", { href: secSignals("severity=medium") }, `Check ${SUI.plural(medium.length, "medium signal")}`)
             : "Nothing needs doing right now.";
 
-    A.frame({ title: "Security", trail: [[SEC_ROOT[0]]], next, actions: [
+    if (mode.simple) {
+      /* Simple (BRIEF 10.10.7): the sentence with the real number, one next step, then two blocks — what to check first,
+         and the four counts as plain lines that open the same filtered lists the cards do. */
+      const lead = A.securityLead({ loaded: !!data && !!inc, high: high.length, medium: medium.length, warnings: warnings.length, open: active });
+      const line = (label, value, href) => el("a", { class: "ov-num", href }, el("span", null, label), el("strong", { class: "u-num" }, value), icon("chevronRight"));
+      const numbers = A.panel("This week in numbers", null, el("div", { class: "ov-nums" },
+        line("Warnings", data ? SUI.plural(warnings.length, "warning") : failed, secSignals("severity=warnings")),
+        line("Problems being followed up", inc ? String(active) : failed, "#/incidents?status=active"),
+        line("Failed sign-ins", data ? SUI.plural(signIns.length, "address", "addresses") : failed, secSignals("type=signin")),
+        line("Possible passwords or keys sent to AI", data ? String(credentials.length) : failed, secSignals("type=credential"))));
+      A.frame({ title: "Security", trail: [[SEC_ROOT[0]]], sentence: lead.sentence, next: A.leadButton(lead.action),
+        actions: [mode.switcher, data ? el("button", { class: "btn", type: "button", onclick: () => safeguardsSheet(data) }, icon("shield"), "Safeguards") : null].filter(Boolean) },
+      el("div", { class: "ov-simple" }, A.panel("Check these first", el("a", { class: "btn small quiet", href: secSignals() }, "See all", icon("chevronRight")), list), numbers));
+      return;
+    }
+
+    A.frame({ title: "Security", trail: [[SEC_ROOT[0]]], next, actions: [mode.switcher,
       data ? el("button", { class: "btn", type: "button", onclick: () => safeguardsSheet(data) }, icon("shield"), "Safeguards") : null,
       el("a", { class: "btn", href: "#/devices" }, icon("device"), "Devices"),
       el("a", { class: "btn", href: "#/audit" }, icon("audit"), "Audit log"),

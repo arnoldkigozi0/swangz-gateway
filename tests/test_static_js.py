@@ -394,8 +394,8 @@ class MoneyLeadTests(unittest.TestCase):
         return money_lead([{**self.BASE, **n}])[0]
 
     def test_the_sentence_carries_the_real_number(self):
-        self.assertEqual(self.lead(idle=3)["sentence"], "3 paid seats were not used in 30 days (about $40 a month).")
-        self.assertEqual(self.lead(idle=1)["sentence"], "1 paid seat was not used in 30 days (about $40 a month).")
+        self.assertEqual(self.lead(idle=3)["sentence"], "3 paid licences nobody opened in 30 days (about $40 a month).")
+        self.assertEqual(self.lead(idle=1)["sentence"], "1 paid licence nobody opened in 30 days (about $40 a month).")
         self.assertEqual(self.lead(unpriced=7)["sentence"], "7 requests have no price yet, so spend is understated.")
         self.assertEqual(self.lead(soon=1)["sentence"], "1 plan renews in the next 30 days.")
         self.assertEqual(self.lead()["sentence"], "We spent $212.40 on AI in the last 30 days.")
@@ -531,6 +531,15 @@ def audit_lead(cases):
     return json.loads(out.stdout)
 
 
+def security_lead(cases):
+    source = (STATIC / "admin-guide.js").read_text(encoding="utf-8")
+    many = re.search(r"\n  (const many = .*?;)\n", source).group(1)
+    fn = re.search(r"\n  (function securityLead\(n\) \{\n.*?\n  \})\n", source, re.S).group(1)
+    script = many + fn + "\nconsole.log(JSON.stringify(" + json.dumps(cases) + ".map(securityLead)));"
+    out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30, check=True)
+    return json.loads(out.stdout)
+
+
 @unittest.skipUnless(shutil.which("node"), "Node is not installed")
 class AuditLeadTests(unittest.TestCase):
     """BRIEF 10.10.7 on the Audit log: one sentence with the real number, then one next step that opens what it counts."""
@@ -560,3 +569,78 @@ class AuditLeadTests(unittest.TestCase):
     def test_audit_uses_the_shared_view_switch(self):
         monitor = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
         self.assertIn('A.viewMode("audit", "#/audit", params)', monitor)
+
+
+@unittest.skipUnless(shutil.which("node"), "Node is not installed")
+class SecurityLeadTests(unittest.TestCase):
+    """BRIEF 10.10.7 on Security: worst first, the real number in the sentence, the button opens what was counted."""
+    BASE = {"loaded": True, "high": 0, "medium": 0, "warnings": 0, "open": 0}
+
+    def lead(self, **n):
+        return security_lead([{**self.BASE, **n}])[0]
+
+    def test_worst_comes_first_and_opens_exactly_what_it_counts(self):
+        both = self.lead(high=2, medium=3, warnings=9, open=1)
+        self.assertEqual(both["sentence"], "2 serious warnings in the last 7 days.")
+        self.assertEqual(both["action"]["href"], "#/security?view=signals&days=7&severity=high")
+        self.assertEqual(self.lead(open=1, medium=3, warnings=3)["action"]["href"], "#/incidents?status=active")
+        self.assertEqual(self.lead(open=1)["sentence"], "1 problem is still being followed up.")
+        self.assertEqual(self.lead(medium=1, warnings=1)["action"]["href"], "#/security?view=signals&days=7&severity=medium")
+        self.assertEqual(self.lead(warnings=4)["action"]["href"], "#/security?view=signals&days=7&severity=warnings")
+
+    def test_nothing_and_failure_are_never_a_dead_end(self):
+        calm = self.lead()
+        self.assertEqual(calm["sentence"], "Nothing needs checking right now.")
+        self.assertEqual(calm["action"]["href"], "#/audit")
+        self.assertTrue(self.lead(loaded=False)["action"]["retry"])
+
+    def test_sentences_stay_short_and_plain(self):
+        for n in ({"high": 1234}, {"open": 2}, {"medium": 5}, {"warnings": 1}, {}, {"loaded": False}):
+            sentence = self.lead(**n)["sentence"]
+            self.assertLessEqual(len(sentence.split()), 12)
+            for word in ("incident", "signal", "severity", "policy"):
+                self.assertNotIn(word, sentence.lower())
+
+    def test_security_uses_the_shared_view_switch(self):
+        monitor = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
+        self.assertIn('A.viewMode("security", "#/security", params)', monitor)
+        self.assertIn("A.securityLead({", monitor)
+
+
+def models_lead(cases):
+    source = (STATIC / "admin-rules.js").read_text(encoding="utf-8")
+    many = re.search(r"\n  (const modelsMany = .*?;)\n", source).group(1)
+    fn = re.search(r"\n  (function modelsLead\(n\) \{\n.*?\n  \})\n", source, re.S).group(1)
+    script = many + fn + "\nconsole.log(JSON.stringify(" + json.dumps(cases) + ".map(modelsLead)));"
+    out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30, check=True)
+    return json.loads(out.stdout)
+
+
+@unittest.skipUnless(shutil.which("node"), "Node is not installed")
+class ModelsLeadTests(unittest.TestCase):
+    """BRIEF 10.10.7 on Models: one sentence with the real number, then one next step that opens what it counts."""
+    BASE = {"total": 8, "used": 5, "unpriced": 0, "noRule": 0, "canMoney": True, "status": ""}
+
+    def lead(self, **n):
+        return models_lead([{**self.BASE, **n}])[0]
+
+    def test_the_sentence_carries_the_real_number(self):
+        self.assertEqual(self.lead(unpriced=2)["sentence"], "2 models have requests with no price yet.")
+        self.assertEqual(self.lead(noRule=1)["sentence"], "1 model is in use with no rule yet.")
+        self.assertEqual(self.lead()["sentence"], "5 models were used in the last 30 days.")
+        self.assertEqual(self.lead(total=0)["sentence"], "No AI models have been used yet.")
+
+    def test_missing_prices_come_first(self):
+        self.assertIn("price", self.lead(unpriced=1, noRule=3)["sentence"])
+
+    def test_the_button_opens_exactly_the_models_counted(self):
+        self.assertEqual(self.lead(noRule=2)["action"]["href"], "#/models?status=unlisted")
+        self.assertEqual(self.lead(noRule=2, status="unlisted")["action"]["href"], "#/activity?tab=ai")
+        self.assertEqual(self.lead(unpriced=2)["action"]["href"], "#/settings?tab=providers&section=prices")
+
+    def test_a_role_is_only_offered_what_it_can_do(self):
+        self.assertEqual(self.lead(unpriced=2, canMoney=False)["action"]["href"], "#/activity?tab=ai")
+
+    def test_sentences_stay_short(self):
+        for n in ({"unpriced": 1234}, {"noRule": 2}, {}, {"total": 0}):
+            self.assertLessEqual(len(self.lead(**n)["sentence"].split()), 12)

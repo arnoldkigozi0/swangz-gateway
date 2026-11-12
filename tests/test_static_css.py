@@ -192,3 +192,13 @@ class RoomPhotoTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NextStepInkTests(unittest.TestCase):
+    """A next step that is a link sits inside .lede, whose link colour would paint the button's label (1.1:1 on primary)."""
+
+    def test_a_next_step_link_keeps_the_button_ink(self):
+        guide = (STATIC / "guide.css").read_text(encoding="utf-8")
+        self.assertIn(".next-step .btn { text-decoration: none; color: var(--btn-ink); }", guide)
+        admin = (STATIC / "admin.css").read_text(encoding="utf-8")
+        self.assertIn(".lede a { color: var(--tx-1);", admin)  # the rule it has to beat: (0,2,0) > (0,1,1)

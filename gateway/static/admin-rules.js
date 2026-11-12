@@ -17,16 +17,34 @@
 
   // ------------------------------------------------------------------ Models
 
+  /* Models' sentence and next step (BRIEF 10.10.7). n: { total, used, unpriced, noRule, canMoney, status }. A model whose requests
+     have no price makes spend look smaller than it is, so it comes first; then models in use that nobody has set a rule for,
+     which opens exactly that Status filter. When the filter is already showing, the next step moves on. Pure, so it can be tested. */
+  const modelsMany = (n, one, more) => n.toLocaleString() + " " + (n === 1 ? one : more);
+  function modelsLead(n) {
+    const onward = { label: "See the AI requests", href: "#/activity?tab=ai" };
+    if (!n.total) return { sentence: "No AI models have been used yet.", action: { label: "Check who is using what", task: "check-use" } };
+    if (n.unpriced) return { sentence: `${modelsMany(n.unpriced, "model has", "models have")} requests with no price yet.`,
+      action: n.canMoney ? { label: "Set the missing prices", href: "#/settings?tab=providers&section=prices" } : onward };
+    if (n.noRule) return { sentence: `${modelsMany(n.noRule, "model is", "models are")} in use with no rule yet.`,
+      action: n.status === "unlisted" ? onward : { label: n.noRule === 1 ? "See which model" : "See which models", href: "#/models?status=unlisted" } };
+    return { sentence: `${modelsMany(n.used, "model was", "models were")} used in the last 30 days.`, action: onward };
+  }
+
   async function pageModels(params) {
     const data = await api("GET", "/models");
     const edit = A.can("govern");
-    const st = { q: params.get("q") || "", status: params.get("status") || "", page: Number(params.get("page")) || 1, per: Number(params.get("per")) || 25 };
+    const mode = A.viewMode("models", "#/models", params);
+    const perDefault = mode.simple ? 10 : 25;
+    /* Simple on a phone (BRIEF 10.10.7: one screen per block): the five most used, then "See all N". */
+    let short = mode.simple && !params.get("per") && !params.get("page") && matchMedia("(max-width: 640px)").matches;
+    const st = { q: params.get("q") || "", status: params.get("status") || "", page: Number(params.get("page")) || 1, per: Number(params.get("per")) || perDefault };
     const counts = {};
     data.items.forEach((m) => { counts[m.status] = (counts[m.status] || 0) + 1; });
     const order = ["approved", "experimental", "restricted", "deprecated", "disabled", "unlisted"];
     const statusOptions = order.filter((k) => counts[k] || k === st.status).map((k) => ({ id: k, label: STATUS[k][1], sub: SUI.plural(counts[k] || 0, "model") }));
     const box = el("div");
-    const pager = { page: st.page, size: st.per, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
+    const pager = { page: st.page, size: st.per, sizes: mode.simple ? [10, 25, 50] : undefined, onChange: (page, size) => { st.page = pager.page = page; st.per = pager.size = size; keep(); } };
     const removeModel = async (m) => {
       const ok = await A.confirmAction(`Remove the rule for ${m.id}?`, "It goes back to unlisted, which is allowed, as before the registry. Its history stays.", "Remove rule", true);
       if (!ok) return;
@@ -35,7 +53,12 @@
     function draw() {
       const qq = st.q.trim().toLowerCase();
       const rows = data.items.filter((m) => (!st.status || m.status === st.status) && (!qq || [m.id, m.provider, m.label, m.governed_by].join(" ").toLowerCase().includes(qq)));
-      box.replaceChildren(rows.length ? SUI.table({ caption: "Models", rows, sort: ["requests", "desc"], pager, columns: [
+      // Simple (BRIEF 10.10.7): five columns — the model, its status, requests, cost and the row menu
+      const SIMPLE = ["id", "status", "requests", "cost", "act"];
+      const cut = short && rows.length > 5;
+      const shown = cut ? rows.slice().sort((a, b) => (b.requests || 0) - (a.requests || 0)).slice(0, 5) : rows;
+      const more = cut ? el("button", { class: "btn see-all", type: "button", onclick: () => { short = false; draw(); } }, "See all " + rows.length) : null;
+      box.replaceChildren(rows.length ? SUI.table({ caption: "Models", rows: shown, sort: ["requests", "desc"], pager: cut ? undefined : pager, columns: [
         { key: "id", label: "Model", lead: true, render: (m) => el("div", { class: "model-cell" }, el("span", { class: "mono strong nowrap" }, m.id),
           el("span", { class: "sub" }, [m.provider, m.label || (m.governed_by ? "by the rule for " + m.governed_by : "")].filter(Boolean).join(" · "))) },
         { key: "status", label: "Status", render: (m) => el("div", null, SUI.status(...(STATUS[m.status] || STATUS.unlisted), { plain: true }),
@@ -51,16 +74,26 @@
           { id: "requests", label: "Requests using it", icon: "clock", href: "#/activity?tab=ai&model=" + encodeURIComponent(m.id) },
           edit && m.registered ? { id: "remove", label: "Remove the rule", icon: "x", danger: true, onSelect: () => removeModel(m) } : null,
         ].filter(Boolean) }) },
-      ] }) : SUI.stateBox({ icon: "chip", title: data.items.length ? "No models match" : "No models here",
-        text: data.items.length ? "Try another search or status." : "Models appear once they are used through the gateway, priced, or registered." }));
+      ].filter((c) => !mode.simple || SIMPLE.includes(c.key)) }) : SUI.stateBox({ icon: "chip", title: data.items.length ? "No models match" : "No models here",
+        text: data.items.length ? "Try another search or status." : "Models appear once they are used through the gateway, priced, or registered." }), ...(more ? [el("div", { class: "see-all-row" }, more)] : []));
     }
-    const keep = () => A.keepParams("#/models", { q: st.q, status: st.status, page: st.page > 1 ? st.page : null, per: st.per !== 25 ? st.per : null });
+    const keep = () => A.keepParams("#/models", { q: st.q, status: st.status, page: st.page > 1 ? st.page : null, per: st.per !== perDefault ? st.per : null });
     const bar = SUI.filterBar({ label: "Filter models", search: { placeholder: "Model, provider or name" }, values: st, filters: [
       { id: "status", label: "Status", any: "All", options: statusOptions },
     ], onChange: (v) => { st.q = v.q || ""; st.status = v.status || ""; st.page = pager.page = 1; keep(); draw(); } });
     draw();
+    const register = edit ? el("button", { class: "btn primary", onclick: () => editModel(null, data) }, icon("plus"), "Register a model") : null;
+    if (mode.simple) {
+      /* Simple: the sentence with the real number, one next step, then one panel (filters + the list). "Register a model"
+         stays the page's one primary in the header, so the next step is a plain button. */
+      const lead = modelsLead({ total: data.items.length, used: data.items.filter((m) => m.requests).length, status: st.status, canMoney: A.can("money"),
+        unpriced: data.items.filter((m) => m.unpriced).length, noRule: data.items.filter((m) => m.status === "unlisted" && m.requests).length });
+      A.frame({ title: "Models", trail: [["Models"]], sentence: lead.sentence, next: A.leadButton(Object.assign({}, lead.action, { quiet: true })),
+        actions: [mode.switcher, register].filter(Boolean) }, [A.panel(null, null, el("div", { class: "filterbar" }, bar), box)]);
+      return;
+    }
     A.frame({ title: "Models", trail: [["Models"]], lede: "Every chat model the gateway has seen, priced or registered, and the rule on each. A model nobody registered is unlisted: allowed, as before the registry. A rule for claude-opus-4 also covers claude-opus-4-1 and later versions of it.",
-      actions: edit ? el("button", { class: "btn primary", onclick: () => editModel(null, data) }, icon("plus"), "Register a model") : null }, [
+      actions: [mode.switcher, register].filter(Boolean) }, [
       A.panel(null, null, el("div", { class: "filterbar" }, bar),
         el("div", { class: "list-meta" }, el("span", null, "Disabled: refused for everyone"), el("span", null, "Restricted: only the departments named"),
           el("span", null, "Costs are estimated from the price table")), box),

@@ -488,6 +488,7 @@
 
   const TOOL_STATE = { enabled: ["ok", "Ready"], past_due: ["waiting", "Payment due"], suspended: ["suspended", "Paused"], locked: ["none", "No subscription"], not_assigned: ["none", "Not given"] };
   /* What a person has, as a table; giving another tool is one picker rather than a tile per tool. */
+  const toolsOpen = new Set(); // people whose full tool list is showing; it stays open when the page redraws after a change
   function personToolsPanel(p, owner, used, extra) {
     const tools = p.tools || [];
     const use = Object.fromEntries((used || []).filter((r) => r.tool_id).map((r) => [r.tool_id, r]));
@@ -503,7 +504,11 @@
       owner && t.grant !== "direct" ? { id: "team", label: "Team access", sub: "Changed on the tool", icon: "people", href: `#/tools?open=${t.id}&tab=access` } : null,
       owner && t.grant === "direct" ? { id: "take", label: "Take back", icon: "lock", danger: true, onSelect: () => change(t, false) } : null,
     ].filter(Boolean);
-    const table = mine.length ? SUI.table({ caption: "Their tools", rows: mine, sort: ["name", "asc"], columns: [
+    /* Five tools, then "See all N" (BRIEF 10.10.7: a record keeps few rows; one screen per block on a phone). */
+    const tableBox = el("div");
+    const drawTools = (all) => (all && toolsOpen.add(p.id), tableBox.replaceChildren(...toolsTable(all || mine.length <= 5 ? mine : mine.slice().sort((a, b) => a.name.localeCompare(b.name)).slice(0, 5)),
+      ...(all || mine.length <= 5 ? [] : [el("div", { class: "see-all-row" }, el("button", { class: "btn see-all", type: "button", onclick: () => drawTools(true) }, "See all " + mine.length))])));
+    const toolsTable = (rows) => [mine.length ? SUI.table({ caption: "Their tools", rows, sort: ["name", "asc"], columns: [
       { key: "name", label: "Tool", lead: true, render: (t) => el("a", { class: "u-cell", href: `#/tools?open=${t.id}` }, SUI.logo(t, "sm"),
         el("div", null, el("strong", null, t.name), el("span", { class: "sub" }, t.category))) },
       { key: "grant", label: "Access", render: (t) => (t.grant === "team" ? el("span", null, "Through the team", el("span", { class: "sub" }, p.department || "their department")) : "Given directly") },
@@ -515,7 +520,8 @@
         return el("span", null, SUI.plural(u.requests + u.opens + u.visits, "use"), el("span", { class: "sub" }, u.requests ? fmt.money(u.cost) : u.seconds ? fmt.dur(u.seconds) + " on site" : ""));
       } },
       { key: "act", label: "", srLabel: "Actions", sort: false, render: (t) => SUI.menuButton({ label: "More actions for " + t.name, small: true, items: () => toolItems(t) }) },
-    ] }) : SUI.stateBox({ icon: "tools", title: "No tools yet", text: owner ? "Give them a tool below." : "An owner gives tools to people.", compact: true });
+    ] }) : SUI.stateBox({ icon: "tools", title: "No tools yet", text: owner ? "Give them a tool below." : "An owner gives tools to people.", compact: true })];
+    drawTools(toolsOpen.has(p.id));
     let give = null;
     if (owner && giveable.length) {
       let chosen = null;
@@ -531,7 +537,7 @@
       try { const out = await api("DELETE", `/people/${p.id}/tools`); toast(`Removed ${out.removed} tool(s).`); A.render(); } catch (e) { toast(e.message, true); }
     } }, "Remove all") : null;
     return A.panel("Tools", el("div", { class: "row" }, el("span", { class: "sub" }, `${p.tool_summary.enabled} ready · ${p.tool_summary.assigned} given`), removeAll),
-      give, table,
+      give, tableBox,
       extra || null,
       el("div", { class: "body hint" }, "Only tools the company pays for can be given. Team access and end dates are set on the tool."));
   }
@@ -649,7 +655,7 @@
       { key: "last_ip", label: "Last address", render: (b) => (b.last_ip ? el("span", { class: "mono faint" }, b.last_ip) : "—"), hideSm: true }] })
       : A.empty("Nobody has opened a tool from the portal yet."));
     const tabs = () => A.pageTabs("#/devices", params, [
-        ["keys", "Gateway keys", keysTab, counts.active || null],
+        ["keys", "Laptops and tools", keysTab, counts.active || null],
         ["browsers", "Browsers", browsersTab],
       ]);
     if (mode.simple) {
