@@ -298,3 +298,15 @@ html[data-theme="light"] .staff-exact { background: none; --staff-scrim: linear-
   .staff-exact .vtabs { flex-wrap: wrap; height: auto; overflow: visible; }
   .staff-exact .vtabs [role=tab] { height: 42px; }
 }
+
+/* Staff touch targets (Probe S2/S3, 12 Nov; BRIEF 10.10): on a phone or touch screen each of these keeps its visible size
+   and its pressable area reaches 44px, the way controls.css does it for .btn. The Tools view tabs' 44px fits inside the
+   bar's 3px padding, so the bar's sideways scrolling doesn't clip it. */
+@media (hover: none), (max-width: 640px) {
+  .staff-exact :is(.home-h .tlink, .u-seg button, .tr-main, .xf-col :is(a,button)),
+  .drawer .hub-staff-nav > a { position: relative; }
+  .staff-exact :is(.home-h .tlink, .u-seg button, .tr-main, .xf-col :is(a,button))::before,
+  .drawer .hub-staff-nav > a::before { content: ""; position: absolute; top: 50%; left: 0; right: 0; height: 44px; transform: translateY(-50%); }
+  /* when the tabs wrap to two rows, 4px between rows gives each row its own 2px of the gap */
+  .staff-exact .u-seg { row-gap: 4px; }
+}
