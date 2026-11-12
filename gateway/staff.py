@@ -11,7 +11,7 @@ import re
 import secrets
 import ssl
 import time
-from urllib.parse import quote, unquote
+from urllib.parse import parse_qs, quote, unquote
 
 from . import credentials, entitle, guides, parse, proxy, security, store
 from .admin import ApiError, Ctx
@@ -504,6 +504,12 @@ def launch(h, gw, tool_id):
         if ruled:
             ok, (reason, rule) = False, ruled
             reason = reason[:1].upper() + reason[1:]
+    if ok:  # a paused or closed managed workspace, or `enforce` with a failing policy report: second check on the way in
+        from . import managed
+
+        shut = managed.launch_refusal(gw, person, parse_qs(h.path.partition("?")[2]))
+        if shut:
+            ok, (reason, rule) = False, shut
     target = catalog.launch_target(tool)
     if ok and not target:
         ok, reason = False, "This tool has no web address yet. Ask your admin."

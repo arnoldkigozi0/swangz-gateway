@@ -478,7 +478,10 @@ def devices(ctx):
                 installed = []
             item.update(app_version=d["app_version"] or None, owner_kind=d["owner_kind"], enrolled=d["enrolled"],
                         last_seen=d["last_seen"], packages=installed, os=item["os"] or d["os"] or None,
-                        key_rotations=d["rotations"], key_issued=d["key_issued"])
+                        key_rotations=d["rotations"], key_issued=d["key_issued"],
+                        workspace_state=d["workspace_state"], workspace_generation=d["workspace_generation"],
+                        policy_ok=None if d["policy_ok"] is None else bool(d["policy_ok"]), policy_reported=d["policy_reported"],
+                        policy_source="reported by the app")
     browsers = {}
     for r in db.q("SELECT l.person_id, p.name, l.user_agent, l.ip, MAX(l.ts) AS last, COUNT(*) AS opens FROM launches l"
                   " JOIN people p ON p.id = l.person_id WHERE l.ts >= ? GROUP BY l.person_id, l.user_agent", (now - 90 * DAY,)):

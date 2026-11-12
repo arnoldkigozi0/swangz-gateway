@@ -36,7 +36,7 @@ import time
 import zipfile
 from urllib.parse import parse_qs, quote
 
-from . import credentials, entitle, releases, security
+from . import credentials, entitle, managed, releases, security
 from .admin import ApiError
 from .admin import route as admin_route
 from .staff import COOKIE, Ctx, _cookie, current_person, paused_person, route
@@ -319,20 +319,23 @@ def build_manifest(gw, h, person, device):
     browser = _browser_block(gw, h, person, device)
     if browser is not None:
         manifest["browser"] = browser
+        if browser["contract"] == 2:  # Open says which device it comes from, so the server can refuse a paused workspace
+            for app in apps:
+                app["open"] += "?d=" + browser["device_id"]
     return manifest
 
 
-BROWSER_CONTRACT = "1"
+BROWSER_CONTRACTS = ("1", "2")
 _PERSON_ID = re.compile(r"[1-9][0-9]*")
 _DEVICE_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
 
 def _browser_negotiated(h):
-    """True only for exactly one `browser_contract=1` in the query string. Missing, repeated, `2`, `01`, `true`,
-    empty: not negotiated, and the manifest is the one every older app already gets."""
+    """The contract version (`"1"` or `"2"`) when the query string has exactly one `browser_contract` and its value is
+    exactly that. Missing, repeated, `3`, `01`, `true`, empty: None, and the manifest is the one every older app already gets."""
     raw = (getattr(h, "path", "") or "").partition("?")[2]
     values = parse_qs(raw, keep_blank_values=True).get("browser_contract", [])
-    return values == [BROWSER_CONTRACT]
+    return values[0] if len(values) == 1 and values[0] in BROWSER_CONTRACTS else None
 
 
 def _browser_block(gw, h, person, device):
@@ -340,13 +343,15 @@ def _browser_block(gw, h, person, device):
     from the request: identity is this server + person_id + device_id. Carries no email, name, key or hint, and
     no provider account or seat. A person the account rule no longer allows gets `profiles: []` (retire), not
     a profile; this adds no new refusal and changes no existing one."""
-    if not _browser_negotiated(h):
+    version = _browser_negotiated(h)
+    if version is None:
         return None
     person_id, device_id = str(person["id"]), str(device["device_id"])
     if not (_PERSON_ID.fullmatch(person_id) and _DEVICE_ID.fullmatch(device_id)):
         return None
     allowed = gw.settings.email_allowed(person["email"])
-    return {"contract": 1, "person_id": person_id, "device_id": device_id, "profiles": [{"kind": "personal"}] if allowed else []}
+    base = {"contract": 1, "person_id": person_id, "device_id": device_id, "profiles": [{"kind": "personal"}] if allowed else []}
+    return managed.block(gw, person, device, base) if version == "2" else base
 
 
 @route("GET", r"/device/manifest", signed_in=False)
@@ -369,7 +374,11 @@ def device_heartbeat(ctx):
               json.dumps(installed), device["device_id"]))
     ctx.db.x("UPDATE keys SET last_used = ? WHERE id = ?", (now, key["id"]))
     _record_key_storage(ctx, person, device, now)
-    return {"ok": True, "latest_client": releases.latest_hint(ctx.gw, person, CLIENT_LATEST), "server_time": now}
+    managed.record_policy_report(ctx, person, device, now)
+    answer = {"ok": True, "latest_client": releases.latest_hint(ctx.gw, person, CLIENT_LATEST), "server_time": now}
+    if type(ctx.body.get("browser_contract")) is int and ctx.body["browser_contract"] == 2:  # asked for: older apps get the answer they always got
+        answer.update(managed.heartbeat_answer(ctx.gw, person, device))
+    return answer
 
 
 def _record_key_storage(ctx, person, device, now):
