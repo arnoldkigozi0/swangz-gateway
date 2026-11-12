@@ -194,9 +194,11 @@ byte for byte; `apps[].open` links carry `?d=<device_id>` **only** under contrac
   throttle it. A malformed `policy` report is ignored; a bad hash is dropped.
 - **What the app does** (for Prism, W3/W6/W7): `suspended` closes the workspace at the next heartbeat and keeps the profile folder
   (reactivating keeps the sign-in); `retired`, or a `generation` higher than the one on disk, means close it and delete the profile
-  folder. A suspended or retired workspace does not revoke the device key, the device, any gateway API key or any automation (W7).
+  folder. The server says `retired` only after an administrator's explicit `retire`; a person the account rule no longer
+  allows, or an unreadable stored state, is told `suspended` (closed, nothing deleted). A suspended or retired workspace does not revoke the device key, the device, any gateway API key or any automation (W7).
 - **Admin.** `POST /admin/api/devices/<device_id>/workspace` with `{"action": "suspend" | "reactivate" | "retire" | "reset"}`
-  (areas govern or emergency). Answer: `{"ok": true, "workspace": {"state", "generation"}, "changed": bool}`. `reactivate` from
+  (`suspend`: govern or emergency, so the security role can stop a workspace; `reactivate`, `retire` and `reset`: govern only,
+  because `retire` purges the folder; a refusal is `403` and audited as denied). Answer: `{"ok": true, "workspace": {"state", "generation"}, "changed": bool}`. `reactivate` from
   `retired` starts a new generation; `reset` bumps the generation (a seat changed hands; no automatic trigger exists yet);
   `suspend`/`reset` on a retired workspace is `409 workspace_retired`; unknown device `404`; repeating an action changes and audits
   nothing. Every change is audited with before/after and `correlation=device:<id>`. The console devices list

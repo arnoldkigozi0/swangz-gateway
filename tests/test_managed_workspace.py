@@ -9,6 +9,7 @@ import unittest
 from gateway import managed, security
 
 from .test_devices import DeviceBase
+from .test_v2 import add_admin
 
 MANIFEST = "/device/manifest"
 SHA = "a" * 64
@@ -89,8 +90,8 @@ class ContractTwoTests(Base):
     def test_a_person_the_account_rule_no_longer_allows_has_no_workspace(self):
         self.db.x("UPDATE people SET email = 'x@elsewhere.example' WHERE id = ?", (self.rig.person_id,))
         status, out, _ = self.api("GET", MANIFEST + "?browser_contract=2", key=self.key)
-        if status == 200:  # today the key check refuses such a person first; if it ever lets them through the block says retired
-            self.assertEqual((out["browser"]["profiles"], out["browser"]["workspace"]["state"]), ([], "retired"))
+        if status == 200:  # today the key check refuses such a person first; if it ever lets them through the workspace is closed, not purged
+            self.assertEqual((out["browser"]["profiles"], out["browser"]["workspace"]["state"]), ([], "suspended"))
         else:
             self.assertEqual(status, 401)
             self.assertNotIn("browser", out)
@@ -214,6 +215,30 @@ class RevocationTests(Base):
         self.assertEqual(self.state(), {"s": "active", "g": 1})
         denied = self.db.scalar("SELECT COUNT(*) FROM audit WHERE actor = 'viewer@swangzavenue.com' AND outcome = 'denied'")
         self.assertGreaterEqual(denied, 1)
+
+    def test_the_security_role_may_suspend_but_not_reactivate_retire_or_reset(self):
+        for name in ("security", "operations"):
+            add_admin(self.db, name, name)
+        for action in ("reactivate", "retire", "reset"):
+            self.assertEqual(self.workspace(action, who="security")[0], 403, action)
+        self.assertEqual(self.state(), {"s": "active", "g": 1})
+        denied = self.db.scalar("SELECT COUNT(*) FROM audit WHERE actor = 'security@swangzavenue.com' AND outcome = 'denied'")
+        self.assertEqual(denied, 3)
+        self.assertEqual(self.workspace("suspend", who="security")[0], 200)
+        self.assertEqual(self.state(), {"s": "suspended", "g": 1})
+        self.assertEqual(self.workspace("reactivate", who="security")[0], 403)
+        self.assertEqual(self.workspace("reactivate", who="operations")[0], 200)
+        self.assertEqual(self.state(), {"s": "active", "g": 1})
+
+    def test_an_unreadable_stored_state_closes_the_workspace_without_purging_it(self):
+        # the column's CHECK keeps such a value out of the database; this pins what the code does if one ever reaches it
+        device = self.db.one("SELECT * FROM devices WHERE device_id = ?", (self.did,))
+        person = self.db.one("SELECT * FROM people WHERE id = ?", (self.rig.person_id,))
+        for bad in ("garbage", None, ""):
+            self.assertEqual(managed.effective_state(self.rig.gw, person, dict(device, workspace_state=bad)), "suspended")
+        self.db.x("UPDATE people SET email = 'x@elsewhere.example' WHERE id = ?", (self.rig.person_id,))
+        person = self.db.one("SELECT * FROM people WHERE id = ?", (self.rig.person_id,))
+        self.assertEqual(managed.effective_state(self.rig.gw, person, dict(device, workspace_state="active")), "suspended")
 
     def test_a_person_cannot_suspend_their_own_workspace_or_anyone_elses_from_the_device_api(self):
         for path in (f"/device/{self.did}/workspace", f"/devices/{self.did}/workspace"):
