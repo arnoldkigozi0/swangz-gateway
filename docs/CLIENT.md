@@ -192,6 +192,30 @@ byte for byte; `apps[].open` links carry `?d=<device_id>` **only** under contrac
   The answer then also carries `workspace` and `policy` (the same two objects). Without an integer `browser_contract` of 2 the answer is
   unchanged. The whole answer stays well under 2 KB; **one heartbeat a minute at most is a client rule**, the server does not
   throttle it. A malformed `policy` report is ignored; a bad hash is dropped.
+- **Where the app's `policy` report comes from (W5, `swangz_client/machine_policy.py`).** Read-only and **machine scope only**:
+  Linux every file in `/etc/opt/chrome/policies/managed` (Debian Chromium `/etc/chromium/policies/managed`, Ubuntu
+  `chromium-browser` `/etc/chromium-browser/policies/managed`; Chrome applies every file there, so any file that is not
+  valid `*.json` policy, hidden files included, fails the check), macOS
+  `/Library/Managed Preferences/com.google.Chrome.plist` (Chromium `org.chromium.Chromium`), Windows
+  `HKLM\Software\Policies\Google\Chrome` (Chromium `...\Chromium`) in the 64-bit registry view (DWORD 0/1 read as
+  true/false, list subkeys in number order). Per-user copies (macOS `/Library/Managed Preferences/<user>/`, HKCU), Linux's
+  `recommended` folder and Windows' `Recommended` key are never read. The family checked is the one the workspace launcher
+  starts (`machine_policy.report()` asks `find_browser` and looks its exact path up in `machine_policy.BROWSERS`); no
+  browser found, or a path with no known policy folder, is `ok: false`.
+  Fails closed (`ok: false`): an unreadable, invalid or oversized (> 1 MB) file, a symlink in place of a policy file or of the
+  Linux folder, a key given twice in one JSON file, or two sources that disagree. `ok` is true only if every `REQUIRED` setting of the policy pack holds, `URLBlocklist` carries `*`, `file://*`, `chrome://*`
+  and `view-source:*`, `URLAllowlist` is not open (`*`, `*://*`, `http://*`, `https://*`), `ExtensionInstallBlocklist` is `["*"]`,
+  the allow and force lists are filled in, and no two policy sources disagree. Missing or unreadable policy is `ok: false`; the check
+  never raises. `sha256` is the **baseline hash**: canonical JSON (sorted, compact) of the policies the pack sets, the same on all
+  three systems; `deploy/chrome-policy/prepare.py` prints it as "Baseline SHA-256" and that is the value to pin. The report is only
+  sent while the managed workspace turns the check on (`Client.policy_check`); until then the heartbeat is exactly as before.
+- **What the report cannot prove (W5 limits).** It reads where the OS keeps policy, not `chrome://policy`, so it says the policy is
+  *installed*, not that the running browser applied it. On **Windows computers that are not joined to a domain (Active Directory or
+  Microsoft Entra ID) or enrolled in Chrome Browser Cloud Management**, Chrome ignores some policies set in the registry (for example
+  force-installing an extension that is not from the Chrome Web Store), so the report can say `ok: true` for settings Chrome does not
+  apply: company Windows devices must be joined or enrolled, and an admin checks `chrome://policy` once per device. A person with
+  administrator rights on the computer can change both the policy and the app; the report is a tamper signal, not a lock. Duplicate
+  keys are detected in JSON files only (Python's plist reader keeps the last one). The server only ever uses the report to refuse.
 - **What the app does** (for Prism, W3/W6/W7): `suspended` closes the workspace at the next heartbeat and keeps the profile folder
   (reactivating keeps the sign-in); `retired`, or a `generation` higher than the one on disk, means close it and delete the profile
   folder. The server says `retired` only after an administrator's explicit `retire`; a person the account rule no longer
@@ -210,6 +234,33 @@ byte for byte; `apps[].open` links carry `?d=<device_id>` **only** under contrac
   machine policy on the managed browser. The policy report is `reported by the app`, a tamper signal and never proof, and it only
   ever takes access away.
 - No provider password, cookie, token or session is read, stored or sent by any of this.
+
+### Opening a provider in the workspace window (W3, `POST /api/device/open`)
+
+The workspace browser never opens `/go/<tool>` (it has no Hub session). The app asks for the provider address with its device key:
+
+```
+POST /api/device/open
+Authorization: Bearer <device key>      X-Swangz-App: 1      Content-Type: application/json
+{"tool": "chatgpt"}
+
+200 {"ok": true, "tool": {"id": "chatgpt", "name": "ChatGPT"}, "url": "https://chatgpt.com/",
+     "allowed_hosts": ["chat.openai.com", "chatgpt.com", "sora.com"], "workspace": {"state": "active", "generation": 1}}
+```
+
+- Checks, in order: the device key (`401 device_unknown | device_revoked | device_key_rotated`, `403 person_paused | access_ended |
+  paused | not_enrolled`), the tool (`404 unknown_tool`), then exactly `/go/`'s checks (`staff.launch_checks`: `403 locked |
+  not_assigned | past_due | suspended | weekly_report_required` with `details.report`, or `policy` for a company rule), then this
+  device's workspace (`403 workspace_suspended | workspace_retired | workspace_policy`), then the address (`409 no_address |
+  host_not_allowed | unsafe_address | shared_account`). Errors are `{"error": "<plain words>", "code", "details"}`.
+- Every answer after the key check is recorded as a launch, `opened` or `refused` with its rule, exactly as `/go/` records it.
+- The address is https only, port 443, no user name or password, a DNS name (no IP, not `localhost`, not the Hub), no query or fragment
+  field named like a credential (`token`, `access_token`, `api_key`, `password`, ...), at most 2048 characters, and on one of the tool's
+  `hosts` (exact or a subdomain). A tool with no hosts is refused (`host_not_allowed`): the admin sets them.
+- **The app must still** check `url` against `allowed_hosts` itself before starting the browser, pass `url` and nothing else on the
+  command line (never the key), and treat any non-200 as "do not open". `shared_account` tools are opened from the Hub (turns are not
+  wired into the workspace).
+- Not `GET`: the call records a launch. The answer is `Cache-Control: no-store` and carries no key, token or Hub session.
 
 ## Disconnecting
 

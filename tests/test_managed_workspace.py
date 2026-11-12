@@ -108,6 +108,15 @@ class ContractTwoTests(Base):
         self.assertEqual([a["open"] for a in two["apps"] if a["id"] == "canva"], [f"{two['server']}/go/canva?d={self.did}"])
         self.assertEqual([a["open"] for a in one["apps"] if a["id"] == "canva"], [f"{one['server']}/go/canva"])
 
+    def test_contract_2_apps_carry_their_hosts_and_the_workspace_flag_and_contract_1_does_not(self):
+        self.enable_canva()
+        two, one = self.manifest(), self.manifest("?browser_contract=1")
+        app = [a for a in two["apps"] if a["id"] == "canva"][0]
+        self.assertTrue(app["hosts"] and all(isinstance(h, str) and "/" not in h for h in app["hosts"]), app)
+        self.assertIs(app["workspace"], True)
+        old = [a for a in one["apps"] if a["id"] == "canva"][0]
+        self.assertEqual(set(old), {"id", "name", "category", "signin", "company_browser", "open"})
+
 
 class SettingsTests(Base):
     def test_the_baseline_and_the_mode_are_validated_and_audited(self):
@@ -316,6 +325,34 @@ class PolicyReportTests(Base):
             if case is not None:
                 self.report(case)
             self.assertEqual(self.go(f"?d={self.did}")[0], 302)
+
+    def test_the_policy_file_removed_from_the_machine_makes_enforce_refuse_open(self):
+        """W5 checklist item 7, end to end: the app's real reader over a policy folder, its report in a heartbeat, the
+        server's Open gate. In place -> Open; file removed -> ok=false -> refused as workspace_policy."""
+        import tempfile
+        from pathlib import Path
+        from swangz_client import machine_policy as mp
+        from .test_machine_policy import prepare, prepared
+        policy = prepared()
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        folder = Path(tmp.name) / "managed"
+        folder.mkdir()
+        (folder / "swangz.json").write_bytes(prepare.encode(policy))
+        self.enable_canva()
+        self.rig.api("PUT", "/settings", {"managed_policy_sha256": mp.baseline_sha(policy), "managed_policy_mode": "enforce"})
+        def beat_from_machine():
+            report = mp.check("chrome", platform="linux", root=folder).report()
+            self.assertEqual(self.beat({"browser_contract": 2, "policy": report})[0], 200)
+            return report
+        self.assertTrue(beat_from_machine()["ok"])
+        self.assertEqual(self.go(f"?d={self.did}")[0], 302)
+        (folder / "swangz.json").unlink()
+        self.assertEqual(beat_from_machine(), {"ok": False, "sha256": ""})
+        status, _, body = self.go(f"?d={self.did}")
+        self.assertEqual(status, 403)
+        self.assertIn("not in force", body)
+        self.assertEqual(self.db.scalar("SELECT rule FROM launches ORDER BY id DESC LIMIT 1"), "workspace_policy")
 
     def test_enforce_refuses_open_when_the_report_is_missing_stale_failing_or_the_wrong_baseline(self):
         self.enable_canva()

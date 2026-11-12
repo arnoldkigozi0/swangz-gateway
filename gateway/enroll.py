@@ -304,13 +304,14 @@ def build_manifest(gw, h, person, device):
         packages.append({"id": p["id"], "name": p["name"], "version": p["version"], "kind": p["kind"], "description": p["description"],
                          "install": {"type": "bundle", "url": f"{base}/api/device/packages/{p['id']}/{p['version']}",
                                      "sha256": p["sha256"], "size": p["size"]}})
-    apps = []
+    apps, rows = [], {}
     for t in entitle.for_person(db, person, include_disabled=False):
         if t["kind"] != "site" or not t["launchable"]:
             continue
         tool = db.one("SELECT * FROM tools WHERE id = ?", (t["id"],))
         apps.append({"id": t["id"], "name": t["name"], "category": t["category"], "signin": t["signin"],
                      "company_browser": bool(tool and catalog.uses_workspace(tool)), "open": f"{base}/go/{t['id']}"})
+        rows[t["id"]] = tool
     manifest = {"server": base, "person": {"name": person["name"], "email": person["email"], "department": person.get("department") or ""},
                 "device": {"id": device["device_id"], "name": device["name"], "os": device["os"], "owner_kind": device["owner_kind"]},
                 "client": {"latest": releases.latest_hint(gw, person, CLIENT_LATEST), "minimum": CLIENT_MINIMUM}, "packages": packages, "apps": apps,
@@ -320,8 +321,13 @@ def build_manifest(gw, h, person, device):
     if browser is not None:
         manifest["browser"] = browser
         if browser["contract"] == 2:  # Open says which device it comes from, so the server can refuse a paused workspace
+            from .device_open import allowed_hosts  # device_open imports this module
             for app in apps:
                 app["open"] += "?d=" + browser["device_id"]
+                # The app re-checks the provider address against these, and opens the tool in the workspace browser;
+                # a shared company account keeps /go/ (its own company browser), so it is never a workspace tool.
+                app["hosts"] = allowed_hosts(rows[app["id"]] or {})
+                app["workspace"] = not app["company_browser"]
     return manifest
 
 
