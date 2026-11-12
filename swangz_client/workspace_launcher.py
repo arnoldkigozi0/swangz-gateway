@@ -14,7 +14,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from urllib.parse import parse_qsl, urlsplit
+from urllib.parse import urlsplit
 
 from . import browser_profiles as bp
 
@@ -41,6 +41,7 @@ MESSAGES = {
     "folder": "Your Swangz workspace folder can't be used safely, so nothing was opened. Ask your admin for help.",
     "launch_failed": "The Swangz workspace window didn't start. Try again.",
     "no_hosts": "Update the Swangz app's list of tools, then press Open again.",
+    "shared_account": "This is a shared company account. Open it from Swangz AI Hub, where turns are handed out.",
     "no_workspace": "This device doesn't have a Swangz workspace window yet, so nothing was opened. Update Swangz, or ask your admin.",
 }
 
@@ -90,36 +91,6 @@ def check_url(url, hosts):
         pass
     if not HOST.fullmatch(host) or not any(host == h or host.endswith("." + h) for h in allowed):
         raise LaunchError("unsafe_address")
-    return url
-
-
-def check_hub_url(url, server, tool_id, device_id=None):
-    """-> the address, unchanged, or LaunchError("unsafe_address"). The Hub's own Open address for this tool: https,
-    exactly the origin this device enrolled with (same host, same port, no user name or password), the path
-    `/go/<tool_id>`, at most the one query field `d=<this device>`, no fragment. The workspace browser follows the
-    Hub's redirect to the provider itself; the Hub checks access and records the launch."""
-    if not isinstance(url, str) or not url or len(url) > MAX_URL or any(c.isspace() or ord(c) < 32 or ord(c) == 127 or c == "\\" for c in url):
-        raise LaunchError("unsafe_address")
-    if not isinstance(tool_id, str) or not bp.ID.fullmatch(tool_id):
-        raise LaunchError("unsafe_address")
-    try:
-        u, s = urlsplit(url), urlsplit(server if isinstance(server, str) else "")
-        port, server_port = u.port, s.port
-    except ValueError:
-        raise LaunchError("unsafe_address") from None
-    for part in (u, s):
-        if part.scheme != "https" or not part.hostname or part.username is not None or part.password is not None or "@" in part.netloc:
-            raise LaunchError("unsafe_address")
-    if s.path not in ("", "/") or s.query or s.fragment:
-        raise LaunchError("unsafe_address")
-    if u.hostname != s.hostname or (port or 443) != (server_port or 443) or u.netloc.lower() != s.netloc.lower():
-        raise LaunchError("unsafe_address")
-    if u.path != "/go/" + tool_id or u.fragment or "#" in url:
-        raise LaunchError("unsafe_address")
-    if u.query:
-        fields = parse_qsl(u.query, keep_blank_values=True)
-        if len(fields) != 1 or fields[0][0] != "d" or device_id is None or fields[0][1] != device_id:
-            raise LaunchError("unsafe_address")
     return url
 
 
@@ -251,11 +222,6 @@ class Launcher:
         if not isinstance(tool_id, str) or not bp.ID.fullmatch(tool_id):
             raise LaunchError("unsafe_address")
         return self._start(tool_id, check_url(url, hosts), owner)
-
-    def open_hub(self, tool_id, url, server, owner, device_id=None):
-        """The Hub's own `/go/<tool>` address (shared accounts and tools the Hub hands out itself): check it is
-        exactly this device's Hub, then start the window there. Never the default browser."""
-        return self._start(tool_id, check_hub_url(url, server, tool_id, device_id), owner)
 
     def _start(self, tool_id, url, owner):
         """Prepare and verify the folder, start (or hand the address to) the browser."""

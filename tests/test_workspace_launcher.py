@@ -350,14 +350,30 @@ class OpenAppTests(Base):
         opened.assert_not_called()
         self.assertEqual(self.calls, [])
 
-    def test_other_tools_open_go_in_the_workspace(self):
-        """Shared-account and other Hub-handled tools open the Hub's /go/ address in the workspace window."""
-        c, opened, api = self.client(workspace=False)
-        self.launcher.finder = lambda: "/opt/google/chrome/chrome"
-        self.assertEqual(c.open_app("chatgpt"), "workspace")
-        api.call.assert_not_called()
-        opened.assert_not_called()
-        self.assertEqual(self.calls[0][0][-1], "https://hub.example/go/chatgpt?d=dev-1")
+    def test_contract_2_shared_app_opens_nothing(self):
+        """Sentinel ruling on #186 (H1): a tool without workspace:true (shared / company browser / Hub-handled) is
+        not opened by the app this release. The person gets #179's shared-account text; no window, no Hub address,
+        no /device/open call, no default browser."""
+        apps = [{"id": "midjourney", "open": "https://hub.example/go/midjourney?d=dev-1", "hosts": HOSTS,
+                 "workspace": False, "signin": "shared", "company_browser": True},
+                {"id": "canva", "open": "https://hub.example/go/canva?d=dev-1", "hosts": HOSTS, "signin": "own"}]
+        for app in apps:
+            c, opened, api = self.client(apps=[app])
+            self.launcher.finder = lambda: "/opt/google/chrome/chrome"
+            with mock.patch("subprocess.Popen") as popen, mock.patch("swangz_client.shell.open_url") as shell_open, \
+                    mock.patch("webbrowser.open") as wb:
+                with self.assertRaises(wl.LaunchError) as ctx:
+                    c.open_app(app["id"])
+            self.assertEqual(ctx.exception.code, "shared_account")
+            self.assertIn("Open it from Swangz AI Hub", str(ctx.exception))
+            popen.assert_not_called()
+            shell_open.assert_not_called()
+            wb.assert_not_called()
+            opened.assert_not_called()
+            api.call.assert_not_called()
+        self.assertEqual(self.calls, [])
+        self.assertFalse(hasattr(wl, "check_hub_url"))
+        self.assertFalse(hasattr(wl.Launcher, "open_hub"))
 
     def test_no_tool_ever_reaches_open_url_on_a_contract_2_device(self):
         """Manager review of #186: on a contract-2 device open_app never calls shell.open_url, for any tool."""
@@ -390,34 +406,6 @@ class OpenAppTests(Base):
                 opened.assert_not_called()
                 api.call.assert_not_called()
         self.assertEqual(self.calls, [])
-
-
-class HubUrlTests(unittest.TestCase):
-    """The Hub's own /go/ address: exactly the enrolled origin, this tool, this device, nothing else."""
-
-    S = "https://hub.example"
-
-    def test_accepts_the_exact_go_address(self):
-        for url in ("https://hub.example/go/canva", "https://hub.example/go/canva?d=dev-1"):
-            self.assertEqual(wl.check_hub_url(url, self.S, "canva", "dev-1"), url)
-        self.assertEqual(wl.check_hub_url("https://hub.example:8443/go/canva", "https://hub.example:8443", "canva"),
-                         "https://hub.example:8443/go/canva")
-
-    def test_refuses_anything_else(self):
-        bad = ["http://hub.example/go/canva", "https://hub.example.evil.example/go/canva", "https://evil.example/go/canva",
-               "https://user@hub.example/go/canva", "https://user:pw@hub.example/go/canva", "https://hub.example:444/go/canva",
-               "https://hub.example/go/chatgpt", "https://hub.example/go/canva/x", "https://hub.example/admin",
-               "https://hub.example/go/canva#x", "https://hub.example/go/canva?d=other", "https://hub.example/go/canva?d=dev-1&x=1",
-               "https://hub.example/go/canva?token=t", "https://hub.example/go/canva ", "https://hub.example\\@evil/go/canva",
-               "https://sub.hub.example/go/canva", "", None, "https://hub.example/go/" + "a" * 2100]
-        for url in bad:
-            with self.assertRaises(wl.LaunchError, msg=url):
-                wl.check_hub_url(url, self.S, "canva", "dev-1")
-        for server in ("http://hub.example", "https://hub.example/x", "", None, "https://u@hub.example"):
-            with self.assertRaises(wl.LaunchError, msg=server):
-                wl.check_hub_url("https://hub.example/go/canva", server, "canva")
-        with self.assertRaises(wl.LaunchError):
-            wl.check_hub_url("https://hub.example/go/../admin", self.S, "../admin")
 
 
 class BrowserListTests(unittest.TestCase):

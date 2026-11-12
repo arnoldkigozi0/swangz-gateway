@@ -1053,10 +1053,11 @@ class Client:
         return isinstance(browser, dict) and browser.get("contract") == 2 and app.get("workspace") is True
 
     def open_app(self, tool_id):
-        """Open a website tool in the Swangz workspace window (W3, section 9.1). Every website tool opens there: a
-        marked tool at the provider address the Hub gives this device, any other (shared accounts, tools the Hub hands
-        out itself) at the Hub's own /go/ address, which the workspace browser follows. Never the default browser:
-        without a contract-2 workspace on this device nothing opens and the person is told why."""
+        """Open a website tool in the Swangz workspace window (W3, section 9.1). A tool marked
+        `workspace` opens at the provider address the Hub gives this device (POST /api/device/open). Any other (shared
+        company accounts, tools the Hub hands out itself) opens nothing this release: the person is told to open it
+        from Swangz AI Hub. The workspace never opens the Hub's own address. Never the default browser: without a
+        contract-2 workspace on this device nothing opens and the person is told why."""
         for app in self.apps():
             if app["id"] == tool_id:
                 return self._open_in_workspace(app)
@@ -1077,10 +1078,11 @@ class Client:
             raise wl.LaunchError("folder") from None
         if getattr(self, "launcher", None) is None:
             self.launcher = wl.Launcher(self.paths.data)
-        if self.workspace_app(app):
-            # The Hub decides (same checks and launch record as /go/); the address is checked again here.
-            out = self._guard(lambda: self.api().call("POST", "/device/open", {"tool": app["id"]}))
-            self.launcher.open(app["id"], out.get("url"), app.get("hosts"), owner)
-        else:
-            self.launcher.open_hub(app["id"], app.get("open"), device.get("server"), owner, browser.get("device_id"))
+        if not self.workspace_app(app):
+            # Shared company accounts and tools the Hub hands out itself are not opened by the app this release:
+            # the workspace never opens the Hub's own address, and there is no default-browser fallback.
+            raise wl.LaunchError("shared_account")
+        # The Hub decides (same checks and launch record as /go/); the address is checked again here.
+        out = self._guard(lambda: self.api().call("POST", "/device/open", {"tool": app["id"]}))
+        self.launcher.open(app["id"], out.get("url"), app.get("hosts"), owner)
         return "workspace"
