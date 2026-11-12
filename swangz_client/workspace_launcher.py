@@ -43,6 +43,16 @@ MESSAGES = {
     "no_hosts": "Update the Swangz app's list of tools, then press Open again.",
     "shared_account": "This is a shared company account. Open it from Swangz AI Hub, where turns are handed out.",
     "no_workspace": "This device doesn't have a Swangz workspace window yet, so nothing was opened. Update Swangz, or ask your admin.",
+    # W4: what the Hub said, or couldn't say. After the app restarts it can't close a window it started earlier
+    # (R-9), so these ask the person to close any open workspace window themselves.
+    "retired": "Your admin removed the Swangz workspace from this device, so nothing was opened. Close any open workspace window.",
+    "purge_pending": "Swangz is still deleting this device's old workspace folder, so nothing was opened. Try again in a minute, or ask your admin.",
+    "generation_rollback": "Swangz AI Hub sent an older workspace setting than this device has, so nothing was opened. Ask your admin.",
+    "workspace_unknown": "Swangz couldn't read this device's workspace setting from Swangz AI Hub, so nothing was opened. Try again later.",
+    "refused_by_hub": "Swangz AI Hub didn't accept this device, so the workspace window is closed. Sign in to Swangz again, or ask your admin.",
+    "offline": "Swangz can't reach Swangz AI Hub, so the workspace window is closed. Connect to the internet and try again.",
+    "revoked": "This device was disconnected from Swangz AI Hub, so the workspace window is closed.",
+    "signed_out": "You signed out of Swangz, so the workspace window is closed.",
 }
 
 
@@ -217,18 +227,20 @@ class Launcher:
     def pid(self):
         return self.process.pid if self.running() else None
 
-    def open(self, tool_id, url, hosts, owner):
+    def open(self, tool_id, url, hosts, owner, generation=1):
         """A provider address from /api/device/open: check it against the tool's hosts, then start the window."""
         if not isinstance(tool_id, str) or not bp.ID.fullmatch(tool_id):
             raise LaunchError("unsafe_address")
-        return self._start(tool_id, check_url(url, hosts), owner)
+        return self._start(tool_id, check_url(url, hosts), owner, generation)
 
-    def _start(self, tool_id, url, owner):
+    def _start(self, tool_id, url, owner, generation=1):
         """Prepare and verify the folder, start (or hand the address to) the browser."""
         binary = self.finder()
         try:
-            folder = bp.Profiles(self.data).prepare(owner)
-        except (bp.ProfileError, OSError):
+            folder = bp.Profiles(self.data).prepare(owner, generation)
+        except bp.ProfileError as exc:
+            raise LaunchError(exc.code if exc.code in ("purge_pending", "generation_rollback") else "folder") from None
+        except OSError:
             raise LaunchError("folder") from None
         if bp._WINDOWS:
             try:

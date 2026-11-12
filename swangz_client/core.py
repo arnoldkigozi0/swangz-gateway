@@ -531,6 +531,8 @@ class Client:
         self._upgrading = False
         self._api_factory = api_factory or (lambda server, key=None: Api(server, key))
         self.sleep, self.open_url, self.run = sleep, open_url or shell.open_url, run
+        from .workspace_state import WorkspaceState
+        self.workspace = WorkspaceState(self)
 
     # ------------------------------------------------------------ who this device is
 
@@ -633,12 +635,18 @@ class Client:
             try:
                 return fn()
             except Revoked:
-                self.remove_everything()
+                self._revoked()
                 raise
             except KeyRotated as exc:
                 if attempt or not self._adopt_newer_key(exc.used):
                     self._mark_reconnect()
                     raise NeedsReconnect(RECONNECT) from None
+
+    def _revoked(self):
+        """401 device_revoked: close the workspace window first (W4), then take Swangz off the device. The workspace
+        folder is not purged by a revocation; only an authenticated `retired` or a higher generation does that."""
+        self.workspace.revoked()
+        self.remove_everything()
 
     def _adopt_newer_key(self, used):
         """After device_key_rotated: is there a newer key in the store than the one that was refused?"""
@@ -676,7 +684,12 @@ class Client:
         """Ask what this device is offered now (no changes made). -> the manifest, also kept for the window."""
         # Contract 2 (docs/MANAGED-WORKSPACE.md): workspace state, and each app's hosts and workspace flag. An older Hub
         # ignores the question and answers as it always did; its apps then keep opening through /go/.
-        manifest = self._guard(lambda: self.api().call("GET", "/device/manifest?browser_contract=2"))
+        try:
+            manifest = self._guard(lambda: self.api().call("GET", "/device/manifest?browser_contract=2"))
+        except ApiFailure as exc:
+            if not isinstance(exc, Revoked):  # Revoked was handled in _guard
+                self.workspace.failure(exc)
+            raise
         server = self.store.device()["server"]
         for pkg in manifest.get("packages", []):
             install = pkg.get("install") or {}
@@ -689,6 +702,7 @@ class Client:
         if version_tuple(manifest.get("client", {}).get("minimum")) > version_tuple(__version__):
             raise ClientTooOld(f"This version of Swangz ({__version__}) is too old. Please update it.")
         self.store.save_manifest(manifest)
+        self.workspace.apply(manifest.get("browser"))
         return manifest
 
     def sync(self, force=False):
@@ -707,7 +721,7 @@ class Client:
             try:
                 record = self._install(api, pkg, key, device)
             except Revoked:
-                self.remove_everything()
+                self._revoked()
                 raise
             except (agents.AgentConfigError, bundles.BundleError, ApiFailure, OSError) as exc:
                 results.append((pid, "failed", getattr(exc, "message", None) or str(exc)))
@@ -789,7 +803,7 @@ class Client:
     def _heartbeat_body(self):
         state = self.store.state()
         storage = (self.store.device() or {}).get("key_storage", "file")
-        body = {**system_facts(), "key_storage": storage,
+        body = {**system_facts(), "key_storage": storage, "browser_contract": 2,
                 "packages": [{"id": pid, "version": r.get("version", "?")} for pid, r in state["installed"].items()]}
         if storage == "keychain":  # which native store holds it; a file has no backend to name
             body["key_backend"] = keystore.backend_name()
@@ -799,12 +813,18 @@ class Client:
         state = self.store.state()
         self.store.key()
         body = self._heartbeat_body()
+        self.workspace.resume()  # a pending purge is retried at every check-in (W4 ruling 4)
         try:
             out = self._guard(lambda: self.api().call("POST", "/device/heartbeat", body))
         except ApiFailure as exc:
             if isinstance(exc, Revoked):
                 raise
+            self.workspace.failure(exc)
             return None
+        if out.get("ok") is not True:  # a 200 that isn't the Hub's JSON answer counts as no answer
+            self.workspace.failure(ApiFailure(200, "invalid_response", "The Hub returned an invalid response."))
+            return None
+        self.workspace.apply({"contract": 2, "workspace": out["workspace"]} if "workspace" in out else None)
         if out.get("latest_client") and out["latest_client"] != state.get("latest_client"):
             state["latest_client"] = out["latest_client"]
             self.store.save_state(state)
@@ -960,6 +980,7 @@ class Client:
         """Tell the server, then take Swangz off this device. The server is told first; if it can't be reached the
         local removal still happens (the key can be disconnected from the control room)."""
         told = True
+        self.workspace.signed_out()
         try:
             self.api().call("POST", "/device/signout")
         except (ApiFailure, NotSignedIn, keystore.KeyStoreError, agents.AgentConfigError):
@@ -1071,6 +1092,7 @@ class Client:
             raise wl.LaunchError("no_workspace")
         if (browser.get("workspace") or {}).get("state") != "active":
             raise wl.LaunchError("not_active")
+        self.workspace.check_open()  # W4: a refusal the Hub gave, or a purge still pending, wins over the manifest
         device = self.store.device() or {}
         try:
             owner = wl.owner(device.get("server"), browser.get("person_id"), browser.get("device_id"))
@@ -1084,5 +1106,9 @@ class Client:
             raise wl.LaunchError("shared_account")
         # The Hub decides (same checks and launch record as /go/); the address is checked again here.
         out = self._guard(lambda: self.api().call("POST", "/device/open", {"tool": app["id"]}))
-        self.launcher.open(app["id"], out.get("url"), app.get("hosts"), owner)
+        self.workspace.apply({"contract": 2, "workspace": out["workspace"]} if "workspace" in out else None)
+        self.workspace.check_open()
+        generation = (out.get("workspace") or browser.get("workspace") or {}).get("generation")
+        self.launcher.open(app["id"], out.get("url"), app.get("hosts"), owner,
+                           generation if type(generation) is int and generation >= 1 else 1)
         return "workspace"

@@ -59,7 +59,8 @@ class ProfileTests(unittest.TestCase):
         self.assertRegex(p.name, r"^[0-9a-f]{32}$")
         self.assertEqual(self.profiles.prepare(self.owner), p)
         self.assertEqual(self.marker(p)["profile_id"], p.name)
-        self.assertEqual(set(self.marker(p)), {"version", "profile_id", "origin", "person_id", "device_id", "os_user", "seat", "state", "created"})
+        self.assertEqual(set(self.marker(p)), {"version", "profile_id", "origin", "person_id", "device_id", "os_user", "seat", "state", "created", "generation"})
+        self.assertEqual((self.marker(p)["version"], self.marker(p)["generation"]), (2, 1))
 
     def test_different_owners_do_not_reuse(self):
         a = self.profiles.prepare(self.owner)
@@ -517,11 +518,12 @@ class ProfileTests(unittest.TestCase):
         self.assertEqual(before, after)
 
     def test_only_the_workspace_launcher_imports_it(self):
-        # W3 (docs/W3-THREAT-NOTE.md, T1): the launcher is the one production user; everything else stays out.
+        # W3 (docs/W3-THREAT-NOTE.md, T1): the launcher is the one production user that prepares folders; W4's
+        # workspace_state is the one that purges them (docs/W4-THREAT-NOTE.md ruling 3). Everything else stays out.
         root = Path(__file__).resolve().parents[1]
         for path in root.rglob("*.py"):
             rel = path.relative_to(root)
-            if any(part.startswith(".") for part in rel.parts) or rel.parts[0] == "tests" or path.name in ("browser_profiles.py", "workspace_launcher.py"): continue
+            if any(part.startswith(".") for part in rel.parts) or rel.parts[0] == "tests" or path.name in ("browser_profiles.py", "workspace_launcher.py", "workspace_state.py"): continue
             tree = ast.parse(path.read_text(encoding="utf-8"))
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import): self.assertFalse(any("browser_profiles" in n.name for n in node.names), str(rel))
