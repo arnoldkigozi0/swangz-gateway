@@ -9,6 +9,7 @@ Close: only the window this app started (`Launcher.close`). Purge: only `Profile
 enrolled owner's folders, never `retire_all`, and only on an authenticated `retired` or a higher generation.
 """
 import json
+import threading
 import time
 
 from . import browser_profiles as bp
@@ -18,6 +19,19 @@ STATES = ("active", "suspended", "retired")
 GRACE_FAILURES = 2  # ruling 2: the last two check-ins both failed ...
 NOTICE_PURGED = "Your admin removed the Swangz workspace from this device. Its saved sign-ins were deleted."
 NOTICE_PURGE_FAILED = "Swangz couldn't delete the workspace folder your admin removed. It will try again; Open stays off until then."
+
+
+# The heartbeat thread and an Open in the window can both update the latch: one lock, re-entrant because apply()
+# calls resume().
+LOCK = threading.RLock()
+
+
+def locked(fn):
+    def wrapper(*args, **kw):
+        with LOCK:
+            return fn(*args, **kw)
+    wrapper.__name__, wrapper.__doc__ = fn.__name__, fn.__doc__
+    return wrapper
 
 
 class Malformed(Exception):
@@ -65,6 +79,7 @@ class WorkspaceState:
         self.client.paths.data.mkdir(parents=True, exist_ok=True)
         write_private(self.path, json.dumps(data))
 
+    @locked
     def _update(self, **changes):
         data = {**self.latch(), **changes}
         self._save(data)
@@ -95,6 +110,16 @@ class WorkspaceState:
     def _profiles(self):
         return bp.Profiles(self.client.paths.data)
 
+    def forget(self):
+        """The latch belongs to one enrolment: remove_everything() deletes it after the window is closed. The browser
+        folders are left alone (R-10)."""
+        with LOCK:
+            try:
+                self.path.unlink()
+            except FileNotFoundError:
+                pass
+
+    @locked
     def refuse(self, code, close=True):
         self._update(refused=code)
         if close:
@@ -102,6 +127,7 @@ class WorkspaceState:
 
     # ------------------------------------------------------------ authenticated answers
 
+    @locked
     def apply(self, block):
         """`block` is {"contract": 2, "workspace": {...}} from an authenticated 200 answer, or None/other when the
         answer did not carry contract 2 (no change)."""
@@ -114,18 +140,20 @@ class WorkspaceState:
             self.refuse("workspace_unknown")
             return
         owner = self._owner()
+        folders = self._find(owner)
+        have = max((g for _, g in folders), default=None)
+        if have is not None and generation < have:
+            # Ruling 2, before any state: an older answer (a Hub restored from backup, say) refuses and touches
+            # nothing, not even a `retired` one, which would otherwise delete a newer folder.
+            self._update(state=state, generation=generation)
+            self.refuse("generation_rollback", close=False)
+            return
         if state == "suspended":
             self._update(state=state, generation=generation)
             self.refuse("not_active")
             return
         if state == "retired":
             self._purge(owner, state, generation, lambda have: True, "retired")
-            return
-        folders = self._find(owner)
-        have = max((g for _, g in folders), default=None)
-        if have is not None and generation < have:
-            self._update(state=state, generation=generation)
-            self.refuse("generation_rollback", close=False)
             return
         if have is not None and generation > have:
             self._purge(owner, state, generation, lambda g: g < generation, None)
@@ -138,10 +166,8 @@ class WorkspaceState:
         self._update(state=state, generation=generation, refused=None)
 
     def answered(self):
-        """Any authenticated answer: the offline grace starts again, and an offline refusal ends."""
+        """Any authenticated answer: the offline grace starts again."""
         self.last_answer, self.failures = self.monotonic(), 0
-        if self.latch().get("refused") == "offline":
-            self._update(refused=None)
 
     def _find(self, owner):
         if owner is None:
@@ -163,6 +189,7 @@ class WorkspaceState:
         self.close()
         self.resume()
 
+    @locked
     def resume(self):
         """Retry a pending purge (app start, every heartbeat, before Open). -> True when nothing is pending."""
         data = self.latch()
@@ -170,8 +197,12 @@ class WorkspaceState:
         if not pending:
             return True
         owner = self._owner()
-        if owner is None or _owner_key(owner) != data.get("owner"):
-            return False  # only the enrolled owner's folders, and only with that owner's marker
+        if owner is None:
+            return False  # no enrolled owner to check the markers against: nothing is deleted
+        if _owner_key(owner) != data.get("owner"):
+            # Left from another enrolment: never purged for it, and never a reason to refuse this one.
+            self._save({})
+            return True
         profiles, left, error = self._profiles(), [], None
         for pid in pending:
             try:
@@ -198,9 +229,11 @@ class WorkspaceState:
 
     # ------------------------------------------------------------ calls without a usable answer
 
+    @locked
     def failure(self, exc):
         """A device call failed. 401/403 -> close and refuse now. Transport, 5xx, non-JSON -> close only after two
-        failed check-ins with the last authenticated answer at least 2 x the heartbeat old (D-021)."""
+        failed check-ins with the last authenticated answer at least 2 x the heartbeat old (D-021). That close is never
+        latched: Open asks the Hub itself, so it works again as soon as the Hub answers."""
         from .core import ApiFailure, KeyRotated, Revoked, HEARTBEAT_SECONDS
         if isinstance(exc, (KeyRotated,)) or not isinstance(exc, ApiFailure):
             return
@@ -212,14 +245,7 @@ class WorkspaceState:
             return
         self.failures += 1
         if self.failures >= GRACE_FAILURES and self.monotonic() - self.last_answer >= 2 * HEARTBEAT_SECONDS:
-            self.refuse("offline")
-
-    def warning(self):
-        """The one-time 'window will close' line while the grace is running out, or None."""
-        from .core import HEARTBEAT_SECONDS
-        if self.failures >= 1 and self.monotonic() - self.last_answer >= 2 * HEARTBEAT_SECONDS - 120:
-            return "Can't reach Swangz: your workspace window will close in 2 minutes. Save your work."
-        return None
+            self.close()
 
     def revoked(self):
         """401 device_revoked: close before the device is wiped. The folder is not purged."""
@@ -235,7 +261,8 @@ class WorkspaceState:
         from . import workspace_launcher as wl
         data = self.latch()
         if data.get("purge_pending") and not self.resume():
-            raise wl.LaunchError("purge_pending")
+            unsupported = self.latch().get("purge_error") == "unsupported_platform"
+            raise wl.LaunchError("purge_unsupported" if unsupported else "purge_pending")
         data = self.latch()
         refused = data.get("refused")
         if refused:

@@ -97,7 +97,7 @@ class Base(unittest.TestCase):
         self.answers.append({"ok": True, "workspace": {"state": state, "generation": generation}, **extra})
         return self.client.heartbeat()
 
-    def fail(self, exc):
+    def miss(self, exc):
         self.answers.append(exc)
         return self.client.heartbeat()
 
@@ -197,6 +197,18 @@ class PurgeTests(Base):
         self.beat("active", 2)
         self.client.open_app("chatgpt")
 
+    def test_a_retired_answer_older_than_the_folder_deletes_nothing(self):
+        self.manifest["browser"]["workspace"]["generation"] = 2
+        self.beat("active", 2)
+        self.running()
+        before = self.folders()
+        self.assertEqual(self.marker(before[0])["generation"], 2)
+        self.beat("retired", 1)  # a Hub restored from an older backup
+        self.assertEqual(self.log, [], "no close")
+        self.assertEqual(self.folders(), before)
+        self.assertIsNone(self.client.workspace.latch().get("purge_pending"))
+        self.refused("generation_rollback")
+
     def test_9_another_owners_folder_survives_a_retired(self):
         other = bp.Profiles(self.data).prepare(bp.Owner(SERVER, "8", "dev-1"))
         other_device = bp.Profiles(self.data).prepare(bp.Owner(SERVER, "7", "dev-2"))
@@ -241,7 +253,7 @@ class RevokeTests(Base):
             return real()
         with mock.patch.object(self.client, "remove_everything", wipe):
             with self.assertRaises(core.Revoked):
-                self.fail(core.Revoked(401, "device_revoked", "gone"))
+                self.miss(core.Revoked(401, "device_revoked", "gone"))
         self.assertEqual(order, ["close", "wipe"])
         self.assertEqual(self.folders(), before)
 
@@ -250,7 +262,7 @@ class RevokeTests(Base):
             self.beat("active")
             self.running()
             before = self.folders()
-            self.fail(exc)
+            self.miss(exc)
             self.assertEqual(self.log, ["close"], exc.code)
             self.assertEqual(self.folders(), before)
             self.refused("refused_by_hub")
@@ -260,6 +272,43 @@ class RevokeTests(Base):
         self.client.workspace.failure(core.NeedsReconnect("reconnect"))
         self.assertEqual(self.log, [])
         self.assertTrue(self.launcher.running())
+
+    def test_a_pending_purge_does_not_follow_the_device_into_a_new_enrolment(self):
+        self.running()
+        with mock.patch.object(bp.Profiles, "retire", side_effect=OSError("busy")):
+            self.beat("retired")
+            old = self.folders()
+            self.assertTrue(self.client.workspace.latch()["purge_pending"])
+            self.client.remove_everything = lambda: None  # the store is stubbed; forget() is checked below
+            with self.assertRaises(core.Revoked):
+                self.miss(core.Revoked(401, "device_revoked", "gone"))
+        self.client.workspace.forget()  # what remove_everything() does after Store.wipe()
+        self.assertEqual(self.client.workspace.latch(), {})
+        self.manifest["browser"]["device_id"] = "dev-2"  # enrolled again: a new device id
+        self.client.open_app("chatgpt")
+        self.assertTrue(self.launcher.running())
+        self.assertEqual(len(self.folders()), 2)
+        self.assertTrue(set(old) < set(self.folders()), "the old folder is not deleted for the new owner")
+
+    def test_a_latch_left_by_another_enrolment_is_dropped_not_purged(self):
+        self.running()
+        with mock.patch.object(bp.Profiles, "retire", side_effect=OSError("busy")):
+            self.beat("retired")
+        old = self.folders()
+        self.manifest["browser"]["device_id"] = "dev-2"  # the latch file survived (say, a crash before the wipe)
+        self.client.open_app("chatgpt")
+        latch = self.client.workspace.latch()
+        self.assertEqual((latch.get("purge_pending"), latch.get("owner"), latch.get("refused")), (None, None, None))
+        self.assertTrue(set(old) < set(self.folders()))
+
+    def test_remove_everything_deletes_the_latch_and_keeps_the_folders(self):
+        self.running()
+        self.client.workspace.refuse("revoked")
+        before = self.folders()
+        with mock.patch.object(self.client.store, "wipe"):
+            self.client.remove_everything()
+        self.assertFalse((self.data / "workspace-state.json").exists())
+        self.assertEqual(self.folders(), before)
 
     def test_signing_out_closes_without_purging(self):
         self.running()
@@ -277,26 +326,35 @@ class OfflineTests(Base):
             self.beat("active")
             self.running()
             failure = exc or {"not": "the hub"}  # a 200 that isn't the Hub's JSON answer
-            self.fail(failure)
+            self.miss(failure)
             self.assertEqual(self.log, [])
             self.clock.now += 2 * core.HEARTBEAT_SECONDS - 1
-            self.fail(failure)
+            self.miss(failure)
             self.assertEqual(self.log, [], "two failures inside 30 minutes keep the window")
-            self.assertIsNotNone(self.client.workspace.warning())
             self.clock.now += 1
-            self.fail(failure)
+            self.miss(failure)
             self.assertEqual(self.log, ["close"])
-            self.refused("offline")
-            self.beat("active")  # any authenticated answer resets the count and ends the offline refusal
-            self.assertIsNone(self.client.workspace.latch().get("refused"))
+            self.assertIsNone(self.client.workspace.latch().get("refused"), "the offline close is never latched")
+            self.beat("active")  # any authenticated answer resets the count
             self.log.clear()
+
+    def test_the_offline_close_does_not_outlive_the_connection_or_a_restart(self):
+        self.beat("active")
+        self.running()
+        self.clock.now += 3 * core.HEARTBEAT_SECONDS
+        self.miss(core.ApiFailure(0, "offline", "x"))
+        self.miss(core.ApiFailure(0, "offline", "x"))
+        self.assertEqual(self.log, ["close"])
+        self.client.workspace = ws.WorkspaceState(self.client, monotonic=self.clock)  # the app restarts
+        self.client.open_app("chatgpt")  # Open asks the Hub; it answers, so the window opens again
+        self.assertTrue(self.launcher.running())
 
     def test_an_authenticated_answer_resets_the_count(self):
         self.running()
-        self.fail(core.ApiFailure(0, "offline", "x"))
+        self.miss(core.ApiFailure(0, "offline", "x"))
         self.beat("active")
         self.clock.now += 3 * core.HEARTBEAT_SECONDS
-        self.fail(core.ApiFailure(0, "offline", "x"))
+        self.miss(core.ApiFailure(0, "offline", "x"))
         self.assertEqual(self.log, [])
 
     def test_an_answer_without_contract_2_changes_nothing(self):
@@ -386,7 +444,8 @@ class WindowsTests(Base):
             self.assertEqual(self.folders(), before)
             latch = self.client.workspace.latch()
             self.assertEqual((latch["purge_error"], latch["notice"]), ("unsupported_platform", ws.NOTICE_PURGE_FAILED))
-            self.refused("purge_pending")
+            self.refused("purge_unsupported")
+        self.assertIn("Windows", wl.MESSAGES["purge_unsupported"])
 
 
 if __name__ == "__main__":

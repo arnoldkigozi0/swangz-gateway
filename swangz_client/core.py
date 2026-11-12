@@ -799,6 +799,7 @@ class Client:
                 except FileNotFoundError:
                     pass
         self.store.wipe()
+        self.workspace.forget()  # the window was closed first (_revoked, logout); the folders stay (R-10)
 
     def _heartbeat_body(self):
         state = self.store.state()

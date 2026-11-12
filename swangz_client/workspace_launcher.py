@@ -37,7 +37,7 @@ LOG = "workspace-open.log"
 MESSAGES = {
     "no_browser": "Swangz opens AI tools in Google Chrome, which isn't installed on this computer. Install Chrome, then press Open again.",
     "unsafe_address": "This tool's address isn't allowed. Ask your admin.",
-    "not_active": "This device's workspace is paused. Ask your admin.",
+    "not_active": "This device's workspace is paused. Close any open workspace window, and ask your admin.",
     "folder": "Your Swangz workspace folder can't be used safely, so nothing was opened. Ask your admin for help.",
     "launch_failed": "The Swangz workspace window didn't start. Try again.",
     "no_hosts": "Update the Swangz app's list of tools, then press Open again.",
@@ -47,10 +47,10 @@ MESSAGES = {
     # (R-9), so these ask the person to close any open workspace window themselves.
     "retired": "Your admin removed the Swangz workspace from this device, so nothing was opened. Close any open workspace window.",
     "purge_pending": "Swangz is still deleting this device's old workspace folder, so nothing was opened. Try again in a minute, or ask your admin.",
+    "purge_unsupported": "Swangz can't delete the old workspace folder on Windows yet, so nothing was opened. Ask your admin.",
     "generation_rollback": "Swangz AI Hub sent an older workspace setting than this device has, so nothing was opened. Ask your admin.",
     "workspace_unknown": "Swangz couldn't read this device's workspace setting from Swangz AI Hub, so nothing was opened. Try again later.",
     "refused_by_hub": "Swangz AI Hub didn't accept this device, so the workspace window is closed. Sign in to Swangz again, or ask your admin.",
-    "offline": "Swangz can't reach Swangz AI Hub, so the workspace window is closed. Connect to the internet and try again.",
     "revoked": "This device was disconnected from Swangz AI Hub, so the workspace window is closed.",
     "signed_out": "You signed out of Swangz, so the workspace window is closed.",
 }
