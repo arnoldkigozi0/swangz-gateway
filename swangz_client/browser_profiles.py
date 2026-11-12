@@ -1,7 +1,8 @@
-"""Inert, tests-only profile preparation. No browser, credentials or lifecycle hooks.
+"""Workspace profile folders. Used only by `workspace_launcher.py` (W3); no browser, credentials or lifecycle hooks here.
 
 Directories separate accidental sessions, not people sharing an OS login or administrators.
-Windows reparse points are refused; ACL not verified by the app.
+Windows reparse points are refused; the launcher sets and verifies an owner-only ACL (`winacl.py`) before launch,
+and `os_user` is the user's SID on Windows, the uid elsewhere.
 """
 import json
 import errno
@@ -57,10 +58,14 @@ def _origin(value):
 
 def _os_user():
     if _WINDOWS:
-        domain, user = os.environ.get("USERDOMAIN"), os.environ.get("USERNAME")
-        if not domain or not user:
+        try:
+            from .winacl import current_sid
+            sid = current_sid()
+        except Exception:
+            sid = None
+        if not isinstance(sid, str) or not re.fullmatch(r"S-1-[0-9-]{1,180}", sid):
             raise ProfileError("os_user_unavailable")
-        return domain + "\\" + user
+        return sid
     return os.getuid()
 
 

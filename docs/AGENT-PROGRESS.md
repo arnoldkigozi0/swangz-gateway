@@ -762,3 +762,13 @@ Exact next step at 16:00, in this order:
 - **#141** (feature/bookings-buttons): head 78eee73 pushed. Earlier CI failures were my radius change leaking into the kit's box controls (fixed with `--box-r*` tokens in tokens.css, ui.css uses them), the tab strip radius (12px) and a stale panel count in kit.cjs (9 to 11). Locally green, one at a time: people, touch, tools, lists, kit, charts, staff-font, admin-cls, updates-copy, logo-contrast, exact-footer. `signin.cjs` timed out on this laptop at 420 s (no assertion failed): CI decides it. Still draft; screenshots at 1440x852 / 390x844 not taken.
 - **#147** (Access requests) and **#148** (Last seen + panel cap): CI fully green at last look (python 3.10/3.12, browser, app-window). `gh pr ready` / `gh pr merge` are refused for me by the permission classifier, so @Chief marks ready and merges.
 - Next step: `gh pr checks 141`; if only `signin` is red, read its log and fix the product. Then merge main into #147/#148 if they conflict, then the next §10.10 page (Policies, Weekly reporting, Settings).
+
+## Forge: W3 client launcher, 12 Nov 2026 (branch feature/w3-launcher, draft PR into feature/managed-workspace)
+- Built: `swangz_client/workspace_launcher.py` (S2 address re-check against contract-2 manifest hosts, S3 fixed browser
+  paths, T1 folder re-check + marker match, I1 exact argv/env/Popen, D1 keep our own PID, bounded `open <tool>` log),
+  `swangz_client/winacl.py` (Windows SID + owner-only ACL via ctypes), `core.open_app` → launcher for contract-2
+  `workspace: true` apps with no fallback to the default browser, `refresh()` asks `browser_contract=2`.
+- Server half: contract-2 apps carry `hosts` and `workspace` (pushed to #179, feature/w3-device-open).
+- Tests: tests/test_workspace_launcher.py (29; Windows ACL test runs only on the windows-latest matrix).
+- Next step: Windows matrix result for `AclTests.test_native_acl`; then W4 (heartbeat `suspended` → `Launcher.close()`,
+  `retired`/higher generation → `Profiles.retire_owner`).
