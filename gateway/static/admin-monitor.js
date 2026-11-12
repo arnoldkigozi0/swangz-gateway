@@ -508,7 +508,7 @@
           ...common];
       }
       /* Uses by tool, moved here from Overview (BRIEF 10.10.1): shown when the list is grouped by tool. */
-      const byTool = st.by === "tool" && rows.length ? el("div", { class: "body usage-by-tool" }, SUI.donut({ label: "Uses by tool in this period", unit: "Uses", centre: "Uses", other: "Other tools",
+      const byTool = st.by === "tool" && rows.length ? el("div", { class: "body usage-by-tool" }, SUI.donut({ label: "Uses by tool in this period", unit: "Uses", centre: "Uses", other: "Other tools", format: (n) => SUI.plural(n, "use"),
         total: rows.reduce((n, t) => n + uses(t), 0),
         rows: rows.slice().sort((x, y) => uses(y) - uses(x)).map((t) => ({ label: t.tool, href: t.tool_id ? `#/tools?open=${t.tool_id}` : null, value: uses(t), display: SUI.plural(uses(t), "use") })) })) : null;
       box.replaceChildren(...[byTool, rows.length ? SUI.table({ columns: cols, rows, sort: ["last", "desc"], caption: "Who used what",
