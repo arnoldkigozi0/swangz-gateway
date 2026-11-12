@@ -776,3 +776,11 @@ Reference differences follow BRIEF 10.10.6/7 (10.1.6); hit-area padding follows 
 Copy and keyboard semantics are retained. No visual acceptance is claimed.
 
 Split validation: changed browser scripts pass `node --check`; `git diff --check` passes.
+
+Probe verified #188 product head `d4eff95` in real Chromium: `models.cjs` 100/100. At
+1440x852, Simple light/dark default/long have zero document overflow; the wrapper is
+352px high and scrolls internally. Without this CSS, overflow is 24px. Detailed remains
+462px with no overflow. Evidence is saved in `docs/screenshots/models-scroll-height/`.
+Prism inspected the long-list dark capture and notes. Probe's verdict is single-model.
+No Models reference still exists: BRIEF 10.10.2 is the criterion; no overlay was made.
+Phone checks and fresh CI on the evidence commit remain unverified here.
