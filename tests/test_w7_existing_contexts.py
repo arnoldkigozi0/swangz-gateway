@@ -25,6 +25,19 @@ WORKSPACE_COLUMNS = {"workspace_state", "workspace_generation", "workspace_chang
                      "policy_ok", "policy_sha", "policy_reported", "policy_source", "last_seen", "seen_ip", "app_version"}
 
 
+def _gateway_timezone_available():
+    """The gateway is a Linux server. Windows Python ships no time-zone database unless the third-party `tzdata`
+    package is installed, and the gateway's settings need one, so the server half of W7 runs on Linux and macOS."""
+    try:
+        from zoneinfo import ZoneInfo
+        ZoneInfo("Africa/Kampala")
+        return True
+    except Exception:
+        return False
+
+
+@unittest.skipUnless(_gateway_timezone_available(), "the gateway needs a time-zone database (Windows has none without tzdata); "
+                     "the gateway runs on Linux, so this server check is proven on the Linux and macOS runners")
 class ServerKeysAndAutomationsTests(Base):
     def setUp(self):
         super().setUp()
@@ -146,10 +159,11 @@ class DeviceExistingContextsTests(unittest.TestCase):
         self.assertEqual(self.profiles.prepare(self.owner), profile)  # a second Open reuses it
         self.assertEqual(self.outside(), before, "second prepare")
         self.profiles.prepare(bp.Owner("https://hub.example", "person_8", "device-1"))
-        if os.name == "nt":
-            with self.assertRaises(bp.ProfileError) as caught:
-                self.profiles.retire_owner(self.owner)  # pragma: no cover - raised only on Windows
-            self.assertEqual(caught.exception.code, "unsupported_platform")
+        if os.name == "nt":  # retiring is refused on Windows and reported, never half done
+            out = self.profiles.retire_owner(self.owner)
+            self.assertFalse(out["complete"])
+            self.assertIn({"name": profile.name, "reason": "unsupported_platform"}, out["skipped"])
+            self.assertTrue(profile.exists())
         else:
             out = self.profiles.retire_owner(self.owner)
             self.assertEqual(out["retired"], [profile.name])
