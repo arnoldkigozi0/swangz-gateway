@@ -193,7 +193,18 @@ class LightAreaLabelTests(unittest.TestCase):
         css = (pathlib.Path(__file__).resolve().parent.parent / "gateway" / "static" / "admin.css").read_text(encoding="utf-8")
         rule = css.split('html[data-theme="light"] .console-bar .console-area {')[1].split("}")[0]
         self.assertIn("padding: 0 12px; margin: 0 -12px; border-radius: var(--radius-control);", rule)
-        self.assertNotIn("box-shadow", rule)
+        # no outer spread that would make it taller than its 38px line; the rim is inset
+        self.assertIn("box-shadow: inset 0 0 0 1px var(--glass-rim), var(--glass-highlight);", rule)
+        self.assertNotIn("border:", rule)
+
+    def test_the_light_area_backing_is_the_glass_of_the_pills_beside_it_not_a_flat_white_box(self):
+        css = (pathlib.Path(__file__).resolve().parent.parent / "gateway" / "static" / "admin.css").read_text(encoding="utf-8")
+        rule = css.split('html[data-theme="light"] .console-bar .console-area {')[1].split("}")[0]
+        pills = css.split(".console-workspace, .console-search, .console-clock, .console-account {")[1].split("}")[0]
+        self.assertIn("background: var(--glass-bg-strong)", pills)
+        self.assertIn("background: var(--glass-bg-strong);", rule)
+        self.assertIn("var(--glass-rim)", rule)
+        self.assertNotIn("rgba(252, 248, 242", rule)
 
 
 class StickyTableHeaderTests(unittest.TestCase):

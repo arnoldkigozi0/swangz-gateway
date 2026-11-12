@@ -768,6 +768,10 @@ Exact next step at 16:00, in this order:
 
 Split from the preserved combined implementation `c85be0f` onto main `0135ac2`.
 At widths <=640px the Models See all button is visibly 36px and small Models/Audit pager buttons are 30px. The existing shared pseudo-element retains a 44px target. Models reserves 8px under See all for the target and focus ring. Existing browser checks cover visible size and target height at 390 and 640 in both themes, and click below the visible See all box.
+## Lane B M1: Models desktop scrolling — 12 November 2026
+
+Split from the preserved combined implementation `c85be0f` onto main `0135ac2`.
+Models Simple uses the existing Audit Simple table-height allowance for the sentence and next step above the list. A long table scrolls inside its panel at 1440x852. Existing browser coverage adds 80 synthetic rows and checks internal scrolling and no document overflow.
 
 The combined version passed 102 targeted checks in 124.398s and syntax checks for 53 JavaScript files.
 Not run on this split: local browser, screenshots/overlays or test suites (Probe owns the sole
@@ -791,6 +795,13 @@ Probe subsequently ran the unmodified committed `tests/browser/models.cjs` at lo
 `d09774a`: 164 checks passed, exit 0, all six cells. This closes the earlier test FAIL.
 The result applies to the corrected script; `audit.cjs` was not repeated (unchanged,
 162/162 on `fa6fab4`). Fresh remote CI remains required before #189 is ready.
+Probe verified #188 product head `d4eff95` in real Chromium: `models.cjs` 100/100. At
+1440x852, Simple light/dark default/long have zero document overflow; the wrapper is
+352px high and scrolls internally. Without this CSS, overflow is 24px. Detailed remains
+462px with no overflow. Evidence is saved in `docs/screenshots/models-scroll-height/`.
+Prism inspected the long-list dark capture and notes. Probe's verdict is single-model.
+No Models reference still exists: BRIEF 10.10.2 is the criterion; no overlay was made.
+Phone checks and fresh CI on the evidence commit remain unverified here.
 ## Lane B: sign-in system-colour fallback — 12 November 2026
 
 Branch `fix/lane-b-signin`, based on main `0135ac2`. Forced-colours mode now explicitly uses
