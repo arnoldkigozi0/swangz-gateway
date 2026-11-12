@@ -796,3 +796,12 @@ finding also remains open pending verification on current main. Windows High Con
 browser engines were not tested. No local browser or fixture was started for this follow-up.
 Follow-up validation: `python3 -m unittest tests.test_static_css -q`: 27 tests in 1.423s, OK;
 `node --check tests/browser/signin.cjs` and `git diff --check` passed. Full suites run on GitHub CI.
+
+Probe independently verified local product head `5ea4a64` in real Chromium: 32/32 isolated
+forced-colours checks passed, both apps light/dark at 390x844. Eight additional forced-colours
+geometry cases at 390 and 1440 show the eye contained, 44x44, no horizontal scroll. Captures,
+geometry JSON and scope notes are saved in `docs/screenshots/lane-b-signin/`; Prism inspected the
+phone-light console and desktop-dark staff captures and the geometry JSON. This closes the eye
+overhang finding for this product head. Probe's verdict is single-model. Normal-mode overlays,
+the main re-test and real Windows High Contrast remain unverified. The historical 2.39:1 focus
+finding was on People, not a current sign-in measurement. New-head CI remains pending.
