@@ -107,6 +107,15 @@ class ContractTwoTests(Base):
         self.assertEqual([a["open"] for a in two["apps"] if a["id"] == "canva"], [f"{two['server']}/go/canva?d={self.did}"])
         self.assertEqual([a["open"] for a in one["apps"] if a["id"] == "canva"], [f"{one['server']}/go/canva"])
 
+    def test_contract_2_apps_carry_their_hosts_and_the_workspace_flag_and_contract_1_does_not(self):
+        self.enable_canva()
+        two, one = self.manifest(), self.manifest("?browser_contract=1")
+        app = [a for a in two["apps"] if a["id"] == "canva"][0]
+        self.assertTrue(app["hosts"] and all(isinstance(h, str) and "/" not in h for h in app["hosts"]), app)
+        self.assertIs(app["workspace"], True)
+        old = [a for a in one["apps"] if a["id"] == "canva"][0]
+        self.assertEqual(set(old), {"id", "name", "category", "signin", "company_browser", "open"})
+
 
 class SettingsTests(Base):
     def test_the_baseline_and_the_mode_are_validated_and_audited(self):
