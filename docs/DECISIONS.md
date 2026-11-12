@@ -643,3 +643,28 @@ named actor, time and address. Auditing tool-delete refusals: broadcasts the exi
 incident access) needs a new record, Arnold's yes and its own threat note. Tests pinning this:
 `tests/test_provider_registry.py` (field matrix, holder-only list and read, `FinalPinTests` limit and 409 parity,
 audit leak markers). This record authorises no later Amendment 01 task, and no merge or deploy.
+
+## D-020 | 2026-11-12 | The Swangz workspace window never opens the Hub's own address
+
+**Context.** Managed workspace W3 (PR #186, `feature/w3-launcher`) opens website tools in a separate Swangz workspace
+browser profile on contract-2 devices. Its earlier head `a96f905`/`3fc2ead` opened `/go/<tool>?d=<device>` there for
+every tool not marked `workspace: true` (shared company accounts, company browsers). The Hub sign-in would then appear
+inside the workspace profile and persist there, giving the provider-facing profile a Hub session it does not need.
+
+**Decision.** On a contract-2 device the app opens a website tool in the workspace window **only** through
+`POST /api/device/open` (device key; PR #179), at the provider address that call returns, re-checked against the
+tool's `hosts`. A tool the manifest does not mark `workspace: true` (on #179's manifest: exactly the company-browser
+shared accounts) is **not opened by the app** in this release: the app raises `LaunchError("shared_account")` with
+#179's wording ("This is a shared company account. Open it from Swangz AI Hub, where turns are handed out.") before
+any window, `/device/open` call or browser start, and never falls back to the default browser. `open_hub` and
+`check_hub_url` are removed. Without a contract-2 workspace nothing opens (`no_workspace`).
+
+**Alternatives rejected.** `/go/?d=` in the workspace: puts a Hub session cookie in the provider-facing profile and
+widens what a compromised provider page shares a cookie jar with. The default browser for shared tools: breaks the
+"never the default browser" rule of section 9.1 and splits one tool across two profiles.
+
+**Consequences.** Shared company accounts are opened from the staff app (turns, company browser) until a later
+decision says otherwise; the Swangz app only refuses them with plain words. Tests pinning this:
+`tests/test_workspace_launcher.py` `test_contract_2_shared_app_opens_nothing` (no Popen, no `open_url`, no
+`webbrowser`, no API call; `check_hub_url`/`open_hub` absent) and
+`test_no_tool_ever_reaches_open_url_on_a_contract_2_device`. Approved at #186 head `a3f6806`.
