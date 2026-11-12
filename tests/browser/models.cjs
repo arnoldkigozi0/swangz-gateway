@@ -63,6 +63,7 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
         ok(T + `phone Simple shows five and See all (${all})`, all === 5 && /^See all \d+$/.test((await seeAll.innerText()).trim()));
         const total = Number((await seeAll.innerText()).match(/\d+/)[0]);
         await small('phone short list');
+        await seeAll.scrollIntoViewIfNeeded();
         const hit = await seeAll.boundingBox();
         await p.mouse.click(hit.x + hit.width / 2, hit.y + hit.height + 3); // outside the visible box, inside its 44px hit area
         await small('phone paged list');

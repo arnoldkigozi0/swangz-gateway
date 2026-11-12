@@ -776,3 +776,13 @@ Reference differences follow BRIEF 10.10.6/7 (10.1.6); hit-area padding follows 
 Copy and keyboard semantics are retained. No visual acceptance is claimed.
 
 Split validation: changed browser scripts pass `node --check`; `git diff --check` passes.
+
+Probe reviewed #189 product head `fa6fab4`: CSS passes; shipped `models.cjs` fails because
+its raw mouse click targets a button below the viewport. `audit.cjs` passed 162/162.
+The test now scrolls See all into view before measuring/clicking its expanded target.
+Probe's temporary copy with this exact one-line correction passed `models.cjs` 164/164;
+that is separate from fresh verification of this committed artifact, which is pending.
+Evidence is saved in `docs/screenshots/models-audit-phone-buttons/`, with unmodified
+and patched runs labelled separately. Prism inspected the 390px light focus capture.
+The measured visible heights are 36px See all / 30px small pager with 44px targets;
+focus is not clipped at 390/640 light/dark. No new product CSS changed in this correction.
