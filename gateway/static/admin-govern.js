@@ -391,16 +391,19 @@
     }
 
     function accessTab() {
-      const none = (x) => el("span", { class: "faint" }, x);
-      const limits = A.panel("Other limits", el("a", { class: "btn small quiet", href: `#/people/${p.id}?tab=account` }, owner || A.can("money") ? "Change" : "Details", icon("chevronRight")),
-        el("div", { class: "facts" },
-          fact("Account", p.status === "active" ? (p.access_until ? (ended ? "Ended " : "Open until ") + fmt.date(p.access_until - 86400) : "Open, no end date") : "Suspended"),
-          fact("Monthly budget", p.monthly_budget !== null ? `${fmt.money(p.month.cost)} of ${fmt.money(p.monthly_budget)}` : none("no limit")),
-          fact("Daily budget", p.daily_budget !== null && p.daily_budget !== undefined ? fmt.money(p.daily_budget) : none("no limit")),
-          fact("Models", p.allowed_models || none("any model")),
-          fact("Services", p.allowed_services || none("every service switched on"))),
-        el("div", { class: "body hint" }, "Policies can take more away for everyone they match — see ", el("a", { href: "#/policies?tab=explain&person=" + p.id }, "Explain a decision"), "."));
-      return [personToolsPanel(p, owner, used), limits];
+      /* The limits fold into one line under their tools (BRIEF 10.10.7: a record keeps few blocks); every value stays,
+         and the full form is one step away on Account. */
+      const limitWords = [
+        p.status !== "active" ? "Account suspended" : p.access_until ? (ended ? "Account ended " : "Account open until ") + fmt.date(p.access_until - 86400) : "Account open, no end date",
+        p.monthly_budget !== null && p.monthly_budget !== undefined ? `${fmt.money(p.month.cost)} of ${fmt.money(p.monthly_budget)} this month` : "no monthly budget",
+        p.daily_budget !== null && p.daily_budget !== undefined ? `${fmt.money(p.daily_budget)} a day` : "no daily budget",
+        p.allowed_models ? "models: " + p.allowed_models : "any model",
+        p.allowed_services ? "services: " + p.allowed_services : "every service",
+      ];
+      const limits = el("div", { class: "body hint person-limits" }, el("strong", null, "Limits: "), limitWords.join(" · ") + ". ",
+        el("a", { href: `#/people/${p.id}?tab=account` }, owner || A.can("money") ? "Change limits" : "See limits"), " · ",
+        el("a", { href: "#/policies?tab=explain&person=" + p.id }, "Explain a decision"));
+      return personToolsPanel(p, owner, used, limits);
     }
 
     async function securityTab() {
@@ -485,7 +488,7 @@
 
   const TOOL_STATE = { enabled: ["ok", "Ready"], past_due: ["waiting", "Payment due"], suspended: ["suspended", "Paused"], locked: ["none", "No subscription"], not_assigned: ["none", "Not given"] };
   /* What a person has, as a table; giving another tool is one picker rather than a tile per tool. */
-  function personToolsPanel(p, owner, used) {
+  function personToolsPanel(p, owner, used, extra) {
     const tools = p.tools || [];
     const use = Object.fromEntries((used || []).filter((r) => r.tool_id).map((r) => [r.tool_id, r]));
     const mine = tools.filter((t) => t.assigned);
@@ -529,7 +532,8 @@
     } }, "Remove all") : null;
     return A.panel("Tools", el("div", { class: "row" }, el("span", { class: "sub" }, `${p.tool_summary.enabled} ready · ${p.tool_summary.assigned} given`), removeAll),
       give, table,
-      el("div", { class: "body hint" }, "A tool the company isn't subscribed to can't be given yet, and team access is changed on the tool itself — both on the Tools page. To give a tool for a limited time, set an end date there under Who can use it."));
+      extra || null,
+      el("div", { class: "body hint" }, "Only tools the company pays for can be given. Team access and end dates are set on the tool."));
   }
 
   async function inviteLink(p) {
