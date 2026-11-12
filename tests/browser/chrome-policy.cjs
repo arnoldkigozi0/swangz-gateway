@@ -1,5 +1,5 @@
 /* D-016 bypass checks for deploy/chrome-policy (docs/CHROME-POLICY-BYPASS-TESTS.md), step 1: groups A, B and D on
-   Google Chrome for Linux. CI only: the workflow installs a machine-wide policy file, so this refuses to run anywhere else.
+   Google Chrome for Linux, with group C (redirects, script moves, pop-ups, frames, form posts, subresources). CI only: the workflow installs a machine-wide policy file, so this refuses to run anywhere else.
 
    node chrome-policy.cjs render OUT    writes the pack as the driven browser gets it (see render())
    node chrome-policy.cjs control       no policy installed: every case must reach the fixture, proving it can fail
@@ -66,7 +66,21 @@ function handler(scheme) {
         : marked(to, mark);
       if (/^30[278]$/.test(how)) { res.writeHead(Number(how), { Location: next, 'Cache-Control': 'no-store' }); return res.end(); }
       const q = JSON.stringify(next).replace(/</g, '\\u003c');
-      const body = how === 'meta' ? '<meta http-equiv="refresh" content="0;url=' + next.replace(/"/g, '%22') + '">'
+      const href = next.replace(/"/g, '%22');
+      /* C-3, C-4, C-6: a pop-up or new tab (the driver clicks #go, so Chrome's pop-up blocker sees a user gesture),
+         a frame, and subresources the page loads by itself. */
+      const later = {
+        open: '<button id="go" onclick=\'window.open(' + q.replace(/'/g, '&#39;') + ')\'>go</button>',
+        blank: '<a id="go" target="_blank" rel="noopener" href="' + href + '">go</a>',
+        link: '<a id="go" href="' + href + '">go</a>',
+        iframe: '<iframe src="' + href + '"></iframe>',
+        script: '<script src="' + href + '"></script>',
+        img: '<img src="' + href + '" alt="">',
+        fetch: '<script>fetch(' + q + ', { mode: "no-cors" }).catch(() => {})</script>',
+        xhr: '<script>const x = new XMLHttpRequest(); x.open("GET", ' + q + '); x.send()</script>',
+        ws: '<script>try { new WebSocket(' + q + '.replace(/^http/, "ws")) } catch (e) {}</script>',
+      }[how];
+      const body = later ? later : how === 'meta' ? '<meta http-equiv="refresh" content="0;url=' + next.replace(/"/g, '%22') + '">'
         : how === 'form' ? '<form id="f" method="post" action="' + next.replace(/"/g, '%22') + '"><input name="a" value="b"></form><script>document.getElementById("f").submit()</script>'
         : '<script>location.' + (how === 'replace' ? 'replace(' + q + ')' : 'href = ' + q) + '</script>';
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -81,11 +95,16 @@ function handler(scheme) {
 function listen(server, port) {
   return new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
 }
+/* C-6: a WebSocket arrives as an upgrade, not a request. Log it like one and hang up. */
+function logUpgrade(scheme) {
+  return (req, socket) => { hits.push({ scheme, host: String(req.headers.host || '').toLowerCase(), url: req.url }); socket.destroy(); };
+}
 async function fixture(dir) {
   execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', '/CN=swangz-fixture',
     '-keyout', path.join(dir, 'key.pem'), '-out', path.join(dir, 'cert.pem')], { stdio: 'ignore' });
   const tls = https.createServer({ key: fs.readFileSync(path.join(dir, 'key.pem')), cert: fs.readFileSync(path.join(dir, 'cert.pem')) }, handler('https'));
   const plain = http.createServer(handler('http'));
+  tls.on('upgrade', logUpgrade('https')); plain.on('upgrade', logUpgrade('http'));
   await listen(tls, 443); await listen(plain, 80);
   return () => { tls.close(); plain.close(); };
 }
@@ -107,6 +126,9 @@ function expand(c) {
 async function visit(context, c, address, n) {
   const mark = c.id.replace(/[^A-Za-z0-9]/g, '') + 'n' + n;
   const page = await context.newPage();
+  const opened = [];   // C-3: pop-ups and new tabs the case opens
+  const onPage = p => { if (p !== page) opened.push(p); };
+  context.on('page', onPage);
   const failed = [];
   page.on('requestfailed', r => { if (r.isNavigationRequest()) failed.push((r.failure() || {}).errorText || ''); });
   let error = '';
@@ -114,15 +136,21 @@ async function visit(context, c, address, n) {
   catch (e) { error = (String(e.message).match(/net::(ERR_[A-Z_]+)/) || [])[1] || String(e.message).split('\n')[0].slice(0, 120); }
   /* A hop case starts on an approved host, which is meant to answer; what counts is whether the place it sends
      the browser to was reached. A page that moves by script does so after the load, so give it time. */
-  const target = c.kind === 'hop' ? new URL(new URL(address).searchParams.get('to')).host : '';
+  const target = c.kind === 'hop' ? c.target || new URL(new URL(address).searchParams.get('to')).host : '';
   const arrived = () => hits.filter(h => h.url.includes('swz=' + mark) && (!target || h.host === target));
+  if (target && !error && c.click) {
+    const click = { middle: { button: 'middle' }, ctrl: { modifiers: ['Control'] } }[c.click] || {};
+    await page.click('#go', { timeout: 5000, ...click }).catch(e => { error = 'click: ' + String(e.message).split('\n')[0].slice(0, 80); });
+  }
   if (target && !error) {
     for (let i = 0; i < 16 && !arrived().length; i++) await page.waitForTimeout(250);
     if (!arrived().length && !failed.find(Boolean)) {
-      const text = await page.evaluate(() => document.documentElement.innerText).catch(() => '');
-      if (text.includes(BLOCKED)) error = BLOCKED;
+      /* A refusal can land in a pop-up or a frame rather than the page itself. */
+      const read = f => f.evaluate(() => document.documentElement.innerText).catch(() => '');
+      for (const f of [page, ...opened].flatMap(p => p.frames())) if ((await read(f)).includes(BLOCKED)) { error = BLOCKED; break; }
     }
   }
+  context.off('page', onPage);
   const seen = arrived();
   const out = { id: c.id, expect: c.expect, address, reached: seen.length, hosts: [...new Set(seen.map(h => h.host))],
     error: error || (failed.find(Boolean) || '').replace('net::', ''), final: '' };
@@ -133,6 +161,8 @@ async function visit(context, c, address, n) {
       via_google: seen.some(h => h.host === 'accounts.google.com'), cookie: cookies.some(k => k.name === 'swz_fixture_session') };
     await context.clearCookies();
   }
+  if (opened.length) out.opened = opened.length;
+  for (const p of opened) await p.close().catch(() => {});
   await page.close();
   return out;
 }
@@ -142,6 +172,12 @@ function verdict(mode, r) {
   if (r.expect === 'ALLOW') return r.reached > 0 && signedIn && !r.error ? 'allowed' : 'FAIL: an approved address was refused';
   const refused = r.reached === 0 && r.error === BLOCKED;
   if (r.expect === 'ENFORCE') return refused ? 'refused' : r.reached ? 'FAIL: reached the fixture' : 'FAIL: not refused by policy (' + (r.error || 'no error') + ')';
+  /* STOP: the control run reached the fixture and the enforced run sent nothing, but Chrome showed no refusal the
+     harness can read (script moves, pop-ups, frames, form posts; first seen on Chrome 156). Zero requests is the pass. */
+  if (r.expect === 'STOP') return r.reached === 0 ? 'stopped (no request)' + (r.error ? ', ' + r.error : '') : 'FAIL: reached the fixture';
+  /* GAP: the pack does not stop it and the README says so. Reaching is the documented result; anything else means the
+     README is out of date. */
+  if (r.expect === 'GAP') return r.reached > 0 ? 'gap, as the README says (reached)' : 'FAIL: no longer reaches the fixture; update the README';
   return refused ? 'recorded: refused' : r.reached ? 'recorded: reached' : 'recorded: ' + (r.error || 'no request, no error');
 }
 function report(mode, version, rows) {

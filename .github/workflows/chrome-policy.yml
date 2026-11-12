@@ -1,6 +1,6 @@
 name: Chrome policy pack checks
 # D-016 bypass checks for deploy/chrome-policy, step 1 of docs/CHROME-POLICY-BYPASS-TESTS.md: Google Chrome on Linux,
-# case groups A, B and D, and the redirect cases of C. The policy file is installed on the throwaway runner only, and removed again.
+# case groups A, B, C and D. The policy file is installed on the throwaway runner only, and removed again.
 on:
   push:
     branches: [main]
