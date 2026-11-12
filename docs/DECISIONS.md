@@ -668,3 +668,25 @@ decision says otherwise; the Swangz app only refuses them with plain words. Test
 `tests/test_workspace_launcher.py` `test_contract_2_shared_app_opens_nothing` (no Popen, no `open_url`, no
 `webbrowser`, no API call; `check_hub_url`/`open_hub` absent) and
 `test_no_tool_ever_reaches_open_url_on_a_contract_2_device`. Approved at #186 head `a3f6806`.
+
+## D-021 | 2026-11-13 | Offline grace before the workspace window closes
+
+**Context.** `docs/MANAGED-WORKSPACE.md` §9.3 reads as "close the workspace window when the Hub cannot confirm the
+workspace". Read literally, every failed heartbeat (laptop on a flaky link, a Hub restart, a 5xx) would close the
+window and lose unsaved work, while buying no security: the person owns the folder and can reopen it by hand (R-2),
+provider sessions continue at the provider (R-4), and Open is an online call the server refuses anyway.
+
+**Decision.** On a network failure, timeout, TLS error, 5xx or non-JSON/`ok`-less answer, the app closes the window it
+started only when **both** the last two device check-ins failed **and** the last authenticated answer is at least
+`2 × HEARTBEAT_SECONDS` (30 min) old, measured with `time.monotonic()`. Any authenticated answer resets both. It may
+warn once, two minutes before. These failures never purge and never latch a refusal of Open: Open stays an online
+call (`/api/device/open`) that the Hub decides. A 401/403 is not a network failure: it closes and refuses at once
+(`docs/W4-THREAT-NOTE.md` Ruling 2).
+
+**Alternatives rejected.** Close on the first failure (the §9.3 literal reading): data loss on every blip, no gain.
+Never close while offline: a suspended person on a disconnected laptop would keep the window indefinitely; 30 min
+bounds it. Wall-clock age alone: the clock can be moved; the failure count covers monotonic pauses during sleep.
+
+**Consequences.** A suspension reaches an offline device's window at the latest about 30 min after the link drops, or
+at the next authenticated answer. Implemented in PR #191 (`swangz_client/workspace_state.py` `failure()`), test 7 of
+the W4 note.
