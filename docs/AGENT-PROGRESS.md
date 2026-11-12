@@ -786,3 +786,8 @@ Evidence is saved in `docs/screenshots/models-audit-phone-buttons/`, with unmodi
 and patched runs labelled separately. Prism inspected the 390px light focus capture.
 The measured visible heights are 36px See all / 30px small pager with 44px targets;
 focus is not clipped at 390/640 light/dark. No new product CSS changed in this correction.
+
+Probe subsequently ran the unmodified committed `tests/browser/models.cjs` at local
+`d09774a`: 164 checks passed, exit 0, all six cells. This closes the earlier test FAIL.
+The result applies to the corrected script; `audit.cjs` was not repeated (unchanged,
+162/162 on `fa6fab4`). Fresh remote CI remains required before #189 is ready.
