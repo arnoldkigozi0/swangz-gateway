@@ -43,7 +43,7 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       const chips = () => p.locator('.u-chips .u-chip').allTextContents();
       const small = async (name) => {
         if (width > 640) return;
-        const bad = await p.evaluate(() => [...document.querySelectorAll('main .btn, main .u-more, main .sec-link, main .u-table th button')].filter(n => { const r = n.getBoundingClientRect(); return r.height && r.height < 44; }).map(n => n.textContent));
+        const bad = await p.evaluate(() => [...document.querySelectorAll('main .btn, main .u-more, main .sec-link, main .u-table th button')].filter(n => { const r = n.getBoundingClientRect(); const hit = Math.max(r.height, parseFloat(getComputedStyle(n, '::before').height) || 0); return r.height && hit < 44; }).map(n => n.textContent));
         assert.deepEqual(bad, [], T + name + ' touch size'); checks++;
       };
 

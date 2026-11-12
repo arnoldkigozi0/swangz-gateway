@@ -99,7 +99,8 @@
 @keyframes ctl-label { from { opacity: 0; } }
 
 /* Touch: the box keeps its size and the part you can press grows to 44px. */
-@media (hover: none) {
+/* Touch devices and phone widths: the visible button keeps its 36 / 30 px; only the hit area reaches 44 px (Probe D3). */
+@media (hover: none), (max-width: 640px) {
   .btn:not(.link):not(.loading):not([data-loading="true"]):not([aria-busy="true"])::before { content: ""; position: absolute; top: 50%; left: 0; right: 0; height: 44px; transform: translateY(-50%); }
 }
 

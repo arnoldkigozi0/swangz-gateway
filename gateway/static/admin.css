@@ -1467,7 +1467,6 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
 /* Overview on a phone: every control reaches the kit's 44px touch size. The info button's negative margin keeps its
    16px place in the label, so the bigger target moves nothing. */
 @media (max-width: 640px) {
-  .route-overview .top > .top-actions .btn, .route-overview .panel-actions .btn { min-height: 44px; height: 44px; }
   .route-overview .kpis-exact .kpi .label .u-info { flex: none; width: 44px; height: 44px; margin: -14px; }
   .route-overview .u-chart-foot button { flex: none; min-height: 44px; white-space: nowrap; }
 }
@@ -1475,7 +1474,6 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
    row's Open reach the kit's 44px touch size. */
 @media (max-width: 640px) {
   .route-people .u-seg button, .route-tools .u-seg button, .route-devices .u-seg button { min-height: 44px; }
-  .route-people .btn:not(.link), .route-tools .btn:not(.link), .route-devices .btn:not(.link) { min-height: 44px; }
 }
 /* A row's More button in phone cards: the card rule's min-width: 0 outranks the kit's 44px touch width. */
 @media (max-width: 640px) { .u-table.cards td > .u-more { min-width: 44px; } }
@@ -1483,7 +1481,6 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
    reaches the kit's 44px touch size. */
 @media (min-width: 1001px) { .filterbar.filter-range { grid-template-columns: minmax(0, 1fr) auto; align-items: start; } }
 @media (max-width: 640px) {
-  .route-licences .top > .top-actions .btn, .route-reports .top > .top-actions .btn, .route-licences .panel-actions .btn { min-height: 44px; height: 44px; }
   .route-licences .kpis-exact .kpi .label .u-info { flex: none; width: 44px; height: 44px; margin: -14px; }
   .route-licences .u-chart-foot button { flex: none; min-height: 44px; white-space: nowrap; }
   .route-licences .list-meta .btn.link { min-height: 44px; }
@@ -1505,17 +1502,15 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
 .sec-cut { display: block; max-width: 56ch; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 @media (max-width: 760px) { .sec-cut { max-width: none; white-space: normal; } }
 @media (max-width: 640px) {
-  .route-security .top > .top-actions .btn, .route-incidents .top > .top-actions .btn, .route-security .panel-actions .btn { min-height: 44px; height: 44px; }
   .route-security .kpis-exact .kpi .label .u-info { flex: none; width: 44px; height: 44px; margin: -14px; }
   .route-security .u-table th button, .route-incidents .u-table th button, .route-security .u-pager .btn, .route-incidents .u-pager .btn { min-height: 44px; }
   .route-security .u-table.cards td > .u-more { min-width: 44px; height: 44px; }
 }
 
-/* Phone touch size: the console's floating bar, the plans link above a list and a page's title action reach 44px. */
+/* Phone touch size: the console's floating bar and the plans link above a list reach 44px; buttons grow their hit area instead (controls.css). */
 @media (max-width: 640px) {
   .console-tabbar .stb-bar a { height: 44px; }
   .list-meta a { display: inline-flex; align-items: center; min-height: 44px; }
-  .top-actions .btn { min-height: 44px; }
 }
 /* Audit log Simple (BRIEF 10.10.7): the sentence and the next step sit above the list, so a long page of entries scrolls
    inside its panel with that much less room, and the page itself still does not scroll at 1440x852 (BRIEF 10.10.2). */

@@ -1,5 +1,6 @@
-/* Phone touch size on the control kit's lists: at 390x844 every control on People and Tools is at least 44px tall, and
-   a row's More button is 44px wide too. Local fixture only. */
+/* Phone touch size on the control kit's lists: at 390x844 every control on People and Tools has a hit area at least 44px
+   tall (a .btn keeps its visible 36 / 30 px and grows an invisible ::before layer, Probe D3), and a row's More button is
+   44px wide too. Local fixture only. */
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
@@ -33,7 +34,7 @@ let demo, browser, checks = 0;
           const shown = nodes.map(n => [n, n.getBoundingClientRect()]).filter(([n, r]) => r.width && r.height && getComputedStyle(n).visibility !== 'hidden');
           return { count: shown.length, more: shown.filter(([n]) => n.matches('.u-more')).length, sort: shown.filter(([n]) => n.matches('th button')).length,
             bar: shown.filter(([n]) => n.matches('.stb-bar a')).length,
-            small: shown.filter(([n, r]) => r.height < min || (n.matches('.u-more') && r.width < min)).map(([n, r]) => `${Math.round(r.width)}x${Math.round(r.height)} ${named(n)}`) };
+            small: shown.filter(([n, r]) => Math.max(r.height, parseFloat(getComputedStyle(n, '::before').height) || 0) < min || (n.matches('.u-more') && r.width < min)).map(([n, r]) => `${Math.round(r.width)}x${Math.round(r.height)} ${named(n)}`) };
         }, MIN);
         const T = `${theme} ${hash}: `;
         assert.ok(seen.more > 0 && seen.sort > 0 && seen.bar >= 4, T + 'the check found no row menus, sort headers or phone bar: ' + JSON.stringify(seen));
