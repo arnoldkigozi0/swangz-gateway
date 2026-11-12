@@ -223,6 +223,8 @@ html[data-theme="light"] .u-tubes { --tube-a: rgba(70, 56, 40, .46); --tube-b: r
 .u-chart-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 6px; }
 .u-chart-foot button { background: none; border: 0; padding: 0; color: var(--tx-3); font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .u-chart-foot button:hover { color: var(--tx-1); }
+/* a 24px target (WCAG 2.5.8) without moving the chart: the extra height is taken back by the margins */
+.u-chart-foot button { min-height: 24px; margin: -3px 0; }
 .u-chart-table { margin-top: 8px; max-height: 260px; overflow: auto; border: 1px solid var(--line); border-radius: var(--r-sm); }
 .u-chart-table table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .u-chart-table th, .u-chart-table td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left; }

@@ -110,6 +110,12 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       // their tools: one More per row, Take back last; giving is the kit picker, and the row comes and goes
       await p.goto(url + `/admin#/people/${opened}?tab=access`); await p.locator('.give-row .u-select').waitFor();
       await p.waitForLoadState('networkidle');
+      // five tools, then See all N; the full list stays open through the redraws below
+      const seeAll = p.locator('main .see-all-row .btn');
+      if (await seeAll.count()) {
+        ok(T + 'the tools list shows five, then See all', await p.locator('main tbody tr').count() === 5 && /^See all \d+$/.test((await seeAll.innerText()).trim()));
+        await seeAll.click();
+      }
       const toolRows = p.locator('main tbody tr');
       const held = await toolRows.count();
       ok(T + 'every tool row ends in one More button', held > 0 && await p.locator('main tbody tr .u-more').count() === held);

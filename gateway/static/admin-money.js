@@ -35,8 +35,8 @@
   const moneyMany = (n, one, more) => n.toLocaleString() + " " + (n === 1 ? one : more);
   function moneyLead(n) {
     if (n.failed) return { sentence: "Some of the figures couldn't load.", action: { label: "Try again", retry: true } };
-    if (n.idle) return { sentence: `${moneyMany(n.idle, "paid seat was", "paid seats were")} not used in 30 days (about ${n.idleCost} a month).`,
-      action: { label: n.idle === 1 ? "See the idle seat" : "See the idle seats", href: "#/licences?tab=licences&show=idle" } };
+    if (n.idle) return { sentence: `${moneyMany(n.idle, "paid licence", "paid licences")} nobody opened in 30 days (about ${n.idleCost} a month).`,
+      action: { label: n.idle === 1 ? "See the unused licence" : "See the unused licences", href: "#/licences?tab=licences&show=idle" } };
     if (n.unpriced) return { sentence: `${moneyMany(n.unpriced, "request has", "requests have")} no price yet, so spend is understated.`,
       action: { label: "Set the missing prices", href: "#/settings?tab=providers&section=prices" } };
     if (n.soon) return { sentence: `${moneyMany(n.soon, "plan renews", "plans renew")} in the next 30 days.`,
@@ -91,7 +91,7 @@
       const numbers = A.panel("The numbers", null, el("div", { class: "ov-nums" },
         moneyNum("AI spend", d ? fmt.money(d.total || 0) + " in 30 days" : "—", "#/licences?tab=spend&range=30d"),
         moneyNum("Company plans", s ? fmt.money(s.subscriptions_month) + " a month" : "—", "#/licences?tab=licences&show=paid"),
-        moneyNum("Idle seats", s ? String(s.idle_seats) : "—", "#/licences?tab=licences&show=idle"),
+        moneyNum("Unused licences", s ? String(s.idle_seats) : "—", "#/licences?tab=licences&show=idle"),
         moneyNum("Renewing in 30 days", lic ? SUI.plural(soon.length, "plan") : "—", "#/licences?tab=renewals&show=soon")));
       A.frame({ title: "Licences & spend", trail: [[MONEY_ROOT[0]]], sentence: lead.sentence, next: A.leadButton(lead.action),
         actions: [mode.switcher, el("a", { class: "btn", href: "#/reports" }, icon("report"), "Spend reports")] }, [numbers, chart]);
