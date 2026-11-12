@@ -176,6 +176,16 @@ class DeployFileTests(unittest.TestCase):
             for ref in set(re.findall(r"((?:docs|deploy|workspace_agent)/[\w./-]+\.(?:md|json|sh|service|timer))", text)):
                 self.assertTrue((ROOT / ref).exists(), f"{name} mentions {ref}, which does not exist")
 
+    def test_setup_copies_code_owned_by_root_without_screenshots(self):
+        setup = (ROOT / "deploy" / "setup-gateway-server.sh").read_text().replace("\\\n", " ")
+        copy = next(line for line in setup.splitlines() if line.lstrip().startswith("rsync "))
+        self.assertIn("--chown=root:root", copy)  # the cloning login must not be able to change the running code
+        self.assertIn("--exclude /docs/screenshots", copy)  # not served; only disk and copy time
+        for kept_out in (".git", "data", ".env"):
+            self.assertIn(f"--exclude {kept_out} ", copy)
+        # the service user still owns what it writes
+        self.assertIn('chown -R swangz:swangz "$APP/data" "$APP/.env"', setup)
+
     def test_caddy_sends_hsts_and_streams(self):
         text = (ROOT / "deploy" / "Caddyfile").read_text()
         self.assertIn('Strict-Transport-Security "max-age=31536000"', text)
