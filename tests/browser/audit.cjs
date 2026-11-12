@@ -23,7 +23,7 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
     const url = info.url;
     browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME || undefined, args: ['--no-sandbox'] });
     const headers = { 'x-gateway-admin': '1' };
-    const cells = [['dark', 1440, 852], ['light', 1440, 852], ['dark', 390, 844], ['light', 390, 844]];
+    const cells = [['dark', 1440, 852], ['light', 1440, 852], ['dark', 390, 844], ['light', 390, 844], ['dark', 640, 844], ['light', 640, 844]];
     for (const [theme, width, height] of cells) {
       const T = `${theme} ${width}: `;
       const shot = async (p, name) => { if (output) await p.screenshot({ path: path.join(output, `${name}-${width}x${height}-${theme}.png`) }); };
@@ -41,6 +41,8 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
         if (width > 640) return;
         const bad = await p.evaluate(() => [...document.querySelectorAll('main .btn, main .u-more, main .sec-link, main .u-table th button')].filter(n => { const r = n.getBoundingClientRect(); const hit = Math.max(r.height, parseFloat(getComputedStyle(n, '::before').height) || 0); return r.height && hit < 44; }).map(n => n.textContent));
         assert.deepEqual(bad, [], T + name + ' touch size'); checks++;
+        const oversized = await p.locator('main .see-all-row .btn, main .u-pager .btn').evaluateAll(nodes => nodes.filter(n => Math.abs(n.getBoundingClientRect().height - (n.matches('.small, .btn--small') ? 30 : 36)) > 1).map(n => n.textContent.trim()));
+        assert.deepEqual(oversized, [], T + name + ' visible button size'); checks++;
       };
 
       await open('#/audit', '.u-filter');
