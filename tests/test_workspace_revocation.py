@@ -310,6 +310,24 @@ class RevokeTests(Base):
         self.assertFalse((self.data / "workspace-state.json").exists())
         self.assertEqual(self.folders(), before)
 
+    def test_revoked_during_rotation_closes_the_window_and_drops_the_latch(self):
+        for path in ("/device/rotate", "/device/heartbeat"):  # _rotate, then _confirm_staged
+            self.beat("active")
+            self.running()
+            self.client.workspace.refuse("revoked", close=False)  # a latch on disk to be removed
+            api = mock.Mock()
+            api.call.side_effect = lambda m, p, b=None, auth=True: (_ for _ in ()).throw(
+                core.Revoked(401, "device_revoked", "gone")) if p == path else {"key_id": "k2", "key": "x"}
+            self.client.api = lambda: api
+            self.client._api_factory = lambda server, key: api
+            with mock.patch.object(self.client.store, "wipe"), mock.patch.object(self.client.store, "stage"), \
+                    self.assertRaises(core.Revoked):
+                self.client._rotate()
+            self.assertEqual(self.log, ["close"], path)
+            self.assertFalse(self.launcher.running())
+            self.assertFalse((self.data / "workspace-state.json").exists(), path)
+            self.client.api = lambda: self.api
+
     def test_signing_out_closes_without_purging(self):
         self.running()
         before = self.folders()
