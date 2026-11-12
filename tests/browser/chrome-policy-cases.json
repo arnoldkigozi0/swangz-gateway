@@ -1,5 +1,5 @@
 {
-  "about": "D-016 bypass cases as data (docs/CHROME-POLICY-BYPASS-TESTS.md). Groups A, B, D and all of C: redirects (C-1, C-7), script and meta moves (C-2), pop-ups and new tabs (C-3; the driver clicks #go so the pop-up blocker sees a gesture, and C-3h is a pop-up that opens an approved page which then redirects off-list), frames (C-4), form posts (C-5) and subresources (C-6: script, img, fetch, XHR, WebSocket). A hop case starts on an approved host and counts only requests that arrive at the place it is sent to. Pinned from the first run (Chrome 156, Linux): C-2 to C-5 send nothing with the pack but show no refusal page the harness can read, so they are STOP (zero requests is the pass, and the control run proves each can reach); C-6 subresources reach evil.test, a GAP the README states. Every host is served by the local fixture; nothing leaves the machine. expect: ALLOW must reach the fixture with the pack installed; ENFORCE must be refused by policy with zero fixture requests; RECORD is a prediction nobody has checked, so the result is reported and never fails the job.",
+  "about": "D-016 bypass cases as data (docs/CHROME-POLICY-BYPASS-TESTS.md). Groups A, B, D, E and all of C (E pinned from its first run on Chrome 156, Linux: every address refused by policy; E-7x, an extension id that is not installed, answers ERR_BLOCKED_BY_CLIENT and stays RECORD until tier 2 installs a real one): redirects (C-1, C-7), script and meta moves (C-2), pop-ups and new tabs (C-3; the driver clicks #go so the pop-up blocker sees a gesture, and C-3h is a pop-up that opens an approved page which then redirects off-list), frames (C-4), form posts (C-5) and subresources (C-6: script, img, fetch, XHR, WebSocket). A hop case starts on an approved host and counts only requests that arrive at the place it is sent to. Pinned from the first run (Chrome 156, Linux): C-2 to C-5 send nothing with the pack but show no refusal page the harness can read, so they are STOP (zero requests is the pass, and the control run proves each can reach); C-6 subresources reach evil.test, a GAP the README states. Every host name is served by the local fixture. E cases with \"control\": false have no fixture behind them (IP literals, other schemes, local network and metadata addresses): they get no control run, so nothing is sent there without the pack, and pass only on ERR_BLOCKED_BY_ADMINISTRATOR. expect: ALLOW must reach the fixture with the pack installed; ENFORCE must be refused by policy with zero fixture requests; RECORD is a prediction nobody has checked, so the result is reported and never fails the job.",
   "hub_host": "hub.swangz.test",
   "cases": [
     { "id": "A-1", "expect": "ALLOW", "urls": ["https://hub.swangz.test/", "https://claude.ai/", "https://chatgpt.com/", "https://gemini.google.com/", "https://github.com/copilot"] },
@@ -24,12 +24,27 @@
     { "id": "D-2", "expect": "ENFORCE", "unicode_host": "clаude.ai", "urls": [] },
     { "id": "D-3", "expect": "ENFORCE", "urls": ["https://claude.ai@evil.test/", "https://claude.ai:pw@evil.test/"] },
     { "id": "D-4", "expect": "RECORD", "urls": ["https://claude.ai./", "https://chatgpt.com./", "https://CLAUDE.AI/", "https://claude.ai//double"] },
-    { "id": "D-5", "expect": "RECORD", "urls": ["https://github.com/login-anything", "https://github.com/copilot-anything"] }
+    { "id": "D-5", "expect": "RECORD", "urls": ["https://github.com/login-anything", "https://github.com/copilot-anything"] },
+    { "id": "E-1", "expect": "ENFORCE", "urls": ["http://127.0.0.1/", "http://localhost/"] },
+    { "id": "E-1x", "expect": "ENFORCE", "control": false, "urls": ["http://[::1]/", "http://0.0.0.0/"] },
+    { "id": "E-2", "expect": "ENFORCE", "urls": ["http://2130706433/", "http://0x7f000001/", "http://0177.0.0.1/"] },
+    { "id": "E-2x", "expect": "ENFORCE", "control": false, "urls": ["http://[::ffff:127.0.0.1]/"] },
+    { "id": "E-3", "expect": "ENFORCE", "control": false, "urls": ["data:text/html,<h1>x</h1>"] },
+    { "id": "E-5", "expect": "ENFORCE", "control": false, "urls": ["file:///etc/hostname"] },
+    { "id": "E-6", "expect": "ENFORCE", "control": false, "urls": ["view-source:https://claude.ai/"] },
+    { "id": "E-7", "expect": "ENFORCE", "control": false, "urls": ["chrome://settings/", "chrome://extensions/", "chrome://version/", "chrome://flags/", "chrome://inspect/", "chrome://policy/"] },
+    { "id": "E-7r", "expect": "ENFORCE", "control": false, "urls": ["chrome://newtab/", "devtools://devtools/bundled/inspector.html"] },
+    { "id": "E-7x", "expect": "RECORD", "control": false, "urls": ["chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"] },
+    { "id": "E-8", "expect": "ENFORCE", "control": false, "urls": ["ftp://evil.test/", "ws://evil.test/"] },
+    { "id": "E-9", "expect": "ENFORCE", "control": false, "urls": ["http://169.254.169.254/", "http://[fd00:ec2::254]/", "http://10.0.0.1/", "http://172.16.0.1/", "http://192.168.1.1/"] },
+    { "id": "E-9n", "expect": "ENFORCE", "urls": ["http://metadata.google.internal/"] }
   ],
   "not_run": [
     { "id": "B-5", "reason": "omnibox typing is not driven yet" },
     { "id": "B-6", "reason": "launch-flag cases need their own browser start; step 2" },
-    { "id": "E, F, X, P", "reason": "step 2 of the plan" },
+    { "id": "E-3 javascript: and about:srcdoc, E-4", "reason": "need typing or a script-made blob on an approved page; not driven yet" },
+    { "id": "E-10", "reason": "GAP by design: a URL list cannot see an approved name that resolves to a private address (README)" },
+    { "id": "F, X, P", "reason": "step 2 of the plan" },
     { "id": "G, H", "reason": "step 3, after the pack fixes and Arnold's two decisions" },
     { "id": "I", "reason": "tier 2 (extension), not built" },
     { "id": "Windows, macOS, Playwright Chromium", "reason": "only the ubuntu Google Chrome cell exists" }

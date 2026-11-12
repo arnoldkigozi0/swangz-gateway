@@ -112,6 +112,7 @@ async function fixture(dir) {
 /* Each address gets its own mark in the query, so a request Chrome makes by itself to the same host is never
    counted as the case reaching the fixture. Path rules in the pack match on the path, which the mark leaves alone. */
 function marked(address, mark) {
+  if (!/^https?:/.test(address)) return address;   // data:, chrome:, file: and the like carry no mark
   return address + (address.includes('?') ? '&' : '?') + 'swz=' + mark;
 }
 function expand(c) {
@@ -149,6 +150,11 @@ async function visit(context, c, address, n) {
       const read = f => f.evaluate(() => document.documentElement.innerText).catch(() => '');
       for (const f of [page, ...opened].flatMap(p => p.frames())) if ((await read(f)).includes(BLOCKED)) { error = BLOCKED; break; }
     }
+  }
+  /* A refused internal page (chrome://, file:, view-source:) can commit Chrome's error page without goto throwing. */
+  if (!target && !error && !arrived().length) {
+    const text = await page.evaluate(() => document.documentElement.innerText).catch(() => '');
+    if (text.includes(BLOCKED)) error = BLOCKED;
   }
   context.off('page', onPage);
   const seen = arrived();
@@ -209,6 +215,13 @@ function report(mode, version, rows) {
   const rows = [];
   try {
     for (const c of spec.cases) {
+      /* E: some addresses have no fixture behind them (IP literals, other schemes, local network and metadata
+         addresses). They get no control run, so nothing is ever sent there without the pack, and the enforced pass
+         condition is the policy refusal itself, not a timeout. */
+      if (mode === 'control' && c.control === false) {
+        for (const address of expand(c)) rows.push({ id: c.id, expect: c.expect, address, reached: 0, error: '', verdict: 'not run without policy (no fixture behind it)' });
+        continue;
+      }
       let n = 0;
       for (const address of expand(c)) { const r = await visit(context, c, address, ++n); r.verdict = verdict(mode, r); rows.push(r); }
     }
