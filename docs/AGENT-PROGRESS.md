@@ -763,6 +763,16 @@ Exact next step at 16:00, in this order:
 - **#147** (Access requests) and **#148** (Last seen + panel cap): CI fully green at last look (python 3.10/3.12, browser, app-window). `gh pr ready` / `gh pr merge` are refused for me by the permission classifier, so @Chief marks ready and merges.
 - Next step: `gh pr checks 141`; if only `signin` is red, read its log and fix the product. Then merge main into #147/#148 if they conflict, then the next §10.10 page (Policies, Weekly reporting, Settings).
 
+## Forge: W3 client launcher, 12 Nov 2026 (branch feature/w3-launcher, draft PR into feature/managed-workspace)
+- Built: `swangz_client/workspace_launcher.py` (S2 address re-check against contract-2 manifest hosts, S3 fixed browser
+  paths, T1 folder re-check + marker match, I1 exact argv/env/Popen, D1 keep our own PID, bounded `open <tool>` log),
+  `swangz_client/winacl.py` (Windows SID + owner-only ACL via ctypes), `core.open_app` → launcher for contract-2
+  `workspace: true` apps with no fallback to the default browser, `refresh()` asks `browser_contract=2`.
+- Server half: contract-2 apps carry `hosts` and `workspace` (pushed to #179, feature/w3-device-open).
+- Tests: tests/test_workspace_launcher.py (29; Windows ACL test runs only on the windows-latest matrix).
+- Next step: Windows matrix result for `AclTests.test_native_acl`; then W4 (heartbeat `suspended` → `Launcher.close()`,
+  `retired`/higher generation → `Profiles.retire_owner`).
+
 ## Forge: managed workspace server side, 12 Nov 2026 (branches feature/w2-state-migration -> feature/w2-contract-2, base feature/managed-workspace)
 - W2/W4 server: v26 migration (7 `devices` columns, `gateway/workspace_schema.py`), `gateway/managed.py` (contract 2 block, heartbeat answer, admin suspend/reactivate/retire/reset, /go refusal), policy mode/baseline settings, console devices list fields. Doc: docs/CLIENT.md "Managed workspace contract 2".
 - Tests: `tests/test_managed_workspace.py` (36), migration tests in `tests/test_workspace_state.py`. Real results are in the PR body.

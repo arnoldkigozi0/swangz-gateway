@@ -516,11 +516,12 @@ class ProfileTests(unittest.TestCase):
         after = {p.relative_to(home): p.read_bytes() for p in home.rglob("*") if p.is_file()}
         self.assertEqual(before, after)
 
-    def test_no_production_imports(self):
+    def test_only_the_workspace_launcher_imports_it(self):
+        # W3 (docs/W3-THREAT-NOTE.md, T1): the launcher is the one production user; everything else stays out.
         root = Path(__file__).resolve().parents[1]
         for path in root.rglob("*.py"):
             rel = path.relative_to(root)
-            if any(part.startswith(".") for part in rel.parts) or rel.parts[0] == "tests" or path.name == "browser_profiles.py": continue
+            if any(part.startswith(".") for part in rel.parts) or rel.parts[0] == "tests" or path.name in ("browser_profiles.py", "workspace_launcher.py"): continue
             tree = ast.parse(path.read_text(encoding="utf-8"))
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import): self.assertFalse(any("browser_profiles" in n.name for n in node.names), str(rel))

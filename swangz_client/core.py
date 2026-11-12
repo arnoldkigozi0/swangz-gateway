@@ -674,7 +674,9 @@ class Client:
 
     def refresh(self):
         """Ask what this device is offered now (no changes made). -> the manifest, also kept for the window."""
-        manifest = self._guard(lambda: self.api().call("GET", "/device/manifest"))
+        # Contract 2 (docs/MANAGED-WORKSPACE.md): workspace state, and each app's hosts and workspace flag. An older Hub
+        # ignores the question and answers as it always did; its apps then keep opening through /go/.
+        manifest = self._guard(lambda: self.api().call("GET", "/device/manifest?browser_contract=2"))
         server = self.store.device()["server"]
         for pkg in manifest.get("packages", []):
             install = pkg.get("install") or {}
@@ -1045,12 +1047,42 @@ class Client:
         write_private(path, "\n".join(lines + [f"{int(time.time())} key {tool}"]) + "\n")
         return key
 
+    def workspace_app(self, app):
+        """True when this tool opens with a provider address from /api/device/open: contract 2 and the app is marked."""
+        browser = (self.store.manifest() or {}).get("browser") or {}
+        return isinstance(browser, dict) and browser.get("contract") == 2 and app.get("workspace") is True
+
     def open_app(self, tool_id):
-        """Open a website tool through Swangz (which checks access, records it and, for a shared account, puts the
-        person in a company browser of their own)."""
+        """Open a website tool in the Swangz workspace window (W3, section 9.1). A tool marked
+        `workspace` opens at the provider address the Hub gives this device (POST /api/device/open). Any other (shared
+        company accounts, tools the Hub hands out itself) opens nothing this release: the person is told to open it
+        from Swangz AI Hub. The workspace never opens the Hub's own address. Never the default browser: without a
+        contract-2 workspace on this device nothing opens and the person is told why."""
         for app in self.apps():
             if app["id"] == tool_id:
-                same_origin_url(app["open"], self.store.device()["server"])
-                self.open_url(app["open"])
-                return app["open"]
+                return self._open_in_workspace(app)
         raise KeyError(tool_id)
+
+    def _open_in_workspace(self, app):
+        from . import workspace_launcher as wl  # imports browser_profiles, which imports this module
+        manifest = self.store.manifest() or {}
+        browser = manifest.get("browser") or {}
+        if not isinstance(browser, dict) or browser.get("contract") != 2:
+            raise wl.LaunchError("no_workspace")
+        if (browser.get("workspace") or {}).get("state") != "active":
+            raise wl.LaunchError("not_active")
+        device = self.store.device() or {}
+        try:
+            owner = wl.owner(device.get("server"), browser.get("person_id"), browser.get("device_id"))
+        except wl.LaunchError:
+            raise wl.LaunchError("folder") from None
+        if getattr(self, "launcher", None) is None:
+            self.launcher = wl.Launcher(self.paths.data)
+        if not self.workspace_app(app):
+            # Shared company accounts and tools the Hub hands out itself are not opened by the app this release:
+            # the workspace never opens the Hub's own address, and there is no default-browser fallback.
+            raise wl.LaunchError("shared_account")
+        # The Hub decides (same checks and launch record as /go/); the address is checked again here.
+        out = self._guard(lambda: self.api().call("POST", "/device/open", {"tool": app["id"]}))
+        self.launcher.open(app["id"], out.get("url"), app.get("hosts"), owner)
+        return "workspace"

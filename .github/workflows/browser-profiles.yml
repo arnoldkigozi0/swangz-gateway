@@ -8,6 +8,7 @@ on:
       - 'tests/test_browser_profiles.py'
       - 'tests/test_w6_matrix.py'
       - 'tests/test_w7_existing_contexts.py'
+      - 'tests/test_workspace_launcher.py'
       - 'tests/__init__.py'
   pull_request:
     paths:
@@ -16,6 +17,7 @@ on:
       - 'tests/test_browser_profiles.py'
       - 'tests/test_w6_matrix.py'
       - 'tests/test_w7_existing_contexts.py'
+      - 'tests/test_workspace_launcher.py'
       - 'tests/__init__.py'
   workflow_dispatch:
 concurrency:
@@ -44,4 +46,4 @@ jobs:
       # Windows retirement is unsupported; mocked checks do not establish native support.
       # This inert suite never launches a browser or accesses a provider.
       - name: Test inert profile preparation and refusal limits
-        run: python -m unittest tests.test_browser_profiles tests.test_w6_matrix tests.test_w7_existing_contexts -v
+        run: python -m unittest tests.test_browser_profiles tests.test_workspace_launcher tests.test_w6_matrix tests.test_w7_existing_contexts -v

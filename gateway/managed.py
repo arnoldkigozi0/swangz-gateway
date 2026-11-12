@@ -39,10 +39,11 @@ def expected_sha(db):
 
 
 def effective_state(gw, person, device):
-    """What the device is told. A person the account rule no longer allows has no workspace, whatever the row says."""
+    """What the device is told. A person the account rule no longer allows, or an unreadable stored value, closes the
+    workspace (`suspended`) but never purges it: only an administrator's explicit `retire` deletes the folder."""
     if not gw.settings.email_allowed(person["email"]):
-        return "retired"
-    return device["workspace_state"] if device.get("workspace_state") in STATES else "retired"  # unreadable fails closed
+        return "suspended"
+    return device["workspace_state"] if device.get("workspace_state") in STATES else "suspended"  # unreadable fails closed
 
 
 def block(gw, person, device, base):
@@ -113,7 +114,13 @@ def launch_refusal(gw, person, query):
     return None
 
 
-@admin_route("POST", r"/devices/(?P<device_id>[A-Za-z0-9_-]{1,64})/workspace", area=("govern", "emergency"))
+def _workspace_area(ctx):
+    """Suspending is a stop, so emergency may do it; reactivate, retire (which purges the folder) and reset govern the
+    workspace. Anything unrecognised needs govern too, and is then refused as a bad action."""
+    return ("govern", "emergency") if ctx.body.get("action") == "suspend" else "govern"
+
+
+@admin_route("POST", r"/devices/(?P<device_id>[A-Za-z0-9_-]{1,64})/workspace", area=_workspace_area)
 def set_workspace(ctx, device_id):
     """suspend | reactivate | retire | reset. The app closes the workspace within one heartbeat of `suspended`,
     deletes the profile folder on `retired` or a higher generation, and keeps the sign-in on `reactivate` from
