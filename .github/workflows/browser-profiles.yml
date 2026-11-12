@@ -6,12 +6,16 @@ on:
       - '.github/workflows/browser-profiles.yml'
       - 'swangz_client/**'
       - 'tests/test_browser_profiles.py'
+      - 'tests/test_machine_policy.py'
+      - 'deploy/chrome-policy/**'
       - 'tests/__init__.py'
   pull_request:
     paths:
       - '.github/workflows/browser-profiles.yml'
       - 'swangz_client/**'
       - 'tests/test_browser_profiles.py'
+      - 'tests/test_machine_policy.py'
+      - 'deploy/chrome-policy/**'
       - 'tests/__init__.py'
   workflow_dispatch:
 concurrency:
@@ -41,3 +45,6 @@ jobs:
       # This inert suite never launches a browser or accesses a provider.
       - name: Test inert profile preparation and refusal limits
         run: python -m unittest tests.test_browser_profiles -v
+      # W5: the policy readers for all three systems, against stand-ins; the Windows job also reads the real registry.
+      - name: Test the read-only machine policy check
+        run: python -m unittest tests.test_machine_policy -v

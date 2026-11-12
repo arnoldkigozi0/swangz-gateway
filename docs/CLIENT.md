@@ -192,6 +192,15 @@ byte for byte; `apps[].open` links carry `?d=<device_id>` **only** under contrac
   The answer then also carries `workspace` and `policy` (the same two objects). Without an integer `browser_contract` of 2 the answer is
   unchanged. The whole answer stays well under 2 KB; **one heartbeat a minute at most is a client rule**, the server does not
   throttle it. A malformed `policy` report is ignored; a bad hash is dropped.
+- **Where the app's `policy` report comes from (W5, `swangz_client/machine_policy.py`).** Read-only: Linux every `*.json` in
+  `/etc/opt/chrome/policies/managed` (Chromium `/etc/chromium/policies/managed`), macOS `/Library/Managed Preferences/com.google.Chrome.plist`
+  and the per-user copy, Windows `HKLM\Software\Policies\Google\Chrome` (DWORD 0/1 read as true/false, list subkeys in number
+  order). `ok` is true only if every `REQUIRED` setting of the policy pack holds, `URLBlocklist` carries `*`, `file://*`, `chrome://*`
+  and `view-source:*`, `URLAllowlist` is not open (`*`, `*://*`, `http://*`, `https://*`), `ExtensionInstallBlocklist` is `["*"]`,
+  the allow and force lists are filled in, and no two policy sources disagree. Missing or unreadable policy is `ok: false`; the check
+  never raises. `sha256` is the **baseline hash**: canonical JSON (sorted, compact) of the policies the pack sets, the same on all
+  three systems; `deploy/chrome-policy/prepare.py` prints it as "Baseline SHA-256" and that is the value to pin. The report is only
+  sent while the managed workspace turns the check on (`Client.policy_check`); until then the heartbeat is exactly as before.
 - **What the app does** (for Prism, W3/W6/W7): `suspended` closes the workspace at the next heartbeat and keeps the profile folder
   (reactivating keeps the sign-in); `retired`, or a `generation` higher than the one on disk, means close it and delete the profile
   folder. The server says `retired` only after an administrator's explicit `retire`; a person the account rule no longer
