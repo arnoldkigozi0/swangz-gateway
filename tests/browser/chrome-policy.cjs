@@ -172,6 +172,12 @@ function verdict(mode, r) {
   if (r.expect === 'ALLOW') return r.reached > 0 && signedIn && !r.error ? 'allowed' : 'FAIL: an approved address was refused';
   const refused = r.reached === 0 && r.error === BLOCKED;
   if (r.expect === 'ENFORCE') return refused ? 'refused' : r.reached ? 'FAIL: reached the fixture' : 'FAIL: not refused by policy (' + (r.error || 'no error') + ')';
+  /* STOP: the control run reached the fixture and the enforced run sent nothing, but Chrome showed no refusal the
+     harness can read (script moves, pop-ups, frames, form posts; first seen on Chrome 156). Zero requests is the pass. */
+  if (r.expect === 'STOP') return r.reached === 0 ? 'stopped (no request)' + (r.error ? ', ' + r.error : '') : 'FAIL: reached the fixture';
+  /* GAP: the pack does not stop it and the README says so. Reaching is the documented result; anything else means the
+     README is out of date. */
+  if (r.expect === 'GAP') return r.reached > 0 ? 'gap, as the README says (reached)' : 'FAIL: no longer reaches the fixture; update the README';
   return refused ? 'recorded: refused' : r.reached ? 'recorded: reached' : 'recorded: ' + (r.error || 'no request, no error');
 }
 function report(mode, version, rows) {
