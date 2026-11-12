@@ -21,6 +21,9 @@
   .stb-bar a.on span { display: inline; }
   .stb-bar svg, .stb-round svg { width: 19px; height: 19px; flex: none; }
   .stb-bar a { -webkit-user-drag: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  /* Probe S5 (13 Nov): the items stay 42px tall inside the 52px bar; an invisible layer makes the pressed area 44px. */
+  .stb-bar a { position: relative; }
+  .stb-bar a::before { content: ""; position: absolute; top: 50%; left: 0; right: 0; height: 44px; transform: translateY(-50%); }
   .stb-bar a.on svg { fill: currentColor; }
   .stb-bar a.on[data-ic="search"] svg { fill: none; stroke-width: 2.6; } /* a filled magnifier is a blob */
   .stb-round { position: relative; display: grid; place-items: center; width: var(--h); height: var(--h); border-radius: 16px; }
