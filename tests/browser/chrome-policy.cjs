@@ -151,7 +151,9 @@ async function visit(context, c, address, n) {
   const arrived = () => hits.filter(h => h.url.includes('swz=' + mark) && (!target || h.host === target));
   if (target && !error && c.click) {
     const click = { middle: { button: 'middle' }, ctrl: { modifiers: ['Control'] } }[c.click] || {};
-    await page.click('#go', { timeout: 5000, ...click }).catch(e => { error = 'click: ' + String(e.message).split('\n')[0].slice(0, 80); });
+    /* 15 s and one retry: on a busy runner the first click of a fresh headed Chrome has missed 5 s twice (C-3). */
+    const press = () => page.click('#go', { timeout: 15000, noWaitAfter: true, ...click });
+    await press().catch(() => pause(1000).then(press)).catch(e => { error = 'click: ' + String(e.message).split('\n')[0].slice(0, 80); });
   }
   if (target && !error) {
     for (let i = 0; i < 16 && !arrived().length; i++) await page.waitForTimeout(250);
