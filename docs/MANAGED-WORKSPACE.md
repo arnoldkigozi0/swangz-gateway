@@ -169,8 +169,9 @@ a `--undecided-domains-ok` switch for CI and the laptop demo only.
 
 **9.3 "Working" means this demo passes on the team laptop, on Linux, recorded by Probe:**
 
-1. Enrol the device; press Open on ChatGPT, Claude and Gemini: each opens in the workspace window, on the
-   provider's official address, and the default browser's process list is unchanged.
+1. Enrol the device; press Open on Gemini, Perplexity and Canva (seed tools of kind `site`; ChatGPT and Claude
+   are seeded as `api`, so they appear only once an admin sets them to a website tool): each opens in the
+   workspace window, on the provider's official address, and the default browser's process list is unchanged.
 2. Sign in by hand to one provider; close; Open again: still signed in (the folder persisted), no second profile.
 3. Suspend the device in the console: within one heartbeat the workspace window closes and Open is refused with
    a plain message. Reactivate: Open works and the sign-in is still there.
