@@ -187,6 +187,17 @@ class DonutShareTests(unittest.TestCase):
             ratio = (lum("#FCF8F2") + .05) / (lum(colour) + .05)
             self.assertGreaterEqual(ratio, 3.0, "tone %s %s is %.2f:1" % (tone, colour, ratio))
 
+    def test_other_row_is_worded_by_the_page_and_the_legend_stays_beside_the_ring(self):
+        # Probe D1: "Other tools 1 uses". The page passes format, and the kit uses it for the Other row.
+        ui = (STATIC / "ui.js").read_text(encoding="utf-8")
+        self.assertIn(': o.format ? o.format(part.value) :', ui)
+        monitor = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
+        self.assertIn('other: "Other tools", format: (n) => SUI.plural(n, "use")', monitor)
+        # Probe D2: at 1440 the legend filled the panel and a count sat ~800px from its name.
+        css = (STATIC / "ui.css").read_text(encoding="utf-8")
+        rule = re.search(r'\.u-donut \{ --donut-orange[^}]*\}', css).group(0)
+        self.assertIn('grid-template-columns: 146px minmax(0, 280px); justify-content: start;', rule)
+
     def test_dark_orange_reaches_three_to_one_on_room_glass(self):
         css = (STATIC / "ui.css").read_text(encoding="utf-8")
         colour = re.search(r'\.u-donut \{ --donut-orange: (#[0-9A-F]{6});', css).group(1)
