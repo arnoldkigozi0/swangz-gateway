@@ -54,6 +54,14 @@ class HubServiceTests(unittest.TestCase):
         self.assertEqual(self.db.scalar('SELECT COUNT(*) FROM weekly_evidence'),2)
         self.assertEqual(self.db.scalar("SELECT launches FROM weekly_evidence WHERE tool_id='chatgpt'"),2)
 
+    def test_report_required_notice_names_the_tool_and_week(self):
+        self.launch();self.launch('canva')
+        reporting.compile_closed(self.gw)
+        day=datetime.fromisoformat(self.period['week_start'])
+        week=f"week of {day.day} {day.strftime('%b')}"
+        titles=sorted(r['title'] for r in self.db.q("SELECT title FROM hub_notifications WHERE dedupe_key LIKE 'report-required:%'"))
+        self.assertEqual(titles,[f'Complete your weekly report for Canva, {week}',f'Complete your weekly report for ChatGPT, {week}'])
+
     def test_blocked_only_activity_does_not_invent_obligation(self):
         self.launch(outcome='refused')
         self.assertEqual(reporting.compile_closed(self.gw),[])
