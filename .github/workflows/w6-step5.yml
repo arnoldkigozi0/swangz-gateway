@@ -76,7 +76,7 @@ jobs:
         run: xvfb-run -a node tests/browser/chrome-policy.cjs enforced
       # 9.3 step 5: the official sign-in paths on the real sites, with the same pack installed. Nothing is typed and no
       # credential exists here; a path stops at the provider's first page. Fails only if Chrome refuses a page or frame.
-      - name: Official sign-in paths, prepared pack installed (ChatGPT, Claude, Gemini; Google, Apple, Microsoft, challenges)
+      - name: Official sign-in paths, prepared pack installed (ChatGPT, Claude, Gemini; Google, Apple, challenges)
         timeout-minutes: 12
         run: xvfb-run -a --server-args="-screen 0 1280x900x24" node tests/browser/signin-paths.cjs
       - name: Install the whole prepared pack

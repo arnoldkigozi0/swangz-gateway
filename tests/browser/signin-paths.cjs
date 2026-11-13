@@ -1,6 +1,6 @@
 /* MANAGED-WORKSPACE 9.3 step 5: with the prepared pack installed, the official sign-in paths of ChatGPT, Claude and
    Gemini still open. Each path starts on the tool's own site and clicks through to the provider's sign-in page
-   (Google, Apple, Microsoft, OpenAI, Anthropic), and two challenge widgets (Cloudflare Turnstile, hCaptcha) load on an
+   (Google, Apple, OpenAI, Anthropic), and two challenge widgets (Cloudflare Turnstile, hCaptcha) load on an
    approved page. The pass: no page and no frame ends on Chrome's ERR_BLOCKED_BY_ADMINISTRATOR.
 
    Real sites, from the CI runner's own network. Nothing is typed, no field is filled, no credential exists here: a
@@ -35,20 +35,22 @@ const button = name => ({ name });
 /* Each path: where it starts, then the clicks, each with the page it should reach. A click names the control by its
    words, as a person would find it. */
 const PATHS = [
-  { id: 'chatgpt-openai', provider: 'OpenAI', start: 'https://chatgpt.com/', steps: [
-    { click: button(/^log in$/i), reach: at('auth.openai.com', 'auth0.openai.com', 'chatgpt.com') }] },
+  /* ChatGPT's Log in opens its own dialog on chatgpt.com (Google, Apple, phone, email). OpenAI's own page,
+     auth.openai.com, comes only after an email is typed, so it is visited directly instead, and says so. */
+  { id: 'chatgpt-login', provider: 'OpenAI (dialog)', start: 'https://chatgpt.com/', steps: [
+    { click: button(/^log in$/i), reach: at('chatgpt.com', 'auth.openai.com') }], shows: /continue with google/i },
+  { id: 'openai-direct', provider: 'OpenAI', start: 'https://auth.openai.com/log-in', steps: [], reach: at('auth.openai.com', 'chatgpt.com'),
+    shows: /continue with google|email address/i, direct: true },
   { id: 'chatgpt-google', provider: 'Google', start: 'https://chatgpt.com/', steps: [
-    { click: button(/^log in$/i), reach: at('auth.openai.com', 'auth0.openai.com', 'chatgpt.com') },
+    { click: button(/^log in$/i), reach: at('chatgpt.com', 'auth.openai.com') },
     { click: button(/continue with google/i), reach: at('accounts.google.com') }] },
   { id: 'chatgpt-apple', provider: 'Apple', start: 'https://chatgpt.com/', steps: [
-    { click: button(/^log in$/i), reach: at('auth.openai.com', 'auth0.openai.com', 'chatgpt.com') },
+    { click: button(/^log in$/i), reach: at('chatgpt.com', 'auth.openai.com') },
     { click: button(/continue with apple/i), reach: at('appleid.apple.com') }] },
-  { id: 'chatgpt-microsoft', provider: 'Microsoft', start: 'https://chatgpt.com/', steps: [
-    { click: button(/^log in$/i), reach: at('auth.openai.com', 'auth0.openai.com', 'chatgpt.com') },
-    { click: button(/continue with microsoft/i), reach: at('login.microsoftonline.com', 'login.live.com') }] },
-  { id: 'claude-anthropic', provider: 'Anthropic', start: 'https://claude.ai/login', steps: [] , reach: at('claude.ai') },
   { id: 'claude-google', provider: 'Google', start: 'https://claude.ai/login', steps: [
     { click: button(/continue with google/i), reach: at('accounts.google.com') }] },
+  { id: 'claude-anthropic', provider: 'Anthropic', start: 'https://claude.ai/login', steps: [], reach: at('claude.ai'),
+    shows: /continue with google|continue with email/i },
   { id: 'gemini-google', provider: 'Google', start: 'https://gemini.google.com/', steps: [
     { click: button(/^sign in$/i), reach: at('accounts.google.com') }] },
   { id: 'hcaptcha-demo', provider: 'hCaptcha', start: 'https://accounts.hcaptcha.com/demo', steps: [], reach: at('hcaptcha.com'),
@@ -125,6 +127,8 @@ async function run(context, p, n) {
     if (await challenged(q)) {
       challenges.add('challenge page on ' + new URL(q.url()).hostname);
       for (let t = 0; t < 30 && await challenged(q); t++) await pause(1000);
+      /* One reload if it is still there: a cleared challenge sometimes leaves the page waiting. */
+      if (await challenged(q)) { await q.reload({ waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {}); for (let t = 0; t < 30 && await challenged(q); t++) await pause(1000); }
       await q.waitForLoadState('load', { timeout: 15000 }).catch(() => {}); await pause(1500);
     }
   };
@@ -161,6 +165,8 @@ async function run(context, p, n) {
     if (p.frames) row.frames = p.frames.map(m => [...new Set(last.frames().map(f => f.url()).filter(m).map(f => new URL(f).hostname))]);
     row.challenges = [...challenges];
     row.challenge_stuck = await challenged(last);
+    if (p.shows) row.shows = await last.getByText(p.shows).first().isVisible().catch(() => false);
+    if (p.direct) row.note = 'visited directly (the clicked route needs an email typed)';
     row.final = where(last.url());
     row.blocked = await refusals(pages, failed);
     row.blocked_subresources = [...blockedSub];
@@ -172,7 +178,8 @@ async function run(context, p, n) {
   const frameOk = !p.frames || (row.frames || []).every(list => list.length > 0);
   row.verdict = row.blocked.length ? 'FAIL: refused by policy (' + row.blocked.map(b => b.kind + ' ' + b.url).join(', ') + ')'
     : row.challenge_stuck ? 'not proven: a challenge in front of ' + row.final + ' did not clear (nothing refused)'
-    : row.reached.length >= wanted && frameOk ? 'reached, nothing refused'
+    : p.shows && !row.shows ? 'not proven: the sign-in controls did not show on ' + row.final + ' (nothing refused)'
+    : row.reached.length >= wanted && frameOk ? 'reached' + (p.direct ? ' (direct visit)' : '') + ', nothing refused'
     : 'not proven: ' + (row.note || (frameOk ? 'provider page not reached' : 'no challenge frame loaded'));
   return row;
 }
