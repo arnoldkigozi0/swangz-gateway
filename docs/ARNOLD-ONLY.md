@@ -9,7 +9,7 @@ Detail for each server step is in `docs/SERVER-DAY.md`. Times are a suggestion; 
 | 08:00 | Read the handover (`docs/HANDOVER-14NOV.md`) and decide the items in "Decisions waiting" below. Most of the rest depends on them | this file |
 | 08:30 | Decide the managed workspace: the five owner decisions and the final PR #204 (written approval needed before anyone merges it) | `docs/MANAGED-WORKSPACE.md` section 8, PR #204 |
 | 09:00 | Confirm or overrule D-022: shared company accounts stay in the staff web app and the extension, not the Swangz workspace window | `docs/DECISIONS.md` D-022, PR #201 |
-| 09:15 | Decide ChatGPT and Claude in the workspace demo: add website entries, or change the step text (they are `kind: "api"` in the catalog) | `docs/MANAGED-WORKSPACE.md` 9.3 step 1 |
+| 09:15 | Managed workspace step 2 by hand: in the Swangz workspace window sign in to ONE provider yourself, close the window, reopen it and check you are still signed in. The team may not hold credentials, so only you can prove this | `docs/MANAGED-WORKSPACE.md` 9.3 step 2 |
 | 09:30 | Get the server details together: login, domain, Google client, provider keys | SERVER-DAY section 0 |
 | 10:00 | Rent the server | SERVER-DAY section 1 |
 | 10:15 | Point the name at it, then wait for DNS | SERVER-DAY section 2 |
