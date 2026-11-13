@@ -212,6 +212,8 @@ async function typed(context, c, address, n) {
   const word = !/[:/.]/.test(text);
   const arrived = () => hits.filter(h => word ? h.url.startsWith('/search?') && h.url.includes('q=' + text + '&') : h.url.includes('swz=' + mark));
   const page = await context.newPage();
+  const failed = [];
+  page.on('requestfailed', r => { if (r.isNavigationRequest()) failed.push(((r.failure() || {}).errorText || '').replace('net::', '')); });
   let error = '';
   try {
     await page.goto('https://claude.ai/?swz=s' + mark, { waitUntil: 'domcontentloaded', timeout: 20000 });
@@ -226,7 +228,8 @@ async function typed(context, c, address, n) {
     for (let i = 0; i < 20 && !arrived().length; i++) await pause(250);
     if (!arrived().length) {
       const body = await page.evaluate(() => document.documentElement.innerText).catch(() => '');
-      if (body.includes(BLOCKED)) error = BLOCKED;
+      if (body.includes(BLOCKED) || failed.includes(BLOCKED)) error = BLOCKED;
+      else if (failed.find(Boolean)) error = failed.find(Boolean);
     }
   }
   const seen = arrived();
