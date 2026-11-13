@@ -408,6 +408,61 @@ class OpenAppTests(Base):
         self.assertEqual(self.calls, [])
 
 
+class OpenHonestyTests(OpenAppTests):
+    """Probe on #204/#202: the refusal names the real state, and the Hub's record says whether the window started."""
+
+    def test_retired_says_removed_and_suspended_says_paused(self):
+        for state, code, words in (("retired", "retired", "removed"), ("suspended", "not_active", "paused"),
+                                   ("unknown", "not_active", "paused")):
+            c, opened, api = self.client(state=state)
+            with self.assertRaises(wl.LaunchError) as ctx:
+                c.open_app("chatgpt")
+            self.assertEqual(ctx.exception.code, code, state)
+            self.assertIn(words, str(ctx.exception), state)
+            api.call.assert_not_called()
+            opened.assert_not_called()
+
+    def test_a_folder_or_browser_refusal_never_reaches_the_hub(self):
+        def no_browser():
+            raise wl.LaunchError("no_browser")
+        c, _, api = self.client()
+        with mock.patch.object(wl, "verify_folder", side_effect=wl.LaunchError("folder")):
+            with self.assertRaises(wl.LaunchError):
+                c.open_app("chatgpt")
+        api.call.assert_not_called()
+        c, _, api = self.client()
+        self.launcher.finder = no_browser
+        with self.assertRaises(wl.LaunchError):
+            c.open_app("chatgpt")
+        api.call.assert_not_called()
+        self.assertEqual(self.calls, [])
+
+    def test_a_failure_after_the_hub_said_yes_is_reported_as_failed(self):
+        c, _, api = self.client()
+        api.call.side_effect = lambda method, path, body=None, auth=True: \
+            {"ok": True, "url": "https://evil.example/", "launch": 5} if path == "/device/open" else {"ok": True, "recorded": True}
+        with self.assertRaises(wl.LaunchError):
+            c.open_app("chatgpt")
+        self.assertEqual(api.call.call_args_list, [mock.call("POST", "/device/open", {"tool": "chatgpt"}),
+                                                   mock.call("POST", "/device/open/failed", {"launch": 5, "reason": "unsafe_address"})])
+        self.assertEqual(self.calls, [])
+
+    def test_the_report_is_best_effort_and_a_success_reports_nothing(self):
+        c, _, api = self.client()
+        def call(method, path, body=None, auth=True):
+            if path == "/device/open/failed":
+                raise core.ApiFailure(500, "server", "Down.")
+            return {"ok": True, "url": "https://evil.example/", "launch": 5}
+        api.call.side_effect = call
+        with self.assertRaises(wl.LaunchError) as ctx:
+            c.open_app("chatgpt")
+        self.assertEqual(ctx.exception.code, "unsafe_address")
+        c, _, api = self.client()
+        api.call.side_effect = lambda method, path, body=None, auth=True: {"ok": True, "url": URL, "launch": 6}
+        self.assertEqual(c.open_app("chatgpt"), "workspace")
+        api.call.assert_called_once_with("POST", "/device/open", {"tool": "chatgpt"})
+
+
 class BrowserListTests(unittest.TestCase):
     """Section 9.1 as amended: Google Chrome, and on Linux the .deb Chromium; never Edge, Brave or snap."""
 

@@ -30,7 +30,8 @@ class DeviceOpenTests(Base):
         status, out, h = self.open()
         self.assertEqual(status, 200, out)
         self.assertEqual(out, {"ok": True, "tool": {"id": "canva", "name": "Canva"}, "url": "https://www.canva.com/",
-                               "allowed_hosts": ["canva.com"], "workspace": {"state": "active", "generation": 1}})
+                               "allowed_hosts": ["canva.com"], "launch": out.get("launch"), "workspace": {"state": "active", "generation": 1}})
+        self.assertIsInstance(out["launch"], int)
         self.assertEqual(h.get("cache-control"), "no-store")
         self.assertNotIn(self.key, str(out))
         self.assertEqual(self.launches(), [{"tool_id": "canva", "outcome": "opened", "rule": None, "reason": ""}])
@@ -115,6 +116,53 @@ class DeviceOpenTests(Base):
             self.assertEqual((status, out.get("code")), (404, "unknown_tool"), tool)
         self.db.x("UPDATE tools SET archived = 1 WHERE id = 'canva'")
         self.assertEqual(self.open()[0], 404)
+
+
+class DeviceOpenFailedTests(DeviceOpenTests):
+    """The app reports a window that didn't start, so the record says `failed`, not `opened` (Probe on #204/#202)."""
+
+    def failed(self, launch, reason="folder", key=None):
+        return self.api("POST", OPEN + "/failed", {"launch": launch, "reason": reason}, key=key or self.key)
+
+    def test_the_open_becomes_failed_with_a_code_and_never_counts_as_opened(self):
+        self.enable_canva()
+        launch = self.open()[1]["launch"]
+        status, out, _ = self.failed(launch, "unsafe_address")
+        self.assertEqual((status, out), (200, {"ok": True, "recorded": True}))
+        self.assertEqual(self.launches(), [{"tool_id": "canva", "outcome": "failed", "rule": "app:unsafe_address",
+                                            "reason": "The Swangz workspace window didn't start on the device."}])
+        self.assertEqual(self.failed(launch)[1]["recorded"], False)  # once only
+        self.assertEqual(self.db.scalar("SELECT COUNT(*) FROM launches WHERE outcome = 'opened'"), 0)
+
+    def test_an_unknown_code_is_stored_as_launch_failed_and_never_echoed(self):
+        self.enable_canva()
+        launch = self.open()[1]["launch"]
+        self.assertEqual(self.failed(launch, "https://secret.example/?token=x")[0], 200)
+        self.assertEqual(self.launches()[0]["rule"], "app:launch_failed")
+        self.assertNotIn("secret", str(self.launches()))
+
+    def test_only_this_persons_recent_open_changes(self):
+        self.enable_canva()
+        launch = self.open()[1]["launch"]
+        other = self.db.x("INSERT INTO people(name, email, created) VALUES('Other', 'other@swangzavenue.com', ?)", (time.time(),)).lastrowid
+        self.db.x("UPDATE launches SET person_id = ? WHERE id = ?", (other, launch))
+        self.assertEqual(self.failed(launch)[1]["recorded"], False)
+        self.db.x("UPDATE launches SET person_id = ?, ts = ? WHERE id = ?", (self.rig.person_id, time.time() - 301, launch))
+        self.assertEqual(self.failed(launch)[1]["recorded"], False)
+        self.workspace("suspend")
+        refused = self.db.x("INSERT INTO launches(tool_id, person_id, ts, outcome) VALUES('canva', ?, ?, 'refused')",
+                            (self.rig.person_id, time.time())).lastrowid
+        self.assertEqual(self.failed(refused)[1]["recorded"], False)
+        self.assertEqual([r["outcome"] for r in self.launches()], ["opened", "refused"])
+
+    def test_the_device_key_is_required_and_the_body_is_checked(self):
+        self.enable_canva()
+        launch = self.open()[1]["launch"]
+        self.assertEqual(self.api("POST", OPEN + "/failed", {"launch": launch, "reason": "folder"})[0], 401)
+        self.assertEqual(self.failed(launch, key="sgw-not-a-real-key")[0], 401)
+        for bad in ("1", 0, -1, None, 1.0, True):
+            self.assertEqual(self.failed(bad)[0], 400, bad)
+        self.assertEqual(self.launches()[0]["outcome"], "opened")
 
 
 class SafeAddressTests(unittest.TestCase):

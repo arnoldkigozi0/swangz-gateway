@@ -233,8 +233,9 @@ class Launcher:
             raise LaunchError("unsafe_address")
         return self._start(tool_id, check_url(url, hosts), owner, generation)
 
-    def _start(self, tool_id, url, owner, generation=1):
-        """Prepare and verify the folder, start (or hand the address to) the browser."""
+    def ready(self, owner, generation=1):
+        """Everything the device can check before asking the Hub: a usable browser, and the folder prepared and verified.
+        -> (browser, folder), or LaunchError. Run before /device/open so a refusal here is never recorded as an open."""
         binary = self.finder()
         try:
             folder = bp.Profiles(self.data).prepare(owner, generation)
@@ -249,6 +250,11 @@ class Launcher:
             except Exception:
                 raise LaunchError("folder") from None
         verify_folder(folder, owner, self.acl)
+        return binary, folder
+
+    def _start(self, tool_id, url, owner, generation=1):
+        """Prepare and verify the folder, start (or hand the address to) the browser."""
+        binary, folder = self.ready(owner, generation)
         argv = build_argv(binary, folder, url)
         try:
             proc = self.popen(argv, shell=False, close_fds=True, env=child_env(), stdin=subprocess.DEVNULL,

@@ -119,7 +119,7 @@ def device_open(ctx):
             problem = check_url(url, hosts, _hub_host(ctx))
             if problem:
                 ok, code, reason = False, problem, UNSAFE
-    ctx.db.x("INSERT INTO launches(tool_id, person_id, ts, outcome, ip, user_agent, reason, rule) VALUES(?,?,?,?,?,?,?,?)",
+    cur = ctx.db.x("INSERT INTO launches(tool_id, person_id, ts, outcome, ip, user_agent, reason, rule) VALUES(?,?,?,?,?,?,?,?)",
              (tool["id"], person["id"], time.time(), "opened" if ok else "refused", ctx.ip,
               (ctx.h.headers.get("user-agent") or "")[:200], "" if ok else (reason or "")[:300], None if ok else (rule or code)))
     if not ok:
@@ -127,4 +127,28 @@ def device_open(ctx):
         details = {"report": report_denial["href"]} if report_denial else None
         raise ApiError(status, reason or "This tool isn't open to you right now.", code, details)
     return 200, {"ok": True, "tool": {"id": tool["id"], "name": tool["name"]}, "url": url, "allowed_hosts": hosts,
+                 "launch": cur.lastrowid,
                  "workspace": managed.heartbeat_answer(ctx.gw, person, device)["workspace"]}, {"Cache-Control": "no-store"}
+
+
+# Why the app could not start the window after the Hub said yes. Short codes only: never an address, a path or a message.
+FAILED_CODES = {"no_browser", "unsafe_address", "no_hosts", "folder", "launch_failed", "purge_pending", "purge_unsupported",
+                "generation_rollback", "not_active", "retired"}
+FAILED_WINDOW = 300
+
+
+@route("POST", r"/device/open/failed", signed_in=False)
+def device_open_failed(ctx):
+    """Body `{"launch": <id from /device/open>, "reason": "<code>"}`, device key. The window did not start, so that open
+    is recorded as `failed` instead of `opened`. Only this person's own open from the last five minutes that is still
+    `opened` changes; anything else changes nothing. 200 `{"ok": true, "recorded": bool}`."""
+    person, _device, _ = enroll.device_key_auth(ctx)
+    launch, reason = ctx.body.get("launch"), ctx.body.get("reason")
+    if type(launch) is not int or launch < 1:
+        raise ApiError(400, "That isn't a launch this app can report on.", "bad_request")
+    reason = reason if reason in FAILED_CODES else "launch_failed"
+    cur = ctx.db.x("UPDATE launches SET outcome = 'failed', reason = ?, rule = ? WHERE id = ? AND person_id = ?"
+                   " AND outcome = 'opened' AND ts >= ?",
+                   ("The Swangz workspace window didn't start on the device.", "app:" + reason, launch, person["id"],
+                    time.time() - FAILED_WINDOW))
+    return 200, {"ok": True, "recorded": cur.rowcount == 1}, {"Cache-Control": "no-store"}

@@ -152,7 +152,7 @@ def usage_rows(db, since, until, person=None, tool_id=None):
             x["apps"].add(r["client"])
     for r in db.q(
             "SELECT l.person_id, p.name, p.department, l.tool_id, SUM(l.outcome = 'opened') AS opened,"
-            " SUM(l.outcome != 'opened') AS refused, MAX(l.ts) AS last FROM launches l JOIN people p ON p.id = l.person_id"
+            " SUM(l.outcome = 'refused') AS refused, MAX(l.ts) AS last FROM launches l JOIN people p ON p.id = l.person_id"
             " WHERE l.ts >= ? AND l.ts < ?" + who.format(col="l.person_id") + " GROUP BY l.person_id, l.tool_id",
             [since, until] + extra):
         x = row(r, tools.by_id.get(r["tool_id"]), "A removed tool")
@@ -807,7 +807,7 @@ def _personal(db, now, since, offset_minutes):
     since_day = now - DAY
     refused = {}
     for table, ts, cond in (("requests", "ts", "outcome = 'blocked' AND (reason IS NULL OR reason != 'secret in prompt')"),
-                            ("launches", "ts", "outcome != 'opened'"), ("site_usage", "started", "outcome = 'blocked'")):
+                            ("launches", "ts", "outcome = 'refused'"), ("site_usage", "started", "outcome = 'blocked'")):
         for r in db.q(f"SELECT person_id, COUNT(*) AS n FROM {table} WHERE {ts} >= ? AND person_id IS NOT NULL AND {cond}"
                       " GROUP BY person_id", (since_day,)):
             refused.setdefault(r["person_id"], {})[table] = r["n"]
