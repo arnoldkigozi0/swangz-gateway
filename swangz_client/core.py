@@ -803,7 +803,7 @@ class Client:
                     pass
         self.workspace.close()  # every caller (_revoked, logout, Revoked during rotation) ends with no window open
         self.store.wipe()
-        self.workspace.forget()  # the latch belongs to this enrolment; the folders stay (R-10)
+        self.workspace.forget()  # the latch belongs to this enrolment; the folders stay (R-12)
 
     def _heartbeat_body(self):
         state = self.store.state()

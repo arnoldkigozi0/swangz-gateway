@@ -715,6 +715,6 @@ D-020.
 **Consequences.** No migration, no new route. If (b) is reopened after Arnold's yes on §2.2/§2.6: a fixed Neko host
 in machine policy (never a wildcard tunnel), a single-use launch code (≥128 bits, ≤60 s, bound to turn + device)
 instead of `usr`/`pwd` in the URL, a nullable `device_id` on `tool_turns` in a new migration, and closing on the
-existing heartbeat with the agent's release as the real boundary. Existing risk R-10: `/go/` already sends `usr`/`pwd`
+existing heartbeat with the agent's release as the real boundary. Existing risk R-13: `/go/` already sends `usr`/`pwd`
 in a 302 `Location` into the person's browser history; the single-use code is its fix, after 20 Nov. Tests T1–T6 in
 the threat note.

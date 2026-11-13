@@ -44,7 +44,7 @@ MESSAGES = {
     "shared_account": "This is a shared company account. Open it from Swangz AI Hub, where turns are handed out.",
     "no_workspace": "This device doesn't have a Swangz workspace window yet, so nothing was opened. Update Swangz, or ask your admin.",
     # W4: what the Hub said, or couldn't say. After the app restarts it can't close a window it started earlier
-    # (R-9), so these ask the person to close any open workspace window themselves.
+    # (R-11), so these ask the person to close any open workspace window themselves.
     "retired": "Your admin removed the Swangz workspace from this device, so nothing was opened. Close any open workspace window.",
     "purge_pending": "Swangz is still deleting this device's old workspace folder, so nothing was opened. Try again in a minute, or ask your admin.",
     "purge_unsupported": "Swangz can't delete the old workspace folder on Windows yet, so nothing was opened. Ask your admin.",
