@@ -990,8 +990,8 @@ def attention(ctx):
     if lic["summary"]["idle_seats"]:
         n_idle = lic["summary"]["idle_seats"]
         add("idle", "low", "Licences", f"{n_idle} paid licence{'s' if n_idle != 1 else ''} nobody opened in 30 days",
-            (f"About ${lic['summary']['idle_cost']:,.2f} a month is paying for seats nobody opens." if lic["summary"]["idle_cost"]
-             else "Given to people who haven't used them in 30 days.") + " Reclaim them on the Licences page.",
+            (f"About ${lic['summary']['idle_cost']:,.2f} a month goes on licences these people haven't opened." if lic["summary"]["idle_cost"]
+             else "Given to people who haven't opened them in 30 days.") + " On the Licences page, take them back from anyone who doesn't need them.",
             "#/licences", n_idle, background=True)
     for t in lic["renewals"]:
         # a cancelled (or never set up) plan does not renew, so it is nothing to check; the Licences page skips it too

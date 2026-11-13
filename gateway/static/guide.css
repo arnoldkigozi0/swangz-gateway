@@ -84,3 +84,6 @@
 .sec-calm .ov-calm { padding: 0; color: var(--tx-1); }
 .sec-calm .hint { margin: 0; }
 .sec-calm-next { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+/* Visible 44px targets (Probe, 13 Nov): the calm card's step at every width; a page's next step and title-line actions on phones. */
+.sec-calm-next .btn { min-height: 44px; }
+@media (max-width: 640px) { .top > :is(.next-step, .top-actions) .btn { min-height: 44px; } }

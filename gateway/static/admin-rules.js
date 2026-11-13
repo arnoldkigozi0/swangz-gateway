@@ -144,7 +144,7 @@
   async function pagePolicies(params) {
     const [data, people, settings] = await Promise.all([api("GET", "/policies"), A.people(), api("GET", "/settings"), A.toolIndex().catch(() => null)]);
     const ctx = { data, people, providers: settings.providers || [] };
-    A.frame({ title: "Policies", lede: "Company rules, applied automatically and the same way every time. A policy only takes access away — refusing, limiting hours, or capping a month's spend — and every refusal names the rule. Try a change on the Simulate tab before you make it.",
+    A.frame({ title: "Policies", lede: "Company rules, applied automatically and the same way every time. A rule can only take access away — refusing, limiting hours, or capping a month's spend — and every refusal names the rule. Try a change on the Simulate tab before you make it.",
       actions: A.can("govern") ? el("button", { class: "btn primary", onclick: () => policySheet(null, ctx) }, icon("plus"), "Add a policy") : null },
     A.pageTabs("#/policies", params, [
       ["list", "Policies", () => policyList(ctx), data.items.length || null],
@@ -158,8 +158,8 @@
     const items = ctx.data.items;
     const edit = A.can("govern");
     if (!items.length) {
-      return A.panel(null, null, SUI.stateBox({ icon: "rule", title: "No policies yet",
-        text: "With no policies, access works exactly as assigned: the tools each person is given, budgets and the rules on models. Add one to refuse something, limit it to working hours, or cap a team's monthly spend.",
+      return A.panel(null, null, SUI.stateBox({ icon: "rule", title: "No rules yet",
+        text: "With no rules, access works exactly as assigned: the tools each person is given, budgets and the rules on models. Add a rule to refuse something, limit it to working hours, or cap a team's monthly spend.",
         action: edit ? el("button", { class: "btn primary", onclick: () => policySheet(null, ctx) }, icon("plus"), "Add a policy") : null }));
     }
     return A.panel(null, null, SUI.table({ caption: "Policies", rows: items, sort: ["name", "asc"], columns: [
