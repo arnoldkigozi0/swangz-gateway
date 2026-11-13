@@ -229,7 +229,7 @@ async function typed(context, c, address, n) {
     if (!arrived().length) {
       /* An address-bar navigation is browser-initiated, so Playwright reports no failed request for it, and the
          blocked page's visible text never names the error. Its source does (Chrome embeds the code in the page's
-         data); the wording is the fallback. Both were seen on the run's screenshots of the pack's blocked page. */
+         data); the wording, seen on the run's screenshots of the pack's blocked page, is the fallback. */
       const html = await page.content().catch(() => '');
       const body = await page.evaluate(() => document.documentElement.innerText).catch(() => '');
       if (html.includes(BLOCKED) || body.includes(BLOCKED) || failed.includes(BLOCKED) ||
