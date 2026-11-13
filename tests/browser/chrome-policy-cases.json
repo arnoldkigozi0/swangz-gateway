@@ -1,5 +1,5 @@
 {
-  "about": "D-016 bypass cases as data (docs/CHROME-POLICY-BYPASS-TESTS.md). Groups A, B, D, E and all of C (E pinned from its first run on Chrome 156, Linux: every address refused by policy; E-7x, an extension id that is not installed, answers ERR_BLOCKED_BY_CLIENT and stays RECORD until tier 2 installs a real one): redirects (C-1, C-7), script and meta moves (C-2), pop-ups and new tabs (C-3; the driver clicks #go so the pop-up blocker sees a gesture, and C-3h is a pop-up that opens an approved page which then redirects off-list), frames (C-4), form posts (C-5) and subresources (C-6: script, img, fetch, XHR, WebSocket). A hop case starts on an approved host and counts only requests that arrive at the place it is sent to. Pinned from the first run (Chrome 156, Linux): C-2 to C-5 send nothing with the pack but show no refusal page the harness can read, so they are STOP (zero requests is the pass, and the control run proves each can reach); C-6 subresources reach evil.test, a GAP the README states. Every host name is served by the local fixture. E cases with \"control\": false have no fixture behind them (IP literals, other schemes, local network and metadata addresses): they get no control run, so nothing is sent there without the pack, and pass only on ERR_BLOCKED_BY_ADMINISTRATOR. expect: ALLOW must reach the fixture with the pack installed; ENFORCE must be refused by policy with zero fixture requests; RECORD is a prediction nobody has checked, so the result is reported and never fails the job.",
+  "about": "D-016 bypass cases as data (docs/CHROME-POLICY-BYPASS-TESTS.md). Groups A, B, D, E, F and all of C (E pinned from its first run on Chrome 156, Linux: every address refused by policy; E-7x, an extension id that is not installed, answers ERR_BLOCKED_BY_CLIENT and stays RECORD until tier 2 installs a real one): redirects (C-1, C-7), script and meta moves (C-2), pop-ups and new tabs (C-3; the driver clicks #go so the pop-up blocker sees a gesture, and C-3h is a pop-up that opens an approved page which then redirects off-list), frames (C-4), form posts (C-5) and subresources (C-6: script, img, fetch, XHR, WebSocket). A hop case starts on an approved host and counts only requests that arrive at the place it is sent to. Pinned from the first run (Chrome 156, Linux): C-2 to C-5 send nothing with the pack but show no refusal page the harness can read, so they are STOP (zero requests is the pass, and the control run proves each can reach); C-6 subresources reach evil.test, a GAP the README states. Every host name is served by the local fixture. E cases with \"control\": false have no fixture behind them (IP literals, other schemes, local network and metadata addresses): they get no control run, so nothing is sent there without the pack, and pass only on ERR_BLOCKED_BY_ADMINISTRATOR. expect: ALLOW must reach the fixture with the pack installed; ENFORCE must be refused by policy with zero fixture requests; RECORD is a prediction nobody has checked, so the result is reported and never fails the job. F and B-6 are a local user starting Chrome with switches: each address gets its own browser and a new user data directory, so F-2u is a profile nobody set up and F-2p is a second profile in it; B-6 puts the address on the command line and counts what Chrome opens by itself (B-6 starts google-chrome without a driver, so it can only be STOP: Playwright refuses an address among the switches, and with the pack installed it timed out waiting for the --app window's first page on Chrome 156); F-4p points Chrome at a proxy (the fixture tunnels it back to itself).",
   "hub_host": "hub.swangz.test",
   "cases": [
     { "id": "A-1", "expect": "ALLOW", "urls": ["https://hub.swangz.test/", "https://claude.ai/", "https://chatgpt.com/", "https://gemini.google.com/", "https://github.com/copilot"] },
@@ -37,15 +37,24 @@
     { "id": "E-7x", "expect": "RECORD", "control": false, "urls": ["chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"] },
     { "id": "E-8", "expect": "ENFORCE", "control": false, "urls": ["ftp://evil.test/", "ws://evil.test/"] },
     { "id": "E-9", "expect": "ENFORCE", "control": false, "urls": ["http://169.254.169.254/", "http://[fd00:ec2::254]/", "http://10.0.0.1/", "http://172.16.0.1/", "http://192.168.1.1/"] },
-    { "id": "E-9n", "expect": "ENFORCE", "urls": ["http://metadata.google.internal/"] }
+    { "id": "E-9n", "expect": "ENFORCE", "urls": ["http://metadata.google.internal/"] },
+    { "id": "B-6a", "expect": "STOP", "spawn": true, "launch": ["--app={url}"], "urls": ["https://evil.test/"] },
+    { "id": "B-6n", "expect": "STOP", "spawn": true, "launch": ["--new-window", "{url}"], "urls": ["https://evil.test/"] },
+    { "id": "F-2p", "expect": "ENFORCE", "launch": ["--profile-directory=Profile 2"], "urls": ["https://evil.test/"] },
+    { "id": "F-2u", "expect": "ENFORCE", "launch": [], "urls": ["https://evil.test/"] },
+    { "id": "F-2a", "expect": "ALLOW", "launch": ["--profile-directory=Profile 2"], "urls": ["https://claude.ai/"] },
+    { "id": "F-4k", "expect": "ENFORCE", "launch": ["--kiosk"], "urls": ["https://evil.test/"] },
+    { "id": "F-4w", "expect": "ENFORCE", "launch": ["--disable-web-security"], "urls": ["https://evil.test/"] },
+    { "id": "F-4p", "expect": "ENFORCE", "launch": ["--proxy-server=http://127.0.0.1:80"], "urls": ["https://evil.test/"] }
   ],
   "not_run": [
     { "id": "B-5", "reason": "omnibox typing is not driven yet" },
-    { "id": "B-6", "reason": "launch-flag cases need their own browser start; step 2" },
     { "id": "E-3 javascript: and about:srcdoc, E-4", "reason": "need typing or a script-made blob on an approved page; not driven yet" },
     { "id": "E-10", "reason": "GAP by design: a URL list cannot see an approved name that resolves to a private address (README)" },
-    { "id": "F, X, P", "reason": "step 2 of the plan" },
     { "id": "G, H", "reason": "step 3, after the pack fixes and Arnold's two decisions" },
+    { "id": "F-1", "reason": "not observable: with --incognito or --guest and no policy, CDP Target.getTargets from the driven browser saw one browser context with pages (Chrome 156, Linux), so a count cannot tell the windows apart" },
+    { "id": "F-3", "reason": "Playwright already starts every case with --disable-extensions and tier 1 installs no extension, so the gap means something only once tier 2 (I) installs it" },
+    { "id": "X, P", "reason": "next PR" },
     { "id": "I", "reason": "tier 2 (extension), not built" },
     { "id": "Windows, macOS, Playwright Chromium", "reason": "only the ubuntu Google Chrome cell exists" }
   ]
