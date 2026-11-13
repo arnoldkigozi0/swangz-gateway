@@ -10,7 +10,7 @@
     { "id": "A-6", "expect": "ALLOW", "kind": "hop", "urls": ["https://claude.ai/hop?how=iframe&to=https%3A%2F%2Fnewassets.hcaptcha.com%2F", "https://chatgpt.com/hop?how=iframe&to=https%3A%2F%2Fchallenges.cloudflare.com%2F"] },
     { "id": "B-1", "expect": "ENFORCE", "urls": ["https://evil.test/", "http://evil.test/"] },
     { "id": "B-2", "expect": "ENFORCE", "urls": ["https://mail.google.com/", "https://drive.google.com/", "https://myaccount.google.com/", "https://google.com/", "https://www.google.com/search?q=x", "https://youtube.com/", "https://gmail.com/"] },
-    { "id": "B-3", "expect": "ENFORCE", "urls": ["https://evil.accounts.google.com/"] },
+    { "id": "B-3", "expect": "ENFORCE", "urls": ["https://evil.accounts.google.com/", "https://evilhcaptcha.com/", "https://hcaptcha.com.evil.test/"] },
     { "id": "B-4", "expect": "ENFORCE", "urls": ["https://github.com/", "https://github.com/someuser/repo"] },
     { "id": "C-1", "expect": "ENFORCE", "kind": "hop", "urls": ["https://claude.ai/hop?how=302&to=https%3A%2F%2Fevil.test%2F", "https://claude.ai/hop?how=307&to=https%3A%2F%2Fevil.test%2F", "https://claude.ai/hop?how=308&to=https%3A%2F%2Fevil.test%2F", "https://claude.ai/hop?how=302&n=3&to=https%3A%2F%2Fevil.test%2F"] },
     { "id": "C-2", "expect": "STOP", "kind": "hop", "urls": ["https://claude.ai/hop?how=meta&to=https%3A%2F%2Fevil.test%2F", "https://claude.ai/hop?how=href&to=https%3A%2F%2Fevil.test%2F", "https://claude.ai/hop?how=replace&to=https%3A%2F%2Fevil.test%2F"] },

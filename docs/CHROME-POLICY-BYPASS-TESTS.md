@@ -102,7 +102,7 @@ Heavy jobs run on Actions only.
 |---|---|
 | B-1 | `https://evil.test/`, and the same over `http://` |
 | B-2 | `mail.google.com`, `drive.google.com`, `myaccount.google.com`, `google.com`, `www.google.com/search?q=x` (what the omnibox sends), `youtube.com`, `gmail.com` |
-| B-3 | `evil.accounts.google.com` (the leading-dot entry must match the exact host only) |
+| B-3 | `evil.accounts.google.com` (the leading-dot entry must match the exact host only); `evilhcaptcha.com` and `hcaptcha.com.evil.test` (the `hcaptcha.com` entry covers its subdomains, not lookalikes) |
 | B-4 | `github.com/` and `github.com/someuser/repo` (only `/login`, `/session`, `/sessions`, `/copilot` allowed) |
 | B-5 | Omnibox typing of a bare word or a blocked host ends on the blocked page, not on a search result |
 | B-6 | `--app=https://evil.test` and `--new-window https://evil.test` launch flags |
