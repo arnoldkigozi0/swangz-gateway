@@ -97,17 +97,17 @@
     "#/activity": {
       timeline: "Everything in order of time: AI requests, tools opened, website visits, shared-account turns, sign-ins and access changes.",
       usage: "Totals per person and tool for the period — for comparing, not for reading individual requests.",
-      ai: "One row per AI request through the gateway; open one for its full record.",
+      ai: "One row per AI request through Swangz AI Hub; open one for its full record.",
       opens: "Tools opened from the Swangz AI Hub portal, with the browser and address they were opened from.",
       sites: "Visits to AI websites seen by the browser extension: which site, when and how long — never what was on the page.",
     },
     "#/policies": {
-      list: "The rules the gateway enforces now. A change applies to the next request.",
+      list: "The company rules in force now. A change applies to the next request.",
       simulate: "Try a rule against what really happened. Nothing is saved and nobody is affected.",
-      explain: "Every check for one person and one tool, in the order the gateway makes them.",
+      explain: "Every check for one person and one tool, in the order they are made.",
     },
     "#/devices": {
-      keys: "One gateway key per laptop or coding tool.",
+      keys: "Each laptop or coding tool connects with its own key.",
       browsers: "Browsers staff opened tools from in the portal.",
     },
   };
@@ -416,7 +416,7 @@
     if (!flags) return [];
     return flags.split(",").filter(Boolean).map((f) => {
       if (f.startsWith("secret:")) return el("span", { class: "u-badge bad", "data-tip": "Looks like " + f.slice(7) + " — matched by pattern; could be a test key.", tabindex: "0" }, icon("key"), "Credential");
-      if (f.startsWith("attachments:")) return SUI.badge(f.slice(12) + " file(s)", "info");
+      if (f.startsWith("attachments:")) return SUI.badge(SUI.plural(Number(f.slice(12)) || 0, "file"), "info");
       return SUI.badge(f);
     });
   }
@@ -673,7 +673,7 @@
     }
     try {
       const out = await api("POST", "/pause", { paused });
-      toast(paused ? `Paused. ${out.cut} request(s) cut.` : "Access resumed.");
+      toast(paused ? `Paused. ${SUI.plural(out.cut, "request")} cut.` : "Access resumed.");
       await refreshOverview();
       render();
     } catch (e) { toast(e.message, true); }

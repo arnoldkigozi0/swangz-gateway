@@ -12,7 +12,7 @@
     deprecated: ["idle", "Deprecated"], disabled: ["blocked", "Disabled"], unlisted: ["none", "Unlisted"] };
   const CLASS = { public: "Public", internal: "Internal", confidential: "Confidential", restricted: "Restricted" };
   const EFFECT = { deny: ["Refuse", "stop"], hours: ["Permitted hours", "clock"], cap: ["Monthly cap", "wallet"] };
-  const CHANNEL = { request: "Requests through the gateway", launch: "Opening from Swangz AI Hub", site: "Website visits" };
+  const CHANNEL = { request: "AI requests through Swangz AI Hub", launch: "Opening from Swangz AI Hub", site: "Website visits" };
   const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
   // ------------------------------------------------------------------ Models
@@ -66,7 +66,7 @@
         { key: "classification", label: "Data class", render: (m) => (m.classification ? CLASS[m.classification] : el("span", { class: "faint" }, "—")), hideSm: true },
         { key: "requests", label: "Requests · 30 d", num: true, render: (m) => fmt.num(m.requests) },
         { key: "cost", label: "Est. cost", num: true, render: (m) => el("span", { class: "row end nowrap" }, fmt.money(m.cost),
-          m.unpriced ? el("span", { class: "basis unpriced", "data-tip": `${m.unpriced} request(s) with no price${m.priced ? " when they ran" : " — add one in Settings → Model prices"}`, tabindex: "0" }, `${fmt.num(m.unpriced)} unpriced`) : null) },
+          m.unpriced ? el("span", { class: "basis unpriced", "data-tip": `${SUI.plural(m.unpriced, "request")} with no price${m.priced ? " when they ran" : " — add one in Settings → Model prices"}`, tabindex: "0" }, `${fmt.num(m.unpriced)} unpriced`) : null) },
         { key: "refused", label: "Refused", num: true, render: (m) => (m.refused ? el("span", { class: "neg" }, fmt.num(m.refused)) : "0"), hideSm: true },
         { key: "last", label: "Last used", num: true, render: (m) => el("span", { class: "nowrap", title: m.people ? SUI.plural(m.people, "person", "people") + " in 30 days" : null }, fmt.ago(m.last)), hideSm: true },
         { key: "act", label: "", srLabel: "Actions", sort: false, render: (m) => SUI.menuButton({ label: "More actions for " + m.id, small: true, items: () => [
@@ -75,7 +75,7 @@
           edit && m.registered ? { id: "remove", label: "Remove the rule", icon: "x", danger: true, onSelect: () => removeModel(m) } : null,
         ].filter(Boolean) }) },
       ].filter((c) => !mode.simple || SIMPLE.includes(c.key)) }) : SUI.stateBox({ icon: "chip", title: data.items.length ? "No models match" : "No models here",
-        text: data.items.length ? "Try another search or status." : "Models appear once they are used through the gateway, priced, or registered." }), ...(more ? [el("div", { class: "see-all-row" }, more)] : []));
+        text: data.items.length ? "Try another search or status." : "Models appear once someone uses them through Swangz AI Hub, or once they are priced or registered." }), ...(more ? [el("div", { class: "see-all-row" }, more)] : []));
     }
     const keep = () => A.keepParams("#/models", { q: st.q, status: st.status, page: st.page > 1 ? st.page : null, per: st.per !== perDefault ? st.per : null });
     const bar = SUI.filterBar({ label: "Filter models", search: { placeholder: "Model, provider or name" }, values: st, filters: [
@@ -92,7 +92,7 @@
         actions: [mode.switcher, register].filter(Boolean) }, [A.panel(null, null, el("div", { class: "filterbar" }, bar), box)]);
       return;
     }
-    A.frame({ title: "Models", trail: [["Models"]], lede: "Every chat model the gateway has seen, priced or registered, and the rule on each. A model nobody registered is unlisted: allowed, as before the registry. A rule for claude-opus-4 also covers claude-opus-4-1 and later versions of it.",
+    A.frame({ title: "Models", trail: [["Models"]], lede: "Every chat model used through Swangz AI Hub, priced or registered, and the rule on each. A model nobody registered is unlisted: allowed, as before the registry. A rule for claude-opus-4 also covers claude-opus-4-1 and later versions of it.",
       actions: [mode.switcher, register].filter(Boolean) }, [
       A.panel(null, null, el("div", { class: "filterbar" }, bar),
         el("div", { class: "list-meta" }, el("span", null, "Disabled: refused for everyone"), el("span", null, "Restricted: only the departments named"),
@@ -144,7 +144,7 @@
   async function pagePolicies(params) {
     const [data, people, settings] = await Promise.all([api("GET", "/policies"), A.people(), api("GET", "/settings"), A.toolIndex().catch(() => null)]);
     const ctx = { data, people, providers: settings.providers || [] };
-    A.frame({ title: "Policies", lede: "Company rules, decided by the gateway the same way every time. A policy only takes access away — refusing, limiting hours, or capping a month's spend — and every refusal names the rule. Try a change on the Simulate tab before you make it.",
+    A.frame({ title: "Policies", lede: "Company rules, applied automatically and the same way every time. A rule can only take access away — refusing, limiting hours, or capping a month's spend — and every refusal names the rule. Try a change on the Simulate tab before you make it.",
       actions: A.can("govern") ? el("button", { class: "btn primary", onclick: () => policySheet(null, ctx) }, icon("plus"), "Add a policy") : null },
     A.pageTabs("#/policies", params, [
       ["list", "Policies", () => policyList(ctx), data.items.length || null],
@@ -158,8 +158,8 @@
     const items = ctx.data.items;
     const edit = A.can("govern");
     if (!items.length) {
-      return A.panel(null, null, SUI.stateBox({ icon: "rule", title: "No policies yet",
-        text: "With no policies, access works exactly as assigned: entitlements, budgets and model rules. Add one to refuse something, limit it to working hours, or cap a team's monthly spend.",
+      return A.panel(null, null, SUI.stateBox({ icon: "rule", title: "No rules yet",
+        text: "With no rules, access works exactly as assigned: the tools each person is given, budgets and the rules on models. Add a rule to refuse something, limit it to working hours, or cap a team's monthly spend.",
         action: edit ? el("button", { class: "btn primary", onclick: () => policySheet(null, ctx) }, icon("plus"), "Add a policy") : null }));
     }
     return A.panel(null, null, SUI.table({ caption: "Policies", rows: items, sort: ["name", "asc"], columns: [
@@ -214,7 +214,7 @@
       hours: el("div", { class: "stack" }, el("label", { class: "field" }, "Allowed on", days),
         el("div", { class: "form-grid" }, el("label", { class: "field" }, "From (gateway time)", f.start), el("label", { class: "field" }, "Until", f.end))),
       cap: el("label", { class: "field" }, "Monthly limit (US dollars, estimated spend)", f.limit,
-        el("span", { class: "hint" }, "Counts the subjects' estimated spend this month on what the policy covers. Only requests through the gateway cost metered money, so a cap governs those.")),
+        el("span", { class: "hint" }, "Counts the subjects' estimated spend this month on what the policy covers. Only AI requests through Swangz AI Hub cost metered money, so a cap governs those.")),
       chans: el("label", { class: "field" }, "Where it applies (none ticked = everywhere)", chans),
     };
     // called after every change of effect or of who; the groups and the read-back below exist by then
@@ -255,7 +255,7 @@
       const what = [toolNames.length ? list(toolNames) : null, v.scope.models.length ? "models " + list(v.scope.models) : null,
         v.scope.providers.length ? "services " + list(v.scope.providers) : null, v.scope.classifications.length ? list(v.scope.classifications.map((c) => CLASS[c].toLowerCase())) + " tools" : null]
         .filter(Boolean).join("; ") || "every tool and model";
-      const where = effect === "cap" ? "requests through the gateway" : v.scope.channels.length ? list(v.scope.channels.map((c) => CHANNEL[c].toLowerCase())) : "everywhere";
+      const where = effect === "cap" ? "AI requests through Swangz AI Hub" : v.scope.channels.length ? list(v.scope.channels.map((c) => CHANNEL[c].toLowerCase())) : "everywhere";
       const days = v.params.days.map((d) => DAYS[d]).join(", ");
       const how = effect === "deny" ? "Refuses" : effect === "hours" ? `Allows only on ${days || "no days"}, ${v.params.start}–${v.params.end} (gateway time),`
         : `Stops after ${v.params.limit_usd != null ? fmt.money(v.params.limit_usd) : "a limit not yet set"} of estimated spend this month on`;
@@ -376,7 +376,7 @@
       SUI.load(out, async () => explainResult(await api("GET", "/policies/explain?" + q.toString())), SUI.skeleton("rows", 4));
     } }, "Explain");
     if (person.value && tool.value) setTimeout(() => go.click());
-    return [A.panel("Why is this allowed — or refused?", "every check, in the order the gateway makes them",
+    return [A.panel("Why is this allowed — or refused?", "every check, in the order they are made",
       el("div", { class: "body form-grid" }, A.field("Person", person), A.field("Tool", tool), A.field("Model", model), A.field("How", channel)),
       A.panelFoot(el("span", { class: "grow" }, err), go)), out];
   }

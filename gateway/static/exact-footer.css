@@ -98,8 +98,8 @@
   .staff-exact .xf-body { padding: 24px 18px 0; }
   .staff-exact .xf-lead h2 { font-size: 26px; line-height: 32px; }
   .staff-exact .xf-card { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 18px 12px; padding: 16px 18px; }
-  .staff-exact .xf-col li { height: 44px; }
-  .staff-exact .xf-col :is(a,button) { height: 40px; white-space: normal; }
+  .staff-exact .xf-col li { height: 48px; }
+  .staff-exact .xf-col :is(a,button) { height: 44px; white-space: normal; }
   .staff-exact .xf-meta { flex-wrap: wrap; gap: 12px 18px; margin-top: 24px; }
   .staff-exact .xf-icons { margin-left: 0; }
   .staff-exact .xf-icons a { width: 44px; height: 44px; }

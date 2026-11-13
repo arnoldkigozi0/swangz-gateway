@@ -50,7 +50,7 @@
     const PURPOSE_HOW = { declared: "Declared by the person or their tool", derived: "Derived from the tool itself", inferred: "Inferred from keywords — a guess" };
     const facts = el("div", { class: "facts identity" },
       fact("Person", r.person_id ? A.personLink(r.person_id, r.person) : el("span", { class: "muted" }, "No valid key"), r.person_id ? "Owner of the key used" : "The key wasn't recognised"),
-      fact("Device", A.deviceLink(r.key_id, r.key_label) || "—", r.key_id ? "Registered device (its own gateway key)" : null),
+      fact("Device", A.deviceLink(r.key_id, r.key_label) || "—", r.key_id ? "Registered device with its own key" : null),
       fact("Application", r.client && r.client !== "unknown" ? r.client : "Not identified", "From the tool's user agent"),
       fact("Tool", r.tool ? A.toolLink(r.tool.id, r.tool.name, "sm") : "—", r.tool ? "Catalog tool for this service" : null),
       fact("Model", el("span", { class: "mono" }, r.model || "—"), r.model ? "As requested by the tool" : null),

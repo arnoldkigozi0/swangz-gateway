@@ -790,7 +790,7 @@
         el("span", null, pending ? SUI.plural(pending, "request") + " waiting for an admin" : me.active ? "Ask for any tool in the catalogue" : "What you've asked for")), icon("chevronRight")),
       el("a", { href: "#/privacy" }, icon("shield"), el("span", null, el("strong", null, "How Swangz AI Hub works"), el("span", null, "What's recorded, and what isn't")), icon("chevronRight")));
     const aside = el("aside", { class: "home-aside", "aria-label": "Updates and more" }, updatesBox, allowance);
-    const reminder = me.weekly_outstanding ? el("div", { class: "shell" }, el("aside", { class: "hub-reminder", "aria-label": "Weekly reporting reminder" }, el("div", null, el("strong", null, `${me.weekly_outstanding} weekly tool report(s) need completion`), el("p", { class: "muted small" }, "Complete each report before reopening that tool.")), el("a", { class: "btn btn--small", href: "#/weekly" }, "Complete reports"))) : null;
+    const reminder = me.weekly_outstanding ? el("div", { class: "shell" }, el("aside", { class: "hub-reminder", "aria-label": "Weekly reporting reminder" }, el("div", null, el("strong", null, `${SUI.plural(me.weekly_outstanding, "weekly tool report")} ${me.weekly_outstanding === 1 ? "needs" : "need"} completion`), el("p", { class: "muted small" }, "Complete each report before reopening that tool.")), el("a", { class: "btn btn--small", href: "#/weekly" }, me.weekly_outstanding === 1 ? "Complete report" : "Complete reports"))) : null;
     frame("Home", [hero, reminder, el("section", { class: "section home-body" }, el("div", { class: "shell home-grid" + (me.suspended ? " solo" : "") }, me.suspended ? null : toolsBox, aside))]);
   }
 

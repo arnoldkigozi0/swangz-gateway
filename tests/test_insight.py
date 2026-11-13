@@ -82,6 +82,15 @@ class TimelineTests(LensBase):
         self.assertEqual(trends["current"]["people"], 1)
         self.assertEqual(trends["top_tools"][0]["tool"], "Claude Code")
 
+    def test_trends_report_the_first_use_on_record_for_collecting_since(self):
+        self.assertIsNone(self.rig.api("GET", "/trends?days=7")[1]["first_use"])
+        now = time.time()
+        add_request(self.db, ts=now - 40 * 86400, person_id=self.pid, key_id=self.kid)
+        add_request(self.db, ts=now - 60, person_id=self.pid, key_id=self.kid)
+        trends = self.rig.api("GET", "/trends?days=7")[1]
+        # the earliest use of all time, not just inside the charted window
+        self.assertAlmostEqual(trends["first_use"], now - 40 * 86400, delta=1)
+
 
 class DeviceTests(LensBase):
     def test_a_device_shows_what_it_ran_and_from_where(self):

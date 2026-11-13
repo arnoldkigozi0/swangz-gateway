@@ -248,3 +248,24 @@ v18 item 3: admins see access and usage metadata only, never personal content.
 is audited; with `capture_content` off nothing is stored even with `store_bodies` on.
 
 Blocks: release (privacy and logging are critical under the definition of done).
+
+## Addendum, 13 Nov 2026: server day (PR #181, `docs/SERVER-DAY.md`, `docs/SERVER-REHEARSAL.md`)
+
+Read-only review of the runbook at `4a6c5bd`, plus the deploy files it drives on `main`
+(`deploy/setup-gateway-server.sh`, `swangz-gateway.service`, `firewall.sh`, `Caddyfile`, `.env.example`).
+Verdict: **approved for Arnold's 15 Nov server day**. Nothing was run against a server.
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| F1 | Without `GATEWAY_REQUIRE_FIXED_RETURN=1`, Google sign-in could take its return address from the request's Host header | High | Fixed: step 6 sets it; `preflight` must show `ok` |
+| F2 | The rehearsal could not prove the firewall, the 8787 binding or the service user | High | Fixed: `ufw status`, `ss -ltnp` (127.0.0.1 only), `User=swangz`, and an outside `curl` to 8787 that must fail. Any miss stops the day |
+| L1 | SSH password login and root login not checked; unattended upgrades not checked | Low | Fixed: `sshd -T` and `unattended-upgrades` checks before step 3 |
+| L2 | `rsync` copied with the builder's ownership and included `docs/screenshots` | Low | Fixed on `main`: `--chown=root:root --exclude /docs/screenshots` |
+| L3 | Caddy taken from its own apt repository, not Ubuntu's | Info | Accepted: Ubuntu's 2.6.2 is behind on fixes; apt verifies the repository's signing key |
+| R1 | No previous release is kept for rollback on the first day | Low | Accepted for 15 Nov; a database backup is taken first |
+| R2 | The script does not create the first owner | Info | Accepted: the owner is added by hand with `add-admin` |
+
+Standing conditions:
+- Deploy from `main` only. `feature/managed-workspace` (schema v26) never goes to the server until its final PR
+  to `main` has Arnold's written approval.
+- Only Arnold runs the server day. He owns the VPS, DNS, the Google client and the provider keys.

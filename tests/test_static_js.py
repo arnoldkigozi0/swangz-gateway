@@ -187,6 +187,17 @@ class DonutShareTests(unittest.TestCase):
             ratio = (lum("#FCF8F2") + .05) / (lum(colour) + .05)
             self.assertGreaterEqual(ratio, 3.0, "tone %s %s is %.2f:1" % (tone, colour, ratio))
 
+    def test_other_row_is_worded_by_the_page_and_the_legend_stays_beside_the_ring(self):
+        # Probe D1: "Other tools 1 uses". The page passes format, and the kit uses it for the Other row.
+        ui = (STATIC / "ui.js").read_text(encoding="utf-8")
+        self.assertIn(': o.format ? o.format(part.value) :', ui)
+        monitor = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
+        self.assertIn('other: "Other tools", format: (n) => SUI.plural(n, "use")', monitor)
+        # Probe D2: at 1440 the legend filled the panel and a count sat ~800px from its name.
+        css = (STATIC / "ui.css").read_text(encoding="utf-8")
+        rule = re.search(r'\.u-donut \{ --donut-orange[^}]*\}', css).group(0)
+        self.assertIn('grid-template-columns: 146px minmax(0, 280px); justify-content: start;', rule)
+
     def test_dark_orange_reaches_three_to_one_on_room_glass(self):
         css = (STATIC / "ui.css").read_text(encoding="utf-8")
         colour = re.search(r'\.u-donut \{ --donut-orange: (#[0-9A-F]{6});', css).group(1)
@@ -620,10 +631,49 @@ class PlainWordsTests(unittest.TestCase):
         self.assertIn('["keys", "Coding tools", keysTab', govern)
         self.assertNotIn('"Gateway keys"', govern)
 
-    def test_security_with_nothing_to_check_is_one_line(self):
+    def test_security_with_nothing_to_check_is_one_short_card(self):
         monitor = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
-        self.assertIn('data && !first.length ? el("p", { class: "ov-calm" }', monitor)
-        self.assertIn(".ov-calm {", (STATIC / "guide.css").read_text(encoding="utf-8"))
+        css = (STATIC / "guide.css").read_text(encoding="utf-8")
+        self.assertIn('data && !first.length ? el("section", { class: "panel sec-calm" }', monitor)
+        self.assertIn('"See all signals"', monitor)  # the card holds its next step (Probe, 13 Nov)
+        self.assertIn('class: "ov-simple sec-simple"', monitor)
+        self.assertIn(".ov-simple.sec-simple { align-items: start; }", css)  # neither block stretches to the other
+        self.assertIn(".ov-calm {", css)
+
+    def test_console_copy_in_plain_words(self):
+        """Probe's re-test of main (13 Nov): the console says what happens, not how the plumbing is named."""
+        read = lambda n: (STATIC / n).read_text(encoding="utf-8")
+        monitor, rules, govern = read("admin-monitor.js"), read("admin-rules.js"), read("admin-govern.js")
+        insight = (STATIC.parent / "insight.py").read_text(encoding="utf-8")
+        for old in ("idle or over-assigned seats", "missing provider keys"):
+            self.assertNotIn(old, monitor)
+        for old in ("grant or decline", "a grant that ended", "without a company key", "staff tools pointed at these"):
+            self.assertNotIn(old, insight)
+        for old in ("decided by the gateway", "through the gateway", "the gateway has seen", "entitlements, budgets"):
+            self.assertNotIn(old, rules)
+        self.assertNotIn("gateway key", govern)
+        self.assertIn("paid seats nobody uses or more people than seats", monitor)
+        self.assertIn("applied automatically and the same way every time", rules)
+        self.assertIn('"Audit log"', read("admin.js"))  # the page name stays
+
+    def test_console_copy_in_plain_words_second_pass(self):
+        """Probe's check of main d8b3b1c (13 Nov): what was left of the plumbing words."""
+        admin, rules = (STATIC / "admin.js").read_text(encoding="utf-8"), (STATIC / "admin-rules.js").read_text(encoding="utf-8")
+        insight = (STATIC.parent / "insight.py").read_text(encoding="utf-8")
+        for old in ("paying for seats nobody opens", "Reclaim them"):
+            self.assertNotIn(old, insight)
+        self.assertIn("take them back from anyone who doesn't need them", insight)
+        for old in ("One gateway key", "the gateway enforces", "the order the gateway makes", "request through the gateway"):
+            self.assertNotIn(old, admin)
+        for old in ('"No policies yet"', "With no policies", "A policy only takes"):
+            self.assertNotIn(old, rules)
+        self.assertIn('title: "Policies"', rules)  # the page name and the Add button stay
+        self.assertIn('"Add a policy"', rules)
+
+    def test_security_buttons_are_44_visible(self):
+        css = (STATIC / "guide.css").read_text(encoding="utf-8")
+        self.assertIn(".sec-calm-next .btn { min-height: 44px; }", css)
+        self.assertIn("@media (max-width: 640px) { .top > :is(.next-step, .top-actions) .btn { min-height: 44px; } }", css)
 
 
 def requests_lead(cases):
@@ -706,3 +756,35 @@ class ModelsLeadTests(unittest.TestCase):
     def test_sentences_stay_short(self):
         for n in ({"unpriced": 1234}, {"noRule": 2}, {}, {"total": 0}):
             self.assertLessEqual(len(self.lead(**n)["sentence"].split()), 12)
+
+
+class CutCountWordingTests(unittest.TestCase):
+    """Probe F8: the console's toasts after a stop, suspension or key revoke say "1 request" / "2 requests", never "request(s)"."""
+
+    def test_no_console_toast_says_request_s(self):
+        for name in ("admin.js", "admin-govern.js"):
+            source = (STATIC / name).read_text(encoding="utf-8")
+            self.assertNotIn("request(s) cut", source, name)
+            self.assertIn('SUI.plural(out.cut, "request")} cut.', source, name)
+
+    def test_no_console_text_counts_with_a_bracketed_plural(self):
+        """Probe on #206: "Removed N tool(s).", "N request(s) with no price" and "N file(s)" use SUI.plural too."""
+        for path in sorted(STATIC.glob("admin*.js")):
+            source = path.read_text(encoding="utf-8")
+            for word in ("tool(s)", "request(s)", "file(s)", "person(s)", "device(s)", "key(s)"):
+                self.assertNotIn(word, source, path.name)
+        self.assertIn('toast(`Removed ${SUI.plural(out.removed, "tool")}.`)', (STATIC / "admin-govern.js").read_text(encoding="utf-8"))
+
+
+class StaffReportCopyTests(unittest.TestCase):
+    """Staff shell (13 Nov): report counts read as English, never "report(s)"."""
+
+    def test_no_bracketed_plurals_in_staff_report_copy(self):
+        for name in ("portal.js", "portal-hub.js"):
+            text = (STATIC / name).read_text(encoding="utf-8")
+            self.assertNotIn("report(s)", text, name)
+
+    def test_home_reminder_counts_with_plural(self):
+        text = (STATIC / "portal.js").read_text(encoding="utf-8")
+        self.assertIn('SUI.plural(me.weekly_outstanding, "weekly tool report")', text)
+        self.assertIn('me.weekly_outstanding === 1 ? "Complete report" : "Complete reports"', text)

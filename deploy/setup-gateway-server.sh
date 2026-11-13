@@ -42,7 +42,9 @@ open_firewall 80/tcp 443/tcp 443/udp
 echo "== the gateway, in $APP"
 id swangz >/dev/null 2>&1 || useradd --system --home-dir "$APP" --shell /usr/sbin/nologin swangz
 mkdir -p "$APP/data"
-rsync -a --delete --exclude .git --exclude data --exclude .env --exclude __pycache__ --exclude node_modules "$SRC/" "$APP/"
+# root owns the code, so the login that cloned it cannot change what runs; screenshots are never served
+rsync -a --delete --chown=root:root --exclude .git --exclude data --exclude .env --exclude __pycache__ \
+  --exclude node_modules --exclude /docs/screenshots "$SRC/" "$APP/"
 if [ ! -f "$APP/.env" ]; then
   sed -e "s#^GATEWAY_PUBLIC_URL=.*#GATEWAY_PUBLIC_URL=https://$DOMAIN#" \
       -e "s#^GATEWAY_WEB_URL=.*#GATEWAY_WEB_URL=$WEB_URL#" \

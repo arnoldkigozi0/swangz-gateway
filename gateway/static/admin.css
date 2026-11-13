@@ -1231,9 +1231,11 @@ html[data-theme="light"] .shell #main::before { background: rgba(252, 248, 242, 
    each side with rounded corners, so the room shows around the page as on desktop; the page's own 16px padding keeps
    every bare text run 8px inside the plane. Unmeasured until captured (docs/screenshots/exact-r16/README.md). */
 @media (max-width: 900px) { .shell #main::before { inset: 0 8px 8px 8px; border-radius: 18px; } }
-/* Light only (no reference still): the top bar's bare area label gets a porcelain backing the height of the pills beside
-   it (its 38px line), rounded like them. Padding and an equal negative margin keep the label where 10.3 puts it. */
-html[data-theme="light"] .console-bar .console-area { background: rgba(252, 248, 242, .94); padding: 0 12px; margin: 0 -12px; border-radius: var(--radius-control); }
+/* Light only (no reference still): the top bar's bare area label gets a backing the height of the pills beside it (its
+   38px line), in their glass: the same fill, rim and highlight (10.3: every top-bar pill is one material). A flat
+   porcelain fill with no rim read as a white box beside them (Probe, Nov 12). The rim is drawn inset so the box stays
+   38px; padding and an equal negative margin keep the label where 10.3 puts it. */
+html[data-theme="light"] .console-bar .console-area { background: var(--glass-bg-strong); box-shadow: inset 0 0 0 1px var(--glass-rim), var(--glass-highlight); padding: 0 12px; margin: 0 -12px; border-radius: var(--radius-control); }
 @media print { .shell #main::before { display: none; } }
 /* Architect review item 1, the other console pages: the page-wide plane hid the room. Outside Overview it is replaced
    by local backing in the same colours, only where text sits outside a card: the page header, and each block of the
@@ -1387,6 +1389,12 @@ html[data-theme="light"] .kpis-exact .kpi .foot > :not(.kpi-note) { background: 
   border-radius: 50%; color: var(--tx-1); pointer-events: none; }
 .kpis-exact .kpi-go svg { width: 11px; height: 11px; transform: rotate(45deg); }
 .kpis-exact .kpi-link { border-radius: 18px; }
+/* dashboard-02's wave on the second count card: top right beside the arrow, amber, the readings in flight (admin-monitor.js). */
+.kpis-exact .kpi .spark:has(.live-wave) { position: absolute; top: 18px; right: 48px; width: min(120px, calc(100% - 180px)); height: 22px; margin: 0; }
+.kpis-exact .live-wave { display: block; height: 100%; }
+.kpis-exact .live-wave .u-spark { height: 22px; }
+.kpis-exact .live-wave .u-spark .line { stroke: var(--viz-1); stroke-width: 2.5; }
+.kpis-exact .live-wave .u-spark .area { display: none; }
 @media (prefers-reduced-motion: reduce) { .kpis-exact .kpi, .kpis-exact .kpi.link:hover { transition: none; transform: none; } }
 @media (max-width: 1200px) { .kpis-exact .kpi .kpi-note { font-size: 11px; line-height: 15px; } .kpis-exact .kpi .foot > :not(.kpi-note) { font-size: 11px; } }
 @media (max-width: 640px) {   /* two narrow cards a row: the chip goes under the value, not beside it */
@@ -1512,8 +1520,22 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
   .console-tabbar .stb-bar a { height: 44px; }
   .list-meta a { display: inline-flex; align-items: center; min-height: 44px; }
 }
-/* Audit log Simple (BRIEF 10.10.7): the sentence and the next step sit above the list, so a long page of entries scrolls
+/* Models and Audit log Simple (BRIEF 10.10.7): the sentence and the next step sit above the list, so a long page of entries scrolls
    inside its panel with that much less room, and the page itself still does not scroll at 1440x852 (BRIEF 10.10.2). */
 @media screen and (min-width: 761px) {
-  .route-audit main:has(> .top > .ov-sentence) .u-table-wrap { max-height: max(280px, calc(100dvh - 500px)); }
+  :is(.route-models, .route-audit) main:has(> .top > .ov-sentence) .u-table-wrap { max-height: max(280px, calc(100dvh - 500px)); }
+}
+/* Probe D3b, BRIEF 10.10.6: keep the visible button at 36 / 30px; controls.css supplies its 44px hit area. */
+@media (max-width: 640px) {
+  .route-models .see-all-row { padding-bottom: 8px; } /* leave the hit area and focus ring clear of the panel's clipped edge */
+  .route-models .see-all-row .btn, :is(.route-models, .route-audit) .u-pager .btn { min-height: 36px; height: 36px; }
+  :is(.route-models, .route-audit) .u-pager .btn:is(.small, .btn--small) { min-height: 30px; height: 30px; }
+}
+
+/* Audit log on a phone (Probe C1/C2, 12 Nov): an email in "Who" breaks after its "@" (the <wbr>), and only a domain too
+   long for the cell breaks anywhere; the meta line under the count stacks, so no "·" is left at the start of a line. */
+.route-audit .audit-who strong { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .route-audit .list-meta { flex-direction: column; align-items: flex-start; }
+  .route-audit .list-meta > * + *::before { content: none; }
 }

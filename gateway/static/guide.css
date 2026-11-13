@@ -78,3 +78,12 @@
 /* Simple with nothing to check: one quiet line where the list would be (Security). */
 .ov-calm { display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 0; color: var(--tx-2); align-self: start; }
 .ov-calm svg { width: 18px; height: 18px; flex: none; }
+/* Security's Simple view: each block keeps its own height; the calm card carries its next step (Probe, 13 Nov). */
+.ov-simple.sec-simple { align-items: start; }
+.sec-calm { display: grid; gap: 8px; justify-items: start; padding: 16px 20px 20px; }
+.sec-calm .ov-calm { padding: 0; color: var(--tx-1); }
+.sec-calm .hint { margin: 0; }
+.sec-calm-next { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+/* Visible 44px targets (Probe, 13 Nov): the calm card's step at every width; a page's next step and title-line actions on phones. */
+.sec-calm-next .btn { min-height: 44px; }
+@media (max-width: 640px) { .top > :is(.next-step, .top-actions) .btn { min-height: 44px; } }

@@ -252,6 +252,12 @@ html[data-theme="light"] .staff-exact { background: none; --staff-scrim: linear-
 }
 /* A wrapped status breaks between words, never inside one ("Report require/d" on phones). */
 .staff-exact .tool-row .tr-sub .u-status { overflow-wrap: normal; word-break: normal; }
+/* On phones a tool row's status goes on its own line under the category, so a wrap never leaves the "·" hanging
+   at the end of the first line ("Coding ·" / "Ready"). */
+@media (max-width: 640px) {
+  .staff-exact .tool-row .tr-sub { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .staff-exact .tool-row .tr-sub > .dot { display: none; }
+}
 
 /* BRIEF §10.8, bars A (Evening) and B (Daylight): the staff view tabs are one full-pill glass bar with a raised
    pill on the selected tab. H = 52px; pill inset .1H, height .82H; label .28H. viewTabs() in portal.js places the
@@ -297,4 +303,30 @@ html[data-theme="light"] .staff-exact { background: none; --staff-scrim: linear-
 @media (min-width: 641px) and (max-width: 900px) {
   .staff-exact .vtabs { flex-wrap: wrap; height: auto; overflow: visible; }
   .staff-exact .vtabs [role=tab] { height: 42px; }
+}
+
+/* Staff touch targets (Probe S2/S3, 12 Nov; S6, the footer's Ask button, 13 Nov; BRIEF 10.10): on a phone or touch screen each of these keeps its visible size
+   and its pressable area reaches 44px, the way controls.css does it for .btn. The Tools view tabs' 44px fits inside the
+   bar's 3px padding, so the bar's sideways scrolling doesn't clip it. */
+@media (hover: none), (max-width: 640px) {
+  .staff-exact :is(.home-h .tlink, .u-seg button, .tr-main, .xf-col :is(a,button), .xf-ask button),
+  .drawer .hub-staff-nav > a { position: relative; }
+  .staff-exact :is(.home-h .tlink, .u-seg button, .tr-main, .xf-col :is(a,button), .xf-ask button)::before,
+  .drawer .hub-staff-nav > a::before { content: ""; position: absolute; top: 50%; left: 0; right: 0; height: 44px; transform: translateY(-50%); }
+  /* when the tabs wrap to two rows, 4px between rows gives each row its own 2px of the gap */
+  .staff-exact .u-seg { row-gap: 4px; }
+}
+
+/* Staff touch targets, visible size (Probe re-test of main, 13 Nov; BRIEF 10.10): at 390 wide the boxes themselves reach
+   44px, not only an invisible layer: tool-row and page buttons (Open, Connect, Request, Disconnect, Complete report, pager),
+   the Tools filter tabs, the Privacy index tabs and their "More about this", text links like "2 more in Tools", and the
+   footer's Ask field and button (its bar grows 46 -> 52 to hold them). The phone bar items are in exact-staff-bar.css. */
+@media (max-width: 640px) {
+  .staff-exact :is(main, .xf-panel) .btn, .staff-exact .u-seg button, .staff-exact .p-index button { min-height: 44px; }
+  .staff-exact main a.tlink { display: inline-flex; align-items: center; min-height: 44px; }
+  .staff-exact .p-more > summary { padding-block: 12px; }
+  /* :is(form, a) outranks exact-footer.css, which loads later with the same selectors */
+  .staff-exact .xf-ask:is(form, a) { height: 52px; }
+  .staff-exact .xf-ask:is(form, a) :is(input, button, b) { height: 44px; min-height: 44px; }
+  .staff-exact .sort .input { min-height: 44px; }
 }

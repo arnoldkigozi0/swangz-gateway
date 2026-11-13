@@ -697,7 +697,8 @@
   }
 
   /* The share of a whole (BRIEF 10.7, dashboard-02): a ring with the total in the middle and a legend beside it.
-     o = { label, unit, total, rows: [{ label, value, display, href, lead }] }. Shares are of o.total; whatever the
+     o = { label, unit, total, format, rows: [{ label, value, display, href, lead }] }. format(n) words the "Other" count
+     (and any row without display), so a page can say "1 use" rather than "1 uses". Shares are of o.total; whatever the
      rows do not account for is drawn as one muted "Other" arc and named in the legend, never dropped or spread over
      the rest. The legend carries every name and number as text, in the ring's order clockwise from the top. */
   function donutParts(rows, total, max) {
@@ -726,7 +727,8 @@
         const r = part.row, name = r ? [el("span", null, r.label)] : [el("span", null, o.other || "Other")];
         return el("li", null, el("i", { class: "t" + part.tone, "aria-hidden": "true" }),
           r && r.href ? el("a", { href: r.href }, name) : el("div", { class: "nm" }, name),
-          el("span", { class: "val" }, r && r.display !== undefined ? r.display : fmt.compact(part.value) + (unit ? " " + unit.toLowerCase() : "")));
+          el("span", { class: "val" }, r && r.display !== undefined ? r.display
+            : o.format ? o.format(part.value) : fmt.compact(part.value) + (unit ? " " + unit.toLowerCase() : "")));
       })));
   }
 

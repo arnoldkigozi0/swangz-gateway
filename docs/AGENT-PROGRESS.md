@@ -778,3 +778,83 @@ Exact next step at 16:00, in this order:
 - Tests: `tests/test_managed_workspace.py` (36), migration tests in `tests/test_workspace_state.py`. Real results are in the PR body.
 - W5 generator (DownloadRestrictions=0, refuse unless `--undecided-domains-ok`): NOT started; it needs W1 (feature/managed-workspace-w1) in the integration branch first.
 - Not done / limits: GitHub was unreachable (DNS) when this was written, so nothing is pushed and no PR is open; no automatic generation bump on seat reassignment; the `d=` claim is advisory.
+
+## Lane B D3b: Models/Audit phone buttons — 12 November 2026
+
+Split from the preserved combined implementation `c85be0f` onto main `0135ac2`.
+At widths <=640px the Models See all button is visibly 36px and small Models/Audit pager buttons are 30px. The existing shared pseudo-element retains a 44px target. Models reserves 8px under See all for the target and focus ring. Existing browser checks cover visible size and target height at 390 and 640 in both themes, and click below the visible See all box.
+## Lane B M1: Models desktop scrolling — 12 November 2026
+
+Split from the preserved combined implementation `c85be0f` onto main `0135ac2`.
+Models Simple uses the existing Audit Simple table-height allowance for the sentence and next step above the list. A long table scrolls inside its panel at 1440x852. Existing browser coverage adds 80 synthetic rows and checks internal scrolling and no document overflow.
+
+The combined version passed 102 targeted checks in 124.398s and syntax checks for 53 JavaScript files.
+Not run on this split: local browser, screenshots/overlays or test suites (Probe owns the sole
+browser/test slot after the 22:43 crash). Full suites run on CI; fresh rendered review is pending.
+Reference differences follow BRIEF 10.10.6/7 (10.1.6); hit-area padding follows 10.1.3.
+Copy and keyboard semantics are retained. No visual acceptance is claimed.
+
+Split validation: changed browser scripts pass `node --check`; `git diff --check` passes.
+
+Probe reviewed #189 product head `fa6fab4`: CSS passes; shipped `models.cjs` fails because
+its raw mouse click targets a button below the viewport. `audit.cjs` passed 162/162.
+The test now scrolls See all into view before measuring/clicking its expanded target.
+Probe's temporary copy with this exact one-line correction passed `models.cjs` 164/164;
+that is separate from fresh verification of this committed artifact, which is pending.
+Evidence is saved in `docs/screenshots/models-audit-phone-buttons/`, with unmodified
+and patched runs labelled separately. Prism inspected the 390px light focus capture.
+The measured visible heights are 36px See all / 30px small pager with 44px targets;
+focus is not clipped at 390/640 light/dark. No new product CSS changed in this correction.
+
+Probe subsequently ran the unmodified committed `tests/browser/models.cjs` at local
+`d09774a`: 164 checks passed, exit 0, all six cells. This closes the earlier test FAIL.
+The result applies to the corrected script; `audit.cjs` was not repeated (unchanged,
+162/162 on `fa6fab4`). Fresh remote CI remains required before #189 is ready.
+Probe verified #188 product head `d4eff95` in real Chromium: `models.cjs` 100/100. At
+1440x852, Simple light/dark default/long have zero document overflow; the wrapper is
+352px high and scrolls internally. Without this CSS, overflow is 24px. Detailed remains
+462px with no overflow. Evidence is saved in `docs/screenshots/models-scroll-height/`.
+Prism inspected the long-list dark capture and notes. Probe's verdict is single-model.
+No Models reference still exists: BRIEF 10.10.2 is the criterion; no overlay was made.
+Phone checks and fresh CI on the evidence commit remain unverified here.
+## Lane B: sign-in system-colour fallback — 12 November 2026
+
+Branch `fix/lane-b-signin`, based on main `0135ac2`. Forced-colours mode now explicitly uses
+Canvas/CanvasText, ButtonFace/ButtonText, Field/FieldText and Highlight, removes the scene photo
+and blur, and keeps keyboard focus visible. BRIEF 10.1.3 permits this system-palette difference.
+Ordinary light/dark geometry and the later box-control requirement are retained.
+
+Validation: `python3 -m unittest tests.test_static_css tests.test_static_js -q`: 102 tests in
+86.962s, OK. `node --check tests/browser/signin.cjs` and `git diff --check` passed. The existing
+sign-in browser suite now includes both apps at 390x844 in light/dark forced-colours palettes,
+checking the effective system colours, photo removal, no blur and keyboard reachability.
+Not run: new browser cases, screenshots/overlays, axe, full suite or real Windows High Contrast.
+Probe must inspect the finished artifact; this is not a completed sign-in exact-match verdict.
+
+Lane B queue remains open: sign-in full visual pass; light theme/Monitor; phone bar and KPI caption;
+staff shell; Probe's remaining fix lists. The 10 Nov twelve-item list above remains historical:
+each item needs reconciliation against merged PRs and actual reviewer evidence, including glass/photo,
+donut/legend, count-card wave, Collecting since, D-016 C-I and SECURITY-REVIEW.md. No item is dropped.
+
+### #182 review follow-up — 12 November 2026
+
+Probe posted real-Chromium review of `ceea4db` on #182 (comment 6833397250): 24/24 isolated
+forced-colours checks passed on the synthetic demo, both apps, light/dark at 390x844. Full GitHub
+CI passed on that head (Python 3.10/3.12, app-window and browser). Probe found a visible eye-toggle
+border extending 10px beyond its field at 390 and 1440. The forced-colours rule now resets its right
+margin to zero; the browser check asserts containment and the existing 44px touch target.
+New-head rendered verification and CI remain pending. No reference overlay was produced; normal
+sign-in exact-match acceptance remains open. Probe's historical light-theme focus-ring contrast
+finding also remains open pending verification on current main. Windows High Contrast and other
+browser engines were not tested. No local browser or fixture was started for this follow-up.
+Follow-up validation: `python3 -m unittest tests.test_static_css -q`: 27 tests in 1.423s, OK;
+`node --check tests/browser/signin.cjs` and `git diff --check` passed. Full suites run on GitHub CI.
+
+Probe independently verified local product head `5ea4a64` in real Chromium: 32/32 isolated
+forced-colours checks passed, both apps light/dark at 390x844. Eight additional forced-colours
+geometry cases at 390 and 1440 show the eye contained, 44x44, no horizontal scroll. Captures,
+geometry JSON and scope notes are saved in `docs/screenshots/lane-b-signin/`; Prism inspected the
+phone-light console and desktop-dark staff captures and the geometry JSON. This closes the eye
+overhang finding for this product head. Probe's verdict is single-model. Normal-mode overlays,
+the main re-test and real Windows High Contrast remain unverified. The historical 2.39:1 focus
+finding was on People, not a current sign-in measurement. New-head CI remains pending.
