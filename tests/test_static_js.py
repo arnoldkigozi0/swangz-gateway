@@ -631,10 +631,30 @@ class PlainWordsTests(unittest.TestCase):
         self.assertIn('["keys", "Coding tools", keysTab', govern)
         self.assertNotIn('"Gateway keys"', govern)
 
-    def test_security_with_nothing_to_check_is_one_line(self):
+    def test_security_with_nothing_to_check_is_one_short_card(self):
         monitor = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
-        self.assertIn('data && !first.length ? el("p", { class: "ov-calm" }', monitor)
-        self.assertIn(".ov-calm {", (STATIC / "guide.css").read_text(encoding="utf-8"))
+        css = (STATIC / "guide.css").read_text(encoding="utf-8")
+        self.assertIn('data && !first.length ? el("section", { class: "panel sec-calm" }', monitor)
+        self.assertIn('"See all signals"', monitor)  # the card holds its next step (Probe, 13 Nov)
+        self.assertIn('class: "ov-simple sec-simple"', monitor)
+        self.assertIn(".ov-simple.sec-simple { align-items: start; }", css)  # neither block stretches to the other
+        self.assertIn(".ov-calm {", css)
+
+    def test_console_copy_in_plain_words(self):
+        """Probe's re-test of main (13 Nov): the console says what happens, not how the plumbing is named."""
+        read = lambda n: (STATIC / n).read_text(encoding="utf-8")
+        monitor, rules, govern = read("admin-monitor.js"), read("admin-rules.js"), read("admin-govern.js")
+        insight = (STATIC.parent / "insight.py").read_text(encoding="utf-8")
+        for old in ("idle or over-assigned seats", "missing provider keys"):
+            self.assertNotIn(old, monitor)
+        for old in ("grant or decline", "a grant that ended", "without a company key", "staff tools pointed at these"):
+            self.assertNotIn(old, insight)
+        for old in ("decided by the gateway", "through the gateway", "the gateway has seen", "entitlements, budgets"):
+            self.assertNotIn(old, rules)
+        self.assertNotIn("gateway key", govern)
+        self.assertIn("paid seats nobody uses or more people than seats", monitor)
+        self.assertIn("applied automatically and the same way every time", rules)
+        self.assertIn('"Audit log"', read("admin.js"))  # the page name stays
 
 
 def requests_lead(cases):

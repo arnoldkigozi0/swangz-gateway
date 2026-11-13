@@ -821,7 +821,7 @@ def _personal(db, now, since, offset_minutes):
                         "text": f"{names.get(pid) or 'Someone'} was refused {n} times in 24 hours ({by.get('requests', 0)} requests, "
                                 f"{by.get('launches', 0)} opens, {by.get('site_usage', 0)} website visits).",
                         "href": f"#/activity?tab=timeline&person={pid}",
-                        "evidence": "Often a tool retrying by itself, or a grant that ended. Worth a word, not a conclusion."})
+                        "evidence": "Often a tool retrying by itself, or access that ended. Worth a word, not a conclusion."})
     return out
 
 
@@ -867,7 +867,7 @@ def security_events(ctx, days):
                        "text": f"{r['person'] or 'Someone'} tried to open {r['tool'] or 'a removed tool'} from the portal "
                                f"{'once' if r['n'] == 1 else str(r['n']) + ' times'} while it wasn't enabled for them.",
                        "tool": r["tool"], "href": f"#/activity?tab=opens&person={r['person_id'] or ''}",
-                       "evidence": "Usually an old bookmark, or a grant that ended."})
+                       "evidence": "Usually an old bookmark, or access that ended."})
     for r in db.q("SELECT su.person_id, p.name AS person, t.name AS tool, su.host, COUNT(*) AS n, MAX(su.started) AS last"
                   " FROM site_usage su LEFT JOIN people p ON p.id = su.person_id LEFT JOIN tools t ON t.id = su.tool_id"
                   " WHERE su.started >= ? AND su.outcome = 'blocked' GROUP BY su.person_id, su.tool_id ORDER BY last DESC LIMIT 50",
@@ -1018,7 +1018,7 @@ def attention(ctx):
     opened = db.scalar("SELECT COUNT(*) FROM access_requests WHERE state = 'open'") or 0
     if opened:
         add("requests", "info", "Access", f"{opened} tool request{'s' if opened != 1 else ''} waiting",
-            "Staff asked for tools; grant or decline them.", "#/requests", opened)
+            "Staff asked for tools; approve or decline them.", "#/requests", opened)
     ending = db.q("SELECT id, name, access_until FROM people WHERE status = 'active' AND access_until > ? AND access_until <= ?"
                   " ORDER BY access_until", (now, now + 7 * DAY))
     for p in ending:
@@ -1026,8 +1026,8 @@ def attention(ctx):
             f"Their account stops working after {time.strftime('%d %b', time.gmtime(p['access_until'] - DAY))}.", f"#/people/{p['id']}")
     missing = [p for p in ctx.gw.settings.providers.values() if not p.api_key()]
     if missing:
-        add("providers", "info", "System", "Providers without a company key",
-            ", ".join(p.label or p.name for p in missing) + " — staff tools pointed at these are refused.", "#/settings?tab=addresses",
+        add("providers", "info", "System", "AI providers not connected",
+            ", ".join(p.label or p.name for p in missing) + " — tools that use them won't work until the company's account is connected in Settings.", "#/settings?tab=addresses",
             len(missing), background=True)
     from .admin import _totals  # the same unpriced count the Live page shows
     unpriced = _totals(db, month)["unpriced"]

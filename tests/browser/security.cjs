@@ -66,6 +66,9 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
         const fit = await p.evaluate(() => Math.max(...[...document.querySelectorAll('main .panel')].map(n => n.getBoundingClientRect().bottom)) <= innerHeight);
         ok(T + 'Simple fits above the fold', fit);
       }
+      // Neither block stretches to the other's height (Probe, 13 Nov: ~200px of blank in the left card beside the numbers).
+      const slack = await p.evaluate(() => [...document.querySelectorAll('main .ov-simple > *')].map(n => { const last = n.lastElementChild; return Math.round(n.getBoundingClientRect().bottom - (last ? last.getBoundingClientRect().bottom : 0)); }));
+      ok(T + `Simple blocks end at their content (${slack})`, slack.length === 2 && slack.every(x => x <= 24));
       await noOverflow('Simple'); await axe('Simple'); await small('Simple'); await shot(p, 'security-simple');
 
       // Detailed L1: four number cards, one short list, no table or tabs, one next step, nothing below the fold on a desktop
