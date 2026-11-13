@@ -644,7 +644,7 @@
     ], onChange: (v) => { st.q = v.q || ""; st.state = v.state || ""; st.page = pager.page = 1; keep(); draw(); } });
     draw();
     const keysTab = () => mode.simple ? A.panel(null, null, el("div", { class: "filterbar" }, bar), box) : A.panel(null, null, el("div", { class: "filterbar" }, bar),
-      el("div", { class: "list-meta" }, el("span", null, "One gateway key per laptop or coding tool"),
+      el("div", { class: "list-meta" }, el("span", null, "Each laptop or coding tool connects with its own key"),
         el("span", null, "places from named networks or the offline table, never an online lookup")), box);
     const browsersTab = () => A.panel(null, "from the portal's Open button · 90 days", data.browsers.length ? SUI.table({ caption: "Browsers", rows: data.browsers, sort: ["last", "desc"], pager: { page: 1, size: 25 }, columns: [
       { key: "person", label: "Person", lead: true, render: (b) => A.personLink(b.person_id, b.person) },
@@ -666,7 +666,7 @@
       return;
     }
     A.frame({ title: "Devices", trail: [["Devices"]], actions: [mode.switcher],
-      lede: "Every laptop and coding tool holding a gateway key — what it runs, where it connects from, and when it was last used." }, tabs());
+      lede: "Every laptop and coding tool connected to Swangz AI Hub — what it runs, where it connects from, and when it was last used." }, tabs());
   }
 
   /* The one "Next step" line on a device: worst first. */

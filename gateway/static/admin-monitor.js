@@ -152,7 +152,7 @@
     A.frame({ title: "Needs attention", trail: [["Overview", "#/"], ["Needs attention"]], lede: "Everything worth a look — security, spend, licences, access and the system — on one page, most urgent first.",
       actions: el("button", { class: "btn", onclick: () => A.render() }, icon("refresh"), "Refresh") },
     out.items.length ? groups.map(([sev, items]) => A.panel(names[sev], SUI.plural(items.length, "item"), el("ul", { class: "att-list" }, items.map(attentionItem))))
-      : A.panel(null, null, SUI.stateBox({ tone: "ok", icon: "checkCircle", title: "Nothing needs attention", text: "Everything looks normal. This page lists security signals, budgets, idle or over-assigned seats, renewals, waiting tool requests and missing provider keys as soon as they appear." })));
+      : A.panel(null, null, SUI.stateBox({ tone: "ok", icon: "checkCircle", title: "Nothing needs attention", text: "Everything looks normal. This page lists security warnings, budgets, paid seats nobody uses or more people than seats, renewals, waiting tool requests and AI providers that aren't connected, as soon as they appear." })));
   }
 
   // ------------------------------------------------------------------ Live
@@ -736,12 +736,16 @@
         line("Problems being followed up", inc ? String(active) : failed, "#/incidents?status=active"),
         line("Failed sign-ins", data ? SUI.plural(signIns.length, "address", "addresses") : failed, secSignals("type=signin")),
         line("Possible passwords or keys sent to AI", data ? String(credentials.length) : failed, secSignals("type=credential"))));
-      /* With nothing to check, the block is one line, not an empty panel (Probe, 12 Nov: a big empty box on a phone). */
-      const check = data && !first.length ? el("p", { class: "ov-calm" }, icon("shield"), el("span", null, "Nothing to check in the last 7 days."))
+      /* With nothing to check, a short card that says so and holds the next step, not an empty panel (Probe, 12 Nov: a big
+         empty box on a phone). Neither block stretches to the other's height (Probe, 13 Nov: ~200px of blank beside the numbers). */
+      const check = data && !first.length ? el("section", { class: "panel sec-calm" },
+        el("p", { class: "ov-calm" }, icon("shield"), el("span", null, "Nothing to check in the last 7 days.")),
+        el("p", { class: "hint" }, "New warnings appear here, most serious first."),
+        el("div", { class: "sec-calm-next" }, el("a", { class: "btn small", href: secSignals() }, "See all signals", icon("chevronRight"))))
         : A.panel("Check these first", el("a", { class: "btn small quiet", href: secSignals() }, "See all", icon("chevronRight")), list);
       A.frame({ title: "Security", trail: [[SEC_ROOT[0]]], sentence: lead.sentence, next: A.leadButton(lead.action),
         actions: [mode.switcher, data ? el("button", { class: "btn", type: "button", onclick: () => safeguardsSheet(data) }, icon("shield"), "Safeguards") : null].filter(Boolean) },
-      el("div", { class: "ov-simple" }, check, numbers));
+      el("div", { class: "ov-simple sec-simple" }, check, numbers));
       return;
     }
 
