@@ -2,13 +2,15 @@ name: W6 step 5, prepared pack
 # MANAGED-WORKSPACE 9.3 step 5 and W6: Google Chrome installed in the job, the pack made by deploy/chrome-policy/prepare.py
 # installed on this throwaway runner only, then the D-016 bypass cases (groups A to F, X and P) and the client's own
 # policy check. Nothing is deployed and no key is used: the Hub host, extension ID and update address are CI
-# placeholders, and Chrome resolves every name to 127.0.0.1, where the test fixture answers.
+# placeholders. In the bypass cases Chrome resolves every name to 127.0.0.1, where the test fixture answers; the
+# sign-in path step alone opens the real ChatGPT, Claude and Gemini sites (and their sign-in pages) from the runner.
 on:
   pull_request:
     paths:
       - '.github/workflows/w6-step5.yml'
       - 'deploy/chrome-policy/**'
       - 'tests/browser/chrome-policy*'
+      - 'tests/browser/signin-paths.cjs'
       - 'swangz_client/machine_policy.py'
   workflow_dispatch:
 concurrency:
@@ -20,7 +22,7 @@ jobs:
   prepared-pack:
     name: Prepared pack bypass checks (ubuntu, Google Chrome)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     defaults:
       run:
         shell: bash  # -eo pipefail, so a failing check is not hidden by tee
@@ -72,6 +74,11 @@ jobs:
           sudo install -m 0644 "$RUNNER_TEMP/swangz-test.json" "$POLICY_DIR/swangz-test.json"
       - name: Enforced run, prepared pack installed
         run: xvfb-run -a node tests/browser/chrome-policy.cjs enforced
+      # 9.3 step 5: the official sign-in paths on the real sites, with the same pack installed. Nothing is typed and no
+      # credential exists here; a path stops at the provider's first page. Fails only if Chrome refuses a page or frame.
+      - name: Official sign-in paths, prepared pack installed (ChatGPT, Claude, Gemini; Google, Apple, challenges)
+        timeout-minutes: 12
+        run: xvfb-run -a --server-args="-screen 0 1280x900x24" node tests/browser/signin-paths.cjs
       - name: Install the whole prepared pack
         run: |
           node tests/browser/chrome-policy.cjs render "$RUNNER_TEMP/swangz-test.json" full
