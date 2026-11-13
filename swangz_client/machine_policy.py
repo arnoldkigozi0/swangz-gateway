@@ -246,8 +246,10 @@ def allow_problem(entry):
             return "scheme"
     if scheme not in (None, "https"):
         return "open" if scheme == "*" else "scheme"
-    hostport = re.split(r"[/@?#]", rest, 1)[0]
-    path = rest[len(hostport):].strip("/")
+    authority = re.split(r"[/?#]", rest, 1)[0]
+    userinfo = "@" in authority  # "user@mail.google.com" still names mail.google.com
+    hostport = authority.rsplit("@", 1)[-1]
+    path = rest[len(authority):].strip("/")
     if hostport.startswith("["):
         return "local"
     host = hostport.rsplit(":", 1)[0] if ":" in hostport else hostport
@@ -259,9 +261,10 @@ def allow_problem(entry):
     if host == "localhost" or host.endswith((".localhost", ".local", ".internal")) or NUMERIC_HOST.fullmatch(host):
         return "local"
     google_path = host in ("google.com", "www.google.com") and path and not path.startswith("accounts")
-    if host in ACCOUNT_SURFACES and not google_path:
+    mail = host.endswith((".gmail.com", ".googlemail.com"))  # every Gmail host, e.g. mail.googlemail.com
+    if (host in ACCOUNT_SURFACES or mail) and not google_path:
         return "account"
-    if dotted:
+    if dotted or userinfo:
         return "host"
     return None
 

@@ -208,8 +208,9 @@ class LinuxTests(Fixture):
                            "0x7f000001", "0x7f.0.0.1", "0177.0.0.1", "2130706433", "https://0x7f.1/"],
                  "account": ["mail.google.com", "drive.google.com", "myaccount.google.com", ".google.com", "www.google.com",
                              "mail.google.com.", "gmail.com", "www.gmail.com", "googlemail.com", "google.com/accounts",
-                             "www.google.com/accounts/ServiceLogin", "https://google.com/accounts"],
-                 "host": ["claude.ai.", "https://chatgpt.com./"]}
+                             "www.google.com/accounts/ServiceLogin", "https://google.com/accounts",
+                             "user@mail.google.com", "https://a:b@mail.google.com/", "mail.googlemail.com", "x.gmail.com"],
+                 "host": ["claude.ai.", "https://chatgpt.com./", "user@claude.ai", "https://u@chatgpt.com/"]}
         for reason, entries in cases.items():
             for entry in entries:
                 for p in (self.tmp / "managed").glob("*") if (self.tmp / "managed").exists() else ():
