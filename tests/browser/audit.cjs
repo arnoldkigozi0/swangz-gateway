@@ -41,8 +41,9 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
         if (width > 640) return;
         const bad = await p.evaluate(() => [...document.querySelectorAll('main .btn, main .u-more, main .sec-link, main .u-table th button')].filter(n => { const r = n.getBoundingClientRect(); const hit = Math.max(r.height, parseFloat(getComputedStyle(n, '::before').height) || 0); return r.height && hit < 44; }).map(n => n.textContent));
         assert.deepEqual(bad, [], T + name + ' touch size'); checks++;
-        const oversized = await p.locator('main .see-all-row .btn, main .u-pager .btn').evaluateAll(nodes => nodes.filter(n => Math.abs(n.getBoundingClientRect().height - (n.matches('.small, .btn--small') ? 30 : 36)) > 1).map(n => n.textContent.trim()));
-        assert.deepEqual(oversized, [], T + name + ' visible button size'); checks++;
+        // Since 13 Nov (Probe, main fd69d51) the visible box itself is 44px on a phone, not only the hit layer.
+        const short = await p.locator('main .see-all-row .btn, main .u-pager .btn').evaluateAll(nodes => nodes.filter(n => n.getBoundingClientRect().height < 44).map(n => n.textContent.trim()));
+        assert.deepEqual(short, [], T + name + ' visible button size'); checks++;
       };
 
       await open('#/audit', '.u-filter');

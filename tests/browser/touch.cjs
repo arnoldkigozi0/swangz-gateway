@@ -1,5 +1,5 @@
 /* Phone touch size on the control kit's lists: at 390x844 every control on People and Tools has a hit area at least 44px
-   tall (a .btn keeps its visible 36 / 30 px and grows an invisible ::before layer, Probe D3), and a row's More button is
+   tall (since 13 Nov a .btn on a phone is 44px visible; console-touch.cjs measures that), and a row's More button is
    44px wide too. Local fixture only. */
 const assert = require('node:assert/strict');
 const path = require('node:path');

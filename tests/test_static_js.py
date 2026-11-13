@@ -675,6 +675,29 @@ class PlainWordsTests(unittest.TestCase):
         self.assertIn(".sec-calm-next .btn { min-height: 44px; }", css)
         self.assertIn("@media (max-width: 640px) { .top > :is(.next-step, .top-actions) .btn { min-height: 44px; } }", css)
 
+    def test_no_gateway_in_activity_or_the_clock(self):
+        """Probe's check of main fd69d51 (13 Nov): Activity's lede and the time label said "Gateway"."""
+        ui, monitor = (STATIC / "ui.js").read_text(encoding="utf-8"), (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
+        rules = (STATIC / "admin-rules.js").read_text(encoding="utf-8")
+        self.assertNotIn("through Gateway", monitor)
+        self.assertIn("What staff did through Swangz AI Hub", monitor)
+        for src in (ui, rules):
+            self.assertNotRegex(src, r"[Gg]ateway time")
+        self.assertIn("`Hub time (${offText(tz.offset)})`", ui)
+        self.assertIn('"Hub time " + offText(tz.offset)', ui)
+
+    def test_console_controls_are_44_visible_on_phones(self):
+        """Every button, field, select, range chip and search box in a console page: visible 44px at 640px and under."""
+        guide, admin = (STATIC / "guide.css").read_text(encoding="utf-8"), (STATIC / "admin.css").read_text(encoding="utf-8")
+        block = guide[guide.index("Console controls on phones"):]
+        self.assertIn("main :is(.btn, .btn.small, .btn.small.quiet, .u-seg button, .u-range button):not(.xgate *) { min-height: 44px; }", block)
+        self.assertIn("main :is(select, textarea, input:is(", block)
+        self.assertIn("main .u-search { min-height: 44px; align-items: stretch; }", block)
+        # The old phone pins that held Models' See all and the Audit pager at a visible 36 / 30px are gone.
+        self.assertNotIn(":is(.route-models, .route-audit) .u-pager .btn { min-height: 36px", admin)
+        self.assertNotIn(":is(.route-models, .route-audit) .u-pager .btn:is(.small, .btn--small) { min-height: 30px", admin)
+        self.assertTrue((STATIC.parents[1] / "tests/browser/console-touch.cjs").exists())
+
 
 def requests_lead(cases):
     source = (STATIC / "admin-guide.js").read_text(encoding="utf-8")
