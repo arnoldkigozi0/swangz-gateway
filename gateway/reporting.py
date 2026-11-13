@@ -129,6 +129,12 @@ def validate(body, submit=False):
     return out
 
 
+def report_required_title(tool_name, week_start):
+    """Name the tool and the week, so two reports owed at once never read as the same line twice."""
+    day = date.fromisoformat(week_start)
+    return f"Complete your weekly report for {tool_name}, week of {day.day} {day.strftime('%b')}"
+
+
 def notify_person(gw, pid, key, title, href):
     import os
     state = 'pending' if os.environ.get('GATEWAY_SMTP_HOST') else 'not_configured'
@@ -240,7 +246,7 @@ def compile_closed(gw, now=None, force=False):
                      (eid, source, row['id'], ts, row.get('outcome') or 'occupied', row.get('model'), row.get('cost_source')))
             rid = db.x('INSERT INTO hub_reports(kind,person_id,tool_id,evidence_id,week_start,department,submitter_name,submitter_email,tool_name,official_url,category,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
                        ('weekly', pid, tid, eid, start, person['department'], person['name'], person['email'], tool['name'], tool['url'], tool['category'], now, now)).lastrowid
-            notify_person(gw, pid, f'report-required:{rid}', 'Complete your weekly tool report', f'#/weekly?report={rid}')
+            notify_person(gw, pid, f'report-required:{rid}', report_required_title(tool['name'], start), f'#/weekly?report={rid}')
             created.append(rid)
     gw._hub_compile_cursor={'closed':closed,'maxima':maxima}
     for start in sorted({db.scalar('SELECT week_start FROM hub_reports WHERE id=?', (rid,)) for rid in created}):
