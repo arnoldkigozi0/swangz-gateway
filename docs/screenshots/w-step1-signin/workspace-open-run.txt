@@ -1,0 +1,42 @@
+DEMO> STEP 1 enrol
+DEMO> enrolled: Nansubuga Grace | owner_kind personal | manifest browser {'contract': 2, 'person_id': '1', 'device_id': '416758b03a19', 'workspace': {'state': 'active', 'generation': 1}, 'policy': {'sha256': None, 'mode': 'warn'}}
+DEMO> apps visible to the client: ['chatgpt', 'claude', 'gemini'] | manifest apps: [('chatgpt', True, 'seat'), ('claude', True, 'seat'), ('gemini', True, 'seat')]
+DEMO> app chatgpt workspace=True hosts=['chat.openai.com', 'chatgpt.com', 'sora.com', 'auth.openai.com', 'accounts.google.com'] company_browser=False
+DEMO> app claude workspace=True hosts=['claude.ai', 'accounts.google.com'] company_browser=False
+DEMO> app gemini workspace=True hosts=['gemini.google.com', 'accounts.google.com'] company_browser=False
+DEMO> pre-check folder OK /dev/shm/probe-t/sgw-client-z4ptc8r4/data/browser-profiles/a11d9ae0a37e7f86187e31cf4f6fed67
+DEMO> chrome processes before Open (any, incl. the user's own): 7
+DEMO> popen argv: ['/opt/google/chrome/chrome', '--user-data-dir=/dev/shm/probe-t/sgw-client-z4ptc8r4/data/browser-profiles/a11d9ae0a37e7f86187e31cf4f6fed67', 'https://chatgpt.com/']
+/home/inquiline/swangz-team/probe-main/swangz_client/workspace_launcher.py:260: ResourceWarning: unclosed file <_io.BufferedWriter name='/dev/shm/probe-t/chrome-demo.log'>
+  proc = self.popen(argv, shell=False, close_fds=True, env=child_env(), stdin=subprocess.DEVNULL,
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+DEMO> open_app chatgpt -> workspace
+DEMO> popen argv: ['/opt/google/chrome/chrome', '--user-data-dir=/dev/shm/probe-t/sgw-client-z4ptc8r4/data/browser-profiles/a11d9ae0a37e7f86187e31cf4f6fed67', 'https://claude.ai/']
+/home/inquiline/swangz-team/probe-main/swangz_client/workspace_launcher.py:260: ResourceWarning: unclosed file <_io.BufferedWriter name='/dev/shm/probe-t/chrome-demo.log'>
+  proc = self.popen(argv, shell=False, close_fds=True, env=child_env(), stdin=subprocess.DEVNULL,
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/subprocess.py:1139: ResourceWarning: subprocess 1960332 is still running
+  _warn("subprocess %s is still running" % self.pid,
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+DEMO> open_app claude -> workspace
+DEMO> popen argv: ['/opt/google/chrome/chrome', '--user-data-dir=/dev/shm/probe-t/sgw-client-z4ptc8r4/data/browser-profiles/a11d9ae0a37e7f86187e31cf4f6fed67', 'https://gemini.google.com/']
+/home/inquiline/swangz-team/probe-main/swangz_client/workspace_launcher.py:260: ResourceWarning: unclosed file <_io.BufferedWriter name='/dev/shm/probe-t/chrome-demo.log'>
+  proc = self.popen(argv, shell=False, close_fds=True, env=child_env(), stdin=subprocess.DEVNULL,
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/subprocess.py:1139: ResourceWarning: subprocess 1961218 is still running
+  _warn("subprocess %s is still running" % self.pid,
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+DEMO> open_app gemini -> workspace
+DEMO> profile folders with a Default dir: ['/dev/shm/probe-t/sgw-client-z4ptc8r4/data/browser-profiles/a11d9ae0a37e7f86187e31cf4f6fed67/Default']
+DEMO> our chrome pids: [1958764, 1959218, 1959219] | argv of main: ['/opt/google/chrome/chrome --user-data-dir=/dev/shm/probe-t/sgw-client-z4ptc8r4/data/browser-profiles/a11d9ae0a37e7f86187e31cf4f6fed67 --no-first-run --no-default-browser-check https://chatgpt.com/ ']
+DEMO> NEW chrome processes NOT using our workspace folder (default browser started?): 4
+DEMO> default-browser calls (webbrowser.open): []
+DEMO> closed -> True
+DEMO> History (urls visited in the workspace window): ['https://chatgpt.com/', 'https://claude.ai/', 'https://claude.ai/login', 'https://gemini.google.com/']
+DEMO> cookies after step 1: 20 [('.chatgpt.com', '__cf_bm', 13439021812324798), ('.chatgpt.com', '_cfuvid', 13439021812324997), ('.chatgpt.com', 'oai-did', 13439021812317311), ('.chatgpt.com', 'oai-did-first-seen', 13439021812322770)]
+DEMO> window urls are in History above
+.
+----------------------------------------------------------------------
+Ran 1 test in 84.116s
+
+OK
