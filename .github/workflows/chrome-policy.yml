@@ -37,8 +37,8 @@ jobs:
       - name: Record the browser and prepare the runner
         run: |
           google-chrome --version
-          # xdotool types into the address bar (B-5, E-3 typed).
-          command -v xvfb-run && command -v xdotool || { sudo apt-get update && sudo apt-get install -y xvfb xdotool; }
+          # xdotool types into the address bar (B-5, E-3 typed); openbox gives that window focus under Xvfb.
+          sudo apt-get update && sudo apt-get install -y xvfb xdotool openbox
           # The fixture answers on 80 and 443 as the ordinary user.
           sudo sysctl -w net.ipv4.ip_unprivileged_port_start=0
           # A file left by anything else would give a false pass.

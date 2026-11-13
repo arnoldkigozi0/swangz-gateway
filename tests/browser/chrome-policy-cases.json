@@ -33,7 +33,7 @@
     { "id": "B-5", "expect": "ENFORCE", "kind": "typed", "urls": ["https://evil.test/?swz={mark}", "evil.test/?swz={mark}", "swangz{mark}"] },
     { "id": "E-3t", "expect": "ENFORCE", "kind": "typed", "urls": ["data:text/html,<script>fetch('https://chatgpt.com/?swz={mark}',{mode:'no-cors'})</script>"] },
     { "id": "E-3j", "expect": "RECORD", "kind": "typed", "urls": ["javascript:void(fetch('https://chatgpt.com/?swz={mark}',{mode:'no-cors'}))"] },
-    { "id": "E-3c", "expect": "RECORD", "kind": "hop", "click": "left", "urls": ["https://claude.ai/hop?how=datalink&to=https%3A%2F%2Fchatgpt.com%2F"] },
+    { "id": "E-3c", "expect": "RECORD", "kind": "hop", "click": "left", "control": false, "urls": ["https://claude.ai/hop?how=datalink&to=https%3A%2F%2Fchatgpt.com%2F"] },
     { "id": "E-3s", "expect": "RECORD", "kind": "hop", "urls": ["https://claude.ai/hop?how=srcdoc&to=https%3A%2F%2Fchatgpt.com%2F"] },
     { "id": "E-4", "expect": "RECORD", "kind": "hop", "urls": ["https://claude.ai/hop?how=blob&to=https%3A%2F%2Fchatgpt.com%2F", "https://claude.ai/hop?how=blobframe&to=https%3A%2F%2Fchatgpt.com%2F"] },
     { "id": "E-5", "expect": "ENFORCE", "control": false, "urls": ["file:///etc/hostname"] },

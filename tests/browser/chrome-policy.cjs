@@ -80,7 +80,7 @@ function handler(scheme) {
         srcdoc: '<iframe srcdoc="' + attr(inner) + '"></iframe>',
         datalink: '<a id="go" href="data:text/html,' + attr(encodeURIComponent(inner)) + '">go</a>',
         blob: '<script>location.href = URL.createObjectURL(new Blob([' + JSON.stringify(inner).replace(/</g, '\\u003c') + '], { type: "text/html" }))</script>',
-        blobframe: '<script>const f = document.createElement("iframe"); f.src = URL.createObjectURL(new Blob([' + JSON.stringify(inner).replace(/</g, '\\u003c') + '], { type: "text/html" })); document.body.appendChild(f)</script>',
+        blobframe: '<script>const f = document.createElement("iframe"); f.src = URL.createObjectURL(new Blob([' + JSON.stringify(inner).replace(/</g, '\\u003c') + '], { type: "text/html" })); document.documentElement.appendChild(f)</script>',
       };
       const later = {
         ...made,
@@ -196,7 +196,17 @@ async function visit(context, c, address, n) {
 /* B-5, E-3 typed: text typed into the address bar. Playwright cannot reach Chrome's own UI, so xdotool types it into the
    window (Ctrl+L, the text, Enter), found by a title the harness gives the page. "{mark}" in the text becomes the
    case's mark: a URL carries it as swz=, a bare word is searched for, and a script fetches an approved host with it. */
+/* Xvfb has no window manager, so nothing gives Chrome's window the focus the typing needs. openbox runs only while a
+   typed case does. */
+let wm = null;
+async function windowManager() {
+  if (wm) return;
+  wm = spawn('openbox', [], { stdio: 'ignore' });
+  wm.on('error', () => {});
+  await pause(1000);
+}
 async function typed(context, c, address, n) {
+  await windowManager();
   const mark = markOf(c, n);
   const text = address.split('{mark}').join(mark);
   const word = !/[:/.]/.test(text);
@@ -207,7 +217,7 @@ async function typed(context, c, address, n) {
     await page.goto('https://claude.ai/?swz=s' + mark, { waitUntil: 'domcontentloaded', timeout: 20000 });
     await page.evaluate(t => { document.title = t; }, 'swz-type-' + mark);
     await page.bringToFront();
-    execFileSync('xdotool', ['search', '--sync', '--limit', '1', '--name', 'swz-type-' + mark, 'windowfocus', '--sync', '%1',
+    execFileSync('xdotool', ['search', '--sync', '--limit', '1', '--name', 'swz-type-' + mark, 'windowactivate', '--sync', '%1',
       'key', '--clearmodifiers', 'ctrl+l', 'sleep', '0.3', 'type', '--delay', '15', text, 'key', 'Return'], { timeout: 15000, stdio: 'ignore' });
   } catch (e) { error = 'type: ' + String(e.message).split('\n')[0].slice(0, 80); }
   if (!error) {
@@ -218,6 +228,8 @@ async function typed(context, c, address, n) {
     }
   }
   const seen = arrived();
+  /* Nothing arrived and nothing was refused: keep a picture, so a typing failure can be told from a policy result. */
+  if (!seen.length && !error) await page.screenshot({ path: path.join(OUT, 'typed-' + mark + '.png') }).catch(() => {});
   const out = { id: c.id, expect: c.expect, address: text, reached: seen.length, hosts: [...new Set(seen.map(h => h.host))], error, final: '' };
   try { out.final = new URL(page.url()).protocol === 'https:' ? new URL(page.url()).origin + new URL(page.url()).pathname : page.url().slice(0, 40); } catch (e) { out.final = ''; }
   await page.close();
@@ -385,7 +397,7 @@ function report(mode, version, rows) {
         r.verdict = verdict(mode, r); rows.push(r);
       }
     }
-  } finally { if (context) await context.close(); stop(); }
+  } finally { if (context) await context.close(); stop(); if (wm) wm.kill(); }
   const text = report(mode, version, rows);
   fs.writeFileSync(path.join(OUT, mode + '.json'), JSON.stringify({ mode, version, os: os.platform() + ' ' + os.release(), dropped: mode === 'enforced' ? DROPPED : mode === 'process' ? DROPPED.filter(n => n.startsWith('Extension')) : [], rows, not_run: spec.not_run }, null, 2));
   fs.writeFileSync(path.join(OUT, mode + '.md'), text);
