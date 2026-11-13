@@ -1,5 +1,19 @@
 # Agent progress
 
+**13 Nov 21:50 STATUS (sprint runs to 00:00 Sunday 15 Nov; HANDOVER-14NOV due 22:00 Saturday 14 Nov).** The laptop slept 12:23 to 21:25, so the team and the Hub were down 9 hours (not the team's doing); an out-of-memory crash at 21:35 followed. Main `c780331`+: #227 (staff phone fixes) and #205 (Arnold's 15 Nov list) merged tonight.
+
+| Item | State |
+|---|---|
+| Final PR #204 (`feature/managed-workspace` into main) | OPEN, `needs-arnold`, mergeable, 12/12 CI at `bccc1fd`, Sentinel APPROVED at `84a15d9` (+F1 re-check `833c68a`); needs Arnold's written approval |
+| W2 to W7 (#176 #177 #178 #179 #180 #183 #185 #186 #191), D-022 tests (#202), site entries (#213), hCaptcha (#225), CI merges (#226 #228), demo plan (#219) | merged into `feature/managed-workspace` |
+| 9.3 demo | steps 1 to 4 passed with real Chrome 156 (Probe); step 5 passed on CI with the pack installed; Microsoft sign-in and claude.ai/login behind Cloudflare not proven; Windows/macOS not proven |
+| #224 (Probe step-1 screenshots) | open, into `feature/managed-workspace`; Probe to merge via normal flow |
+| #174, #175, #160 | open docs (#174 browser check failing, Anvil looking) |
+| Chrome pack D-016 | C #196, E #197, F/B-6 #199, X/P #200, B-5/E-3/E-4 #222, click fix #220 merged; G/H wait on Arnold; I needs a signed extension |
+| Lane B | #182 #198 #203 #227 merged; Probe polish pass found no new defects; open: glass photo (needs Arnold's photo), S4 footer (Arnold), O1/O2 observations, staff touch-target re-measure |
+| In flight tonight | Probe: #227 verdict, #224, #204 body links. Anvil: rerun step 5 sign-in job (record reached/not proven), server dry-run notes. Forge and Prism: lane B leftovers. Sentinel: #227 and workspace stream vs section 2 |
+| For Arnold | #204 approval; S4 footer; G/H pack decisions; D-022; five section 8 decisions; R-8 (#160); stray demo.py processes and big /tmp folders (disk quota warning); trailers on ~14 main commits |
+
 **12 Nov 20:30 NEW FIRST PRIORITY (Arnold): managed workspace, to end of 14 Nov.** Spec: docs/MANAGED-WORKSPACE.md section 9 (PR #175). Every provider opens in the Swangz workspace browser, never an outside one; downloads allowed. Every W PR targets `feature/managed-workspace`, not main; one final PR into main stays OPEN for Arnold's written approval. #150 (W1) approved by Arnold; #156 closed. R15-R17 and Probe's re-test are second.
 
 | Item | Owner | Branch | Status | Next step |
@@ -1651,3 +1665,6 @@ Merged: none. Ready: none this turn; docs9/10 green but independent verdicts not
 
 ## Chief: daily report, 12 Nov 2026 21:30 EAT
 Report: docs/daily/2026-11-12.md. Main CI green (0135ac2). Open: #174 #175 #160 #177 #178 #179 #180. Next: fix #178 (Windows inert profiles), Sentinel review of #177/#179/#180, Probe QA of the managed-workspace branch.
+
+## Chief status — 13 Nov 2026 21:40
+GitHub unreachable from the laptop (DNS). Main c780331 CI unconfirmed. Next at 00:00: read `gh pr list` and main CI first, fix red; then Probe QA + Sentinel review of feature/managed-workspace (03e01aa); merge registry PR when CI green. Waiting on Arnold: #160 prompt-text visibility; manual provider sign-in check for the 9.3 demo. Report: docs/daily/2026-11-13.md.
