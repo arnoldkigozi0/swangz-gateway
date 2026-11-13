@@ -323,12 +323,13 @@ def build_manifest(gw, h, person, device):
     if browser is not None:
         manifest["browser"] = browser
         if browser["contract"] == 2:  # Open says which device it comes from, so the server can refuse a paused workspace
-            from .device_open import allowed_hosts  # device_open imports this module
+            from .device_open import own_hosts  # device_open imports this module
             for app in apps:
                 app["open"] += "?d=" + browser["device_id"]
-                # The app re-checks the provider address against these, and opens the tool in the workspace browser;
+                # The app re-checks the start address against the tool's own hosts (never the sign-in hosts, #213 F1),
+                # and opens the tool in the workspace browser;
                 # a shared company account keeps /go/ (its own company browser), so it is never a workspace tool.
-                app["hosts"] = allowed_hosts(rows[app["id"]] or {})
+                app["hosts"] = own_hosts(rows[app["id"]] or {})
                 app["workspace"] = not turns.is_shared(rows[app["id"]] or {})
     return manifest
 

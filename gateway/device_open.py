@@ -34,18 +34,29 @@ OPENS_PER_MIN = 30  # #179 L2: a fixed per-person ceiling, so a looping app cann
 UNSAFE = "This tool's address isn't safe to open in your Swangz workspace. Ask your admin to check the tool's address."
 
 
-def allowed_hosts(tool):
-    """The tool's governed hosts, as the access gate reads them, then its official sign-in hosts
-    (catalog.SIGNIN_HOSTS, built-ins only). Malformed entries are dropped, never widened."""
+def _clean(raws):
     out = []
-    extra = catalog.SIGNIN_HOSTS.get(tool.get("id"), ()) if tool.get("builtin") else ()
-    for raw in (tool.get("hosts") or "").split(",") + list(extra):
+    for raw in raws:
         host = raw.strip().lower()
         if host.startswith("www."):
             host = host[4:]
         if HOST.fullmatch(host) and host not in out:
             out.append(host)
     return out
+
+
+def own_hosts(tool):
+    """The tool's own governed hosts (`tools.hosts`), as the access gate reads them; never the sign-in hosts.
+    The start address must be on one of these (#213 F1): a launch_url on accounts.google.com or auth.openai.com
+    is refused, so a Hub record can never send the workspace window straight to a sign-in page."""
+    return _clean((tool.get("hosts") or "").split(","))
+
+
+def allowed_hosts(tool):
+    """Where the workspace window may go once started: the tool's own hosts, then its official sign-in hosts
+    (catalog.SIGNIN_HOSTS, built-ins only). Malformed entries are dropped, never widened."""
+    extra = catalog.SIGNIN_HOSTS.get(tool.get("id"), ()) if tool.get("builtin") else ()
+    return _clean((tool.get("hosts") or "").split(",") + list(extra))
 
 
 def _on(host, hosts):
@@ -110,7 +121,7 @@ def device_open(ctx):
         if shut:
             ok, (reason, rule) = False, shut
             code = rule
-    hosts, url = allowed_hosts(tool), None
+    hosts, url = own_hosts(tool), None
     if ok and turns.is_shared(tool):
         ok, code, rule = False, "shared_account", "shared_account"
         reason = f"{tool['name']} is a shared company account. Open it from Swangz AI Hub, where turns are handed out."
@@ -133,7 +144,7 @@ def device_open(ctx):
         status = 409 if code in ("no_address", "unsafe_address", "host_not_allowed", "shared_account") else 403
         details = {"report": report_denial["href"]} if report_denial else None
         raise ApiError(status, reason or "This tool isn't open to you right now.", code, details)
-    return 200, {"ok": True, "tool": {"id": tool["id"], "name": tool["name"]}, "url": url, "allowed_hosts": hosts,
+    return 200, {"ok": True, "tool": {"id": tool["id"], "name": tool["name"]}, "url": url, "allowed_hosts": allowed_hosts(tool),
                  "launch": cur.lastrowid,
                  "workspace": managed.heartbeat_answer(ctx.gw, person, device)["workspace"]}, {"Cache-Control": "no-store"}
 

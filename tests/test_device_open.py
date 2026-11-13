@@ -137,11 +137,25 @@ class DeviceOpenTests(Base):
         apps = {a["id"]: a for a in self.manifest()["apps"]}
         for tool_id, (url, hosts) in want.items():
             self.assertTrue(apps[tool_id]["workspace"], apps[tool_id])
-            self.assertTrue(hosts <= set(apps[tool_id]["hosts"]), apps[tool_id])
+            # #213 F1: the manifest carries the tool's own hosts only, so the app's start-address re-check is narrow
+            self.assertFalse(set(apps[tool_id]["hosts"]) & {"accounts.google.com", "auth.openai.com"}, apps[tool_id])
             status, out, _ = self.open(tool_id)
             self.assertEqual((status, out["url"]), (200, url), out)
-            self.assertEqual(set(out["allowed_hosts"]), set(apps[tool_id]["hosts"]))
+            self.assertTrue(hosts <= set(out["allowed_hosts"]), out)
+            self.assertTrue(set(apps[tool_id]["hosts"]) <= set(out["allowed_hosts"]), out)
         self.assertEqual([r["outcome"] for r in self.launches()], ["opened"] * 3)
+
+    def test_a_start_address_on_a_sign_in_host_is_refused_and_recorded(self):
+        """#213 F1: sign-in hosts are where the window may go after it starts, never where it starts."""
+        self.grant("chatgpt")
+        for n, bad in enumerate(("https://accounts.google.com/x", "https://auth.openai.com/x"), 1):
+            self.db.x("UPDATE tools SET launch_url = ? WHERE id = 'chatgpt'", (bad,))
+            status, out, _ = self.open("chatgpt")
+            self.assertEqual((status, out.get("code")), (409, "host_not_allowed"), out)
+            self.assertNotIn(bad, str(out))
+            self.assertEqual(len(self.launches()), n)
+            self.assertEqual((self.launches()[-1]["outcome"], self.launches()[-1]["rule"]), ("refused", "host_not_allowed"))
+        self.assertEqual(device_open.own_hosts({"id": "chatgpt", "builtin": 1, "hosts": "chatgpt.com"}), ["chatgpt.com"])
 
     def test_the_api_rows_and_the_access_gate_are_unchanged(self):
         from gateway import catalog

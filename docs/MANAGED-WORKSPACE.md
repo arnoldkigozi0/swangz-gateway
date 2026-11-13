@@ -112,6 +112,8 @@ A person's provider chats and projects live with the provider under their accoun
 | R-6 | Windows ACL verification and macOS managed preferences are unproven until run on real machines | No such devices in CI with admin rights | Section 7 |
 | R-7 | Extension ID, update URL and production host do not exist yet | Owner inputs | `docs/RELEASE-ACCEPTANCE-GATE.md` |
 | R-8 | Body storage (`store_bodies`) defaults to on, so admins can read prompt text; this conflicts with the access-level-only logging rule | Found by Probe, 11 Nov | Sentinel to report; owner decision |
+| R-9 | On a personal device the Swangz workspace window has no top-level navigation allowlist: the app checks only the start address (against the tool's own hosts; sign-in hosts are never a start address, #213 F1), and after that the person can go anywhere | The Chrome policy pack (URLAllowlist/URLBlocklist) is for company devices only; a personal device keeps the extension gate | Company devices get the policy pack; on personal devices the extension gate still governs AI sites |
+| R-10 | At Google's sign-in page a person can choose a personal Google account instead of their Swangz one | Google owns that page; we never script or read it | Provider-side seats and organisation controls stay authoritative; the Hub records which tool was opened, not which account signed in |
 
 ## 7. Evidence needed before `enforce` or any rollout
 
