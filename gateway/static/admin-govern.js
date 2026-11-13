@@ -182,7 +182,7 @@
     }
     try {
       const out = await api("POST", `/people/${p.id}/${on ? "suspend" : "resume"}`);
-      toast(on ? `Suspended. ${out.cut} request(s) cut.` : "Access restored.");
+      toast(on ? `Suspended. ${SUI.plural(out.cut, "request")} cut.` : "Access restored.");
       A.render();
     } catch (e) { toast(e.message, true); }
   }
@@ -589,7 +589,7 @@
   async function revokeKey(d) {
     const ok = await A.confirmAction(`Revoke “${d.label}”?`, `${d.hint} stops working immediately, including anything it is streaming right now. This can't be undone — issue a new key instead.`, "Revoke key", true);
     if (!ok) return false;
-    try { const out = await api("POST", `/keys/${d.id}/revoke`); toast(`Revoked. ${out.cut} request(s) cut.`); A.render(); return true; }
+    try { const out = await api("POST", `/keys/${d.id}/revoke`); toast(`Revoked. ${SUI.plural(out.cut, "request")} cut.`); A.render(); return true; }
     catch (e) { toast(e.message, true); return false; }
   }
 

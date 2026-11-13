@@ -673,7 +673,7 @@
     }
     try {
       const out = await api("POST", "/pause", { paused });
-      toast(paused ? `Paused. ${out.cut} request(s) cut.` : "Access resumed.");
+      toast(paused ? `Paused. ${SUI.plural(out.cut, "request")} cut.` : "Access resumed.");
       await refreshOverview();
       render();
     } catch (e) { toast(e.message, true); }

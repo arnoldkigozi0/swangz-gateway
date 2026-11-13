@@ -717,3 +717,13 @@ class ModelsLeadTests(unittest.TestCase):
     def test_sentences_stay_short(self):
         for n in ({"unpriced": 1234}, {"noRule": 2}, {}, {"total": 0}):
             self.assertLessEqual(len(self.lead(**n)["sentence"].split()), 12)
+
+
+class CutCountWordingTests(unittest.TestCase):
+    """Probe F8: the console's toasts after a stop, suspension or key revoke say "1 request" / "2 requests", never "request(s)"."""
+
+    def test_no_console_toast_says_request_s(self):
+        for name in ("admin.js", "admin-govern.js"):
+            source = (STATIC / name).read_text(encoding="utf-8")
+            self.assertNotIn("request(s) cut", source, name)
+            self.assertIn('SUI.plural(out.cut, "request")} cut.', source, name)
