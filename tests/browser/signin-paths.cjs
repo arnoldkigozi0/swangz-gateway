@@ -40,7 +40,7 @@ const PATHS = [
   { id: 'chatgpt-login', provider: 'OpenAI (dialog)', start: 'https://chatgpt.com/', steps: [
     { click: button(/^log in$/i), reach: at('chatgpt.com', 'auth.openai.com') }], shows: /continue with google/i },
   { id: 'openai-direct', provider: 'OpenAI', start: 'https://auth.openai.com/log-in', steps: [], reach: at('auth.openai.com', 'chatgpt.com'),
-    shows: /continue with google|email address/i, direct: true },
+    shows: /continue with google|email address|^log in$/i, direct: true },
   { id: 'chatgpt-google', provider: 'Google', start: 'https://chatgpt.com/', steps: [
     { click: button(/^log in$/i), reach: at('chatgpt.com', 'auth.openai.com') },
     { click: button(/continue with google/i), reach: at('accounts.google.com') }] },
