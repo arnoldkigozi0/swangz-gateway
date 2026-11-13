@@ -72,7 +72,18 @@ function handler(scheme) {
       const href = next.replace(/"/g, '%22');
       /* C-3, C-4, C-6: a pop-up or new tab (the driver clicks #go, so Chrome's pop-up blocker sees a user gesture),
          a frame, and subresources the page loads by itself. */
+      /* E-3, E-4: documents made on the approved page (a srcdoc frame, a data: link, a script-made blob:). Each fetches
+         the marked `to` when it runs, so a request there means the document loaded and its script ran. */
+      const inner = '<script>fetch(' + q + ', { mode: "no-cors" }).catch(() => {})<\/script>';
+      const attr = v => v.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+      const made = {
+        srcdoc: '<iframe srcdoc="' + attr(inner) + '"></iframe>',
+        datalink: '<a id="go" href="data:text/html,' + attr(encodeURIComponent(inner)) + '">go</a>',
+        blob: '<script>location.href = URL.createObjectURL(new Blob([' + JSON.stringify(inner).replace(/</g, '\\u003c') + '], { type: "text/html" }))</script>',
+        blobframe: '<script>const f = document.createElement("iframe"); f.src = URL.createObjectURL(new Blob([' + JSON.stringify(inner).replace(/</g, '\\u003c') + '], { type: "text/html" })); document.body.appendChild(f)</script>',
+      };
       const later = {
+        ...made,
         open: '<button id="go" onclick=\'window.open(' + q.replace(/'/g, '&#39;') + ')\'>go</button>',
         blank: '<a id="go" target="_blank" rel="noopener" href="' + href + '">go</a>',
         link: '<a id="go" href="' + href + '">go</a>',
@@ -179,6 +190,36 @@ async function visit(context, c, address, n) {
   }
   if (opened.length) out.opened = opened.length;
   for (const p of opened) await p.close().catch(() => {});
+  await page.close();
+  return out;
+}
+/* B-5, E-3 typed: text typed into the address bar. Playwright cannot reach Chrome's own UI, so xdotool types it into the
+   window (Ctrl+L, the text, Enter), found by a title the harness gives the page. "{mark}" in the text becomes the
+   case's mark: a URL carries it as swz=, a bare word is searched for, and a script fetches an approved host with it. */
+async function typed(context, c, address, n) {
+  const mark = markOf(c, n);
+  const text = address.split('{mark}').join(mark);
+  const word = !/[:/.]/.test(text);
+  const arrived = () => hits.filter(h => word ? h.url.startsWith('/search?') && h.url.includes('q=' + mark) : h.url.includes('swz=' + mark));
+  const page = await context.newPage();
+  let error = '';
+  try {
+    await page.goto('https://claude.ai/?swz=s' + mark, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    await page.evaluate(t => { document.title = t; }, 'swz-type-' + mark);
+    await page.bringToFront();
+    execFileSync('xdotool', ['search', '--sync', '--limit', '1', '--name', 'swz-type-' + mark, 'windowfocus', '--sync', '%1',
+      'key', '--clearmodifiers', 'ctrl+l', 'sleep', '0.3', 'type', '--delay', '15', text, 'key', 'Return'], { timeout: 15000, stdio: 'ignore' });
+  } catch (e) { error = 'type: ' + String(e.message).split('\n')[0].slice(0, 80); }
+  if (!error) {
+    for (let i = 0; i < 20 && !arrived().length; i++) await pause(250);
+    if (!arrived().length) {
+      const body = await page.evaluate(() => document.documentElement.innerText).catch(() => '');
+      if (body.includes(BLOCKED)) error = BLOCKED;
+    }
+  }
+  const seen = arrived();
+  const out = { id: c.id, expect: c.expect, address: text, reached: seen.length, hosts: [...new Set(seen.map(h => h.host))], error, final: '' };
+  try { out.final = new URL(page.url()).protocol === 'https:' ? new URL(page.url()).origin + new URL(page.url()).pathname : page.url().slice(0, 40); } catch (e) { out.final = ''; }
   await page.close();
   return out;
 }
@@ -339,6 +380,7 @@ function report(mode, version, rows) {
       let n = 0;
       for (const address of expand(c)) {
         const r = c.step === 'process' ? await debugPort(work, c, ++n) : c.kind === 'protocol' ? await protocol(context, c, address, ++n)
+          : c.kind === 'typed' ? await typed(context, c, address, ++n)
           : c.launch ? await launched(chromium, work, c, address, ++n) : await visit(context, c, address, ++n);
         r.verdict = verdict(mode, r); rows.push(r);
       }
