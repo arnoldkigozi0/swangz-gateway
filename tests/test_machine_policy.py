@@ -199,6 +199,27 @@ class LinuxTests(Fixture):
             self.assertFalse(result.ok, (key, value))
             self.assertIn(problem, result.problems)
 
+    def test_an_allowlist_entry_that_reopens_the_block_fails(self):
+        """W5 gap: an exception for this machine, a bare address, a non-https scheme or a Google account surface would
+        undo the default deny, so each one fails the check (#197 E, #199 B, #200 X depend on it)."""
+        cases = {"open": ["*.com", "*:443", "*://*"], "scheme": ["http://claude.ai", "data:*", "chrome://settings",
+                 "view-source:*", "javascript:*", "about:blank", "file:///home"],
+                 "local": ["127.0.0.1", "localhost:8787", "[::1]", "10.0.0.5", "printer.local"],
+                 "account": ["mail.google.com", "drive.google.com", "myaccount.google.com", ".google.com", "www.google.com"]}
+        for reason, entries in cases.items():
+            for entry in entries:
+                for p in (self.tmp / "managed").glob("*") if (self.tmp / "managed").exists() else ():
+                    p.unlink()
+                result = self.linux(("swangz.json", dict(self.policy, URLAllowlist=self.policy["URLAllowlist"] + [entry])))
+                self.assertFalse(result.ok, entry)
+                self.assertIn(reason + ":URLAllowlist", result.problems, entry)
+                self.assertNotIn(entry, " ".join(result.problems))
+
+    def test_sign_in_hops_and_path_scoped_entries_stay_allowed(self):
+        for entry in (".accounts.google.com", "www.google.com/recaptcha", "login.microsoftonline.com", "github.com/login",
+                      "https://claude.ai/login", "hub.example.com:443"):
+            self.assertIsNone(mp.allow_problem(entry), entry)
+
     def test_policy_split_across_files_is_merged_and_a_conflict_fails(self):
         a = {k: v for k, v in self.policy.items() if k.startswith("URL")}
         b = {k: v for k, v in self.policy.items() if not k.startswith("URL")}
