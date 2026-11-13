@@ -47,7 +47,8 @@ jobs:
           mkdir -p "$CHROME_POLICY_OUT"
           curl -fsSL -o "$RUNNER_TEMP/chrome.deb" https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
           sudo apt-get update
-          sudo apt-get install -y --allow-downgrades "$RUNNER_TEMP/chrome.deb" xvfb
+          # xdotool types into the address bar (B-5, E-3 typed, from main); openbox gives that window focus under Xvfb.
+          sudo apt-get install -y --allow-downgrades "$RUNNER_TEMP/chrome.deb" xvfb xdotool openbox
           google-chrome --version | tee "$CHROME_POLICY_OUT/chrome-version.txt"
           sudo sysctl -w net.ipv4.ip_unprivileged_port_start=0
           sudo rm -rf "$POLICY_DIR"
