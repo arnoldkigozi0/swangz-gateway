@@ -19,4 +19,4 @@ Not allowed by the pack, and not needed in anything I observed: `claude.com`, `s
 
 ## Demo note: ChatGPT "Continue with Microsoft" (final, 13 Nov 2026)
 
-ChatGPT's Microsoft button was hidden for the visitor on the test run (`display:none`, signed out, Uganda), so it could not be clicked and no Microsoft sign-in page was reached. Whether the policy pack would allow it is therefore not tested. Per Chief's instruction of 13 Nov 2026 no further work is planned on it; for the demo, use Continue with Google. Apple was not offered either.
+ChatGPT's Microsoft button was hidden for the visitor on the test run (`display:none`, signed out, Uganda), so it could not be clicked and no Microsoft sign-in page was reached. Whether the policy pack would allow it is therefore not tested. Per Chief's instruction of 13 Nov 2026 no further work is planned on it; for the demo, use Continue with Google. Apple was offered and its sign-in page loaded (row above).
