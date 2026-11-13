@@ -843,3 +843,15 @@ phone-light console and desktop-dark staff captures and the geometry JSON. This 
 overhang finding for this product head. Probe's verdict is single-model. Normal-mode overlays,
 the main re-test and real Windows High Contrast remain unverified. The historical 2.39:1 focus
 finding was on People, not a current sign-in measurement. New-head CI remains pending.
+
+## Lane B O2: light breadcrumb backing — 13 November 2026
+
+The light console area/trail now follows BRIEF 10.3 as bare text instead of a white
+backing. Primary ink also colours the separators. The obsolete CSS assertions
+requiring the backing are replaced by a rendered check in `tests/browser/money.cjs`
+that rejects a background or rim on the Licences breadcrumb. No new tokens or dependencies.
+
+Code checks: JavaScript syntax and whitespace checks passed. Not run locally:
+Python or browser suites (one laptop test/browser slot, reserved for Probe). Full
+Python and browser checks run on CI. Photo contrast, keyboard focus, 390/1440 light
+and dark screenshots and exact-match acceptance remain pending Probe's actual review.
