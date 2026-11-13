@@ -182,7 +182,7 @@
     }
     try {
       const out = await api("POST", `/people/${p.id}/${on ? "suspend" : "resume"}`);
-      toast(on ? `Suspended. ${out.cut} request(s) cut.` : "Access restored.");
+      toast(on ? `Suspended. ${SUI.plural(out.cut, "request")} cut.` : "Access restored.");
       A.render();
     } catch (e) { toast(e.message, true); }
   }
@@ -534,7 +534,7 @@
     const removeAll = owner && mine.some((t) => t.grant === "direct") ? el("button", { class: "btn small quiet danger", onclick: async () => {
       const ok = await A.confirmAction(`Remove every tool from ${p.name}?`, "Their direct tool access is removed now. Team access stays with the team, and their account stays open — suspend it too if they're leaving.", "Remove all tools", true);
       if (!ok) return;
-      try { const out = await api("DELETE", `/people/${p.id}/tools`); toast(`Removed ${out.removed} tool(s).`); A.render(); } catch (e) { toast(e.message, true); }
+      try { const out = await api("DELETE", `/people/${p.id}/tools`); toast(`Removed ${SUI.plural(out.removed, "tool")}.`); A.render(); } catch (e) { toast(e.message, true); }
     } }, "Remove all") : null;
     return A.panel("Tools", el("div", { class: "row" }, el("span", { class: "sub" }, `${p.tool_summary.enabled} ready · ${p.tool_summary.assigned} given`), removeAll),
       give, tableBox,
@@ -589,7 +589,7 @@
   async function revokeKey(d) {
     const ok = await A.confirmAction(`Revoke “${d.label}”?`, `${d.hint} stops working immediately, including anything it is streaming right now. This can't be undone — issue a new key instead.`, "Revoke key", true);
     if (!ok) return false;
-    try { const out = await api("POST", `/keys/${d.id}/revoke`); toast(`Revoked. ${out.cut} request(s) cut.`); A.render(); return true; }
+    try { const out = await api("POST", `/keys/${d.id}/revoke`); toast(`Revoked. ${SUI.plural(out.cut, "request")} cut.`); A.render(); return true; }
     catch (e) { toast(e.message, true); return false; }
   }
 

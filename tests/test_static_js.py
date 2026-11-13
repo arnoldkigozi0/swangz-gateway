@@ -719,6 +719,24 @@ class ModelsLeadTests(unittest.TestCase):
             self.assertLessEqual(len(self.lead(**n)["sentence"].split()), 12)
 
 
+class CutCountWordingTests(unittest.TestCase):
+    """Probe F8: the console's toasts after a stop, suspension or key revoke say "1 request" / "2 requests", never "request(s)"."""
+
+    def test_no_console_toast_says_request_s(self):
+        for name in ("admin.js", "admin-govern.js"):
+            source = (STATIC / name).read_text(encoding="utf-8")
+            self.assertNotIn("request(s) cut", source, name)
+            self.assertIn('SUI.plural(out.cut, "request")} cut.', source, name)
+
+    def test_no_console_text_counts_with_a_bracketed_plural(self):
+        """Probe on #206: "Removed N tool(s).", "N request(s) with no price" and "N file(s)" use SUI.plural too."""
+        for path in sorted(STATIC.glob("admin*.js")):
+            source = path.read_text(encoding="utf-8")
+            for word in ("tool(s)", "request(s)", "file(s)", "person(s)", "device(s)", "key(s)"):
+                self.assertNotIn(word, source, path.name)
+        self.assertIn('toast(`Removed ${SUI.plural(out.removed, "tool")}.`)', (STATIC / "admin-govern.js").read_text(encoding="utf-8"))
+
+
 class StaffReportCopyTests(unittest.TestCase):
     """Staff shell (13 Nov): report counts read as English, never "report(s)"."""
 
