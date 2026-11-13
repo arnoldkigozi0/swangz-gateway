@@ -94,6 +94,8 @@ Heavy jobs run on Actions only.
 | A-2 | Sign-in round trip: Hub page, redirect to `accounts.google.com`, redirect back to `hub.swangz.test/auth/google/callback?code=x`, cookie is set |
 | A-3 | `login.microsoftonline.com`, `appleid.apple.com`, `github.com/login/oauth/authorize`, `www.google.com/recaptcha/api.js`, `challenges.cloudflare.com` load |
 | A-4 | A subdomain of an allowed provider (`app.claude.ai`, `platform.openai.com`) loads |
+| A-5 | The sign-in hosts providers were seen using in real Chrome 156 (PR #224) load: `auth.openai.com`, `accounts.google.com`, `accounts.youtube.com`, `appleid.apple.com`, `challenges.cloudflare.com`, `newassets.hcaptcha.com` |
+| A-6 | A captcha frame inside an approved page reaches its host (`newassets.hcaptcha.com` in `claude.ai`, as on Claude's login; `challenges.cloudflare.com` in `chatgpt.com`); the pack's `*` block refuses off-list frames (C-4), so these must be on the list |
 
 ### B. Navigation to hosts off the list (ENFORCE)
 | Id | Case |

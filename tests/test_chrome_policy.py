@@ -15,7 +15,7 @@ KNOWN = {"URLBlocklist", "URLAllowlist", "BrowserSignin", "SyncDisabled", "Brows
          "ExtensionInstallBlocklist", "ExtensionInstallAllowlist", "ExtensionInstallForcelist"}
 SIGN_IN = {".accounts.google.com", ".accounts.youtube.com", "login.microsoftonline.com", "login.live.com",
            "appleid.apple.com", "github.com/login", "github.com/session", "github.com/sessions",
-           "www.google.com/recaptcha", "challenges.cloudflare.com"}
+           "www.google.com/recaptcha", "challenges.cloudflare.com", "hcaptcha.com"}
 EXTENSION = re.compile(r"SWANGZ_EXTENSION_ID|[a-p]{32}")
 
 
