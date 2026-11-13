@@ -90,10 +90,10 @@
 
 /* Console controls on phones (Probe's check of main fd69d51, 13 Nov): every button, field, select, time-range chip and
    search box in a page has a visible box at least 44px tall at 640px and under, not only a ::before hit layer. The search
-   box's input fills its whole 44px label, so the box a person sees is the box they tap. */
+   box's input fills its whole 44px label, so the box a person sees is the box they tap. The sign-in gate keeps its own larger sizes. */
 @media (max-width: 640px) {
-  main :is(.btn, .btn.small, .btn.small.quiet, .u-seg button, .u-range button) { min-height: 44px; }
-  main :is(select, textarea, input:is([type=text], [type=number], [type=search], [type=email], [type=date], [type=url], [type=password], :not([type]))):not(.u-search input) { min-height: 44px; }
+  main :is(.btn, .btn.small, .btn.small.quiet, .u-seg button, .u-range button):not(.xgate *) { min-height: 44px; }   /* the sign-in gate sizes its own (52px Google) */
+  main :is(select, textarea, input:is([type=text], [type=number], [type=search], [type=email], [type=date], [type=url], [type=password], :not([type]))):not(.u-search input, .xgate *) { min-height: 44px; }
   main .u-search { min-height: 44px; align-items: stretch; }
   main .u-search input[type="search"] { min-height: 42px; }
   main .u-search svg { align-self: center; }

@@ -690,7 +690,7 @@ class PlainWordsTests(unittest.TestCase):
         """Every button, field, select, range chip and search box in a console page: visible 44px at 640px and under."""
         guide, admin = (STATIC / "guide.css").read_text(encoding="utf-8"), (STATIC / "admin.css").read_text(encoding="utf-8")
         block = guide[guide.index("Console controls on phones"):]
-        self.assertIn("main :is(.btn, .btn.small, .btn.small.quiet, .u-seg button, .u-range button) { min-height: 44px; }", block)
+        self.assertIn("main :is(.btn, .btn.small, .btn.small.quiet, .u-seg button, .u-range button):not(.xgate *) { min-height: 44px; }", block)
         self.assertIn("main :is(select, textarea, input:is(", block)
         self.assertIn("main .u-search { min-height: 44px; align-items: stretch; }", block)
         # The old phone pins that held Models' See all and the Audit pager at a visible 36 / 30px are gone.
