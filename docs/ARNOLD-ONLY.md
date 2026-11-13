@@ -38,6 +38,43 @@ Everything below is waiting on Arnold: a purchase, an account, a decision or a d
 | Installing the policy (12) | File and instructions in `deploy/chrome-policy/`. Not installed or tested on any computer | Name who administers the company computers |
 | `AllowedDomainsForApps` (13) | Left out on purpose | Decide: adding it blocks personal Google accounts and the two approved owner exceptions on company computers |
 
+## Decision: who may read what people type to the AI (R-8, finding F-18)
+
+Checked read-only on `main` at `aab785a`, 12 November 2026. Nothing has been changed; the setting stays as it is
+until Arnold chooses.
+
+**What happens today.** Every request through the gateway stores the person's prompt (up to 4,000 characters) and
+the AI's reply in the request record. The `store_bodies` setting (on by default) adds the full request and response
+on top. Every console role, including `viewer`, can read that content on the Timeline, a person's page, the AI
+requests list, a session, a single request's full record and the search box. Only the CSV export holds it back from
+roles without the `trust` area. Turning `store_bodies` off does **not** stop this, because the prompt and reply are
+kept anyway. With it off, the staff Privacy page says "Only a summary is kept — not the full contents of requests",
+which is not true. It also contradicts plan v18 item 3 (admins see access and usage metadata only). Details:
+`docs/SECURITY-REVIEW.md`, F-18.
+
+| Option | What admins can read | What staff are told | Cost |
+|---|---|---|---|
+| **A. Leave as is** | Every console role reads prompts and replies | The Privacy page stays wrong when `store_bodies` is off | No build work. Disk keeps holding full bodies until the 90-day request retention removes each record with its bodies |
+| **B. Turn `store_bodies` off only** | Unchanged: every role still reads the prompt and the reply | Still wrong | One setting change. Saves disk, does not fix F-18. Not recommended |
+| **C. Keep storing, restrict reading** | Only Owner and Security admin (the `trust` area), and every read is recorded in the audit log with a reason. Other roles see who, which tool, model, tokens, cost, outcome and purpose label, with the content marked "withheld" | Corrected: says content is stored and who can read it | One backend PR (about a day) plus Sentinel review. No change in disk use |
+| **D. Recommended: stop storing content by default, and restrict reading** | Nothing to read by default. If Arnold turns content capture on for a reason (an incident, an investigation), only Owner and Security admin read it, audited, as in C | Corrected and true: "your prompts and the AI's replies are not kept". If capture is switched on, the Privacy page says so | One backend PR (about a day) plus review. Disk use drops. What admins lose: reading a request's text when debugging a bad answer, and searching by prompt text. What stays: who, what, when, which device, cost, outcome, blocked secrets and the purpose label (worked out before the record is written, then the text is dropped) |
+
+**What D keeps working.** Usage, spend and licence reports; the weekly reports; budgets and policies; Live and
+cutting a request; the secret check (it reads the prompt in memory and blocks before anything is sent or stored);
+the purpose label.
+
+**Prompts already stored.** Whatever is chosen, the content already in the database stays until Arnold decides.
+The choices are: let it age out under the normal 90-day request retention (recommended, deletes nothing early), or
+blank it now after a verified backup (this deletes data, so it needs his explicit yes).
+
+**Recommendation: D, and let existing content age out.** It is the only option that matches what staff are told
+and plan v18 item 3, it narrows the risk if a console account is misused, and it fits the data-minimisation
+principle of Uganda's Data Protection and Privacy Act. Option C is the fallback if Arnold wants prompts kept for
+investigations.
+
+**What Arnold does.** Reply with one letter (A, B, C or D) and "age out" or "blank now". The team builds it as one
+reviewed PR; the default changes only after that reply.
+
 ## Optional
 
 Off-server backup destination (14), email sending account (15), company-browser server and relay (16), and whether to keep the Netlify site after the move.
