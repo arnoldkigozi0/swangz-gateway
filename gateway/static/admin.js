@@ -416,7 +416,7 @@
     if (!flags) return [];
     return flags.split(",").filter(Boolean).map((f) => {
       if (f.startsWith("secret:")) return el("span", { class: "u-badge bad", "data-tip": "Looks like " + f.slice(7) + " — matched by pattern; could be a test key.", tabindex: "0" }, icon("key"), "Credential");
-      if (f.startsWith("attachments:")) return SUI.badge(f.slice(12) + " file(s)", "info");
+      if (f.startsWith("attachments:")) return SUI.badge(SUI.plural(Number(f.slice(12)) || 0, "file"), "info");
       return SUI.badge(f);
     });
   }

@@ -534,7 +534,7 @@
     const removeAll = owner && mine.some((t) => t.grant === "direct") ? el("button", { class: "btn small quiet danger", onclick: async () => {
       const ok = await A.confirmAction(`Remove every tool from ${p.name}?`, "Their direct tool access is removed now. Team access stays with the team, and their account stays open — suspend it too if they're leaving.", "Remove all tools", true);
       if (!ok) return;
-      try { const out = await api("DELETE", `/people/${p.id}/tools`); toast(`Removed ${out.removed} tool(s).`); A.render(); } catch (e) { toast(e.message, true); }
+      try { const out = await api("DELETE", `/people/${p.id}/tools`); toast(`Removed ${SUI.plural(out.removed, "tool")}.`); A.render(); } catch (e) { toast(e.message, true); }
     } }, "Remove all") : null;
     return A.panel("Tools", el("div", { class: "row" }, el("span", { class: "sub" }, `${p.tool_summary.enabled} ready · ${p.tool_summary.assigned} given`), removeAll),
       give, tableBox,

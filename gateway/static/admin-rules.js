@@ -66,7 +66,7 @@
         { key: "classification", label: "Data class", render: (m) => (m.classification ? CLASS[m.classification] : el("span", { class: "faint" }, "—")), hideSm: true },
         { key: "requests", label: "Requests · 30 d", num: true, render: (m) => fmt.num(m.requests) },
         { key: "cost", label: "Est. cost", num: true, render: (m) => el("span", { class: "row end nowrap" }, fmt.money(m.cost),
-          m.unpriced ? el("span", { class: "basis unpriced", "data-tip": `${m.unpriced} request(s) with no price${m.priced ? " when they ran" : " — add one in Settings → Model prices"}`, tabindex: "0" }, `${fmt.num(m.unpriced)} unpriced`) : null) },
+          m.unpriced ? el("span", { class: "basis unpriced", "data-tip": `${SUI.plural(m.unpriced, "request")} with no price${m.priced ? " when they ran" : " — add one in Settings → Model prices"}`, tabindex: "0" }, `${fmt.num(m.unpriced)} unpriced`) : null) },
         { key: "refused", label: "Refused", num: true, render: (m) => (m.refused ? el("span", { class: "neg" }, fmt.num(m.refused)) : "0"), hideSm: true },
         { key: "last", label: "Last used", num: true, render: (m) => el("span", { class: "nowrap", title: m.people ? SUI.plural(m.people, "person", "people") + " in 30 days" : null }, fmt.ago(m.last)), hideSm: true },
         { key: "act", label: "", srLabel: "Actions", sort: false, render: (m) => SUI.menuButton({ label: "More actions for " + m.id, small: true, items: () => [
