@@ -54,6 +54,8 @@ jobs:
           UI_OUTPUT: /tmp/swangz-hub-people-ui
       - name: Phone touch size on People and Tools (44px at 390)
         run: node tests/browser/touch.cjs
+      - name: Console controls 44px visible at 390, no overflow, plain words (Hub time)
+        run: node tests/browser/console-touch.cjs
       - name: Tools on the control kit (filter bar, row menus, pages, tool record)
         run: node tests/browser/tools.cjs
         env:
