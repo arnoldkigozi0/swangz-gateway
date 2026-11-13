@@ -229,7 +229,10 @@ async function typed(context, c, address, n) {
   }
   const seen = arrived();
   /* Nothing arrived and nothing was refused: keep a picture, so a typing failure can be told from a policy result. */
-  if (!seen.length && !error) await page.screenshot({ path: path.join(OUT, 'typed-' + mark + '.png') }).catch(() => {});
+  if (!seen.length && !error) {
+    try { execFileSync('import', ['-window', 'root', path.join(OUT, 'typed-' + mark + '.png')], { timeout: 10000, stdio: 'ignore' }); } catch (e) { /* no ImageMagick */ }
+    try { error = 'nothing arrived; active window: ' + execFileSync('xdotool', ['getactivewindow', 'getwindowname'], { timeout: 5000 }).toString().trim().slice(0, 60); } catch (e) { error = 'nothing arrived; no active window'; }
+  }
   const out = { id: c.id, expect: c.expect, address: text, reached: seen.length, hosts: [...new Set(seen.map(h => h.host))], error, final: '' };
   try { out.final = new URL(page.url()).protocol === 'https:' ? new URL(page.url()).origin + new URL(page.url()).pathname : page.url().slice(0, 40); } catch (e) { out.final = ''; }
   await page.close();
