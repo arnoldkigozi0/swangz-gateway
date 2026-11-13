@@ -852,17 +852,41 @@ def _creation(row):
             "audio": f"/api/studio/media/{row['id']}" if row["resp_blob"] and (row["resp_ctype"] or "").startswith("audio/") else None}
 
 
+STUDIO_MINE = "person_id = ? AND kind = 'media' AND client IN ('Swangz AI Studio','Swangz AI Hub Studio')"
+CREATIONS_PAGE = 12
+
+
+def _creations(ctx, before=None):
+    """One page of the person's own Studio creations, newest first, older than `before` (a request id) when given."""
+    where, args = STUDIO_MINE, [ctx.person["id"]]
+    if before:
+        where += " AND id < ?"
+        args.append(before)
+    rows = ctx.db.q(f"SELECT * FROM requests WHERE {where} ORDER BY id DESC LIMIT ?", (*args, CREATIONS_PAGE + 1))
+    return [_creation(r) for r in rows[:CREATIONS_PAGE]], len(rows) > CREATIONS_PAGE
+
+
+@route("GET", r"/studio/creations")
+def studio_creations(ctx):
+    """Older creations for Your creations' "Show older" (the first page comes with /studio)."""
+    before = ctx.arg("before", 0, int)
+    if before < 1:
+        raise ApiError(400, "Say which creation to continue after.")
+    items, more = _creations(ctx, before)
+    return {"items": items, "more": more}
+
+
 @route("GET", r"/studio")
 def studio(ctx):
     voice, visual = _service(ctx, "elevenlabs"), _service(ctx, "higgsfield")
-    recent = ctx.db.q("SELECT * FROM requests WHERE person_id = ? AND kind = 'media' AND client IN ('Swangz AI Studio','Swangz AI Hub Studio')"
-                      " ORDER BY id DESC LIMIT 12", (ctx.person["id"],))
+    recent, more = _creations(ctx)
+    total = ctx.db.one(f"SELECT COUNT(*) AS n FROM requests WHERE {STUDIO_MINE}", (ctx.person["id"],))["n"]
     return {"voice": bool(voice), "image": bool(visual), "video": bool(visual),
             "voices": _voices(ctx, voice) if voice else [],
             "voice_models": [{"id": m, "name": n} for m, n in VOICE_MODELS],
             "purposes": [{"id": r["id"], "name": r["name"]} for r in ctx.db.q(
                 "SELECT id, name FROM purposes WHERE archived = 0 AND id NOT IN ('other') ORDER BY sort, name")],
-            "recent": [_creation(r) for r in recent]}
+            "recent": recent, "recent_more": more, "recent_total": total}
 
 
 @route("POST", r"/studio/voice")
