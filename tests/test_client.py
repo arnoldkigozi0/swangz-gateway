@@ -111,6 +111,21 @@ class SignInTests(ClientBase):
             with self.assertRaises(ValueError, msg=bad):
                 core.normalise_server(bad)
 
+    def test_moving_to_a_new_server_address_means_signing_out_then_connecting_again(self):
+        """docs/SERVER-DAY.md step 9: an enrolled app keeps its server address and has no command to change it."""
+        self.sign_in()
+        old_key = (self.data / "device.key").read_text().strip()
+        moved = f"http://localhost:{self.rig.port}"  # the same rig under a second address stands in for the new server
+        with self.assertRaisesRegex(ValueError, "Sign out of this device before connecting it again"):
+            self.client.login(moved, "Grace's laptop")
+        self.assertEqual((len(self.opened), self.client.status()["server"]), (1, self.server))  # nothing was asked of the new one
+        self.assertTrue(self.client.logout())  # the old server is told, so the old key stops working there
+        self.assertEqual(self.gw.db.scalar("SELECT COUNT(*) FROM keys WHERE revoked IS NULL AND device_id IS NOT NULL"), 0)
+        self.rig.gw.settings.public_url = moved
+        info = self.client.login(moved, "Grace's laptop")
+        self.assertEqual((info["server"], self.client.status()["server"]), (moved, moved))
+        self.assertNotEqual((self.data / "device.key").read_text().strip(), old_key)
+
     def test_not_signed_in_means_not_signed_in(self):
         with self.assertRaises(core.NotSignedIn):
             self.client.sync()

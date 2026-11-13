@@ -44,6 +44,24 @@ let demo, browser, checks = 0;
       }
       await c.close();
     }
+    // The staff app at 390 (Probe's re-test of main, 13 Nov): here the visible box itself reaches 44px, not only a ::before layer.
+    const STAFF = ['.stb-bar a', 'main .btn', '.u-seg button', '.p-index button', 'main a.tlink', '.p-more > summary', '.xf-ask input', '.xf-ask button'];
+    const found = new Set();
+    for (const theme of ['dark', 'light']) {
+      const c = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+      await c.addInitScript(t => localStorage.setItem('swangz-theme', t), theme);
+      assert.equal((await c.request.post(url + '/api/login', { headers: { 'x-swangz-app': '1' }, data: { email: 'grace@swangzavenue.com', password: 'demo-password' } })).status(), 200);
+      const p = await c.newPage();
+      for (const hash of ['#/', '#/tools', '#/privacy', '#/devices']) {
+        await p.goto(url + '/' + hash); await p.locator('main h1, main h2').first().waitFor(); await p.waitForLoadState('networkidle');
+        const seen = await p.evaluate(sels => sels.flatMap(sel => [...document.querySelectorAll(sel)].map(n => [sel, n, n.getBoundingClientRect()])
+          .filter(([, n, r]) => r.width && r.height && getComputedStyle(n).visibility !== 'hidden')
+          .map(([sel, n, r]) => [sel, Math.round(r.height * 10) / 10, `${Math.round(r.width)}x${Math.round(r.height)} ${sel} "${(n.getAttribute('aria-label') || n.textContent || n.placeholder || '').trim().slice(0, 30)}"`])), STAFF);
+        for (const [sel, h, label] of seen) { found.add(sel); checks++; if (h < MIN) failures.push(`staff ${theme} ${hash}: ${label}`); }
+      }
+      await c.close();
+    }
+    assert.deepEqual(STAFF.filter(s => !found.has(s)), [], 'the staff check found every kind of control');
     assert.deepEqual(failures, [], 'controls under ' + MIN + 'px');
     console.log(`touch.cjs: ${checks} checks passed`);
   } finally {

@@ -735,3 +735,17 @@ class CutCountWordingTests(unittest.TestCase):
             for word in ("tool(s)", "request(s)", "file(s)", "person(s)", "device(s)", "key(s)"):
                 self.assertNotIn(word, source, path.name)
         self.assertIn('toast(`Removed ${SUI.plural(out.removed, "tool")}.`)', (STATIC / "admin-govern.js").read_text(encoding="utf-8"))
+
+
+class StaffReportCopyTests(unittest.TestCase):
+    """Staff shell (13 Nov): report counts read as English, never "report(s)"."""
+
+    def test_no_bracketed_plurals_in_staff_report_copy(self):
+        for name in ("portal.js", "portal-hub.js"):
+            text = (STATIC / name).read_text(encoding="utf-8")
+            self.assertNotIn("report(s)", text, name)
+
+    def test_home_reminder_counts_with_plural(self):
+        text = (STATIC / "portal.js").read_text(encoding="utf-8")
+        self.assertIn('SUI.plural(me.weekly_outstanding, "weekly tool report")', text)
+        self.assertIn('me.weekly_outstanding === 1 ? "Complete report" : "Complete reports"', text)
