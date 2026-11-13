@@ -159,11 +159,14 @@ is your choice and your signup.
 
 ## 9. Point the apps at the new address (about 30 min)
 
-Do this only after steps 4 to 6 pass. The first three are UNVERIFIED; they were not rehearsed.
+Do this only after steps 4 to 6 pass. The staff web app and extension bullets are UNVERIFIED; they were not rehearsed.
 
 - Staff web app: people open the new address. Update any link you gave out.
-- Desktop app: an enrolled device stores the old server address. Whether it can be moved without
-  enrolling again is UNVERIFIED; plan on re-enrolling a test device first.
+- Desktop app: an enrolled device keeps the old server address, and there is no command to change it
+  (the app refuses to connect elsewhere while it is enrolled). Move each device by signing out, then
+  connecting again: `swangz logout`, then `swangz login --server https://ai.swangzavenue.com` and approve the code in the browser as on the first day. Sign out while the
+  laptop is still serving, so the old key is disconnected there. Proven against the test server, not on a real device:
+  `tests/test_client.py` `test_moving_to_a_new_server_address_means_signing_out_then_connecting_again`.
 - Browser extension: it stores the Hub address in its settings. Change it on one test computer first.
 - Netlify: if the Netlify site is kept, change its `SWANGZ_GATEWAY` setting to the new address
   (`deploy/NETLIFY.md`). Do not change Netlify without deciding to keep it.
