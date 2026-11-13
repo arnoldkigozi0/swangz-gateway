@@ -30,6 +30,7 @@ import hashlib
 import json
 import os
 import plistlib
+import re
 import stat
 import sys
 from pathlib import Path
@@ -52,6 +53,14 @@ KNOWN = tuple(REQUIRED) + LISTS + ("DownloadRestrictions",)
 BOOLEAN = frozenset(k for k, v in REQUIRED.items() if isinstance(v, bool))
 JSON_STRING = frozenset({"AutoLaunchProtocolsFromOrigins"})  # a "dictionary" policy: one JSON string on Windows
 OPEN_ALLOW = frozenset({"*", "*://*", "http://*", "https://*"})
+# An allowlist entry that would reopen what the blocklist closes: a non-https scheme (data:, chrome:, file:, …), this
+# machine or a bare address, or a Google account surface (mail, drive, account settings, the whole of google.com).
+# Sign-in hops such as .accounts.google.com and path-scoped entries such as www.google.com/recaptcha stay allowed.
+ACCOUNT_SURFACES = frozenset({"google.com", "www.google.com", "mail.google.com", "drive.google.com", "docs.google.com",
+                              "myaccount.google.com", "photos.google.com", "contacts.google.com", "takeout.google.com",
+                              "gmail.com", "www.gmail.com", "googlemail.com", "www.googlemail.com"})
+# Chrome reads a host made only of numbers as an IPv4 address in any base: 0x7f000001, 0x7f.0.0.1, 0177.0.0.1, 2130706433.
+NUMERIC_HOST = re.compile(r"(?:0x[0-9a-f]*|\d+)(?:\.(?:0x[0-9a-f]*|\d+))*")
 MAX_BYTES = 1 << 20
 
 LINUX_DIRS = {"chrome": "/etc/opt/chrome/policies/managed", "chromium": "/etc/chromium/policies/managed",
@@ -223,6 +232,43 @@ def merge(sources):
     return merged, problems
 
 
+def allow_problem(entry):
+    """-> None for an acceptable URLAllowlist entry, else the short reason (open / scheme / local / account / host)."""
+    e = entry.strip().lower()
+    if e in OPEN_ALLOW:
+        return "open"
+    scheme, rest = None, e
+    if "://" in e:
+        scheme, rest = e.split("://", 1)
+    else:
+        m = re.match(r"([a-z][a-z0-9+-]*):(?!\d+(?:[/@]|$))", e)
+        if m:
+            return "scheme"
+    if scheme not in (None, "https"):
+        return "open" if scheme == "*" else "scheme"
+    authority = re.split(r"[/?#]", rest, 1)[0]
+    userinfo = "@" in authority  # "user@mail.google.com" still names mail.google.com
+    hostport = authority.rsplit("@", 1)[-1]
+    path = rest[len(authority):].strip("/")
+    if hostport.startswith("["):
+        return "local"
+    host = hostport.rsplit(":", 1)[0] if ":" in hostport else hostport
+    host = host.lstrip(".")
+    dotted = host.endswith(".")  # "mail.google.com." is the same site as "mail.google.com" to the browser
+    host = host.rstrip(".")
+    if not host or host == "*" or "*" in host:
+        return "open"
+    if host == "localhost" or host.endswith((".localhost", ".local", ".internal")) or NUMERIC_HOST.fullmatch(host):
+        return "local"
+    google_path = host in ("google.com", "www.google.com") and path and not path.startswith("accounts")
+    mail = host.endswith((".gmail.com", ".googlemail.com"))  # every Gmail host, e.g. mail.googlemail.com
+    if (host in ACCOUNT_SURFACES or mail) and not google_path:
+        return "account"
+    if dotted or userinfo:
+        return "host"
+    return None
+
+
 def problems_in(policy):
     """Short names of what is missing or wrong. Never values: the report stays small and says nothing about sites."""
     out = []
@@ -240,8 +286,8 @@ def problems_in(policy):
     allow = policy.get("URLAllowlist")
     if not isinstance(allow, list) or not allow:
         out.append("missing:URLAllowlist")
-    elif any(entry in OPEN_ALLOW for entry in allow if isinstance(entry, str)):
-        out.append("open:URLAllowlist")
+    else:
+        out += [allow_problem(e) + ":URLAllowlist" for e in allow if isinstance(e, str) and allow_problem(e)]
     if policy.get("ExtensionInstallBlocklist") != ["*"]:
         out.append("wrong:ExtensionInstallBlocklist")
     for key in ("ExtensionInstallAllowlist", "ExtensionInstallForcelist"):

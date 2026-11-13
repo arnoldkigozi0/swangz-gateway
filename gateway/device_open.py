@@ -20,7 +20,7 @@ import re
 import time
 from urllib.parse import parse_qsl, urlsplit
 
-from . import enroll, managed, turns
+from . import catalog, enroll, managed, turns
 from .admin import ApiError
 from .staff import launch_checks, route
 
@@ -30,13 +30,16 @@ MAX_URL = 2048
 CREDENTIAL_FIELDS = {"password", "passwd", "pwd", "pass", "token", "access_token", "id_token", "refresh_token", "auth_token",
                      "api_key", "apikey", "key", "secret", "client_secret", "session", "sessionid", "session_id", "sid",
                      "auth", "authorization", "jwt", "bearer", "otp", "credentials"}
+OPENS_PER_MIN = 30  # #179 L2: a fixed per-person ceiling, so a looping app cannot flood the launch record
 UNSAFE = "This tool's address isn't safe to open in your Swangz workspace. Ask your admin to check the tool's address."
 
 
 def allowed_hosts(tool):
-    """The tool's governed hosts, as the access gate reads them. Malformed entries are dropped, never widened."""
+    """The tool's governed hosts, as the access gate reads them, then its official sign-in hosts
+    (catalog.SIGNIN_HOSTS, built-ins only). Malformed entries are dropped, never widened."""
     out = []
-    for raw in (tool.get("hosts") or "").split(","):
+    extra = catalog.SIGNIN_HOSTS.get(tool.get("id"), ()) if tool.get("builtin") else ()
+    for raw in (tool.get("hosts") or "").split(",") + list(extra):
         host = raw.strip().lower()
         if host.startswith("www."):
             host = host[4:]
@@ -93,6 +96,8 @@ def device_open(ctx):
     """Body `{"tool": "<tool id>"}`, device key as `Authorization: Bearer`, header `X-Swangz-App: 1`.
     200 `{"ok": true, "tool": {"id", "name"}, "url", "allowed_hosts", "workspace": {"state", "generation"}}`."""
     person, device, _ = enroll.device_key_auth(ctx)
+    if ctx.gw.open_limit.over(person["id"], OPENS_PER_MIN):
+        raise ApiError(429, f"Too many opens. The limit is {OPENS_PER_MIN} a minute; wait a moment.", "rate_limited")
     tool_id = ctx.body.get("tool")
     tool = ctx.db.one("SELECT * FROM tools WHERE id = ? AND archived = 0", (tool_id,)) \
         if isinstance(tool_id, str) and TOOL_ID.fullmatch(tool_id) else None

@@ -128,6 +128,15 @@ DETAILS = {
 
 SIGNIN = ("sso", "seat", "own", "api", "shared")
 
+# The official sign-in hosts a tool's website hands off to, kept out of `hosts` so the access gate never governs
+# them (accounts.google.com is everyone's Google sign-in, not a tool). /api/device/open adds them to the tool's
+# allowed hosts for the Swangz workspace window only. To be confirmed against each provider (Probe, 9.3 step 1).
+SIGNIN_HOSTS = {
+    "chatgpt": ("auth.openai.com", "accounts.google.com"),
+    "claude": ("accounts.google.com",),
+    "gemini": ("accounts.google.com",),
+}
+
 FIELDS = ("id", "name", "category", "kind", "provider", "url", "hosts", "pricing_url", "entry_usd", "plans")
 
 
