@@ -1,0 +1,104 @@
+name: W6 step 5, prepared pack
+# MANAGED-WORKSPACE 9.3 step 5 and W6: Google Chrome installed in the job, the pack made by deploy/chrome-policy/prepare.py
+# installed on this throwaway runner only, then the D-016 bypass cases (groups A to F, X and P) and the client's own
+# policy check. Nothing is deployed and no key is used: the Hub host, extension ID and update address are CI
+# placeholders, and Chrome resolves every name to 127.0.0.1, where the test fixture answers.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/w6-step5.yml'
+      - 'deploy/chrome-policy/**'
+      - 'tests/browser/chrome-policy*'
+      - 'swangz_client/machine_policy.py'
+  workflow_dispatch:
+concurrency:
+  group: w6-step5-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  prepared-pack:
+    name: Prepared pack bypass checks (ubuntu, Google Chrome)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash  # -eo pipefail, so a failing check is not hidden by tee
+    env:
+      POLICY_DIR: /etc/opt/chrome/policies/managed
+      CHROME_POLICY_HUB_HOST: hub.swangz-ci.com
+      CHROME_POLICY_PREPARED: /tmp/swangz-w6-prepared.json
+      CI_EXTENSION_ID: abcdefghijklmnopabcdefghijklmnop
+      CI_UPDATE_URL: https://ext.swangz-ci.com/update.xml
+      CHROME_POLICY_OUT: /tmp/swangz-w6-step5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/browser/package-lock.json
+      - run: npm ci --prefix tests/browser
+      - name: Install Google Chrome stable in the job
+        run: |
+          mkdir -p "$CHROME_POLICY_OUT"
+          curl -fsSL -o "$RUNNER_TEMP/chrome.deb" https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt-get update
+          sudo apt-get install -y --allow-downgrades "$RUNNER_TEMP/chrome.deb" xvfb
+          google-chrome --version | tee "$CHROME_POLICY_OUT/chrome-version.txt"
+          sudo sysctl -w net.ipv4.ip_unprivileged_port_start=0
+          sudo rm -rf "$POLICY_DIR"
+      - name: Prepare the pack with deploy/chrome-policy/prepare.py
+        run: |
+          python3 deploy/chrome-policy/prepare.py --hub-host "$CHROME_POLICY_HUB_HOST" --extension-id "$CI_EXTENSION_ID" \
+            --update-url "$CI_UPDATE_URL" --output "$CHROME_POLICY_PREPARED" | tee "$CHROME_POLICY_OUT/prepare.txt"
+          sed -n 's/^Baseline SHA-256[^:]*: //p' "$CHROME_POLICY_OUT/prepare.txt" > "$RUNNER_TEMP/baseline.txt"
+          test -s "$RUNNER_TEMP/baseline.txt"
+          cp "$CHROME_POLICY_PREPARED" "$CHROME_POLICY_OUT/prepared.json"
+      - name: Client check with no policy installed (policy_ok must be false)
+        run: |
+          python3 -c 'import json, sys; from swangz_client import machine_policy as m; r = m.check("chrome"); print(json.dumps({"ok": r.ok, "problems": r.problems})); sys.exit(1 if r.ok else 0)' \
+            | tee "$CHROME_POLICY_OUT/client-before.json"
+      - name: Control run, no policy (every case must reach the fixture)
+        run: xvfb-run -a node tests/browser/chrome-policy.cjs control
+      - name: Install the prepared pack, less the two process-level keys
+        run: |
+          node tests/browser/chrome-policy.cjs render "$RUNNER_TEMP/swangz-test.json"
+          sudo mkdir -p "$POLICY_DIR"
+          sudo install -m 0644 "$RUNNER_TEMP/swangz-test.json" "$POLICY_DIR/swangz-test.json"
+      - name: Enforced run, prepared pack installed
+        run: xvfb-run -a node tests/browser/chrome-policy.cjs enforced
+      - name: Install the whole prepared pack
+        run: |
+          node tests/browser/chrome-policy.cjs render "$RUNNER_TEMP/swangz-test.json" full
+          sudo install -m 0644 "$RUNNER_TEMP/swangz-test.json" "$POLICY_DIR/swangz-test.json"
+      - name: Client check, whole prepared pack (policy_ok true, SHA equals the baseline prepare.py printed)
+        run: |
+          python3 - "$(cat "$RUNNER_TEMP/baseline.txt")" <<'PY' | tee "$CHROME_POLICY_OUT/client-installed.json"
+          import json, sys
+          from swangz_client import machine_policy as m
+          r = m.check("chrome")
+          print(json.dumps({"ok": r.ok, "sha256": r.sha256, "baseline": sys.argv[1], "problems": r.problems, "sources": r.sources}))
+          sys.exit(0 if r.ok and r.sha256 == sys.argv[1] else 1)
+          PY
+      - name: Process step, whole prepared pack (P cases, nothing driven)
+        run: xvfb-run -a node tests/browser/chrome-policy.cjs process
+      - name: Remove the policy file; the client must report policy_ok=false again
+        if: always()
+        run: |
+          sudo rm -rf "$POLICY_DIR"
+          python3 -c 'import json, sys; from swangz_client import machine_policy as m; r = m.check("chrome"); print(json.dumps({"ok": r.ok, "problems": r.problems})); sys.exit(1 if r.ok else 0)' \
+            | tee "$CHROME_POLICY_OUT/client-after.json"
+      - name: W6 client cases (enforce blocks Open when policy_ok is false; Windows and macOS skip with a reason)
+        if: always()
+        run: python -m unittest tests.test_machine_policy tests.test_w6_matrix tests.test_device_open tests.test_managed_workspace -v 2>&1 | tee "$CHROME_POLICY_OUT/w6-unittests.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: w6-step5-prepared-pack
+          path: /tmp/swangz-w6-step5/
+          retention-days: 14
+          if-no-files-found: warn
