@@ -316,3 +316,16 @@ html[data-theme="light"] .staff-exact { background: none; --staff-scrim: linear-
   /* when the tabs wrap to two rows, 4px between rows gives each row its own 2px of the gap */
   .staff-exact .u-seg { row-gap: 4px; }
 }
+
+/* Staff touch targets, visible size (Probe re-test of main, 13 Nov; BRIEF 10.10): at 390 wide the boxes themselves reach
+   44px, not only an invisible layer: tool-row and page buttons (Open, Connect, Request, Disconnect, Complete report, pager),
+   the Tools filter tabs, the Privacy index tabs and their "More about this", text links like "2 more in Tools", and the
+   footer's Ask field and button (its bar grows 46 -> 52 to hold them). The phone bar items are in exact-staff-bar.css. */
+@media (max-width: 640px) {
+  .staff-exact :is(main, .xf-panel) .btn, .staff-exact .u-seg button, .staff-exact .p-index button { min-height: 44px; }
+  .staff-exact main a.tlink { display: inline-flex; align-items: center; min-height: 44px; }
+  .staff-exact .p-more > summary { padding-block: 12px; }
+  /* :is(form, a) outranks exact-footer.css, which loads later with the same selectors */
+  .staff-exact .xf-ask:is(form, a) { height: 52px; }
+  .staff-exact .xf-ask:is(form, a) :is(input, button, b) { height: 44px; min-height: 44px; }
+}

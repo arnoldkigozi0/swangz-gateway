@@ -343,3 +343,20 @@ class StaffToolRowPhoneTests(unittest.TestCase):
         self.assertIn("@media (max-width: 640px)", block)
         self.assertRegex(block, r"\.staff-exact \.tool-row \.tr-sub \{[^}]*flex-direction: column")
         self.assertRegex(block, r"\.staff-exact \.tool-row \.tr-sub > \.dot \{[^}]*display: none")
+
+
+class StaffVisibleTouchTests(unittest.TestCase):
+    """Probe's re-test of main (13 Nov): on phones the staff controls' visible boxes reach 44px (tests/browser/touch.cjs measures them)."""
+
+    def test_phone_rules_size_the_boxes(self):
+        css = (STATIC / "exact-staff.css").read_text(encoding="utf-8")
+        block = css.split("Staff touch targets, visible size")[1]
+        for part in (".staff-exact :is(main, .xf-panel) .btn, .staff-exact .u-seg button, .staff-exact .p-index button { min-height: 44px; }",
+                     ".staff-exact main a.tlink { display: inline-flex; align-items: center; min-height: 44px; }",
+                     ".staff-exact .p-more > summary { padding-block: 12px; }",
+                     ".staff-exact .xf-ask:is(form, a) :is(input, button, b) { height: 44px; min-height: 44px; }"):
+            self.assertIn(part, block)
+
+    def test_phone_bar_items_are_44_tall(self):
+        bar = (STATIC / "exact-staff-bar.css").read_text(encoding="utf-8")
+        self.assertIn("width: 44px; height: 44px; border-radius: 10px;", bar)
