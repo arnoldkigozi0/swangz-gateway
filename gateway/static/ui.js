@@ -165,7 +165,7 @@
   };
   function tzLabel(short) {
     if (tz.mode === "utc") return "UTC";
-    if (tz.mode === "gateway") return short ? offText(tz.offset) : `Gateway time (${offText(tz.offset)})`;
+    if (tz.mode === "gateway") return short ? offText(tz.offset) : `Hub time (${offText(tz.offset)})`;
     const local = -new Date().getTimezoneOffset();
     return short ? offText(local) : `Your time (${offText(local)})`;
   }
@@ -913,7 +913,7 @@
     [from, to].forEach((i) => i.addEventListener("change", () => { cur.from = from.value; cur.to = to.value; fire(); }));
     drawSeg();
     const zone = el("select", { "aria-label": "Show times in" },
-      el("option", { value: "gateway" }, "Gateway time " + offText(tz.offset)),
+      el("option", { value: "gateway" }, "Hub time " + offText(tz.offset)),
       el("option", { value: "local" }, "My time " + offText(-new Date().getTimezoneOffset())),
       el("option", { value: "utc" }, "UTC"));
     zone.value = tz.mode;

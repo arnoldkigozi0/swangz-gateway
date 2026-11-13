@@ -212,7 +212,7 @@
       depts: el("label", { class: "field" }, "Departments", depts),
       people: el("label", { class: "field" }, "People (Ctrl or ⌘ to pick several)", ppl),
       hours: el("div", { class: "stack" }, el("label", { class: "field" }, "Allowed on", days),
-        el("div", { class: "form-grid" }, el("label", { class: "field" }, "From (gateway time)", f.start), el("label", { class: "field" }, "Until", f.end))),
+        el("div", { class: "form-grid" }, el("label", { class: "field" }, "From (Hub time)", f.start), el("label", { class: "field" }, "Until", f.end))),
       cap: el("label", { class: "field" }, "Monthly limit (US dollars, estimated spend)", f.limit,
         el("span", { class: "hint" }, "Counts the subjects' estimated spend this month on what the policy covers. Only AI requests through Swangz AI Hub cost metered money, so a cap governs those.")),
       chans: el("label", { class: "field" }, "Where it applies (none ticked = everywhere)", chans),
@@ -257,7 +257,7 @@
         .filter(Boolean).join("; ") || "every tool and model";
       const where = effect === "cap" ? "AI requests through Swangz AI Hub" : v.scope.channels.length ? list(v.scope.channels.map((c) => CHANNEL[c].toLowerCase())) : "everywhere";
       const days = v.params.days.map((d) => DAYS[d]).join(", ");
-      const how = effect === "deny" ? "Refuses" : effect === "hours" ? `Allows only on ${days || "no days"}, ${v.params.start}–${v.params.end} (gateway time),`
+      const how = effect === "deny" ? "Refuses" : effect === "hours" ? `Allows only on ${days || "no days"}, ${v.params.start}–${v.params.end} (Hub time),`
         : `Stops after ${v.params.limit_usd != null ? fmt.money(v.params.limit_usd) : "a limit not yet set"} of estimated spend this month on`;
       review.textContent = `${how} ${what}, for ${subj} — ${where}.` + (v.params.message ? ` They are told: “${v.params.message}”` : " They see the standard refusal message.");
       effectSays.textContent = EFFECT_SAYS[effect] || "";

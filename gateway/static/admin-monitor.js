@@ -343,7 +343,7 @@
   async function pageActivity(params) {
     await A.toolIndex().catch(() => null);
     const exportLink = el("a", { class: "btn", href: A.gadmin("/export.csv") }, icon("download"), "Export CSV");
-    A.frame({ title: "Activity", trail: [["Overview", "#/"], ["Activity"]], lede: ["What staff did through Gateway — AI requests, tools opened, AI websites visited, shared-account turns, and each person's sign-ins and access changes. Signals worth investigating are under ",
+    A.frame({ title: "Activity", trail: [["Overview", "#/"], ["Activity"]], lede: ["What staff did through Swangz AI Hub — AI requests, tools opened, AI websites visited, shared-account turns, and each person's sign-ins and access changes. Signals worth investigating are under ",
       el("a", { href: "#/security" }, "Security"), "; what admins changed is in the ", el("a", { href: "#/audit" }, "Audit log"), "."],
       actions: exportLink },
     A.pageTabs("#/activity", params, [
