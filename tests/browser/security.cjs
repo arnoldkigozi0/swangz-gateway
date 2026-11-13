@@ -70,6 +70,25 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       const slack = await p.evaluate(() => [...document.querySelectorAll('main .ov-simple > *')].map(n => { const last = n.lastElementChild; return Math.round(n.getBoundingClientRect().bottom - (last ? last.getBoundingClientRect().bottom : 0)); }));
       ok(T + `Simple blocks end at their content (${slack})`, slack.length === 2 && slack.every(x => x <= 24));
       await noOverflow('Simple'); await axe('Simple'); await small('Simple'); await shot(p, 'security-simple');
+      // Visible boxes, not ::before layers (Probe, 13 Nov): the page's next step and title-line buttons on phones.
+      const visible = (sel) => p.evaluate(q => [...document.querySelectorAll(q)].filter(n => n.getBoundingClientRect().height).map(n => [Math.round(n.getBoundingClientRect().height * 10) / 10, n.textContent.trim()]), sel);
+      if (width <= 640) for (const [h, name] of await visible('.top > :is(.next-step, .top-actions) .btn')) ok(T + `"${name}" is ${h}px tall`, h >= 44);
+
+      // Calm fixture: no warnings and no open incidents. The left block is a short card holding its next step, 44px at every width.
+      const calm = await c.newPage(); calm.on('pageerror', e => errors.push(e.message));
+      await calm.route(/\/admin\/api\/security\?days=7$/, async r => { const res = await r.fetch(); const body = await res.json(); body.events = body.events.filter(e => e.severity === 'info'); await r.fulfill({ response: res, json: body }); });
+      await calm.route(/\/admin\/api\/incidents\?status=active$/, async r => { const res = await r.fetch(); const body = await res.json(); body.items = []; await r.fulfill({ response: res, json: body }); });
+      await calm.goto(url + '/admin#/security?view=simple'); await calm.locator('main .sec-calm').waitFor(); await calm.waitForLoadState('networkidle');
+      const calmSeen = await calm.evaluate(() => { const card = document.querySelector('main .sec-calm'), nums = document.querySelector('main .ov-simple > .panel:not(.sec-calm)');
+        return { step: [...card.querySelectorAll('.btn')].map(n => [n.textContent.trim(), Math.round(n.getBoundingClientRect().height * 10) / 10]),
+          slack: Math.round(card.getBoundingClientRect().bottom - card.lastElementChild.getBoundingClientRect().bottom), taller: nums.getBoundingClientRect().height > card.getBoundingClientRect().height,
+          head: [...document.querySelectorAll('.top > :is(.next-step, .top-actions) .btn')].map(n => [n.textContent.trim(), Math.round(n.getBoundingClientRect().height * 10) / 10]) }; });
+      ok(T + `calm card holds one step, "See all signals" (${JSON.stringify(calmSeen.step)})`, calmSeen.step.length === 1 && calmSeen.step[0][0] === 'See all signals');
+      ok(T + `calm card step is 44px visible (${calmSeen.step[0][1]})`, calmSeen.step[0][1] >= 44);
+      ok(T + `calm card ends at its content (${calmSeen.slack}) beside a taller numbers block`, calmSeen.slack <= 24 && calmSeen.taller);
+      if (width <= 640) for (const [name, h] of calmSeen.head) ok(T + `calm "${name}" is ${h}px tall`, h >= 44);
+      if (output) await calm.screenshot({ path: path.join(output, `security-calm-${width}x${height}-${theme}.png`), fullPage: true });
+      await calm.close();
 
       // Detailed L1: four number cards, one short list, no table or tabs, one next step, nothing below the fold on a desktop
       await open('#/security?view=detailed', '.kpis-exact .kpi');

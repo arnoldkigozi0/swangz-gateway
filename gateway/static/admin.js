@@ -97,17 +97,17 @@
     "#/activity": {
       timeline: "Everything in order of time: AI requests, tools opened, website visits, shared-account turns, sign-ins and access changes.",
       usage: "Totals per person and tool for the period — for comparing, not for reading individual requests.",
-      ai: "One row per AI request through the gateway; open one for its full record.",
+      ai: "One row per AI request through Swangz AI Hub; open one for its full record.",
       opens: "Tools opened from the Swangz AI Hub portal, with the browser and address they were opened from.",
       sites: "Visits to AI websites seen by the browser extension: which site, when and how long — never what was on the page.",
     },
     "#/policies": {
-      list: "The rules the gateway enforces now. A change applies to the next request.",
+      list: "The company rules in force now. A change applies to the next request.",
       simulate: "Try a rule against what really happened. Nothing is saved and nobody is affected.",
-      explain: "Every check for one person and one tool, in the order the gateway makes them.",
+      explain: "Every check for one person and one tool, in the order they are made.",
     },
     "#/devices": {
-      keys: "One gateway key per laptop or coding tool.",
+      keys: "Each laptop or coding tool connects with its own key.",
       browsers: "Browsers staff opened tools from in the portal.",
     },
   };

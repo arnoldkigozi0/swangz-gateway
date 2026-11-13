@@ -656,6 +656,25 @@ class PlainWordsTests(unittest.TestCase):
         self.assertIn("applied automatically and the same way every time", rules)
         self.assertIn('"Audit log"', read("admin.js"))  # the page name stays
 
+    def test_console_copy_in_plain_words_second_pass(self):
+        """Probe's check of main d8b3b1c (13 Nov): what was left of the plumbing words."""
+        admin, rules = (STATIC / "admin.js").read_text(encoding="utf-8"), (STATIC / "admin-rules.js").read_text(encoding="utf-8")
+        insight = (STATIC.parent / "insight.py").read_text(encoding="utf-8")
+        for old in ("paying for seats nobody opens", "Reclaim them"):
+            self.assertNotIn(old, insight)
+        self.assertIn("take them back from anyone who doesn't need them", insight)
+        for old in ("One gateway key", "the gateway enforces", "the order the gateway makes", "request through the gateway"):
+            self.assertNotIn(old, admin)
+        for old in ('"No policies yet"', "With no policies", "A policy only takes"):
+            self.assertNotIn(old, rules)
+        self.assertIn('title: "Policies"', rules)  # the page name and the Add button stay
+        self.assertIn('"Add a policy"', rules)
+
+    def test_security_buttons_are_44_visible(self):
+        css = (STATIC / "guide.css").read_text(encoding="utf-8")
+        self.assertIn(".sec-calm-next .btn { min-height: 44px; }", css)
+        self.assertIn("@media (max-width: 640px) { .top > :is(.next-step, .top-actions) .btn { min-height: 44px; } }", css)
+
 
 def requests_lead(cases):
     source = (STATIC / "admin-guide.js").read_text(encoding="utf-8")
