@@ -785,6 +785,28 @@ class StudioTests(StaffBase):
         self.assertEqual(self.staff("POST", "/studio/voice", {"text": "please fail", "voice_id": "JBFqnCBsd6RMkjVDRZzb"})[1]["error"],
                          "This request exceeds your quota.")
 
+    def test_your_creations_pages_back_through_all_of_them(self):
+        rig = self.rig
+        other = rig.gw.db.x("INSERT INTO people(name, created) VALUES('Someone else', 0)").lastrowid
+        mine = [rig.gw.db.x("INSERT INTO requests(ts,person_id,provider,method,path,kind,client,outcome,media_type,prompt) VALUES(?,?,'higgsfield','POST','/x','media',"
+                            "'Swangz AI Hub Studio','ok','image',?)", (i, rig.person_id, f"mine {i}")).lastrowid for i in range(30)]
+        rig.gw.db.x("INSERT INTO requests(ts,person_id,provider,method,path,kind,client,outcome,media_type,prompt) VALUES(99,?,'higgsfield','POST','/x','media',"
+                    "'Swangz AI Hub Studio','ok','image','theirs')", (other,))
+        status, studio = self.staff("GET", "/studio")
+        self.assertEqual(status, 200)
+        self.assertEqual((studio["recent_total"], studio["recent_more"], len(studio["recent"])), (30, True, 12))
+        seen = [c["id"] for c in studio["recent"]]
+        while True:
+            status, page = self.staff("GET", f"/studio/creations?before={seen[-1]}")
+            self.assertEqual(status, 200)
+            seen += [c["id"] for c in page["items"]]
+            if not page["more"]:
+                break
+        self.assertEqual(seen, sorted(mine, reverse=True))  # every one of theirs, once, newest first, and nobody else's
+        self.assertEqual(self.staff("GET", "/studio/creations")[0], 400)
+        self.assertEqual(self.staff("GET", "/studio/creations?before=x")[0], 400)
+        self.assertEqual(self.staff("GET", "/studio/creations?before=1", cookie="sgw_staff=nope")[0], 401)
+
     def test_image_job(self):
         status, made = self.staff("POST", "/studio/generate", {"kind": "image", "prompt": "A poster for the showcase", "aspect_ratio": "9:16"})
         self.assertEqual(status, 200)

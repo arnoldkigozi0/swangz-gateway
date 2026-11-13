@@ -56,6 +56,8 @@ jobs:
         run: node tests/browser/touch.cjs
       - name: Console controls 44px visible at 390, no overflow, plain words (Hub time)
         run: node tests/browser/console-touch.cjs
+      - name: Staff app at 390 with long names (purchase cards wrap, all creations reachable, Show on one row)
+        run: node tests/browser/staff-phone.cjs
       - name: Tools on the control kit (filter bar, row menus, pages, tool record)
         run: node tests/browser/tools.cjs
         env:
