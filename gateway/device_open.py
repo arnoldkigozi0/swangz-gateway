@@ -124,12 +124,43 @@ def device_open(ctx):
             problem = check_url(url, hosts, _hub_host(ctx))
             if problem:
                 ok, code, reason = False, problem, UNSAFE
-    ctx.db.x("INSERT INTO launches(tool_id, person_id, ts, outcome, ip, user_agent, reason, rule) VALUES(?,?,?,?,?,?,?,?)",
-             (tool["id"], person["id"], time.time(), "opened" if ok else "refused", ctx.ip,
-              (ctx.h.headers.get("user-agent") or "")[:200], "" if ok else (reason or "")[:300], None if ok else (rule or code)))
+    cur = ctx.db.x("INSERT INTO launches(tool_id, person_id, ts, outcome, ip, user_agent, reason, rule, device_id)"
+                   " VALUES(?,?,?,?,?,?,?,?,?)",
+                   (tool["id"], person["id"], time.time(), "opened" if ok else "refused", ctx.ip,
+                    (ctx.h.headers.get("user-agent") or "")[:200], "" if ok else (reason or "")[:300], None if ok else (rule or code),
+                    device["device_id"]))
     if not ok:
         status = 409 if code in ("no_address", "unsafe_address", "host_not_allowed", "shared_account") else 403
         details = {"report": report_denial["href"]} if report_denial else None
         raise ApiError(status, reason or "This tool isn't open to you right now.", code, details)
     return 200, {"ok": True, "tool": {"id": tool["id"], "name": tool["name"]}, "url": url, "allowed_hosts": hosts,
+                 "launch": cur.lastrowid,
                  "workspace": managed.heartbeat_answer(ctx.gw, person, device)["workspace"]}, {"Cache-Control": "no-store"}
+
+
+# Why the app could not start the window after the Hub said yes. Short codes only: never an address, a path or a message.
+FAILED_CODES = {"no_browser", "unsafe_address", "no_hosts", "folder", "launch_failed", "purge_pending", "purge_unsupported",
+                "generation_rollback", "not_active", "retired"}
+FAILED_WINDOW = 300
+
+
+@route("POST", r"/device/open/failed", signed_in=False)
+def device_open_failed(ctx):
+    """Body `{"launch": <id from /device/open>, "reason": "<code>"}`, device key. The window did not start, so that open
+    is recorded as `failed` instead of `opened`. Only an open this device made for this person in the last five minutes
+    that is still `opened` changes; anything else changes nothing. 200 `{"ok": true, "recorded": bool}`."""
+    person, device, _ = enroll.device_key_auth(ctx)
+    launch, reason = ctx.body.get("launch"), ctx.body.get("reason")
+    if type(launch) is not int or not 1 <= launch <= 2 ** 63 - 1:
+        raise ApiError(400, "That isn't a launch this app can report on.", "bad_request")
+    reason = reason if reason in FAILED_CODES else "launch_failed"
+    cur = ctx.db.x("UPDATE launches SET outcome = 'failed', reason = ?, rule = ? WHERE id = ? AND person_id = ?"
+                   " AND device_id = ? AND outcome = 'opened' AND ts >= ?",
+                   ("The Swangz app reported that the workspace window didn't start.", "app:" + reason, launch, person["id"],
+                    device["device_id"], time.time() - FAILED_WINDOW))
+    recorded = cur.rowcount == 1
+    if recorded:
+        ctx.gw.audit(person["name"], "reported a workspace window that did not start", ip=ctx.ip,
+                     before={"outcome": "opened"}, after={"outcome": "failed", "code": reason},
+                     correlation=f"device:{device['device_id']}")
+    return 200, {"ok": True, "recorded": recorded}, {"Cache-Control": "no-store"}

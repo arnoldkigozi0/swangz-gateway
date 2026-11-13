@@ -1104,8 +1104,10 @@ class Client:
         browser = manifest.get("browser") or {}
         if not isinstance(browser, dict) or browser.get("contract") != 2:
             raise wl.LaunchError("no_workspace")
-        if (browser.get("workspace") or {}).get("state") != "active":
-            raise wl.LaunchError("not_active")
+        state = (browser.get("workspace") or {}).get("state")
+        if state != "active":
+            # Retired: the workspace is gone from this device for good. Anything else (suspended, unknown): paused.
+            raise wl.LaunchError("retired" if state == "retired" else "not_active")
         self.workspace.check_open()  # W4: a refusal the Hub gave, or a purge still pending, wins over the manifest
         device = self.store.device() or {}
         try:
@@ -1118,11 +1120,29 @@ class Client:
             # Shared company accounts and tools the Hub hands out itself are not opened by the app this release:
             # the workspace never opens the Hub's own address, and there is no default-browser fallback.
             raise wl.LaunchError("shared_account")
+        def gen(block):
+            g = (block or {}).get("generation")
+            return g if type(g) is int and g >= 1 else 1
+        # What this device can check on its own comes first, so a missing browser or a bad folder is never recorded
+        # at the Hub as an open.
+        self.launcher.ready(owner, gen(browser.get("workspace")))
         # The Hub decides (same checks and launch record as /go/); the address is checked again here.
         out = self._guard(lambda: self.api().call("POST", "/device/open", {"tool": app["id"]}))
-        self.workspace.apply({"contract": 2, "workspace": out["workspace"]} if "workspace" in out else None)
-        self.workspace.check_open()
-        generation = (out.get("workspace") or browser.get("workspace") or {}).get("generation")
-        self.launcher.open(app["id"], out.get("url"), app.get("hosts"), owner,
-                           generation if type(generation) is int and generation >= 1 else 1)
+        try:
+            self.workspace.apply({"contract": 2, "workspace": out["workspace"]} if "workspace" in out else None)
+            self.workspace.check_open()
+            self.launcher.open(app["id"], out.get("url"), app.get("hosts"), owner,
+                               gen(out.get("workspace") or browser.get("workspace")))
+        except wl.LaunchError as exc:
+            self._open_failed(out.get("launch"), exc.code)
+            raise
         return "workspace"
+
+    def _open_failed(self, launch, code):
+        """The Hub recorded an open but the window didn't start: tell it, so the record says `failed`. Best effort."""
+        if type(launch) is not int or launch < 1:
+            return
+        try:
+            self.api().call("POST", "/device/open/failed", {"launch": launch, "reason": code})
+        except Exception:
+            pass

@@ -21,7 +21,7 @@ def device(db, did="d1", person=1):
 
 class MigrationTests(unittest.TestCase):
     def test_v26_adds_exactly_seven_columns_to_devices_and_nothing_else(self):
-        self.assertEqual(len(SCHEMA), 26)
+        self.assertEqual(len(SCHEMA), 27)
         self.assertIs(SCHEMA[25], MIGRATION)
         self.assertIsInstance(MIGRATION, tuple)
         self.assertEqual(len(MIGRATION), 7)
@@ -61,18 +61,19 @@ class MigrationTests(unittest.TestCase):
         # put it back at v25 as an older server would have left it: drop the seven columns, set the version
         for col in sorted(COLUMNS):
             old.x(f"ALTER TABLE devices DROP COLUMN {col}")
+        old.x("ALTER TABLE launches DROP COLUMN device_id")  # v27 came later
         old.x("UPDATE meta SET v = '25' WHERE k = 'schema'")
         before = old.q("SELECT * FROM devices")
         old.close()
         new = DB(path)
-        self.assertEqual(new.scalar("SELECT v FROM meta WHERE k = 'schema'"), "26")
+        self.assertEqual(new.scalar("SELECT v FROM meta WHERE k = 'schema'"), str(len(SCHEMA)))
         row = new.one("SELECT * FROM devices")
         for k, v in before[0].items():
             self.assertEqual(row[k], v, k)
         self.assertEqual((row["workspace_state"], row["workspace_generation"]), ("active", 1))
         new.close()
         again = DB(path)  # opening again is a no-op
-        self.assertEqual(again.scalar("SELECT v FROM meta WHERE k = 'schema'"), "26")
+        self.assertEqual(again.scalar("SELECT v FROM meta WHERE k = 'schema'"), str(len(SCHEMA)))
         again.close()
 
 
