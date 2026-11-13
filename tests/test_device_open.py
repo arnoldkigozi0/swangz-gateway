@@ -130,7 +130,7 @@ class DeviceOpenFailedTests(DeviceOpenTests):
         status, out, _ = self.failed(launch, "unsafe_address")
         self.assertEqual((status, out), (200, {"ok": True, "recorded": True}))
         self.assertEqual(self.launches(), [{"tool_id": "canva", "outcome": "failed", "rule": "app:unsafe_address",
-                                            "reason": "The Swangz workspace window didn't start on the device."}])
+                                            "reason": "The Swangz app reported that the workspace window didn't start."}])
         self.assertEqual(self.failed(launch)[1]["recorded"], False)  # once only
         self.assertEqual(self.db.scalar("SELECT COUNT(*) FROM launches WHERE outcome = 'opened'"), 0)
 
@@ -155,12 +155,41 @@ class DeviceOpenFailedTests(DeviceOpenTests):
         self.assertEqual(self.failed(refused)[1]["recorded"], False)
         self.assertEqual([r["outcome"] for r in self.launches()], ["opened", "refused"])
 
+    def test_a_go_launch_or_another_devices_open_is_never_changed(self):
+        """Sentinel on #210: the report must come from the device that made the open."""
+        self.enable_canva()
+        self.assertEqual(self.go()[0], 302)
+        web = self.db.scalar("SELECT id FROM launches ORDER BY id DESC LIMIT 1")
+        self.assertIsNone(self.db.scalar("SELECT device_id FROM launches WHERE id = ?", (web,)))
+        self.assertEqual(self.failed(web)[1]["recorded"], False)
+        launch = self.open()[1]["launch"]
+        self.assertEqual(self.db.scalar("SELECT device_id FROM launches WHERE id = ?", (launch,)), self.did)
+        self.db.x("UPDATE launches SET device_id = 'another-device' WHERE id = ?", (launch,))
+        self.assertEqual(self.failed(launch)[1]["recorded"], False)
+        self.assertEqual([r["outcome"] for r in self.launches()], ["opened", "opened"])
+        self.assertEqual(self.audits(), [])
+
+    def audits(self):
+        return [dict(r) for r in self.db.q("SELECT actor, target, detail, before_json, after_json, correlation FROM audit"
+                                            " WHERE action = 'reported a workspace window that did not start'")]
+
+    def test_the_rewrite_is_audited_with_the_code_only(self):
+        self.enable_canva()
+        launch = self.open()[1]["launch"]
+        self.assertEqual(self.failed(launch, "https://secret.example/?token=x")[1]["recorded"], True)
+        self.assertEqual(self.audits(), [{"actor": "Nansubuga Grace", "target": "", "detail": "",
+                                          "before_json": '{"outcome": "opened"}',
+                                          "after_json": '{"code": "launch_failed", "outcome": "failed"}',
+                                          "correlation": f"device:{self.did}"}])
+        self.assertEqual(self.failed(launch)[1]["recorded"], False)
+        self.assertEqual(len(self.audits()), 1)  # a repeat report changes nothing and is not audited again
+
     def test_the_device_key_is_required_and_the_body_is_checked(self):
         self.enable_canva()
         launch = self.open()[1]["launch"]
         self.assertEqual(self.api("POST", OPEN + "/failed", {"launch": launch, "reason": "folder"})[0], 401)
         self.assertEqual(self.failed(launch, key="sgw-not-a-real-key")[0], 401)
-        for bad in ("1", 0, -1, None, 1.0, True):
+        for bad in ("1", 0, -1, None, 1.0, True, 2 ** 63):
             self.assertEqual(self.failed(bad)[0], 400, bad)
         self.assertEqual(self.launches()[0]["outcome"], "opened")
 

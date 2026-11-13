@@ -518,6 +518,10 @@ SCHEMA = [
     PROVIDER_REGISTRY_NULL_SAFE_MIGRATION,
     # v26: the managed workspace on a device: its state (active / suspended / retired), its generation, and the policy the app reported.
     MANAGED_WORKSPACE_MIGRATION,
+    # v27: which device an Open from the Swangz app came from, so only that device can report its window didn't start.
+    """
+    ALTER TABLE launches ADD COLUMN device_id TEXT;
+    """,
 ]
 
 
