@@ -210,7 +210,7 @@ async function typed(context, c, address, n) {
   const mark = markOf(c, n);
   const text = address.split('{mark}').join(mark);
   const word = !/[:/.]/.test(text);
-  const arrived = () => hits.filter(h => word ? h.url.startsWith('/search?') && h.url.includes('q=' + mark) : h.url.includes('swz=' + mark));
+  const arrived = () => hits.filter(h => word ? h.url.startsWith('/search?') && h.url.includes('q=' + text + '&') : h.url.includes('swz=' + mark));
   const page = await context.newPage();
   let error = '';
   try {
@@ -219,7 +219,7 @@ async function typed(context, c, address, n) {
     await page.bringToFront();
     execFileSync('xdotool', ['search', '--sync', '--limit', '1', '--name', 'swz-type-' + mark, 'windowactivate', '--sync', '%1',
       'key', '--clearmodifiers', 'ctrl+l', 'sleep', '0.3', 'type', '--delay', '15', text], { timeout: 15000, stdio: 'ignore' });
-    try { execFileSync('import', ['-window', 'root', path.join(OUT, 'typed-' + mark + '-before.png')], { timeout: 10000, stdio: 'ignore' }); } catch (e) { /* no ImageMagick */ }
+    await pause(700);   // Enter straight after the text was lost: the address bar was still working on it
     execFileSync('xdotool', ['key', '--clearmodifiers', 'Return'], { timeout: 5000, stdio: 'ignore' });
   } catch (e) { error = 'type: ' + String(e.message).split('\n')[0].slice(0, 80); }
   if (!error) {
