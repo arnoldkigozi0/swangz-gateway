@@ -218,7 +218,9 @@ async function typed(context, c, address, n) {
     await page.evaluate(t => { document.title = t; }, 'swz-type-' + mark);
     await page.bringToFront();
     execFileSync('xdotool', ['search', '--sync', '--limit', '1', '--name', 'swz-type-' + mark, 'windowactivate', '--sync', '%1',
-      'key', '--clearmodifiers', 'ctrl+l', 'sleep', '0.3', 'type', '--delay', '15', text, 'key', 'Return'], { timeout: 15000, stdio: 'ignore' });
+      'key', '--clearmodifiers', 'ctrl+l', 'sleep', '0.3', 'type', '--delay', '15', text], { timeout: 15000, stdio: 'ignore' });
+    try { execFileSync('import', ['-window', 'root', path.join(OUT, 'typed-' + mark + '-before.png')], { timeout: 10000, stdio: 'ignore' }); } catch (e) { /* no ImageMagick */ }
+    execFileSync('xdotool', ['key', '--clearmodifiers', 'Return'], { timeout: 5000, stdio: 'ignore' });
   } catch (e) { error = 'type: ' + String(e.message).split('\n')[0].slice(0, 80); }
   if (!error) {
     for (let i = 0; i < 20 && !arrived().length; i++) await pause(250);
