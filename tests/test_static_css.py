@@ -332,3 +332,14 @@ class ProbeShellDefectTests(unittest.TestCase):
         # BRIEF 10.10.4 (10 Nov review) replaced 10.3's full pill (31) with 16
         self.assertIn("border-radius: 16px; overflow: visible; }", (STATIC / "admin.css").read_text(encoding="utf-8"))
         self.assertIn("border: 1px solid var(--staff-rim); border-radius: 16px;", (STATIC / "exact-staff.css").read_text(encoding="utf-8"))
+
+
+class StaffToolRowPhoneTests(unittest.TestCase):
+    """Staff shell (13 Nov): on phones a tool row's status sits on its own line, so no "·" hangs at a line end."""
+    css = (STATIC / "exact-staff.css").read_text(encoding="utf-8")
+
+    def test_phone_rows_stack_status_and_hide_the_dot(self):
+        block = self.css.split("so a wrap never leaves")[1].split("\n}\n")[0]
+        self.assertIn("@media (max-width: 640px)", block)
+        self.assertRegex(block, r"\.staff-exact \.tool-row \.tr-sub \{[^}]*flex-direction: column")
+        self.assertRegex(block, r"\.staff-exact \.tool-row \.tr-sub > \.dot \{[^}]*display: none")

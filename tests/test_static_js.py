@@ -717,3 +717,17 @@ class ModelsLeadTests(unittest.TestCase):
     def test_sentences_stay_short(self):
         for n in ({"unpriced": 1234}, {"noRule": 2}, {}, {"total": 0}):
             self.assertLessEqual(len(self.lead(**n)["sentence"].split()), 12)
+
+
+class StaffReportCopyTests(unittest.TestCase):
+    """Staff shell (13 Nov): report counts read as English, never "report(s)"."""
+
+    def test_no_bracketed_plurals_in_staff_report_copy(self):
+        for name in ("portal.js", "portal-hub.js"):
+            text = (STATIC / name).read_text(encoding="utf-8")
+            self.assertNotIn("report(s)", text, name)
+
+    def test_home_reminder_counts_with_plural(self):
+        text = (STATIC / "portal.js").read_text(encoding="utf-8")
+        self.assertIn('SUI.plural(me.weekly_outstanding, "weekly tool report")', text)
+        self.assertIn('me.weekly_outstanding === 1 ? "Complete report" : "Complete reports"', text)
