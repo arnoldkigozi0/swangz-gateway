@@ -94,13 +94,15 @@ Heavy jobs run on Actions only.
 | A-2 | Sign-in round trip: Hub page, redirect to `accounts.google.com`, redirect back to `hub.swangz.test/auth/google/callback?code=x`, cookie is set |
 | A-3 | `login.microsoftonline.com`, `appleid.apple.com`, `github.com/login/oauth/authorize`, `www.google.com/recaptcha/api.js`, `challenges.cloudflare.com` load |
 | A-4 | A subdomain of an allowed provider (`app.claude.ai`, `platform.openai.com`) loads |
+| A-5 | The sign-in hosts providers were seen using in real Chrome 156 (PR #224) load: `auth.openai.com`, `accounts.google.com`, `accounts.youtube.com`, `appleid.apple.com`, `challenges.cloudflare.com`, `newassets.hcaptcha.com` |
+| A-6 | A captcha frame inside an approved page reaches its host (`newassets.hcaptcha.com` in `claude.ai`, as on Claude's login; `challenges.cloudflare.com` in `chatgpt.com`); the pack's `*` block refuses off-list frames (C-4), so these must be on the list |
 
 ### B. Navigation to hosts off the list (ENFORCE)
 | Id | Case |
 |---|---|
 | B-1 | `https://evil.test/`, and the same over `http://` |
 | B-2 | `mail.google.com`, `drive.google.com`, `myaccount.google.com`, `google.com`, `www.google.com/search?q=x` (what the omnibox sends), `youtube.com`, `gmail.com` |
-| B-3 | `evil.accounts.google.com` (the leading-dot entry must match the exact host only) |
+| B-3 | `evil.accounts.google.com` (the leading-dot entry must match the exact host only); `evilhcaptcha.com` and `hcaptcha.com.evil.test` (the `hcaptcha.com` entry covers its subdomains, not lookalikes) |
 | B-4 | `github.com/` and `github.com/someuser/repo` (only `/login`, `/session`, `/sessions`, `/copilot` allowed) |
 | B-5 | Omnibox typing of a bare word or a blocked host ends on the blocked page, not on a search result |
 | B-6 | `--app=https://evil.test` and `--new-window https://evil.test` launch flags |
