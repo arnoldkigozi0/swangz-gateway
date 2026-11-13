@@ -57,7 +57,10 @@ OPEN_ALLOW = frozenset({"*", "*://*", "http://*", "https://*"})
 # machine or a bare address, or a Google account surface (mail, drive, account settings, the whole of google.com).
 # Sign-in hops such as .accounts.google.com and path-scoped entries such as www.google.com/recaptcha stay allowed.
 ACCOUNT_SURFACES = frozenset({"google.com", "www.google.com", "mail.google.com", "drive.google.com", "docs.google.com",
-                              "myaccount.google.com", "photos.google.com", "contacts.google.com", "takeout.google.com"})
+                              "myaccount.google.com", "photos.google.com", "contacts.google.com", "takeout.google.com",
+                              "gmail.com", "www.gmail.com", "googlemail.com", "www.googlemail.com"})
+# Chrome reads a host made only of numbers as an IPv4 address in any base: 0x7f000001, 0x7f.0.0.1, 0177.0.0.1, 2130706433.
+NUMERIC_HOST = re.compile(r"(?:0x[0-9a-f]*|\d+)(?:\.(?:0x[0-9a-f]*|\d+))*")
 MAX_BYTES = 1 << 20
 
 LINUX_DIRS = {"chrome": "/etc/opt/chrome/policies/managed", "chromium": "/etc/chromium/policies/managed",
@@ -230,7 +233,7 @@ def merge(sources):
 
 
 def allow_problem(entry):
-    """-> None for an acceptable URLAllowlist entry, else the short reason (open / scheme / local / account)."""
+    """-> None for an acceptable URLAllowlist entry, else the short reason (open / scheme / local / account / host)."""
     e = entry.strip().lower()
     if e in OPEN_ALLOW:
         return "open"
@@ -243,18 +246,26 @@ def allow_problem(entry):
             return "scheme"
     if scheme not in (None, "https"):
         return "open" if scheme == "*" else "scheme"
-    hostport = re.split(r"[/@?#]", rest, 1)[0]
-    path = rest[len(hostport):].strip("/")
+    authority = re.split(r"[/?#]", rest, 1)[0]
+    userinfo = "@" in authority  # "user@mail.google.com" still names mail.google.com
+    hostport = authority.rsplit("@", 1)[-1]
+    path = rest[len(authority):].strip("/")
     if hostport.startswith("["):
         return "local"
     host = hostport.rsplit(":", 1)[0] if ":" in hostport else hostport
     host = host.lstrip(".")
+    dotted = host.endswith(".")  # "mail.google.com." is the same site as "mail.google.com" to the browser
+    host = host.rstrip(".")
     if not host or host == "*" or "*" in host:
         return "open"
-    if host == "localhost" or host.endswith((".localhost", ".local", ".internal")) or re.fullmatch(r"[\d.]+", host):
+    if host == "localhost" or host.endswith((".localhost", ".local", ".internal")) or NUMERIC_HOST.fullmatch(host):
         return "local"
-    if host in ACCOUNT_SURFACES and not (host == "www.google.com" and path) and not (host == "google.com" and path):
+    google_path = host in ("google.com", "www.google.com") and path and not path.startswith("accounts")
+    mail = host.endswith((".gmail.com", ".googlemail.com"))  # every Gmail host, e.g. mail.googlemail.com
+    if (host in ACCOUNT_SURFACES or mail) and not google_path:
         return "account"
+    if dotted or userinfo:
+        return "host"
     return None
 
 
