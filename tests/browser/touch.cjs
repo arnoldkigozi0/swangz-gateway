@@ -45,7 +45,7 @@ let demo, browser, checks = 0;
       await c.close();
     }
     // The staff app at 390 (Probe's re-test of main, 13 Nov): here the visible box itself reaches 44px, not only a ::before layer.
-    const STAFF = ['.stb-bar a', 'main .btn', '.u-seg button', '.p-index button', 'main a.tlink', '.p-more > summary', '.xf-ask input', '.xf-ask button'];
+    const STAFF = ['.stb-bar a', 'main .btn', '.u-seg button', '.p-index button', 'main a.tlink', '.p-more > summary', '.xf-ask input', '.xf-ask button', '.xf-col :is(a, button)', '.sort select'];
     const found = new Set();
     for (const theme of ['dark', 'light']) {
       const c = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });

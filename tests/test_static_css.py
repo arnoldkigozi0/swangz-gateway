@@ -354,8 +354,14 @@ class StaffVisibleTouchTests(unittest.TestCase):
         for part in (".staff-exact :is(main, .xf-panel) .btn, .staff-exact .u-seg button, .staff-exact .p-index button { min-height: 44px; }",
                      ".staff-exact main a.tlink { display: inline-flex; align-items: center; min-height: 44px; }",
                      ".staff-exact .p-more > summary { padding-block: 12px; }",
-                     ".staff-exact .xf-ask:is(form, a) :is(input, button, b) { height: 44px; min-height: 44px; }"):
+                     ".staff-exact .xf-ask:is(form, a) :is(input, button, b) { height: 44px; min-height: 44px; }",
+                     ".staff-exact .sort .input { min-height: 44px; }"):
             self.assertIn(part, block)
+
+    def test_footer_links_are_44_on_phones(self):
+        footer = (STATIC / "exact-footer.css").read_text(encoding="utf-8").split("@media (max-width: 900px)")[1]
+        self.assertIn(".staff-exact .xf-col :is(a,button) { height: 44px; white-space: normal; }", footer)
+        self.assertIn(".staff-exact .xf-col li { height: 48px; }", footer)
 
     def test_phone_bar_items_are_44_tall(self):
         bar = (STATIC / "exact-staff-bar.css").read_text(encoding="utf-8")

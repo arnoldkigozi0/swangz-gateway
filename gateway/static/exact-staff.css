@@ -328,4 +328,5 @@ html[data-theme="light"] .staff-exact { background: none; --staff-scrim: linear-
   /* :is(form, a) outranks exact-footer.css, which loads later with the same selectors */
   .staff-exact .xf-ask:is(form, a) { height: 52px; }
   .staff-exact .xf-ask:is(form, a) :is(input, button, b) { height: 44px; min-height: 44px; }
+  .staff-exact .sort .input { min-height: 44px; }
 }
