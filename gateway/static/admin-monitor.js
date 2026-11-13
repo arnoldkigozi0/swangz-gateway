@@ -78,23 +78,38 @@
     /* BRIEF 10.10.1, an L1: four number cards, the one chart and two counts, seven blocks in all. Uses by tool lives
        on Activity > Who used what (grouped by tool); trends, leaders and licences live on their own pages. */
     const week = tr ? tr.days.slice(-8) : [];
+    /* BRIEF 10.9(2): fewer than 3 days with any use is not a trend yet. The chart gives way to its empty state, which
+       says since when the gateway has been collecting and what it has so far; nothing is padded or invented. */
+    const usedDays = week.filter((d) => d.requests + d.opens + d.visits > 0);
+    const collecting = usedDays.length < 3;
+    const soFar = usedDays.reduce((n, d) => n + d.requests + d.opens + d.visits, 0);
     const usage = A.panel("AI usage", el("a", { class: "btn small quiet", href: "#/activity?tab=usage&range=30d" }, "Who used what", icon("chevronRight")),
       tr ? el("div", { class: "body" }, SUI.columns({ label: "Uses per day over the last 8 days", showZero: true, yName: "Uses", height: window.matchMedia("(min-width: 1001px)").matches ? 350 : 250, caption: "Requests, tool opens and website visits · times in " + SUI.tzLabel(true),
-        data: week.map((d) => ({ label: fmt.weekday(d.start), short: fmt.dayMonth(d.start), value: d.requests + d.opens + d.visits,
+        emptyTitle: tr.first_use ? "Collecting since " + fmt.dayMonth(tr.first_use) : "No uses recorded yet",
+        emptyText: usedDays.length ? `The chart starts once 3 days have uses. So far ${fmt.num(soFar)} ${soFar === 1 ? "use" : "uses"} on ${usedDays.length} ${usedDays.length === 1 ? "day" : "days"}.`
+          : "Requests, tool opens and website visits will appear here, one column per day, once 3 days have uses.",
+        data: collecting ? [] : week.map((d) => ({ label: fmt.weekday(d.start), short: fmt.dayMonth(d.start), value: d.requests + d.opens + d.visits,
           note: `${fmt.num(d.requests)} requests · ${fmt.num(d.opens)} opens · ${fmt.num(d.visits)} visits` })) }))
         : SUI.errorBox(trends.reason, () => A.render()));
 
     const urgent = att ? att.filter((i) => i.severity === "high" || i.severity === "medium").length : 0;
     const counts = el("div", { class: "kpis kpis-exact two" });
+    /* The wave on the second count card (dashboard-02) is real data, never ornament that looks like a chart: the number
+       of requests in flight at each refresh since this page opened, the last 24 readings (2 minutes at 5 s). */
+    const liveReadings = [];
     function drawCounts() {
       const live = (S.overview || ov).live;
       const streaming = live.filter((t) => t.streaming).length;
+      liveReadings.push(live.length);
+      if (liveReadings.length > 24) liveReadings.shift();
       counts.replaceChildren(...[
         A.kpi({ label: "Need attention", icon: "attention", value: att === null ? "—" : String(att.length), tone: urgent ? "alert" : null,
           note: att === null ? "couldn't load" : att.length ? (urgent ? `${urgent} high or medium` : "none high or medium") : zeroReason("attention", { items: 0 }), href: "#/attention" }),
         A.kpi({ label: "Live requests", icon: "live", value: String(live.length),
           foot: live.length ? SUI.status("live", "Live", { breathe: true, plain: true }) : SUI.status("idle", "Quiet", { plain: true }),
-          note: live.length ? `${streaming} streaming · ${live.length - streaming} waiting` : zeroReason("live", { live: 0 }), href: "#/live" }),
+          note: live.length ? `${streaming} streaming · ${live.length - streaming} waiting` : zeroReason("live", { live: 0 }), href: "#/live",
+          spark: el("span", { class: "live-wave", title: liveReadings.length > 1 ? `Requests in flight at each 5-second refresh since this page opened (last ${liveReadings.length})` : "The line starts at the next 5-second refresh" },
+            SUI.sparkline(liveReadings)) }),
       ].map((card) => { card.append(el("span", { class: "kpi-go", "aria-hidden": "true" }, icon("arrowUp"))); return card; }));
     }
     drawCounts();
@@ -137,7 +152,7 @@
     A.frame({ title: "Needs attention", trail: [["Overview", "#/"], ["Needs attention"]], lede: "Everything worth a look — security, spend, licences, access and the system — on one page, most urgent first.",
       actions: el("button", { class: "btn", onclick: () => A.render() }, icon("refresh"), "Refresh") },
     out.items.length ? groups.map(([sev, items]) => A.panel(names[sev], SUI.plural(items.length, "item"), el("ul", { class: "att-list" }, items.map(attentionItem))))
-      : A.panel(null, null, SUI.stateBox({ tone: "ok", icon: "checkCircle", title: "Nothing needs attention", text: "Everything looks normal. This page lists security signals, budgets, idle or over-assigned seats, renewals, waiting tool requests and missing provider keys as soon as they appear." })));
+      : A.panel(null, null, SUI.stateBox({ tone: "ok", icon: "checkCircle", title: "Nothing needs attention", text: "Everything looks normal. This page lists security warnings, budgets, paid seats nobody uses or more people than seats, renewals, waiting tool requests and AI providers that aren't connected, as soon as they appear." })));
   }
 
   // ------------------------------------------------------------------ Live
@@ -493,7 +508,7 @@
           ...common];
       }
       /* Uses by tool, moved here from Overview (BRIEF 10.10.1): shown when the list is grouped by tool. */
-      const byTool = st.by === "tool" && rows.length ? el("div", { class: "body usage-by-tool" }, SUI.donut({ label: "Uses by tool in this period", unit: "Uses", centre: "Uses", other: "Other tools",
+      const byTool = st.by === "tool" && rows.length ? el("div", { class: "body usage-by-tool" }, SUI.donut({ label: "Uses by tool in this period", unit: "Uses", centre: "Uses", other: "Other tools", format: (n) => SUI.plural(n, "use"),
         total: rows.reduce((n, t) => n + uses(t), 0),
         rows: rows.slice().sort((x, y) => uses(y) - uses(x)).map((t) => ({ label: t.tool, href: t.tool_id ? `#/tools?open=${t.tool_id}` : null, value: uses(t), display: SUI.plural(uses(t), "use") })) })) : null;
       box.replaceChildren(...[byTool, rows.length ? SUI.table({ columns: cols, rows, sort: ["last", "desc"], caption: "Who used what",
@@ -721,12 +736,16 @@
         line("Problems being followed up", inc ? String(active) : failed, "#/incidents?status=active"),
         line("Failed sign-ins", data ? SUI.plural(signIns.length, "address", "addresses") : failed, secSignals("type=signin")),
         line("Possible passwords or keys sent to AI", data ? String(credentials.length) : failed, secSignals("type=credential"))));
-      /* With nothing to check, the block is one line, not an empty panel (Probe, 12 Nov: a big empty box on a phone). */
-      const check = data && !first.length ? el("p", { class: "ov-calm" }, icon("shield"), el("span", null, "Nothing to check in the last 7 days."))
+      /* With nothing to check, a short card that says so and holds the next step, not an empty panel (Probe, 12 Nov: a big
+         empty box on a phone). Neither block stretches to the other's height (Probe, 13 Nov: ~200px of blank beside the numbers). */
+      const check = data && !first.length ? el("section", { class: "panel sec-calm" },
+        el("p", { class: "ov-calm" }, icon("shield"), el("span", null, "Nothing to check in the last 7 days.")),
+        el("p", { class: "hint" }, "New warnings appear here, most serious first."),
+        el("div", { class: "sec-calm-next" }, el("a", { class: "btn small", href: secSignals() }, "See all signals", icon("chevronRight"))))
         : A.panel("Check these first", el("a", { class: "btn small quiet", href: secSignals() }, "See all", icon("chevronRight")), list);
       A.frame({ title: "Security", trail: [[SEC_ROOT[0]]], sentence: lead.sentence, next: A.leadButton(lead.action),
         actions: [mode.switcher, data ? el("button", { class: "btn", type: "button", onclick: () => safeguardsSheet(data) }, icon("shield"), "Safeguards") : null].filter(Boolean) },
-      el("div", { class: "ov-simple" }, check, numbers));
+      el("div", { class: "ov-simple sec-simple" }, check, numbers));
       return;
     }
 
@@ -822,7 +841,7 @@
     let minId = null, rows = [], actors = [], asked = 0, hasMore = false;
     const cols = [
       { key: "ts", label: "When", lead: true, render: (a) => el("time", { title: fmt.stamp(a.ts), class: "u-num nowrap" }, fmt.clock(a.ts, true), el("span", { class: "sub" }, fmt.day(a.ts))) },
-      { key: "actor", label: "Who", render: (a) => el("span", { class: "u-cell" }, SUI.avatar(a.actor, "sm"), el("strong", null, a.actor)) },
+      { key: "actor", label: "Who", render: (a) => el("span", { class: "u-cell audit-who" }, SUI.avatar(a.actor, "sm"), el("strong", null, ...whoParts(a.actor))) },
       { key: "action", label: "Action", render: (a) => el("div", null,
         el("span", { class: "audit-action" + (a.outcome === "denied" || /failed|revoked|suspended|deleted|removed|paused|stopped/.test(a.action) ? " neg" : "") }, a.action),
         a.outcome && a.outcome !== "ok" ? el("span", { class: "sub" }, a.outcome === "denied" ? "refused: outside their role" : a.outcome === "no-op" ? "changed nothing" : a.outcome) : null) },
@@ -830,6 +849,8 @@
       { key: "detail", label: "Detail", sort: false, render: (a) => auditDetail(a), hideSm: true },
       { key: "ip", label: "From", render: (a) => (a.ip ? A.where(a.ip, a.place) : el("span", { class: "faint" }, "—")), hideSm: true },
     ];
+    // an email may break only after its "@" on a narrow phone, never mid-word (Probe C1, 12 Nov)
+    function whoParts(who) { const at = String(who).indexOf("@"); return at > 0 ? [who.slice(0, at + 1), el("wbr"), who.slice(at + 1)] : [who]; }
     function auditDetail(a) {
       const show = (v) => JSON.stringify(v, null, 1).replace(/^\{\n|\n\}$/g, "").replace(/"([^"]+)":/g, "$1:");
       const changed = a.before || a.after;

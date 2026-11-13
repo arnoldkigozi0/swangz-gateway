@@ -643,3 +643,78 @@ named actor, time and address. Auditing tool-delete refusals: broadcasts the exi
 incident access) needs a new record, Arnold's yes and its own threat note. Tests pinning this:
 `tests/test_provider_registry.py` (field matrix, holder-only list and read, `FinalPinTests` limit and 409 parity,
 audit leak markers). This record authorises no later Amendment 01 task, and no merge or deploy.
+
+## D-020 | 2026-11-12 | The Swangz workspace window never opens the Hub's own address
+
+**Context.** Managed workspace W3 (PR #186, `feature/w3-launcher`) opens website tools in a separate Swangz workspace
+browser profile on contract-2 devices. Its earlier head `a96f905`/`3fc2ead` opened `/go/<tool>?d=<device>` there for
+every tool not marked `workspace: true` (shared company accounts, company browsers). The Hub sign-in would then appear
+inside the workspace profile and persist there, giving the provider-facing profile a Hub session it does not need.
+
+**Decision.** On a contract-2 device the app opens a website tool in the workspace window **only** through
+`POST /api/device/open` (device key; PR #179), at the provider address that call returns, re-checked against the
+tool's `hosts`. A tool the manifest does not mark `workspace: true` (on #179's manifest: exactly the company-browser
+shared accounts) is **not opened by the app** in this release: the app raises `LaunchError("shared_account")` with
+#179's wording ("This is a shared company account. Open it from Swangz AI Hub, where turns are handed out.") before
+any window, `/device/open` call or browser start, and never falls back to the default browser. `open_hub` and
+`check_hub_url` are removed. Without a contract-2 workspace nothing opens (`no_workspace`).
+
+**Alternatives rejected.** `/go/?d=` in the workspace: puts a Hub session cookie in the provider-facing profile and
+widens what a compromised provider page shares a cookie jar with. The default browser for shared tools: breaks the
+"never the default browser" rule of section 9.1 and splits one tool across two profiles.
+
+**Consequences.** Shared company accounts are opened from the staff app (turns, company browser) until a later
+decision says otherwise; the Swangz app only refuses them with plain words. Tests pinning this:
+`tests/test_workspace_launcher.py` `test_contract_2_shared_app_opens_nothing` (no Popen, no `open_url`, no
+`webbrowser`, no API call; `check_hub_url`/`open_hub` absent) and
+`test_no_tool_ever_reaches_open_url_on_a_contract_2_device`. Approved at #186 head `a3f6806`.
+
+## D-021 | 2026-11-13 | Offline grace before the workspace window closes
+
+**Context.** `docs/MANAGED-WORKSPACE.md` §9.3 reads as "close the workspace window when the Hub cannot confirm the
+workspace". Read literally, every failed heartbeat (laptop on a flaky link, a Hub restart, a 5xx) would close the
+window and lose unsaved work, while buying no security: the person owns the folder and can reopen it by hand (R-2),
+provider sessions continue at the provider (R-4), and Open is an online call the server refuses anyway.
+
+**Decision.** On a network failure, timeout, TLS error, 5xx or non-JSON/`ok`-less answer, the app closes the window it
+started only when **both** the last two device check-ins failed **and** the last authenticated answer is at least
+`2 × HEARTBEAT_SECONDS` (30 min) old, measured with `time.monotonic()`. Any authenticated answer resets both. It may
+warn once, two minutes before. These failures never purge and never latch a refusal of Open: Open stays an online
+call (`/api/device/open`) that the Hub decides. A 401/403 is not a network failure: it closes and refuses at once
+(`docs/W4-THREAT-NOTE.md` Ruling 2).
+
+**Alternatives rejected.** Close on the first failure (the §9.3 literal reading): data loss on every blip, no gain.
+Never close while offline: a suspended person on a disconnected laptop would keep the window indefinitely; 30 min
+bounds it. Wall-clock age alone: the clock can be moved; the failure count covers monotonic pauses during sleep.
+
+**Consequences.** A suspension reaches an offline device's window at the latest about 30 min after the link drops, or
+at the next authenticated answer. Implemented in PR #191 (`swangz_client/workspace_state.py` `failure()`), test 7 of
+the W4 note.
+
+## D-022 | 2026-11-13 | Shared company accounts stay out of the Swangz app for the 20 Nov release
+
+**Context.** Chief's queue item "shared tools through turns" asked whether the Swangz app should hand out turns on
+shared company accounts (`signin = 'shared'`, `gateway/turns.py`) and open the Neko company browser in the managed
+workspace window. Today the app refuses them (D-020) and `/api/device/open` answers 409 `shared_account`; turns work
+through the staff web app's `/go/` and the extension. Full analysis: `docs/SHARED-TURNS-THREAT-NOTE.md`.
+
+**Decision.** Keep refusing in the app and on `/api/device/open`; turns stay in the staff web app, unchanged. Fix the
+manifest so every shared tool has `workspace: false` (`gateway/enroll.py`: today a shared tool with no company
+browser is marked `true` and only the server refusal stops it). `/device/open` keeps running `launch_checks` and
+`managed.launch_refusal` before the `shared_account` refusal and never touches `tool_turns` or `gw.workspaces`. The
+staff web app's `/go/` for a shared tool gets no device or enforce-mode gate: the shared session lives in a remote
+company browser, not on the device.
+
+**Alternatives rejected.** (b) `/device/open` takes a turn and returns the Neko address for the workspace window:
+breaks MANAGED-WORKSPACE §2.2 (no shared provider identity) and §2.6 (no remote browsers for this path), which only
+Arnold can change; needs the Neko origin in the workspace allowlist (on Swangz's own computers a random
+`*.trycloudflare.com` quick tunnel, so a wildcard or a server-supplied per-turn host); and puts the reusable per-turn
+Neko `usr`/`pwd` on the browser command line (W3 A1). Pointing the app at `/go/` in the default browser: rejected in
+D-020.
+
+**Consequences.** No migration, no new route. If (b) is reopened after Arnold's yes on §2.2/§2.6: a fixed Neko host
+in machine policy (never a wildcard tunnel), a single-use launch code (≥128 bits, ≤60 s, bound to turn + device)
+instead of `usr`/`pwd` in the URL, a nullable `device_id` on `tool_turns` in a new migration, and closing on the
+existing heartbeat with the agent's release as the real boundary. Existing risk R-10: `/go/` already sends `usr`/`pwd`
+in a 302 `Location` into the person's browser history; the single-use code is its fix, after 20 Nov. Tests T1–T6 in
+the threat note.

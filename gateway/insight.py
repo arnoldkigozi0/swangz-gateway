@@ -254,8 +254,13 @@ def trends(ctx):
         return row
 
     rows, _ = usage_rows(db, since, now + 1)
+    # BRIEF 10.9(2): the earliest use on record of any kind, so a chart with too few days can say "Collecting since".
+    first = [db.scalar(f"SELECT MIN(r.ts) FROM requests r WHERE {COUNTED}"),
+             db.scalar("SELECT MIN(ts) FROM launches WHERE outcome = 'opened'"),
+             db.scalar("SELECT MIN(started) FROM site_usage WHERE outcome = 'allowed'")]
+    first = [t for t in first if t is not None]
     return {
-        "days": [series[k] for k in sorted(series)], "since": since, "tz_offset_minutes": ctx.gw.settings.tz_offset_minutes,
+        "days": [series[k] for k in sorted(series)], "since": since, "first_use": min(first) if first else None, "tz_offset_minutes": ctx.gw.settings.tz_offset_minutes,
         "current": totals(since, now + 1), "previous": totals(since - days * DAY, since),
         "top_people": _people_totals(rows)[:8], "top_tools": _tool_totals(rows)[:8],
         "tools_used": len(_tool_totals(rows)), "people_active": len({x["person_id"] for x in rows}),
@@ -819,7 +824,7 @@ def _personal(db, now, since, offset_minutes):
                         "text": f"{names.get(pid) or 'Someone'} was refused {n} times in 24 hours ({by.get('requests', 0)} requests, "
                                 f"{by.get('launches', 0)} opens, {by.get('site_usage', 0)} website visits).",
                         "href": f"#/activity?tab=timeline&person={pid}",
-                        "evidence": "Often a tool retrying by itself, or a grant that ended. Worth a word, not a conclusion."})
+                        "evidence": "Often a tool retrying by itself, or access that ended. Worth a word, not a conclusion."})
     return out
 
 
@@ -865,7 +870,7 @@ def security_events(ctx, days):
                        "text": f"{r['person'] or 'Someone'} tried to open {r['tool'] or 'a removed tool'} from the portal "
                                f"{'once' if r['n'] == 1 else str(r['n']) + ' times'} while it wasn't enabled for them.",
                        "tool": r["tool"], "href": f"#/activity?tab=opens&person={r['person_id'] or ''}",
-                       "evidence": "Usually an old bookmark, or a grant that ended."})
+                       "evidence": "Usually an old bookmark, or access that ended."})
     for r in db.q("SELECT su.person_id, p.name AS person, t.name AS tool, su.host, COUNT(*) AS n, MAX(su.started) AS last"
                   " FROM site_usage su LEFT JOIN people p ON p.id = su.person_id LEFT JOIN tools t ON t.id = su.tool_id"
                   " WHERE su.started >= ? AND su.outcome = 'blocked' GROUP BY su.person_id, su.tool_id ORDER BY last DESC LIMIT 50",
@@ -988,8 +993,8 @@ def attention(ctx):
     if lic["summary"]["idle_seats"]:
         n_idle = lic["summary"]["idle_seats"]
         add("idle", "low", "Licences", f"{n_idle} paid licence{'s' if n_idle != 1 else ''} nobody opened in 30 days",
-            (f"About ${lic['summary']['idle_cost']:,.2f} a month is paying for seats nobody opens." if lic["summary"]["idle_cost"]
-             else "Given to people who haven't used them in 30 days.") + " Reclaim them on the Licences page.",
+            (f"About ${lic['summary']['idle_cost']:,.2f} a month goes on licences these people haven't opened." if lic["summary"]["idle_cost"]
+             else "Given to people who haven't opened them in 30 days.") + " On the Licences page, take them back from anyone who doesn't need them.",
             "#/licences", n_idle, background=True)
     for t in lic["renewals"]:
         # a cancelled (or never set up) plan does not renew, so it is nothing to check; the Licences page skips it too
@@ -1016,7 +1021,7 @@ def attention(ctx):
     opened = db.scalar("SELECT COUNT(*) FROM access_requests WHERE state = 'open'") or 0
     if opened:
         add("requests", "info", "Access", f"{opened} tool request{'s' if opened != 1 else ''} waiting",
-            "Staff asked for tools; grant or decline them.", "#/requests", opened)
+            "Staff asked for tools; approve or decline them.", "#/requests", opened)
     ending = db.q("SELECT id, name, access_until FROM people WHERE status = 'active' AND access_until > ? AND access_until <= ?"
                   " ORDER BY access_until", (now, now + 7 * DAY))
     for p in ending:
@@ -1024,8 +1029,8 @@ def attention(ctx):
             f"Their account stops working after {time.strftime('%d %b', time.gmtime(p['access_until'] - DAY))}.", f"#/people/{p['id']}")
     missing = [p for p in ctx.gw.settings.providers.values() if not p.api_key()]
     if missing:
-        add("providers", "info", "System", "Providers without a company key",
-            ", ".join(p.label or p.name for p in missing) + " — staff tools pointed at these are refused.", "#/settings?tab=addresses",
+        add("providers", "info", "System", "AI providers not connected",
+            ", ".join(p.label or p.name for p in missing) + " — tools that use them won't work until the company's account is connected in Settings.", "#/settings?tab=addresses",
             len(missing), background=True)
     from .admin import _totals  # the same unpriced count the Live page shows
     unpriced = _totals(db, month)["unpriced"]

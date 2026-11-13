@@ -455,6 +455,47 @@ async function lateGoogleChecks(browser, info, app) {
   }
 }
 
+// System palettes own the whole gate, including its photo and explicit white controls.
+async function forcedColorChecks(browser, info, app) {
+  for (const scheme of ['light', 'dark']) {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, forcedColors: 'active', colorScheme: scheme });
+    try {
+      const page = await ctx.newPage();
+      await page.route('**/auth/options', r => r.fulfill({ json: { google: false } }));
+      await page.goto(info.url + app.start);
+      await page.waitForSelector('.xgate:not(.xg-wait)');
+      const state = await page.evaluate(() => {
+        const style = sel => getComputedStyle(document.querySelector(sel));
+        const system = value => {
+          const n = document.createElement('span'); n.style.color = value; document.body.append(n);
+          const c = getComputedStyle(n).color; n.remove(); return c;
+        };
+        const eye = document.querySelector('.xg-form-a .xg-eye');
+        const eyeBox = eye.getBoundingClientRect();
+        const fieldBox = eye.closest('.xfield').getBoundingClientRect();
+        return { scene: style('body').getPropertyValue('--scene-image').trim(),
+          background: style('.xgate-card').backgroundColor, canvas: system('Canvas'),
+          heading: style('.xg-form-a .xg-title').color, ink: system('CanvasText'),
+          button: style('.xg-form-a .xg-primary').color, buttonInk: system('ButtonText'),
+          blur: style('.xgate-card').backdropFilter,
+          eyeContained: eyeBox.left >= fieldBox.left && eyeBox.right <= fieldBox.right + 1,
+          eyeTarget: eyeBox.width >= 44 && eyeBox.height >= 44 };
+      });
+      const label = `${app.name} forced colours ${scheme}`;
+      eq(label + ': photo removed', state.scene, 'none');
+      eq(label + ': opaque system canvas', state.background, state.canvas);
+      eq(label + ': heading uses system ink', state.heading, state.ink);
+      eq(label + ': button uses system ink', state.button, state.buttonInk);
+      eq(label + ': no blur', state.blur, 'none');
+      ok(label + ': eye border stays within field', state.eyeContained);
+      ok(label + ': eye retains 44px touch target', state.eyeTarget);
+      await page.locator('.xg-form-a input').first().focus();
+      await page.keyboard.press('Tab');
+      ok(label + ': form remains keyboard reachable', await page.evaluate(() => !!document.activeElement.closest('.xgate')));
+    } finally { await ctx.close(); }
+  }
+}
+
 async function welcomeChecks(browser, info) {
   const app = APPS.staff;
   for (const mode of ['valid', 'expired']) {
@@ -499,6 +540,8 @@ async function welcomeChecks(browser, info) {
     if (staffPorted) await lateGoogleChecks(browser, info, APPS.staff);
     if (staffPorted) await lateGoogleOnBChecks(browser, info, APPS.staff);
     else results.checks.push('Not run: staff sign-in checks (portal.js showSignIn is not on the split gate yet)');
+    await forcedColorChecks(browser, info, APPS.admin);
+    if (staffPorted) await forcedColorChecks(browser, info, APPS.staff);
     await welcomeChecks(browser, info);
     ok('no console or page errors', results.errors.length === 0);
   } finally {

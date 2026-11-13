@@ -101,6 +101,12 @@ class PausedViewTests(Base):
         status, out = self.call("GET", "/hub/notifications", cookie=c)
         self.assertEqual(status, 200)
         self.assertIn("Hello", [i["title"] for i in out["items"]])
+        # a notice written before the title named its tool is named when read
+        self.db.x("UPDATE hub_notifications SET title = 'Complete your weekly tool report' WHERE dedupe_key = ?", (f"report-required:{mine}",))
+        titles = [i["title"] for i in self.call("GET", "/hub/notifications", cookie=c)[1]["items"]]
+        self.assertTrue(any(t.startswith("Complete your weekly report for ChatGPT, week of ") for t in titles), titles)
+        self.assertNotIn("Complete your weekly tool report", titles)
+        self.assertTrue(all(set(i) == {"id", "title", "href", "created", "read", "email_state"} for i in self.call("GET", "/hub/notifications", cookie=c)[1]["items"]))
         self.assertEqual(self.call("POST", "/logout", {}, cookie=c)[0], 200)
 
     def test_every_other_signed_in_route_refuses_a_paused_web_session(self):

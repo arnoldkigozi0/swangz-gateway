@@ -1,0 +1,642 @@
+[
+ {
+  "name": "overview",
+  "vp": "d",
+  "theme": "dark",
+  "h1": "Hello! 👋",
+  "view": [
+   "Simple"
+  ],
+  "hover": 1440,
+  "sw": 1440,
+  "sh": 852,
+  "lead": "Nothing needs you right now.",
+  "btnH": [
+   36
+  ],
+  "scrollers": [],
+  "wide": [],
+  "tables": 0,
+  "axe": [],
+  "errs": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ]
+ },
+ {
+  "name": "licences",
+  "vp": "d",
+  "theme": "dark",
+  "h1": "Licences & spend",
+  "view": [
+   "Simple"
+  ],
+  "hover": 1440,
+  "sw": 1440,
+  "sh": 913,
+  "lead": "4 paid licences nobody opened in 30 days (about $90.00 a month).",
+  "btnH": [
+   30,
+   36
+  ],
+  "scrollers": [],
+  "wide": [],
+  "tables": 0,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "devices",
+  "vp": "d",
+  "theme": "dark",
+  "h1": "Devices",
+  "view": [
+   "Simple"
+  ],
+  "hover": 1440,
+  "sw": 1440,
+  "sh": 852,
+  "lead": "1 device is active; 3 AI requests in 30 days.",
+  "btnH": [
+   30,
+   36
+  ],
+  "scrollers": [],
+  "wide": [],
+  "tables": 1,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "security",
+  "vp": "d",
+  "theme": "dark",
+  "h1": "Security",
+  "view": [
+   "Simple"
+  ],
+  "hover": 1440,
+  "sw": 1440,
+  "sh": 852,
+  "lead": "Nothing needs checking right now.",
+  "btnH": [
+   36
+  ],
+  "scrollers": [],
+  "wide": [],
+  "tables": 0,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "models",
+  "vp": "d",
+  "theme": "dark",
+  "h1": "Models",
+  "view": [
+   "Simple"
+  ],
+  "hover": 1440,
+  "sw": 1440,
+  "sh": 876,
+  "lead": "1 model is in use with no rule yet.",
+  "btnH": [
+   30,
+   36
+  ],
+  "scrollers": [
+   "u-table-wrap:705/462"
+  ],
+  "wide": [],
+  "tables": 1,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "requests",
+  "vp": "d",
+  "theme": "dark",
+  "h1": "Access requests",
+  "view": [
+   "Simple"
+  ],
+  "hover": 1440,
+  "sw": 1440,
+  "sh": 852,
+  "lead": "Nothing is waiting for a decision.",
+  "btnH": [
+   36
+  ],
+  "scrollers": [],
+  "wide": [],
+  "tables": 0,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "audit",
+  "vp": "d",
+  "theme": "dark",
+  "h1": "Audit log",
+  "view": [
+   "Simple"
+  ],
+  "hover": 1440,
+  "sw": 1440,
+  "sh": 852,
+  "lead": "11 changes were recorded in the last 30 days.",
+  "btnH": [
+   30,
+   36
+  ],
+  "scrollers": [
+   "u-table-wrap:750/352"
+  ],
+  "wide": [],
+  "tables": 1,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "overview",
+  "vp": "d",
+  "theme": "light",
+  "h1": "Hello! 👋",
+  "view": [
+   "Simple"
+  ],
+  "hover": 1440,
+  "sw": 1440,
+  "sh": 852,
+  "lead": "Nothing needs you right now.",
+  "btnH": [
+   36
+  ],
+  "scrollers": [],
+  "wide": [],
+  "tables": 0,
+  "axe": [],
+  "errs": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ]
+ },
+ {
+  "name": "licences",
+  "vp": "d",
+  "theme": "light",
+  "h1": "Licences & spend",
+  "view": [
+   "Simple"
+  ],
+  "hover": 1440,
+  "sw": 1440,
+  "sh": 913,
+  "lead": "4 paid licences nobody opened in 30 days (about $90.00 a month).",
+  "btnH": [
+   30,
+   36
+  ],
+  "scrollers": [],
+  "wide": [],
+  "tables": 0,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "devices",
+  "vp": "d",
+  "theme": "light",
+  "h1": "Devices",
+  "view": [
+   "Simple"
+  ],
+  "hover": 1440,
+  "sw": 1440,
+  "sh": 852,
+  "lead": "1 device is active; 3 AI requests in 30 days.",
+  "btnH": [
+   30,
+   36
+  ],
+  "scrollers": [],
+  "wide": [],
+  "tables": 1,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "security",
+  "vp": "d",
+  "theme": "light",
+  "h1": "Security",
+  "view": [
+   "Simple"
+  ],
+  "hover": 1440,
+  "sw": 1440,
+  "sh": 852,
+  "lead": "Nothing needs checking right now.",
+  "btnH": [
+   36
+  ],
+  "scrollers": [],
+  "wide": [],
+  "tables": 0,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "models",
+  "vp": "d",
+  "theme": "light",
+  "h1": "Models",
+  "view": [
+   "Simple"
+  ],
+  "hover": 1440,
+  "sw": 1440,
+  "sh": 876,
+  "lead": "1 model is in use with no rule yet.",
+  "btnH": [
+   30,
+   36
+  ],
+  "scrollers": [
+   "u-table-wrap:705/462"
+  ],
+  "wide": [],
+  "tables": 1,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "requests",
+  "vp": "d",
+  "theme": "light",
+  "h1": "Access requests",
+  "view": [
+   "Simple"
+  ],
+  "hover": 1440,
+  "sw": 1440,
+  "sh": 852,
+  "lead": "Nothing is waiting for a decision.",
+  "btnH": [
+   36
+  ],
+  "scrollers": [],
+  "wide": [],
+  "tables": 0,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "audit",
+  "vp": "d",
+  "theme": "light",
+  "h1": "Audit log",
+  "view": [
+   "Simple"
+  ],
+  "hover": 1440,
+  "sw": 1440,
+  "sh": 852,
+  "lead": "12 changes were recorded in the last 30 days.",
+  "btnH": [
+   30,
+   36
+  ],
+  "scrollers": [
+   "u-table-wrap:742/352"
+  ],
+  "wide": [],
+  "tables": 1,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "overview",
+  "vp": "m",
+  "theme": "dark",
+  "h1": "Hello! 👋",
+  "view": [
+   "Simple"
+  ],
+  "hover": 390,
+  "sw": 390,
+  "sh": 1146,
+  "lead": "Nothing needs you right now.",
+  "btnH": [
+   36
+  ],
+  "scrollers": [],
+  "wide": [],
+  "tables": 0,
+  "axe": [],
+  "errs": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ]
+ },
+ {
+  "name": "licences",
+  "vp": "m",
+  "theme": "dark",
+  "h1": "Licences & spend",
+  "view": [
+   "Simple"
+  ],
+  "hover": 390,
+  "sw": 390,
+  "sh": 1150,
+  "lead": "4 paid licences nobody opened in 30 days (about $90.00 a month).",
+  "btnH": [
+   30,
+   36
+  ],
+  "scrollers": [],
+  "wide": [],
+  "tables": 0,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "devices",
+  "vp": "m",
+  "theme": "dark",
+  "h1": "Devices",
+  "view": [
+   "Simple"
+  ],
+  "hover": 390,
+  "sw": 390,
+  "sh": 994,
+  "lead": "1 device is active; 3 AI requests in 30 days.",
+  "btnH": [
+   30,
+   36
+  ],
+  "scrollers": [],
+  "wide": [
+   "TH.",
+   "BUTTON.",
+   "svg.[object SVGAnimatedString]"
+  ],
+  "tables": 1,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "security",
+  "vp": "m",
+  "theme": "dark",
+  "h1": "Security",
+  "view": [
+   "Simple"
+  ],
+  "hover": 390,
+  "sw": 390,
+  "sh": 844,
+  "lead": "Nothing needs checking right now.",
+  "btnH": [
+   36
+  ],
+  "scrollers": [],
+  "wide": [],
+  "tables": 0,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "models",
+  "vp": "m",
+  "theme": "dark",
+  "h1": "Models",
+  "view": [
+   "Simple"
+  ],
+  "hover": 390,
+  "sw": 390,
+  "sh": 1787,
+  "lead": "1 model is in use with no rule yet.",
+  "btnH": [
+   36,
+   44
+  ],
+  "scrollers": [],
+  "wide": [
+   "TH.num",
+   "BUTTON.",
+   "svg.[object SVGAnimatedString]"
+  ],
+  "tables": 1,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "requests",
+  "vp": "m",
+  "theme": "dark",
+  "h1": "Access requests",
+  "view": [
+   "Simple"
+  ],
+  "hover": 390,
+  "sw": 390,
+  "sh": 954,
+  "lead": "Nothing is waiting for a decision.",
+  "btnH": [
+   36
+  ],
+  "scrollers": [],
+  "wide": [],
+  "tables": 0,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "audit",
+  "vp": "m",
+  "theme": "dark",
+  "h1": "Audit log",
+  "view": [
+   "Simple"
+  ],
+  "hover": 390,
+  "sw": 390,
+  "sh": 2704,
+  "lead": "13 changes were recorded in the last 30 days.",
+  "btnH": [
+   36,
+   44
+  ],
+  "scrollers": [],
+  "wide": [
+   "TH.hide-sm"
+  ],
+  "tables": 1,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "overview",
+  "vp": "m",
+  "theme": "light",
+  "h1": "Hello! 👋",
+  "view": [
+   "Simple"
+  ],
+  "hover": 390,
+  "sw": 390,
+  "sh": 1146,
+  "lead": "Nothing needs you right now.",
+  "btnH": [
+   36
+  ],
+  "scrollers": [],
+  "wide": [],
+  "tables": 0,
+  "axe": [],
+  "errs": [
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ]
+ },
+ {
+  "name": "licences",
+  "vp": "m",
+  "theme": "light",
+  "h1": "Licences & spend",
+  "view": [
+   "Simple"
+  ],
+  "hover": 390,
+  "sw": 390,
+  "sh": 1150,
+  "lead": "4 paid licences nobody opened in 30 days (about $90.00 a month).",
+  "btnH": [
+   30,
+   36
+  ],
+  "scrollers": [],
+  "wide": [],
+  "tables": 0,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "devices",
+  "vp": "m",
+  "theme": "light",
+  "h1": "Devices",
+  "view": [
+   "Simple"
+  ],
+  "hover": 390,
+  "sw": 390,
+  "sh": 994,
+  "lead": "1 device is active; 3 AI requests in 30 days.",
+  "btnH": [
+   30,
+   36
+  ],
+  "scrollers": [],
+  "wide": [
+   "TH.",
+   "BUTTON.",
+   "svg.[object SVGAnimatedString]"
+  ],
+  "tables": 1,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "security",
+  "vp": "m",
+  "theme": "light",
+  "h1": "Security",
+  "view": [
+   "Simple"
+  ],
+  "hover": 390,
+  "sw": 390,
+  "sh": 844,
+  "lead": "Nothing needs checking right now.",
+  "btnH": [
+   36
+  ],
+  "scrollers": [],
+  "wide": [],
+  "tables": 0,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "models",
+  "vp": "m",
+  "theme": "light",
+  "h1": "Models",
+  "view": [
+   "Simple"
+  ],
+  "hover": 390,
+  "sw": 390,
+  "sh": 1787,
+  "lead": "1 model is in use with no rule yet.",
+  "btnH": [
+   36,
+   44
+  ],
+  "scrollers": [],
+  "wide": [
+   "TH.num",
+   "BUTTON.",
+   "svg.[object SVGAnimatedString]"
+  ],
+  "tables": 1,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "requests",
+  "vp": "m",
+  "theme": "light",
+  "h1": "Access requests",
+  "view": [
+   "Simple"
+  ],
+  "hover": 390,
+  "sw": 390,
+  "sh": 954,
+  "lead": "Nothing is waiting for a decision.",
+  "btnH": [
+   36
+  ],
+  "scrollers": [],
+  "wide": [],
+  "tables": 0,
+  "axe": [],
+  "errs": []
+ },
+ {
+  "name": "audit",
+  "vp": "m",
+  "theme": "light",
+  "h1": "Audit log",
+  "view": [
+   "Simple"
+  ],
+  "hover": 390,
+  "sw": 390,
+  "sh": 2704,
+  "lead": "14 changes were recorded in the last 30 days.",
+  "btnH": [
+   36,
+   44
+  ],
+  "scrollers": [],
+  "wide": [
+   "TH.hide-sm"
+  ],
+  "tables": 1,
+  "axe": [],
+  "errs": []
+ }
+]

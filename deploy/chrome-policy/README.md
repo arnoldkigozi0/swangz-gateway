@@ -79,8 +79,9 @@ Google address than the two sign-in hosts appears, or if one of the controls abo
   exceptions. Adding it is Arnold's decision.
 - **Parts of a page (subresources).** The lists govern the addresses a person navigates to. Scripts, images,
   fonts and background requests that an allowed page loads from other hosts are **not governed**: an allowed
-  provider page can still pull content from, and send data to, hosts that are not on the list. Whether a blocked
-  address inside a frame is refused was not tested.
+  provider page can still pull content from, and send data to, hosts that are not on the list. The CI check (C-6)
+  confirms it on Chrome 156 for Linux: a script, an image, `fetch`, XHR and a WebSocket to a host off the list all
+  reach it. A frame (C-4) to a host off the list sends no request.
 - **Chrome's own pages.** A `*` entry does not cover `chrome://` or extension pages: Chromium's policy definition
   says that from Chrome 147 `*` alone no longer blocks internal `chrome://` addresses and they need their own
   entry. This pack lists `chrome://*` and `view-source:*` (plus `chrome://flags` and `chrome://inspect`). That is

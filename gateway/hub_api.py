@@ -334,7 +334,13 @@ def procurement_review(ctx,rid):
 
 @staff.route('GET', r'/hub/notifications', paused_ok=True)
 def notifications(ctx):
-    return {'items':ctx.db.q('SELECT id,title,href,created,read,email_state FROM hub_notifications WHERE person_id=? ORDER BY id DESC LIMIT 100',(ctx.person['id'],))}
+    items=ctx.db.q("SELECT n.id,n.title,n.href,n.created,n.read,n.email_state,r.tool_name,r.week_start FROM hub_notifications n LEFT JOIN hub_reports r ON n.dedupe_key='report-required:'||r.id AND r.person_id=n.person_id WHERE n.person_id=? ORDER BY n.id DESC LIMIT 100",(ctx.person['id'],))
+    for item in items:
+        tool_name,week_start=item.pop('tool_name'),item.pop('week_start')
+        # notices written before 13 Nov all read the same; name the tool and week, as new ones do
+        if item['title']=='Complete your weekly tool report' and tool_name and week_start:
+            item['title']=reporting.report_required_title(tool_name,week_start)
+    return {'items':items}
 
 
 @staff.route('POST', r'/hub/notifications/(?P<nid>\d+)/read')

@@ -164,6 +164,29 @@ class OverviewCountIconTests(unittest.TestCase):
         self.assertIn('label: "Live requests", icon: "live"', js)
 
 
+class CollectingSinceTests(unittest.TestCase):
+    """BRIEF 10.9(2): the Overview chart with fewer than 3 days of use shows its empty state and "Collecting since"."""
+    def test_the_usage_chart_gives_way_below_three_days_and_never_pads(self):
+        js = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
+        self.assertIn("const collecting = usedDays.length < 3;", js)
+        self.assertIn('"Collecting since " + fmt.dayMonth(tr.first_use)', js)
+        self.assertIn("data: collecting ? [] : week.map(", js)
+
+
+class LiveWaveTests(unittest.TestCase):
+    """dashboard-02's wave on the second count card plots real readings (requests in flight at each refresh), never ornament."""
+    def test_the_live_card_draws_its_own_readings_in_amber_beside_the_arrow(self):
+        js = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
+        self.assertIn("liveReadings.push(live.length);", js)
+        self.assertIn("if (liveReadings.length > 24) liveReadings.shift();", js)
+        self.assertIn("SUI.sparkline(liveReadings)", js)
+        css = (STATIC / "admin.css").read_text(encoding="utf-8")
+        self.assertIn(".kpis-exact .kpi .spark:has(.live-wave) { position: absolute; top: 18px; right: 48px;", css)
+        self.assertIn(".kpis-exact .live-wave .u-spark .line { stroke: var(--viz-1);", css)
+        ui = (STATIC / "ui.js").read_text(encoding="utf-8")
+        self.assertIn('preserveAspectRatio: "none", "aria-hidden": "true" });', ui)  # the card states the number
+
+
 class ConsoleRoomTests(unittest.TestCase):
     def test_other_console_pages_back_only_bare_text_and_dark_panels_are_one_layer_of_glass(self):
         css = (pathlib.Path(__file__).resolve().parent.parent / "gateway" / "static" / "admin.css").read_text(encoding="utf-8")
@@ -193,7 +216,18 @@ class LightAreaLabelTests(unittest.TestCase):
         css = (pathlib.Path(__file__).resolve().parent.parent / "gateway" / "static" / "admin.css").read_text(encoding="utf-8")
         rule = css.split('html[data-theme="light"] .console-bar .console-area {')[1].split("}")[0]
         self.assertIn("padding: 0 12px; margin: 0 -12px; border-radius: var(--radius-control);", rule)
-        self.assertNotIn("box-shadow", rule)
+        # no outer spread that would make it taller than its 38px line; the rim is inset
+        self.assertIn("box-shadow: inset 0 0 0 1px var(--glass-rim), var(--glass-highlight);", rule)
+        self.assertNotIn("border:", rule)
+
+    def test_the_light_area_backing_is_the_glass_of_the_pills_beside_it_not_a_flat_white_box(self):
+        css = (pathlib.Path(__file__).resolve().parent.parent / "gateway" / "static" / "admin.css").read_text(encoding="utf-8")
+        rule = css.split('html[data-theme="light"] .console-bar .console-area {')[1].split("}")[0]
+        pills = css.split(".console-workspace, .console-search, .console-clock, .console-account {")[1].split("}")[0]
+        self.assertIn("background: var(--glass-bg-strong)", pills)
+        self.assertIn("background: var(--glass-bg-strong);", rule)
+        self.assertIn("var(--glass-rim)", rule)
+        self.assertNotIn("rgba(252, 248, 242", rule)
 
 
 class StickyTableHeaderTests(unittest.TestCase):
@@ -265,3 +299,70 @@ class NextStepInkTests(unittest.TestCase):
         self.assertIn(".next-step .btn { text-decoration: none; color: var(--btn-ink); }", guide)
         admin = (STATIC / "admin.css").read_text(encoding="utf-8")
         self.assertIn(".lede a { color: var(--tx-1);", admin)  # the rule it has to beat: (0,2,0) > (0,1,1)
+
+
+class ProbeShellDefectTests(unittest.TestCase):
+    """Probe's 12 Nov list: Audit on a phone (C1, C2) and staff touch targets (S2, S3)."""
+
+    def test_audit_email_breaks_after_the_at_sign_and_meta_line_stacks_without_orphan_dots(self):
+        css = (STATIC / "admin.css").read_text(encoding="utf-8")
+        self.assertIn(".route-audit .audit-who strong { min-width: 0; overflow-wrap: anywhere; }", css)
+        phone = css.split(".route-audit .audit-who strong")[1]
+        self.assertIn(".route-audit .list-meta { flex-direction: column; align-items: flex-start; }", phone)
+        self.assertIn(".route-audit .list-meta > * + *::before { content: none; }", phone)
+        js = (STATIC / "admin-monitor.js").read_text(encoding="utf-8")
+        self.assertIn('[who.slice(0, at + 1), el("wbr"), who.slice(at + 1)]', js)
+
+    def test_staff_phone_links_tabs_and_rows_get_a_44px_target(self):
+        css = (STATIC / "exact-staff.css").read_text(encoding="utf-8")
+        block = css.split("@media (hover: none), (max-width: 640px) {")[-1]
+        for sel in (".home-h .tlink", ".u-seg button", ".tr-main", ".drawer .hub-staff-nav > a::before"):
+            self.assertIn(sel, block)
+        self.assertIn("height: 44px; transform: translateY(-50%);", block)
+
+    def test_footer_ask_button_and_phone_bar_items_get_a_44px_target(self):
+        """Probe S5/S6 (13 Nov): the bottom bar's items are 42px tall, the footer's Ask button 38px."""
+        staff = (STATIC / "exact-staff.css").read_text(encoding="utf-8").split("@media (hover: none), (max-width: 640px) {")[-1]
+        self.assertIn(".xf-ask button)::before", staff)
+        bar = (STATIC / "exact-staff-bar.css").read_text(encoding="utf-8")
+        self.assertIn(".stb-bar a { position: relative; }", bar)
+        self.assertIn('.stb-bar a::before { content: ""; position: absolute; top: 50%; left: 0; right: 0; height: 44px; transform: translateY(-50%); }', bar)
+
+    def test_rails_keep_the_10_10_4_radius_of_16(self):
+        # BRIEF 10.10.4 (10 Nov review) replaced 10.3's full pill (31) with 16
+        self.assertIn("border-radius: 16px; overflow: visible; }", (STATIC / "admin.css").read_text(encoding="utf-8"))
+        self.assertIn("border: 1px solid var(--staff-rim); border-radius: 16px;", (STATIC / "exact-staff.css").read_text(encoding="utf-8"))
+
+
+class StaffToolRowPhoneTests(unittest.TestCase):
+    """Staff shell (13 Nov): on phones a tool row's status sits on its own line, so no "·" hangs at a line end."""
+    css = (STATIC / "exact-staff.css").read_text(encoding="utf-8")
+
+    def test_phone_rows_stack_status_and_hide_the_dot(self):
+        block = self.css.split("so a wrap never leaves")[1].split("\n}\n")[0]
+        self.assertIn("@media (max-width: 640px)", block)
+        self.assertRegex(block, r"\.staff-exact \.tool-row \.tr-sub \{[^}]*flex-direction: column")
+        self.assertRegex(block, r"\.staff-exact \.tool-row \.tr-sub > \.dot \{[^}]*display: none")
+
+
+class StaffVisibleTouchTests(unittest.TestCase):
+    """Probe's re-test of main (13 Nov): on phones the staff controls' visible boxes reach 44px (tests/browser/touch.cjs measures them)."""
+
+    def test_phone_rules_size_the_boxes(self):
+        css = (STATIC / "exact-staff.css").read_text(encoding="utf-8")
+        block = css.split("Staff touch targets, visible size")[1]
+        for part in (".staff-exact :is(main, .xf-panel) .btn, .staff-exact .u-seg button, .staff-exact .p-index button { min-height: 44px; }",
+                     ".staff-exact main a.tlink { display: inline-flex; align-items: center; min-height: 44px; }",
+                     ".staff-exact .p-more > summary { padding-block: 12px; }",
+                     ".staff-exact .xf-ask:is(form, a) :is(input, button, b) { height: 44px; min-height: 44px; }",
+                     ".staff-exact .sort .input { min-height: 44px; }"):
+            self.assertIn(part, block)
+
+    def test_footer_links_are_44_on_phones(self):
+        footer = (STATIC / "exact-footer.css").read_text(encoding="utf-8").split("@media (max-width: 900px)")[1]
+        self.assertIn(".staff-exact .xf-col :is(a,button) { height: 44px; white-space: normal; }", footer)
+        self.assertIn(".staff-exact .xf-col li { height: 48px; }", footer)
+
+    def test_phone_bar_items_are_44_tall(self):
+        bar = (STATIC / "exact-staff-bar.css").read_text(encoding="utf-8")
+        self.assertIn("width: 44px; height: 44px; border-radius: 10px;", bar)
