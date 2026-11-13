@@ -578,7 +578,7 @@ def tool_usage(ctx, tid):
     denials = [{"type": "launch", "ts": r["ts"], "person": r["person"], "person_id": r["person_id"],
                 "reason": "opened from the portal while not entitled"} for r in db.q(
         "SELECT l.ts, p.name AS person, l.person_id FROM launches l LEFT JOIN people p ON p.id = l.person_id"
-        " WHERE l.tool_id = ? AND l.ts >= ? AND l.outcome != 'opened' ORDER BY l.id DESC LIMIT 10", (tid, since))]
+        " WHERE l.tool_id = ? AND l.ts >= ? AND l.outcome = 'refused' ORDER BY l.id DESC LIMIT 10", (tid, since))]
     denials += [{"type": "site", "ts": r["ts"], "person": r["person"], "person_id": r["person_id"],
                  "reason": "website blocked by the browser gate"} for r in db.q(
         "SELECT su.started AS ts, p.name AS person, su.person_id FROM site_usage su LEFT JOIN people p ON p.id = su.person_id"
@@ -859,7 +859,7 @@ def security_events(ctx, days):
                        "href": f"#/records/{r['id']}", "evidence": "The gateway's own rules (model, budget, rate limit, pause)."})
     for r in db.q("SELECT l.person_id, p.name AS person, t.name AS tool, COUNT(*) AS n, MAX(l.ts) AS last FROM launches l"
                   " LEFT JOIN people p ON p.id = l.person_id LEFT JOIN tools t ON t.id = l.tool_id"
-                  " WHERE l.ts >= ? AND l.outcome != 'opened' GROUP BY l.person_id, l.tool_id ORDER BY last DESC LIMIT 50", (since,)):
+                  " WHERE l.ts >= ? AND l.outcome = 'refused' GROUP BY l.person_id, l.tool_id ORDER BY last DESC LIMIT 50", (since,)):
         events.append({"type": "denied_open", "severity": "low", "ts": r["last"], "person_id": r["person_id"],
                        "person": r["person"], "title": "Tool opened without access",
                        "text": f"{r['person'] or 'Someone'} tried to open {r['tool'] or 'a removed tool'} from the portal "

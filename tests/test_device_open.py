@@ -1,10 +1,16 @@
 """POST /api/device/open: the provider address for the Swangz workspace window (docs/MANAGED-WORKSPACE.md 9.1, W3).
 Same checks and launch record as /go/, plus this device's workspace state, plus a safe-address check."""
 
+import shutil
+import tempfile
 import time
 import unittest
+from pathlib import Path
+from unittest import mock
 
 from gateway import device_open
+from swangz_client import core
+from swangz_client import workspace_launcher as wl
 
 from .test_managed_workspace import SHA, Base
 
@@ -192,6 +198,59 @@ class DeviceOpenFailedTests(DeviceOpenTests):
         for bad in ("1", 0, -1, None, 1.0, True, 2 ** 63):
             self.assertEqual(self.failed(bad)[0], 400, bad)
         self.assertEqual(self.launches()[0]["outcome"], "opened")
+
+
+class FailedIsNotRefusedTests(Base):
+    """Probe on #210: a window that didn't start is not a security event, and a bad folder never reaches the Hub."""
+
+    def security(self):
+        status, out = self.rig.api("GET", "/security?days=7")
+        self.assertEqual(status, 200, out)
+        return [e for e in out["events"] if e["type"] == "denied_open"]
+
+    def profile_denials(self):
+        status, out = self.rig.api("GET", "/tools/canva/usage")
+        self.assertEqual(status, 200, out)
+        return [d for d in out["denials"] if d["type"] == "launch"]
+
+    def test_a_failed_launch_is_neither_a_denied_open_nor_a_profile_denial(self):
+        self.enable_canva()
+        launch = self.api("POST", "/device/open", {"tool": "canva"}, key=self.key)[1]["launch"]
+        self.assertEqual(self.api("POST", "/device/open/failed", {"launch": launch, "reason": "folder"}, key=self.key)[1],
+                         {"ok": True, "recorded": True})
+        self.assertEqual((self.security(), self.profile_denials()), ([], []))
+        self.db.x("INSERT INTO launches(tool_id, person_id, ts, outcome) VALUES('canva', ?, ?, 'refused')",
+                  (self.rig.person_id, time.time()))
+        self.assertEqual((len(self.security()), len(self.profile_denials())), (1, 1))  # a real refusal still shows
+
+    def app(self):
+        tmp = Path(tempfile.mkdtemp(prefix="sgw-open-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        (tmp / "data").mkdir(mode=0o700)
+        server = f"http://127.0.0.1:{self.rig.port}"
+        c = core.Client(core.Paths(tmp / "home", tmp / "data"), sleep=lambda s: None, open_url=mock.Mock())
+        c.store.manifest = lambda: {
+            "apps": [{"id": "canva", "name": "Canva", "open": server + "/go/canva", "hosts": ["canva.com"], "workspace": True}],
+            "browser": {"contract": 2, "person_id": str(self.rig.person_id), "device_id": self.did,
+                        "workspace": {"state": "active", "generation": 1}}}
+        c.store.device = lambda: {"server": server}
+        c._reconnect_pending = lambda: False
+        c.api = lambda: c._api_factory(server, self.key)
+        started = []
+        c.launcher = wl.Launcher(tmp / "data", popen=lambda argv, **kw: started.append(argv) or mock.Mock(poll=lambda: None),
+                                 finder=lambda: "/opt/google/chrome/chrome", acl=lambda p: True)
+        return c, started
+
+    def test_a_bad_folder_leaves_no_launch_row_and_a_good_one_records_this_device(self):
+        self.enable_canva()
+        c, started = self.app()
+        with mock.patch.object(wl, "verify_folder", side_effect=wl.LaunchError("folder")):
+            with self.assertRaises(wl.LaunchError):
+                c.open_app("canva")
+        self.assertEqual((self.db.scalar("SELECT COUNT(*) FROM launches"), started), (0, []))
+        self.assertEqual(c.open_app("canva"), "workspace")
+        self.assertEqual([(r["outcome"], r["device_id"]) for r in self.db.q("SELECT outcome, device_id FROM launches")], [("opened", self.did)])
+        self.assertEqual(len(started), 1)
 
 
 class SafeAddressTests(unittest.TestCase):
