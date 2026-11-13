@@ -16,3 +16,7 @@ Nothing was typed on any page: no email, no password, no code. Every flow stops 
 | Gemini Sign in | gemini.google.com -> accounts.google.com ServiceLogin -> sign-in page loads | gemini-signin.png | yes |
 
 Not allowed by the pack, and not needed in anything I observed: `claude.com`, `sso.claude.com`, `platform.claude.com` (named in Anthropic's network docs for other sign-in routes; UNVERIFIED for claude.ai web sign-in).
+
+## Demo note: ChatGPT "Continue with Microsoft" (final, 13 Nov 2026)
+
+ChatGPT's Microsoft button was hidden for the visitor on the test run (`display:none`, signed out, Uganda), so it could not be clicked and no Microsoft sign-in page was reached. Whether the policy pack would allow it is therefore not tested. Per Chief's instruction of 13 Nov 2026 no further work is planned on it; for the demo, use Continue with Google. Apple was not offered either.
