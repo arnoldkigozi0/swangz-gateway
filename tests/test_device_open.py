@@ -118,6 +118,42 @@ class DeviceOpenTests(Base):
             self.assertEqual((status, out.get("code")), (429, "rate_limited"), out)
         self.assertEqual(len(self.launches()), 3)
 
+    def grant(self, tool_id):
+        self.rig.api("PUT", f"/subscriptions/{tool_id}", {"state": "active", "monthly_cost": 20, "seats": 5})
+        self.assertEqual(self.rig.api("POST", f"/people/{self.rig.person_id}/tools/{tool_id}")[0], 200)
+
+    def test_chatgpt_claude_and_gemini_open_in_the_workspace_with_their_sign_in_hosts(self):
+        want = {"chatgpt": ("https://chatgpt.com/", {"chatgpt.com", "auth.openai.com", "accounts.google.com"}),
+                "claude": ("https://claude.ai/", {"claude.ai", "accounts.google.com"}),
+                "gemini": ("https://gemini.google.com/", {"gemini.google.com", "accounts.google.com"})}
+        for tool_id in want:
+            self.grant(tool_id)
+        apps = {a["id"]: a for a in self.manifest()["apps"]}
+        for tool_id, (url, hosts) in want.items():
+            self.assertTrue(apps[tool_id]["workspace"], apps[tool_id])
+            self.assertTrue(hosts <= set(apps[tool_id]["hosts"]), apps[tool_id])
+            status, out, _ = self.open(tool_id)
+            self.assertEqual((status, out["url"]), (200, url), out)
+            self.assertEqual(set(out["allowed_hosts"]), set(apps[tool_id]["hosts"]))
+        self.assertEqual([r["outcome"] for r in self.launches()], ["opened"] * 3)
+
+    def test_the_api_rows_and_the_access_gate_are_unchanged(self):
+        from gateway import catalog
+        rows = {r["id"]: dict(r) for r in self.db.q("SELECT id, kind, provider, hosts FROM tools WHERE id IN ('chatgpt', 'claude', 'gemini')")}
+        self.assertEqual({k: (v["kind"], v["provider"]) for k, v in rows.items()},
+                         {"chatgpt": ("api", "openai"), "claude": ("api", "anthropic"), "gemini": ("site", "")})
+        self.assertNotIn("accounts.google.com", ",".join(v["hosts"] for v in rows.values()))
+        index = catalog.host_index(self.db)
+        self.assertIsNone(catalog.match_host(index, "accounts.google.com"))  # the gate never governs Google sign-in
+        self.assertEqual(catalog.match_host(index, "auth.openai.com")["id"], "dall-e")  # as before: openai.com is DALL-E
+        self.assertEqual(catalog.match_host(index, "chatgpt.com")["id"], "chatgpt")
+        self.assertEqual(catalog.provider_tool(self.db, "openai", "")["id"], "chatgpt")  # the proxy's tool lookup
+
+    def test_sign_in_hosts_are_for_built_ins_only(self):
+        self.assertEqual(device_open.allowed_hosts({"id": "chatgpt", "hosts": "chatgpt.com"}), ["chatgpt.com"])
+        self.assertEqual(device_open.allowed_hosts({"id": "chatgpt", "builtin": 1, "hosts": "chatgpt.com"}),
+                         ["chatgpt.com", "auth.openai.com", "accounts.google.com"])
+
     def test_unknown_or_malformed_tool_ids(self):
         for tool in ("no-such-tool", "Canva", "../canva", "", None, 7, ["canva"]):
             status, out, _ = self.open(tool=tool)

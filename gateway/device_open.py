@@ -20,7 +20,7 @@ import re
 import time
 from urllib.parse import parse_qsl, urlsplit
 
-from . import enroll, managed, turns
+from . import catalog, enroll, managed, turns
 from .admin import ApiError
 from .staff import launch_checks, route
 
@@ -35,9 +35,11 @@ UNSAFE = "This tool's address isn't safe to open in your Swangz workspace. Ask y
 
 
 def allowed_hosts(tool):
-    """The tool's governed hosts, as the access gate reads them. Malformed entries are dropped, never widened."""
+    """The tool's governed hosts, as the access gate reads them, then its official sign-in hosts
+    (catalog.SIGNIN_HOSTS, built-ins only). Malformed entries are dropped, never widened."""
     out = []
-    for raw in (tool.get("hosts") or "").split(","):
+    extra = catalog.SIGNIN_HOSTS.get(tool.get("id"), ()) if tool.get("builtin") else ()
+    for raw in (tool.get("hosts") or "").split(",") + list(extra):
         host = raw.strip().lower()
         if host.startswith("www."):
             host = host[4:]
