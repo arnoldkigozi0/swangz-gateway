@@ -231,6 +231,22 @@ class PurgeTests(Base):
         self.assertIsNone(self.client.workspace.latch().get("refused"))
         self.client.open_app("chatgpt")
 
+    def test_a_pending_purge_that_completes_keeps_a_later_rollback_refusal(self):
+        self.manifest["browser"]["workspace"]["generation"] = 2
+        self.beat("active", 2)
+        self.running()
+        with mock.patch.object(bp.Profiles, "retire", side_effect=OSError("busy")):
+            self.beat("active", 3)  # the purge of the generation-2 folder fails and stays pending
+            self.assertTrue(self.client.workspace.latch()["purge_pending"])
+            self.beat("active", 1)  # then an answer older than that folder: a Hub restored from backup
+            self.assertEqual(self.client.workspace.latch()["refused"], "generation_rollback")
+        self.assertTrue(self.client.workspace.resume())  # the retry now succeeds
+        self.assertEqual(self.folders(), [])
+        self.assertEqual(self.client.workspace.latch()["refused"], "generation_rollback")
+        self.refused("generation_rollback")
+        self.beat("active", 3)  # only a current answer clears it
+        self.assertIsNone(self.client.workspace.latch().get("refused"))
+
     def test_prepare_refuses_while_an_older_generation_folder_exists(self):
         bp.Profiles(self.data).prepare(self.owner, 1)
         with self.assertRaises(bp.ProfileError) as cm:

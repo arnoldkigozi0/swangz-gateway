@@ -223,8 +223,10 @@ class WorkspaceState:
         if left:
             self._update(purge_pending=left, purge_error=error, notice=NOTICE_PURGE_FAILED)
             return False
+        # A rollback refusal set after the purge was latched outlives it: only a current answer clears it.
+        rollback = data.get("refused") == "generation_rollback"
         self._update(purge_pending=None, owner=None, purge_error=None, notice=NOTICE_PURGED,
-                     refused=data.get("keep_refused"))
+                     refused="generation_rollback" if rollback else data.get("keep_refused"))
         return True
 
     # ------------------------------------------------------------ calls without a usable answer

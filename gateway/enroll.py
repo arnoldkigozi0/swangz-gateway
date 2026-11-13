@@ -36,7 +36,7 @@ import time
 import zipfile
 from urllib.parse import parse_qs, quote
 
-from . import credentials, entitle, managed, releases, security
+from . import credentials, entitle, managed, releases, security, turns
 from .admin import ApiError
 from .admin import route as admin_route
 from .staff import COOKIE, Ctx, _cookie, current_person, paused_person, route
@@ -327,7 +327,7 @@ def build_manifest(gw, h, person, device):
                 # The app re-checks the provider address against these, and opens the tool in the workspace browser;
                 # a shared company account keeps /go/ (its own company browser), so it is never a workspace tool.
                 app["hosts"] = allowed_hosts(rows[app["id"]] or {})
-                app["workspace"] = not app["company_browser"]
+                app["workspace"] = not turns.is_shared(rows[app["id"]] or {})
     return manifest
 
 

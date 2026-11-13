@@ -3,6 +3,7 @@ Same checks and launch record as /go/, plus this device's workspace state, plus 
 
 import time
 import unittest
+from unittest import mock
 
 from gateway import device_open
 
@@ -108,6 +109,14 @@ class DeviceOpenTests(Base):
         status, out, _ = self.open()
         self.assertEqual((status, out.get("code")), (409, "shared_account"), out)
         self.assertEqual(self.db.scalar("SELECT COUNT(*) FROM tool_turns"), 0)  # no turn taken from here
+
+    def test_opens_are_limited_per_person_and_a_refused_burst_writes_no_launch_rows(self):
+        self.enable_canva()
+        with mock.patch.object(device_open, "OPENS_PER_MIN", 3):
+            self.assertEqual([self.open()[0] for _ in range(3)], [200, 200, 200])
+            status, out, _ = self.open()
+            self.assertEqual((status, out.get("code")), (429, "rate_limited"), out)
+        self.assertEqual(len(self.launches()), 3)
 
     def test_unknown_or_malformed_tool_ids(self):
         for tool in ("no-such-tool", "Canva", "../canva", "", None, 7, ["canva"]):

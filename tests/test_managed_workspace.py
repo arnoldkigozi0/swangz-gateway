@@ -117,6 +117,12 @@ class ContractTwoTests(Base):
         old = [a for a in one["apps"] if a["id"] == "canva"][0]
         self.assertEqual(set(old), {"id", "name", "category", "signin", "company_browser", "open"})
 
+    def test_the_workspace_flag_is_false_for_any_shared_account_with_or_without_a_company_browser(self):
+        self.enable_canva()
+        self.db.x("UPDATE tools SET signin = 'shared' WHERE id = 'canva'")
+        app = [a for a in self.manifest()["apps"] if a["id"] == "canva"][0]
+        self.assertEqual((app["company_browser"], app["workspace"]), (False, False), app)  # #179 L1: /device/open refuses it
+
 
 class SettingsTests(Base):
     def test_the_baseline_and_the_mode_are_validated_and_audited(self):
