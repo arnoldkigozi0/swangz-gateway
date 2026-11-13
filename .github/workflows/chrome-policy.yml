@@ -1,6 +1,6 @@
 name: Chrome policy pack checks
 # D-016 bypass checks for deploy/chrome-policy, step 1 of docs/CHROME-POLICY-BYPASS-TESTS.md: Google Chrome on Linux,
-# case groups A to F. The policy file is installed on the throwaway runner only, and removed again.
+# case groups A to F, X and P. The policy file is installed on the throwaway runner only, and removed again.
 on:
   push:
     branches: [main]
@@ -51,6 +51,11 @@ jobs:
           sudo install -m 0644 "$RUNNER_TEMP/swangz-test.json" "$POLICY_DIR/swangz-test.json"
       - name: Enforced run, pack installed
         run: xvfb-run -a node tests/browser/chrome-policy.cjs enforced
+      - name: Process step, full pack installed (P cases, nothing driven)
+        run: |
+          node tests/browser/chrome-policy.cjs render "$RUNNER_TEMP/swangz-test.json" full
+          sudo install -m 0644 "$RUNNER_TEMP/swangz-test.json" "$POLICY_DIR/swangz-test.json"
+          xvfb-run -a node tests/browser/chrome-policy.cjs process
       - name: Remove the policy file
         if: always()
         run: sudo rm -rf "$POLICY_DIR"
