@@ -306,7 +306,9 @@ def build_manifest(gw, h, person, device):
                                      "sha256": p["sha256"], "size": p["size"]}})
     apps, rows = [], {}
     for t in entitle.for_person(db, person, include_disabled=False):
-        if t["kind"] != "site" or not t["launchable"]:
+        # An API tool with a website (ChatGPT, Claude) is also opened as a website: same row, same entitlement, same
+        # access-gate hosts. Its API traffic still goes through the gateway proxy on the company key.
+        if t["kind"] not in ("site", "api") or not t["launchable"]:
             continue
         tool = db.one("SELECT * FROM tools WHERE id = ?", (t["id"],))
         apps.append({"id": t["id"], "name": t["name"], "category": t["category"], "signin": t["signin"],
