@@ -105,10 +105,14 @@ def send(path, remote, ssh="", run=subprocess.run):
 
 def default_ssh(data_dir, port=""):
     """The ssh command rsync uses: a key and known_hosts kept in the data folder, the only place the
-    service may write (ProtectSystem=strict)."""
+    service may write (ProtectSystem=strict).
+
+    The remote's host key is pinned: StrictHostKeyChecking=yes refuses any host not already in that
+    known_hosts file, so a first connection cannot silently trust an attacker's key (accept-new would).
+    The admin adds the key once by hand (docs/HUB-DELIVERY.md, "Nightly backups and the firewall")."""
     ssh_dir = Path(data_dir).resolve() / ".ssh"
     parts = ["ssh", "-i", str(ssh_dir / "backup_key"), "-o", f"UserKnownHostsFile={ssh_dir / 'known_hosts'}",
-             "-o", "StrictHostKeyChecking=accept-new", "-o", "BatchMode=yes"]
+             "-o", "StrictHostKeyChecking=yes", "-o", "BatchMode=yes"]
     if port:
         parts += ["-p", str(int(port))]
     return shlex.join(parts)

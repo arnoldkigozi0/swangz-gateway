@@ -127,6 +127,23 @@ class BackupTests(unittest.TestCase):
         self.assertIn("BatchMode=yes", parts)
         self.assertEqual(parts[-2:], ["-p", "23"])
 
+    def test_default_ssh_pins_the_remote_host_key(self):
+        parts = shlex.split(backup.default_ssh(self.dir))
+        opts = [parts[i + 1] for i, p in enumerate(parts) if p == "-o"]
+        self.assertIn("StrictHostKeyChecking=yes", opts)
+        self.assertFalse([o for o in opts if o.startswith("StrictHostKeyChecking=") and o != "StrictHostKeyChecking=yes"])
+        self.assertIn(f"UserKnownHostsFile={self.dir.resolve() / '.ssh' / 'known_hosts'}", opts)
+        self.assertNotIn("-p", parts)
+
+    def test_send_passes_the_pinned_ssh_options_to_rsync(self):
+        path = self.dir / "gateway-20261114-020000.db.gz"
+        seen = []
+        backup.send(path, "u1@box.example:swangz/", ssh=backup.default_ssh(self.dir),
+                    run=lambda cmd, **kw: seen.append(cmd) or SimpleNamespace(returncode=0, stderr=""))
+        ssh = shlex.split(seen[0][seen[0].index("-e") + 1])
+        self.assertIn("StrictHostKeyChecking=yes", ssh)
+        self.assertNotIn("StrictHostKeyChecking=accept-new", ssh)
+
     def test_command_line(self):
         settings = SimpleNamespace(data_dir=str(self.dir), db_path=str(self.db))
         args = SimpleNamespace(cmd="backup", dir=None, keep=None, no_remote=False)
