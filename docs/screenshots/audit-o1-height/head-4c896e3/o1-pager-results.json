@@ -1,0 +1,92 @@
+{
+ "dark simple as shipped": {
+  "rows": 10,
+  "pager": 54,
+  "wrapH": 462,
+  "panelBottom": 796,
+  "footTop": 820,
+  "docOverflow": 24,
+  "canScrollPage": true
+ },
+ "dark simple wrap max-height 438px (experiment)": {
+  "rows": 10,
+  "pager": 54,
+  "wrapH": 462,
+  "panelBottom": 796,
+  "footTop": 820,
+  "docOverflow": 24,
+  "canScrollPage": true
+ },
+ "dark simple wrap max-height 432px (experiment)": {
+  "rows": 10,
+  "pager": 54,
+  "wrapH": 462,
+  "panelBottom": 796,
+  "footTop": 820,
+  "docOverflow": 24,
+  "canScrollPage": true
+ },
+ "dark simple wrap max-height 400px (experiment)": {
+  "rows": 10,
+  "pager": 54,
+  "wrapH": 462,
+  "panelBottom": 796,
+  "footTop": 820,
+  "docOverflow": 24,
+  "canScrollPage": true
+ },
+ "dark ?view=detailed as shipped": {
+  "rows": 13,
+  "pager": 0,
+  "wrapH": 462,
+  "panelBottom": 732,
+  "footTop": 756,
+  "docOverflow": 0,
+  "canScrollPage": false
+ },
+ "light simple as shipped": {
+  "rows": 10,
+  "pager": 54,
+  "wrapH": 462,
+  "panelBottom": 796,
+  "footTop": 820,
+  "docOverflow": 24,
+  "canScrollPage": true
+ },
+ "light simple wrap max-height 438px (experiment)": {
+  "rows": 10,
+  "pager": 54,
+  "wrapH": 462,
+  "panelBottom": 796,
+  "footTop": 820,
+  "docOverflow": 24,
+  "canScrollPage": true
+ },
+ "light simple wrap max-height 432px (experiment)": {
+  "rows": 10,
+  "pager": 54,
+  "wrapH": 462,
+  "panelBottom": 796,
+  "footTop": 820,
+  "docOverflow": 24,
+  "canScrollPage": true
+ },
+ "light simple wrap max-height 400px (experiment)": {
+  "rows": 10,
+  "pager": 54,
+  "wrapH": 462,
+  "panelBottom": 796,
+  "footTop": 820,
+  "docOverflow": 24,
+  "canScrollPage": true
+ },
+ "light ?view=detailed as shipped": {
+  "rows": 14,
+  "pager": 0,
+  "wrapH": 462,
+  "panelBottom": 732,
+  "footTop": 756,
+  "docOverflow": 0,
+  "canScrollPage": false
+ }
+}

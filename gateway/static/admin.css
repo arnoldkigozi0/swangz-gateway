@@ -1521,10 +1521,15 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
   .console-tabbar .stb-bar a { height: 44px; }
   .list-meta a { display: inline-flex; align-items: center; min-height: 44px; }
 }
-/* Models and Audit log Simple (BRIEF 10.10.7): the sentence and the next step sit above the list, so a long page of entries scrolls
-   inside its panel with that much less room, and the page itself still does not scroll at 1440x852 (BRIEF 10.10.2). */
+/* The Simple sentence and next step need more room above the table than Detailed. */
 @media screen and (min-width: 761px) {
   :is(.route-models, .route-audit) main:has(> .top > .ov-sentence) .u-table-wrap { max-height: max(280px, calc(100dvh - 500px)); }
+}
+/* Audit Simple (O1): reserve the header/filter band and the page's 80px footer space.
+   SUI.table adds the 54px pager beside the scroll wrapper only when a list has multiple pages. */
+@media screen and (min-width: 1201px) {
+  .route-audit main:has(> .top > .ov-sentence) .u-table-wrap { max-height: max(280px, calc(100dvh - 360px)); }
+  .route-audit main:has(> .top > .ov-sentence) .u-table-wrap:has(+ .u-pager) { max-height: max(280px, calc(100dvh - 414px)); }
 }
 /* Probe D3b kept these at 36 / 30px with a 44px hit layer; since 13 Nov (Probe, main fd69d51) the visible box is 44px
    on phones too (guide.css), so only the clearance under See all stays here. */
