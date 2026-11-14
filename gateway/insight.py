@@ -794,7 +794,7 @@ def _personal(db, now, since, offset_minutes):
                         "text": f"{names.get(pid) or 'Someone'} made {n} requests at " + ", ".join(f"{h['hour']:02d}:00" for h in sorted(odd, key=lambda h: h["hour"]))
                                 + f", hours they rarely use; they usually work {span}.",
                         "href": f"#/records/{max(h['last_id'] for h in odd)}",
-                        "evidence": f"Compared with their own previous 30 days ({total} requests on {days_seen} days), in gateway time."})
+                        "evidence": f"Compared with their own previous 30 days ({total} requests on {days_seen} days), by the Hub's clock."})
     # a model new to the company
     for r in db.q("SELECT model, MIN(ts) AS first, MIN(id) AS id, COUNT(DISTINCT person_id) AS people FROM requests WHERE ts >= ?"
                   " AND outcome = 'ok' AND model IS NOT NULL AND model != '' AND kind IN ('messages', 'chat', 'responses', 'completions')"

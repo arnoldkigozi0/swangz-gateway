@@ -200,6 +200,18 @@ class SecurityTests(LensBase):
         self.assertEqual(len(hit), 1)
         self.assertIn("10× their usual", hit[0]["text"])
 
+    def test_unusual_hours_evidence_is_in_plain_words(self):
+        now = time.time()
+        for d in range(10, 16):  # their normal: 10 requests a day, six hours away from now, on six days
+            for _ in range(10):
+                add_request(self.db, ts=now - d * 86400 - 6 * 3600, person_id=self.pid, key_id=self.kid)
+        for _ in range(6):
+            add_request(self.db, ts=now - 60, person_id=self.pid, key_id=self.kid)
+        hit = [e for e in self.rig.api("GET", "/security")[1]["events"] if e["type"] == "off_hours"]
+        self.assertEqual(len(hit), 1)
+        self.assertIn("by the Hub's clock", hit[0]["evidence"])
+        self.assertNotIn("gateway time", hit[0]["evidence"])  # Probe point-7 item 6: no jargon on default screens
+
 
 class AttentionTests(LensBase):
     def test_one_list_most_urgent_first(self):
