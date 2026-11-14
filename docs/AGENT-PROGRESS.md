@@ -855,3 +855,11 @@ Code checks: JavaScript syntax and whitespace checks passed. Not run locally:
 Python or browser suites (one laptop test/browser slot, reserved for Probe). Full
 Python and browser checks run on CI. Photo contrast, keyboard focus, 390/1440 light
 and dark screenshots and exact-match acceptance remain pending Probe's actual review.
+
+14 November continuation: O2 is built on `fix/light-trail-o2`, pending rendered
+contrast review and CI. Push/PR use `[skip netlify]` because credits are exhausted;
+GitHub checks remain enabled. Audit O1 stays open pending current default/long-list
+height measurements; the Settings header icon nick stays open pending an exact
+element/capture; staff targets stay open pending re-measure after #215/#217/#227.
+Glass/photo stays open: no asset change, Arnold's replacement photo is needed.
+D-016 E/I follow-ups belong to Forge's backend/policy lane. No real-device checks.
