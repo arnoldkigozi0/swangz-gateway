@@ -1,0 +1,19 @@
+ChatGPT start                                    https://chatgpt.com/                                           ALLOWED by chatgpt.com
+ChatGPT login hop                                https://chatgpt.com/auth/login_with                            ALLOWED by chatgpt.com
+OpenAI sign-in host                              https://auth.openai.com/oauth/authorize                        ALLOWED by openai.com
+ChatGPT Google                                   https://accounts.google.com/v3/signin/identifier               ALLOWED by .accounts.google.com
+Google youtube check frame                       https://accounts.youtube.com/accounts/CheckConnection          ALLOWED by .accounts.youtube.com
+Google bscframe                                  https://accounts.google.com/_/bscframe                         ALLOWED by .accounts.google.com
+ChatGPT Apple                                    https://appleid.apple.com/auth/authorize                       ALLOWED by appleid.apple.com
+Apple form iframe (unobserved, known Apple host) https://idmsa.apple.com/appleauth/auth/signin                  BLOCKED (falls to "*")
+ChatGPT Microsoft (consumer)                     https://login.live.com/oauth20_authorize.srf                   ALLOWED by login.live.com
+ChatGPT Microsoft (work/school)                  https://login.microsoftonline.com/common/oauth2/v2.0/authorize ALLOWED by login.microsoftonline.com
+Claude start/login                               https://claude.ai/login                                        ALLOWED by claude.ai
+Claude Google popup                              https://accounts.google.com/o/oauth2/v2/auth                   ALLOWED by .accounts.google.com
+Claude hCaptcha frame (observed)                 https://newassets.hcaptcha.com/captcha/v1/x/static/hcaptcha.ht BLOCKED (falls to "*")
+Claude docs: claude.com redirect                 https://claude.com/                                            BLOCKED (falls to "*")
+Claude docs: SSO                                 https://sso.claude.com/                                        BLOCKED (falls to "*")
+Claude docs: platform OAuth                      https://platform.claude.com/                                   BLOCKED (falls to "*")
+Gemini start                                     https://gemini.google.com/app                                  ALLOWED by gemini.google.com
+Gemini ServiceLogin                              https://accounts.google.com/ServiceLogin                       ALLOWED by .accounts.google.com
+Cloudflare challenge frame                       https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h ALLOWED by challenges.cloudflare.com
