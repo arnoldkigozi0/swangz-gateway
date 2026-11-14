@@ -82,6 +82,17 @@ Google address than the two sign-in hosts appears, or if one of the controls abo
   provider page can still pull content from, and send data to, hosts that are not on the list. The CI check (C-6)
   confirms it on Chrome 156 for Linux: a script, an image, `fetch`, XHR and a WebSocket to a host off the list all
   reach it. A frame (C-4) to a host off the list sends no request.
+- **Documents a page makes for itself (`about:srcdoc`, `blob:`).** A frame written with `srcdoc`, or a `blob:`
+  document an allowed page creates and opens (as a frame or as the whole tab), takes on that page's origin, so
+  the URL lists treat it as the allowed page. Its scripts run and can send requests to hosts off the list, the
+  same as the subresource gap above. Measured by the CI check on Chrome 156 for Linux (run 43380200973): with the
+  full pack, a `srcdoc` frame (E-3s), a `blob:` page (E-4) and a `blob:` frame (E-4) on an allowed page each
+  reached the off-list host (1 request each). A `data:` link clicked from an allowed page (E-3c) loaded nothing
+  and sent no request. A `javascript:` address typed into the address bar (E-3j) sent no request with the pack
+  and one without it; which policy stops it is not established. `filesystem:` is not tested (deprecated API).
+  Only a page's own code can create these documents, so the risk is an allowed provider page, or content it
+  runs, sending data off the list; the pack cannot stop that. A browser extension (tier 2, not built) is the
+  layer that could.
 - **Chrome's own pages.** A `*` entry does not cover `chrome://` or extension pages: Chromium's policy definition
   says that from Chrome 147 `*` alone no longer blocks internal `chrome://` addresses and they need their own
   entry. This pack lists `chrome://*` and `view-source:*` (plus `chrome://flags` and `chrome://inspect`). That is

@@ -2,7 +2,7 @@
 (() => {
   const P=SWP,H=HubUI,{el,icon,fmt,toast}=SUI;
   const set=(key,value)=>{const q=new URLSearchParams(location.hash.split('?')[1]||'');value?q.set(key,value):q.delete(key);if(key!=="offset")q.delete("offset");location.hash=location.hash.split('?')[0]+"?"+q;};
-  function pagination(data){return el("div",{class:"hub-pagination"},el("span",{class:"muted small"},`${data.total} records · ${Math.min(data.offset+1,data.total)}–${Math.min(data.offset+data.limit,data.total)}`),
+  function pagination(data){return el("div",{class:"hub-pagination"},el("span",{class:"muted small"},`${data.total} ${data.total===1?'record':'records'} · ${Math.min(data.offset+1,data.total)}–${Math.min(data.offset+data.limit,data.total)}`),
     el("div",{class:"hub-actions"},el("button",{class:"btn btn--small",disabled:!data.offset,onclick:()=>set('offset',String(Math.max(0,data.offset-data.limit)))},"Previous"),el("button",{class:"btn btn--small",disabled:data.offset+data.limit>=data.total,onclick:()=>set('offset',String(data.offset+data.limit))},"Next")));}
   const open=id=>{const q=new URLSearchParams(location.hash.split('?')[1]||'');q.set('report',id);q.delete('step');location.hash='#/weekly?'+q;};
   async function list(params,kind,state){const q=new URLSearchParams({kind,limit:'30',offset:params.get('offset')||'0'});if(state)q.set('state',state);for(const k of ['week','q'])if(params.get(k))q.set(k,params.get(k));const data=await P.api('GET','/hub/reports?'+q);const rows=H.reportRows(data,open);if(!data.items.length)rows.append(el('div',{class:'act'},el('a',{class:'btn btn--small',href:'#/business?view=reports'},'Open adoption & impact')));return el('div',null,rows,pagination(data));}
