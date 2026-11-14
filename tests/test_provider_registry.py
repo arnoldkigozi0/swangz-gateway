@@ -930,7 +930,8 @@ class MigrationTests(unittest.TestCase):
 class SweepTests(Base):
     STAFF = {("GET", r"/provider-accounts"), ("POST", r"/provider-accounts"), ("GET", r"/provider-accounts/(?P<aid>[0-9]+)"),
              ("POST", r"/provider-accounts/(?P<aid>[0-9]+)/values"), ("POST", r"/provider-accounts/(?P<aid>[0-9]+)/end")}
-    CONSOLE = {("GET", r"/provider-accounts"), ("GET", r"/provider-accounts/(?P<aid>[0-9]+)")}
+    CONSOLE = {("GET", r"/provider-accounts"), ("GET", r"/provider-accounts/(?P<aid>[0-9]+)"),
+               ("GET", r"/provider-accounts/coverage")}
 
     def test_every_registry_route_is_known_and_none_is_paused_ok(self):
         staff_found = {(m, rx.pattern) for m, rx, fn, s, ok in staff.ROUTES if "provider-accounts" in rx.pattern}
@@ -956,13 +957,109 @@ class SweepTests(Base):
         self.make_admin("ops", areas="govern,emergency")
         self.make_admin("bill", areas="money")
         self.make_admin("sec", areas="trust")
-        for path in ("/provider-accounts", f"/provider-accounts/{aid}"):
+        for path in ("/provider-accounts", f"/provider-accounts/{aid}", "/provider-accounts/coverage?tool=canva"):
             self.assertEqual(self.rig.request("GET", "/admin/api" + path)[0], 401)
             expected = {"owner": 200, "ops": 200, "bill": 200, "sec": 403, "viewer": 403}
             for who, code in expected.items():
                 self.assertEqual(self.console(path, who)[0], code, (path, who))
         denied = self.db.scalar("SELECT COUNT(*) FROM audit WHERE outcome = 'denied'")
-        self.assertEqual(denied, 4)  # each refusal is recorded by the dispatcher
+        self.assertEqual(denied, 6)  # each refusal is recorded by the dispatcher
+
+
+class CoverageTests(Base):
+    """Seat coverage: who the Hub lets use a tool, beside who declared a company seat on it (read only, seats only)."""
+
+    def setUp(self):
+        super().setUp()
+        self.db.x("UPDATE tools SET signin = 'seat', kind = 'site' WHERE id = 'chatgpt'")
+        self.db.x("UPDATE subscriptions SET state = 'active' WHERE tool_id = 'chatgpt'")
+        if not self.db.scalar("SELECT COUNT(*) FROM subscriptions WHERE tool_id = 'chatgpt'"):
+            self.db.x("INSERT INTO subscriptions(tool_id, state, updated) VALUES('chatgpt', 'active', ?)", (time.time(),))
+        self.db.x("DELETE FROM entitlements WHERE tool_id = 'chatgpt'")
+        self.make_admin("ops", areas="govern")
+        self.make_admin("bill", areas="money")
+        self.make_admin("sec", areas="trust")
+
+    def grant(self, pid=None, department=None):
+        if department:
+            self.db.x("INSERT INTO entitlements(department, tool_id, granted) VALUES(?, 'chatgpt', ?)", (department, time.time()))
+        else:
+            self.db.x("INSERT INTO entitlements(person_id, tool_id, granted) VALUES(?, 'chatgpt', ?)", (pid, time.time()))
+
+    def coverage(self, who="owner", tool="chatgpt"):
+        status, out = self.console(f"/provider-accounts/coverage?tool={tool}", who)
+        self.assertEqual(status, 200, out)
+        return out, {r["person_id"]: r for r in out["people"]}
+
+    def test_each_case_is_named_and_counted(self):
+        self.grant(self.pid)                               # authorised, and declares a seat
+        self.account(tool="chatgpt", route="seat")
+        self.grant(department="Creative")                  # Brian: authorised through his department, no seat
+        third = self.db.x("INSERT INTO people(name, email, department, status, created) VALUES(?,?,?,?,?)",
+                          ("Akello Ruth", "ruth@swangzavenue.com", "Finance", "active", time.time())).lastrowid
+        self.db.x("INSERT INTO provider_accounts(account_holder_kind, holder_person_id, tool_id, route, payer, assertion,"
+                  " status, created, created_by) VALUES('person', ?, 'chatgpt', 'seat', 'company', 'holder_declared',"
+                  " 'active', ?, ?)", (third, time.time(), third))  # a seat, but the Hub does not let her use the tool
+        out, rows = self.coverage()
+        self.assertEqual(out["summary"], {"authorised_with_seat": 1, "authorised_without_seat": 1, "seat_without_access": 1})
+        self.assertEqual(rows[self.pid]["coverage"], "authorised_with_seat")
+        self.assertEqual((rows[self.pid]["seat"]["assertion"], rows[self.pid]["seat"]["confirmed"]), ("holder_declared", False))
+        self.assertEqual((rows[self.other_pid]["coverage"], rows[self.other_pid]["seat"]), ("authorised_without_seat", None))
+        self.assertEqual((rows[third]["coverage"], rows[third]["access"]["state"]), ("seat_without_access", "not_assigned"))
+        self.assertEqual(out["tool"], {"id": "chatgpt", "name": out["tool"]["name"], "signin": "seat"})
+        self.assertIn("not confirmed", out["note"])
+
+    def test_authorisation_follows_the_hub_rule_not_the_grant_alone(self):
+        self.grant(self.pid)
+        self.account(tool="chatgpt", route="seat")
+        self.db.x("UPDATE subscriptions SET state = 'cancelled' WHERE tool_id = 'chatgpt'")
+        out, rows = self.coverage()
+        self.assertEqual((rows[self.pid]["coverage"], rows[self.pid]["access"]["state"]), ("seat_without_access", "locked"))
+        self.db.x("UPDATE subscriptions SET state = 'active' WHERE tool_id = 'chatgpt'")
+        self.db.x("UPDATE people SET status = 'suspended' WHERE id = ?", (self.pid,))
+        self.assertEqual(self.coverage()[1][self.pid]["access"]["state"], "suspended")
+        self.db.x("UPDATE people SET status = 'active' WHERE id = ?", (self.pid,))
+        self.db.x("UPDATE entitlements SET expires = ? WHERE person_id = ?", (time.time() - 60, self.pid))
+        self.assertEqual(self.coverage()[1][self.pid]["coverage"], "seat_without_access")
+        self.assertEqual(self.call("POST", f"/provider-accounts/{self.coverage()[1][self.pid]['seat']['id']}/end", {})[0], 200)
+        self.assertNotIn(self.pid, self.coverage()[1])     # an ended seat and no access: nothing to reconcile
+
+    def test_individual_accounts_never_change_the_answer(self):
+        self.grant(self.pid)
+        before = self.coverage()[0]
+        self.account(tool="chatgpt", route="individual", label=LABEL_MARK)
+        self.account(tool="chatgpt", route="individual", cookie=self.other_cookie)
+        for who in ("owner", "ops", "bill"):
+            out = self.coverage(who)[0]
+            self.assertEqual(out, before, who)
+            self.assertNotIn(LABEL_MARK, json.dumps(out))
+            self.assertNotIn(self.other_pid, {r["person_id"] for r in out["people"]})
+
+    def test_no_values_labels_or_payers_leave_through_coverage(self):
+        self.grant(self.pid)
+        aid = self.account(tool="chatgpt", route="seat", label=LABEL_MARK)["id"]
+        self.clear_rate()
+        self.value(aid, "plan", PLAN_MARK)
+        self.value(aid, "monthly_price", 200000, "UGX")
+        text = json.dumps(self.coverage()[0])
+        for leak in (LABEL_MARK, PLAN_MARK, "UGX", "payer", "values"):
+            self.assertNotIn(leak, text)
+
+    def test_bad_and_unknown_tools_and_roles(self):
+        self.assertEqual(self.console("/provider-accounts/coverage")[0], 400)
+        self.assertEqual(self.console("/provider-accounts/coverage?tool=Bad%20Tool")[0], 400)
+        self.assertEqual(self.console("/provider-accounts/coverage?tool=no-such-tool")[0], 404)
+        for who in ("sec", "viewer"):
+            self.assertEqual(self.console("/provider-accounts/coverage?tool=chatgpt", who)[0], 403, who)
+        self.assertEqual(self.rig.request("GET", "/admin/api/provider-accounts/coverage?tool=chatgpt")[0], 401)
+
+    def test_reading_coverage_writes_nothing(self):
+        self.grant(self.pid)
+        self.account(tool="chatgpt", route="seat")
+        counts = lambda: [self.db.scalar(f"SELECT COUNT(*) FROM {t}") for t in ("provider_accounts", "entitlements", "audit")]
+        before = counts()
+        self.coverage()
+        self.assertEqual(counts(), before)
 
 
 # ------------------------------------------------------------------ correction R1-R5 (Sentinel, 6 November 02:27)
