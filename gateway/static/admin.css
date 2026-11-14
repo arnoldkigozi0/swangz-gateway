@@ -1231,11 +1231,9 @@ html[data-theme="light"] .shell #main::before { background: rgba(252, 248, 242, 
    each side with rounded corners, so the room shows around the page as on desktop; the page's own 16px padding keeps
    every bare text run 8px inside the plane. Unmeasured until captured (docs/screenshots/exact-r16/README.md). */
 @media (max-width: 900px) { .shell #main::before { inset: 0 8px 8px 8px; border-radius: 18px; } }
-/* Light only (no reference still): the top bar's bare area label gets a backing the height of the pills beside it (its
-   38px line), in their glass: the same fill, rim and highlight (10.3: every top-bar pill is one material). A flat
-   porcelain fill with no rim read as a white box beside them (Probe, Nov 12). The rim is drawn inset so the box stays
-   38px; padding and an equal negative margin keep the label where 10.3 puts it. */
-html[data-theme="light"] .console-bar .console-area { background: var(--glass-bg-strong); box-shadow: inset 0 0 0 1px var(--glass-rim), var(--glass-highlight); padding: 0 12px; margin: 0 -12px; border-radius: var(--radius-control); }
+/* O2: the area/trail is bare text, as in BRIEF 10.3; use the strongest light-theme ink over the room. */
+html[data-theme="light"] .console-bar .console-area,
+html[data-theme="light"] .console-trail .sep { color: var(--tx-1); }
 @media print { .shell #main::before { display: none; } }
 /* Architect review item 1, the other console pages: the page-wide plane hid the room. Outside Overview it is replaced
    by local backing in the same colours, only where text sits outside a card: the page header, and each block of the
@@ -1450,12 +1448,15 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
 .console-trail { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .console-trail a { color: inherit; text-decoration: none; }
 .console-trail a:hover { text-decoration: underline; text-underline-offset: 3px; }
-.console-trail a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+.console-trail a:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; border-radius: 4px; }
 .console-trail .sep { flex: none; color: var(--tx-3); }
 /* A long chain gives way from the left: the pages above shorten with an ellipsis so the current page stays readable. */
 .console-trail > a, .console-trail > .crumb-area { flex: 0 1000 auto; min-width: 3ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .console-trail > .crumb-here { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .console-trail .crumb-here, .crumbs .crumb-here { color: var(--tx-1); font-weight: 600; }
+/* O2: a nested area label must not keep muted ink over the photo. The phone trail
+   also uses primary ink: its muted area and separators fell below 4.5:1 in both themes. */
+.console-trail .crumb-area, .crumbs.in-bar .crumb-area, .crumbs.in-bar .sep { color: var(--tx-1); }
 @media (min-width: 1201px) { .top > .crumbs.in-bar { display: none; } }
 @media (max-width: 1200px) { .console-trail { display: none; } }
 .top > .lede.next-step { color: var(--tx-1); }

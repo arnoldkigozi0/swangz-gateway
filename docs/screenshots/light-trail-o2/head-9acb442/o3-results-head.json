@@ -1,0 +1,139 @@
+{
+ "spend-light": {
+  "trail": {
+   "x": 325,
+   "y": 19,
+   "w": 152.40625,
+   "h": 38,
+   "hereClipped": false,
+   "bg": "rgba(0, 0, 0, 0)",
+   "shadow": "none"
+  },
+  "contrast": [
+   {
+    "part": "a.crumb-more \"…\"",
+    "color": "rgb(21, 21, 26)",
+    "bgL": [
+     0.285,
+     0.309,
+     0.341
+    ],
+    "worst": 5.81,
+    "mean": 6.22
+   },
+   {
+    "part": "span.sep \"›\"",
+    "color": "rgb(21, 21, 26)",
+    "bgL": [
+     0.289,
+     0.31,
+     0.331
+    ],
+    "worst": 5.88,
+    "mean": 6.24
+   },
+   {
+    "part": "span.crumb-here \"What cost us money?\"",
+    "color": "rgb(21, 21, 26)",
+    "bgL": [
+     0.223,
+     0.323,
+     0.468
+    ],
+    "worst": 4.74,
+    "mean": 6.47
+   }
+  ]
+ },
+ "focus-light": {
+  "onTrail": true,
+  "text": "…",
+  "outline": "solid 2px rgb(120, 86, 15) off -2px",
+  "rect": {
+   "x": 325,
+   "y": 19,
+   "w": 23.890625,
+   "h": 38
+  },
+  "overflowAncestors": [
+   {
+    "el": "console-area console-trail",
+    "overflow": "hidden",
+    "top": 19,
+    "bottom": 57,
+    "left": 325,
+    "right": 477.40625
+   }
+  ]
+ },
+ "spend-dark": {
+  "trail": {
+   "x": 325,
+   "y": 19,
+   "w": 152.40625,
+   "h": 38,
+   "hereClipped": false,
+   "bg": "rgba(0, 0, 0, 0)",
+   "shadow": "none"
+  },
+  "contrast": [
+   {
+    "part": "a.crumb-more \"…\"",
+    "color": "rgb(246, 246, 244)",
+    "bgL": [
+     0.033,
+     0.042,
+     0.054
+    ],
+    "worst": 9.36,
+    "mean": 10.57
+   },
+   {
+    "part": "span.sep \"›\"",
+    "color": "rgb(181, 173, 165)",
+    "bgL": [
+     0.035,
+     0.042,
+     0.049
+    ],
+    "worst": 4.77,
+    "mean": 5.15
+   },
+   {
+    "part": "span.crumb-here \"What cost us money?\"",
+    "color": "rgb(246, 246, 244)",
+    "bgL": [
+     0.017,
+     0.049,
+     0.109
+    ],
+    "worst": 6.1,
+    "mean": 9.84
+   }
+  ]
+ },
+ "focus-dark": {
+  "onTrail": true,
+  "text": "…",
+  "outline": "solid 3px rgb(246, 246, 244) off 0px",
+  "rect": {
+   "x": 325,
+   "y": 19,
+   "w": 23.890625,
+   "h": 38
+  },
+  "overflowAncestors": [
+   {
+    "el": "console-area console-trail",
+    "overflow": "hidden",
+    "top": 19,
+    "bottom": 57,
+    "left": 325,
+    "right": 477.40625
+   }
+  ]
+ },
+ "settings": {
+  "rail": []
+ }
+}
