@@ -10,6 +10,7 @@ Staff routes (own accounts only, ordinary signed-in web session, never paused, n
   GET  /api/provider-accounts/<id>       POST /api/provider-accounts/<id>/values      POST /api/provider-accounts/<id>/end
 Console routes (read only; the field ceiling below applies to every console user, owners included):
   GET /admin/api/provider-accounts       GET /admin/api/provider-accounts/<id>
+  GET /admin/api/provider-accounts/coverage?tool=<id>   who is authorised for one tool, beside who declared a seat on it
 
 What the console may see is the record kind's field ceiling intersected with the actor's areas (govern, money), then
 the union across those areas. `FIELD_CEILING` below is that table; it is the only place visibility is decided.
@@ -23,7 +24,7 @@ import unicodedata
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
-from . import admin, authz, staff
+from . import admin, authz, entitle, staff
 from .admin import ApiError
 
 ROUTES_OPEN = ("individual", "seat")  # api / enterprise exist as enums only: no route can write them
@@ -434,3 +435,60 @@ def console_read(ctx, aid):
     if out is None:
         raise ApiError(404, "no such account", "no_such_account")
     return out
+
+
+# ---------------------------------------------------------------- seat coverage: who is authorised, beside who holds a seat
+
+COVERAGE_NOTE = ("Access is the Hub's own decision (subscription active and the person assigned). A seat is declared by its "
+                 "holder and not confirmed with the provider. Personal subscriptions are never shown here.")
+
+
+@admin.route("GET", r"/provider-accounts/coverage", area=CONSOLE_AREAS)
+def console_coverage(ctx):
+    """For one tool: every person the Hub currently lets use it, and every person with an active declared company seat on it,
+    side by side, so an admin can see who is authorised without a seat and who holds a seat without access. Read only: it
+    changes nothing and feeds nothing. Only seat records are read (Sentinel F1): an individual account never affects a row,
+    a count or the answer's shape. Each seat row carries the console's own seat fields (holder, status, assertion), no values."""
+    if not _audiences(ctx):  # the dispatcher already refuses these; kept so the handler is safe on its own
+        raise ApiError(403, "your role can't see that")
+    tool_id = ctx.arg("tool")
+    if not tool_id or not re.fullmatch(r"[a-z0-9-]{1,64}", tool_id):
+        raise ApiError(400, "tool is required", "bad_tool")
+    tool = ctx.db.one("SELECT * FROM tools WHERE id = ?", (tool_id,))
+    if not tool:
+        raise ApiError(404, "no such tool", "no_such_tool")
+    now = time.time()
+    granted = {r["id"] for r in ctx.db.q(
+        "SELECT DISTINCT p.id FROM people p JOIN entitlements e ON e.tool_id = ? AND (e.person_id = p.id OR"
+        " (e.department != '' AND e.department = p.department)) WHERE e.expires IS NULL OR e.expires > ?", (tool_id, now))}
+    seats = {r["holder_person_id"]: r for r in ctx.db.q(
+        "SELECT id, holder_person_id, assertion, created FROM provider_accounts"
+        " WHERE tool_id = ? AND route = 'seat' AND status = 'active' AND account_holder_kind = 'person'", (tool_id,))}
+    ids = sorted(granted | set(seats))
+    people = {}
+    for start in range(0, len(ids), 100):
+        chunk = ids[start:start + 100]
+        for p in ctx.db.q(f"SELECT * FROM people WHERE id IN ({','.join('?' * len(chunk))})", chunk):
+            people[p["id"]] = p
+    sub = ctx.db.one("SELECT * FROM subscriptions WHERE tool_id = ?", (tool_id,))
+    rows, summary = [], {"authorised_with_seat": 0, "authorised_without_seat": 0, "seat_without_access": 0}
+    for pid in ids:
+        person = people.get(pid)
+        if person is None:
+            continue
+        state, reason = entitle.status(tool, pid in granted, sub, person)
+        seat = seats.get(pid)
+        authorised = state == "enabled"
+        key = ("authorised_with_seat" if seat else "authorised_without_seat") if authorised else (
+            "seat_without_access" if seat else None)
+        if key is None:  # assigned but not enabled and no seat: not authorised, nothing to reconcile
+            continue
+        summary[key] += 1
+        rows.append({"person_id": pid, "name": person["name"], "department": person.get("department") or "",
+                     "access": {"state": state, "reason": reason},
+                     "seat": ({"id": seat["id"], "status": "active", "assertion": seat["assertion"], "confirmed": False,
+                               "created": seat["created"]} if seat else None),
+                     "coverage": key})
+    rows.sort(key=lambda r: (r["coverage"], r["name"].casefold()))
+    return {"tool": {"id": tool["id"], "name": tool["name"], "signin": tool.get("signin") or "seat"},
+            "people": rows, "summary": summary, "note": COVERAGE_NOTE}
