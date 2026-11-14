@@ -870,3 +870,20 @@ phone, Detailed and Models rules are preserved. The test computes available
 space from the page footer padding instead of assuming 60px at the bottom.
 Changed-script syntax/whitespace pass. Corrected-head browser review and CI
 remain pending; no local suite/browser was started by the builder.
+
+### Audit O1 corrected artifact verdict — 14 November 2026
+
+Independent real-Chrome review of local product `992a07a` passed the shipped
+`audit.cjs`: 164 checks. At 1440×852 in both themes, default/+80 rows, Simple
+with a pager uses 438px and without it 492px; both panels end at 772px with
+footer 796–812. Document overflow and attempted page scroll are zero. Detailed
+stays 462px, Models stays 352px, tablet 1100×800 uses 300px without overflow,
+and 390/640 retain no sideways overflow. Earlier inline experiments that did
+not bind could not be reproduced; on this head inline caps bind correctly.
+Evidence: `docs/screenshots/audit-o1-height/head-992a07a/`.
+
+The corrected source and this evidence await batched push/new-head CI; the old
+remote `4c896e3` FAIL is preserved separately and is not covered by this PASS.
+Staff re-measure found drawer actions 36px, tabs 43.7px, Privacy summaries
+23.3px at 640 and the skip link 39.3px. Those corrections are a separate PR
+on `fix/staff-target-gaps`; no staff change is hidden in the Audit fix.
