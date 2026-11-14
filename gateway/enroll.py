@@ -36,7 +36,7 @@ import time
 import zipfile
 from urllib.parse import parse_qs, quote
 
-from . import credentials, entitle, releases, security
+from . import credentials, entitle, managed, releases, security, turns
 from .admin import ApiError
 from .admin import route as admin_route
 from .staff import COOKIE, Ctx, _cookie, current_person, paused_person, route
@@ -304,13 +304,16 @@ def build_manifest(gw, h, person, device):
         packages.append({"id": p["id"], "name": p["name"], "version": p["version"], "kind": p["kind"], "description": p["description"],
                          "install": {"type": "bundle", "url": f"{base}/api/device/packages/{p['id']}/{p['version']}",
                                      "sha256": p["sha256"], "size": p["size"]}})
-    apps = []
+    apps, rows = [], {}
     for t in entitle.for_person(db, person, include_disabled=False):
-        if t["kind"] != "site" or not t["launchable"]:
+        # An API tool with a website (ChatGPT, Claude) is also opened as a website: same row, same entitlement, same
+        # access-gate hosts. Its API traffic still goes through the gateway proxy on the company key.
+        if t["kind"] not in ("site", "api") or not t["launchable"]:
             continue
         tool = db.one("SELECT * FROM tools WHERE id = ?", (t["id"],))
         apps.append({"id": t["id"], "name": t["name"], "category": t["category"], "signin": t["signin"],
                      "company_browser": bool(tool and catalog.uses_workspace(tool)), "open": f"{base}/go/{t['id']}"})
+        rows[t["id"]] = tool
     manifest = {"server": base, "person": {"name": person["name"], "email": person["email"], "department": person.get("department") or ""},
                 "device": {"id": device["device_id"], "name": device["name"], "os": device["os"], "owner_kind": device["owner_kind"]},
                 "client": {"latest": releases.latest_hint(gw, person, CLIENT_LATEST), "minimum": CLIENT_MINIMUM}, "packages": packages, "apps": apps,
@@ -319,20 +322,29 @@ def build_manifest(gw, h, person, device):
     browser = _browser_block(gw, h, person, device)
     if browser is not None:
         manifest["browser"] = browser
+        if browser["contract"] == 2:  # Open says which device it comes from, so the server can refuse a paused workspace
+            from .device_open import own_hosts  # device_open imports this module
+            for app in apps:
+                app["open"] += "?d=" + browser["device_id"]
+                # The app re-checks the start address against the tool's own hosts (never the sign-in hosts, #213 F1),
+                # and opens the tool in the workspace browser;
+                # a shared company account keeps /go/ (its own company browser), so it is never a workspace tool.
+                app["hosts"] = own_hosts(rows[app["id"]] or {})
+                app["workspace"] = not turns.is_shared(rows[app["id"]] or {})
     return manifest
 
 
-BROWSER_CONTRACT = "1"
+BROWSER_CONTRACTS = ("1", "2")
 _PERSON_ID = re.compile(r"[1-9][0-9]*")
 _DEVICE_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
 
 def _browser_negotiated(h):
-    """True only for exactly one `browser_contract=1` in the query string. Missing, repeated, `2`, `01`, `true`,
-    empty: not negotiated, and the manifest is the one every older app already gets."""
+    """The contract version (`"1"` or `"2"`) when the query string has exactly one `browser_contract` and its value is
+    exactly that. Missing, repeated, `3`, `01`, `true`, empty: None, and the manifest is the one every older app already gets."""
     raw = (getattr(h, "path", "") or "").partition("?")[2]
     values = parse_qs(raw, keep_blank_values=True).get("browser_contract", [])
-    return values == [BROWSER_CONTRACT]
+    return values[0] if len(values) == 1 and values[0] in BROWSER_CONTRACTS else None
 
 
 def _browser_block(gw, h, person, device):
@@ -340,13 +352,15 @@ def _browser_block(gw, h, person, device):
     from the request: identity is this server + person_id + device_id. Carries no email, name, key or hint, and
     no provider account or seat. A person the account rule no longer allows gets `profiles: []` (retire), not
     a profile; this adds no new refusal and changes no existing one."""
-    if not _browser_negotiated(h):
+    version = _browser_negotiated(h)
+    if version is None:
         return None
     person_id, device_id = str(person["id"]), str(device["device_id"])
     if not (_PERSON_ID.fullmatch(person_id) and _DEVICE_ID.fullmatch(device_id)):
         return None
     allowed = gw.settings.email_allowed(person["email"])
-    return {"contract": 1, "person_id": person_id, "device_id": device_id, "profiles": [{"kind": "personal"}] if allowed else []}
+    base = {"contract": 1, "person_id": person_id, "device_id": device_id, "profiles": [{"kind": "personal"}] if allowed else []}
+    return managed.block(gw, person, device, base) if version == "2" else base
 
 
 @route("GET", r"/device/manifest", signed_in=False)
@@ -369,7 +383,11 @@ def device_heartbeat(ctx):
               json.dumps(installed), device["device_id"]))
     ctx.db.x("UPDATE keys SET last_used = ? WHERE id = ?", (now, key["id"]))
     _record_key_storage(ctx, person, device, now)
-    return {"ok": True, "latest_client": releases.latest_hint(ctx.gw, person, CLIENT_LATEST), "server_time": now}
+    managed.record_policy_report(ctx, person, device, now)
+    answer = {"ok": True, "latest_client": releases.latest_hint(ctx.gw, person, CLIENT_LATEST), "server_time": now}
+    if type(ctx.body.get("browser_contract")) is int and ctx.body["browser_contract"] == 2:  # asked for: older apps get the answer they always got
+        answer.update(managed.heartbeat_answer(ctx.gw, person, device))
+    return answer
 
 
 def _record_key_storage(ctx, person, device, now):

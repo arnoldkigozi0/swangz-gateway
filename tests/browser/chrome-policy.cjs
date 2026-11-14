@@ -5,6 +5,11 @@
    node chrome-policy.cjs control       no policy installed: every case must reach the fixture, proving it can fail
    node chrome-policy.cjs enforced      pack installed: ALLOW reaches the fixture, ENFORCE is refused by policy
 
+   CHROME_POLICY_PREPARED=FILE uses a pack made by deploy/chrome-policy/prepare.py instead of the template (W6, 9.3
+   step 5). Its Hub host, CHROME_POLICY_HUB_HOST, replaces the cases' hub.swangz.test; like every name, it resolves
+   to 127.0.0.1 here. The extension entries stay in that pack; only the two process-level keys are left out of the
+   driven copy.
+
    Ground truth is the fixture's own request log, not the browser's error page. Nothing leaves the machine: Chrome
    resolves every name to 127.0.0.1, where one fixture answers on 443 and 80. Only hosts, paths and error names are
    written to the results; no headers, cookies or page content. */
@@ -22,7 +27,9 @@ const root = path.resolve(__dirname, '../..');
 const PACK = path.join(root, 'deploy/chrome-policy/swangz-company-chrome.json');
 const POLICY_DIR = '/etc/opt/chrome/policies/managed';
 const OUT = process.env.CHROME_POLICY_OUT || '/tmp/swangz-chrome-policy';
-const spec = JSON.parse(fs.readFileSync(path.join(__dirname, 'chrome-policy-cases.json'), 'utf8'));
+const PREPARED = process.env.CHROME_POLICY_PREPARED || '';
+const casesText = fs.readFileSync(path.join(__dirname, 'chrome-policy-cases.json'), 'utf8');
+const spec = JSON.parse(PREPARED ? casesText.split(JSON.parse(casesText).hub_host).join(process.env.CHROME_POLICY_HUB_HOST || '') : casesText);
 /* Left out of the driven copy and owed their own process-level cases (P-1, P-2): the first is expected to stop the
    test driver from attaching at all, the second hides DevTools. The three extension entries need a signed extension
    and an update address (tier 2). */
@@ -32,12 +39,28 @@ const BLOCKED = 'ERR_BLOCKED_BY_ADMINISTRATOR';
 /* full: the process step (P cases) installs the pack with RemoteDebuggingAllowed and DeveloperToolsAvailability
    left in, since nothing drives that browser; the extension entries still wait for tier 2. */
 function render(full) {
+  if (PREPARED) {
+    assert.ok(spec.hub_host, 'CHROME_POLICY_HUB_HOST is needed with CHROME_POLICY_PREPARED');
+    const pack = JSON.parse(fs.readFileSync(PREPARED, 'utf8'));
+    assert.ok(pack.URLAllowlist.includes(spec.hub_host), 'the prepared pack does not allow ' + spec.hub_host);
+    if (!full) for (const name of DROPPED) if (!name.startsWith('Extension')) delete pack[name];
+    const text = JSON.stringify(pack, null, 2);
+    assert.ok(!/SWANGZ_/.test(text), 'a placeholder is left in the prepared pack');
+    assert.ok(pack.URLBlocklist.includes('*'), 'the prepared pack is not default-deny');
+    return text + '\n';
+  }
   const pack = JSON.parse(fs.readFileSync(PACK, 'utf8'));
   for (const name of DROPPED) if (!full || name.startsWith('Extension')) delete pack[name];
   const text = JSON.stringify(pack, null, 2).split('SWANGZ_HUB_HOST').join(spec.hub_host);
   assert.ok(!/SWANGZ_/.test(text), 'a placeholder is left in the rendered pack');
   assert.ok(JSON.parse(text).URLBlocklist.includes('*'), 'the rendered pack is not default-deny');
   return text + '\n';
+}
+/* What the installed copy leaves out, for the report. */
+function dropped(mode) {
+  if (mode === 'control') return [];
+  if (PREPARED) return mode === 'enforced' ? DROPPED.filter(n => !n.startsWith('Extension')) : [];
+  return mode === 'enforced' ? DROPPED : DROPPED.filter(n => n.startsWith('Extension'));
 }
 function installed() {
   return fs.existsSync(POLICY_DIR) ? fs.readdirSync(POLICY_DIR).filter(n => n.endsWith('.json')) : [];
@@ -356,8 +379,9 @@ function verdict(mode, r) {
 }
 function report(mode, version, rows) {
   const lines = ['### Chrome policy pack, ' + mode + ' run', '', version + ' on ' + os.platform() + ' ' + os.release(), '',
-    mode === 'enforced' ? 'Driven without: ' + DROPPED.join(', ') + '.' : mode === 'process' ? 'Full pack, not driven; only the extension entries left out (tier 2).'
-      : 'No policy file installed.', '',
+    (PREPARED && mode !== 'control' ? 'Pack prepared by deploy/chrome-policy/prepare.py for ' + spec.hub_host + '. ' : '') +
+    (mode === 'enforced' ? 'Driven without: ' + dropped(mode).join(', ') + '.' : mode === 'process' ? 'Full pack, not driven' +
+      (dropped(mode).length ? '; left out: ' + dropped(mode).join(', ') + ' (tier 2).' : ', nothing left out.') : 'No policy file installed.'), '',
     '| Case | Expected | Address | Fixture requests | Browser error | Result |', '|---|---|---|---|---|---|',
     ...rows.map(r => `| ${r.id} | ${r.expect} | \`${r.address}\` | ${r.reached} | ${r.error || ''} | ${r.verdict} |`), '',
     'Not run: ' + spec.not_run.map(n => n.id + ' (' + n.reason + ')').join('; ') + '.', ''];
@@ -414,7 +438,7 @@ function report(mode, version, rows) {
     }
   } finally { if (context) await context.close(); stop(); if (wm) wm.kill(); }
   const text = report(mode, version, rows);
-  fs.writeFileSync(path.join(OUT, mode + '.json'), JSON.stringify({ mode, version, os: os.platform() + ' ' + os.release(), dropped: mode === 'enforced' ? DROPPED : mode === 'process' ? DROPPED.filter(n => n.startsWith('Extension')) : [], rows, not_run: spec.not_run }, null, 2));
+  fs.writeFileSync(path.join(OUT, mode + '.json'), JSON.stringify({ mode, version, os: os.platform() + ' ' + os.release(), prepared: !!PREPARED, hub_host: spec.hub_host, dropped: dropped(mode), rows, not_run: spec.not_run }, null, 2));
   fs.writeFileSync(path.join(OUT, mode + '.md'), text);
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, text + '\n');
   console.log(text);

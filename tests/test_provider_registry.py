@@ -828,8 +828,8 @@ class PrivacyTests(Base):
 
 
 class MigrationTests(unittest.TestCase):
-    def test_the_schema_has_25_entries_v24_is_frozen_and_the_first_23_are_byte_for_byte_the_base(self):
-        self.assertEqual(len(SCHEMA), 25)
+    def test_the_schema_has_26_entries_v24_is_frozen_and_the_first_23_are_byte_for_byte_the_base(self):
+        self.assertEqual(len(SCHEMA), 27)  # v26 is the managed workspace (tests/test_workspace_state.py)
         self.assertEqual(hashlib.sha256("\x00".join(SCHEMA[:23]).encode()).hexdigest(), SCHEMA_23_SHA256)
         self.assertEqual(hashlib.sha256("\x00".join(SCHEMA[23]).encode()).hexdigest(), SCHEMA_24_SHA256)  # v24 as at 255863d
 
@@ -853,7 +853,7 @@ class MigrationTests(unittest.TestCase):
 
     def test_a_fresh_database_gets_the_registry_and_its_rules(self):
         db = DB(":memory:")
-        self.assertEqual(db.scalar("SELECT v FROM meta WHERE k = 'schema'"), "25")
+        self.assertEqual(db.scalar("SELECT v FROM meta WHERE k = 'schema'"), str(len(SCHEMA)))
         names = {r["name"] for r in db.q("SELECT name FROM sqlite_master")}
         self.assertTrue({"provider_accounts", "provider_account_values", "provider_accounts_one_active"} <= names)
         self.assertEqual({n for n in names if n.startswith("provider_account") and db.scalar(
@@ -911,7 +911,7 @@ class MigrationTests(unittest.TestCase):
             before = {t: old.q(f"SELECT * FROM {t}") for t in tables}
             old.close()
         db = DB(path)
-        self.assertEqual(db.scalar("SELECT v FROM meta WHERE k = 'schema'"), "25")
+        self.assertEqual(db.scalar("SELECT v FROM meta WHERE k = 'schema'"), str(len(SCHEMA)))
         for table, rows in before.items():
             if table == "meta":
                 continue  # only the schema number moves
@@ -1435,7 +1435,7 @@ class WeakV24UpgradeTests(unittest.TestCase):
             self.assertEqual(db.scalar("SELECT v FROM meta WHERE k = 'schema'"), "24")
             db.close()
             upgraded = DB(path)
-            self.assertEqual(upgraded.scalar("SELECT v FROM meta WHERE k = 'schema'"), "25", variant)
+            self.assertEqual(upgraded.scalar("SELECT v FROM meta WHERE k = 'schema'"), str(len(SCHEMA)), variant)
             for table, rows in before.items():
                 self.assertEqual(upgraded.q(f"SELECT * FROM {table} ORDER BY 1"), rows, (variant, table))
             names = {r["name"] for r in upgraded.q("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'provider_account%'")}
@@ -1443,7 +1443,7 @@ class WeakV24UpgradeTests(unittest.TestCase):
             attack_suite(self, upgraded, 1, 2)
             upgraded.close()
             reopened = DB(path)  # and opening again is a no-op
-            self.assertEqual(reopened.scalar("SELECT v FROM meta WHERE k = 'schema'"), "25")
+            self.assertEqual(reopened.scalar("SELECT v FROM meta WHERE k = 'schema'"), str(len(SCHEMA)))
             self.assertEqual(sum(1 for r in reopened.q("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'provider_account%'")), len(GUARDS))
             reopened.close()
 

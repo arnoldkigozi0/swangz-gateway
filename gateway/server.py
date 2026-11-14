@@ -13,7 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import admin, build, catalog, geo, google, icons, notify, policy, pricing, proxy, purpose, security, staff, store
 from . import hub_api, reporting, hub_delivery, hub_export
-from . import business, credentials, departments, enroll, registry, releases
+from . import business, credentials, departments, device_open, enroll, managed, registry, releases
 from .db import DB
 from .live import Live
 from .workspace import Workspaces
@@ -50,6 +50,7 @@ class Gateway:
         self.pool = proxy.Pool(settings.upstream_timeout)
         self.throttle = security.LoginThrottle()
         self.ratelimit = security.RateLimiter()
+        self.open_limit = security.RateLimiter()  # /api/device/open, per person (device_open.OPENS_PER_MIN)
         self.started_at = time.time()
         self._prices = None
         self._prices_lock = threading.Lock()

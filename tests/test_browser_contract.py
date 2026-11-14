@@ -60,7 +60,7 @@ class NegotiationTests(Base):
     def test_anything_else_omits_the_block_and_the_old_manifest_is_unchanged(self):
         plain = self.get("")[1]
         self.assertNotIn("browser", plain)
-        for q in ("?browser_contract=2", "?browser_contract=01", "?browser_contract=true", "?browser_contract=",
+        for q in ("?browser_contract=3", "?browser_contract=01", "?browser_contract=true", "?browser_contract=",
                   "?browser_contract", "?browser_contract=1&browser_contract=1", "?browser_contract=1&browser_contract=2",
                   "?browser_contract=2&browser_contract=1", "?Browser_Contract=1", "?browser_contract=1%20", "?browser_contract=%31x"):
             status, out = self.get(q)
@@ -250,7 +250,7 @@ class SourceTests(Base):
             ("GET", "/device/packages/(?P<pid>[a-z0-9-]{2,60})/(?P<version>[0-9A-Za-z._-]{1,32})"),
             ("POST", "/device/code"), ("POST", "/device/heartbeat"), ("POST", "/device/rotate"),
             ("POST", "/device/signout"), ("POST", "/device/token")])
-        self.assertEqual(len(SCHEMA), 25)  # v23 session kinds, v24-v25 provider registry; the browser contract itself adds no migration
+        self.assertEqual(len(SCHEMA), 27)  # v23 session kinds, v24-v25 provider registry, v26 managed workspace; contract 1 itself adds no migration
 
 
 class NegotiationSemanticsTests(Base):
