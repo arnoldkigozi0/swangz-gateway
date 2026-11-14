@@ -36,7 +36,7 @@ prove it started, and it does not delete a folder it cannot prove is the one the
 ## Ruling 1: keep the PID in memory only for W4
 
 The launcher keeps the `Popen` handle in memory, as W3 D1 says. Persisting the PID is not part of W4. The gap is open
-risk **R-9**: if the app restarts while an earlier window is still running, a later suspend cannot close that window.
+risk **R-11**: if the app restarts while an earlier window is still running, a later suspend cannot close that window.
 
 Why:
 - The value is low (see above).
@@ -144,7 +144,7 @@ through the Hub).
     explicit retire or reset."
 
 **What stays open:**
-- **R-10.** After a revoke, the folder and its sessions stay on disk, because nothing authenticated can retire it any
+- **R-12.** After a revoke, the folder and its sessions stay on disk, because nothing authenticated can retire it any
   more. Removing it is the person's action. A later, optional addition: after re-enrolment, offer "Remove the old
   workspace".
 - **Windows.** `Profiles._retire` raises `unsupported_platform` today. On Windows, W4 closes the window, refuses Open

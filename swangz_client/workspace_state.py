@@ -112,7 +112,7 @@ class WorkspaceState:
 
     def forget(self):
         """The latch belongs to one enrolment: remove_everything() deletes it after the window is closed. The browser
-        folders are left alone (R-10)."""
+        folders are left alone (R-12)."""
         with LOCK:
             try:
                 self.path.unlink()
