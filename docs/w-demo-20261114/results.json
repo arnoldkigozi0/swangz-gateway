@@ -1,0 +1,197 @@
+{
+ "manifest_apps": {
+  "gemini": {
+   "workspace": true,
+   "hosts": [
+    "gemini.google.com"
+   ]
+  },
+  "perplexity": {
+   "workspace": true,
+   "hosts": [
+    "perplexity.ai"
+   ]
+  },
+  "canva": {
+   "workspace": true,
+   "hosts": [
+    "canva.com"
+   ]
+  }
+ },
+ "other_chrome_new": [
+  [
+   "182112",
+   "NOT ours",
+   "/opt/google/chrome/chrome_crashpad_handler --monitor-self --monitor-self-annotation=ptype="
+  ],
+  [
+   "182114",
+   "NOT ours",
+   "/opt/google/chrome/chrome_crashpad_handler --no-periodic-tasks --monitor-self-annotation=p"
+  ]
+ ],
+ "step1": {
+  "open_results": {
+   "gemini": "workspace",
+   "perplexity": "workspace",
+   "canva": "workspace"
+  },
+  "folders": [
+   "447bbc5480374d0145c56ac7001189ee"
+  ],
+  "procs": [
+   [
+    "182102 /opt/google/chrome/chrome --headless=new --disable-gpu --host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE 127.0.0.1 --user-data-dir=/tmp/sgw-client-7nw_nkjg/data/browser-profiles/447bbc5480374d0145c56ac7001189ee --no-first-run --no-default-browser-check https://gemini.google.com/"
+   ]
+  ],
+  "launches": [
+   {
+    "tool_id": "gemini",
+    "outcome": "opened",
+    "device_id": "55fb44dfc72d"
+   },
+   {
+    "tool_id": "perplexity",
+    "outcome": "opened",
+    "device_id": "55fb44dfc72d"
+   },
+   {
+    "tool_id": "canva",
+    "outcome": "opened",
+    "device_id": "55fb44dfc72d"
+   }
+  ],
+  "log": "1794632836 open gemini\n1794632838 open perplexity\n1794632839 open canva\n"
+ },
+ "step2": {
+  "result": "workspace",
+  "same_folder": true,
+  "same_inode": true,
+  "marker_kept": true,
+  "procs": [
+   "182613 /opt/google/chrome/chrome --headless=new --disable-gpu --host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE 127.0.0.1 --user-data-dir=/tmp/sgw-client-7nw_nkjg/data/browser-profiles/447bbc5480374d0145c56ac7001189ee --no-first-run --no-default-browser-check https://gemini.google.com/"
+  ],
+  "files": [
+   ".swangz-profile.json",
+   "Default/Account Web Data",
+   "Default/Account Web Data-journal",
+   "Default/Affiliation Database",
+   "Default/Affiliation Database-journal",
+   "Default/AutofillAiModelCache/LOCK",
+   "Default/AutofillAiModelCache/LOG",
+   "Default/AutofillStrikeDatabase/LOCK",
+   "Default/AutofillStrikeDatabase/LOG",
+   "Default/BookmarkMergedSurfaceOrdering",
+   "Default/BudgetDatabase/LOCK",
+   "Default/BudgetDatabase/LOG",
+   "Default/Cache/Cache_Data/index",
+   "Default/Cache/Cache_Data/index-dir/the-real-index",
+   "Default/Cache/No_Vary_Search/journal.baj",
+   "Default/Cache/No_Vary_Search/snapshot.baf",
+   "Default/ClientCertificates/LOCK",
+   "Default/ClientCertificates/LOG",
+   "Default/ClientCertificates/LOG.old",
+   "Default/Code Cache/js/ba678a2fbd8c358c_0",
+   "Default/Code Cache/js/index",
+   "Default/Code Cache/js/index-dir/the-real-index",
+   "Default/Code Cache/wasm/index",
+   "Default/Code Cache/wasm/index-dir/the-real-index",
+   "Default/Cookies",
+   "Default/Cookies-journal",
+   "Default/DIPS",
+   "Default/DIPS-wal",
+   "Default/DawnGraphiteCache/data_0",
+   "Default/DawnGraphiteCache/data_1",
+   "Default/DawnGraphiteCache/data_2",
+   "Default/DawnGraphiteCache/data_3",
+   "Default/DawnGraphiteCache/index",
+   "Default/DawnWebGPUCache/data_0",
+   "Default/DawnWebGPUCache/data_1",
+   "Default/DawnWebGPUCache/data_2",
+   "Default/DawnWebGPUCache/data_3",
+   "Default/DawnWebGPUCache/index",
+   "Default/Extension Rules/000003.log",
+   "Default/Extension Rules/CURRENT"
+  ]
+ },
+ "step3_suspend_api": 200,
+ "step3_open_before_heartbeat": {
+  "result": "ApiFailure: Your Swangz workspace on this device is paused by an administrator. Talk to your admin to have it restored.",
+  "new_launch_rows": [
+   {
+    "tool_id": "canva",
+    "outcome": "refused",
+    "rule": "workspace_suspended",
+    "reason": "Your Swangz workspace on this device is paused by an administrator. Talk to your admin to have it restored."
+   }
+  ]
+ },
+ "step3_heartbeat_seconds": 0.15,
+ "step3": {
+  "procs_after_suspend": [],
+  "refusal": "LaunchError: This device's workspace is paused. Close any open workspace window, and ask your admin.",
+  "folder_kept": true,
+  "launches": [
+   {
+    "tool_id": "gemini",
+    "outcome": "opened"
+   },
+   {
+    "tool_id": "canva",
+    "outcome": "refused"
+   }
+  ]
+ },
+ "step3_reactivate_api": 200,
+ "step3_reopen": "workspace",
+ "step3_after_reactivate": {
+  "procs": [
+   "182890 /opt/google/chrome/chrome --headless=new --disable-gpu --host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE 127.0.0.1 --user-data-dir=/tmp/sgw-client-7nw_nkjg/data/browser-profiles/447bbc5480374d0145c56ac7001189ee --no-first-run --no-default-browser-check https://gemini.google.com/"
+  ],
+  "marker_kept": true
+ },
+ "step4_retire_api": 200,
+ "step4": {
+  "folder_exists": false,
+  "profiles_left": [],
+  "refusal": "LaunchError: Your admin removed the Swangz workspace from this device, so nothing was opened. Close any open workspace window.",
+  "server": {
+   "s": "retired",
+   "g": 1
+  },
+  "procs": []
+ },
+ "step4_reactivate_api": 200,
+ "step4_after_reactivate": {
+  "server": {
+   "s": "active",
+   "g": 2
+  },
+  "open": "workspace",
+  "new_folder_differs": true,
+  "folders": [
+   "dcf5ac285d3c4786150eb0b89d1db2fe"
+  ],
+  "marker_gone": true
+ },
+ "audit": [
+  {
+   "action": "suspend the workspace on a device",
+   "outcome": "ok"
+  },
+  {
+   "action": "reactivate the workspace on a device",
+   "outcome": "ok"
+  },
+  {
+   "action": "retire the workspace on a device",
+   "outcome": "ok"
+  },
+  {
+   "action": "reactivate the workspace on a device",
+   "outcome": "ok"
+  }
+ ],
+ "leftover_chrome": []
+}
