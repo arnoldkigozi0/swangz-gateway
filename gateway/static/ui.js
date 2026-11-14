@@ -966,6 +966,16 @@
       panel.style.top = up ? "auto" : Math.max(8, r.bottom + 6) + "px";
       panel.style.bottom = up ? Math.max(8, window.innerHeight - r.top + 6) + "px" : "auto";
     }
+    /* While open the panel follows its trigger: a pressed trigger is drawn shifted, and a late layout change (a font, an
+       image, a list above loading) can move the trigger without a scroll or resize event, which would leave the panel
+       a few pixels off it. One rect read per frame, only while open. */
+    let last = "";
+    function follow() {
+      if (!open) return;
+      const r = trigger.getBoundingClientRect(), now = r.left + "," + r.top + "," + r.width + "," + r.height;
+      if (now !== last) { last = now; put(); }
+      requestAnimationFrame(follow);
+    }
     const outside = (e) => { if (!panel.contains(e.target) && !trigger.contains(e.target)) close(false); };
     const moved = (e) => { if (!e || e.type !== "scroll" || !panel.contains(e.target)) put(); };
     const key = (e) => { if (e.key === "Escape" && open) { e.preventDefault(); e.stopPropagation(); close(true); } };
@@ -977,14 +987,14 @@
       trigger.setAttribute("aria-expanded", "true");
       o.onOpen && o.onOpen();
       put();
-      requestAnimationFrame(() => { if (open) put(); });   // a pressed trigger is drawn shifted; measure again once it is released
+      follow();
       document.addEventListener("pointerdown", outside, true);
       window.addEventListener("resize", moved);
       window.addEventListener("scroll", moved, true);
     }
     function close(focusBack) {
       if (!open) return;
-      open = false; if (kitOpen === close) kitOpen = null;
+      open = false; if (kitOpen === close) kitOpen = null; last = "";
       document.removeEventListener("pointerdown", outside, true);
       window.removeEventListener("resize", moved);
       window.removeEventListener("scroll", moved, true);
