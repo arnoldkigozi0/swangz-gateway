@@ -1,5 +1,16 @@
 # What only Arnold can do
 
+## 1. For 15 Nov: the public address is down (Netlify credits used up)
+
+swangz-ai.netlify.app is DOWN. Netlify skips every production deploy with "account credit usage exceeded". About 66 PR deploy previews in roughly 31 hours used the credits. Only Arnold can fix billing.
+
+Options:
+- Buy more credits on the team swangz-ai-subscriptions.
+- Wait for the billing cycle to reset.
+- Turn off deploy previews for pull requests (Netlify site settings). This stops the drain. Chief will not change Netlify settings without Arnold's yes.
+
+Until then the team pushes to PR branches in batches, triggers no Netlify builds by hand, and checks screens on the local server or the direct tunnel, not on Netlify previews. The laptop Hub itself is healthy.
+
 ## BREACH, 11 Nov 2026, for Arnold's morning decision
 
 At 23:34 (PR #149, the managed-workspace specification, docs only) and 23:35 Kampala time (PR #150, managed workspace W1: Chrome policy baseline A1/A3/A5) both pull requests were merged into main. The 20:45 order said no managed-workspace PR may merge without Arnold's written approval on the PR; Arnold gave none and was asleep. #150 carried the `needs-arnold` label. GitHub records the merger as the shared account, so the agent is not identified. Main is `2f07b5b` after #150 (then #151 merged on top).
