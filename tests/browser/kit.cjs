@@ -270,6 +270,13 @@ const mount = () => {
         await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
         const flip = await page.evaluate(() => { const b = document.querySelector('[data-t=low]').getBoundingClientRect(), p = document.querySelector('.u-pop').getBoundingClientRect(); return { gap: b.top - p.bottom, top: p.top, bTop: b.top, bBottom: b.bottom, pBottom: p.bottom, ih: innerHeight, up: document.querySelector('.u-pop').className }; });
         ok(T + 'with no room below, the list opens above its trigger ' + JSON.stringify(flip), flip.gap >= 4 && flip.gap <= 8 && flip.top >= 8);
+        // A layout change that moves the trigger with no scroll or resize event (CI on #204: the trigger ended 4px higher than
+        // where the list was placed): the open list follows it and stays 4-8px clear.
+        await page.evaluate(() => { const b = document.querySelector('[data-t=low]'); b.style.position = 'relative'; b.style.top = '-4px'; });
+        await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+        const moved = await page.evaluate(() => { const b = document.querySelector('[data-t=low]').getBoundingClientRect(), p = document.querySelector('.u-pop').getBoundingClientRect(); return { gap: b.top - p.bottom, top: p.top }; });
+        await page.evaluate(() => { const b = document.querySelector('[data-t=low]'); b.style.position = b.style.top = ''; });
+        ok(T + 'when the trigger moves while open, the list follows it ' + JSON.stringify(moved), moved.gap >= 4 && moved.gap <= 8 && moved.top >= 8);
         await page.click(team);
         ok(T + 'opening another closes the first: one list at a time', (await page.evaluate(() => document.querySelectorAll('.u-pop').length)) === 1);
         await page.keyboard.press('Escape');

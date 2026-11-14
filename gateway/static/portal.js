@@ -1023,10 +1023,25 @@
       el("button", { class: "btn btn--small btn--quiet", type: "button", onclick: () => views.show("mine", true) }, "All your creations", icon("chevronRight")));
     st.recent.slice().reverse().forEach((c) => addCreation(c, false));
     emptyNote.hidden = st.recent.length > 0;
+    // the first page comes with /studio; older ones load a page at a time, after the last card shown
+    const olderNote = el("p", { class: "muted small", role: "status" });
+    const olderBtn = el("button", { class: "btn btn--small", type: "button", onclick: async () => {
+      const last = creations.lastElementChild;
+      olderBtn.disabled = true; olderNote.textContent = "Loading older creations…";
+      try {
+        const page = await api("GET", "/studio/creations?before=" + encodeURIComponent(last ? last.dataset.id : ""));
+        page.items.forEach((c) => { const card = creationCard(c); creations.append(card); if (c.job && !c.urls.length && c.outcome === "ok") JOBS.set(c.job, card); });
+        olderNote.textContent = page.items.length + " older " + (page.items.length === 1 ? "creation" : "creations") + " added.";
+        older.hidden = !page.more;
+        if (JOBS.size) resumeJobs();
+      } catch (e) { olderNote.textContent = "Couldn't load older creations. Try again."; }
+      olderBtn.disabled = false;
+    } }, "Show older");
+    const older = el("div", { class: "creations-more", hidden: !st.recent_more }, olderBtn);
     drawKinds(); show(kind);
     const views = viewTabs("#/studio", params, [
       ["create", "Create", () => [kinds.length > 1 ? kindSeg : null, el("div", { class: "studio" }, panel), justHead, justMade]],
-      ["mine", "Your creations", () => [emptyNote, creations], st.recent.length || null, gather],
+      ["mine", "Your creations", () => [emptyNote, creations, older, olderNote], (st.recent_total ?? st.recent.length) || null, gather],
     ], "Studio");
     frame("Studio", el("section", { class: "section first" }, el("div", { class: "shell" },
       sectionHead("Create", "Studio", "Create on the company's account. Your prompts and results are recorded under the gateway's privacy settings."),
