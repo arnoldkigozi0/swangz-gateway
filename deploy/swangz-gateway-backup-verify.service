@@ -15,3 +15,17 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ReadWritePaths=/opt/swangz-gateway/data
 PrivateTmp=true
+# Hardening (security review, Nov 14, 2026): no capabilities, no device nodes, no other users' homes, only the
+# socket kinds it uses (kept the same as the backup unit).
+ProtectHome=true
+PrivateDevices=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native

@@ -217,6 +217,51 @@ class DeployFileTests(unittest.TestCase):
         self.assertIn('"$SRC/deploy/swangz-gateway-health.service" "$SRC/deploy/swangz-gateway-health.timer"', setup)
         self.assertRegex(setup, r"systemctl enable -q --now [^\n]*swangz-gateway-health\.timer")
 
+    HARDENING = {
+        "ProtectHome": "true", "PrivateDevices": "true",
+        "RestrictAddressFamilies": "AF_UNIX AF_INET AF_INET6",
+        "CapabilityBoundingSet": "", "AmbientCapabilities": "",
+        "ProtectKernelTunables": "true", "ProtectKernelModules": "true", "ProtectControlGroups": "true",
+        "RestrictNamespaces": "true", "RestrictSUIDSGID": "true", "LockPersonality": "true",
+        "SystemCallArchitectures": "native",
+        "UMask": "0077", "NoNewPrivileges": "true", "ProtectSystem": "strict", "PrivateTmp": "true",
+    }
+
+    @staticmethod
+    def service_directives(name):
+        """The [Service] section of a unit file as {key: [values]} (comments and other sections ignored)."""
+        out, section = {}, None
+        for line in (ROOT / "deploy" / name).read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith(("#", ";")):
+                continue
+            if line.startswith("["):
+                section = line
+                continue
+            if section == "[Service]":
+                key, _, value = line.partition("=")
+                out.setdefault(key.strip(), []).append(value.strip())
+        return out
+
+    def test_gateway_and_backup_units_are_sandboxed(self):
+        for name in ("swangz-gateway.service", "swangz-gateway-backup.service", "swangz-gateway-backup-verify.service"):
+            got = self.service_directives(name)
+            for key, value in self.HARDENING.items():
+                self.assertEqual(got.get(key), [value], f"{name}: {key}")
+            # writes only to its data folder
+            self.assertEqual(got.get("ReadWritePaths"), ["/opt/swangz-gateway/data"], name)
+            # outbound calls (providers, Google, SMTP, icons; ssh/rsync for backups) are by design
+            self.assertNotIn("MemoryDenyWriteExecute", got, name)
+            self.assertNotIn("IPAddressDeny", got, name)
+
+    def test_setup_makes_the_data_folder_private_after_the_chown(self):
+        setup = (ROOT / "deploy" / "setup-gateway-server.sh").read_text()
+        chown = setup.index('chown -R swangz:swangz "$APP/data" "$APP/.env"')
+        # an existing gateway.db, its -wal/-shm, backups/ and .ssh/ are tightened on a re-run too
+        self.assertGreater(setup.index('chmod 700 "$APP/data"'), chown)
+        self.assertGreater(setup.index('chmod -R go-rwx "$APP/data"'), chown)
+        self.assertLess(setup.index('chmod -R go-rwx "$APP/data"'), setup.index("systemctl restart swangz-gateway"))
+
     def test_firewall_keeps_ssh_open_on_its_real_port(self):
         with tempfile.TemporaryDirectory() as d:
             log = Path(d) / "log"
