@@ -26,3 +26,7 @@ footer padding, and keeps its independent no-document-scroll check.
 
 Fresh actual verification and new-head CI are required. The failed revision's
 evidence stays labelled under head-4c896e3/; it is not a passing verdict.
+
+The shared AGENT-PROGRESS checkpoint for #231/#233/#234 is carried by #231
+to avoid competing appended logs. The actual passing Audit verdict is in
+head-992a07a/NOTES.md with its screenshots, measurements and 164-check run.
