@@ -30,6 +30,7 @@ script ran for real on Ubuntu 24.04 under a 1 GB / 1 CPU limit; those parts were
   updates by itself:
 
   ```bash
+  # Not run here, needs the server
   sudo sshd -T | grep -E '^(passwordauthentication|permitrootlogin)'   # "no" and "prohibit-password" (or "no")
   systemctl is-enabled unattended-upgrades                             # "enabled"
   ```
@@ -42,7 +43,7 @@ script ran for real on Ubuntu 24.04 under a 1 GB / 1 CPU limit; those parts were
 
 - DNS: an **A record** `ai.swangzavenue.com` to the server IP. If the DNS host is Cloudflare, set it
   to **DNS only** (grey cloud) so Caddy can get its certificate.
-- Check from your own computer: `dig +short ai.swangzavenue.com` prints the server IP.
+- Check from your own computer: `dig +short ai.swangzavenue.com` prints the server IP. Not run here, needs the server and DNS.
 - No domain yet? Use `203-0-113-7.sslip.io` (the IP with dashes). It gets a real certificate too, but
   it is not a name to give staff.
 
@@ -94,6 +95,7 @@ sudo -u swangz python3 -m gateway health-check --url https://ai.swangzavenue.com
                                                    # up: version ..., commit <the commit>, running N seconds
 sudo -u swangz python3 -m gateway preflight         # one line per check (OK / WARN / FAIL), then
                                                    # preflight: 0 to fix, N to review. Nothing was contacted and nothing was changed.
+# Not run here, needs the server (systemd and timers were stubbed in the rehearsal)
 sudo systemctl status swangz-gateway caddy --no-pager
 systemctl list-timers | grep -E 'swangz|backup|health'
 ```
@@ -111,6 +113,7 @@ The rehearsal could not test the firewall, the service user or the port binding,
 All four must pass before anyone signs in:
 
 ```bash
+# Not run here, needs the server
 sudo ufw status verbose                    # Status: active; allowed only SSH, 80/tcp, 443/tcp and 443/udp
 sudo ss -ltnp | grep 8787                  # 127.0.0.1:8787 only, never 0.0.0.0 or [::]
 systemctl show swangz-gateway -p User      # User=swangz
@@ -167,7 +170,7 @@ cd /opt/swangz-gateway
 sudo -u swangz python3 -m gateway backup               # backup <path>.gz (N bytes, sha256 ...) integrity ok
 sudo -u swangz python3 -m gateway backup-verify --latest
                                                        # restore check ok: <path> (0.0 hours old, schema vN, N tables)
-systemctl list-timers | grep swangz-gateway-backup     # the nightly and weekly timers, with their next run
+systemctl list-timers | grep swangz-gateway-backup     # the nightly and weekly timers, with their next run (not run here, needs the server)
 ```
 
 Until `GATEWAY_BACKUP_REMOTE` is set, `backup` also prints `note: GATEWAY_BACKUP_REMOTE is not set, so this
@@ -189,7 +192,7 @@ Do this only after steps 4 to 6 pass. The staff web app and extension bullets ar
   `tests/test_client.py` `test_moving_to_a_new_server_address_means_signing_out_then_connecting_again`.
 - Browser extension: it keeps the Hub address it was connected with. On one test computer first: click
   the extension's icon, press **Sign out**, type `https://ai.swangzavenue.com` in the address box, sign in
-  with the person's Hub email and password, press **Connect**. Expected: `Guarding N AI sites.` Not rehearsed
+  with the person's Hub email and password, press **Connect**. Expected: `Guarding N AI sites.` Not run here, needs the server; not rehearsed
   on a real browser.
 - Netlify: if the Netlify site is kept, change its `SWANGZ_GATEWAY` setting to the new address
   (`deploy/NETLIFY.md`). Do not change Netlify without deciding to keep it.
@@ -228,9 +231,9 @@ is `docs/W-DEMO-PLAN.md`; this is the short check that the server serves them.
 | 3 | Test person's browser | open the link, check the code matches, press Approve | the terminal says `Signed in as <test person> (personal device).` (or `company device`) |
 | 4 | Test device | `swangz apps`, then `swangz open gemini` | `Opened in the Swangz workspace window.`; Chrome opens on gemini.google.com with `--user-data-dir=.../browser-profiles/...`; the default browser starts nothing new |
 | 5 | Console | Activity, Tools opened | one launch for this device, outcome opened |
-| 6 | Test device | `swangz open gemini` again | a new tab in the same window, still one folder in `browser-profiles` |
-| 7 | Owner, signed in to `/admin` | `POST /admin/api/devices/<device_id>/workspace` with `{"action": "suspend"}` and header `x-gateway-admin: 1` (the device id is on Devices and in `swangz status`) | 200; an audit log entry |
-| 8 | Test device | `swangz sync`, then `swangz open gemini` | the window closes; `This device's workspace is paused. Close any open workspace window, and ask your admin.`; Activity shows the open as refused |
+| 6 | Test device | `swangz open gemini` again | still one folder in `browser-profiles`; a new tab in the same window is UNVERIFIED |
+| 7 | Owner, signed in to `/admin` | `POST /admin/api/devices/<device_id>/workspace` with `{"action": "suspend"}` and header `x-gateway-admin: 1` (the device id is the `device_id` field of `GET /admin/api/devices`; it is not shown on the Devices page or by `swangz status`) | 200; an audit log entry |
+| 8 | Test device | `swangz sync`, then `swangz open gemini` | the window closes; `This device's workspace is paused. Close any open workspace window, and ask your admin.` The app refuses on its own after the check-in, so the Hub keeps no row for this Open; a refused row (rule `workspace_suspended`) appears in Activity only for an Open sent before the check-in |
 | 9 | Owner | same call with `{"action": "reactivate"}`, then `swangz sync` and `swangz open gemini` on the device | opens again; a sign-in made before step 7 is still there |
 | 10 | Owner | same call with `{"action": "retire"}`, then `swangz sync` on the device | the folder under `browser-profiles` is gone; `swangz open gemini` says `Your admin removed the Swangz workspace from this device, ...` |
 | 11 | Test device | `swangz logout` | the device shows as disconnected on Devices |
