@@ -1,0 +1,132 @@
+{
+ "audit-o1": {
+  "dark simple default": {
+   "panel": "panel",
+   "panelTop": 213,
+   "panelBottom": 742,
+   "wrapBottom": 741,
+   "wrapH": 462,
+   "maxH": "462px",
+   "inner": true,
+   "docOverflow": 0,
+   "scrollY": 0,
+   "rows": 10,
+   "footTop": 766
+  },
+  "dark simple long(+80)": {
+   "panel": "panel",
+   "panelTop": 213,
+   "panelBottom": 742,
+   "wrapBottom": 741,
+   "wrapH": 462,
+   "maxH": "462px",
+   "inner": true,
+   "docOverflow": 0,
+   "scrollY": 0,
+   "rows": 90,
+   "footTop": 766
+  },
+  "dark?view=detailed default": {
+   "panel": "panel",
+   "panelTop": 165,
+   "panelBottom": 732,
+   "wrapBottom": 731,
+   "wrapH": 462,
+   "maxH": "462px",
+   "inner": true,
+   "docOverflow": 0,
+   "scrollY": 0,
+   "rows": 10,
+   "footTop": 756
+  },
+  "dark?view=detailed long(+80)": {
+   "panel": "panel",
+   "panelTop": 165,
+   "panelBottom": 732,
+   "wrapBottom": 731,
+   "wrapH": 462,
+   "maxH": "462px",
+   "inner": true,
+   "docOverflow": 0,
+   "scrollY": 0,
+   "rows": 90,
+   "footTop": 756
+  },
+  "light simple default": {
+   "panel": "panel",
+   "panelTop": 213,
+   "panelBottom": 796,
+   "wrapBottom": 741,
+   "wrapH": 462,
+   "maxH": "462px",
+   "inner": true,
+   "docOverflow": 24,
+   "scrollY": 0,
+   "rows": 10,
+   "footTop": 820
+  },
+  "light simple long(+80)": {
+   "panel": "panel",
+   "panelTop": 213,
+   "panelBottom": 796,
+   "wrapBottom": 741,
+   "wrapH": 462,
+   "maxH": "462px",
+   "inner": true,
+   "docOverflow": 24,
+   "scrollY": 0,
+   "rows": 90,
+   "footTop": 820
+  },
+  "light?view=detailed default": {
+   "panel": "panel",
+   "panelTop": 165,
+   "panelBottom": 732,
+   "wrapBottom": 731,
+   "wrapH": 462,
+   "maxH": "462px",
+   "inner": true,
+   "docOverflow": 0,
+   "scrollY": 0,
+   "rows": 11,
+   "footTop": 756
+  },
+  "light?view=detailed long(+80)": {
+   "panel": "panel",
+   "panelTop": 165,
+   "panelBottom": 732,
+   "wrapBottom": 731,
+   "wrapH": 462,
+   "maxH": "462px",
+   "inner": true,
+   "docOverflow": 0,
+   "scrollY": 0,
+   "rows": 91,
+   "footTop": 756
+  },
+  "light simple 390": {
+   "docOverflowX": 0,
+   "docH": 2712,
+   "rows": 10,
+   "wrapMax": "none"
+  },
+  "dark simple 390": {
+   "docOverflowX": 0,
+   "docH": 2712,
+   "rows": 10,
+   "wrapMax": "none"
+  },
+  "light simple 640": {
+   "docOverflowX": 0,
+   "docH": 2493,
+   "rows": 10,
+   "wrapMax": "none"
+  },
+  "dark simple 640": {
+   "docOverflowX": 0,
+   "docH": 2493,
+   "rows": 10,
+   "wrapMax": "none"
+  }
+ }
+}

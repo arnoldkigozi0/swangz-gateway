@@ -857,3 +857,16 @@ Changed-script syntax and whitespace checks passed. No local test suite/browser
 was started: full Python/browser suites run on CI and the one local browser slot
 is reserved for the independent review. Fresh rendered verification is pending.
 Baseline JSON and limits: `docs/screenshots/audit-o1-height/NOTES.md`.
+
+### Audit O1 review correction — 14 November 2026
+
+PR #233 product `4c896e3` failed the shipped Audit browser test locally and on
+GitHub (run 43555999840): Simple with a pager overflowed vertically by 24px.
+The 796px panel left too little room for the page's existing 80px footer
+allowance. Detailed and phone horizontal overflow checks passed. The wide
+Simple wrapper now budgets separately for the 54px pager: 438px with it or
+492px without it at 1440×852, targeting panel bottom 772px. Main's tablet,
+phone, Detailed and Models rules are preserved. The test computes available
+space from the page footer padding instead of assuming 60px at the bottom.
+Changed-script syntax/whitespace pass. Corrected-head browser review and CI
+remain pending; no local suite/browser was started by the builder.
