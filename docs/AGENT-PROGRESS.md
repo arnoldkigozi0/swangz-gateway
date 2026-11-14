@@ -843,3 +843,18 @@ phone-light console and desktop-dark staff captures and the geometry JSON. This 
 overhang finding for this product head. Probe's verdict is single-model. Normal-mode overlays,
 the main re-test and real Windows High Contrast remain unverified. The historical 2.39:1 focus
 finding was on People, not a current sign-in measurement. New-head CI remains pending.
+
+## Lane B staff target gaps — 14 November 2026
+
+The independent 390/640 light/dark scan found Tools drawer actions at 36px,
+page tabs at 43.7px, native Privacy summaries at 23.3px (640 only), and the
+skip link at 39.3px. Drawer/skip controls are outside the shell, so the old
+descendant-only rule missed them. These controls now have visible 44px targets
+below 641px; summaries keep their native marker. BRIEF 10.1.3 permits the size
+difference. Top bar, phone navigation and footer retain their existing rules.
+
+Existing staff-phone coverage adds 640px light/dark and the missing controls,
+including drawer focus/Escape, skip-to-content and Privacy keyboard disclosure.
+Changed-script syntax and whitespace pass. No local suite/browser ran; CI and
+independent current-head rendered measurements/screenshots are pending.
+Before-fix evidence: `docs/screenshots/staff-target-gaps/NOTES.md`.
