@@ -1,0 +1,110 @@
+{
+  "source_head": "89e25eb",
+  "status": "Recovered interrupted-review baseline, before O1 fix",
+  "measurements": {
+    "dark simple default": {
+      "panel": "panel",
+      "panelTop": 213,
+      "panelBottom": 686,
+      "wrapBottom": 631,
+      "wrapH": 352,
+      "maxH": "352px",
+      "inner": true,
+      "docOverflow": 0,
+      "scrollY": 0,
+      "rows": 10,
+      "footTop": 710
+    },
+    "dark simple long(+80)": {
+      "panel": "panel",
+      "panelTop": 213,
+      "panelBottom": 686,
+      "wrapBottom": 631,
+      "wrapH": 352,
+      "maxH": "352px",
+      "inner": true,
+      "docOverflow": 0,
+      "scrollY": 0,
+      "rows": 90,
+      "footTop": 710
+    },
+    "dark?view=detailed default": {
+      "panel": "panel",
+      "panelTop": 165,
+      "panelBottom": 732,
+      "wrapBottom": 731,
+      "wrapH": 462,
+      "maxH": "462px",
+      "inner": true,
+      "docOverflow": 0,
+      "scrollY": 0,
+      "rows": 14,
+      "footTop": 756
+    },
+    "dark?view=detailed long(+80)": {
+      "panel": "panel",
+      "panelTop": 165,
+      "panelBottom": 732,
+      "wrapBottom": 731,
+      "wrapH": 462,
+      "maxH": "462px",
+      "inner": true,
+      "docOverflow": 0,
+      "scrollY": 0,
+      "rows": 94,
+      "footTop": 756
+    },
+    "light simple default": {
+      "panel": "panel",
+      "panelTop": 213,
+      "panelBottom": 686,
+      "wrapBottom": 631,
+      "wrapH": 352,
+      "maxH": "352px",
+      "inner": true,
+      "docOverflow": 0,
+      "scrollY": 0,
+      "rows": 10,
+      "footTop": 710
+    },
+    "light simple long(+80)": {
+      "panel": "panel",
+      "panelTop": 213,
+      "panelBottom": 686,
+      "wrapBottom": 631,
+      "wrapH": 352,
+      "maxH": "352px",
+      "inner": true,
+      "docOverflow": 0,
+      "scrollY": 0,
+      "rows": 90,
+      "footTop": 710
+    },
+    "light?view=detailed default": {
+      "panel": "panel",
+      "panelTop": 165,
+      "panelBottom": 732,
+      "wrapBottom": 731,
+      "wrapH": 462,
+      "maxH": "462px",
+      "inner": true,
+      "docOverflow": 0,
+      "scrollY": 0,
+      "rows": 15,
+      "footTop": 756
+    },
+    "light?view=detailed long(+80)": {
+      "panel": "panel",
+      "panelTop": 165,
+      "panelBottom": 732,
+      "wrapBottom": 731,
+      "wrapH": 462,
+      "maxH": "462px",
+      "inner": true,
+      "docOverflow": 0,
+      "scrollY": 0,
+      "rows": 95,
+      "footTop": 756
+    }
+  }
+}

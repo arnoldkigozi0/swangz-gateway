@@ -843,3 +843,17 @@ phone-light console and desktop-dark staff captures and the geometry JSON. This 
 overhang finding for this product head. Probe's verdict is single-model. Normal-mode overlays,
 the main re-test and real Windows High Contrast remain unverified. The historical 2.39:1 focus
 finding was on People, not a current sign-in measurement. New-head CI remains pending.
+
+## Lane B O1: Audit desktop panel height — 14 November 2026
+
+The Models Simple height allowance also capped Audit at 352px. Recovered fixture
+measurements put Audit's panel bottom at 686px in a 1440×852 window, leaving
+room unused (default and long, both themes). Audit now uses the ordinary table
+allowance, 462px at that viewport. Models keeps its smaller cap to prevent M1.
+Detailed and phone layouts retain their existing rules. The long-list browser
+check covers internal scrolling, no document scrollbar and use of available height.
+
+Changed-script syntax and whitespace checks passed. No local test suite/browser
+was started: full Python/browser suites run on CI and the one local browser slot
+is reserved for the independent review. Fresh rendered verification is pending.
+Baseline JSON and limits: `docs/screenshots/audit-o1-height/NOTES.md`.
