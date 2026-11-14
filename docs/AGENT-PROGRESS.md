@@ -875,3 +875,7 @@ regression checks the effective child colours, not just the transparent parent.
 Before-fix measurements and scope are in `docs/screenshots/light-trail-o2/RECOVERY.md`.
 Changed-script syntax and whitespace checks pass; new-head CI and rendered
 contrast/focus review are pending. No local browser/test suite was started.
+
+The recovered Spend focus capture also showed the trail container clipping the
+link outline at its left edge. The outline is now inset 2px; keyboard/capture
+verification of that change remains pending.

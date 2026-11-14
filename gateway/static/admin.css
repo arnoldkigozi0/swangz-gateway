@@ -1448,7 +1448,7 @@ html[data-theme="light"] .kpis-exact.two .kpi .label > svg:first-child { backgro
 .console-trail { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .console-trail a { color: inherit; text-decoration: none; }
 .console-trail a:hover { text-decoration: underline; text-underline-offset: 3px; }
-.console-trail a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+.console-trail a:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; border-radius: 4px; }
 .console-trail .sep { flex: none; color: var(--tx-3); }
 /* A long chain gives way from the left: the pages above shorten with an ellipsis so the current page stays readable. */
 .console-trail > a, .console-trail > .crumb-area { flex: 0 1000 auto; min-width: 3ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

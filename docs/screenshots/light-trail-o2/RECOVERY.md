@@ -9,5 +9,5 @@ overrode the primary ink on the parent. The subsequent CSS correction assigns
 primary ink to that crumb and to the phone separators in both themes.
 
 The Spend focus capture also shows a clipped left edge of the trail link's
-focus outline. That finding remains open for the resumed rendered review.
+focus outline. The outline now sits 2px inside the link so the clipped trail container can show it fully; resumed rendered review remains required.
 Fresh pixel contrast, keyboard focus and screenshots are required.
