@@ -863,3 +863,15 @@ height measurements; the Settings header icon nick stays open pending an exact
 element/capture; staff targets stay open pending re-measure after #215/#217/#227.
 Glass/photo stays open: no asset change, Arnold's replacement photo is needed.
 D-016 E/I follow-ups belong to Forge's backend/policy lane. No real-device checks.
+
+### O2 restart recovery — 14 November 2026
+
+PR #231 passed all four GitHub checks on `89e25eb` (Python 3.10/3.12, app-window,
+browser). The independent review was interrupted, so that head was not accepted
+or merged. Recovered fixture measurements found the nested area label still used
+muted ink: 2.18:1 desktop light, 3.12:1 phone light, 3.31:1 phone dark. The CSS
+now applies primary ink to the nested area and phone separators. The browser
+regression checks the effective child colours, not just the transparent parent.
+Before-fix measurements and scope are in `docs/screenshots/light-trail-o2/RECOVERY.md`.
+Changed-script syntax and whitespace checks pass; new-head CI and rendered
+contrast/focus review are pending. No local browser/test suite was started.
