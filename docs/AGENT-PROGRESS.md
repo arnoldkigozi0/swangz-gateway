@@ -879,3 +879,21 @@ contrast/focus review are pending. No local browser/test suite was started.
 The recovered Spend focus capture also showed the trail container clipping the
 link outline at its left edge. The outline is now inset 2px; keyboard/capture
 verification of that change remains pending.
+
+### Lane B O2 independent review — 14 November 2026
+
+PR #231 product head `9acb442` passed independent real-Chrome fixture measurements.
+Desktop light worst-pixel contrast: area 5.75:1, separator 5.89:1, current page
+4.74:1. Desktop dark: 9.36:1 / 4.76:1 / 6.23:1. Phone in-bar crumbs at 390/640
+were at least 7.5:1 in both themes. No white backing/rim or clipped trail; links
+work and the focus outline is whole. Evidence and method are committed under
+`docs/screenshots/light-trail-o2/head-9acb442/`. The ellipsis link measures 23.9px
+wide, recorded as a minor observation. No current documentation-head CI result
+is implied by this product-head verdict.
+
+The Settings header nick could not be reproduced: seven badges in both themes
+are 42×42 with centred 20px SVGs and no clipping (same evidence folder). No
+Settings code change is made. Staff-phone regression: 52 checks passed at
+390 light/dark plus 1440 dark, and a 640 light/dark copy passed 36 checks. These
+check purchase names, creations and Tools Show controls; a comprehensive shell
+control measurement remains open. Glass/photo remains open for Arnold's asset.
