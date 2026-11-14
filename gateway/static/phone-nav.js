@@ -11,10 +11,14 @@
       if (step) { e.preventDefault(); links[(at + step + links.length) % links.length].focus(); }
     });
     if ( (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) return;
-    let lens = null, pointerNavigation = null;
+    let lens = null, settling = null, pointerNavigation = null;
     const under = x => [...bar.querySelectorAll("a")].find(a => { const r = a.getBoundingClientRect(); return x >= r.left && x <= r.right; });
     const place = x => { const r = bar.getBoundingClientRect(); lens.style.transform = `translate(${Math.max(0, Math.min(r.width, x - r.left))}px, 0)`; };
-    const end = () => { if (lens) { lens.remove(); lens = null; } };
+    const end = () => {
+      const old = lens; lens = null;
+      if (settling) { settling.cancel(); settling = null; }
+      if (old) old.remove();
+    };
     bar.addEventListener("pointerdown", e => {
       if (e.button) return;
       pointerNavigation = null;
@@ -22,19 +26,41 @@
       lens = el("i", { class: "stb-lens", "aria-hidden": "true" }); bar.append(lens); place(e.clientX);
       try { bar.setPointerCapture(e.pointerId); } catch (err) { /* older browsers */ }
     });
-    bar.addEventListener("pointermove", e => { if (lens) place(e.clientX); });
+    bar.addEventListener("pointermove", e => { if (lens && !settling) place(e.clientX); });
     bar.addEventListener("pointerup", e => {
-      if (!lens) return;
-      const target = under(e.clientX); end();
-      if (target) {
-        pointerNavigation = { target, at: performance.now() };
-        location.hash = target.getAttribute("href");
+      if (!lens || settling) return;
+      const target = under(e.clientX);
+      if (!target) { end(); return; }
+      pointerNavigation = { target, at: performance.now() };
+      const released = lens, from = location.hash;
+      const navigate = () => {
+        if (lens !== released) return; // A new gesture or keyboard action cancelled this release.
+        end();
+        if (bar.isConnected && location.hash === from) location.hash = target.getAttribute("href");
+      };
+      if (!lens.animate || (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) { navigate(); return; }
+      const links = [...bar.querySelectorAll("a")], active = bar.querySelector("a.on");
+      const item = target.getBoundingClientRect(), selected = active ? active.getBoundingClientRect() : item;
+      const bounds = bar.getBoundingClientRect(), glass = lens.getBoundingClientRect();
+      // The old wide pill collapses when an item to its right becomes active.
+      const shift = active && links.indexOf(active) < links.indexOf(target) ? selected.width - item.width : 0;
+      const centre = item.left - bounds.left - shift + selected.width / 2;
+      try {
+        settling = lens.animate([
+          { transform: lens.style.transform, opacity: 1 },
+          { transform: `translate(${centre}px, 0) scale(${selected.width / glass.width}, ${item.height / glass.height})`, opacity: 0 }
+        ], { duration: 200, easing: "cubic-bezier(.2,.7,.3,1)", fill: "forwards" }); // Six reference frames at 30 fps.
+        settling.finished.then(navigate, navigate);
+      } catch (err) {
+        navigate(); // Navigation remains available without Web Animations support.
       }
     });
     bar.addEventListener("pointercancel", end);
-    // The pointer handler has already navigated; a click on a link would do it twice.
+    bar.addEventListener("keydown", end);
+    // Suppress the native pointer click while release navigation settles.
     bar.addEventListener("click", e => {
       if (e.detail && pointerNavigation && e.target.closest("a") === pointerNavigation.target && performance.now() - pointerNavigation.at < 500) e.preventDefault();
+      if (!e.detail) end();
       pointerNavigation = null;
     });
   }
