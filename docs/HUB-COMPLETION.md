@@ -32,6 +32,8 @@ A verified SQLite backup of the actual schema19 database was restored into `/tmp
 
 The scratch-only metadata backfill restored 29 adoption projections and 3 procurement business cases, with zero errors. Repeating it produced zero changes (32 unchanged). A dry run of the authorised reviewed recovered export found 33 duplicates and 12 explicitly marked demo rows, zero new records/errors. All 33 cache provenance records remain unverified against the original backend; duplicate counts do not establish complete recovery.
 
+- Hardened systemd units (Nov 14, 2026: `UMask=0077`, no capabilities, `ProtectHome`, `PrivateDevices`, address families limited to UNIX/IPv4/IPv6, kernel/namespace/SUID restrictions) on the gateway, backup and verify units, and a private `data/` folder from the setup script: `systemd-analyze security swangz-gateway`, a start, `/healthz` and one backup run on the rehearsal host — **Not run: needs root.** The unit files are checked by `tests/test_deploy.py` only.
+
 ## Final verification
 
 - Python: **330 tests passed in 333.084s**, including the preserved original suite and 29 added business/staging regressions. Existing Python 3.14 fixture `ResourceWarning` messages are present; they did not hide a failed test. Expected fake-provider/policy failure logs were inspected.
