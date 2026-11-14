@@ -1,4 +1,4 @@
-"""Probe: section 9.3 demo, steps 1-4: real headless Chrome 156 against the in-process fake Hub (tests.test_client.ClientBase).
+"""Probe: section 9.3 demo, steps 1-4: real headless Chrome 156 against the in-process fake Hub (tests.test_client.ClientBase). Run: DEMO_REPO=<repo root> python3 demo93.py"""
 import json, os, subprocess, sys, time, unittest
 from pathlib import Path
 
