@@ -1,0 +1,63 @@
+name: macOS app (RC, unsigned)
+# Builds Swangz.app and its DMG on macOS, then installs it from the DMG, launches it, enrols it against a gateway
+# started here, restarts it, upgrades it from a previous build and uninstalls it. Artifacts are labelled
+# "RC — UNSIGNED — INTERNAL TEST ONLY". Developer ID signing and notarization are not done here: they need
+# Swangz's Apple account (docs/MACOS-SIGNING.md). Gatekeeper is never bypassed; its refusal is recorded.
+on:
+  pull_request:
+    paths:
+      - 'packaging/**'
+      - 'swangz_client/**'
+      - 'gateway/enroll.py'
+      - '.github/workflows/build-macos.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: build-macos-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  PYINSTALLER_VERSION: '6.22.3'  # pinned build tool (CI-side only; nothing is added to the app's runtime)
+  PREVIOUS_VERSION: '0.0.9'      # stands in for the previous RC until a real one is published as a pre-release
+jobs:
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build tools (pinned)
+        run: |
+          python -m pip install "pyinstaller==${PYINSTALLER_VERSION}"
+          python -c "import tkinter; print('Tk', tkinter.TkVersion)"
+          sw_vers; uname -m; hdiutil info | head -3
+      - name: Build the previous version (for the upgrade test)
+        run: |
+          sed -i '' "s/^__version__ = .*/__version__ = \"${PREVIOUS_VERSION}\"/" swangz_client/__init__.py
+          python packaging/macos_dmg.py --dist dist-previous --work build/macos-previous
+          git checkout -- swangz_client/__init__.py
+      - name: Build this version
+        run: python packaging/macos_dmg.py --dist dist --work build/macos
+      - name: Checksums
+        run: |
+          cd dist && shasum -a 256 -c ./*.dmg.sha256 && cat ./*.dmg.sha256 > SHA256SUMS && cat SHA256SUMS
+          ls -l
+      - name: Journey — install, launch, enrol, restart, upgrade, uninstall
+        run: |
+          NEW=$(python -c "exec(open('swangz_client/__init__.py').read()); print(__version__)")
+          python packaging/macos_journey.py --old dist-previous/*.dmg --new dist/*.dmg \
+            --old-version "$PREVIOUS_VERSION" --new-version "$NEW" --evidence evidence
+      - name: Keep the RC and the evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swangz-macos-RC-UNSIGNED-INTERNAL-TEST-ONLY
+          path: |
+            dist/*.dmg
+            dist/*.sha256
+            dist/SHA256SUMS
+            evidence/
+          retention-days: 14
+          if-no-files-found: warn

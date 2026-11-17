@@ -8,7 +8,7 @@ GitHub Actions, not the team laptop.
 |---|---|---|
 | Linux | `dist/Swangz` | `Swangz-UNSIGNED-TEST-Linux-<arch>.tar.gz` |
 | Windows | `dist/Swangz.exe` | `Swangz-UNSIGNED-TEST-Windows-<arch>.zip` |
-| macOS | `dist/Swangz.app` | `Swangz-UNSIGNED-TEST-Darwin-<arch>.tar.gz` |
+| macOS | `dist/Swangz.app` | `Swangz-UNSIGNED-TEST-Darwin-<arch>.tar.gz`; the DMG below |
 
 These are **UNSIGNED-TEST** artifacts for internal verification, not production installers.
 No publisher certificate, Developer ID, notarization, production release key or signing secret
@@ -71,6 +71,18 @@ Windows failed before starting the app because the gateway fixture lacked IANA t
 data. The fixed EAT fixture corrects that setup issue; its format decoded locally as
 UTC+03:00. A follow-up Actions run is required for Windows and the corrected head.
 The full Python suite and exhaustive browser/manual desktop checks were not run here.
+
+## macOS: Swangz.app and the DMG (release sprint, 17 Nov 2026)
+
+`python3 packaging/macos_dmg.py` (on a Mac) builds `dist/Swangz.app` and
+`dist/Swangz-<version>-RC-UNSIGNED-macos-<arch>.dmg` with a `.sha256` beside it, using only
+PyInstaller (pinned in the workflow) and tools every Mac has (`plutil`, `codesign` ad hoc,
+`ditto`, `hdiutil`, `shasum`). `.github/workflows/build-macos.yml` builds it on `macos-latest`
+for every pull request touching the app, and `packaging/macos_journey.py` installs it from the
+DMG, launches it, enrols it against a CI gateway, restarts, upgrades from a previous build and
+uninstalls it, uploading the log, step table and screenshots. Everything is labelled
+`RC — UNSIGNED — INTERNAL TEST ONLY`. Developer ID signing, notarization, Gatekeeper and what only
+Arnold can provide: `docs/MACOS-SIGNING.md`.
 
 ## Decisions for Arnold before production distribution
 
