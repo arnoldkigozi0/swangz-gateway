@@ -1,5 +1,5 @@
 name: Windows installer (RC, UNSIGNED)
-# Builds the Windows installer and runs the install -> launch -> enrol -> restart -> reconnect -> upgrade -> uninstall
+# Builds the Windows installer and runs the install -> launch -> enrol -> restart -> reconnect -> reinstall over a running copy -> uninstall while running
 # acceptance against the test suite's local Hub. Test artifacts only: no signing, no release, no deployment.
 on:
   pull_request:
@@ -57,7 +57,7 @@ jobs:
           Path(str(setup) + ".sha256").write_text(f"{digest}  {setup.name}\n", encoding="utf-8")
           Path("artifacts/RELEASE-LABEL.txt").write_text("RC — UNSIGNED — INTERNAL TEST ONLY\n", encoding="utf-8")
           print(f"{setup.name} {setup.stat().st_size} bytes SHA-256 {digest}")
-      - name: Install, launch, enrol, restart, reconnect, upgrade, uninstall
+      - name: Install, launch, enrol, restart, reconnect, reinstall, uninstall
         run: python packaging/windows/installer_e2e.py --setup $env:SETUP --evidence evidence
       - uses: actions/upload-artifact@v4
         with:

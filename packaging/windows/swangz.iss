@@ -45,7 +45,7 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-CloseApplications=yes
+CloseApplications=force
 RestartApplications=no
 SetupLogging=yes
 
@@ -71,6 +71,9 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 Filename: "{app}\Swangz.exe"; Description: "Open Swangz"; Flags: postinstall nowait skipifsilent
 
 [UninstallRun]
+; Stop this person's running copy first (started at sign-in, it would hold Swangz.exe open and could rewrite its state
+; after the sign-out below). Only processes named Swangz.exe that belong to the person uninstalling; no-op when none run.
+Filename: "{sys}\taskkill.exe"; Parameters: "/F /T /IM Swangz.exe /FI ""USERNAME eq {username}"""; RunOnceId: "SwangzStop"; Flags: runhidden waituntilterminated
 ; Disconnect this device and remove what Swangz put on this computer; never blocks the uninstall.
 Filename: "{app}\Swangz.exe"; Parameters: "logout"; RunOnceId: "SwangzSignOut"; Flags: runhidden waituntilterminated skipifdoesntexist
 
