@@ -54,7 +54,13 @@ class InstallerScriptTests(unittest.TestCase):
         self.assertIn('"Swangz"', Path(shell.__file__).read_text(encoding="utf-8"))
 
     def test_uninstall_signs_the_device_out_first(self):
-        (entry,) = lines("UninstallRun")
+        stop, entry = lines("UninstallRun")
+        # the person's own running copy is stopped before sign-out, so it cannot hold the program or rewrite its state
+        self.assertIn('Filename: "{sys}\\taskkill.exe"', stop)
+        self.assertIn('/IM Swangz.exe', stop)
+        self.assertIn('USERNAME eq {username}', stop)
+        self.assertIn("waituntilterminated", stop)
+        self.assertIn("CloseApplications=force", ISS)  # a reinstall closes a running copy too
         self.assertIn('Parameters: "logout"', entry)
         self.assertIn("waituntilterminated", entry)
         self.assertIn("skipifdoesntexist", entry)

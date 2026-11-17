@@ -1,4 +1,5 @@
-"""Windows installer acceptance on a CI runner: silent install -> launch -> enrol -> restart -> reconnect -> upgrade -> uninstall.
+"""Windows installer acceptance on a CI runner: silent install -> launch -> enrol -> restart -> reconnect -> reinstall over a running copy
+-> uninstall while running.
 
     python packaging/windows/installer_e2e.py --setup artifacts/Swangz-Setup-0.1.0-UNSIGNED.exe --evidence evidence
 
@@ -27,6 +28,13 @@ sys.path.insert(0, str(ROOT))
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 UNINSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\{2027a02e-ebf5-41b9-8a7d-9e10a26e1770}_is1"
+
+
+def stopped(proc, message, timeout=60):
+    try:
+        proc.wait(timeout)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(message) from None
 
 
 def require(condition, message):
@@ -223,6 +231,14 @@ def e2e(setup, evidence):
         require(device["server"] == origin, "wrong server saved")
         key_id = device["key_id"]
         report["key_storage"] = device["key_storage"]
+        from swangz_client import keystore
+
+        def stored_secret():
+            return keystore.CredentialManager().get(origin, key_id)
+
+        in_os_store = device["key_storage"] != "file"
+        if in_os_store:
+            require(stored_secret(), "the device key is not in Windows Credential Manager")
         passed(f"enrol against the CI Hub: device code approved, first sync done; key storage {device['key_storage']}")
 
         # 4. restart: a new process (and the window started and closed again) is still signed in and syncs
@@ -254,14 +270,24 @@ def e2e(setup, evidence):
         passed("network interruption: sync exited 1 and recorded no sync, credentials and state kept; on return the next sync"
                " checked in with no sign-in again")
 
-        # 6. install again over the top (the upgrade path): the person's device and settings stay
+        # 6. install again over the top while the program is running (same version: there is no earlier RC to upgrade
+        #    from yet); the installer closes it, and the person's device and settings stay
+        gui = subprocess.Popen([str(exe), "--background"], env=env, cwd=work)
+        time.sleep(8)
+        require(gui.poll() is None, "the program did not start before the reinstall")
         install("reinstall.log")
+        stopped(gui, "the installer did not close the running program")
+        gui = None
         require(json.loads((data / "device.json").read_text(encoding="utf-8"))["key_id"] == key_id, "reinstall lost the device")
         app("status")
         app("sync")
-        passed("install over an existing install: same device, still signed in, syncs")
+        passed("reinstall (same version) over a running copy: the installer closed it; same device, still signed in, syncs")
 
-        # 7. uninstall: the device is signed out at the Hub, local data removed, program, shortcuts and Run value gone
+        # 7. uninstall while the program runs (as it does when started at sign-in): it is stopped, the device is signed out
+        #    at the Hub, local data and the Credential Manager entry removed, program, shortcuts and Run value gone
+        gui = subprocess.Popen([str(exe), "--background"], env=env, cwd=work)
+        time.sleep(8)
+        require(gui.poll() is None, "the program did not start before the uninstall")
         quiet = reg_value(UNINSTALL_KEY, "UninstallString").strip('"')
         run([quiet, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", f"/LOG={evidence / 'uninstall.log'}"])
         deadline = time.monotonic() + 120  # the uninstaller finishes from a copy of itself in %TEMP%
@@ -271,10 +297,15 @@ def e2e(setup, evidence):
         require(not start_menu.exists() and not desktop.exists(), "a shortcut is still there")
         require(reg_value(RUN_KEY, "Swangz") is None, "the start-at-sign-in value is still there")
         require(reg_value(UNINSTALL_KEY, "UninstallString") is None, "still listed in Apps & features")
+        stopped(gui, "the uninstaller did not stop the running program")
+        gui = None
         require(not (data / "device.json").exists(), "local credentials left behind")
+        if in_os_store:
+            require(stored_secret() is None, "the device key is still in Windows Credential Manager")
         revoked = rig.gw.db.scalar("SELECT revoked FROM keys WHERE created_by = 'device enrolment' ORDER BY id DESC LIMIT 1")
         require(revoked is not None, "the Hub did not disconnect the device")
-        passed("silent uninstall: device disconnected at the Hub, local credentials removed, program, shortcuts, Run value"
+        passed("silent uninstall while running: program stopped, device disconnected at the Hub, local credentials"
+               + (" and Credential Manager entry" if in_os_store else "") + " removed, program, shortcuts, Run value"
                " and Apps & features entry gone")
         report["ok"] = True
     except Exception as exc:
