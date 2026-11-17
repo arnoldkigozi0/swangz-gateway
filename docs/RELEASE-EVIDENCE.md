@@ -1,6 +1,7 @@
 # Release evidence matrix: Windows and macOS apps (sprint 17 to 21 Nov 2026)
 
-Status: **draft. Nothing in this file is a pass.** Written by Probe on 17 Nov 2026 against `main` `8ad23d1`.
+Status: **draft. Nothing in this file is a pass.** Written by Probe on 17 Nov 2026 against `main` `8ad23d1`; the
+candidate-PR rows below were updated at 23:45 EAT.
 For each of deliverables 1 to 10 it lists the evidence that must exist before the row may say PASS, where that
 evidence comes from, and what exists today. It extends `docs/RELEASE-ACCEPTANCE-GATE.md` (G7 and G11 especially);
 where the two differ, the stricter one applies.
@@ -29,8 +30,8 @@ where the two differ, the stricter one applies.
 | App commands usable by a script: `login`, `status`, `sync`, `apps`, `open`, `autostart on|off`, `logout`, `cleanup`, `update status|check|apply` | exist | `swangz_client/cli.py` |
 | Credential storage: platform keychain, with a file fallback recorded as `key_storage` | exists (`swangz_client/core.py`, `keystore`); which one a CI runner uses is **not yet recorded** | `swangz_client/core.py` |
 | Hub no longer recognises the device | client keeps local data and tells the person to retry or sign out (`core.py`) | `swangz_client/core.py` |
-| Windows installer (Start menu, desktop shortcut option, uninstaller) | **not on main, no PR open** | deliverable 1 |
-| macOS DMG, signing and Gatekeeper document | **not on main, no PR open** | deliverable 2 |
+| Windows installer (Start menu, desktop shortcut option, uninstaller) | **draft PR #243 (6a1f049), not merged.** Its `windows-latest` job (Inno Setup, install, enrol, reconnect, uninstall) passed in 2 min: https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44166348642/job/134333330908. Probe has not yet read its log or artifact, so row 1 stays NOT TESTED until then. The PR's `browser` check failed on `light 640: drawer keyboard focus stays inside` (a UI check, probably unrelated to packaging; owner to confirm) | deliverable 1 |
+| macOS DMG, signing and Gatekeeper document | **draft PR #244 (a57f150), not merged.** Its `macos-latest` journey job **FAILED** at `app finishes signing in`: install, first launch, sign-in code and approval passed, then the app said `This version of Swangz (0.0.9) is too old. Please update it.` (exit 1). The built version string is below the Hub's minimum client version. Run: https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44166501723/job/134333865171. Defect for Anvil. `docs/MACOS-SIGNING.md` is in the PR and unread by Probe | deliverable 2 |
 | Updates | disabled by design (`ENABLED=False`, no pinned release key) | `packaging/README.md` |
 | Managed workspace | in PR #204, **not merged**. Demo record is PR #236, steps 1 to 4 on Linux, headless | `docs/W-DEMO-RESULT-20261114.md` |
 | Prompt and reply privacy exposure (F-18, `store_bodies`) | open, release blocker; decision doc PR #160 | sprint brief |
