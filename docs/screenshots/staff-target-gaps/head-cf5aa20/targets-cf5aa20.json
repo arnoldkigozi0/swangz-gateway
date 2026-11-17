@@ -1,0 +1,528 @@
+{
+ "dark 390 drawer": {
+  "n": 3,
+  "minH": 44,
+  "minW": 44,
+  "below44H": [],
+  "overlaps": [],
+  "items": [
+   "Close 44x44",
+   "Close 62.3x44",
+   "Open Canva (opens in a new tab) 86.6x44"
+  ]
+ },
+ "dark 390 drawer focus": {
+  "initialFocus": "",
+  "tabStaysInDrawer": true,
+  "ring": {
+   "w": "2px",
+   "style": "solid",
+   "color": "rgb(229, 190, 120)",
+   "shadow": "none"
+  },
+  "drawerGoneAfterEsc": true,
+  "focusReturnedTo": "tr-main"
+ },
+ "dark 390 requests tabs": {
+  "n": 4,
+  "minH": 44,
+  "minW": 157,
+  "below44H": [],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "dark 390 devices tabs": {
+  "n": 2,
+  "minH": 44,
+  "minW": 157,
+  "below44H": [],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "dark 390 weekly tabs": {
+  "n": 3,
+  "minH": 65.4,
+  "minW": 157,
+  "below44H": [],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "dark 390 privacy": {
+  "n": 6,
+  "minH": 44,
+  "minW": 117.1,
+  "below44H": [],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "dark 390 privacy clicks": {
+  "opensOnClick": true,
+  "closesOnClick": true,
+  "coveredAfterScrollIntoView": []
+ },
+ "dark 390 skip link": {
+  "cls": "skip",
+  "text": "Skip to content",
+  "w": 139.1,
+  "h": 44,
+  "top": 12,
+  "outline": "2px solid",
+  "visibleOnScreen": true,
+  "enterFocusesMain": true
+ },
+ "dark 390 bars": {
+  "n": 8,
+  "minH": 44,
+  "minW": 44,
+  "below44H": [],
+  "overlaps": []
+ },
+ "dark 640 drawer": {
+  "n": 3,
+  "minH": 44,
+  "minW": 44,
+  "below44H": [],
+  "overlaps": [],
+  "items": [
+   "Close 44x44",
+   "Close 62.3x44",
+   "Open Canva (opens in a new tab) 86.6x44"
+  ]
+ },
+ "dark 640 drawer focus": {
+  "initialFocus": "",
+  "tabStaysInDrawer": true,
+  "ring": {
+   "w": "2px",
+   "style": "solid",
+   "color": "rgb(229, 190, 120)",
+   "shadow": "none"
+  },
+  "drawerGoneAfterEsc": true,
+  "focusReturnedTo": "tr-main"
+ },
+ "dark 640 requests tabs": {
+  "n": 4,
+  "minH": 44,
+  "minW": 282,
+  "below44H": [],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "dark 640 devices tabs": {
+  "n": 2,
+  "minH": 44,
+  "minW": 282,
+  "below44H": [],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "dark 640 weekly tabs": {
+  "n": 3,
+  "minH": 44,
+  "minW": 282,
+  "below44H": [],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "dark 640 privacy": {
+  "n": 6,
+  "minH": 44,
+  "minW": 117.1,
+  "below44H": [],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "dark 640 privacy clicks": {
+  "opensOnClick": true,
+  "closesOnClick": true,
+  "coveredAfterScrollIntoView": []
+ },
+ "dark 640 skip link": {
+  "cls": "skip",
+  "text": "Skip to content",
+  "w": 139.1,
+  "h": 44,
+  "top": 12,
+  "outline": "2px solid",
+  "visibleOnScreen": true,
+  "enterFocusesMain": true
+ },
+ "dark 640 bars": {
+  "n": 8,
+  "minH": 44,
+  "minW": 44,
+  "below44H": [],
+  "overlaps": []
+ },
+ "dark 1440 drawer": {
+  "n": 3,
+  "minH": 36,
+  "minW": 36,
+  "below44H": [
+   "Close 36x36",
+   "Close 62.3x36",
+   "Open Canva (opens in a new tab) 86.6x36"
+  ],
+  "overlaps": [],
+  "items": [
+   "Close 36x36",
+   "Close 62.3x36",
+   "Open Canva (opens in a new tab) 86.6x36"
+  ]
+ },
+ "dark 1440 drawer focus": {
+  "initialFocus": "",
+  "tabStaysInDrawer": true,
+  "ring": {
+   "w": "2px",
+   "style": "solid",
+   "color": "rgb(229, 190, 120)",
+   "shadow": "none"
+  },
+  "drawerGoneAfterEsc": true,
+  "focusReturnedTo": "tr-main"
+ },
+ "dark 1440 requests tabs": {
+  "n": 4,
+  "minH": 42,
+  "minW": 101.6,
+  "below44H": [
+   "Updates 101.6x42",
+   "Access requests 159.3x42",
+   "Tool & subscription purchases 260.6x42",
+   "Department reports 184.8x42"
+  ],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "dark 1440 devices tabs": {
+  "n": 2,
+  "minH": 42,
+  "minW": 146.3,
+  "below44H": [
+   "Connected1 146.3x42",
+   "Connect a tool 147.4x42"
+  ],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "dark 1440 weekly tabs": {
+  "n": 3,
+  "minH": 42,
+  "minW": 116.5,
+  "below44H": [
+   "Pending & returned 181.5x42",
+   "Submitted 116.5x42",
+   "Adoption & impact 178.1x42"
+  ],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "dark 1440 privacy": {
+  "n": 6,
+  "minH": 20.1,
+  "minW": 117.1,
+  "below44H": [
+   "More about this 117.1x20.1",
+   "More about this 117.1x20.1",
+   "More about this 117.1x20.1",
+   "More about this 117.1x20.1",
+   "More about this 117.1x20.1",
+   "Weekly reporting and your declarat 872x23.3"
+  ],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "dark 1440 privacy clicks": {
+  "opensOnClick": true,
+  "closesOnClick": true,
+  "coveredAfterScrollIntoView": []
+ },
+ "dark 1440 skip link": {
+  "cls": "skip",
+  "text": "Skip to content",
+  "w": 139.1,
+  "h": 39.3,
+  "top": 12,
+  "outline": "2px solid",
+  "visibleOnScreen": true,
+  "enterFocusesMain": true
+ },
+ "dark 1440 bars": {
+  "n": 5,
+  "minH": 38,
+  "minW": 36,
+  "below44H": [
+   "Open navigation 135x38",
+   "Search pages (Ctrl+K or Command+K) 345x38",
+   "New 83x38",
+   "Updates 38x38",
+   "Your account 36x38"
+  ],
+  "overlaps": []
+ },
+ "light 390 drawer": {
+  "n": 3,
+  "minH": 44,
+  "minW": 44,
+  "below44H": [],
+  "overlaps": [],
+  "items": [
+   "Close 44x44",
+   "Close 62.3x44",
+   "Open Canva (opens in a new tab) 86.6x44"
+  ]
+ },
+ "light 390 drawer focus": {
+  "initialFocus": "",
+  "tabStaysInDrawer": true,
+  "ring": {
+   "w": "2px",
+   "style": "solid",
+   "color": "rgb(120, 86, 15)",
+   "shadow": "none"
+  },
+  "drawerGoneAfterEsc": false,
+  "focusReturnedTo": "tr-main"
+ },
+ "light 390 requests tabs": {
+  "n": 4,
+  "minH": 44,
+  "minW": 157,
+  "below44H": [],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "light 390 devices tabs": {
+  "n": 2,
+  "minH": 44,
+  "minW": 157,
+  "below44H": [],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "light 390 weekly tabs": {
+  "n": 3,
+  "minH": 65.4,
+  "minW": 157,
+  "below44H": [],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "light 390 privacy": {
+  "n": 6,
+  "minH": 44,
+  "minW": 117.1,
+  "below44H": [],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "light 390 privacy clicks": {
+  "opensOnClick": true,
+  "closesOnClick": true,
+  "coveredAfterScrollIntoView": []
+ },
+ "light 390 skip link": {
+  "cls": "skip",
+  "text": "Skip to content",
+  "w": 139.1,
+  "h": 44,
+  "top": 12,
+  "outline": "2px solid",
+  "visibleOnScreen": true,
+  "enterFocusesMain": true
+ },
+ "light 390 bars": {
+  "n": 8,
+  "minH": 44,
+  "minW": 44,
+  "below44H": [],
+  "overlaps": []
+ },
+ "light 640 drawer": {
+  "n": 3,
+  "minH": 44,
+  "minW": 44,
+  "below44H": [],
+  "overlaps": [],
+  "items": [
+   "Close 44x44",
+   "Close 62.3x44",
+   "Open Canva (opens in a new tab) 86.6x44"
+  ]
+ },
+ "light 640 drawer focus": {
+  "initialFocus": "",
+  "tabStaysInDrawer": true,
+  "ring": {
+   "w": "2px",
+   "style": "solid",
+   "color": "rgb(120, 86, 15)",
+   "shadow": "none"
+  },
+  "drawerGoneAfterEsc": true,
+  "focusReturnedTo": "tr-main"
+ },
+ "light 640 requests tabs": {
+  "n": 4,
+  "minH": 44,
+  "minW": 282,
+  "below44H": [],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "light 640 devices tabs": {
+  "n": 2,
+  "minH": 44,
+  "minW": 282,
+  "below44H": [],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "light 640 weekly tabs": {
+  "n": 3,
+  "minH": 44,
+  "minW": 282,
+  "below44H": [],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "light 640 privacy": {
+  "n": 6,
+  "minH": 44,
+  "minW": 117.1,
+  "below44H": [],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "light 640 privacy clicks": {
+  "opensOnClick": true,
+  "closesOnClick": true,
+  "coveredAfterScrollIntoView": []
+ },
+ "light 640 skip link": {
+  "cls": "skip",
+  "text": "Skip to content",
+  "w": 139.1,
+  "h": 44,
+  "top": 12,
+  "outline": "2px solid",
+  "visibleOnScreen": true,
+  "enterFocusesMain": true
+ },
+ "light 640 bars": {
+  "n": 8,
+  "minH": 44,
+  "minW": 44,
+  "below44H": [],
+  "overlaps": []
+ },
+ "light 1440 drawer": {
+  "n": 3,
+  "minH": 36,
+  "minW": 36,
+  "below44H": [
+   "Close 36x36",
+   "Close 62.3x36",
+   "Open Canva (opens in a new tab) 86.6x36"
+  ],
+  "overlaps": [],
+  "items": [
+   "Close 36x36",
+   "Close 62.3x36",
+   "Open Canva (opens in a new tab) 86.6x36"
+  ]
+ },
+ "light 1440 drawer focus": {
+  "initialFocus": "",
+  "tabStaysInDrawer": true,
+  "ring": {
+   "w": "2px",
+   "style": "solid",
+   "color": "rgb(120, 86, 15)",
+   "shadow": "none"
+  },
+  "drawerGoneAfterEsc": true,
+  "focusReturnedTo": "tr-main"
+ },
+ "light 1440 requests tabs": {
+  "n": 4,
+  "minH": 42,
+  "minW": 101.6,
+  "below44H": [
+   "Updates 101.6x42",
+   "Access requests 159.3x42",
+   "Tool & subscription purchases 260.6x42",
+   "Department reports 184.8x42"
+  ],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "light 1440 devices tabs": {
+  "n": 2,
+  "minH": 42,
+  "minW": 146.3,
+  "below44H": [
+   "Connected1 146.3x42",
+   "Connect a tool 147.4x42"
+  ],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "light 1440 weekly tabs": {
+  "n": 3,
+  "minH": 42,
+  "minW": 116.5,
+  "below44H": [
+   "Pending & returned 181.5x42",
+   "Submitted 116.5x42",
+   "Adoption & impact 178.1x42"
+  ],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "light 1440 privacy": {
+  "n": 6,
+  "minH": 20.1,
+  "minW": 117.1,
+  "below44H": [
+   "More about this 117.1x20.1",
+   "More about this 117.1x20.1",
+   "More about this 117.1x20.1",
+   "More about this 117.1x20.1",
+   "More about this 117.1x20.1",
+   "Weekly reporting and your declarat 872x23.3"
+  ],
+  "overlaps": [],
+  "sideways": 0
+ },
+ "light 1440 privacy clicks": {
+  "opensOnClick": true,
+  "closesOnClick": true,
+  "coveredAfterScrollIntoView": []
+ },
+ "light 1440 skip link": {
+  "cls": "skip",
+  "text": "Skip to content",
+  "w": 139.1,
+  "h": 39.3,
+  "top": 12,
+  "outline": "2px solid",
+  "visibleOnScreen": true,
+  "enterFocusesMain": true
+ },
+ "light 1440 bars": {
+  "n": 5,
+  "minH": 38,
+  "minW": 36,
+  "below44H": [
+   "Open navigation 135x38",
+   "Search pages (Ctrl+K or Command+K) 345x38",
+   "New 83x38",
+   "Updates 38x38",
+   "Your account 36x38"
+  ],
+  "overlaps": []
+ }
+}

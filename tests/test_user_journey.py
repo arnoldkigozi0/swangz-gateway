@@ -2,11 +2,15 @@
 
 An admin adds a person, a tool and its subscription and grants it; the person sets a password from their sign-in
 link, sees the tool, opens it through /go/; the admin sees the launch in Activity; the grant is taken away and
-the very next open is refused; the person signs out and their session is gone. Nothing is written to the
-database directly: every step is a request a browser would make."""
+the very next open is refused; the week closes and the person submits the weekly report that open made due, which
+the admin then sees; the person signs out and their session is gone. Nothing is written to the database directly:
+every step is a request a browser would make, or the server's own hourly report job."""
 
 import json
+import time
 import unittest
+
+from gateway import reporting
 
 from .support import Rig
 
@@ -84,6 +88,24 @@ class RealUserJourneyTests(unittest.TestCase):
         self.assertEqual(len(self.launches(pid)), 2)
         status, _, me = self.staff("GET", "/api/me", cookie=cookie)
         self.assertNotEqual({t["id"]: t for t in me["catalog"]}[tid]["state"], "enabled")
+
+        # the week closes (the hourly job, run with the clock a week on): the open made a weekly report due, which the
+        # person fills in and submits from the staff app, and the admin sees it waiting for review
+        reporting.compile_closed(self.rig.gw, now=time.time() + 8 * 86400)
+        status, _, mine = self.staff("GET", "/api/hub/reports", cookie=cookie)
+        self.assertEqual(status, 200, mine)
+        due = [r for r in mine["items"] if r["kind"] == "weekly" and r["tool_id"] == tid]
+        self.assertEqual(len(due), 1, mine)
+        rid = due[0]["id"]
+        self.assertEqual(due[0]["evidence"]["launches"], 1, due[0])
+        status, _, body = self.staff("PUT", f"/api/hub/reports/{rid}", {"reason": "Sketched the spring campaign"}, cookie)
+        self.assertEqual(status, 200, body)
+        status, _, body = self.staff("POST", f"/api/hub/reports/{rid}/submit",
+                                     {"usage_confirmation": "used", "reason": "Sketched the spring campaign"}, cookie)
+        self.assertEqual(status, 200, body)
+        status, page = api("GET", f"/hub/reports?person={pid}")
+        self.assertEqual(status, 200, page)
+        self.assertEqual([r["state"] for r in page["items"] if r["id"] == rid], ["submitted"], page)
 
         # they sign out: the same cookie no longer opens anything
         self.assertEqual(self.staff("POST", "/api/logout", {}, cookie)[0], 200)

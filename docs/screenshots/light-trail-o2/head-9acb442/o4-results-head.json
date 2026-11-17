@@ -1,0 +1,251 @@
+{
+ "crumbs-light-390": {
+  "meta": {
+   "cls": "crumbs in-bar",
+   "display": "flex",
+   "clip": "none",
+   "w": 358,
+   "h": 18.75,
+   "trailDisplay": "none"
+  },
+  "contrast": [
+   {
+    "part": "span.crumb-area \"Money\"",
+    "color": "rgb(21, 21, 26)",
+    "size": [
+     41,
+     19
+    ],
+    "worst": 16.46,
+    "mean": 16.49
+   },
+   {
+    "part": "span.sep \"›\"",
+    "color": "rgb(21, 21, 26)",
+    "size": [
+     5,
+     19
+    ],
+    "worst": 16.36,
+    "mean": 16.46
+   },
+   {
+    "part": "a. \"Licences & spend\"",
+    "color": "rgb(77, 77, 85)",
+    "size": [
+     106,
+     19
+    ],
+    "worst": 7.53,
+    "mean": 7.58
+   },
+   {
+    "part": "span.sep \"›\"",
+    "color": "rgb(21, 21, 26)",
+    "size": [
+     5,
+     19
+    ],
+    "worst": 16.46,
+    "mean": 16.47
+   },
+   {
+    "part": "span.crumb-here \"What cost us money?\"",
+    "color": "rgb(21, 21, 26)",
+    "size": [
+     128,
+     19
+    ],
+    "worst": 16.21,
+    "mean": 16.38
+   }
+  ]
+ },
+ "crumbs-dark-390": {
+  "meta": {
+   "cls": "crumbs in-bar",
+   "display": "flex",
+   "clip": "none",
+   "w": 358,
+   "h": 18.75,
+   "trailDisplay": "none"
+  },
+  "contrast": [
+   {
+    "part": "span.crumb-area \"Money\"",
+    "color": "rgb(246, 246, 244)",
+    "size": [
+     41,
+     19
+    ],
+    "worst": 1,
+    "mean": 4.63
+   },
+   {
+    "part": "span.sep \"›\"",
+    "color": "rgb(246, 246, 244)",
+    "size": [
+     5,
+     19
+    ],
+    "worst": 14.58,
+    "mean": 14.81
+   },
+   {
+    "part": "a. \"Licences & spend\"",
+    "color": "rgb(206, 198, 189)",
+    "size": [
+     106,
+     19
+    ],
+    "worst": 9.15,
+    "mean": 9.35
+   },
+   {
+    "part": "span.sep \"›\"",
+    "color": "rgb(246, 246, 244)",
+    "size": [
+     5,
+     19
+    ],
+    "worst": 14.44,
+    "mean": 14.63
+   },
+   {
+    "part": "span.crumb-here \"What cost us money?\"",
+    "color": "rgb(246, 246, 244)",
+    "size": [
+     128,
+     19
+    ],
+    "worst": 14.45,
+    "mean": 15.04
+   }
+  ]
+ },
+ "crumbs-light-640": {
+  "meta": {
+   "cls": "crumbs in-bar",
+   "display": "flex",
+   "clip": "none",
+   "w": 608,
+   "h": 18.75,
+   "trailDisplay": "none"
+  },
+  "contrast": [
+   {
+    "part": "span.crumb-area \"Money\"",
+    "color": "rgb(21, 21, 26)",
+    "size": [
+     41,
+     19
+    ],
+    "worst": 16.33,
+    "mean": 16.45
+   },
+   {
+    "part": "span.sep \"›\"",
+    "color": "rgb(21, 21, 26)",
+    "size": [
+     5,
+     19
+    ],
+    "worst": 16.61,
+    "mean": 16.61
+   },
+   {
+    "part": "a. \"Licences & spend\"",
+    "color": "rgb(77, 77, 85)",
+    "size": [
+     106,
+     19
+    ],
+    "worst": 7.53,
+    "mean": 7.61
+   },
+   {
+    "part": "span.sep \"›\"",
+    "color": "rgb(21, 21, 26)",
+    "size": [
+     5,
+     19
+    ],
+    "worst": 16.36,
+    "mean": 16.46
+   },
+   {
+    "part": "span.crumb-here \"What cost us money?\"",
+    "color": "rgb(21, 21, 26)",
+    "size": [
+     128,
+     19
+    ],
+    "worst": 16.46,
+    "mean": 16.48
+   }
+  ]
+ },
+ "crumbs-dark-640": {
+  "meta": {
+   "cls": "crumbs in-bar",
+   "display": "flex",
+   "clip": "none",
+   "w": 608,
+   "h": 18.75,
+   "trailDisplay": "none"
+  },
+  "contrast": [
+   {
+    "part": "span.crumb-area \"Money\"",
+    "color": "rgb(246, 246, 244)",
+    "size": [
+     41,
+     19
+    ],
+    "worst": 14.08,
+    "mean": 14.75
+   },
+   {
+    "part": "span.sep \"›\"",
+    "color": "rgb(246, 246, 244)",
+    "size": [
+     5,
+     19
+    ],
+    "worst": 13.92,
+    "mean": 14.12
+   },
+   {
+    "part": "a. \"Licences & spend\"",
+    "color": "rgb(206, 198, 189)",
+    "size": [
+     106,
+     19
+    ],
+    "worst": 8.91,
+    "mean": 9.23
+   },
+   {
+    "part": "span.sep \"›\"",
+    "color": "rgb(246, 246, 244)",
+    "size": [
+     5,
+     19
+    ],
+    "worst": 14.62,
+    "mean": 14.82
+   },
+   {
+    "part": "span.crumb-here \"What cost us money?\"",
+    "color": "rgb(246, 246, 244)",
+    "size": [
+     128,
+     19
+    ],
+    "worst": 14.26,
+    "mean": 14.59
+   }
+  ]
+ },
+ "ERROR": "locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator('button, a').filter({ hasText: 'Your account' }).first()\n    - locator resolved to <a tabindex=\"-1\" role=\"menuitem\" href=\"#/settings?tab=account\">…</a>\n  - attempting click action\n    2 × waiting for element to be visible, enabled and stable\n      - element is not visible\n    - retrying click action\n    - waiting 20ms\n    2 × waiting for element to be visible, enabled and stable\n      - element is not visible\n    - retrying click action\n      - waiting 100ms\n    57 × waiting for element to be visible, enabled and stable\n       - element is not visible\n     - retrying click action\n       - waiting 500ms\n\n    at /home/inquiline/swangz-team/.pt/o4.cjs:41:17"
+}

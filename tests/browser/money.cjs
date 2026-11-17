@@ -50,6 +50,19 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
 
       // Simple (BRIEF 10.10.7, the default): one sentence with the real number, one next-step button, two blocks, no cards
       await open('#/licences', '.ov-sentence');
+      if (theme === 'light' && width > 1200) {
+        const trail = await p.locator('.console-trail').evaluate(n => {
+          const s = getComputedStyle(n);
+          return { background: s.backgroundColor, shadow: s.boxShadow };
+        });
+        ok(T + 'the breadcrumb has no white backing or rim', trail.background === 'rgba(0, 0, 0, 0)' && trail.shadow === 'none');
+      }
+      if (theme === 'light' || width <= 1200) {
+        ok(T + 'the visible trail area and separators use the readable page ink', await p.locator(width > 1200 ? '.console-trail' : '.crumbs.in-bar').evaluate(n => {
+          const current = getComputedStyle(n.querySelector('.crumb-here')).color;
+          return [...n.querySelectorAll('.crumb-area, .sep')].every(c => getComputedStyle(c).color === current);
+        }));
+      }
       ok(T + 'Simple is the default (no number cards)', await p.locator('main .kpis-exact').count() === 0);
       const sentence = (await p.locator('.ov-sentence').textContent()).trim();
       ok(T + `Simple's sentence carries a number (${sentence})`, /\d/.test(sentence) && sentence.split(/\s+/).length <= 14);

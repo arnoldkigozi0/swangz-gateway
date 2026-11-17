@@ -718,3 +718,128 @@ instead of `usr`/`pwd` in the URL, a nullable `device_id` on `tool_turns` in a n
 existing heartbeat with the agent's release as the real boundary. Existing risk R-13: `/go/` already sends `usr`/`pwd`
 in a 302 `Location` into the person's browser history; the single-use code is its fix, after 20 Nov. Tests T1–T6 in
 the threat note.
+
+## D-023 | 2026-11-17 | Prompt and reply text: not kept by default, and only the trust area may read it (F-18, R-8)
+
+**Context.** F-18 (SECURITY-REVIEW.md) and #160. `store_bodies` defaults to on (`proxy.py:451`, `admin.py:806`,
+`staff.py:404`). Whatever that switch says, every request row keeps the clipped `prompt`, `reply` and `actions`. Any
+console role, `viewer` included, can read them through `/timeline`, `/people/<id>`, `/requests`, `/sessions/<sid>`,
+`/requests/<id>` and `/search`. Only `/export.csv` checks `ctx.can("trust")`. The release-sprint brief (17 Nov)
+directs: default it off, gate it by role, and add a test. This is #160's option D.
+
+**Decision.**
+1. **Off by default.** One constant, `STORE_BODIES_DEFAULT = "0"`, read in all three places. An append-only migration
+   writes `store_bodies = '0'` only where no row exists. A saved `'1'`, which is an admin's audited choice, stays.
+2. **One switch covers all content.** With `store_bodies` off, `prompt`, `reply` and `actions` are written as NULL,
+   along with `req_head`, `req_items` and `resp_blob`. There is no second setting. Purpose inference
+   (`purpose.classify`) runs on the text in memory and keeps only its label, confidence and rule id. Secret
+   blocking is unchanged.
+3. **Reading content needs the `trust` area**, the same rule `/export.csv` already uses. Owner has it, and so does
+   security. Content means prompt, reply, actions, request and response bodies, and the media prompt.
+   - For any other role, the server sets those fields to `null` and adds `"content": "withheld"`. This applies in
+     every route above, plus Live, the insight lenses and every CSV.
+   - For those roles, `q=` and `/search` match metadata only.
+   - The UI only hides; the server decides.
+4. **Audit.** Each content read by trust is audited: the existing "opened the full record" event, plus one line per
+   content search or session view.
+5. **Staff** still see their own requests, unchanged. The staff Privacy page's wording follows the switch: off means
+   "no prompt or reply text is kept".
+6. **Content already stored** is left alone and ages out under the retention setting. Redacting it means deleting
+   data, so that is Arnold's call.
+
+**Rejected.**
+- A banner with the default left on, because the default is the privacy promise.
+- Encryption at rest, because the key would sit on the same server.
+- The `admin` area. In my 17 Nov note to Chief I named `admin`; this decision corrects that to `trust`, which keeps
+  the one existing rule and F-18's remediation.
+
+**Consequences.** Pulling back exactly what was sent needs trust to switch storage on first, and that switch is
+audited. R-8 closes when the PR merges.
+
+**Tests.**
+- A fresh database reads `store_bodies` as off.
+- A request through fake_upstream leaves all six content columns NULL.
+- A saved `'1'` survives the migration.
+- With storage on, a marker is planted in a stored prompt and reply:
+  - viewer, billing and operations each call every GET under `/api/admin` (a crawl of the route table, with the
+    `export.csv` variants) and never see the marker, and get `content: withheld`;
+  - `q=<marker>` returns no rows for them;
+  - security and owner do get it, and the read is audited.
+- The existing purpose-inference tests still pass with storage off.
+
+## D-024 | 2026-11-17 | Machine-policy integrity: tamper-evident, verified by the app, on company devices only (W6, #160)
+
+**Context.** The parts exist on `feature/managed-workspace`:
+- `prepare.py` prints the baseline SHA-256.
+- The Hub stores `managed_policy_sha256` and a mode, `warn` or `enforce`.
+- The contract-2 block sends `policy: {sha256, mode}`.
+- `machine_policy.report()` reads the installed policy and returns `{ok, sha256}`.
+- `/api/device/open` and `/go/` apply `enforce` through `managed.launch_refusal`.
+
+Three gaps:
+1. `Client.policy_check` is never set (`core.py:538` is the only assignment). No app ever reports, so every device
+   shows "has not reported".
+2. `launch_refusal` ignores `owner_kind`. In `enforce`, personal devices, which never get the pack, would be refused.
+3. The app does not compare what it found with the baseline the Hub sent. Only the server does.
+
+**Decision.**
+1. **Company devices only.** At start-up the app sets `policy_check = machine_policy.report` when the enrolment's
+   `owner_kind` is `company`. A personal device sends no `policy` field and keeps the extension gate.
+2. **When the app checks.** At every heartbeat, and again before each Open. A cached result older than 60 seconds is
+   never used. A pack removed or edited is therefore seen within one heartbeat, and always before the next window.
+3. **The app also verifies before it opens a window.** It compares its own hash with the block's `policy.sha256` and
+   requires `problems_in()` to be empty.
+   - In `enforce`, any mismatch is refused on the device, before any browser starts, with the plain
+     `workspace_policy` message.
+   - In `warn`, the window opens and the result is reported.
+   - The server's refusal stays in place on its own.
+4. **The server applies `enforce` only to company devices.** `managed.launch_refusal` and `policy_problem` skip
+   `owner_kind = personal`.
+5. **The hash.** It stays canonical over `BASELINE_KEYS` (sorted keys, compact JSON), so reordering a file or
+   changing its whitespace leaves it unchanged, and any change of value changes it. A weakening outside the
+   baseline is caught by `problems_in()` and reported as `ok=false`.
+6. **Honest labels.** The console says "reported by the app". The docs say tamper-evident, not tamper-proof: a local
+   administrator who also patches the app defeats it (R-1, R-3). The default stays `warn` until the release gate
+   has the evidence for `enforce`.
+
+**Rejected.**
+- Signing the pack: the standard library cannot verify signatures, a new dependency needs Arnold, and HMAC would
+  put the key on the device.
+- TPM or OS attestation: it needs signed builds and certificates, which are Arnold's purchase.
+- Reading other device state: the app never reads device content.
+
+**Tests.**
+- A company enrolment sets `policy_check`. A personal one does not, and its heartbeat body has no `policy` key.
+- The heartbeat with a report is under 2 KB.
+- Tamper cases, on the `machine_policy` fixtures:
+  - the pack is removed: `ok=false`;
+  - one allowlist entry is edited: the hash differs and the server says "not the baseline";
+  - an extra weakening key is added: `ok=false`;
+  - the keys are reordered: the hash is unchanged.
+- `enforce` with a mismatch:
+  - `/api/device/open` returns 409 `workspace_policy`;
+  - the app refuses, and the fake `popen` is never called.
+- `warn` with a mismatch: the window opens and the console shows "not in force".
+- `enforce` on a personal device: not refused for policy.
+- A check that raises reports `ok=false` and never skips the heartbeat.
+
+## D-025 | 2026-11-18 | Who decides a device is a company device, before `enforce` (D-024 follow-up, PR #248)
+
+**Context.** The person approving a device code chooses `owner_kind` (`gateway/enroll.py`, default `personal`). D-024
+point 4 exempts personal devices from `enforce`, so a staff member who calls a company laptop "personal" skips the
+policy check. In `warn`, the default, this changes nothing.
+
+**Decision.**
+1. For release, `owner_kind` stays the person's own declaration. The console labels it "declared by the person".
+2. Before `managed_policy_mode = enforce` is turned on, an admin must be able to confirm or change a device's kind,
+   with the change audited (`before`/`after`, `correlation=device:<id>`, area `govern`). In `enforce`, a device the
+   person declared `personal` that an admin has marked `company` is enforced. An admin's mark always wins over the
+   person's declaration.
+3. Release gate item: `enforce` stays off until (2) is merged and tested.
+
+**Rejected.** Inferring the kind from the device (domain join, MDM, hostname): this reads device state, so CLIENT.md
+rules it out, and it is easy to fake. Defaulting to `company`: the Hub would refuse personal devices that never get the
+pack.
+
+**Tests (with point 2).** The person declares personal and an admin marks it company: refused in `enforce` with no
+report. The admin's change is audited. A viewer or billing role gets 403.

@@ -1,0 +1,134 @@
+{
+  "head": "89e25ebdca57b8b3a246e6f9b661017810735788",
+  "status": "Incomplete review interrupted by restart; before the nested-crumb correction",
+  "measurements": {
+    "contrast-light-1440": [
+      {
+        "part": "span.crumb-area \"Money\"",
+        "color": "rgb(95, 89, 83)",
+        "bgMinL": 0.2819,
+        "bgMeanL": 0.3084,
+        "bgMaxL": 0.3406,
+        "vsWorst": 2.18,
+        "vsMean": 2.36,
+        "vsP5orP95": 2.27
+      },
+      {
+        "part": "span.sep \"\u203a\"",
+        "color": "rgb(21, 21, 26)",
+        "bgMinL": 0.2896,
+        "bgMeanL": 0.3093,
+        "bgMaxL": 0.3288,
+        "vsWorst": 5.89,
+        "vsMean": 6.23,
+        "vsP5orP95": 6.02
+      },
+      {
+        "part": "span.crumb-here \"Licences & spend\"",
+        "color": "rgb(21, 21, 26)",
+        "bgMinL": 0.2233,
+        "bgMeanL": 0.3149,
+        "bgMaxL": 0.4662,
+        "vsWorst": 4.74,
+        "vsMean": 6.32,
+        "vsP5orP95": 5.14
+      }
+    ],
+    "contrast-dark-1440": [
+      {
+        "part": "span.crumb-area \"Money\"",
+        "color": "rgb(181, 173, 165)",
+        "bgMinL": 0.0334,
+        "bgMeanL": 0.0417,
+        "bgMaxL": 0.0537,
+        "vsWorst": 4.57,
+        "vsMean": 5.17,
+        "vsP5orP95": 4.94
+      },
+      {
+        "part": "span.sep \"\u203a\"",
+        "color": "rgb(181, 173, 165)",
+        "bgMinL": 0.0356,
+        "bgMeanL": 0.0421,
+        "bgMaxL": 0.0496,
+        "vsWorst": 4.76,
+        "vsMean": 5.15,
+        "vsP5orP95": 4.91
+      },
+      {
+        "part": "span.crumb-here \"Licences & spend\"",
+        "color": "rgb(246, 246, 244)",
+        "bgMinL": 0.0165,
+        "bgMeanL": 0.0455,
+        "bgMaxL": 0.1059,
+        "vsWorst": 6.23,
+        "vsMean": 10.16,
+        "vsP5orP95": 6.96
+      }
+    ],
+    "contrast-light-390": [
+      {
+        "part": "span.crumb-area \"Money\"",
+        "color": "rgb(95, 89, 83)",
+        "bgMinL": 0.4237,
+        "bgMeanL": 0.4304,
+        "bgMaxL": 0.4346,
+        "vsWorst": 3.12,
+        "vsMean": 3.16,
+        "vsP5orP95": 3.12
+      },
+      {
+        "part": "span.sep \"\u203a\"",
+        "color": "rgb(21, 21, 26)",
+        "bgMinL": 0.4237,
+        "bgMeanL": 0.4304,
+        "bgMaxL": 0.4346,
+        "vsWorst": 8.21,
+        "vsMean": 8.33,
+        "vsP5orP95": 8.21
+      },
+      {
+        "part": "span.crumb-here \"Licences & spend\"",
+        "color": "rgb(21, 21, 26)",
+        "bgMinL": 0.4237,
+        "bgMeanL": 0.4304,
+        "bgMaxL": 0.4346,
+        "vsWorst": 8.21,
+        "vsMean": 8.33,
+        "vsP5orP95": 8.21
+      }
+    ],
+    "contrast-dark-390": [
+      {
+        "part": "span.crumb-area \"Money\"",
+        "color": "rgb(181, 173, 165)",
+        "bgMinL": 0.0882,
+        "bgMeanL": 0.0911,
+        "bgMaxL": 0.0931,
+        "vsWorst": 3.31,
+        "vsMean": 3.36,
+        "vsP5orP95": 3.31
+      },
+      {
+        "part": "span.sep \"\u203a\"",
+        "color": "rgb(181, 173, 165)",
+        "bgMinL": 0.0882,
+        "bgMeanL": 0.0911,
+        "bgMaxL": 0.0931,
+        "vsWorst": 3.31,
+        "vsMean": 3.36,
+        "vsP5orP95": 3.31
+      },
+      {
+        "part": "span.crumb-here \"Licences & spend\"",
+        "color": "rgb(246, 246, 244)",
+        "bgMinL": 0.0882,
+        "bgMeanL": 0.0911,
+        "bgMaxL": 0.0931,
+        "vsWorst": 6.78,
+        "vsMean": 6.88,
+        "vsP5orP95": 6.78
+      }
+    ]
+  }
+}

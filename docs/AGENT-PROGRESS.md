@@ -858,3 +858,83 @@ phone-light console and desktop-dark staff captures and the geometry JSON. This 
 overhang finding for this product head. Probe's verdict is single-model. Normal-mode overlays,
 the main re-test and real Windows High Contrast remain unverified. The historical 2.39:1 focus
 finding was on People, not a current sign-in measurement. New-head CI remains pending.
+
+## Lane B O2: light breadcrumb backing — 13 November 2026
+
+The light console area/trail now follows BRIEF 10.3 as bare text instead of a white
+backing. Primary ink also colours the separators. The obsolete CSS assertions
+requiring the backing are replaced by a rendered check in `tests/browser/money.cjs`
+that rejects a background or rim on the Licences breadcrumb. No new tokens or dependencies.
+
+Code checks: JavaScript syntax and whitespace checks passed. Not run locally:
+Python or browser suites (one laptop test/browser slot, reserved for Probe). Full
+Python and browser checks run on CI. Photo contrast, keyboard focus, 390/1440 light
+and dark screenshots and exact-match acceptance remain pending Probe's actual review.
+
+14 November continuation: O2 is built on `fix/light-trail-o2`, pending rendered
+contrast review and CI. Push/PR use `[skip netlify]` because credits are exhausted;
+GitHub checks remain enabled. Audit O1 stays open pending current default/long-list
+height measurements; the Settings header icon nick stays open pending an exact
+element/capture; staff targets stay open pending re-measure after #215/#217/#227.
+Glass/photo stays open: no asset change, Arnold's replacement photo is needed.
+D-016 E/I follow-ups belong to Forge's backend/policy lane. No real-device checks.
+
+### O2 restart recovery — 14 November 2026
+
+PR #231 passed all four GitHub checks on `89e25eb` (Python 3.10/3.12, app-window,
+browser). The independent review was interrupted, so that head was not accepted
+or merged. Recovered fixture measurements found the nested area label still used
+muted ink: 2.18:1 desktop light, 3.12:1 phone light, 3.31:1 phone dark. The CSS
+now applies primary ink to the nested area and phone separators. The browser
+regression checks the effective child colours, not just the transparent parent.
+Before-fix measurements and scope are in `docs/screenshots/light-trail-o2/RECOVERY.md`.
+Changed-script syntax and whitespace checks pass; new-head CI and rendered
+contrast/focus review are pending. No local browser/test suite was started.
+
+The recovered Spend focus capture also showed the trail container clipping the
+link outline at its left edge. The outline is now inset 2px; keyboard/capture
+verification of that change remains pending.
+
+### Lane B O2 independent review — 14 November 2026
+
+PR #231 product head `9acb442` passed independent real-Chrome fixture measurements.
+Desktop light worst-pixel contrast: area 5.75:1, separator 5.89:1, current page
+4.74:1. Desktop dark: 9.36:1 / 4.76:1 / 6.23:1. Phone in-bar crumbs at 390/640
+were at least 7.5:1 in both themes. No white backing/rim or clipped trail; links
+work and the focus outline is whole. Evidence and method are committed under
+`docs/screenshots/light-trail-o2/head-9acb442/`. The ellipsis link measures 23.9px
+wide, recorded as a minor observation. No current documentation-head CI result
+is implied by this product-head verdict.
+
+The Settings header nick could not be reproduced: seven badges in both themes
+are 42×42 with centred 20px SVGs and no clipping (same evidence folder). No
+Settings code change is made. Staff-phone regression: 52 checks passed at
+390 light/dark plus 1440 dark, and a 640 light/dark copy passed 36 checks. These
+check purchase names, creations and Tools Show controls; a comprehensive shell
+control measurement remains open. Glass/photo remains open for Arnold's asset.
+
+### Lane B final review checkpoint — 14 November 2026
+
+This checkpoint supersedes the earlier pending-review statuses for these items.
+The shared progress update is carried by #234 (#231 merged at `9a40f7a` before it was pushed); #233/#234 keep detailed evidence
+in their own screenshot notes so the three small PRs do not conflict at this
+file's end. All remain pending their final pushed-head CI and merge.
+
+- O2 (#231): product `9acb442` passed contrast, clipping, focus and link checks
+  at 1440/390/640 light/dark; worst desktop light contrast 4.74:1.
+- Audit O1 (#233): product `992a07a` passed 164 shipped browser checks, plus
+  explicit default/long, with/without-pager measurements. Panel bottom 772,
+  footer 796–812, no page overflow/movement at 1440×852. Detailed/Models and
+  tablet/phone regressions pass. Evidence: `docs/screenshots/audit-o1-height/head-992a07a/`.
+- Staff targets (#234): product `cf5aa20` passed independent 390/640 light/dark
+  measurements. Drawer actions, tabs, six Privacy summaries and the focused skip
+  link reach 44px; no overlapping targets in changed groups. Keyboard focus,
+  Escape return, disclosure activation and scroll-into-view coverage pass;
+  desktop 1440 light/dark is unchanged. The committed suite printed 156 checks
+  passed, then the local 280s shell timeout returned exit 124 during shutdown;
+  this is not recorded as an exit-zero suite run. CI remains required. Evidence:
+  `docs/screenshots/staff-target-gaps/head-cf5aa20/`. No local process remains.
+- Settings header icon nick: could not reproduce across seven badges in both
+  themes (42px badge, centred 20px SVG, no clipping); no Settings change.
+- Glass/photo remains open for Arnold's replacement asset. Real devices and
+  the full local Python suite were not tested; full suites run on GitHub CI.

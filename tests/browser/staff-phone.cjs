@@ -20,7 +20,7 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
     });
     const url = info.url;
     browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME || undefined, args: ['--no-sandbox'] });
-    for (const [theme, width, height] of [['dark', 390, 844], ['light', 390, 844], ['dark', 1440, 852]]) {
+    for (const [theme, width, height] of [['dark', 390, 844], ['light', 390, 844], ['dark', 640, 900], ['light', 640, 900], ['dark', 1440, 852]]) {
       const T = `${theme} ${width}: `;
       const c = await browser.newContext({ viewport: { width, height }, reducedMotion: 'reduce' });
       await c.addInitScript(t => localStorage.setItem('swangz-theme', t), theme);
@@ -29,9 +29,22 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       const axe = async (name) => { const r = await new AxeBuilder({ page: p }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze(); assert.deepEqual(r.violations.map(v => v.id + ' ' + v.nodes.map(n => n.target).join(',')), [], T + name + ' axe'); checks++; };
       const noOverflow = async (name) => ok(T + name + ' has no sideways page scroll', await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
       const open = async (hash, wait) => { await p.goto(url + '/' + hash); await p.locator(wait).first().waitFor(); await p.waitForLoadState('networkidle'); };
+      const targets = async (name, locator) => {
+        const short = await locator.evaluateAll(nodes => nodes.filter(n => {
+          const r = n.getBoundingClientRect(); return r.height && (r.height < 44 || r.width < 44);
+        }).map(n => n.getAttribute('aria-label') || n.textContent.trim()));
+        assert.deepEqual(short, [], T + name + ' has 44px targets'); checks++;
+      };
 
       // 1. Requests > Tool & subscription purchases: the long tool name wraps and the card never scrolls sideways
       await open('#/requests?view=procurement', '.hub-pagination');
+      if (width <= 640) {
+        await p.keyboard.press('Tab');
+        ok(T + 'the skip link is the first keyboard stop', await p.locator('.skip').evaluate(n => document.activeElement === n));
+        await targets('skip link', p.locator('.skip'));
+        await p.keyboard.press('Enter');
+        ok(T + 'the skip link focuses the page', await p.locator('main').evaluate(n => document.activeElement === n));
+      }
       const card = await p.evaluate(() => {
         const wrap = document.querySelector('main .u-table-wrap'), td = document.querySelector('main .u-table td.lead'), btn = td.querySelector('.btn');
         const label = document.querySelector('main .u-table td[data-label]');
@@ -65,6 +78,35 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       ok(T + 'the three Show options share one row', tops.length === 3 && new Set(tops).size === 1);
       if (width <= 640) ok(T + 'each Show option is at least 44px tall', (await p.locator('.toolbar .u-seg button').evaluateAll(n => n.map(x => x.getBoundingClientRect().height))).every(h => h >= 44));
       await noOverflow('Tools'); await axe('Tools');
+
+      if (width <= 640) {
+        // Tool details live outside the shell; both Close controls and Open still need phone targets.
+        const trigger = p.getByRole('button', { name: 'Canva — details', exact: true });
+        await trigger.click();
+        const drawer = p.getByRole('dialog', { name: 'Canva details', exact: true });
+        await drawer.waitFor();
+        await targets('tool drawer actions', drawer.locator('header .btn, footer .btn'));
+        await p.keyboard.press('Tab');
+        ok(T + 'drawer keyboard focus stays inside', await drawer.evaluate(n => n.contains(document.activeElement)));
+        await p.keyboard.press('Escape');
+        await drawer.waitFor({ state: 'detached' });
+        ok(T + 'Escape returns focus to the tool', await trigger.evaluate(n => document.activeElement === n));
+
+        for (const route of ['#/requests', '#/devices', '#/weekly']) {
+          await open(route, '.vtabs [role=tab], .ptabs [role=tab]');
+          await targets(route + ' tabs', p.locator('main :is(.vtabs, .ptabs) [role=tab]'));
+          await noOverflow(route);
+        }
+        await open('#/privacy', '.p-sections summary');
+        await targets('Privacy summaries', p.locator('.p-sections summary'));
+        const summary = p.locator('.p-sections summary').filter({ hasText: 'Weekly reporting and your declarations' });
+        await summary.focus();
+        await p.keyboard.press('Enter');
+        ok(T + 'the Privacy disclosure opens with the keyboard', await summary.evaluate(n => n.parentElement.open));
+        await p.keyboard.press('Enter');
+        ok(T + 'the Privacy disclosure closes with the keyboard', await summary.evaluate(n => !n.parentElement.open));
+        await noOverflow('Privacy'); await axe('Privacy');
+      }
 
       assert.deepEqual(errors, [], T + 'page errors'); checks++;
       await c.close();
