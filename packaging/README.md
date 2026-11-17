@@ -80,3 +80,32 @@ this workflow. Approve the tool choice and pinned PyInstaller dependency hashes 
 production packaging. Publisher certificates, Apple Developer ID/notarization, the release
 signing ceremony and enabling updates are separate approval gates. Do not bypass OS
 security controls to distribute these test builds.
+
+## Windows installer (RC — UNSIGNED — INTERNAL TEST ONLY)
+
+`packaging/windows/swangz.iss` (Inno Setup) wraps `dist\Swangz.exe`; `.github/workflows/release-windows.yml`
+builds it on `windows-latest` with pinned build tools (PyInstaller, Inno Setup 6.4.3 from its official release, checked against a SHA-256 pin) on every pull request
+that touches `packaging/`, `swangz_client/` or the workflow, and on manual dispatch.
+
+The installer:
+- installs per person, with no administrator rights, into `%LOCALAPPDATA%\Programs\Swangz`. Nothing machine-wide is
+  changed and no Windows security setting is touched;
+- adds a Start-menu entry. Two optional tasks are off by default: a desktop shortcut, and starting Swangz at sign-in
+  (the HKCU `Run` value `Swangz`, the same one the app's own switch uses);
+- carries no Hub address, key or secret: the person types the Hub address at first run;
+- installs no updater and schedules nothing. In-app updates stay off (`release_keys.ENABLED = False`) until signed
+  releases exist;
+- uninstalls by first running `Swangz.exe logout`, which tells the Hub to disconnect the device and removes what Swangz
+  put on the computer, even offline. It then removes the program, the shortcuts, the `Run` value and the Apps & features
+  entry. Installing again over an existing install keeps the person's device and settings.
+
+The artifact is `Swangz-Setup-<version>-UNSIGNED.exe` plus a `.sha256` file and `RELEASE-LABEL.txt`.
+
+`packaging/windows/installer_e2e.py` is the acceptance run on the runner. It does: silent install, launch (self-check
+window, `--background` start), enrol against the test suite's local Hub, restart, network interruption and recovery
+(through a local relay the script cuts and restores), install over the top, then silent uninstall. Its `report.json`
+and the installer's and uninstaller's logs are uploaded as the `Swangz-Windows-installer-evidence` artifact.
+
+Not covered by CI: SmartScreen (the installer is unsigned, so Windows warns "unknown publisher" until Swangz signs it
+with its own certificate), a real reboot (a restart of the program stands in for one), and Windows on physical devices.
+These stay on the owner checklist.
