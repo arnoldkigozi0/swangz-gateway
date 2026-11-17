@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 ISS = (ROOT / "packaging" / "windows" / "swangz.iss").read_text(encoding="utf-8")
 CODE = "\n".join(l for l in ISS.splitlines() if not l.lstrip().startswith((";", "//")))  # without comments
-WORKFLOW = (ROOT / ".github" / "workflows" / "windows-installer.yml").read_text(encoding="utf-8")
+WORKFLOW = (ROOT / ".github" / "workflows" / "release-windows.yml").read_text(encoding="utf-8")
 
 
 def section(name):
@@ -79,7 +79,9 @@ class WorkflowTests(unittest.TestCase):
         self.assertRegex(WORKFLOW, r"PYINSTALLER_VERSION: '\d+\.\d+\.\d+'")
         self.assertRegex(WORKFLOW, r"INNO_SETUP_VERSION: '\d+\.\d+\.\d+'")
         self.assertIn('pyinstaller==$env:PYINSTALLER_VERSION', WORKFLOW)
-        self.assertIn("choco install innosetup --version $env:INNO_SETUP_VERSION", WORKFLOW)
+        self.assertRegex(WORKFLOW, r"INNO_SETUP_SHA256: '[0-9a-f]{64}'")
+        self.assertIn("does not match the pin", WORKFLOW)
+        self.assertNotIn("choco install", WORKFLOW)
         self.assertIn("RC — UNSIGNED — INTERNAL TEST ONLY", WORKFLOW)
         self.assertIn("runs-on: windows-latest", WORKFLOW)
 

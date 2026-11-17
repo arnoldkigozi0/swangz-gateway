@@ -83,8 +83,8 @@ security controls to distribute these test builds.
 
 ## Windows installer (RC — UNSIGNED — INTERNAL TEST ONLY)
 
-`packaging/windows/swangz.iss` (Inno Setup) wraps `dist\Swangz.exe`; `.github/workflows/windows-installer.yml`
-builds it on `windows-latest` with pinned build tools (PyInstaller, Inno Setup via Chocolatey) on every pull request
+`packaging/windows/swangz.iss` (Inno Setup) wraps `dist\Swangz.exe`; `.github/workflows/release-windows.yml`
+builds it on `windows-latest` with pinned build tools (PyInstaller, Inno Setup 6.4.3 from its official release, checked against a SHA-256 pin) on every pull request
 that touches `packaging/`, `swangz_client/` or the workflow, and on manual dispatch.
 
 The installer:
