@@ -1,0 +1,76 @@
+name: Release macOS app (UNSIGNED RC)
+# Builds Swangz.app and a DMG on macos-latest, installs from the DMG and launches the installed copy.
+# RC — UNSIGNED — INTERNAL TEST ONLY: no Developer ID, no notarization, no signing secret, no release
+# published. Gatekeeper's refusal is recorded and never bypassed (docs/MACOS-SIGNING.md).
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/release-macos.yml'
+      - 'packaging/**'
+      - 'swangz_client/**'
+      - 'tests/test_packaging_macos.py'
+permissions:
+  contents: read
+concurrency:
+  group: release-macos-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  macos:
+    name: Swangz.app + DMG (macos-latest, unsigned)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # build number = commit count
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Pinned build tool (CI-side only, not shipped as a dependency)
+        run: python -m pip install pyinstaller==6.22.3
+      - name: Record build tools
+        run: |
+          sw_vers
+          uname -m
+          python --version
+          python -m PyInstaller --version
+          python -c "import tkinter; print('Tk', tkinter.TkVersion)"
+      - name: Unit checks (no Mac needed)
+        run: python -m unittest tests.test_packaging_macos -v
+      - name: Build Swangz.app
+        env:
+          SOURCE_DATE_EPOCH: '1700000000'
+        run: python packaging/build.py
+      - name: Stamp version and bundle metadata (ad-hoc seal only)
+        run: python packaging/macos.py stamp
+      - name: Launch smoke of the built app (device code, approval, sync, sign-out against a CI gateway)
+        run: python packaging/smoke.py --binary dist/Swangz.app/Contents/MacOS/Swangz --report smoke-results/macOS-app.json
+      - name: Build DMG + app zip with SHA-256
+        run: python packaging/macos.py dmg
+      - name: Install from the DMG and launch the installed copy (Gatekeeper verdict recorded)
+        run: python packaging/macos.py verify-dmg
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Swangz macOS — RC — UNSIGNED — INTERNAL TEST ONLY"
+            echo '```'
+            cat artifacts/SHA256SUMS 2>/dev/null || echo "no artifacts"
+            echo '```'
+            python -c "import json;r=json.load(open('smoke-results/macOS-dmg.json'));print('\n'.join('- '+s for s in r['steps']));print('- ok:',r['ok'],r.get('error',''))" 2>/dev/null || true
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Swangz-macOS-RC-UNSIGNED
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macOS-evidence
+          path: smoke-results/
+          if-no-files-found: warn
+          retention-days: 14

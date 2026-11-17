@@ -80,3 +80,10 @@ this workflow. Approve the tool choice and pinned PyInstaller dependency hashes 
 production packaging. Publisher certificates, Apple Developer ID/notarization, the release
 signing ceremony and enabling updates are separate approval gates. Do not bypass OS
 security controls to distribute these test builds.
+
+## macOS release candidate (.app + DMG)
+
+`.github/workflows/release-macos.yml` builds `Swangz.app` and a DMG on `macos-latest` with SHA-256 sums,
+runs the launch smoke on the built app and again on a copy installed from the DMG, and records Gatekeeper's
+(expected) refusal. Artifacts are labelled `RC — UNSIGNED — INTERNAL TEST ONLY`. Steps, signing and
+notarization requirements: `docs/MACOS-SIGNING.md`. Script: `packaging/macos.py` (macOS-only tools).
