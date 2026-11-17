@@ -897,3 +897,29 @@ Settings code change is made. Staff-phone regression: 52 checks passed at
 390 light/dark plus 1440 dark, and a 640 light/dark copy passed 36 checks. These
 check purchase names, creations and Tools Show controls; a comprehensive shell
 control measurement remains open. Glass/photo remains open for Arnold's asset.
+
+### Lane B final review checkpoint — 14 November 2026
+
+This checkpoint supersedes the earlier pending-review statuses for these items.
+The shared progress update is carried by #234 (#231 merged at `9a40f7a` before it was pushed); #233/#234 keep detailed evidence
+in their own screenshot notes so the three small PRs do not conflict at this
+file's end. All remain pending their final pushed-head CI and merge.
+
+- O2 (#231): product `9acb442` passed contrast, clipping, focus and link checks
+  at 1440/390/640 light/dark; worst desktop light contrast 4.74:1.
+- Audit O1 (#233): product `992a07a` passed 164 shipped browser checks, plus
+  explicit default/long, with/without-pager measurements. Panel bottom 772,
+  footer 796–812, no page overflow/movement at 1440×852. Detailed/Models and
+  tablet/phone regressions pass. Evidence: `docs/screenshots/audit-o1-height/head-992a07a/`.
+- Staff targets (#234): product `cf5aa20` passed independent 390/640 light/dark
+  measurements. Drawer actions, tabs, six Privacy summaries and the focused skip
+  link reach 44px; no overlapping targets in changed groups. Keyboard focus,
+  Escape return, disclosure activation and scroll-into-view coverage pass;
+  desktop 1440 light/dark is unchanged. The committed suite printed 156 checks
+  passed, then the local 280s shell timeout returned exit 124 during shutdown;
+  this is not recorded as an exit-zero suite run. CI remains required. Evidence:
+  `docs/screenshots/staff-target-gaps/head-cf5aa20/`. No local process remains.
+- Settings header icon nick: could not reproduce across seven badges in both
+  themes (42px badge, centred 20px SVG, no clipping); no Settings change.
+- Glass/photo remains open for Arnold's replacement asset. Real devices and
+  the full local Python suite were not tested; full suites run on GitHub CI.
