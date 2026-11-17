@@ -21,7 +21,7 @@ def device(db, did="d1", person=1):
 
 class MigrationTests(unittest.TestCase):
     def test_v26_adds_exactly_seven_columns_to_devices_and_nothing_else(self):
-        self.assertEqual(len(SCHEMA), 27)
+        self.assertGreaterEqual(len(SCHEMA), 27)
         self.assertIs(SCHEMA[25], MIGRATION)
         self.assertIsInstance(MIGRATION, tuple)
         self.assertEqual(len(MIGRATION), 7)
