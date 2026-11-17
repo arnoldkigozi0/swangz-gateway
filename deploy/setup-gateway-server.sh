@@ -55,6 +55,10 @@ fi
 git -C "$SRC" rev-parse HEAD > "$APP/COMMIT" 2>/dev/null || rm -f "$APP/COMMIT"
 chown -R swangz:swangz "$APP/data" "$APP/.env"
 chmod 600 "$APP/.env"
+# data/ holds the database (+ -wal/-shm), backups/ and .ssh/: only swangz may read it. Re-running fixes
+# files an older install created with looser modes.
+chmod 700 "$APP/data"
+chmod -R go-rwx "$APP/data"
 
 echo "== Caddy: https://$DOMAIN"
 sed "s#^ai.example.com {#$DOMAIN {#" "$SRC/deploy/Caddyfile" > /etc/caddy/Caddyfile

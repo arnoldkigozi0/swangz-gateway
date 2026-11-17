@@ -15,6 +15,8 @@ Use the existing `deploy/setup-gateway-server.sh`, Caddy configuration and `depl
 
 Stop writes for final transfer/deployment. Keep one writable primary database. Deploy reviewed code, apply the additive migration/metadata backfill with a new verified private backup and summary, inspect the result, then restart. Verify local/public health, owner/staff sign-in, preserved counts, report-gate enforcement, entitlement denial, adoption/procurement review, exports and persistence. Keep the previous code/configuration and pre-upgrade backup for recovery; follow the matching-code recovery procedure rather than a destructive down migration.
 
+On the rehearsal host, as root: `systemd-analyze security swangz-gateway` (read the exposure score), then start the service, check local `/healthz`, and run one backup (`systemctl start swangz-gateway-backup.service`) so the hardened gateway, backup and verify units are proven to work before cutover. Record the result in [Hub completion](HUB-COMPLETION.md).
+
 ## Tool access and staff rollout
 
 | Tool configuration | Staff experience | Required organisation action |

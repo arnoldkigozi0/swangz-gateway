@@ -296,6 +296,9 @@ html[data-theme="light"] .u-tubes { --tube-a: rgba(70, 56, 40, .46); --tube-b: r
   .u-table.cards td[data-label]::before { content: attr(data-label); font-size: 12px; font-weight: 550; color: var(--tx-3); padding-top: 2px; }
   .u-table.cards td.lead { display: block; padding-bottom: 6px; }
   .u-table.cards td.lead::before { display: none; }
+  /* a quiet button that names the row wraps on phones instead of widening the card, and sits flush with the labels below */
+  .u-table.cards td.lead > .btn:is(.quiet, .btn--quiet, .btn--ghost) { max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: left; justify-content: flex-start;
+    padding: 6px 0; line-height: 1.35; min-height: 44px; height: auto; }
   .u-table.cards td.hide-sm { display: none; }
 }
 
