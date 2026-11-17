@@ -18,7 +18,6 @@ concurrency:
   cancel-in-progress: true
 env:
   PYINSTALLER_VERSION: '6.22.3'  # pinned build tool (CI-side only; nothing is added to the app's runtime)
-  PREVIOUS_VERSION: '0.0.9'      # stands in for the previous RC until a real one is published as a pre-release
 jobs:
   macos:
     runs-on: macos-latest
@@ -34,21 +33,27 @@ jobs:
           python -c "import tkinter; print('Tk', tkinter.TkVersion)"
           sw_vers; uname -m; hdiutil info | head -3
       - name: Build the previous version (for the upgrade test)
+        # The previous build is the version in the tree, which is also the server's minimum client version
+        # (gateway/enroll.py CLIENT_MINIMUM), so the server accepts it. Replace with the last published RC once one exists.
         run: |
-          sed -i '' "s/^__version__ = .*/__version__ = \"${PREVIOUS_VERSION}\"/" swangz_client/__init__.py
+          OLD=$(python -c "exec(open('swangz_client/__init__.py').read()); print(__version__)")
+          echo "PREVIOUS_VERSION=$OLD" >> "$GITHUB_ENV"
           python packaging/macos_dmg.py --dist dist-previous --work build/macos-previous
+      - name: Build this version (RC build number appended)
+        run: |
+          NEW="${PREVIOUS_VERSION}.${GITHUB_RUN_NUMBER}"
+          echo "NEW_VERSION=$NEW" >> "$GITHUB_ENV"
+          sed -i '' "s/^__version__ = .*/__version__ = \"${NEW}\"/" swangz_client/__init__.py
+          python packaging/macos_dmg.py --dist dist --work build/macos
           git checkout -- swangz_client/__init__.py
-      - name: Build this version
-        run: python packaging/macos_dmg.py --dist dist --work build/macos
       - name: Checksums
         run: |
           cd dist && shasum -a 256 -c ./*.dmg.sha256 && cat ./*.dmg.sha256 > SHA256SUMS && cat SHA256SUMS
           ls -l
       - name: Journey — install, launch, enrol, restart, upgrade, uninstall
         run: |
-          NEW=$(python -c "exec(open('swangz_client/__init__.py').read()); print(__version__)")
           python packaging/macos_journey.py --old dist-previous/*.dmg --new dist/*.dmg \
-            --old-version "$PREVIOUS_VERSION" --new-version "$NEW" --evidence evidence
+            --old-version "$PREVIOUS_VERSION" --new-version "$NEW_VERSION" --evidence evidence
       - name: Keep the RC and the evidence
         if: always()
         uses: actions/upload-artifact@v4
