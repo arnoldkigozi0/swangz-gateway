@@ -141,7 +141,8 @@ def device_open(ctx):
                     (ctx.h.headers.get("user-agent") or "")[:200], "" if ok else (reason or "")[:300], None if ok else (rule or code),
                     device["device_id"]))
     if not ok:
-        status = 409 if code in ("no_address", "unsafe_address", "host_not_allowed", "shared_account") else 403
+        # workspace_policy is the device's state, not the person's access (D-024): a conflict, like an unsafe address
+        status = 409 if code in ("no_address", "unsafe_address", "host_not_allowed", "shared_account", "workspace_policy") else 403
         details = {"report": report_denial["href"]} if report_denial else None
         raise ApiError(status, reason or "This tool isn't open to you right now.", code, details)
     return 200, {"ok": True, "tool": {"id": tool["id"], "name": tool["name"]}, "url": url, "allowed_hosts": allowed_hosts(tool),
