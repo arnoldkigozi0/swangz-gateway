@@ -101,14 +101,26 @@
       if (release) release();
       if (onClose) onClose();
     }
-    function onKey(e) { if (e.key === "Escape" && !document.querySelector("dialog[open]")) close(); }
+    function onKey(e) {
+      if (document.querySelector("dialog[open]")) return;
+      if (e.key === "Escape") close();
+      // The opening frame (or a background render) can leave focus on the trigger.
+      // Recover it before the browser moves Tab through the page behind the modal.
+      else if (e.key === "Tab" && !node.contains(document.activeElement)) {
+        const items = [...node.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+          .filter(n => n.offsetParent !== null);
+        const target = e.shiftKey ? items[items.length - 1] : items[0];
+        if (target) { e.preventDefault(); target.focus({ preventScroll: true }); }
+      }
+    }
     scrim.addEventListener("click", close);
     document.addEventListener("keydown", onKey);
     document.body.append(scrim, node);
     requestAnimationFrame(() => {
       if (closed) return;
       scrim.classList.add("in"); node.classList.add("in");
-      const first = node.querySelector("input, .btn--solid, button"); if (first) first.focus({ preventScroll: true });
+      const first = node.querySelector("input, .btn--solid, button");
+      if (first && !node.contains(document.activeElement)) first.focus({ preventScroll: true });
     });
     return { node, close };
   }
