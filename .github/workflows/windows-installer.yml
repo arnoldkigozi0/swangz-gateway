@@ -1,0 +1,65 @@
+name: Windows installer (RC, UNSIGNED)
+# Builds the Windows installer and runs the install -> launch -> enrol -> restart -> reconnect -> upgrade -> uninstall
+# acceptance against the test suite's local Hub. Test artifacts only: no signing, no release, no deployment.
+on:
+  pull_request:
+    paths:
+      - 'packaging/**'
+      - 'swangz_client/**'
+      - '.github/workflows/windows-installer.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  PYINSTALLER_VERSION: '6.11.1'   # build tool only, pinned; not shipped as a library
+  INNO_SETUP_VERSION: '6.4.3'     # build tool only, pinned (Chocolatey verifies the package checksum)
+jobs:
+  installer:
+    name: RC — UNSIGNED — INTERNAL TEST ONLY (Windows installer)
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Pinned build tools
+        run: |
+          python -m pip install "pyinstaller==$env:PYINSTALLER_VERSION"
+          choco install innosetup --version $env:INNO_SETUP_VERSION --allow-downgrade -y --no-progress
+          python --version
+          python -m PyInstaller --version
+      - name: Build the program
+        run: python packaging/build.py
+      - name: Build the installer
+        run: |
+          $version = python -c "import swangz_client; print(swangz_client.__version__)"
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Qp "/DAppVersion=$version" "/DSourceExe=$PWD\dist\Swangz.exe" "/DOutputDir=$PWD\artifacts" packaging\windows\swangz.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "SETUP=artifacts\Swangz-Setup-$version-UNSIGNED.exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: SHA-256 checksum
+        shell: python
+        run: |
+          import hashlib, os
+          from pathlib import Path
+          setup = Path(os.environ["SETUP"])
+          digest = hashlib.sha256(setup.read_bytes()).hexdigest()
+          Path(str(setup) + ".sha256").write_text(f"{digest}  {setup.name}\n", encoding="utf-8")
+          Path("artifacts/RELEASE-LABEL.txt").write_text("RC — UNSIGNED — INTERNAL TEST ONLY\n", encoding="utf-8")
+          print(f"{setup.name} {setup.stat().st_size} bytes SHA-256 {digest}")
+      - name: Install, launch, enrol, restart, reconnect, upgrade, uninstall
+        run: python packaging/windows/installer_e2e.py --setup $env:SETUP --evidence evidence
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Swangz-Windows-installer-RC-UNSIGNED
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Swangz-Windows-installer-evidence
+          path: evidence/
+          if-no-files-found: warn
+          retention-days: 14
