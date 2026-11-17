@@ -74,7 +74,7 @@ These rules apply only if (b) is reopened later, with Arnold's yes on §2.2 and 
   worthless. The command line otherwise stays as W3 I1 fixed it.
 - **Existing risk, recorded, not a blocker.** The staff web app's `/go/` already sends `usr`/`pwd` in a 302
   `Location`, so it reaches the person's own browser history. It is valid only for the turn, and the agent deletes the
-  sign-in and recycles the container on release. Record it as risk **R-10** in MANAGED-WORKSPACE §6 (one row, in the same PR as the fix). The single-use code
+  sign-in and recycles the container on release. Record it as risk **R-13** in MANAGED-WORKSPACE §6 (one row, in the same PR as the fix). The single-use code
   above is its fix, after 20 Nov.
 
 ### Q3: Turn end and closing the window
@@ -111,7 +111,7 @@ Under (a), no migration. Turns are taken only through `/go/`, and person + tool 
 | S | A stolen device key asks `/device/open` for a shared tool to get a Neko sign-in | 409 `shared_account`, no turn, no `gw.workspaces` call (T1) |
 | T | A crafted manifest or old Hub marks a shared tool `workspace: true` | The server refuses anyway (T1). After the fix the manifest never does (T4). |
 | R | A refusal leaves no trace | A `launches` row with outcome `refused` and rule `shared_account` (T1) |
-| I | The Neko `usr`/`pwd` leaks through argv or history | The app never receives it (T1 body check). R-10 recorded for `/go/`. |
+| I | The Neko `usr`/`pwd` leaks through argv or history | The app never receives it (T1 body check). R-13 recorded for `/go/`. |
 | D | Device calls hold or extend someone's turn | `/device/open` never touches `tool_turns` (T3) |
 | E | A workspace-suspended or enforce-failing device reaches a shared account through the app | Order pinned: the workspace or policy code comes first (T2) |
 
@@ -143,6 +143,6 @@ No new route, so no new permissions test. No state change, so no new audit. The 
 
 ## What stays open
 
-- **R-10** (the Neko `usr`/`pwd` in `/go/`'s redirect): the fix is a single-use launch code, after 20 Nov.
+- **R-13** (the Neko `usr`/`pwd` in `/go/`'s redirect): the fix is a single-use launch code, after 20 Nov.
 - Shared tools in the app (option b): needs Arnold's yes on MANAGED-WORKSPACE §2.2 and §2.6 first, then Q2 to Q4
   above.

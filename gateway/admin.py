@@ -793,6 +793,8 @@ def pause(ctx):
 
 @route("GET", r"/settings")
 def get_settings(ctx):
+    from . import managed  # managed builds on this module, so it is imported here, not at the top
+
     db = ctx.db
     return {"paused": db.get_setting("paused", "0") == "1",
             "retention_days": int(db.get_setting("retention_days", "90") or 0),
@@ -808,6 +810,7 @@ def get_settings(ctx):
             "gate_log_full": db.get_setting("gate_log_full", "0") == "1",
             "rate_per_min": int(db.get_setting("rate_per_min", "0") or 0),
             "support_contact": db.get_setting("support_contact", "") or "",
+            "managed_policy_mode": managed.mode(db), "managed_policy_sha256": managed.expected_sha(db),
             "providers": _providers(ctx), "base_url": ctx.gw.public_url(ctx.h),
             "tz_offset_minutes": ctx.gw.settings.tz_offset_minutes,
             "db_bytes": (db.scalar("SELECT page_count * page_size FROM pragma_page_count(), pragma_page_size()") or 0),
@@ -838,6 +841,17 @@ def put_settings(ctx):
         changed["rate_per_min"] = rpm
     if "support_contact" in ctx.body:
         changed["support_contact"] = str(ctx.body["support_contact"] or "").strip()[:200]
+    from . import managed
+
+    if "managed_policy_mode" in ctx.body:
+        if ctx.body["managed_policy_mode"] not in managed.MODES:
+            raise ApiError(400, "managed_policy_mode must be warn or enforce")
+        changed["managed_policy_mode"] = ctx.body["managed_policy_mode"]
+    if "managed_policy_sha256" in ctx.body:
+        sha = str(ctx.body["managed_policy_sha256"] or "").strip().lower()
+        if sha and not managed.SHA256.fullmatch(sha):
+            raise ApiError(400, "managed_policy_sha256 must be the 64-character SHA-256 the policy generator printed (or empty)")
+        changed["managed_policy_sha256"] = sha
     for k in ("disabled_providers",):
         if k in ctx.body:
             names = ctx.body[k] if isinstance(ctx.body[k], list) else str(ctx.body[k] or "").split(",")
@@ -877,7 +891,7 @@ SETTING_AREAS = {
     "retention_days": "admin", "store_bodies": "admin", "gate_log_full": "admin", "purpose_inference": "admin",
     "retention_bodies_days": "admin", "retention_site_days": "admin", "retention_launch_days": "admin",
     "retention_audit_days": "admin", "device_idle_days": "admin",
-    "block_secrets": "trust", "rate_per_min": "trust",
+    "block_secrets": "trust", "rate_per_min": "trust", "managed_policy_mode": "trust", "managed_policy_sha256": "trust",
     "staff_self_keys": "govern", "support_contact": "govern", "workspace_paused": "emergency", "disabled_providers": "emergency",
 }
 

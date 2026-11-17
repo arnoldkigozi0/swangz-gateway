@@ -15,6 +15,7 @@ from .device_schema import MIGRATION as DEVICE_MIGRATION
 from .device_schema import MIGRATION_22 as DEVICE_LIFECYCLE_MIGRATION
 from .device_schema import MIGRATION_23 as SESSION_KIND_MIGRATION
 from .registry_schema import MIGRATION as PROVIDER_REGISTRY_MIGRATION, MIGRATION_25 as PROVIDER_REGISTRY_NULL_SAFE_MIGRATION
+from .workspace_schema import MIGRATION as MANAGED_WORKSPACE_MIGRATION
 
 SCHEMA = [
     # v1
@@ -515,6 +516,12 @@ SCHEMA = [
     PROVIDER_REGISTRY_MIGRATION,
     # v25: v24's guards made NULL-safe (an explicit NULL in a defaulted column slipped past them under OR REPLACE). v24 stays frozen.
     PROVIDER_REGISTRY_NULL_SAFE_MIGRATION,
+    # v26: the managed workspace on a device: its state (active / suspended / retired), its generation, and the policy the app reported.
+    MANAGED_WORKSPACE_MIGRATION,
+    # v27: which device an Open from the Swangz app came from, so only that device can report its window didn't start.
+    """
+    ALTER TABLE launches ADD COLUMN device_id TEXT;
+    """,
 ]
 
 
