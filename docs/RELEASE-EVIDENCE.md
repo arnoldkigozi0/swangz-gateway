@@ -30,8 +30,8 @@ where the two differ, the stricter one applies.
 | App commands usable by a script: `login`, `status`, `sync`, `apps`, `open`, `autostart on|off`, `logout`, `cleanup`, `update status|check|apply` | exist | `swangz_client/cli.py` |
 | Credential storage: platform keychain, with a file fallback recorded as `key_storage` | exists (`swangz_client/core.py`, `keystore`); which one a CI runner uses is **not yet recorded** | `swangz_client/core.py` |
 | Hub no longer recognises the device | client keeps local data and tells the person to retry or sign out (`core.py`) | `swangz_client/core.py` |
-| Windows installer (Start menu, desktop shortcut option, uninstaller) | **draft PR #243 at 43c92da, not merged.** `windows-latest` job (Inno Setup pinned by SHA-256, build, then the journey) passed: silent install without administrator rights, launch, enrol against a CI Hub (key in the keychain), restart still signed in, Hub unreachable then back with no new sign-in, install over an existing install, silent uninstall (device disconnected at the Hub, credentials, program, shortcuts, Run value and Apps & features entry gone). Run https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44170698656/job/134348675999 ; installer `Swangz-Setup-0.1.0-UNSIGNED.exe`, SHA-256 `3e91b88131e947f2d57740eead32c89b294fa1d83986576d6309d1bd8899b95d`. All PR checks green. **Not covered:** uninstall while the Hub is unreachable (the uninstaller runs `logout`, which cannot disconnect the device at the Hub then), an upgrade from a different earlier build, a second Windows user, SmartScreen | deliverable 1 |
-| macOS DMG, signing and Gatekeeper document | **draft PR #244 (a57f150), not merged.** Its `macos-latest` journey job **FAILED** at `app finishes signing in`: install, first launch, sign-in code and approval passed, then the app said `This version of Swangz (0.0.9) is too old. Please update it.` (exit 1). The built version string is below the Hub's minimum client version. Run: https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44166501723/job/134333865171. Defect for Anvil. `docs/MACOS-SIGNING.md` is in the PR and unread by Probe | deliverable 2 |
+| Windows installer (Start menu, desktop shortcut option, uninstaller) | **merged (#243, merge 25fac2a).** Probe read the run for head 43c92da (run 44170698656) and its `Swangz-Windows-installer-evidence` artifact (`report.json`, install, reinstall and uninstall logs): see the Deliverable 1 results below. Related fix PR `fix/win-installer-running-uninstall` has a green run, not yet read | deliverable 1 |
+| macOS DMG, signing and Gatekeeper document | PRs #244 / #247 draft, not merged. #244's journey failed at 17 Nov 20:22 (`This version of Swangz (0.0.9) is too old`, run 44166501723); a newer run on `feature/macos-dmg` (b4d52a0, run 44175991297) is green but Probe has not read it, so row 2 stays NOT TESTED | deliverable 2 |
 | Updates | disabled by design (`ENABLED=False`, no pinned release key) | `packaging/README.md` |
 | Managed workspace | in PR #204, **not merged**. Demo record is PR #236, steps 1 to 4 on Linux, headless | `docs/W-DEMO-RESULT-20261114.md` |
 | Prompt and reply privacy exposure (F-18, `store_bodies`) | open, release blocker; decision doc PR #160 | sprint brief |
@@ -138,6 +138,23 @@ Needs #204 merged first. Today the only evidence is Linux, headless (#236).
 
 One `release-evidence` workflow runs rows 1 to 9 on both runners and uploads logs, a JSON report and the checksums. It
 writes a table keyed by commit and SHA-256. Today: **none exists**. Every OWNER cell above is recorded by whoever ran it.
+
+## Results read by Probe
+
+### Deliverable 1, Windows installer: commit 43c92da, run https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44170698656, artifact `Swangz-Windows-installer-evidence`
+
+Runner: Windows Server 2025 10.0.26100 (`windows-latest`), Inno Setup 6.4.3, `Swangz-Setup-0.1.0-UNSIGNED.exe`. `report.json` says `ok: true`.
+
+| Kind | Result | What the log shows | Not shown |
+|---|---|---|---|
+| I | PASS (runner) | silent install, no admin install mode (HKCU); files under `%LOCALAPPDATA%\Programs\Swangz`; Start-menu and desktop shortcuts created (installed with the desktop task selected); `Run` value `Swangz` with `--background`; Apps and features entry 0.1.0 | desktop shortcut left out when not chosen; Add or remove programs seen by a person; SmartScreen |
+| A | PASS (runner) | device code approved against the CI Hub, first sync done, `key_storage: keychain` | wrong, expired, reused code refusals through the installed binary |
+| R | PASS (runner) | program closed and started again, still signed in; Hub recorded sync and check-in; Hub unreachable: sync exited 1, credentials and state kept, next sync checked in with no new sign-in | revoked-while-down; reboot with start at sign-in (OWNER) |
+| S | PARTIAL | `self_check`: frozen, updates off, 0 production keys | install-folder ACL listing; secret scan of the installer; checksum verified on a clean runner; SBOM |
+| U | PARTIAL | install over an existing install (same version): same device, still signed in | N+1 over N; profile folder marker kept; older build refused |
+| X | PASS (runner) | silent uninstall ran `Swangz logout` first: device disconnected at the Hub, credentials removed; program, both shortcuts, Run value and uninstall entry deleted; install folder removed (first delete failed with code 145 and succeeded on retry, `Removed all? Yes`) | the person's data folder, if the doc keeps one; no Hub row read by Probe beyond the report's statement |
+
+Deliverable 1 stands as: install, auth, restart, reconnect and uninstall PASS on the runner for the unsigned RC; security, upgrade and OWNER rows open. Not production.
 
 ## Owner-only checklist (never closed by a runner)
 
