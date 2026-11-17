@@ -938,3 +938,26 @@ file's end. All remain pending their final pushed-head CI and merge.
   themes (42px badge, centred 20px SVG, no clipping); no Settings change.
 - Glass/photo remains open for Arnold's replacement asset. Real devices and
   the full local Python suite were not tested; full suites run on GitHub CI.
+
+## 2026-11-17 — Desktop Hub entry points (feature/desktop-functions)
+
+- Resumed the saved worktree after restart. Added Reports & Hub to the existing Tk shell: weekly reports, tools, devices and the administrator control room open only fixed routes on the enrolled origin. Browser-open failures are shown. Device keys are never transferred to the website; website sign-in and all authorization/report gates remain server-side.
+- Existing device-code enrollment and editable server address at enrollment are retained. Changing servers still requires sign-out/re-enrollment. This patch embeds no address, credential, web session or new runtime dependency.
+- Scope limitation: these are system-browser entry points, **not embedded reporting/admin forms**. Browser sign-in is separate from device enrollment. Employees must use separate OS/browser profiles; this patch does not provide managed profile isolation. The tests-only browser_profiles module remains inert. Managed workspace PR #204 is separate. Native Windows/macOS acceptance and a complete desktop reporting/admin journey remain unverified.
+- Actual local checks: `python3 -m unittest tests.test_client.ShellTests -v`: Ran 4 tests in 0.061s, OK. `python3 -m unittest tests.test_client_gui -v`: Ran 16 tests in 0.003s, OK (skipped=16: no usable Tk/display). `git diff --check`: passed. Full Python suite, display-backed GUI checks and browser journeys: not run locally; CI/Probe requested. Web exact-match/phone screenshots do not describe this native Tk window; no web styles changed.
+
+### #246 review corrections — 17 Nov
+
+- Probe and Sentinel rejected initial head `021924f`: CI app-window run 44170872187/job 134349279264 had 15 passes and one failure (stale four-item dock assertion). Updated the dock assertion and click-through to cover Reports & Hub.
+- Removed the Tools browser link and the unused Home route. The bridge now exposes only weekly reports, devices and the control room; no provider-launch route is allowed. New regression check fixes the permitted route set and excludes `/go/`; tests also reject tools/home/arbitrary page requests.
+- Actual corrected local check: `python3 -m unittest tests.test_client.ShellTests -v`: Ran 5 tests in 0.159s, OK. `git diff --check`: passed. Display-backed corrected GUI run and independent verification still pending CI. The initial CI passed the two new GUI tests; this is not a corrected-head result.
+- Integration requirement: #204 adds `tests/test_workspace_launcher.py` (absent from this branch/main). Its `InventoryTests.ALLOWED` must add `("shell.py", "open_hub")` per Sentinel's PR246 review. Do not copy the pending feature wholesale; apply this one-line compatibility correction when integrating #204. The route guard is already included here.
+- Sentinel's recommended release scope keeps admin in the separately authenticated browser, embedded webviews rejected; native weekly reports need a separately approved device-key API from Forge. That API and managed isolation are not claimed by #246.
+
+### #246 integration and drawer keyboard correction — 18 Nov
+
+- Merged main at `a44af1f` normally (includes #204/#245/#243), with no conflicts. Applied Sentinel's required `("shell.py", "open_hub")` caller inventory exception; provider-route exclusion remains tested. Browser profiles now follow merged #204; this bridge adds no separate profile mechanism.
+- Verified the reported browser failure in Windows branch run 44166348431: `light 640: drawer keyboard focus stays inside`. Initial #246 run 44170872187 actually passed browser (its failure was the stale dock assertion); corrected remote head 0c346be run 44176430634 was still pending during inspection.
+- Root-cause risk in staff drawer: initial focus is assigned on an animation frame while the existing trap only receives keys from inside the drawer. A Tab pressed with focus still on the opener can escape. The drawer document key handler now recovers forward/backward Tab from outside, respects a nested native dialog, and its opening frame preserves focus already inside. Existing close/focus-return behavior is retained.
+- Extended staff-phone checks to deliberately focus the opener with the drawer open, recover forward/backward Tab and wrap both drawer boundaries at 390/640 in light/dark. No layout/style change; rendered accessibility verification is pending Probe/CI.
+- Actual local check: `python3 -m unittest tests.test_client.ShellTests tests.test_workspace_launcher.InventoryTests -v`: Ran 8 tests in 1.752s, OK. Node syntax checks for portal.js and staff-phone.cjs and `git diff --check`: passed. No local browser/full Python suite/native build run. CI and Probe verification still required before merge.

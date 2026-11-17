@@ -514,7 +514,9 @@ class InventoryTests(unittest.TestCase):
 
     # core.login and gui._show_code: the Hub's own /device approval page (not an AI tool); gui.open_app: only the
     # Chrome install page (INSTALL_PAGE), after a no_browser refusal. core.open_app has none: tools never leave the workspace.
-    ALLOWED = {("core.py", "login"), ("gui.py", "_show_code"), ("gui.py", "open_app")}
+    # shell.open_hub: fixed Hub reporting/account pages only (Sentinel PR246 review).
+    ALLOWED = {("core.py", "login"), ("gui.py", "_show_code"), ("gui.py", "open_app"),
+               ("shell.py", "open_hub")}
 
     def test_open_url_callers(self):
         found = set()

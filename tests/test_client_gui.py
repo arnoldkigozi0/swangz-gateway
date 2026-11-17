@@ -188,8 +188,8 @@ class WindowTests(unittest.TestCase):
 
     def test_the_dock_moves_between_pages(self):
         app = self.make()
-        self.assertEqual(sorted(buttons(app.dock)), ["Apps", "Home", "Packages", "This device"])
-        for name, expect in (("Apps", "Opens in a company browser of your own"), ("Packages", "Update ready (1.0.0)"), ("This device", "What Swangz records")):
+        self.assertEqual(sorted(buttons(app.dock)), ["Apps", "Home", "Packages", "Reports & Hub", "This device"])
+        for name, expect in (("Apps", "Opens in a company browser of your own"), ("Reports & Hub", "Open weekly reports"), ("Packages", "Update ready (1.0.0)"), ("This device", "What Swangz records")):
             buttons(app.dock)[name].invoke()
             app.root.update()
             self.assertIn(expect, " ".join(self.everything()), name)
@@ -238,6 +238,35 @@ class WindowTests(unittest.TestCase):
             buttons(app.content)["Open Claude Code"].invoke()
         cmd = opened.call_args[0][0]
         self.assertEqual(cmd[-2:], ["run", "claude"])
+
+    def test_hub_actions_explain_separate_browser_signin_and_dispatch(self):
+        app = self.make()
+        buttons(app.dock)["Reports & Hub"].invoke()
+        text = " ".join(self.everything())
+        self.assertIn("grace@swangzavenue.com", text)
+        self.assertIn("open in your browser", text)
+        self.assertIn("own browser profile", text)
+        self.assertNotIn("Open tools", buttons(app.content))
+        with mock.patch.object(gui.shell, "open_hub") as opened:
+            for label, page in (("Open weekly reports", "weekly"),
+                                ("Open my devices", "devices"), ("Open control room", "admin")):
+                buttons(app.content)[label].invoke()
+                opened.assert_called_with(self.client, page)
+        with mock.patch.object(gui.shell, "open_hub", side_effect=OSError("Browser unavailable")):
+            buttons(app.content)["Open weekly reports"].invoke()
+        self.assertIn("Browser unavailable", app.statusbar.cget("text"))
+
+    def test_hub_actions_fit_smallest_supported_window(self):
+        app = self.make()
+        app.root.geometry("780x540")
+        app.show("hub")
+        app.root.update()
+        bottom = app.statusbar.winfo_rooty()
+        for label, button in buttons(app.content).items():
+            self.assertGreaterEqual(button.winfo_rootx(), app.content.winfo_rootx(), label)
+            self.assertLessEqual(button.winfo_rootx() + button.winfo_width(),
+                                 app.content.winfo_rootx() + app.content.winfo_width(), label)
+            self.assertLessEqual(button.winfo_rooty() + button.winfo_height(), bottom, label)
 
     def test_it_can_start_minimised_for_start_at_login(self):
         with mock.patch.object(tk.Tk, "iconify") as iconify:  # a bare display has no window manager to honour it
