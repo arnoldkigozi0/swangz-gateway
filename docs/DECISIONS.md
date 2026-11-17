@@ -822,3 +822,24 @@ Three gaps:
 - `warn` with a mismatch: the window opens and the console shows "not in force".
 - `enforce` on a personal device: not refused for policy.
 - A check that raises reports `ok=false` and never skips the heartbeat.
+
+## D-025 | 2026-11-18 | Who decides a device is a company device, before `enforce` (D-024 follow-up, PR #248)
+
+**Context.** The person approving a device code chooses `owner_kind` (`gateway/enroll.py`, default `personal`). D-024
+point 4 exempts personal devices from `enforce`, so a staff member who calls a company laptop "personal" skips the
+policy check. In `warn`, the default, this changes nothing.
+
+**Decision.**
+1. For release, `owner_kind` stays the person's own declaration. The console labels it "declared by the person".
+2. Before `managed_policy_mode = enforce` is turned on, an admin must be able to confirm or change a device's kind,
+   with the change audited (`before`/`after`, `correlation=device:<id>`, area `govern`). In `enforce`, a device the
+   person declared `personal` that an admin has marked `company` is enforced. An admin's mark always wins over the
+   person's declaration.
+3. Release gate item: `enforce` stays off until (2) is merged and tested.
+
+**Rejected.** Inferring the kind from the device (domain join, MDM, hostname): this reads device state, so CLIENT.md
+rules it out, and it is easy to fake. Defaulting to `company`: the Hub would refuse personal devices that never get the
+pack.
+
+**Tests (with point 2).** The person declares personal and an admin marks it company: refused in `enforce` with no
+report. The admin's change is audited. A viewer or billing role gets 403.
