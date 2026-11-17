@@ -485,6 +485,39 @@ class ShellTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.paths = core.Paths(self.tmp / "home", self.tmp / "data")
 
+    def test_hub_links_use_only_enrolled_origin_and_never_device_credentials(self):
+        device = {"server": "https://hub.example:8443", "key": "never-in-url"}
+        client = SimpleNamespace(signed_in=lambda: True, store=SimpleNamespace(device=lambda: device))
+        expected = {"home": "/", "weekly": "/#/weekly", "tools": "/#/tools",
+                    "devices": "/#/devices", "admin": "/admin"}
+        with patch.object(shell, "open_url", return_value=True) as opened:
+            for page, path in expected.items():
+                self.assertEqual(shell.open_hub(client, page), device["server"] + path)
+                opened.assert_called_with(device["server"] + path)
+        # Reject arbitrary routes, embedded credentials, query strings and foreign destinations.
+        with patch.object(shell, "open_url") as opened:
+            for bad in ("https://elsewhere.example/", "/admin", "../admin"):
+                with self.assertRaises(KeyError):
+                    shell.open_hub(client, bad)
+            for bad in (None, "javascript:alert(1)", "https://user:secret@hub.example",
+                        "https://hub.example?key=secret", "https://hub.example/#secret"):
+                device["server"] = bad
+                with self.assertRaises(ValueError):
+                    shell.open_hub(client, "weekly")
+            opened.assert_not_called()
+
+    def test_hub_open_reports_browser_failure_and_requires_connection(self):
+        client = SimpleNamespace(signed_in=lambda: False)
+        with patch.object(shell, "open_url") as opened:
+            with self.assertRaises(core.NotSignedIn):
+                shell.open_hub(client, "admin")
+            opened.assert_not_called()
+        client = SimpleNamespace(signed_in=lambda: True,
+                                 store=SimpleNamespace(device=lambda: {"server": "https://hub.example"}))
+        with patch.object(shell, "open_url", return_value=False):
+            with self.assertRaisesRegex(OSError, "browser could not open"):
+                shell.open_hub(client, "weekly")
+
     def test_start_at_login_on_linux_and_macos(self):
         for platform_name in ("linux", "darwin"):
             real = sys.platform

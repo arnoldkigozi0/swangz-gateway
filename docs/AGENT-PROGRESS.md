@@ -923,3 +923,10 @@ file's end. All remain pending their final pushed-head CI and merge.
   themes (42px badge, centred 20px SVG, no clipping); no Settings change.
 - Glass/photo remains open for Arnold's replacement asset. Real devices and
   the full local Python suite were not tested; full suites run on GitHub CI.
+
+## 2026-11-17 — Desktop Hub entry points (feature/desktop-functions)
+
+- Resumed the saved worktree after restart. Added Reports & Hub to the existing Tk shell: weekly reports, tools, devices and the administrator control room open only fixed routes on the enrolled origin. Browser-open failures are shown. Device keys are never transferred to the website; website sign-in and all authorization/report gates remain server-side.
+- Existing device-code enrollment and editable server address at enrollment are retained. Changing servers still requires sign-out/re-enrollment. This patch embeds no address, credential, web session or new runtime dependency.
+- Scope limitation: these are system-browser entry points, **not embedded reporting/admin forms**. Browser sign-in is separate from device enrollment. Employees must use separate OS/browser profiles; this patch does not provide managed profile isolation. The tests-only browser_profiles module remains inert. Managed workspace PR #204 is separate. Native Windows/macOS acceptance and a complete desktop reporting/admin journey remain unverified.
+- Actual local checks: `python3 -m unittest tests.test_client.ShellTests -v`: Ran 4 tests in 0.061s, OK. `python3 -m unittest tests.test_client_gui -v`: Ran 16 tests in 0.003s, OK (skipped=16: no usable Tk/display). `git diff --check`: passed. Full Python suite, display-backed GUI checks and browser journeys: not run locally; CI/Probe requested. Web exact-match/phone screenshots do not describe this native Tk window; no web styles changed.
