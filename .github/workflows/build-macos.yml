@@ -39,9 +39,12 @@ jobs:
           OLD=$(python -c "exec(open('swangz_client/__init__.py').read()); print(__version__)")
           echo "PREVIOUS_VERSION=$OLD" >> "$GITHUB_ENV"
           python packaging/macos_dmg.py --dist dist-previous --work build/macos-previous
-      - name: Build this version (RC build number appended)
+      - name: Build this version (patch number raised by the run number)
+        # The app and its updater accept only MAJOR.MINOR.PATCH (swangz_client/updater.py version()),
+        # so the RC number goes into PATCH: 0.1.0 -> 0.1.<run>. Always above the previous build and the server minimum.
         run: |
-          NEW="${PREVIOUS_VERSION}.${GITHUB_RUN_NUMBER}"
+          IFS=. read -r MA MI PA <<< "$PREVIOUS_VERSION"
+          NEW="${MA}.${MI}.$((PA + GITHUB_RUN_NUMBER))"
           echo "NEW_VERSION=$NEW" >> "$GITHUB_ENV"
           sed -i '' "s/^__version__ = .*/__version__ = \"${NEW}\"/" swangz_client/__init__.py
           python packaging/macos_dmg.py --dist dist --work build/macos
