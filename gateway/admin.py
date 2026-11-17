@@ -12,7 +12,7 @@ import sqlite3
 import time
 from urllib.parse import parse_qs, unquote
 
-from . import authz, credentials, geo, guides, proxy, security, store
+from . import authz, config, credentials, geo, guides, proxy, security, store
 
 SESSION_COOKIE = "sgw_admin"
 SESSION_SECONDS = 12 * 3600
@@ -307,6 +307,7 @@ def live_view(ctx):
     depts = {r["id"]: r["department"] for r in ctx.db.q(
         "SELECT id, department FROM people WHERE id IN (%s)" % ",".join("?" * len(people)), tuple(people))} if people else {}
     for t in live:
+        withhold(ctx, t)
         t["device"] = labels.get(t.get("key_id"))
         t["department"] = depts.get(t.get("person_id"))
     return live
@@ -331,6 +332,30 @@ def _shape(row, clip=600):
         if clip and row.get(k) and len(row[k]) > clip:
             row[k] = row[k][: clip - 1] + "…"
     return row
+
+
+# D-023: what people typed and what the AI answered. Only the trust area reads it; for anyone else the server
+# blanks these fields and says so. The UI only hides; this decides.
+CONTENT_AREA = "trust"
+CONTENT_FIELDS = ("prompt", "reply", "actions", "request", "response", "result_urls", "first_prompt")
+
+
+def can_read_content(ctx):
+    return ctx.can(CONTENT_AREA)
+
+
+def withhold(ctx, row, fields=CONTENT_FIELDS):
+    """Blank the content fields of one row for a role without the trust area; returns the row."""
+    if row is not None and not can_read_content(ctx):
+        for k in fields:
+            if k in row:
+                row[k] = None
+        row["content"] = "withheld"
+    return row
+
+
+def metadata_like(q):
+    return "%" + q.replace("%", "").replace("_", "") + "%"
 
 
 @route("GET", r"/requests")
@@ -367,8 +392,12 @@ def list_requests(ctx):
         where.append("r.prompt IS NOT NULL")
     q = ctx.arg("q")
     if q:
-        where.append("(r.prompt LIKE ? OR r.reply LIKE ? OR r.actions LIKE ?)")
-        like = "%" + q.replace("%", "").replace("_", "") + "%"
+        like = metadata_like(q)
+        if can_read_content(ctx):
+            where.append("(r.prompt LIKE ? OR r.reply LIKE ? OR r.actions LIKE ?)")
+            ctx.audit("searched request content", f"{len(q)} characters", "requests")
+        else:  # metadata only: who, which tool, which model
+            where.append("(p.name LIKE ? OR r.client LIKE ? OR r.model LIKE ?)")
         args += [like, like, like]
     if not ctx.arg("all"):
         where.append("(r.kind NOT IN ('other', 'media-status') OR r.outcome != 'ok')")
@@ -376,7 +405,7 @@ def list_requests(ctx):
     sql = (f"SELECT {LIST_COLUMNS} FROM requests r LEFT JOIN people p ON p.id = r.person_id LEFT JOIN keys k ON k.id = r.key_id"
            + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY r.id DESC LIMIT ?")
     rows = ctx.db.q(sql, args + [limit + 1])
-    return {"items": [_shape(r) for r in rows[:limit]], "more": len(rows) > limit}
+    return {"items": [withhold(ctx, _shape(r)) for r in rows[:limit]], "more": len(rows) > limit}
 
 
 @route("GET", r"/requests/(?P<rid>\d+)")
@@ -394,6 +423,7 @@ def get_request(ctx, rid):
     out["request"] = request_body
     out["response"] = response_body
     out["stored"] = request_body is not None or response_body is not None
+    withhold(ctx, out)
     # how sure each fact is: the tool from the catalog, the platform from the user agent, the
     # network from the address (no location database is consulted)
     from . import insight
@@ -415,7 +445,8 @@ def get_request(ctx, rid):
     if row["rule"] and row["rule"].startswith("policy:"):
         pol = ctx.db.one("SELECT id, name FROM policies WHERE id = ?", (int(row["rule"][7:]) if row["rule"][7:].isdigit() else -1,))
         out["rule_name"] = pol["name"] if pol else "a policy since removed"
-    ctx.audit("opened the full record", f"request #{rid}", f"person: {row.get('person') or '-'}")
+    ctx.audit("opened the full record", f"request #{rid}", f"person: {row.get('person') or '-'}"
+              + ("" if can_read_content(ctx) else ", content withheld"))
     if ctx.arg("download"):
         data = json.dumps({"record": out}, indent=2, default=str).encode()
         return data, "application/json", {"Content-Disposition": f'attachment; filename="swangz-ai-record-{rid}.json"',
@@ -425,7 +456,10 @@ def get_request(ctx, rid):
 
 @route("GET", r"/requests/(?P<rid>\d+)/media")
 def get_media(ctx, rid):
-    """Play back what a voice/sound service returned (stored as received)."""
+    """Play back what a voice/sound service returned (stored as received). It is content: trust only."""
+    if not can_read_content(ctx):
+        ctx.audit("was refused content", f"request #{rid}", "needs trust", outcome="denied", area=CONTENT_AREA)
+        raise ApiError(403, "your role can't read what was generated (security is outside it)")
     row = ctx.db.one("SELECT r.id, r.resp_blob, r.resp_ctype, p.name AS person FROM requests r"
                      " LEFT JOIN people p ON p.id = r.person_id WHERE r.id = ?", (int(rid),))
     data = store.load_response_bytes(ctx.db, row) if row else None
@@ -441,7 +475,10 @@ def get_session(ctx, sid):
                     " WHERE r.session = ? AND (r.kind NOT IN ('other', 'media-status') OR r.outcome != 'ok') ORDER BY r.id ASC LIMIT 2000", (sid,))
     if not rows:
         raise ApiError(404, "no such session")
-    items = [_shape(r, clip=0) for r in rows]
+    items = [withhold(ctx, _shape(r, clip=0)) for r in rows]
+    if can_read_content(ctx):
+        ctx.audit("viewed a session's content", f"session {sid[:40]}", f"person: {rows[0]['person'] or '-'}",
+                  correlation=f"person:{rows[0]['person_id']}" if rows[0]["person_id"] else None)
     return {"session": sid, "person": rows[0]["person"], "person_id": rows[0]["person_id"],
             "client": rows[0]["client"], "items": items,
             "cost": sum(r["cost"] or 0 for r in rows), "started": rows[0]["ts"], "last": rows[-1]["ts"]}
@@ -576,6 +613,8 @@ def get_person(ctx, pid):
         " MAX(client) AS client, (SELECT prompt FROM requests r2 WHERE r2.session = r.session AND r2.prompt IS NOT NULL"
         " ORDER BY r2.id LIMIT 1) AS first_prompt FROM requests r WHERE person_id = ? AND session IS NOT NULL"
         " AND kind NOT IN ('other', 'media-status') GROUP BY session ORDER BY last DESC LIMIT 40", (pid,))
+    for sess in person["sessions"]:
+        withhold(ctx, sess)
     person["live"] = [t for t in live_view(ctx) if t["person_id"] == pid]
     from . import entitle
 
@@ -805,7 +844,7 @@ def get_settings(ctx):
             "disabled_providers": [p for p in (db.get_setting("disabled_providers", "") or "").split(",") if p],
             "areas": SETTING_AREAS,
             "block_secrets": db.get_setting("block_secrets", "0") == "1",
-            "store_bodies": db.get_setting("store_bodies", "1") == "1",
+            "store_bodies": config.stores_bodies(db),
             "staff_self_keys": db.get_setting("staff_self_keys", "1") == "1",
             "gate_log_full": db.get_setting("gate_log_full", "0") == "1",
             "rate_per_min": int(db.get_setting("rate_per_min", "0") or 0),

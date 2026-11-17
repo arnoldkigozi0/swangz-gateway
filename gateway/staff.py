@@ -4,6 +4,7 @@ For staff, Swangz AI Hub is simply how they reach AI tools at work. This API onl
 signed-in person's own profile, budget and keys.
 """
 
+import base64
 import html
 import http.client
 import json
@@ -13,7 +14,7 @@ import ssl
 import time
 from urllib.parse import parse_qs, quote, unquote
 
-from . import credentials, entitle, guides, parse, proxy, security, store
+from . import config, credentials, entitle, guides, parse, proxy, security, store
 from .admin import ApiError, Ctx
 
 COOKIE = "sgw_staff"
@@ -401,7 +402,7 @@ def me(ctx):
         # what the company records, stated plainly on the staff app's privacy page
         "privacy": {
             "retention_days": int(ctx.db.get_setting("retention_days", "90") or 0),
-            "store_bodies": ctx.db.get_setting("store_bodies", "1") == "1",
+            "store_bodies": config.stores_bodies(ctx.db),
             "block_secrets": ctx.db.get_setting("block_secrets", "0") == "1",
             "gate_log_full": ctx.db.get_setting("gate_log_full", "0") == "1",
             "support_contact": ctx.db.get_setting("support_contact", "") or "",
@@ -927,8 +928,13 @@ def studio_voice(ctx):
                                               {"text": text, "model_id": model}, ref, purpose=ctx.body.get("purpose"))
     if status != 200 or not ctype.startswith("audio/"):
         raise ApiError(status if status >= 400 else 502, _error_from(payload, "The voice service didn't return audio."))
-    return _creation(_await_record(ctx, "SELECT * FROM requests WHERE turn_id = ? AND person_id = ? AND resp_blob IS NOT NULL",
-                                   (ref, ctx.person["id"])))
+    if config.stores_bodies(ctx.db):
+        return _creation(_await_record(ctx, "SELECT * FROM requests WHERE turn_id = ? AND person_id = ? AND resp_blob IS NOT NULL",
+                                       (ref, ctx.person["id"])))
+    # D-023: with storage off the clip is not kept, so it comes back once, to the person who made it, and is gone after
+    out = _creation(_await_record(ctx, "SELECT * FROM requests WHERE turn_id = ? AND person_id = ?", (ref, ctx.person["id"])))
+    out["audio_once"] = {"type": ctype.split(";")[0], "data": base64.b64encode(payload).decode()}
+    return out
 
 
 @route("POST", r"/studio/generate")

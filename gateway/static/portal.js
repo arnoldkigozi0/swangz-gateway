@@ -1059,6 +1059,13 @@
   }
   function fillCreation(body, c) {
     if (c.outcome && c.outcome !== "ok") body.replaceChildren(el("div", { class: "creation-state bad" }, c.reason || "This one didn't work."));
+    else if (c.audio_once) {  // not kept on the server (storage off): play it now from this response; it's gone after
+      const bytes = Uint8Array.from(atob(c.audio_once.data), (ch) => ch.charCodeAt(0));
+      const src = URL.createObjectURL(new Blob([bytes], { type: c.audio_once.type || "audio/mpeg" }));
+      body.replaceChildren(el("audio", { controls: true, preload: "auto", src }),
+        el("a", { class: "btn btn--small", href: src, download: "swangz-voice-" + c.id + ".mp3" }, icon("download"), "Download"),
+        el("p", { class: "muted small" }, "Not kept — download it now if you need it."));
+    }
     else if (c.audio) body.replaceChildren(el("audio", { controls: true, preload: "none", src: gurl(c.audio), crossorigin: GATEWAY ? "use-credentials" : null }),
       el("a", { class: "btn btn--small", href: gurl(c.audio), download: "swangz-voice-" + c.id + ".mp3" }, icon("download"), "Download"));
     else if (c.urls && c.urls.length) {
@@ -1265,14 +1272,14 @@
           item("pin", "Roughly where from", "A named network (like the office) or, at most, an approximate town — never your exact location.",
             "The gateway sees the network address of each request. Admins see the network's name if Swangz has named it, or an approximate town from an offline table" + (pv.location_table ? "" : " (not loaded here yet)") + ". Your address is never sent to an outside service."))]],
       ["who", "Who can see it", icon("shield"), [
-        el("p", null, "Swangz administrators, in the control room. Every time one opens a full record or exports records, that is itself written to an audit log — and only some admin roles can export what you typed."),
+        el("p", null, pv.store_bodies ? "Swangz administrators, in the control room. Only the security role and owners can read what you typed and what the AI answered, and every time one opens a full record, searches that text or exports records, that is itself written to an audit log." : "Swangz administrators, in the control room: who used which tool, when, and what it cost. No prompt or reply text is kept, so nobody can read what you typed."),
         el("p", null, "Swangz AI Hub shows the details of a personal subscription you record only to you. For a seat on the company plan, control-room users who manage tools or spending see its tool, status, dates, holder, payer and label; those who manage tools also see its plan, quota and period end, and those who manage spending see its price and credit. Whenever you add a subscription record, add a value to it or end it, the audit log notes your name, the change, the time, your network address and a record number. Everyone with control-room access, including read-only users, can see that entry. It never includes the tool, plan, price or anything else you entered."),
         el("details", { class: "p-more" }, el("summary", null, "More about this"),
           el("p", null, "From that entry, control-room users who manage tools or spending can tell whether the change was to a personal subscription or a company seat; for a personal subscription, they still can't see which tool. As with every record here, the people who run the Swangz server and its backups can reach the stored data.")),
         el("p", { class: "muted" }, pv.block_secrets ? "Requests that contain passwords or API keys are refused, to keep them out of AI tools." : "Requests that look like they contain passwords or API keys are flagged so they can be changed.")]],
       ["kept", "How long it's kept", icon("clock"), [
         el("p", null, pv.retention_days ? `AI request records are deleted automatically after ${pv.retention_days} days.` : "AI request records are kept until an administrator removes them."),
-        el("p", { class: "muted" }, !pv.store_bodies ? "Only a summary is kept — not the full contents of requests."
+        el("p", { class: "muted" }, !pv.store_bodies ? "No prompt or reply text is kept — only who, which tool and model, when, and the cost."
           : pv.bodies_days ? `Full request contents are kept for ${pv.bodies_days} days, then only the summary stays.` : "Full request contents are kept for that time, so the exact request can be checked if something goes wrong."),
         pv.site_days || pv.launch_days ? el("p", { class: "muted" }, [pv.site_days ? `AI website visits: ${pv.site_days} days.` : null, pv.launch_days ? `Tools opened from here: ${pv.launch_days} days.` : null].filter(Boolean).join(" ")) : null,
         el("p", null, "Subscription records and their values are kept even after you end them. Audit log entries are kept for at least a year.")]],
