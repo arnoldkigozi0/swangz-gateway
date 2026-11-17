@@ -17,7 +17,7 @@ import subprocess
 import sys
 import time
 
-from . import __version__, agents, core, keystore, shell
+from . import __version__, agents, core, keystore, shell, workspace_launcher
 
 AGENTS = {"claude": "claude-code", "codex": "codex"}
 
@@ -94,6 +94,9 @@ def main(argv=None, client=None):
     except core.NotSignedIn as exc:
         say(str(exc) + "  Run: swangz login")
         return 2
+    except workspace_launcher.LaunchError as exc:
+        say(str(exc) + ("  " + workspace_launcher.INSTALL_PAGE if exc.install else ""))
+        return 1
     except (core.ApiFailure, core.ClientTooOld, keystore.KeyStoreError, agents.AgentConfigError, ValueError, OSError) as exc:
         if args.cmd == "key":
             print("The credential helper could not complete. Open Swangz to retry.", file=sys.stderr)
@@ -163,7 +166,8 @@ def run(args, client):
         return 0
     if cmd == "open":
         client.refresh()
-        say("Opening " + client.open_app(args.tool))
+        how = client.open_app(args.tool)
+        say("Opened in the Swangz workspace window." if how == "workspace" else "Opening " + how)
         return 0
     if cmd == "run":
         rest = args.args[1:] if args.args and args.args[0] == "--" else args.args

@@ -146,6 +146,19 @@ def encode(policy):
     return (json.dumps(policy, indent=2, ensure_ascii=True) + "\n").encode("utf-8")
 
 
+# The policies the baseline hash covers, and those Windows stores as 0/1 or as a JSON string. Kept equal to
+# swangz_client/machine_policy.py by tests/test_machine_policy.py.
+BASELINE_KEYS = tuple(REQUIRED) + ("URLBlocklist", "URLAllowlist", "ExtensionInstallBlocklist", "ExtensionInstallAllowlist",
+                                   "ExtensionInstallForcelist", "DownloadRestrictions")
+
+
+def baseline_sha(policy):
+    """The hash a device reports for this policy on any OS (W5): canonical JSON of BASELINE_KEYS, sorted, compact.
+    The file hash only exists where the policy is a file (Linux); this one is the same in the registry and a plist."""
+    known = {k: policy[k] for k in BASELINE_KEYS if k in policy}
+    return hashlib.sha256(json.dumps(known, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()).hexdigest()
+
+
 def write_new(path, policy):
     """Write a private, exclusive output; never overwrite active system policies.
 
@@ -186,6 +199,8 @@ def main(argv=None):
         parser.exit(2, "Cannot prepare Chrome policy: " + str(exc) + "\n")
     print("Prepared a Chrome policy FILE only. No browser or system policy was changed.")
     print("SHA-256 of the prepared file: " + digest)
+    print("Baseline SHA-256 (pin this one in the console; the Swangz app reports it on Linux, macOS and Windows): "
+          + baseline_sha(policy))
     print("Admin must deploy with Chrome Enterprise/MDM or OS policy, verify chrome://policy and test a separate OS account per employee.")
     print("Provider sign-in is still performed by the authorized person via the provider's approved login; no remote session injection is provided.")
     return 0

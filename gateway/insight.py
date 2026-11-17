@@ -152,7 +152,7 @@ def usage_rows(db, since, until, person=None, tool_id=None):
             x["apps"].add(r["client"])
     for r in db.q(
             "SELECT l.person_id, p.name, p.department, l.tool_id, SUM(l.outcome = 'opened') AS opened,"
-            " SUM(l.outcome != 'opened') AS refused, MAX(l.ts) AS last FROM launches l JOIN people p ON p.id = l.person_id"
+            " SUM(l.outcome = 'refused') AS refused, MAX(l.ts) AS last FROM launches l JOIN people p ON p.id = l.person_id"
             " WHERE l.ts >= ? AND l.ts < ?" + who.format(col="l.person_id") + " GROUP BY l.person_id, l.tool_id",
             [since, until] + extra):
         x = row(r, tools.by_id.get(r["tool_id"]), "A removed tool")
@@ -483,7 +483,10 @@ def devices(ctx):
                 installed = []
             item.update(app_version=d["app_version"] or None, owner_kind=d["owner_kind"], enrolled=d["enrolled"],
                         last_seen=d["last_seen"], packages=installed, os=item["os"] or d["os"] or None,
-                        key_rotations=d["rotations"], key_issued=d["key_issued"])
+                        key_rotations=d["rotations"], key_issued=d["key_issued"],
+                        workspace_state=d["workspace_state"], workspace_generation=d["workspace_generation"],
+                        policy_ok=None if d["policy_ok"] is None else bool(d["policy_ok"]), policy_reported=d["policy_reported"],
+                        policy_source="reported by the app")
     browsers = {}
     for r in db.q("SELECT l.person_id, p.name, l.user_agent, l.ip, MAX(l.ts) AS last, COUNT(*) AS opens FROM launches l"
                   " JOIN people p ON p.id = l.person_id WHERE l.ts >= ? GROUP BY l.person_id, l.user_agent", (now - 90 * DAY,)):
@@ -580,7 +583,7 @@ def tool_usage(ctx, tid):
     denials = [{"type": "launch", "ts": r["ts"], "person": r["person"], "person_id": r["person_id"],
                 "reason": "opened from the portal while not entitled"} for r in db.q(
         "SELECT l.ts, p.name AS person, l.person_id FROM launches l LEFT JOIN people p ON p.id = l.person_id"
-        " WHERE l.tool_id = ? AND l.ts >= ? AND l.outcome != 'opened' ORDER BY l.id DESC LIMIT 10", (tid, since))]
+        " WHERE l.tool_id = ? AND l.ts >= ? AND l.outcome = 'refused' ORDER BY l.id DESC LIMIT 10", (tid, since))]
     denials += [{"type": "site", "ts": r["ts"], "person": r["person"], "person_id": r["person_id"],
                  "reason": "website blocked by the browser gate"} for r in db.q(
         "SELECT su.started AS ts, p.name AS person, su.person_id FROM site_usage su LEFT JOIN people p ON p.id = su.person_id"
@@ -809,7 +812,7 @@ def _personal(db, now, since, offset_minutes):
     since_day = now - DAY
     refused = {}
     for table, ts, cond in (("requests", "ts", "outcome = 'blocked' AND (reason IS NULL OR reason != 'secret in prompt')"),
-                            ("launches", "ts", "outcome != 'opened'"), ("site_usage", "started", "outcome = 'blocked'")):
+                            ("launches", "ts", "outcome = 'refused'"), ("site_usage", "started", "outcome = 'blocked'")):
         for r in db.q(f"SELECT person_id, COUNT(*) AS n FROM {table} WHERE {ts} >= ? AND person_id IS NOT NULL AND {cond}"
                       " GROUP BY person_id", (since_day,)):
             refused.setdefault(r["person_id"], {})[table] = r["n"]
@@ -861,7 +864,7 @@ def security_events(ctx, days):
                        "href": f"#/records/{r['id']}", "evidence": "The gateway's own rules (model, budget, rate limit, pause)."})
     for r in db.q("SELECT l.person_id, p.name AS person, t.name AS tool, COUNT(*) AS n, MAX(l.ts) AS last FROM launches l"
                   " LEFT JOIN people p ON p.id = l.person_id LEFT JOIN tools t ON t.id = l.tool_id"
-                  " WHERE l.ts >= ? AND l.outcome != 'opened' GROUP BY l.person_id, l.tool_id ORDER BY last DESC LIMIT 50", (since,)):
+                  " WHERE l.ts >= ? AND l.outcome = 'refused' GROUP BY l.person_id, l.tool_id ORDER BY last DESC LIMIT 50", (since,)):
         events.append({"type": "denied_open", "severity": "low", "ts": r["last"], "person_id": r["person_id"],
                        "person": r["person"], "title": "Tool opened without access",
                        "text": f"{r['person'] or 'Someone'} tried to open {r['tool'] or 'a removed tool'} from the portal "
