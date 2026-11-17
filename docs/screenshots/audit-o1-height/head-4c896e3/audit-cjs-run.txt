@@ -1,0 +1,11 @@
+AssertionError [ERR_ASSERTION]: dark 1440: and the page itself does not scroll
+    at ok (/home/inquiline/swangz-team/swangz-gateway/.worktrees/audit-o1-height/tests/browser/audit.cjs:14:37)
+    at /home/inquiline/swangz-team/swangz-gateway/.worktrees/audit-o1-height/tests/browser/audit.cjs:69:9 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+exit 1
