@@ -289,7 +289,8 @@ class Call:
 
         ticket = gw.live.start(person_id=self.key["person_id"], person=self.key["person_name"],
                                key_id=self.key["id"], provider=provider.name, model=self.rec["model"],
-                               client=self.rec["client"], session=self.rec["session"], prompt=self.rec["prompt"])
+                               client=self.rec["client"], session=self.rec["session"],
+                               prompt=self.rec["prompt"] if config.stores_bodies(gw.db) else None)
         try:
             resp, conn = self._send(ticket, target, payload, headers)
         except (OSError, http.client.HTTPException) as exc:

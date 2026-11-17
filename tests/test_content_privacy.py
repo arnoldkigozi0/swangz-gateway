@@ -123,6 +123,26 @@ class StorageOffTests(Base):
         self.assertEqual(row["purpose_source"], "inferred")
         self.assertTrue(row["purpose"])
 
+    def test_live_shows_no_prompt_even_to_trusted_roles_with_storage_off(self):
+        seen = {}
+        original = self.rig.gw.live.start
+
+        def start(**info):
+            ticket = original(**info)
+            for who in TRUSTED_ROLES:
+                seen[who] = self.get(who, "/overview")  # the Live list is served here
+            return ticket
+
+        self.rig.gw.live.start = start
+        self.addCleanup(setattr, self.rig.gw.live, "start", original)
+        self.assertEqual(self.rig.anthropic({"model": "claude-test", "max_tokens": 5,
+                                             "messages": [{"role": "user", "content": MARK}]}, key=self.key)[0], 200)
+        self.assertEqual(set(seen), set(TRUSTED_ROLES))
+        for who, (status, body) in seen.items():
+            self.assertEqual(status, 200, who)
+            self.assertIn("claude-test", body, who)  # the request was in flight and listed
+            self.assertNotIn(MARK, body, who)
+
     def test_the_settings_and_staff_privacy_page_say_it_is_off(self):
         self.assertFalse(self.rig.api("GET", "/settings")[1]["store_bodies"])
         status, out = self.staff("GET", "/me", cookie=self.person_cookie)
