@@ -205,7 +205,9 @@ byte for byte; `apps[].open` links carry `?d=<device_id>` **only** under contrac
   Fails closed (`ok: false`): an unreadable, invalid or oversized (> 1 MB) file, a symlink in place of a policy file or of the
   Linux folder, a key given twice in one JSON file, or two sources that disagree. `ok` is true only if every `REQUIRED` setting of the policy pack holds, `URLBlocklist` carries `*`, `file://*`, `chrome://*`
   and `view-source:*`, `URLAllowlist` is not open (`*`, `*://*`, `http://*`, `https://*`), `ExtensionInstallBlocklist` is `["*"]`,
-  the allow and force lists are filled in, and no two policy sources disagree. Missing or unreadable policy is `ok: false`; the check
+  the allow and force lists are filled in, no two policy sources disagree, and none of the policies that would quietly undo
+  the pack is set at all (`machine_policy.FORBIDDEN`: `ExtensionSettings`, the two `...MultipleSourceMergeList` policies,
+  `CloudPolicyOverridesPlatformPolicy`; they are reported as `forbidden:<key>` and never change the hash). Missing or unreadable policy is `ok: false`; the check
   never raises. `sha256` is the **baseline hash**: canonical JSON (sorted, compact) of the policies the pack sets, the same on all
   three systems; `deploy/chrome-policy/prepare.py` prints it as "Baseline SHA-256" and that is the value to pin. The report is sent
   by **company devices only** (D-024): a company enrolment sets `Client.policy_check = machine_policy.report`; a personal one sends

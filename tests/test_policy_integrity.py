@@ -15,7 +15,7 @@ from unittest import mock
 from swangz_client import core, machine_policy as mp
 from swangz_client import workspace_launcher as wl
 
-from .test_machine_policy import prepare, prepared
+from .test_machine_policy import FakeKey, FakeRegistry, as_registry, prepare, prepared
 from .test_managed_workspace import SHA, OTHER_SHA, Base
 
 
@@ -64,9 +64,30 @@ class TamperTests(Fixture):
                 write_pack(self.folder, None, name, json.dumps(extra).encode())
                 self.assertFalse(self.check().ok)
                 (self.folder / name).unlink()
+        for key in mp.FORBIDDEN:  # outside the baseline: caught by problems_in(), the hash unchanged
+            with self.subTest(key):
+                write_pack(self.folder, dict(self.policy, **{key: {"*": {"installation_mode": "allowed"}}}))
+                result = self.check()
+                self.assertFalse(result.ok)
+                self.assertIn("forbidden:" + key, result.problems)
+                self.assertEqual(result.sha256, mp.baseline_sha(self.policy))
+                write_pack(self.folder, None, "zz-extra.json", json.dumps({key: ["URLAllowlist"]}).encode())
+                write_pack(self.folder, self.policy)
+                self.assertIn("forbidden:" + key, self.check().problems)  # also from a second file
+                (self.folder / "zz-extra.json").unlink()
         weakened = dict(self.policy, URLAllowlist=self.policy["URLAllowlist"] + ["mail.google.com"])
         write_pack(self.folder, weakened)
         self.assertFalse(self.check().ok)
+
+    def test_a_forbidden_key_in_the_windows_registry_fails(self):
+        reg = as_registry(self.policy)
+        reg.values["ExtensionSettings"] = json.dumps({"*": {"installation_mode": "allowed"}})
+        reg.subkeys["PolicyListMultipleSourceMergeList"] = FakeKey({"1": "URLAllowlist"})
+        result = mp.check("chrome", platform="win32", registry=FakeRegistry({mp.WINDOWS_KEYS["chrome"]: reg}))
+        self.assertFalse(result.ok)
+        self.assertIn("forbidden:ExtensionSettings", result.problems)
+        self.assertIn("forbidden:PolicyListMultipleSourceMergeList", result.problems)
+        self.assertEqual(result.sha256, mp.baseline_sha(self.policy))
 
     def test_reordered_keys_and_whitespace_keep_the_same_hash(self):
         reordered = {k: self.policy[k] for k in reversed(list(self.policy))}
@@ -100,10 +121,24 @@ class ClientCheckTests(unittest.TestCase):
         self.assertNotIn("policy", self.body(c, personal))
         self.assertIsNone(client(self.tmp, None).policy_check)  # not signed in: no check
 
-    def test_signing_out_drops_the_check(self):
+    def test_a_device_record_without_owner_kind_is_armed_by_the_hubs_manifest(self):
+        c = client(self.tmp, {"server": "https://hub.example"})
+        self.assertIsNone(c.policy_check)
+        c.store.device = lambda: {"server": "https://hub.example"}
+        c._guard = lambda fn: {"device": {"owner_kind": "company"}, "packages": [], "apps": []}
+        c.refresh()
+        self.assertIs(c.policy_check, mp.report)
+        c.policy_check = None
+        c._guard = lambda fn: {"device": {"owner_kind": "personal"}, "packages": [], "apps": []}
+        c.refresh()
+        self.assertIsNone(c.policy_check)
+
+    def test_signing_out_drops_the_check_and_the_baseline(self):
         c = client(self.tmp, {"owner_kind": "company"})
+        c._policy_block = {"sha256": "a" * 64, "mode": "enforce"}
         c._arm_policy_check(None)
         self.assertIsNone(c.policy_check)
+        self.assertIsNone(c._policy_block)
 
     def test_the_heartbeat_with_a_report_is_under_2_kb(self):
         device = {"owner_kind": "company", "key_storage": "file"}

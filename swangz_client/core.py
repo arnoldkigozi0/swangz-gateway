@@ -558,6 +558,7 @@ class Client:
         from . import machine_policy
         company = isinstance(device, dict) and device.get("owner_kind") == "company"
         self.policy_check = machine_policy.report if company else None
+        self._policy_block = None  # a baseline from an earlier enrolment is never this one's
 
     def policy_report(self, max_age=None):
         """-> {"ok": bool, "sha256": str} or None when this device has no check. A result older than POLICY_MAX_AGE is
@@ -772,6 +773,8 @@ class Client:
             raise ClientTooOld(f"This version of Swangz ({__version__}) is too old. Please update it.")
         self.store.save_manifest(manifest)
         self.workspace.apply(manifest.get("browser"))
+        if self.policy_check is None and (manifest.get("device") or {}).get("owner_kind") == "company":
+            self._arm_policy_check(manifest["device"])  # an older device.json without owner_kind: the Hub's word turns it on
         return manifest
 
     def sync(self, force=False):
