@@ -50,6 +50,11 @@ REQUIRED = {
 REQUIRED_BLOCKS = ("*", "file://*", "chrome://*", "view-source:*")
 LISTS = ("URLBlocklist", "URLAllowlist", "ExtensionInstallBlocklist", "ExtensionInstallAllowlist", "ExtensionInstallForcelist")
 KNOWN = tuple(REQUIRED) + LISTS + ("DownloadRestrictions",)
+# D-024 point 5: policies the pack never sets that would quietly undo it. ExtensionSettings can re-allow every extension
+# over ExtensionInstallBlocklist; the merge lists let a second source add entries the app never sees; the cloud override
+# lets a cloud policy win over the machine's. Present at all, with any value, is a problem. Never part of the hash.
+FORBIDDEN = ("ExtensionSettings", "PolicyListMultipleSourceMergeList", "PolicyDictionaryMultipleSourceMergeList",
+             "CloudPolicyOverridesPlatformPolicy")
 BOOLEAN = frozenset(k for k, v in REQUIRED.items() if isinstance(v, bool))
 JSON_STRING = frozenset({"AutoLaunchProtocolsFromOrigins"})  # a "dictionary" policy: one JSON string on Windows
 OPEN_ALLOW = frozenset({"*", "*://*", "http://*", "https://*"})
@@ -174,7 +179,7 @@ def read_windows(browser="chrome", registry=None):
             except OSError:
                 break
             i += 1
-            if sub not in LISTS:
+            if sub not in LISTS and sub not in FORBIDDEN:
                 continue  # `Recommended` and anything else: not machine-enforced list policy, not read
             entries = []
             with registry.OpenKey(key, sub, 0, registry.KEY_READ | registry.KEY_WOW64_64KEY) as lst:
@@ -224,6 +229,9 @@ def merge(sources):
     problem in themselves: which one wins is not something the app should guess."""
     merged, problems = {}, []
     for _, policy in sources:
+        for key in FORBIDDEN:  # kept for problems_in(), whatever the value; baseline_sha() never sees them
+            if key in policy:
+                merged.setdefault(key, policy[key])
         policy = normalise(policy)
         for key, value in policy.items():
             if key in merged and merged[key] != value:
@@ -271,7 +279,7 @@ def allow_problem(entry):
 
 def problems_in(policy):
     """Short names of what is missing or wrong. Never values: the report stays small and says nothing about sites."""
-    out = []
+    out = ["forbidden:" + key for key in FORBIDDEN if key in policy]
     for key, want in REQUIRED.items():
         got = policy.get(key)
         if key not in policy:

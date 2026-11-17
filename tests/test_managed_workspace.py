@@ -17,10 +17,12 @@ OTHER_SHA = "b" * 64
 
 
 class Base(DeviceBase):
+    OWNER = "personal"
+
     def setUp(self):
         super().setUp()
         self.db = self.rig.gw.db
-        self.device = self.enrol()
+        self.device = self.enrol(self.OWNER)
         self.key, self.did = self.device["key"], self.device["device_id"]
 
     def manifest(self, query="?browser_contract=2", key=None):
@@ -294,6 +296,8 @@ class RevocationTests(Base):
 
 
 class PolicyReportTests(Base):
+    OWNER = "company"  # D-024: enforce applies to company devices only
+
     def report(self, ok, sha=SHA, **extra):
         return self.beat({"browser_contract": 2, "policy": {"ok": ok, "sha256": sha}, **extra})
 

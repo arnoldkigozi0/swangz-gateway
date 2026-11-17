@@ -83,8 +83,9 @@ class DeviceOpenTests(Base):
         self.enable_canva()
         self.db.set_setting("managed_policy_sha256", SHA)
         self.db.set_setting("managed_policy_mode", "enforce")
+        self.db.x("UPDATE devices SET owner_kind = 'company' WHERE device_id = ?", (self.did,))  # D-024: company only
         status, out, _ = self.open()
-        self.assertEqual((status, out.get("code")), (403, "workspace_policy"), out)
+        self.assertEqual((status, out.get("code")), (409, "workspace_policy"), out)
         self.assertEqual(self.beat({"browser_contract": 2, "policy": {"ok": True, "sha256": SHA}})[0], 200)
         self.assertEqual(self.open()[0], 200)
 
