@@ -101,8 +101,7 @@ def open_url(url):
     return webbrowser.open(url)
 
 
-HUB_PAGES = {"home": "/", "weekly": "/#/weekly", "tools": "/#/tools",
-             "devices": "/#/devices", "admin": "/admin"}
+HUB_PAGES = {"weekly": "/#/weekly", "devices": "/#/devices", "admin": "/admin"}
 
 
 def hub_url(server, page):

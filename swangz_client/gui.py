@@ -277,7 +277,6 @@ class App:
                       "Hub when finished.", color="muted", wrap=640).pack(anchor="w", pady=(6, 16))
         for page, title, note in (
             ("weekly", "Open weekly reports", "Write, save and submit your tool reports in the Hub."),
-            ("tools", "Open tools", "Open a tool through the Hub, which checks access and required reports."),
             ("devices", "Open my devices", "Review devices connected to your account."),
             ("admin", "Open control room", "Sign in with an authorized administrator account to manage the Hub."),
         ):

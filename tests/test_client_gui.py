@@ -188,8 +188,8 @@ class WindowTests(unittest.TestCase):
 
     def test_the_dock_moves_between_pages(self):
         app = self.make()
-        self.assertEqual(sorted(buttons(app.dock)), ["Apps", "Home", "Packages", "This device"])
-        for name, expect in (("Apps", "Opens in a company browser of your own"), ("Packages", "Update ready (1.0.0)"), ("This device", "What Swangz records")):
+        self.assertEqual(sorted(buttons(app.dock)), ["Apps", "Home", "Packages", "Reports & Hub", "This device"])
+        for name, expect in (("Apps", "Opens in a company browser of your own"), ("Reports & Hub", "Open weekly reports"), ("Packages", "Update ready (1.0.0)"), ("This device", "What Swangz records")):
             buttons(app.dock)[name].invoke()
             app.root.update()
             self.assertIn(expect, " ".join(self.everything()), name)
@@ -246,8 +246,9 @@ class WindowTests(unittest.TestCase):
         self.assertIn("grace@swangzavenue.com", text)
         self.assertIn("open in your browser", text)
         self.assertIn("own browser profile", text)
+        self.assertNotIn("Open tools", buttons(app.content))
         with mock.patch.object(gui.shell, "open_hub") as opened:
-            for label, page in (("Open weekly reports", "weekly"), ("Open tools", "tools"),
+            for label, page in (("Open weekly reports", "weekly"),
                                 ("Open my devices", "devices"), ("Open control room", "admin")):
                 buttons(app.content)[label].invoke()
                 opened.assert_called_with(self.client, page)
