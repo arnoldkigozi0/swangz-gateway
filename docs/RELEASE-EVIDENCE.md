@@ -1,7 +1,7 @@
 # Release evidence matrix: Windows and macOS apps (sprint 17 to 21 Nov 2026)
 
-Status: **draft. Nothing in this file is a pass.** Written by Probe on 17 Nov 2026 against `main` `8ad23d1`; the
-candidate-PR rows below were updated at 23:45 EAT.
+Status: **draft, updated 18 Nov 2026 22:30 EAT against `main` `612282e`.** Rows say PASS only where Probe read the runner log (see "Results read by Probe"); every other row is NOT TESTED, PARTIAL or OWNER. Not production: the builds are unsigned.
+
 For each of deliverables 1 to 10 it lists the evidence that must exist before the row may say PASS, where that
 evidence comes from, and what exists today. It extends `docs/RELEASE-ACCEPTANCE-GATE.md` (G7 and G11 especially);
 where the two differ, the stricter one applies.
@@ -30,12 +30,12 @@ where the two differ, the stricter one applies.
 | App commands usable by a script: `login`, `status`, `sync`, `apps`, `open`, `autostart on|off`, `logout`, `cleanup`, `update status|check|apply` | exist | `swangz_client/cli.py` |
 | Credential storage: platform keychain, with a file fallback recorded as `key_storage` | exists (`swangz_client/core.py`, `keystore`); which one a CI runner uses is **not yet recorded** | `swangz_client/core.py` |
 | Hub no longer recognises the device | client keeps local data and tells the person to retry or sign out (`core.py`) | `swangz_client/core.py` |
-| Windows installer (Start menu, desktop shortcut option, uninstaller) | **merged (#243, merge 25fac2a).** Probe read the run for head 43c92da (run 44170698656) and its `Swangz-Windows-installer-evidence` artifact (`report.json`, install, reinstall and uninstall logs): see the Deliverable 1 results below. Related fix PR `fix/win-installer-running-uninstall` has a green run, not yet read | deliverable 1 |
-| macOS DMG, signing and Gatekeeper document | PRs #244 / #247 draft, not merged. #244's journey failed at 17 Nov 20:22 (`This version of Swangz (0.0.9) is too old`, run 44166501723); a newer run on `feature/macos-dmg` (b4d52a0, run 44175991297) is green but Probe has not read it, so row 2 stays NOT TESTED | deliverable 2 |
+| Windows installer (Start menu, desktop shortcut option, uninstaller) | **merged** (#243, then #250 for a running copy). Latest run read by Probe: #251's run 44355833898 at 493dd07, all steps PASS (Results below). Still unsigned | deliverable 1 |
+| macOS DMG, signing and Gatekeeper document | **merged** (#244). Latest run read by Probe: #251's macOS job 134983573486 at 493dd07, journey passed 31 steps (Results below). `docs/MACOS-SIGNING.md` exists; #251 (draft) adds an evidence section | deliverable 2 |
 | Updates | disabled by design (`ENABLED=False`, no pinned release key) | `packaging/README.md` |
-| Managed workspace | in PR #204, **not merged**. Demo record is PR #236, steps 1 to 4 on Linux, headless | `docs/W-DEMO-RESULT-20261114.md` |
-| Prompt and reply privacy exposure (F-18, `store_bodies`) | open, release blocker; decision doc PR #160 | sprint brief |
-| Machine-policy integrity (W6 / R-8) | in #204; proven only on Linux Chrome CI (`w6-step5`) | `.github/workflows/w6-step5.yml` |
+| Managed workspace | **merged** (#204). Demo record is PR #236 (steps 1 to 4, Linux, headless). #204's `Inert profiles` jobs on `windows-latest` and `macos-latest` were green (names and status only; Probe did not read their logs). No real-Chrome run on Windows or macOS | `docs/W-DEMO-RESULT-20261114.md` |
+| Prompt and reply privacy exposure (F-18, `store_bodies`) | **merged** (#249, 612282e): off by default, content readable only with the trust area. Probe VERIFIED at 58da416 (12 tests plus a whole-database marker scan; no second opinion, codex unreachable). Old stored content stays until retention (Arnold's call). No packaged-app round trip | `docs/DECISIONS.md` D-023 |
+| Machine-policy integrity (W6 / R-8) | **merged** (#248, D-024). Company devices report and verify before Open. Probe has not read a Windows or macOS runner run of a tampered pack; Linux Chrome CI only (`w6-step5`) | `.github/workflows/w6-step5.yml` |
 
 ## Evidence kinds
 
@@ -56,23 +56,23 @@ Each cell is the evidence a runner job must produce. `n/a` = does not apply to t
 
 | Kind | Runner evidence (W) | TODAY | OWNER-only |
 |---|---|---|---|
-| I | silent install exits 0; Start-menu entry present; desktop shortcut present only when chosen; uninstaller listed in Add or remove programs | no installer, only the unsigned archive | SmartScreen prompt on a real PC; how the shortcut looks |
-| A | the installed binary completes the smoke login | smoke runs on the archive, not an installed copy | |
-| R | kill and relaunch the installed app, still signed in | not tested | start on login after a real reboot and sign-in (`swangz autostart on` writes the entry; a runner can only check the entry exists) |
-| S | install folder ACL listed; no secret inside the installer; log shows no Defender or policy command | not tested | |
+| I | silent install exits 0; Start-menu entry present; desktop shortcut present only when chosen; uninstaller listed in Add or remove programs | PASS on runner (run 44355833898) | SmartScreen prompt on a real PC; how the shortcut looks |
+| A | the installed binary completes the smoke login | PASS on runner, installed copy | |
+| R | kill and relaunch the installed app, still signed in | PASS on runner: relaunch, Hub down then back | start on login after a real reboot and sign-in (`swangz autostart on` writes the entry; a runner can only check the entry exists) |
+| S | install folder ACL listed; no secret inside the installer; log shows no Defender or policy command | PARTIAL: self-check only (updates off, 0 release keys) | |
 | U | see row 9 | | |
-| X | silent uninstall removes folder, shortcuts, startup entry and uninstaller entry; leftover list matches the doc | not tested | |
+| X | silent uninstall removes folder, shortcuts, startup entry and uninstaller entry; leftover list matches the doc | PASS on runner, also with the app running (#250) | |
 
 ### 2. macOS `.app` and DMG, with signing and Gatekeeper documented
 
 | Kind | Runner evidence (M) | TODAY | OWNER-only |
 |---|---|---|---|
-| I | mount the DMG, copy the `.app`, record `codesign -dv` and `spctl -a -vv` output as it is (unsigned is expected to be rejected; the document must say so) | no DMG, no signing document; the zip holds a `.app` | Developer ID signing, notarization, `spctl` accepted, the first-open Gatekeeper dialog on a real Mac |
-| A | smoke login from the copied `.app` | not tested | Keychain prompt on a real Mac |
-| R | kill and relaunch | not tested | login item after a real reboot |
-| S | no `spctl --master-disable` or quarantine-strip step in any job or document; `.app` layout intact | not tested | |
+| I | mount the DMG, copy the `.app`, record `codesign -dv` and `spctl -a -vv` output as it is (unsigned is expected to be rejected; the document must say so) | PASS on runner (31-step journey); Gatekeeper rejects the unsigned RC as expected | Developer ID signing, notarization, `spctl` accepted, the first-open Gatekeeper dialog on a real Mac |
+| A | smoke login from the copied `.app` | PASS on runner | Keychain prompt on a real Mac |
+| R | kill and relaunch | PASS: relaunch and sync. **Hub-down reconnect not in the macOS journey** | login item after a real reboot |
+| S | no `spctl --master-disable` or quarantine-strip step in any job or document; `.app` layout intact | PARTIAL: signature intact (ad hoc), no Gatekeeper bypass, no secret scan | |
 | U | see row 9 | | |
-| X | delete the `.app`; leftovers (login item, data folder) listed against the doc | not tested | |
+| X | delete the `.app`; leftovers (login item, data folder) listed against the doc | PASS on runner: only `browser-profiles` kept (R-12), login item and process gone | |
 
 ### 3. Device enrolment and approved company sign-in
 
@@ -155,6 +155,19 @@ Runner: Windows Server 2025 10.0.26100 (`windows-latest`), Inno Setup 6.4.3, `Sw
 | X | PASS (runner) | silent uninstall ran `Swangz logout` first: device disconnected at the Hub, credentials removed; program, both shortcuts, Run value and uninstall entry deleted; install folder removed (first delete failed with code 145 and succeeded on retry, `Removed all? Yes`) | the person's data folder, if the doc keeps one; no Hub row read by Probe beyond the report's statement |
 
 Deliverable 1 stands as: install, auth, restart, reconnect and uninstall PASS on the runner for the unsigned RC; security, upgrade and OWNER rows open. Not production.
+
+### Deliverables 1 and 2, latest runs: PR #251 head 493dd07 (read 18 Nov 2026)
+
+**Windows**, run https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44355833898/job/134983572610. `Swangz-Setup-0.1.0-UNSIGNED.exe`, 13,955,689 bytes, SHA-256 `ba62076a2c7c17fe5dd38c120fa08494cc7819ed3580e89a304ac6f1c551d9bc`.
+PASS: silent install without administrator rights (program, Start-menu and desktop shortcuts, start-at-sign-in value, Apps and features entry); launch (`--version`, Tk window, `--background`, updates off, no release keys); enrol against the CI Hub (key in the keychain); restart still signed in; Hub unreachable then back with no new sign-in; **reinstall over a running copy** (the installer closed it, same device); **silent uninstall while running** (program stopped, device disconnected at the Hub, credentials and Credential Manager entry removed, program, shortcuts, Run value and Apps and features entry gone). This closes the gap Probe raised on #243.
+Not shown: uninstall while the Hub is unreachable, N+1 over N from a different build, a second Windows user, installer secret scan, SmartScreen.
+
+**macOS**, run https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44355833974/job/134983573486 (`macos-latest`, arm64). `Swangz-0.1.4-RC-UNSIGNED-macos-arm64.dmg`, 11,846,983 bytes, SHA-256 `dfccc8180a36f87681f39f4d393ee8994e678bcbe97c5dc1b3422df603af491e` (`shasum -c` OK, `hdiutil verify` VALID). Journey passed, 31 steps:
+PASS: DMG holds the app, an Applications link and the RC notice; old build 0.1.0 installed from its DMG; self-check; `codesign --verify` intact (ad hoc); `spctl` rejects the unsigned RC (expected, recorded, not bypassed); window opens; code approved in the person's browser; sign-in exit 0; device connected at the Hub; start at login on; relaunch still signed in; **upgrade in place 0.1.0 to 0.1.4** keeping the same person and device and data (`browser-profiles`, `device.json`, `extension`, `manifest.json`, `state.json`, `workspace-state.json`); sign out tells the server and removes Swangz; device disconnected at the Hub; no key in the data folder; no Swangz item in the login keychain; only `browser-profiles` kept (R-12, by design); login item removed; app removed; no Swangz process left.
+Not shown: Hub down then back (R), second macOS user, a real Gatekeeper first-open and Keychain prompt (OWNER), signing and notarization (OWNER), a tampered or older build refused.
+
+Row 9 update: upgrade (U) now has runner evidence on macOS (0.1.0 to 0.1.4, data kept) and a same-version reinstall on Windows; an N+1 over N on Windows and the refusal of an older build remain open.
+
 
 ## Owner-only checklist (never closed by a runner)
 
