@@ -116,6 +116,13 @@ class WorkflowTests(unittest.TestCase):
             self.assertIn(needle, e2e)
         self.assertIn("if: always()", WORKFLOW)
 
+    def test_the_e2e_signs_out_before_the_uninstall_and_checks_the_run_value_is_gone(self):
+        e2e = (ROOT / "packaging" / "windows" / "installer_e2e.py").read_text(encoding="utf-8")
+        sign_out, uninstall = e2e.index('app("logout")'), e2e.index("# 8. uninstall while the program runs")
+        self.assertLess(sign_out, uninstall)
+        self.assertIn('"sign out left the start-at-sign-in value"', e2e[sign_out:uninstall])
+        self.assertIn('app("autostart", "on")', e2e[sign_out:uninstall])  # the uninstall still proves it removes the value
+
 
 def load_e2e():
     spec = importlib.util.spec_from_file_location("installer_e2e", ROOT / "packaging" / "windows" / "installer_e2e.py")

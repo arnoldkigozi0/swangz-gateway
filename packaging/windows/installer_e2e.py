@@ -217,23 +217,27 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         passed(f"launch: --version, the Tk {check['tk']} sign-in window, the --background start; updates off, no release keys")
 
         # 3. enrol: first run asks for the Hub address; the person approves the code in their browser
-        login = subprocess.Popen([str(exe), "login", "--server", origin, "--name", "CI installer"], env=env, cwd=work,
-                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        try:
-            deadline, code = time.monotonic() + 90, None
-            while time.monotonic() < deadline and code is None and login.poll() is None:
-                code = rig.gw.db.one("SELECT user_code FROM device_codes WHERE status = 'pending'")
-                time.sleep(0.2)
-            require(code is not None, "the installed program did not ask for a device code")
-            require(fixture.approve(code["user_code"], "personal")[0] == 200, "approval failed")
-            out, err = login.communicate(timeout=120)
-            require(login.returncode == 0, "login/sync failed: " + out[-2000:] + err[-2000:])
-        finally:
-            if login.poll() is None:
-                login.kill()
-                login.communicate()
-        device = json.loads((data / "device.json").read_text(encoding="utf-8"))
-        require(device["server"] == origin, "wrong server saved")
+        def enrol():
+            login = subprocess.Popen(    [str(exe), "login", "--server", origin, "--name", "CI installer"], env=env, cwd=work,
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            try:
+                deadline, code = time.monotonic() + 90, None
+                while time.monotonic() < deadline and code is None and login.poll() is None:
+                    code = rig.gw.db.one("SELECT user_code FROM device_codes WHERE status = 'pending'")
+                    time.sleep(0.2)
+                require(code is not None, "the installed program did not ask for a device code")
+                require(fixture.approve(code["user_code"], "personal")[0] == 200, "approval failed")
+                out, err = login.communicate(timeout=120)
+                require(login.returncode == 0, "login/sync failed: " + out[-2000:] + err[-2000:])
+            finally:
+                if login.poll() is None:
+                    login.kill()
+                    login.communicate()
+            device = json.loads((data / "device.json").read_text(encoding="utf-8"))
+            require(device["server"] == origin, "wrong server saved")
+            return device
+
+        device = enrol()
         key_id = device["key_id"]
         report["key_storage"] = device["key_storage"]
         from swangz_client import keystore
@@ -302,7 +306,25 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         else:
             passed("reinstall (same version) over a running copy: the installer closed it; same device, still signed in, syncs")
 
-        # 7. uninstall while the program runs (as it does when started at sign-in): it is stopped, the device is signed out
+        # 7. sign out from the app: the Hub disconnects the device, local data and the key go, and the start-at-sign-in
+        #    Run value is removed (a signed-out app has nothing to start for)
+        require(reg_value(RUN_KEY, "Swangz"), "the start-at-sign-in value was gone before sign out")
+        app("logout")
+        require(reg_value(RUN_KEY, "Swangz") is None, "sign out left the start-at-sign-in value")
+        require(not (data / "device.json").exists(), "sign out left local credentials")
+        if in_os_store:
+            require(stored_secret() is None, "sign out left the device key in Windows Credential Manager")
+        require(rig.gw.db.scalar("SELECT revoked FROM keys WHERE id = ?", (key_id,)) is not None,
+                "the Hub did not disconnect the signed-out device")
+        passed("sign out: device disconnected at the Hub, local credentials removed, start-at-sign-in value gone")
+
+        # enrol again and switch start-at-sign-in back on, so the uninstall below is proven to remove both itself
+        device = enrol()
+        key_id = device["key_id"]
+        app("autostart", "on")
+        require(reg_value(RUN_KEY, "Swangz"), "autostart on did not write the Run value")
+
+        # 8. uninstall while the program runs (as it does when started at sign-in): it is stopped, the device is signed out
         #    at the Hub, local data and the Credential Manager entry removed, program, shortcuts and Run value gone
         gui = subprocess.Popen([str(exe), "--background"], env=env, cwd=work)
         time.sleep(8)
@@ -321,7 +343,7 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         require(not (data / "device.json").exists(), "local credentials left behind")
         if in_os_store:
             require(stored_secret() is None, "the device key is still in Windows Credential Manager")
-        revoked = rig.gw.db.scalar("SELECT revoked FROM keys WHERE created_by = 'device enrolment' ORDER BY id DESC LIMIT 1")
+        revoked = rig.gw.db.scalar("SELECT revoked FROM keys WHERE id = ?", (key_id,))  # the second enrolment's key
         require(revoked is not None, "the Hub did not disconnect the device")
         passed("silent uninstall while running: program stopped, device disconnected at the Hub, local credentials"
                + (" and Credential Manager entry" if in_os_store else "") + " removed, program, shortcuts, Run value"

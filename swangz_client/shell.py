@@ -54,8 +54,8 @@ def set_autostart(paths, on, command=None):
             else:
                 try:
                     reg.DeleteValue(k, "Swangz")
-                except OSError:
-                    pass
+                except FileNotFoundError:
+                    pass  # already off; any other error (access denied, ...) is raised
         return
     f = autostart_file(paths)
     if not on:
