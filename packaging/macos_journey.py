@@ -32,6 +32,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 EMAIL, PASSWORD, PERSON = "grace@swangzavenue.com", "demo-password", "Nansubuga Grace"
 DEVICE = "CI Mac"
+# swangz_client/core.py remove_everything: the managed-browser folders stay (R-12); each profile is bound to its owner.
+KEPT_AFTER_SIGNOUT = {"browser-profiles"}
 KEYCHAIN_SERVICE = "Swangz AI Hub"  # swangz_client/keystore.py SERVICE
 CODE = re.compile(r"\b([BCDFGHJKMNPQRSTVWXZ2-9]{4}-[BCDFGHJKMNPQRSTVWXZ2-9]{4})\b")
 
@@ -248,11 +250,14 @@ def main(argv=None):
                ", ".join(leftovers) or "folder empty or gone")
         code, _ = j.run(["security", "find-generic-password", "-s", KEYCHAIN_SERVICE])
         j.step("no Swangz item left in the login keychain", code != 0)
+        j.step("only the company-browser folder is kept after sign out (by design, R-12)",
+               set(leftovers) <= KEPT_AFTER_SIGNOUT, ", ".join(leftovers) or "folder empty or gone")
         j.step("login item removed", not login_item.exists())
         code, out = j.run([binary(app), "status"], env=env)
         j.step("status says not signed in", code == 2)
         shutil.rmtree(app)
         j.step("app removed from Applications", not app.exists())
+        j.step("no Swangz process left running", not pids(app))
     finally:
         server.terminate()
         try:
