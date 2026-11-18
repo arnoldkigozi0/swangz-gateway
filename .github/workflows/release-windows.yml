@@ -25,6 +25,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Source date (reproducible builds)
+        # Build times in the program's PE header and the installer's file times become the commit time (packaging/build.py).
+        run: '"SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8'
       - name: Pinned build tools
         run: |
           # Every wheel is pinned by SHA-256 (packaging/requirements-windows-build.txt); the version there must match the env pin.
@@ -97,6 +100,18 @@ jobs:
           path: artifacts/
           if-no-files-found: error
           retention-days: 14
+      - name: Reproducible-build check (build again from the same tree, compare byte for byte)
+        # Records the result in the evidence and the job summary; a difference is reported, not hidden and not a failure.
+        run: |
+          python packaging/build.py --dist dist-b --work build/packaging-b
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $env:ISCC /Qp "/DAppVersion=$env:NEW_VERSION" "/DSourceExe=$PWD\dist-b\Swangz.exe" "/DOutputDir=$PWD\repro-b" packaging\windows\swangz.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $setupName = Split-Path $env:SETUP -Leaf
+          python packaging/reproducible.py --a dist\Swangz.exe --b dist-b\Swangz.exe --label program --report evidence\reproducible-program.json --summary $env:GITHUB_STEP_SUMMARY
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python packaging/reproducible.py --a $env:SETUP --b "repro-b\$setupName" --label installer --report evidence\reproducible-installer.json --summary $env:GITHUB_STEP_SUMMARY
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Upload acceptance evidence
         if: always()
         uses: actions/upload-artifact@v4

@@ -60,7 +60,7 @@ Each cell is the evidence a runner job must produce. `n/a` = does not apply to t
 | A | the installed binary completes the smoke login | PASS on runner, installed copy | |
 | R | kill and relaunch the installed app, still signed in | PASS on runner: relaunch, Hub down then back | start on login after a real reboot and sign-in (`swangz autostart on` writes the entry; a runner can only check the entry exists) |
 | S | install folder ACL listed; no secret inside the installer; log shows no Defender or policy command | PARTIAL: self-check only (updates off, 0 release keys) | |
-| U | see row 9 | | |
+| U | see row 9 | PASS on runner: 0.1.0 to 0.1.14 over a running copy (run 44397268970, main `e27ceb4`) | a second Windows user |
 | X | silent uninstall removes folder, shortcuts, startup entry and uninstaller entry; leftover list matches the doc | PASS on runner, also with the app running (#250) | |
 
 ### 2. macOS `.app` and DMG, with signing and Gatekeeper documented
@@ -71,8 +71,8 @@ Each cell is the evidence a runner job must produce. `n/a` = does not apply to t
 | A | smoke login from the copied `.app` | PASS on runner | Keychain prompt on a real Mac |
 | R | kill and relaunch | PASS: relaunch and sync. **Hub-down reconnect not in the macOS journey** | login item after a real reboot |
 | S | no `spctl --master-disable` or quarantine-strip step in any job or document; `.app` layout intact | PARTIAL: signature intact (ad hoc), no Gatekeeper bypass, no secret scan | |
-| U | see row 9 | | |
-| X | delete the `.app`; leftovers (login item, data folder) listed against the doc | PASS on runner: only `browser-profiles` kept (R-12), login item and process gone | |
+| U | see row 9 | PASS on runner: 0.1.0 to 0.1.10, data kept (run 44391151264, main `dadf6de`) | |
+| X | delete the `.app`; leftovers (login item, data folder) listed against the doc | PASS on runner: sign out alone removes the login item (#253), only `browser-profiles` kept (R-12), process gone | |
 
 ### 3. Device enrolment and approved company sign-in
 
@@ -117,21 +117,21 @@ Needs #204 merged first. Today the only evidence is Linux, headless (#236).
 |---|---|---|---|
 | R | (a) kill and relaunch: still signed in; (b) stop the CI Hub, wait past two heartbeats, restart it: the app is signed in again with no new code; (c) Hub down at app start: a clear message, no key deleted, no second code issued; (d) revoked while the Hub was away: refused on return, local data kept as documented | client logic and unit tests only; **no packaged-app run** | real laptop sleep, Wi-Fi switch, VPN (O-4 below) |
 | S | after an outage no log line exposes the key; offline never deletes a profile folder | not tested | |
-| U | restart after upgrade still signed in | not tested | |
+| U | restart after upgrade still signed in | PASS on both runners: after the upgrade the device is still signed in and checks in (Windows: heartbeat after upgrade; macOS: window opens, same device). Reconnect after a Hub outage is Windows only | |
 
 ### 8. Versioned artifacts, checksums, reproducible builds, release notes
 
 | Kind | Runner evidence (W and M) | TODAY | OWNER-only |
 |---|---|---|---|
-| I | the name carries the version and `UNSIGNED`; the `sha256` file verifies on a clean runner | sidecar checksums exist | |
-| S | two builds of the same commit give the same SHA-256, or the differing bytes are listed and explained (timestamps, signatures); an SBOM is attached; pinned tool versions are listed | no reproducibility check, no SBOM | the approver reads the notes; they may not say production-ready |
+| I | the name carries the version and `UNSIGNED`; the `sha256` file verifies on a clean runner | sidecar checksums exist and verify (Windows, macOS). The shipped version is `0.1.<patch + run number>`: two builds of one commit differ | |
+| S | two builds of the same commit give the same SHA-256, or the differing bytes are listed and explained (timestamps, signatures); an SBOM is attached; pinned tool versions are listed | no reproducibility check, no SBOM. Build tools: macOS pinned by version and SHA-256 (#253, `--require-hashes`); Windows PyInstaller pinned by version only, Inno Setup by SHA-256 | the approver reads the notes; they may not say production-ready |
 
 ### 9. Controlled update architecture, updates disabled until signing
 
 | Kind | Runner evidence (W and M) | TODAY | OWNER-only |
 |---|---|---|---|
 | S | `update status` says updates are off; with no pinned key an offered update is refused; a tampered or older package is refused | the updater exists and is disabled; its unit tests use `tests/fixtures/test_release_rsa4096.json` | enabling updates needs a signing key and Arnold's decision |
-| U | build N and N+1 from two commits; install N, enrol, create a profile marker, install N+1 over it: still signed in, marker kept, version changed; then N over N+1 is refused or documented as unsupported | no installer to upgrade through | |
+| U | build N and N+1 from two commits; install N, enrol, create a profile marker, install N+1 over it: still signed in, marker kept, version changed; then N over N+1 is refused or documented as unsupported | **PASS on both runners.** Windows 0.1.0 to 0.1.14 (key, device and sign-in kept, installer closed the running app); macOS 0.1.0 to 0.1.10 (person, device and data kept). **Not tested:** N over N+1 refused or documented, a genuinely older release (the "previous" build is the same source labelled 0.1.0) | |
 | X | removing N+1 after an upgrade leaves what the doc lists | not tested | |
 
 ### 10. Evidence from install, auth, restart, security, upgrade and uninstall
@@ -168,6 +168,15 @@ Not shown: Hub down then back (R), second macOS user, a real Gatekeeper first-op
 
 Row 9 update: upgrade (U) now has runner evidence on macOS (0.1.0 to 0.1.4, data kept) and a same-version reinstall on Windows; an N+1 over N on Windows and the refusal of an older build remain open.
 
+
+### Post-merge on main: #252 (Windows upgrade) and #253 (sign out turns off start at login), read 19 Nov 2026
+
+Main at `e27ceb4` (#252 merged `0075869`, #253 merged `dadf6de`, this matrix merged `e27ceb4`).
+
+- **Hub checks on `e27ceb4`** (run 44391323345): python 3.10 and 3.12, browser and app-window all success. The Hub checks runs on `dadf6de` and `0075869` show cancelled because a newer push replaced them (concurrency), not because a job failed.
+- **Windows**, run https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44397268970 (`workflow_dispatch` on main at `e27ceb4`, `windows-latest`, Windows Server 2025). The Windows workflow runs on pull requests only, so I started it by hand on main. `report.json` ok. `Swangz-Setup-0.1.14-UNSIGNED.exe`, 13,955,969 bytes, SHA-256 `46f0e00a72a1172a980d1d7d786cdac14e046900fc389c8868b293070e783220` (my `sha256sum` of the downloaded file equals the sidecar). 7 steps PASS: silent install; launch; enrol; restart; network interruption and return with no new sign-in; **upgrade 0.1.0 to 0.1.14 over a running copy** (same device and key, no new sign-in); silent uninstall while running. Artifacts: the 0.1.14 installer, its checksum and `RELEASE-LABEL.txt` ("RC — UNSIGNED — INTERNAL TEST ONLY"), plus the evidence logs; the previous installer is not uploaded.
+- **macOS**, run https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44391151264 (main `dadf6de`): journey success. `Swangz-0.1.10-RC-UNSIGNED-macos-arm64.dmg`; old 0.1.0 installed, upgraded in place to 0.1.10 with data kept; "start at login still on before sign out", then sign out, then "sign out removed the login item" (no `autostart off` beforehand); keychain item gone; only `browser-profiles` kept (R-12); no Swangz process left.
+- **Not proven by a runner:** sign out removing the Windows `Run` value (#253's unit tests patch the platform to darwin and linux only, the Windows journey ends in uninstall, not sign out); an older build refused after N+1; the stored Credential Manager secret equal to the original (it is checked as present); the `key_id` value is asserted equal but not printed in `report.json`.
 
 ## Owner-only checklist (never closed by a runner)
 

@@ -127,3 +127,7 @@ and the installer's and uninstaller's logs are uploaded as the `Swangz-Windows-i
 Not covered by CI: SmartScreen (the installer is unsigned, so Windows warns "unknown publisher" until Swangz signs it
 with its own certificate), a real reboot (a restart of the program stands in for one), and Windows on physical devices.
 These stay on the owner checklist.
+
+Each run also builds the program and installer a second time from the same tree and compares them byte for byte
+(`packaging/reproducible.py`, with `SOURCE_DATE_EPOCH` = the commit time). The measured result and its scope are in
+`packaging/RELEASE-NOTES-RC.md`.

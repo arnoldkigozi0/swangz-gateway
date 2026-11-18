@@ -384,6 +384,44 @@ class RevocationTests(ClientBase):
             self.assertTrue(self.client.logout())
         self.assertFalse(self.client.signed_in())
 
+    def test_logout_turns_start_at_login_off_even_when_clean_up_fails(self):
+        self.sign_in()
+        with patch.object(self.client, "remove_everything", side_effect=OSError("file in use")), \
+                patch.object(shell, "set_autostart") as autostart:
+            with self.assertRaises(OSError):
+                self.client.logout()
+        autostart.assert_called_once_with(self.client.paths, False)
+
+
+class WindowsAutostartTests(unittest.TestCase):
+    """Turning start-at-sign-in off on Windows: an absent Run value is already off; any other registry error is raised."""
+
+    def fake_winreg(self, delete_error):
+        import contextlib
+        reg = SimpleNamespace(HKEY_CURRENT_USER="HKCU", KEY_SET_VALUE=2, REG_SZ=1, deleted=[])
+
+        def delete(key, name):
+            reg.deleted.append(name)
+            if delete_error:
+                raise delete_error
+        reg.OpenKey = lambda *a: contextlib.nullcontext("run-key")
+        reg.DeleteValue = delete
+        return reg
+
+    def turn_off(self, delete_error):
+        reg = self.fake_winreg(delete_error)
+        with patch.dict(sys.modules, {"winreg": reg}), patch.object(sys, "platform", "win32"):
+            shell.set_autostart(None, False, command=["Swangz.exe"])
+        return reg
+
+    def test_an_absent_run_value_is_already_off(self):
+        self.assertEqual(self.turn_off(FileNotFoundError(2, "not found")).deleted, ["Swangz"])
+        self.assertEqual(self.turn_off(None).deleted, ["Swangz"])
+
+    def test_other_registry_errors_are_raised(self):
+        with self.assertRaises(PermissionError):
+            self.turn_off(PermissionError(5, "access denied"))
+
 
 class PackageTests(ClientBase):
     def publish(self, version="1.0.0", files=None, **kw):
