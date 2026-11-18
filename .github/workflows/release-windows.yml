@@ -95,6 +95,18 @@ jobs:
           path: artifacts/
           if-no-files-found: error
           retention-days: 14
+      - name: Reproducible-build check (build again from the same tree, compare byte for byte)
+        # Records the result in the evidence and the job summary; a difference is reported, not hidden and not a failure.
+        run: |
+          python packaging/build.py --dist dist-b --work build/packaging-b
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $env:ISCC /Qp "/DAppVersion=$env:NEW_VERSION" "/DSourceExe=$PWD\dist-b\Swangz.exe" "/DOutputDir=$PWD\repro-b" packaging\windows\swangz.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $setupName = Split-Path $env:SETUP -Leaf
+          python packaging/reproducible.py --a dist\Swangz.exe --b dist-b\Swangz.exe --label program --report evidence\reproducible-program.json --summary $env:GITHUB_STEP_SUMMARY
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python packaging/reproducible.py --a $env:SETUP --b "repro-b\$setupName" --label installer --report evidence\reproducible-installer.json --summary $env:GITHUB_STEP_SUMMARY
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Upload acceptance evidence
         if: always()
         uses: actions/upload-artifact@v4
