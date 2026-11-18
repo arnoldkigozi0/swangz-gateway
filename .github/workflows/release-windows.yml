@@ -90,6 +90,13 @@ jobs:
           Path(str(setup) + ".sha256").write_text(f"{digest}  {setup.name}\n", encoding="utf-8")
           Path("artifacts/RELEASE-LABEL.txt").write_text("RC — UNSIGNED — INTERNAL TEST ONLY\n", encoding="utf-8")
           print(f"{setup.name} {setup.stat().st_size} bytes SHA-256 {digest}")
+      - name: SBOM (CycloneDX, shipped next to the installer)
+        # Lists the program, its Python runtime, the client code, every bundled native file with its SHA-256, and the
+        # hash-pinned build tools. Fails if a third-party Python package is found inside the program.
+        run: >-
+          python packaging/sbom.py --program dist\Swangz.exe --version $env:NEW_VERSION
+          --requirements packaging\requirements-windows-build.txt --epoch $env:SOURCE_DATE_EPOCH
+          --out artifacts\Swangz-$env:NEW_VERSION.cdx.json
       - name: Install the previous build, launch, enrol, restart, reconnect, upgrade, uninstall
         run: >-
           python packaging/windows/installer_e2e.py --setup $env:SETUP --evidence evidence

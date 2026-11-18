@@ -112,7 +112,8 @@ The installer:
   put on the computer, even offline. It then removes the program, the shortcuts, the `Run` value and the Apps & features
   entry. Installing again over an existing install closes a running copy and keeps the person's device and settings.
 
-The artifact is `Swangz-Setup-<version>-UNSIGNED.exe` plus a `.sha256` file and `RELEASE-LABEL.txt`.
+The artifact is `Swangz-Setup-<version>-UNSIGNED.exe` plus a `.sha256` file, `RELEASE-LABEL.txt` and a CycloneDX SBOM
+(`Swangz-<version>.cdx.json`, `packaging/sbom.py`; the job fails if a third-party Python package is found in the program).
 
 `packaging/windows/installer_e2e.py` is the acceptance run on the runner. It does: silent install, launch (self-check
 window, `--background` start), enrol against the test suite's local Hub, restart, network interruption and recovery
