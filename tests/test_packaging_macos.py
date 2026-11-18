@@ -3,6 +3,7 @@ pinned, and never bypassing Gatekeeper. The build itself runs on macos-latest; t
 
 import importlib.util
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -49,7 +50,12 @@ class MacBuildTests(unittest.TestCase):
         wf = (ROOT / ".github" / "workflows" / "build-macos.yml").read_text(encoding="utf-8")
         self.assertIn("runs-on: macos-latest", wf)
         self.assertRegex(wf, r"PYINSTALLER_VERSION: '\d+\.\d+\.\d+'")
-        self.assertIn('pyinstaller==${PYINSTALLER_VERSION}', wf)
+        self.assertIn('--require-hashes --only-binary :all: -r packaging/requirements-macos-build.txt', wf)
+        version = re.search(r"PYINSTALLER_VERSION: '([\d.]+)'", wf).group(1)
+        reqs = (ROOT / "packaging" / "requirements-macos-build.txt").read_text()
+        pins = re.findall(r"^([a-z0-9-]+)==(\S+) \\\n\s+--hash=sha256:[0-9a-f]{64}$", reqs, re.M)
+        self.assertIn(("pyinstaller", version), pins)  # the workflow's version and the hashed pin agree
+        self.assertEqual(len(pins), len(re.findall(r"^[a-z0-9-]+==", reqs, re.M)))  # every pin carries a hash
         self.assertNotIn("brew install", wf)  # no unpinned DMG tools
         self.assertIn("shasum -a 256 -c", wf)
         self.assertIn("macos_journey.py", wf)

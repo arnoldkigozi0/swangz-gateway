@@ -239,8 +239,8 @@ def main(argv=None):
                and data.exists() and set(keep) <= {p.name for p in data.iterdir()}, ", ".join(keep))
         j.step("window opens after upgrade", launch_and_quit(j, app, j.evidence / "3-after-upgrade.png"))
 
-        code, out = j.run([binary(app), "autostart", "off"], env=env)
-        code, out = j.run([binary(app), "logout"], env=env)
+        j.step("start at login still on before sign out", login_item.exists(), str(login_item))
+        code, out = j.run([binary(app), "logout"], env=env)  # sign out alone must remove the login item
         j.step("sign out tells the server and removes Swangz", code == 0 and "removed" in out and "couldn't" not in out, out)
         devices = browser.my_devices() or []
         j.step("server shows the device disconnected", bool(devices) and all(k.get("revoked") for k in devices))
@@ -252,7 +252,7 @@ def main(argv=None):
         j.step("no Swangz item left in the login keychain", code != 0)
         j.step("only the company-browser folder is kept after sign out (by design, R-12)",
                set(leftovers) <= KEPT_AFTER_SIGNOUT, ", ".join(leftovers) or "folder empty or gone")
-        j.step("login item removed", not login_item.exists())
+        j.step("sign out removed the login item", not login_item.exists(), str(login_item))
         code, out = j.run([binary(app), "status"], env=env)
         j.step("status says not signed in", code == 2)
         shutil.rmtree(app)

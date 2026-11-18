@@ -37,9 +37,8 @@ What the journey shows, and what it does not:
 - After sign out only `browser-profiles` may remain in `~/Library/Application Support/Swangz/`. That is deliberate
   (R-12): each company-browser profile is bound to its owner and wiped when it is reassigned, not on sign out. The
   journey fails if anything else is left, or if a Swangz process is still running after the app is removed.
-- `Swangz logout` does not remove the start-at-login item by itself; the journey runs `autostart off` first. A person
-  who signs out with start at login on keeps `com.swangzavenue.swangz.plist` until they turn it off. This is a
-  client gap, recorded here, not hidden by the test.
+- Sign out turns start at login off: `Swangz logout` removes `com.swangzavenue.swangz.plist`, and the journey
+  checks it exists before sign out and is gone after it (no `autostart off` first).
 - The runner is a fresh virtual Mac (Apple silicon). It does not show a downloaded, quarantined copy opening, an
   Intel Mac, or a person's real keychain prompts; those need item 6 below.
 
@@ -138,5 +137,5 @@ the sign-in.
 |---|---|---|
 | Device key | login keychain, service "Swangz AI Hub" (a protected file only if the keychain does not work) | yes |
 | Device record, state, manifest, packages | `~/Library/Application Support/Swangz/` | yes |
-| Start at login | `~/Library/LaunchAgents/com.swangzavenue.swangz.plist` (only when turned on) | turned off first by the journey; `autostart off` removes it |
+| Start at login | `~/Library/LaunchAgents/com.swangzavenue.swangz.plist` (only when turned on) | yes (sign out turns start at login off; the journey checks the file is gone) |
 | The app | `/Applications/Swangz.app` | dragged to the Bin by the person |
