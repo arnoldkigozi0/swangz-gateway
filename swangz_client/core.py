@@ -28,6 +28,7 @@ from . import __version__, agents, bundles, keystore, shell
 TIMEOUT = 30
 MAX_DOWNLOAD = 150 * 1024 * 1024
 LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1", "[::1]")
+POLICY_MAX_AGE = 60  # D-024: a machine-policy result is never reused once it is a minute old
 HEARTBEAT_SECONDS = 15 * 60  # the window's sync/check-in interval; a refused key is not retried faster than this
 ROTATE_AFTER_DAYS = 30  # used when the manifest does not say
 ROTATE_LOCK_STALE = 180  # a rotation is two short calls; a lock older than this is from a hung or dead process
@@ -533,9 +534,74 @@ class Client:
         self.sleep, self.open_url, self.run = sleep, open_url or shell.open_url, run
         from .workspace_state import WorkspaceState
         self.workspace = WorkspaceState(self)
-        # W5: set (by the managed workspace) to a callable returning {"ok": bool, "sha256": str}, e.g.
-        # `machine_policy.report`. While it is None the heartbeat is exactly what it was before (contract 1).
+        # W5 / D-024: a callable returning {"ok": bool, "sha256": str}. A company enrolment sets it to
+        # `machine_policy.report`; a personal one leaves it None, so its heartbeat has no `policy` field.
         self.policy_check = None
+        self._policy_cache = None  # (monotonic time, report): never used once older than POLICY_MAX_AGE
+        self._policy_block = None  # the latest {"sha256", "mode"} the Hub sent in a heartbeat answer
+        self.monotonic = time.monotonic
+        try:
+            self._arm_policy_check(self.store.device())
+        except Exception:  # an unreadable device record: no check, the same as before
+            pass
+
+    @property
+    def policy_check(self):
+        return self._policy_check
+
+    @policy_check.setter
+    def policy_check(self, check):
+        self._policy_check, self._policy_cache = check, None  # a new check never reuses the old one's result
+
+    def _arm_policy_check(self, device):
+        """D-024 point 1: company devices only."""
+        from . import machine_policy
+        company = isinstance(device, dict) and device.get("owner_kind") == "company"
+        self.policy_check = machine_policy.report if company else None
+        self._policy_block = None  # a baseline from an earlier enrolment is never this one's
+
+    def policy_report(self, max_age=None):
+        """-> {"ok": bool, "sha256": str} or None when this device has no check. A result older than POLICY_MAX_AGE is
+        never reused; a check that raises or answers nonsense is a failing report."""
+        if self.policy_check is None:
+            return None
+        max_age = POLICY_MAX_AGE if max_age is None else min(max_age, POLICY_MAX_AGE)
+        now = self.monotonic()
+        if self._policy_cache and 0 <= now - self._policy_cache[0] < max_age:
+            return dict(self._policy_cache[1])
+        try:
+            report = self.policy_check()
+        except Exception:  # a check that cannot run is a failing check, never a missed heartbeat
+            report = None
+        ok = isinstance(report, dict) and report.get("ok") is True
+        sha = report.get("sha256") if isinstance(report, dict) and isinstance(report.get("sha256"), str) else ""
+        out = {"ok": ok, "sha256": sha}
+        self._policy_cache = (now, out)
+        return dict(out)
+
+    def policy_expected(self):
+        """The baseline and mode the Hub last sent: the heartbeat answer, else the manifest's contract-2 block."""
+        block = self._policy_block
+        if not isinstance(block, dict):
+            browser = (self.store.manifest() or {}).get("browser")
+            block = browser.get("policy") if isinstance(browser, dict) else None
+        block = block if isinstance(block, dict) else {}
+        sha = block.get("sha256") if isinstance(block.get("sha256"), str) else None
+        return (sha or None), ("enforce" if block.get("mode") == "enforce" else "warn")
+
+    def policy_gate(self):
+        """D-024 point 3, before any window starts. -> None when it may open; raises LaunchError("workspace_policy")
+        in `enforce` when the app's own fresh check fails or its hash is not the Hub's baseline. In `warn` the window
+        opens and the result goes in the next heartbeat. A device with no check (personal) is never refused here."""
+        report = self.policy_report()
+        if report is None:
+            return None
+        want, mode = self.policy_expected()
+        problem = not report["ok"] or (want is not None and report["sha256"] != want)
+        if problem and mode == "enforce":
+            from . import workspace_launcher as wl
+            raise wl.LaunchError("workspace_policy")
+        return report
 
     # ------------------------------------------------------------ who this device is
 
@@ -624,6 +690,7 @@ class Client:
                     "name": name or device_name(), "person": out["person"], "signed_in": time.time(), "key_issued": time.time()}
             self.store.save_device(info, out["key"])
             self.store.save_state({"installed": {}, "last_sync": None})
+            self._arm_policy_check(info)
             return info
         raise ApiFailure(0, "expired_token", "The sign-in code expired before it was approved. Try again.")
 
@@ -706,6 +773,8 @@ class Client:
             raise ClientTooOld(f"This version of Swangz ({__version__}) is too old. Please update it.")
         self.store.save_manifest(manifest)
         self.workspace.apply(manifest.get("browser"))
+        if self.policy_check is None and (manifest.get("device") or {}).get("owner_kind") == "company":
+            self._arm_policy_check(manifest["device"])  # an older device.json without owner_kind: the Hub's word turns it on
         return manifest
 
     def sync(self, force=False):
@@ -803,6 +872,7 @@ class Client:
                     pass
         self.workspace.close()  # every caller (_revoked, logout, Revoked during rotation) ends with no window open
         self.store.wipe()
+        self._arm_policy_check(None)
         self.workspace.forget()  # the latch belongs to this enrolment; the folders stay (R-12)
 
     def _heartbeat_body(self):
@@ -812,15 +882,10 @@ class Client:
                 "packages": [{"id": pid, "version": r.get("version", "?")} for pid, r in state["installed"].items()]}
         if storage == "keychain":  # which native store holds it; a file has no backend to name
             body["key_backend"] = keystore.backend_name()
-        if self.policy_check is not None:
-            try:
-                report = self.policy_check()
-            except Exception:  # a check that cannot run is a failing check, never a missed heartbeat
-                report = None
-            ok = isinstance(report, dict) and report.get("ok") is True
-            sha = report.get("sha256") if isinstance(report, dict) and isinstance(report.get("sha256"), str) else ""
+        report = self.policy_report()
+        if report is not None:
             body["browser_contract"] = 2
-            body["policy"] = {"ok": ok, "sha256": sha}
+            body["policy"] = report
         return body
 
     def heartbeat(self):
@@ -839,6 +904,8 @@ class Client:
             self.workspace.failure(ApiFailure(200, "invalid_response", "The Hub returned an invalid response."))
             return None
         self.workspace.apply({"contract": 2, "workspace": out["workspace"]} if "workspace" in out else None)
+        if isinstance(out.get("policy"), dict):
+            self._policy_block = out["policy"]
         if out.get("latest_client") and out["latest_client"] != state.get("latest_client"):
             state["latest_client"] = out["latest_client"]
             self.store.save_state(state)
@@ -1126,6 +1193,7 @@ class Client:
         # What this device can check on its own comes first, so a missing browser or a bad folder is never recorded
         # at the Hub as an open.
         self.launcher.ready(owner, gen(browser.get("workspace")))
+        self.policy_gate()  # D-024: in enforce a failing or unexpected policy is refused here, before the Hub records an open
         # The Hub decides (same checks and launch record as /go/); the address is checked again here.
         out = self._guard(lambda: self.api().call("POST", "/device/open", {"tool": app["id"]}))
         try:

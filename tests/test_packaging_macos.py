@@ -1,0 +1,78 @@
+"""The macOS RC build (packaging/macos_dmg.py, .github/workflows/build-macos.yml): labelled unsigned, checksummed,
+pinned, and never bypassing Gatekeeper. The build itself runs on macos-latest; these checks run anywhere."""
+
+import importlib.util
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def load(name):
+    spec = importlib.util.spec_from_file_location("t_" + name, ROOT / "packaging" / (name + ".py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class MacBuildTests(unittest.TestCase):
+    def setUp(self):
+        self.m = load("macos_dmg")
+
+    def test_every_name_says_rc_unsigned(self):
+        self.assertEqual(self.m.dmg_name("0.1.0", "arm64"), "Swangz-0.1.0-RC-UNSIGNED-macos-arm64.dmg")
+        self.assertIn("RC UNSIGNED", self.m.volume_name("0.1.0"))
+        self.assertEqual(self.m.LABEL, "RC — UNSIGNED — INTERNAL TEST ONLY")
+        self.assertIn(self.m.LABEL, self.m.README)
+        self.assertIn(self.m.LABEL, self.m.plist_values("0.1.0")["NSHumanReadableCopyright"])
+
+    def test_the_bundle_carries_the_app_version_and_identifier(self):
+        v = self.m.plist_values("1.2.3")
+        self.assertEqual((v["CFBundleShortVersionString"], v["CFBundleVersion"], v["CFBundleIdentifier"]),
+                         ("1.2.3", "1.2.3", "com.swangzavenue.swangz"))
+        self.assertEqual(self.m.app_version(), load("macos_dmg").app_version())
+
+    def test_steps_sign_ad_hoc_only_and_never_touch_gatekeeper(self):
+        commands, dmg = self.m.steps(Path("/d"), Path("/w"), "0.1.0", "arm64")
+        flat = [" ".join(c) for c in commands]
+        sign = [c for c in commands if c[0] == "codesign" and "--sign" in c]
+        self.assertEqual(len(sign), 1)
+        self.assertEqual(sign[0][sign[0].index("--sign") + 1], "-")  # ad hoc: identifies nobody
+        for bad in ("xattr", "quarantine", "spctl", "master-disable", "--no-strict"):
+            self.assertFalse([c for c in flat if bad in c], bad)
+        self.assertTrue(any(c.startswith("hdiutil create") for c in flat))
+        self.assertTrue(any(c.startswith("hdiutil verify") for c in flat))
+        self.assertEqual(dmg.name, "Swangz-0.1.0-RC-UNSIGNED-macos-arm64.dmg")
+
+    def test_workflow_pins_its_tools_and_keeps_evidence(self):
+        wf = (ROOT / ".github" / "workflows" / "build-macos.yml").read_text(encoding="utf-8")
+        self.assertIn("runs-on: macos-latest", wf)
+        self.assertRegex(wf, r"PYINSTALLER_VERSION: '\d+\.\d+\.\d+'")
+        self.assertIn('pyinstaller==${PYINSTALLER_VERSION}', wf)
+        self.assertNotIn("brew install", wf)  # no unpinned DMG tools
+        self.assertIn("shasum -a 256 -c", wf)
+        self.assertIn("macos_journey.py", wf)
+        self.assertIn("evidence/", wf)
+        self.assertNotIn("secrets.", wf)  # signing is not wired until Arnold provides the account
+        for bad in ("xattr", "master-disable", "spctl --add"):
+            self.assertNotIn(bad, wf)
+
+    def test_journey_expects_gatekeeper_to_refuse_and_checks_the_uninstall(self):
+        text = (ROOT / "packaging" / "macos_journey.py").read_text(encoding="utf-8")
+        self.assertIn('"spctl", "--assess"', text)
+        self.assertIn("code != 0", text)
+        for step in ("upgraded in place", "server shows the device disconnected", "no Swangz item left in the login keychain",
+                     "app removed from Applications", "after restart"):
+            self.assertIn(step, text)
+        self.assertNotIn("xattr", text)
+
+    def test_the_signing_doc_lists_what_only_arnold_can_provide(self):
+        doc = (ROOT / "docs" / "MACOS-SIGNING.md").read_text(encoding="utf-8")
+        for item in ("Apple Developer Program", "Developer ID Application", "notarytool", "stapler staple",
+                     "D-U-N-S", "physical-Mac acceptance", "RC — UNSIGNED — INTERNAL TEST ONLY", "MACOS_TEAM_ID"):
+            self.assertIn(item, doc)
+        self.assertIn("No `xattr -d com.apple.quarantine`", doc)
+
+
+if __name__ == "__main__":
+    unittest.main()

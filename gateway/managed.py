@@ -79,7 +79,10 @@ def record_policy_report(ctx, person, device, now):
 
 
 def policy_problem(db, device, now):
-    """Why `enforce` would refuse this device, or None. Missing, stale, failing, or not the baseline the company expects."""
+    """Why `enforce` would refuse this device, or None. Missing, stale, failing, or not the baseline the company expects.
+    A personal device never gets the pack and keeps the extension gate, so it has no policy problem (D-024 point 4)."""
+    if device.get("owner_kind") == "personal":
+        return None
     if device.get("policy_ok") is None or not device.get("policy_reported"):
         return "has not reported its browser policy"
     if now - device["policy_reported"] > POLICY_STALE_SECONDS:
@@ -106,7 +109,7 @@ def launch_refusal(gw, person, query):
     state = effective_state(gw, person, device)
     if state != "active":
         return PLAIN[state], f"workspace_{state}"
-    if mode(gw.db) == "enforce":
+    if mode(gw.db) == "enforce" and device.get("owner_kind") != "personal":
         problem = policy_problem(gw.db, device, time.time())
         if problem:
             return (f"This device {problem}, so your Swangz workspace cannot open a provider. Check that the company browser "

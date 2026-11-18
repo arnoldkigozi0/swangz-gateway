@@ -10,6 +10,8 @@ from .test_managed_workspace import Base, SHA
 
 
 class ProbeGapTests(Base):
+    OWNER = "company"  # D-024: enforce applies to company devices only
+
     def other_persons_device(self):
         db = self.db
         pid = db.x("INSERT INTO people(name, email, created) VALUES('Other','other@swangzavenue.com',?)", (time.time(),)).lastrowid

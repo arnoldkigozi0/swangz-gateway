@@ -88,6 +88,18 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
         await targets('tool drawer actions', drawer.locator('header .btn, footer .btn'));
         await p.keyboard.press('Tab');
         ok(T + 'drawer keyboard focus stays inside', await drawer.evaluate(n => n.contains(document.activeElement)));
+        // Recreate focus left on the opener while a drawer is mounted, independently of frame timing.
+        await trigger.focus();
+        await p.keyboard.press('Tab');
+        ok(T + 'drawer recovers forward Tab from outside', await drawer.locator('header button').evaluate(n => document.activeElement === n));
+        await trigger.focus();
+        await p.keyboard.press('Shift+Tab');
+        const lastAction = drawer.locator('footer .btn').last();
+        ok(T + 'drawer recovers backward Tab from outside', await lastAction.evaluate(n => document.activeElement === n));
+        await p.keyboard.press('Tab');
+        ok(T + 'drawer wraps forward at the last action', await drawer.locator('header button').evaluate(n => document.activeElement === n));
+        await p.keyboard.press('Shift+Tab');
+        ok(T + 'drawer wraps backward at the first action', await lastAction.evaluate(n => document.activeElement === n));
         await p.keyboard.press('Escape');
         await drawer.waitFor({ state: 'detached' });
         ok(T + 'Escape returns focus to the tool', await trigger.evaluate(n => document.activeElement === n));

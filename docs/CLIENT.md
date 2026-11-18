@@ -205,10 +205,18 @@ byte for byte; `apps[].open` links carry `?d=<device_id>` **only** under contrac
   Fails closed (`ok: false`): an unreadable, invalid or oversized (> 1 MB) file, a symlink in place of a policy file or of the
   Linux folder, a key given twice in one JSON file, or two sources that disagree. `ok` is true only if every `REQUIRED` setting of the policy pack holds, `URLBlocklist` carries `*`, `file://*`, `chrome://*`
   and `view-source:*`, `URLAllowlist` is not open (`*`, `*://*`, `http://*`, `https://*`), `ExtensionInstallBlocklist` is `["*"]`,
-  the allow and force lists are filled in, and no two policy sources disagree. Missing or unreadable policy is `ok: false`; the check
+  the allow and force lists are filled in, no two policy sources disagree, and none of the policies that would quietly undo
+  the pack is set at all (`machine_policy.FORBIDDEN`: `ExtensionSettings`, the two `...MultipleSourceMergeList` policies,
+  `CloudPolicyOverridesPlatformPolicy`; they are reported as `forbidden:<key>` and never change the hash). Missing or unreadable policy is `ok: false`; the check
   never raises. `sha256` is the **baseline hash**: canonical JSON (sorted, compact) of the policies the pack sets, the same on all
-  three systems; `deploy/chrome-policy/prepare.py` prints it as "Baseline SHA-256" and that is the value to pin. The report is only
-  sent while the managed workspace turns the check on (`Client.policy_check`); until then the heartbeat is exactly as before.
+  three systems; `deploy/chrome-policy/prepare.py` prints it as "Baseline SHA-256" and that is the value to pin. The report is sent
+  by **company devices only** (D-024): a company enrolment sets `Client.policy_check = machine_policy.report`; a personal one sends
+  no `policy` field and keeps the extension gate, and the Hub never refuses it for policy. The app checks at every heartbeat and
+  before every Open, never reusing a result older than 60 s. Before a window starts it compares its own hash with the baseline the
+  Hub sent (`policy.sha256`) and requires `ok`: in `enforce` a mismatch is refused on the device (`workspace_policy`, no browser is
+  started, no open is recorded); in `warn` the window opens and the result goes in the next heartbeat. The Hub's own refusal
+  (`/device/open` 409 `workspace_policy`, `/go/` 403) stays in place. This is tamper-evident, not tamper-proof: a local
+  administrator who also patches the app defeats it.
 - **What the report cannot prove (W5 limits).** It reads where the OS keeps policy, not `chrome://policy`, so it says the policy is
   *installed*, not that the running browser applied it. On **Windows computers that are not joined to a domain (Active Directory or
   Microsoft Entra ID) or enrolled in Chrome Browser Cloud Management**, Chrome ignores some policies set in the registry (for example
