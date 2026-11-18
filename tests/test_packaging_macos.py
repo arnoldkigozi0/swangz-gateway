@@ -2,6 +2,7 @@
 pinned, and never bypassing Gatekeeper. The build itself runs on macos-latest; these checks run anywhere."""
 
 import importlib.util
+import json
 import re
 import unittest
 from pathlib import Path
@@ -82,3 +83,44 @@ class MacBuildTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MacSummaryTests(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.m = load("macos_summary")
+        self.dir = Path(tempfile.mkdtemp())
+        (self.dir / "dist").mkdir()
+        (self.dir / "ev").mkdir()
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.dir)
+
+    def render(self):
+        return self.m.render(self.dir / "dist", self.dir / "ev", "6.22.3", env={"GITHUB_SHA": "abc"}, macos="15.0")
+
+    def test_summary_is_labelled_and_carries_the_checksums_and_steps(self):
+        (self.dir / "dist" / "SHA256SUMS").write_text("ff  Swangz-0.1.3-RC-UNSIGNED-macos-arm64.dmg\n")
+        (self.dir / "ev" / "journey.json").write_text(json.dumps([{"step": "a", "result": "pass", "detail": "x|y"}]))
+        text = self.render()
+        self.assertIn("RC — UNSIGNED — INTERNAL TEST ONLY", text)
+        self.assertIn("Not production-ready", text)
+        self.assertIn("ff  Swangz-0.1.3-RC-UNSIGNED-macos-arm64.dmg", text)
+        self.assertIn("passed, 1 steps", text)
+        self.assertIn("| pass | a | x/y |", text)
+
+    def test_a_failure_or_missing_build_is_said_plainly(self):
+        (self.dir / "ev" / "journey.json").write_text(json.dumps([{"step": "a", "result": "pass"}, {"step": "b", "result": "FAIL"}]))
+        text = self.render()
+        self.assertIn("FAILED at: b", text)
+        self.assertIn("no SHA256SUMS (build failed)", text)
+        (self.dir / "ev" / "journey.json").unlink()
+        self.assertIn("no journey ran", self.render())
+
+    def test_workflow_builds_main_and_publishes_the_summary(self):
+        wf = (ROOT / ".github" / "workflows" / "build-macos.yml").read_text(encoding="utf-8")
+        self.assertIn("branches: [main]", wf)
+        self.assertIn("macos_summary.py", wf)
+        self.assertIn("GITHUB_STEP_SUMMARY", wf)
+        self.assertNotIn("release create", wf)  # building an artifact is not publishing a release
