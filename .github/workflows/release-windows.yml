@@ -12,7 +12,7 @@ on:
 permissions:
   contents: read
 env:
-  PYINSTALLER_VERSION: '6.11.1'   # build tool only, pinned; not shipped as a library
+  PYINSTALLER_VERSION: '6.11.1'   # build tool only, pinned with every wheel's SHA-256; not shipped as a library
   INNO_SETUP_VERSION: '6.4.3'     # build tool only, pinned to the official release and its SHA-256
   INNO_SETUP_SHA256: 'f3c42116542c4cc57263c5ba6c4feabfc49fe771f2f98a79d2f7628b8762723b'
 jobs:
@@ -30,7 +30,9 @@ jobs:
         run: '"SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8'
       - name: Pinned build tools
         run: |
-          python -m pip install "pyinstaller==$env:PYINSTALLER_VERSION"
+          # Every wheel is pinned by SHA-256 (packaging/requirements-windows-build.txt); the version there must match the env pin.
+          if (-not (Select-String -Path packaging\requirements-windows-build.txt -SimpleMatch -Pattern "pyinstaller==$env:PYINSTALLER_VERSION " -Quiet)) { throw "packaging/requirements-windows-build.txt does not pin pyinstaller $env:PYINSTALLER_VERSION" }
+          python -m pip install --require-hashes --only-binary :all: -r packaging\requirements-windows-build.txt
           $tag = "is-" + $env:INNO_SETUP_VERSION.Replace('.', '_')
           $url = "https://github.com/jrsoftware/issrc/releases/download/$tag/innosetup-$env:INNO_SETUP_VERSION.exe"
           Invoke-WebRequest -Uri $url -OutFile innosetup.exe

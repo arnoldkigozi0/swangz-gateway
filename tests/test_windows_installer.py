@@ -84,7 +84,14 @@ class WorkflowTests(unittest.TestCase):
     def test_build_tools_are_pinned_and_the_build_is_labelled(self):
         self.assertRegex(WORKFLOW, r"PYINSTALLER_VERSION: '\d+\.\d+\.\d+'")
         self.assertRegex(WORKFLOW, r"INNO_SETUP_VERSION: '\d+\.\d+\.\d+'")
-        self.assertIn('pyinstaller==$env:PYINSTALLER_VERSION', WORKFLOW)
+        self.assertIn("pip install --require-hashes --only-binary :all: -r packaging\\requirements-windows-build.txt", WORKFLOW)
+        self.assertNotIn('pip install "pyinstaller', WORKFLOW)  # never an unhashed install
+        reqs = (ROOT / "packaging" / "requirements-windows-build.txt").read_text(encoding="utf-8")
+        version = re.search(r"PYINSTALLER_VERSION: '([\d.]+)'", WORKFLOW).group(1)
+        self.assertIn(f"pyinstaller=={version} ", reqs)
+        pins = re.findall(r"^([\w-]+)==\S+ \\\n\s+--hash=sha256:[0-9a-f]{64}$", reqs, re.M)
+        self.assertEqual(sorted(pins), sorted(["pyinstaller", "pyinstaller-hooks-contrib", "altgraph", "pefile",
+                                               "pywin32-ctypes", "packaging", "setuptools"]))
         self.assertRegex(WORKFLOW, r"INNO_SETUP_SHA256: '[0-9a-f]{64}'")
         self.assertIn("does not match the pin", WORKFLOW)
         self.assertNotIn("choco install", WORKFLOW)
