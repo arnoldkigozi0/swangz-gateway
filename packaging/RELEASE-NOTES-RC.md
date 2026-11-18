@@ -10,6 +10,7 @@ production-ready. Arnold approves any distribution beyond internal testing.
 | `Swangz-Setup-<version>-UNSIGNED.exe` | Actions artifact of `release-windows.yml` | per-person install, no administrator rights |
 | `Swangz-Setup-<version>-UNSIGNED.exe.sha256` | same artifact | verify with `Get-FileHash -Algorithm SHA256` |
 | `RELEASE-LABEL.txt` | same artifact | the label above, word for word |
+| `Swangz-<version>.cdx.json` | same artifact | CycloneDX 1.5 SBOM: program hash, Python runtime, client modules, every bundled native file with its SHA-256, the hash-pinned build tools |
 | `Swangz-Windows-installer-evidence` | separate artifact | `report.json`, installer/uninstaller logs, `reproducible-program.json`, `reproducible-installer.json` |
 
 The version is the tree's version with PATCH raised by the run number (0.1.0 becomes 0.1.<run>).
@@ -50,7 +51,7 @@ device key is gone.
 
 - SmartScreen and code signing: the installer is unsigned, so Windows warns "unknown publisher".
 - Windows on physical devices, and a real reboot (a program restart stands in for one).
-- No SBOM is attached yet.
+- The SBOM is generated from the program's own archive; it has not been checked by an outside SBOM validator.
 - macOS is covered by its own workflow and notes in `packaging/README.md`.
 
 ## Owner actions (Arnold)
