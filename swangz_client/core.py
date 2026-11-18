@@ -1066,11 +1066,13 @@ class Client:
             self.api().call("POST", "/device/signout")
         except (ApiFailure, NotSignedIn, keystore.KeyStoreError, agents.AgentConfigError):
             told = False
-        self.remove_everything()
-        try:  # a signed-out app has nothing to start for: drop the login item (macOS), Run value (Windows), .desktop (Linux)
-            shell.set_autostart(self.paths, False)
-        except OSError:
-            pass  # never block sign out; `swangz autostart off` remains available
+        try:
+            self.remove_everything()
+        finally:  # even if clean-up fails part way, a signed-out app has nothing to start for: drop the login item
+            try:  # (macOS), Run value (Windows), .desktop (Linux)
+                shell.set_autostart(self.paths, False)
+            except OSError:
+                pass  # never block sign out; `swangz autostart off` remains available and reports the error
         return told
 
     # ------------------------------------------------------------ what the window shows
