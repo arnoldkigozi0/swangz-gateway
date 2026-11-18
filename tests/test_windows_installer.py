@@ -116,6 +116,23 @@ class WorkflowTests(unittest.TestCase):
             self.assertIn(needle, e2e)
         self.assertIn("if: always()", WORKFLOW)
 
+    def test_an_older_build_is_refused(self):
+        code = ISS.split("[Code]", 1)[1]
+        self.assertIn("function InitializeSetup(): Boolean;", code)
+        self.assertIn("CompareVersions('{#AppVersion}', Installed) < 0", code)
+        self.assertIn("Result := False;", code)
+        # the key read is this app's own Apps & features entry, the same one the e2e checks
+        e2e = (ROOT / "packaging" / "windows" / "installer_e2e.py").read_text(encoding="utf-8")
+        key = e2e.split('UNINSTALL_KEY = r"', 1)[1].split('"', 1)[0]
+        self.assertIn(key.replace("\\", "\\"), code)
+        self.assertIn("HKEY_CURRENT_USER", code)
+        # the e2e runs the previous installer over this build, expects exit 1 and an unchanged install
+        step = e2e.split("# 6b. an older build is refused", 1)[1].split("# 7.", 1)[0]
+        for needle in ("expected=1", "downgrade.log", 'f"Refused: Swangz {new_version} is installed"',
+                       "exe.read_bytes() == before", 'reg_value(UNINSTALL_KEY, "DisplayVersion")'):
+            self.assertIn(needle, step)
+        self.assertLess(e2e.index("# 6. upgrade"), e2e.index("# 6b."))
+
     def test_the_e2e_signs_out_before_the_uninstall_and_checks_the_run_value_is_gone(self):
         e2e = (ROOT / "packaging" / "windows" / "installer_e2e.py").read_text(encoding="utf-8")
         sign_out, uninstall = e2e.index('app("logout")'), e2e.index("# 8. uninstall while the program runs")

@@ -81,6 +81,56 @@ Filename: "{sys}\taskkill.exe"; Parameters: "/F /T /IM Swangz.exe /FI ""USERNAME
 Filename: "{app}\Swangz.exe"; Parameters: "logout"; RunOnceId: "SwangzSignOut"; Flags: runhidden waituntilterminated skipifdoesntexist
 
 [Code]
+const
+  UninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{2027a02e-ebf5-41b9-8a7d-9e10a26e1770}_is1';
+
+// One part of a MAJOR.MINOR.PATCH version as a number; a missing or non-numeric part counts as 0.
+function VersionPart(var Rest: String): Integer;
+var
+  P: Integer;
+  Part: String;
+begin
+  P := Pos('.', Rest);
+  if P > 0 then begin
+    Part := Copy(Rest, 1, P - 1);
+    Delete(Rest, 1, P);
+  end else begin
+    Part := Rest;
+    Rest := '';
+  end;
+  Result := StrToIntDef(Trim(Part), 0);
+end;
+
+// -1 when A is older than B, 0 when equal, 1 when newer.
+function CompareVersions(A, B: String): Integer;
+var
+  I, X, Y: Integer;
+begin
+  Result := 0;
+  for I := 1 to 3 do begin
+    X := VersionPart(A);
+    Y := VersionPart(B);
+    if X < Y then begin Result := -1; Exit; end;
+    if X > Y then begin Result := 1; Exit; end;
+  end;
+end;
+
+// An older build never replaces a newer one: installing it would roll back fixes without anyone noticing.
+// Reinstalling the same version and upgrading are allowed. Silent installs end with exit code 1 and the reason in the log.
+function InitializeSetup(): Boolean;
+var
+  Installed: String;
+begin
+  Result := True;
+  if RegQueryStringValue(HKEY_CURRENT_USER, UninstallKey, 'DisplayVersion', Installed) and
+     (CompareVersions('{#AppVersion}', Installed) < 0) then begin
+    Log('Refused: Swangz ' + Installed + ' is installed; this installer is the older version {#AppVersion}.');
+    SuppressibleMsgBox('Swangz ' + Installed + ' is already installed. This installer is an older version ({#AppVersion}) and will not replace it.',
+      mbCriticalError, MB_OK, IDOK);
+    Result := False;
+  end;
+end;
+
 // The app's own "Start with Windows" switch writes the same Run value outside the installer's knowledge; remove it too.
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
