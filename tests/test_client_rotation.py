@@ -51,6 +51,7 @@ class Hub:
 
     def handle(self, method, path, key, body):
         """-> (status, dict) or None to drop the connection."""
+        path = path.split("?")[0]
         if self.on_call:
             self.on_call(path, key)
         with self.lock:

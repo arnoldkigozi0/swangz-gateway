@@ -622,6 +622,10 @@ class NotificationTests(V2Base):
 
 
 class RetentionTests(V2Base):
+    def setUp(self):
+        super().setUp()
+        self.db.set_setting("store_bodies", "1")  # these read stored content; D-023 defaults it off
+
     def test_each_category_keeps_its_own_window_and_every_purge_is_audited(self):
         rig, now = self.rig, time.time()
         old = now - 400 * 86400
@@ -693,6 +697,10 @@ class RiskTests(V2Base):
 
 
 class TimelineAndExportTests(V2Base):
+    def setUp(self):
+        super().setUp()
+        self.db.set_setting("store_bodies", "1")  # these read stored content; D-023 defaults it off
+
     def test_sign_ins_access_changes_and_turns_join_the_timeline(self):
         rig = self.rig
         rig.api("PATCH", f"/people/{rig.person_id}", {"email": "grace@swangzavenue.com"})

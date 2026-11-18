@@ -763,6 +763,21 @@ Exact next step at 16:00, in this order:
 - **#147** (Access requests) and **#148** (Last seen + panel cap): CI fully green at last look (python 3.10/3.12, browser, app-window). `gh pr ready` / `gh pr merge` are refused for me by the permission classifier, so @Chief marks ready and merges.
 - Next step: `gh pr checks 141`; if only `signin` is red, read its log and fix the product. Then merge main into #147/#148 if they conflict, then the next §10.10 page (Policies, Weekly reporting, Settings).
 
+## Forge: W3 client launcher, 12 Nov 2026 (branch feature/w3-launcher, draft PR into feature/managed-workspace)
+- Built: `swangz_client/workspace_launcher.py` (S2 address re-check against contract-2 manifest hosts, S3 fixed browser
+  paths, T1 folder re-check + marker match, I1 exact argv/env/Popen, D1 keep our own PID, bounded `open <tool>` log),
+  `swangz_client/winacl.py` (Windows SID + owner-only ACL via ctypes), `core.open_app` → launcher for contract-2
+  `workspace: true` apps with no fallback to the default browser, `refresh()` asks `browser_contract=2`.
+- Server half: contract-2 apps carry `hosts` and `workspace` (pushed to #179, feature/w3-device-open).
+- Tests: tests/test_workspace_launcher.py (29; Windows ACL test runs only on the windows-latest matrix).
+- Next step: Windows matrix result for `AclTests.test_native_acl`; then W4 (heartbeat `suspended` → `Launcher.close()`,
+  `retired`/higher generation → `Profiles.retire_owner`).
+
+## Forge: managed workspace server side, 12 Nov 2026 (branches feature/w2-state-migration -> feature/w2-contract-2, base feature/managed-workspace)
+- W2/W4 server: v26 migration (7 `devices` columns, `gateway/workspace_schema.py`), `gateway/managed.py` (contract 2 block, heartbeat answer, admin suspend/reactivate/retire/reset, /go refusal), policy mode/baseline settings, console devices list fields. Doc: docs/CLIENT.md "Managed workspace contract 2".
+- Tests: `tests/test_managed_workspace.py` (36), migration tests in `tests/test_workspace_state.py`. Real results are in the PR body.
+- W5 generator (DownloadRestrictions=0, refuse unless `--undecided-domains-ok`): NOT started; it needs W1 (feature/managed-workspace-w1) in the integration branch first.
+- Not done / limits: GitHub was unreachable (DNS) when this was written, so nothing is pushed and no PR is open; no automatic generation bump on seat reassignment; the `d=` claim is advisory.
 
 ## Lane B D3b: Models/Audit phone buttons — 12 November 2026
 
@@ -923,3 +938,26 @@ file's end. All remain pending their final pushed-head CI and merge.
   themes (42px badge, centred 20px SVG, no clipping); no Settings change.
 - Glass/photo remains open for Arnold's replacement asset. Real devices and
   the full local Python suite were not tested; full suites run on GitHub CI.
+
+## 2026-11-17 — Desktop Hub entry points (feature/desktop-functions)
+
+- Resumed the saved worktree after restart. Added Reports & Hub to the existing Tk shell: weekly reports, tools, devices and the administrator control room open only fixed routes on the enrolled origin. Browser-open failures are shown. Device keys are never transferred to the website; website sign-in and all authorization/report gates remain server-side.
+- Existing device-code enrollment and editable server address at enrollment are retained. Changing servers still requires sign-out/re-enrollment. This patch embeds no address, credential, web session or new runtime dependency.
+- Scope limitation: these are system-browser entry points, **not embedded reporting/admin forms**. Browser sign-in is separate from device enrollment. Employees must use separate OS/browser profiles; this patch does not provide managed profile isolation. The tests-only browser_profiles module remains inert. Managed workspace PR #204 is separate. Native Windows/macOS acceptance and a complete desktop reporting/admin journey remain unverified.
+- Actual local checks: `python3 -m unittest tests.test_client.ShellTests -v`: Ran 4 tests in 0.061s, OK. `python3 -m unittest tests.test_client_gui -v`: Ran 16 tests in 0.003s, OK (skipped=16: no usable Tk/display). `git diff --check`: passed. Full Python suite, display-backed GUI checks and browser journeys: not run locally; CI/Probe requested. Web exact-match/phone screenshots do not describe this native Tk window; no web styles changed.
+
+### #246 review corrections — 17 Nov
+
+- Probe and Sentinel rejected initial head `021924f`: CI app-window run 44170872187/job 134349279264 had 15 passes and one failure (stale four-item dock assertion). Updated the dock assertion and click-through to cover Reports & Hub.
+- Removed the Tools browser link and the unused Home route. The bridge now exposes only weekly reports, devices and the control room; no provider-launch route is allowed. New regression check fixes the permitted route set and excludes `/go/`; tests also reject tools/home/arbitrary page requests.
+- Actual corrected local check: `python3 -m unittest tests.test_client.ShellTests -v`: Ran 5 tests in 0.159s, OK. `git diff --check`: passed. Display-backed corrected GUI run and independent verification still pending CI. The initial CI passed the two new GUI tests; this is not a corrected-head result.
+- Integration requirement: #204 adds `tests/test_workspace_launcher.py` (absent from this branch/main). Its `InventoryTests.ALLOWED` must add `("shell.py", "open_hub")` per Sentinel's PR246 review. Do not copy the pending feature wholesale; apply this one-line compatibility correction when integrating #204. The route guard is already included here.
+- Sentinel's recommended release scope keeps admin in the separately authenticated browser, embedded webviews rejected; native weekly reports need a separately approved device-key API from Forge. That API and managed isolation are not claimed by #246.
+
+### #246 integration and drawer keyboard correction — 18 Nov
+
+- Merged main at `a44af1f` normally (includes #204/#245/#243), with no conflicts. Applied Sentinel's required `("shell.py", "open_hub")` caller inventory exception; provider-route exclusion remains tested. Browser profiles now follow merged #204; this bridge adds no separate profile mechanism.
+- Verified the reported browser failure in Windows branch run 44166348431: `light 640: drawer keyboard focus stays inside`. Initial #246 run 44170872187 actually passed browser (its failure was the stale dock assertion); corrected remote head 0c346be run 44176430634 was still pending during inspection.
+- Root-cause risk in staff drawer: initial focus is assigned on an animation frame while the existing trap only receives keys from inside the drawer. A Tab pressed with focus still on the opener can escape. The drawer document key handler now recovers forward/backward Tab from outside, respects a nested native dialog, and its opening frame preserves focus already inside. Existing close/focus-return behavior is retained.
+- Extended staff-phone checks to deliberately focus the opener with the drawer open, recover forward/backward Tab and wrap both drawer boundaries at 390/640 in light/dark. No layout/style change; rendered accessibility verification is pending Probe/CI.
+- Actual local check: `python3 -m unittest tests.test_client.ShellTests tests.test_workspace_launcher.InventoryTests -v`: Ran 8 tests in 1.752s, OK. Node syntax checks for portal.js and staff-phone.cjs and `git diff --check`: passed. No local browser/full Python suite/native build run. CI and Probe verification still required before merge.

@@ -67,7 +67,8 @@
     "github.com/session",
     "github.com/sessions",
     "www.google.com/recaptcha",
-    "challenges.cloudflare.com"
+    "challenges.cloudflare.com",
+    "hcaptcha.com"
   ],
   "BrowserSignin": 0,
   "SyncDisabled": true,

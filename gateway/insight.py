@@ -14,7 +14,7 @@ import re
 import time
 import urllib.parse
 
-from . import geo, proxy, turns
+from . import admin, geo, proxy, turns
 from .admin import ApiError, licence_data, route
 
 DAY = 86400
@@ -152,7 +152,7 @@ def usage_rows(db, since, until, person=None, tool_id=None):
             x["apps"].add(r["client"])
     for r in db.q(
             "SELECT l.person_id, p.name, p.department, l.tool_id, SUM(l.outcome = 'opened') AS opened,"
-            " SUM(l.outcome != 'opened') AS refused, MAX(l.ts) AS last FROM launches l JOIN people p ON p.id = l.person_id"
+            " SUM(l.outcome = 'refused') AS refused, MAX(l.ts) AS last FROM launches l JOIN people p ON p.id = l.person_id"
             " WHERE l.ts >= ? AND l.ts < ?" + who.format(col="l.person_id") + " GROUP BY l.person_id, l.tool_id",
             [since, until] + extra):
         x = row(r, tools.by_id.get(r["tool_id"]), "A removed tool")
@@ -297,6 +297,9 @@ def timeline(ctx):
         raise ApiError(404, "no such tool")
     q = ctx.arg("q")
     like = "%" + q.replace("%", "").replace("_", "") + "%" if q else None
+    content = admin.can_read_content(ctx)
+    if q and content and kind in (None, "request"):
+        ctx.audit("searched request content", f"{len(q)} characters", "timeline")
     tools = Tools(db)
     events = []
 
@@ -325,8 +328,12 @@ def timeline(ctx):
             sql += " AND " + where[0]
             args += where[1]
         if sql and like:
-            sql += " AND (r.prompt LIKE ? OR r.actions LIKE ? OR p.name LIKE ? OR r.client LIKE ? OR r.model LIKE ?)"
-            args += [like] * 5
+            if content:
+                sql += " AND (r.prompt LIKE ? OR r.actions LIKE ? OR p.name LIKE ? OR r.client LIKE ? OR r.model LIKE ?)"
+                args += [like] * 5
+            else:  # D-023: without the trust area a search matches metadata only
+                sql += " AND (p.name LIKE ? OR r.client LIKE ? OR r.model LIKE ?)"
+                args += [like] * 3
         if sql:
             for r in db.q(sql + " ORDER BY r.ts DESC LIMIT ?", args + [limit + 1]):
                 t = tools.for_request(r["client"], r["provider"])
@@ -340,7 +347,8 @@ def timeline(ctx):
                     "app": r["client"] or None, "model": r["model"], "kind": r["kind"], "media_type": r["media_type"],
                     "outcome": r["outcome"], "reason": r["reason"], "cost": r["cost"], "tokens": r["tokens"],
                     "duration_ms": r["duration_ms"], "session": r["session"], "agent": r["agent"],
-                    "prompt": (r["prompt"] or "")[:240] or None, "actions": n_actions,
+                    "prompt": ((r["prompt"] or "")[:240] or None) if content else None,
+                    "actions": n_actions if content else None, **({} if content else {"content": "withheld"}),
                     "credential": "secret:" in (r["flags"] or ""), "device": r["device"], "key_id": r["key_id"],
                     "platform": platform(r["user_agent"], r["client"] if r["client"] not in ("", "unknown") else None),
                     "ip": r["client_ip"] or None, "place": ip_kind(r["client_ip"]),
@@ -483,7 +491,10 @@ def devices(ctx):
                 installed = []
             item.update(app_version=d["app_version"] or None, owner_kind=d["owner_kind"], enrolled=d["enrolled"],
                         last_seen=d["last_seen"], packages=installed, os=item["os"] or d["os"] or None,
-                        key_rotations=d["rotations"], key_issued=d["key_issued"])
+                        key_rotations=d["rotations"], key_issued=d["key_issued"],
+                        workspace_state=d["workspace_state"], workspace_generation=d["workspace_generation"],
+                        policy_ok=None if d["policy_ok"] is None else bool(d["policy_ok"]), policy_reported=d["policy_reported"],
+                        policy_source="reported by the app")
     browsers = {}
     for r in db.q("SELECT l.person_id, p.name, l.user_agent, l.ip, MAX(l.ts) AS last, COUNT(*) AS opens FROM launches l"
                   " JOIN people p ON p.id = l.person_id WHERE l.ts >= ? GROUP BY l.person_id, l.user_agent", (now - 90 * DAY,)):
@@ -525,6 +536,8 @@ def device(ctx, kid):
         " MAX(client) AS client, (SELECT prompt FROM requests r2 WHERE r2.session = r.session AND r2.prompt IS NOT NULL"
         " ORDER BY r2.id LIMIT 1) AS first_prompt FROM requests r WHERE key_id = ? AND session IS NOT NULL"
         f" AND {USED} GROUP BY session ORDER BY last DESC LIMIT 15", (kid,))
+    for sess in sessions:
+        admin.withhold(ctx, sess)
     flagged = db.q("SELECT id, ts, outcome, reason, flags, client, model FROM requests WHERE key_id = ?"
                    " AND (flags LIKE '%secret:%' OR outcome != 'ok') ORDER BY id DESC LIMIT 12", (kid,))
     off, since, starts = _days(ctx, 30)
@@ -580,7 +593,7 @@ def tool_usage(ctx, tid):
     denials = [{"type": "launch", "ts": r["ts"], "person": r["person"], "person_id": r["person_id"],
                 "reason": "opened from the portal while not entitled"} for r in db.q(
         "SELECT l.ts, p.name AS person, l.person_id FROM launches l LEFT JOIN people p ON p.id = l.person_id"
-        " WHERE l.tool_id = ? AND l.ts >= ? AND l.outcome != 'opened' ORDER BY l.id DESC LIMIT 10", (tid, since))]
+        " WHERE l.tool_id = ? AND l.ts >= ? AND l.outcome = 'refused' ORDER BY l.id DESC LIMIT 10", (tid, since))]
     denials += [{"type": "site", "ts": r["ts"], "person": r["person"], "person_id": r["person_id"],
                  "reason": "website blocked by the browser gate"} for r in db.q(
         "SELECT su.started AS ts, p.name AS person, su.person_id FROM site_usage su LEFT JOIN people p ON p.id = su.person_id"
@@ -809,7 +822,7 @@ def _personal(db, now, since, offset_minutes):
     since_day = now - DAY
     refused = {}
     for table, ts, cond in (("requests", "ts", "outcome = 'blocked' AND (reason IS NULL OR reason != 'secret in prompt')"),
-                            ("launches", "ts", "outcome != 'opened'"), ("site_usage", "started", "outcome = 'blocked'")):
+                            ("launches", "ts", "outcome = 'refused'"), ("site_usage", "started", "outcome = 'blocked'")):
         for r in db.q(f"SELECT person_id, COUNT(*) AS n FROM {table} WHERE {ts} >= ? AND person_id IS NOT NULL AND {cond}"
                       " GROUP BY person_id", (since_day,)):
             refused.setdefault(r["person_id"], {})[table] = r["n"]
@@ -861,7 +874,7 @@ def security_events(ctx, days):
                        "href": f"#/records/{r['id']}", "evidence": "The gateway's own rules (model, budget, rate limit, pause)."})
     for r in db.q("SELECT l.person_id, p.name AS person, t.name AS tool, COUNT(*) AS n, MAX(l.ts) AS last FROM launches l"
                   " LEFT JOIN people p ON p.id = l.person_id LEFT JOIN tools t ON t.id = l.tool_id"
-                  " WHERE l.ts >= ? AND l.outcome != 'opened' GROUP BY l.person_id, l.tool_id ORDER BY last DESC LIMIT 50", (since,)):
+                  " WHERE l.ts >= ? AND l.outcome = 'refused' GROUP BY l.person_id, l.tool_id ORDER BY last DESC LIMIT 50", (since,)):
         events.append({"type": "denied_open", "severity": "low", "ts": r["last"], "person_id": r["person_id"],
                        "person": r["person"], "title": "Tool opened without access",
                        "text": f"{r['person'] or 'Someone'} tried to open {r['tool'] or 'a removed tool'} from the portal "
@@ -1078,7 +1091,8 @@ def search(ctx):
         if r:
             found.append({"title": f"Request #{r['id']}", "sub": " · ".join(x for x in (r["name"], r["client"], r["model"]) if x),
                           "href": f"#/records/{r['id']}", "ts": r["ts"]})
-    if len(q) >= 3:
+    if len(q) >= 3 and admin.can_read_content(ctx):  # D-023: what people typed is searched only for trust
+        ctx.audit("searched request content", f"{len(q)} characters", "command menu")
         found += [{"title": (r["prompt"] or "")[:90], "sub": " · ".join(x for x in (r["name"], r["client"]) if x),
                    "href": f"#/records/{r['id']}", "ts": r["ts"]}
                   for r in db.q("SELECT r.id, r.ts, r.prompt, r.client, p.name FROM requests r LEFT JOIN people p"

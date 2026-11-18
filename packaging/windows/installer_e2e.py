@@ -1,0 +1,339 @@
+"""Windows installer acceptance on a CI runner: silent install -> launch -> enrol -> restart -> reconnect -> reinstall over a running copy
+-> uninstall while running.
+
+    python packaging/windows/installer_e2e.py --setup artifacts/Swangz-Setup-0.1.0-UNSIGNED.exe --evidence evidence
+
+Runs only on Windows (GitHub Actions windows-latest). The Hub is the test suite's isolated gateway on 127.0.0.1 with fake
+providers; nothing on the internet and no real account is used. The app reaches the Hub through a small local relay that
+this script can cut and restore, which is how a network interruption is made. Every step is written to
+<evidence>/report.json, with the installer's and uninstaller's own logs beside it. Exit 0 only when every step passed.
+"""
+
+import argparse
+import json
+import os
+from pathlib import Path
+import platform
+import shutil
+import socket
+import struct
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
+RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+UNINSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\{2027a02e-ebf5-41b9-8a7d-9e10a26e1770}_is1"
+
+
+def stopped(proc, message, timeout=60):
+    try:
+        proc.wait(timeout)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(message) from None
+
+
+def require(condition, message):
+    if not condition:
+        raise RuntimeError(message)
+
+
+class Relay:
+    """127.0.0.1:<port> -> the Hub. stop() is the network going away (listener and open connections closed); start()
+    brings it back on the same port, so the device's saved server address is unchanged."""
+
+    def __init__(self, target_port):
+        self.target, self.port, self.sock, self.conns = target_port, None, None, []
+        self.lock = threading.Lock()
+
+    def start(self):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if os.name != "nt":  # rebinding after a cut needs it on POSIX; on Windows the option would allow port sharing
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(("127.0.0.1", self.port or 0))
+        s.listen(32)
+        self.port, self.sock = s.getsockname()[1], s
+        threading.Thread(target=self._accept, args=(s,), daemon=True).start()
+
+    def stop(self):
+        sock, self.sock = self.sock, None
+        if sock:
+            try:
+                sock.shutdown(socket.SHUT_RDWR)  # wakes a blocked accept() on Linux; closing alone does not
+            except OSError:
+                pass
+            sock.close()
+        with self.lock:
+            conns, self.conns = self.conns, []
+        for c in conns:
+            try:
+                c.close()
+            except OSError:
+                pass
+
+    def _accept(self, listener):
+        while True:
+            try:
+                client, _ = listener.accept()
+            except OSError:
+                return
+            try:
+                upstream = socket.create_connection(("127.0.0.1", self.target), timeout=10)
+            except OSError:
+                client.close()
+                continue
+            with self.lock:
+                self.conns += [client, upstream]
+            for a, b in ((client, upstream), (upstream, client)):
+                threading.Thread(target=self._pipe, args=(a, b), daemon=True).start()
+
+    @staticmethod
+    def _pipe(src, dst):
+        try:
+            while True:
+                data = src.recv(65536)
+                if not data:
+                    break
+                dst.sendall(data)
+        except OSError:
+            pass
+        finally:
+            for s in (src, dst):
+                try:
+                    s.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+
+
+def reg_value(key, name):
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key) as k:
+            return winreg.QueryValueEx(k, name)[0]
+    except OSError:
+        return None
+
+
+def shell_folder(name):
+    return Path(reg_value(r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders", name))
+
+
+def kampala_zone(tmpdir):
+    """Windows has no IANA zone database; give the gateway fixture its fixed EAT offset (as packaging/smoke.py does)."""
+    from zoneinfo import TZPATH, ZoneInfo, ZoneInfoNotFoundError, reset_tzpath
+    try:
+        ZoneInfo("Africa/Kampala")
+    except ZoneInfoNotFoundError:
+        zone = Path(tmpdir) / "Africa" / "Kampala"
+        zone.parent.mkdir(parents=True)
+        zone.write_bytes(b"TZif\x00" + b"\x00" * 15 + struct.pack(">6l", 0, 0, 0, 0, 1, 4)
+                         + struct.pack(">lbb", 3 * 3600, 0, 0) + b"EAT\x00")
+        reset_tzpath([str(tmpdir), *TZPATH])
+
+
+def e2e(setup, evidence):
+    from tests.test_devices import DeviceBase
+
+    evidence.mkdir(parents=True, exist_ok=True)
+    report = {"os": platform.platform(), "setup": setup.name, "steps": [], "ok": False}
+    fixture, relay, gui, initialized = DeviceBase(), None, None, False
+    work = Path(tempfile.mkdtemp(prefix="swangz-installer-e2e-"))
+    try:
+        kampala_zone(work / "tz")
+        fixture.setUp()
+        initialized = True
+        rig = fixture.rig
+        relay = Relay(rig.port)
+        relay.start()
+        origin = f"http://127.0.0.1:{relay.port}"
+        rig.gw.settings.public_url = origin
+        data, home = work / "data", work / "home"
+        home.mkdir()
+        env = {**os.environ, "SWANGZ_HOME": str(data), "SWANGZ_TEST_HOME": str(home),
+               "BROWSER": f'"{sys.executable}" "{Path(__file__).resolve()}" --browser %s'}
+        for name in ("PYTHONPATH", "PYTHONHOME"):
+            env.pop(name, None)
+        app_dir = Path(os.environ["LOCALAPPDATA"]) / "Programs" / "Swangz"
+        exe = app_dir / "Swangz.exe"
+
+        def passed(message):
+            report["steps"].append(message)
+            print("PASS " + message, flush=True)
+
+        def run(cmd, expected=0, timeout=180):
+            result = subprocess.run([str(c) for c in cmd], env=env, capture_output=True, text=True, timeout=timeout, cwd=work)
+            require(result.returncode == expected, f"{cmd[0]} {cmd[1:]} exited {result.returncode}, expected {expected}: "
+                    + result.stdout[-2000:] + result.stderr[-2000:])
+            return result
+
+        def app(*args, expected=0):
+            return run([exe, *args], expected=expected)
+
+        def install(log):
+            run([setup, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/TASKS=desktopicon,startup",
+                 f"/LOG={evidence / log}"])
+
+        def heartbeat(key_id):
+            return rig.gw.db.scalar("SELECT last_seen FROM devices WHERE key_id = ?", (key_id,))
+
+        # 1. silent install, per person, with both optional tasks
+        install("install.log")
+        start_menu = shell_folder("Programs") / "Swangz.lnk"
+        desktop = shell_folder("Desktop") / "Swangz.lnk"
+        run_value = reg_value(RUN_KEY, "Swangz")
+        require(exe.is_file(), f"not installed at {exe}")
+        require(start_menu.is_file(), f"no Start-menu shortcut at {start_menu}")
+        require(desktop.is_file(), f"no desktop shortcut at {desktop}")
+        require(run_value and "Swangz.exe" in run_value and run_value.endswith("--background"), f"Run value: {run_value!r}")
+        require(reg_value(UNINSTALL_KEY, "UninstallString"), "no Apps & features entry")
+        report["installed"] = {"exe": str(exe), "start_menu": str(start_menu), "desktop": str(desktop), "run": run_value,
+                               "display_version": reg_value(UNINSTALL_KEY, "DisplayVersion")}
+        passed("silent install (no administrator rights): program, Start-menu and desktop shortcuts, start-at-sign-in value,"
+               " Apps & features entry")
+
+        # 2. launch: the installed program, its window, updates off; then started the way Windows starts it at sign-in
+        app("--version")
+        check = work / "self-check.json"
+        app("--self-check", check)
+        check = json.loads(check.read_text(encoding="utf-8"))
+        require(check["frozen"] and check["window"] == "signin", f"self-check: {check}")
+        require(check["updates_enabled"] is False and check["production_keys"] == 0, "the update gate is not off")
+        report["self_check"] = check
+        gui = subprocess.Popen([str(exe), "--background"], env=env, cwd=work)
+        time.sleep(8)
+        require(gui.poll() is None, f"the program started at sign-in exited with {gui.returncode}")
+        gui.terminate()
+        gui.wait(30)
+        gui = None
+        passed(f"launch: --version, the Tk {check['tk']} sign-in window, the --background start; updates off, no release keys")
+
+        # 3. enrol: first run asks for the Hub address; the person approves the code in their browser
+        login = subprocess.Popen([str(exe), "login", "--server", origin, "--name", "CI installer"], env=env, cwd=work,
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            deadline, code = time.monotonic() + 90, None
+            while time.monotonic() < deadline and code is None and login.poll() is None:
+                code = rig.gw.db.one("SELECT user_code FROM device_codes WHERE status = 'pending'")
+                time.sleep(0.2)
+            require(code is not None, "the installed program did not ask for a device code")
+            require(fixture.approve(code["user_code"], "personal")[0] == 200, "approval failed")
+            out, err = login.communicate(timeout=120)
+            require(login.returncode == 0, "login/sync failed: " + out[-2000:] + err[-2000:])
+        finally:
+            if login.poll() is None:
+                login.kill()
+                login.communicate()
+        device = json.loads((data / "device.json").read_text(encoding="utf-8"))
+        require(device["server"] == origin, "wrong server saved")
+        key_id = device["key_id"]
+        report["key_storage"] = device["key_storage"]
+        from swangz_client import keystore
+
+        def stored_secret():
+            return keystore.CredentialManager().get(origin, key_id)
+
+        in_os_store = device["key_storage"] != "file"
+        if in_os_store:
+            require(stored_secret(), "the device key is not in Windows Credential Manager")
+        passed(f"enrol against the CI Hub: device code approved, first sync done; key storage {device['key_storage']}")
+
+        # 4. restart: a new process (and the window started and closed again) is still signed in and syncs
+        seen = heartbeat(key_id)
+        gui = subprocess.Popen([str(exe), "--background"], env=env, cwd=work)
+        time.sleep(8)
+        gui.terminate()
+        gui.wait(30)
+        gui = None
+        app("status")
+        time.sleep(0.05)
+        app("sync")
+        require(heartbeat(key_id) > seen, "no check-in after the restart")
+        passed("restart: the program closed and started again, still signed in; sync and check-in recorded by the Hub")
+
+        # 5. network interruption: the Hub is unreachable, nothing is lost; it comes back and the app reconnects by itself
+        relay.stop()
+        synced = json.loads((data / "state.json").read_text(encoding="utf-8"))["last_sync"]
+        app("sync", expected=1)  # the windowed program has no console; its exit code is the evidence (1 = could not reach)
+        require(json.loads((data / "state.json").read_text(encoding="utf-8"))["last_sync"] == synced, "offline sync claimed success")
+        require((data / "device.json").is_file(), "the device record was lost while offline")
+        app("status")
+        seen = heartbeat(key_id)
+        relay.start()
+        time.sleep(0.05)
+        app("sync")
+        require(heartbeat(key_id) > seen, "no check-in after the network came back")
+        require(not json.loads((data / "device.json").read_text(encoding="utf-8")).get("reconnect"), "asked to reconnect")
+        passed("network interruption: sync exited 1 and recorded no sync, credentials and state kept; on return the next sync"
+               " checked in with no sign-in again")
+
+        # 6. install again over the top while the program is running (same version: there is no earlier RC to upgrade
+        #    from yet); the installer closes it, and the person's device and settings stay
+        gui = subprocess.Popen([str(exe), "--background"], env=env, cwd=work)
+        time.sleep(8)
+        require(gui.poll() is None, "the program did not start before the reinstall")
+        install("reinstall.log")
+        stopped(gui, "the installer did not close the running program")
+        gui = None
+        require(json.loads((data / "device.json").read_text(encoding="utf-8"))["key_id"] == key_id, "reinstall lost the device")
+        app("status")
+        app("sync")
+        passed("reinstall (same version) over a running copy: the installer closed it; same device, still signed in, syncs")
+
+        # 7. uninstall while the program runs (as it does when started at sign-in): it is stopped, the device is signed out
+        #    at the Hub, local data and the Credential Manager entry removed, program, shortcuts and Run value gone
+        gui = subprocess.Popen([str(exe), "--background"], env=env, cwd=work)
+        time.sleep(8)
+        require(gui.poll() is None, "the program did not start before the uninstall")
+        quiet = reg_value(UNINSTALL_KEY, "UninstallString").strip('"')
+        run([quiet, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", f"/LOG={evidence / 'uninstall.log'}"])
+        deadline = time.monotonic() + 120  # the uninstaller finishes from a copy of itself in %TEMP%
+        while time.monotonic() < deadline and (exe.exists() or reg_value(UNINSTALL_KEY, "UninstallString")):
+            time.sleep(1)
+        require(not exe.exists(), "the program is still there")
+        require(not start_menu.exists() and not desktop.exists(), "a shortcut is still there")
+        require(reg_value(RUN_KEY, "Swangz") is None, "the start-at-sign-in value is still there")
+        require(reg_value(UNINSTALL_KEY, "UninstallString") is None, "still listed in Apps & features")
+        stopped(gui, "the uninstaller did not stop the running program")
+        gui = None
+        require(not (data / "device.json").exists(), "local credentials left behind")
+        if in_os_store:
+            require(stored_secret() is None, "the device key is still in Windows Credential Manager")
+        revoked = rig.gw.db.scalar("SELECT revoked FROM keys WHERE created_by = 'device enrolment' ORDER BY id DESC LIMIT 1")
+        require(revoked is not None, "the Hub did not disconnect the device")
+        passed("silent uninstall while running: program stopped, device disconnected at the Hub, local credentials"
+               + (" and Credential Manager entry" if in_os_store else "") + " removed, program, shortcuts, Run value"
+               " and Apps & features entry gone")
+        report["ok"] = True
+    except Exception as exc:
+        report["error"] = str(exc)
+        raise
+    finally:
+        if gui is not None and gui.poll() is None:
+            gui.kill()
+        if relay:
+            relay.stop()
+        if initialized:
+            fixture.tearDown()
+            shutil.rmtree(fixture.tmp, ignore_errors=True)
+        shutil.rmtree(work, ignore_errors=True)
+        (evidence / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+
+
+def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "--browser":
+        return 0  # stands in for the person's browser; the script approves the code through the Hub itself
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--setup", type=Path, required=True)
+    p.add_argument("--evidence", type=Path, required=True)
+    args = p.parse_args()
+    require(sys.platform == "win32", "Windows only")
+    e2e(args.setup.resolve(), args.evidence.resolve())
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

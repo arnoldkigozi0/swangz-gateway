@@ -8,7 +8,7 @@ GitHub Actions, not the team laptop.
 |---|---|---|
 | Linux | `dist/Swangz` | `Swangz-UNSIGNED-TEST-Linux-<arch>.tar.gz` |
 | Windows | `dist/Swangz.exe` | `Swangz-UNSIGNED-TEST-Windows-<arch>.zip` |
-| macOS | `dist/Swangz.app` | `Swangz-UNSIGNED-TEST-Darwin-<arch>.tar.gz` |
+| macOS | `dist/Swangz.app` | `Swangz-UNSIGNED-TEST-Darwin-<arch>.tar.gz`; the DMG below |
 
 These are **UNSIGNED-TEST** artifacts for internal verification, not production installers.
 No publisher certificate, Developer ID, notarization, production release key or signing secret
@@ -72,6 +72,18 @@ data. The fixed EAT fixture corrects that setup issue; its format decoded locall
 UTC+03:00. A follow-up Actions run is required for Windows and the corrected head.
 The full Python suite and exhaustive browser/manual desktop checks were not run here.
 
+## macOS: Swangz.app and the DMG (release sprint, 17 Nov 2026)
+
+`python3 packaging/macos_dmg.py` (on a Mac) builds `dist/Swangz.app` and
+`dist/Swangz-<version>-RC-UNSIGNED-macos-<arch>.dmg` with a `.sha256` beside it, using only
+PyInstaller (pinned in the workflow) and tools every Mac has (`plutil`, `codesign` ad hoc,
+`ditto`, `hdiutil`, `shasum`). `.github/workflows/build-macos.yml` builds it on `macos-latest`
+for every pull request touching the app, and `packaging/macos_journey.py` installs it from the
+DMG, launches it, enrols it against a CI gateway, restarts, upgrades from a previous build and
+uninstalls it, uploading the log, step table and screenshots. Everything is labelled
+`RC — UNSIGNED — INTERNAL TEST ONLY`. Developer ID signing, notarization, Gatekeeper and what only
+Arnold can provide: `docs/MACOS-SIGNING.md`.
+
 ## Decisions for Arnold before production distribution
 
 Installer formats and their additional tools remain undecided: Windows installer (for
@@ -80,3 +92,35 @@ this workflow. Approve the tool choice and pinned PyInstaller dependency hashes 
 production packaging. Publisher certificates, Apple Developer ID/notarization, the release
 signing ceremony and enabling updates are separate approval gates. Do not bypass OS
 security controls to distribute these test builds.
+
+## Windows installer (RC — UNSIGNED — INTERNAL TEST ONLY)
+
+`packaging/windows/swangz.iss` (Inno Setup) wraps `dist\Swangz.exe`; `.github/workflows/release-windows.yml`
+builds it on `windows-latest` with pinned build tools (PyInstaller, Inno Setup 6.4.3 from its official release, checked against a SHA-256 pin) on every pull request
+that touches `packaging/`, `swangz_client/` or the workflow, and on manual dispatch.
+
+The installer:
+- installs per person, with no administrator rights, into `%LOCALAPPDATA%\Programs\Swangz`. Nothing machine-wide is
+  changed and no Windows security setting is touched;
+- adds a Start-menu entry. Two optional tasks are off by default: a desktop shortcut, and starting Swangz at sign-in
+  (the HKCU `Run` value `Swangz`, the same one the app's own switch uses);
+- carries no Hub address, key or secret: the person types the Hub address at first run;
+- installs no updater and schedules nothing. In-app updates stay off (`release_keys.ENABLED = False`) until signed
+  releases exist;
+- uninstalls by first stopping the person's own running Swangz (started at sign-in, it would hold the program open),
+  then running `Swangz.exe logout`, which tells the Hub to disconnect the device and removes what Swangz
+  put on the computer, even offline. It then removes the program, the shortcuts, the `Run` value and the Apps & features
+  entry. Installing again over an existing install closes a running copy and keeps the person's device and settings.
+
+The artifact is `Swangz-Setup-<version>-UNSIGNED.exe` plus a `.sha256` file and `RELEASE-LABEL.txt`.
+
+`packaging/windows/installer_e2e.py` is the acceptance run on the runner. It does: silent install, launch (self-check
+window, `--background` start), enrol against the test suite's local Hub, restart, network interruption and recovery
+(through a local relay the script cuts and restores), install over the top while the program runs, then silent
+uninstall while it runs, checking the device key is gone from Windows Credential Manager. "Install over the top" is the
+same version again, not an upgrade: there is no earlier RC to upgrade from yet. Its `report.json`
+and the installer's and uninstaller's logs are uploaded as the `Swangz-Windows-installer-evidence` artifact.
+
+Not covered by CI: SmartScreen (the installer is unsigned, so Windows warns "unknown publisher" until Swangz signs it
+with its own certificate), a real reboot (a restart of the program stands in for one), and Windows on physical devices.
+These stay on the owner checklist.

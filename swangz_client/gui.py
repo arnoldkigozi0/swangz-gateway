@@ -1,4 +1,4 @@
-"""The Swangz app window: a small desktop shell — a dock down the left (Home, Apps, Packages, This device) and
+"""The Swangz app window: a small desktop shell — a dock down the left (Home, Apps, Reports & Hub, Packages, This device) and
 the page you are on. Tk, so it is a real window on Windows, macOS and Linux with nothing to install beyond Python.
 
 All the work is done by `core.Client`; this file only draws it. Network calls run on a worker thread and hand
@@ -18,7 +18,7 @@ C = dict(bg="#0b0b0c", panel="#141416", raised="#1c1c1f", line="#2a2a2e", text="
          gold="#c8a96a", gold_hi="#e2c88d", bad="#e07a6b", ok="#7bd3a7")
 FONT = ("Segoe UI" if os.name == "nt" else "Helvetica", 11)
 SYNC_EVERY_MS = 15 * 60 * 1000
-PAGES = (("home", "Home"), ("apps", "Apps"), ("packages", "Packages"), ("device", "This device"))
+PAGES = (("home", "Home"), ("apps", "Apps"), ("hub", "Reports & Hub"), ("packages", "Packages"), ("device", "This device"))
 STATE_WORDS = {"installed": "Installed", "update": "Update ready", "available": "Not installed"}
 
 
@@ -268,6 +268,24 @@ class App:
         if st.get("update_available"):
             self.label(bar, "  A newer version of Swangz is available.", color="gold_hi").pack(side="left")
 
+    def page_hub(self):
+        f, st = self.content, self.client.status()
+        self.label(f, "Reports & Hub", 22, bold=True).pack(anchor="w")
+        email = (st.get("person") or {}).get("email") or "your company account"
+        self.label(f, f"These pages open in your browser. Sign in there as {email}. Connecting this device does not sign "
+                      "you into the website. Use your own browser profile and sign out of the "
+                      "Hub when finished.", color="muted", wrap=640).pack(anchor="w", pady=(6, 16))
+        for page, title, note in (
+            ("weekly", "Open weekly reports", "Write, save and submit your tool reports in the Hub."),
+            ("devices", "Open my devices", "Review devices connected to your account."),
+            ("admin", "Open control room", "Sign in with an authorized administrator account to manage the Hub."),
+        ):
+            row = self.card(f)
+            row.configure(pady=8)
+            row.pack(fill="x", pady=(0, 6))
+            self.button(row, title, lambda p=page: self.open_hub(p)).pack(anchor="w")
+            self.label(row, note, 10, color="muted", wrap=600, bg=C["panel"]).pack(anchor="w", pady=(4, 0))
+
     def page_apps(self):
         f = self.content
         self.label(f, "Apps", 22, bold=True).pack(anchor="w")
@@ -367,10 +385,22 @@ class App:
             self.say(f"Opened {short} in a terminal.")
 
     def open_app(self, tool_id):
+        from .workspace_launcher import INSTALL_PAGE, LaunchError
         try:
             self.client.open_app(tool_id)
-            self.say("Opened in your browser.")
+            self.say("Opened in the Swangz workspace window.")
+        except LaunchError as exc:  # plain words; the only way out is the browser install page, never the default browser
+            self.say(str(exc), bad=True)
+            if exc.install and messagebox.askyesno("Google Chrome is needed", str(exc) + "\n\nOpen the Chrome install page?"):
+                shell.open_url(INSTALL_PAGE)
         except Exception as exc:  # noqa: BLE001
+            self.failed(exc)
+
+    def open_hub(self, page):
+        try:
+            shell.open_hub(self.client, page)
+            self.say("Opened in your browser. Sign in to the Hub there if asked.")
+        except Exception as exc:
             self.failed(exc)
 
     def toggle_autostart(self):

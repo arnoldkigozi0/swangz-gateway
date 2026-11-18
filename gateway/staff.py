@@ -4,6 +4,7 @@ For staff, Swangz AI Hub is simply how they reach AI tools at work. This API onl
 signed-in person's own profile, budget and keys.
 """
 
+import base64
 import html
 import http.client
 import json
@@ -11,9 +12,9 @@ import re
 import secrets
 import ssl
 import time
-from urllib.parse import quote, unquote
+from urllib.parse import parse_qs, quote, unquote
 
-from . import credentials, entitle, guides, parse, proxy, security, store
+from . import config, credentials, entitle, guides, parse, proxy, security, store
 from .admin import ApiError, Ctx
 
 COOKIE = "sgw_staff"
@@ -401,7 +402,7 @@ def me(ctx):
         # what the company records, stated plainly on the staff app's privacy page
         "privacy": {
             "retention_days": int(ctx.db.get_setting("retention_days", "90") or 0),
-            "store_bodies": ctx.db.get_setting("store_bodies", "1") == "1",
+            "store_bodies": config.stores_bodies(ctx.db),
             "block_secrets": ctx.db.get_setting("block_secrets", "0") == "1",
             "gate_log_full": ctx.db.get_setting("gate_log_full", "0") == "1",
             "support_contact": ctx.db.get_setting("support_contact", "") or "",
@@ -475,6 +476,27 @@ def workspace_hello(ctx):
 # ---------------------------------------------------------------- opening a tool from the portal
 
 
+def launch_checks(gw, person, tool):
+    """The access checks every Open makes, in order: the entitlement, the weekly report, the global pause, then the
+    company policies. Shared by /go/<tool> and the app's /api/device/open so the two can never disagree.
+    -> (ok, state, reason, rule, report_denial)."""
+    from . import reporting
+
+    ok, state, reason = entitle.is_enabled(gw.db, person, tool)
+    report_denial = reporting.gate(gw, person["id"], tool["id"]) if ok else None
+    if report_denial:
+        ok, state, reason = False, "weekly_report_required", report_denial["message"]
+    rule = "weekly_report_required" if report_denial else None
+    if gw.db.get_setting("paused", "0") == "1":
+        ok, reason = False, "AI access is paused for everyone right now."
+    if ok:
+        ruled = gw.tool_policy(person, tool, "launch")
+        if ruled:
+            ok, (reason, rule) = False, ruled
+            reason = reason[:1].upper() + reason[1:]
+    return ok, state, reason, rule, report_denial
+
+
 def launch(h, gw, tool_id):
     """/go/<tool>: the portal's Open button. Checks that this person may use the tool right now, logs
     the launch (who, which tool, when), and sends the browser on to the tool's sign-in link — or, for a
@@ -492,18 +514,14 @@ def launch(h, gw, tool_id):
     if not tool:
         return _launch_page(h, 404, "That tool isn't in the catalog any more.", "Your admin may have removed it.")
     from . import reporting
-    ok, state, reason = entitle.is_enabled(gw.db, person, tool)
-    report_denial = reporting.gate(gw, person["id"], tool["id"]) if ok else None
-    if report_denial:
-        ok, state, reason = False, "weekly_report_required", report_denial["message"]
-    rule = "weekly_report_required" if report_denial else None
-    if gw.db.get_setting("paused", "0") == "1":
-        ok, reason = False, "AI access is paused for everyone right now."
-    if ok:
-        ruled = gw.tool_policy(person, tool, "launch")
-        if ruled:
-            ok, (reason, rule) = False, ruled
-            reason = reason[:1].upper() + reason[1:]
+
+    ok, state, reason, rule, report_denial = launch_checks(gw, person, tool)
+    if ok:  # a paused or closed managed workspace, or `enforce` with a failing policy report: second check on the way in
+        from . import managed
+
+        shut = managed.launch_refusal(gw, person, parse_qs(h.path.partition("?")[2]))
+        if shut:
+            ok, (reason, rule) = False, shut
     target = catalog.launch_target(tool)
     if ok and not target:
         ok, reason = False, "This tool has no web address yet. Ask your admin."
@@ -910,8 +928,13 @@ def studio_voice(ctx):
                                               {"text": text, "model_id": model}, ref, purpose=ctx.body.get("purpose"))
     if status != 200 or not ctype.startswith("audio/"):
         raise ApiError(status if status >= 400 else 502, _error_from(payload, "The voice service didn't return audio."))
-    return _creation(_await_record(ctx, "SELECT * FROM requests WHERE turn_id = ? AND person_id = ? AND resp_blob IS NOT NULL",
-                                   (ref, ctx.person["id"])))
+    if config.stores_bodies(ctx.db):
+        return _creation(_await_record(ctx, "SELECT * FROM requests WHERE turn_id = ? AND person_id = ? AND resp_blob IS NOT NULL",
+                                       (ref, ctx.person["id"])))
+    # D-023: with storage off the clip is not kept, so it comes back once, to the person who made it, and is gone after
+    out = _creation(_await_record(ctx, "SELECT * FROM requests WHERE turn_id = ? AND person_id = ?", (ref, ctx.person["id"])))
+    out["audio_once"] = {"type": ctype.split(";")[0], "data": base64.b64encode(payload).decode()}
+    return out
 
 
 @route("POST", r"/studio/generate")
