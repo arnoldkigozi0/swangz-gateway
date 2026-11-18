@@ -121,7 +121,8 @@ uninstall while it runs, checking the device key is gone from Windows Credential
 build: the version in the tree, which is also the server's minimum client version, built first as a test input and never
 uploaded. This build raises PATCH by the run number (0.1.0 -> 0.1.<run>), the same scheme as the macOS journey. The
 upgrade must keep the device, its key and its Credential Manager entry, need no new sign-in, and show the new version in
-Apps & features and in the Hub's check-in record. Without `--previous`, step 6 reinstalls the same version. Its `report.json`
+Apps & features and in the Hub's check-in record. The previous installer is then run over this build and must be refused (exit code 1, the reason in its log, nothing
+changed): `swangz.iss` refuses to replace a newer installed version, while reinstalling the same version and upgrading still work. Without `--previous`, step 6 reinstalls the same version. Its `report.json`
 and the installer's and uninstaller's logs are uploaded as the `Swangz-Windows-installer-evidence` artifact.
 
 Not covered by CI: SmartScreen (the installer is unsigned, so Windows warns "unknown publisher" until Swangz signs it

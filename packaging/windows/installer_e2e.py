@@ -1,5 +1,5 @@
 """Windows installer acceptance on a CI runner: silent install -> launch -> enrol -> restart -> reconnect -> upgrade from the previous build over a running copy
--> uninstall while running.
+-> the older build refused -> uninstall while running.
 
     python packaging/windows/installer_e2e.py --setup artifacts/Swangz-Setup-0.1.0-UNSIGNED.exe --evidence evidence
 
@@ -305,6 +305,22 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
                    " and the Hub's check-in show the new version; same device and key, still signed in, no new sign-in")
         else:
             passed("reinstall (same version) over a running copy: the installer closed it; same device, still signed in, syncs")
+
+        # 6b. an older build is refused: the previous installer, run over this build, ends with exit code 1 and changes
+        #     nothing (same version in Apps & features, same program, still signed in)
+        if previous:
+            before = exe.read_bytes()
+            run([previous, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", f"/LOG={evidence / 'downgrade.log'}"], expected=1)
+            log = (evidence / "downgrade.log").read_text(encoding="utf-8", errors="replace")
+            require(f"Refused: Swangz {new_version} is installed" in log, "the downgrade log does not say why it was refused")
+            shown = reg_value(UNINSTALL_KEY, "DisplayVersion")
+            require(shown == new_version, f"after the refused downgrade Apps & features shows {shown}, expected {new_version}")
+            require(exe.read_bytes() == before, "the refused downgrade changed the installed program")
+            app("status")
+            report["downgrade"] = {"installer": previous_version, "installed": new_version, "exit_code": 1,
+                                   "apps_and_features": shown}
+            passed(f"older build refused: the {previous_version} installer over {new_version} exits 1, says why in its log and"
+                   " changes nothing")
 
         # 7. sign out from the app: the Hub disconnects the device, local data and the key go, and the start-at-sign-in
         #    Run value is removed (a signed-out app has nothing to start for)
