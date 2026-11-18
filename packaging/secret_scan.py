@@ -39,7 +39,12 @@ ENV_NAMES = re.compile(r"(^|[\\/])\.env(\.[A-Za-z0-9_-]+)?$")
 COMPILED = {name: re.compile(p) for name, p in PATTERNS.items()}
 
 
+SCANNED = {"inner entries": 0}
+
+
 def scan_bytes(data, where, hits):
+    if "!" in where:
+        SCANNED["inner entries"] += 1
     for name, rx in COMPILED.items():
         for m in rx.finditer(data):
             text = m.group(0)
@@ -110,6 +115,7 @@ def scan_zip(fileobj, where, hits, unreadable):
 
 def scan(paths):
     hits, unreadable, files, archives = [], [], [], []
+    SCANNED["inner entries"] = 0
     for root in paths:
         root = Path(root)
         for f in ([root] if root.is_file() else sorted(p for p in root.rglob("*") if p.is_file())):
@@ -122,7 +128,7 @@ def scan(paths):
             elif data[:2] == b"MZ" or data[:4] in (b"\x7fELF", b"\xcf\xfa\xed\xfe", b"\xca\xfe\xba\xbe"):
                 why_not = scan_pyinstaller(f, hits, unreadable)
                 archives.append({"file": str(f), "pyinstaller": why_not is None, "note": why_not})
-    return {"files": files, "archives": archives, "patterns": sorted(PATTERNS),
+    return {"files": files, "inner_entries_scanned": SCANNED["inner entries"], "archives": archives, "patterns": sorted(PATTERNS),
             "allowed": {k.decode(): v for k, v in ALLOWED.items()}, "hits": hits, "unreadable": unreadable}
 
 
@@ -141,6 +147,7 @@ def main(argv=None):
     Path(args.report).write_text(json.dumps(result, indent=2))
     n, opened = len(result["hits"]), sum(a["pyinstaller"] for a in result["archives"])
     line = (f"Secret scan: {len(result['files'])} files, {opened} PyInstaller archives opened, "
+            f"{result['inner_entries_scanned']} archive entries and modules searched, "
             f"{len(result['unreadable'])} unreadable, {n} hits")
     print(("CLEAN " if n == 0 else "HITS ") + line)
     for h in result["hits"][:50]:

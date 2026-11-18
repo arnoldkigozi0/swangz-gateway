@@ -72,6 +72,7 @@ class SecretScanTests(unittest.TestCase):
         where = {(h["pattern"], h["where"].split("!")[-1]) for h in rep["hits"]}
         self.assertIn(("Anthropic key", "pkg/config.py"), where)
         self.assertIn((".env file", "pkg/.env"), where)
+        self.assertEqual(rep["inner_entries_scanned"], 2)
 
     def test_folder_is_walked(self):
         (self.dir / "sub").mkdir()
