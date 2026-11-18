@@ -10,6 +10,13 @@ on:
       - 'swangz_client/**'
       - 'gateway/enroll.py'
       - '.github/workflows/build-macos.yml'
+  push:  # main gets its own RC artifact, so the release candidate is built from the merged tree
+    branches: [main]
+    paths:
+      - 'packaging/**'
+      - 'swangz_client/**'
+      - 'gateway/enroll.py'
+      - '.github/workflows/build-macos.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -57,6 +64,9 @@ jobs:
         run: |
           python packaging/macos_journey.py --old dist-previous/*.dmg --new dist/*.dmg \
             --old-version "$PREVIOUS_VERSION" --new-version "$NEW_VERSION" --evidence evidence
+      - name: Evidence summary
+        if: always()
+        run: python packaging/macos_summary.py --dist dist --evidence evidence --pyinstaller "$PYINSTALLER_VERSION" >> "$GITHUB_STEP_SUMMARY"
       - name: Keep the RC and the evidence
         if: always()
         uses: actions/upload-artifact@v4
