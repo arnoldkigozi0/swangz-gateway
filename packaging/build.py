@@ -29,6 +29,36 @@ def command(dist, work, onedir=False):
     return cmd
 
 
+def normalize_windows_program(path, epoch):
+    """Make a Windows build depend on the source only: PyInstaller stamps the build time into the PE header (and the
+    resource directory) when it writes the icon and manifest. Set those to the source date, then recompute the PE
+    checksum. The appended archive is untouched. Returns the stamps that were replaced."""
+    import pefile  # one of PyInstaller's own Windows dependencies (packaging/requirements-windows-build.txt)
+
+    pe = pefile.PE(str(path))
+    replaced = {"file_header": pe.FILE_HEADER.TimeDateStamp}
+    pe.FILE_HEADER.TimeDateStamp = epoch
+
+    def directories(directory):
+        yield directory
+        for entry in getattr(directory, "entries", []):
+            if hasattr(entry, "directory"):
+                yield from directories(entry.directory)
+
+    if hasattr(pe, "DIRECTORY_ENTRY_RESOURCE"):
+        stamps = set()
+        for directory in directories(pe.DIRECTORY_ENTRY_RESOURCE):
+            stamps.add(directory.struct.TimeDateStamp)
+            directory.struct.TimeDateStamp = epoch
+        replaced["resources"] = sorted(stamps)
+    pe.OPTIONAL_HEADER.CheckSum = pe.generate_checksum()
+    data = pe.write()
+    pe.close()
+    Path(path).write_bytes(data)
+    os.utime(path, (epoch, epoch))  # the installer stores the file's time too
+    return replaced
+
+
 def main(argv=None):
     p = argparse.ArgumentParser()
     p.add_argument("--dist", default=str(ROOT / "dist"))
@@ -41,6 +71,10 @@ def main(argv=None):
         sys.exit(f"missing {exc.name}: see the notes at the top of this file")
     env = {**os.environ, "PYTHONHASHSEED": "0"}
     code = subprocess.run(command(args.dist, args.work), env=env).returncode
+    epoch = os.environ.get("SOURCE_DATE_EPOCH")
+    if code == 0 and epoch and sys.platform == "win32":
+        program = Path(args.dist) / "Swangz.exe"
+        print(f"normalized {program} to SOURCE_DATE_EPOCH {epoch}: replaced {normalize_windows_program(program, int(epoch))}")
     if code == 0:
         print(f"built into {args.dist}")
     return code

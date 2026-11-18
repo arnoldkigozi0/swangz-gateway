@@ -48,6 +48,9 @@ ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=force
 RestartApplications=no
 SetupLogging=yes
+; Reproducible builds: keep the program's own (source-dated) file time instead of stamping the compile time.
+TouchDate=none
+TouchTime=none
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

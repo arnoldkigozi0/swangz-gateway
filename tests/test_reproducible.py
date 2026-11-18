@@ -72,6 +72,33 @@ class ReproducibleTests(unittest.TestCase):
         self.assertEqual(WORKFLOW.count("--summary $env:GITHUB_STEP_SUMMARY"), 2)
         self.assertNotIn("path: repro-b", WORKFLOW)  # the second build is a test input, never uploaded
 
+    def test_build_times_are_replaced_by_the_source_date(self):
+        self.assertIn("SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)", WORKFLOW)
+        build = (ROOT / "packaging" / "build.py").read_text(encoding="utf-8")
+        self.assertIn('os.environ.get("SOURCE_DATE_EPOCH")', build)
+        self.assertIn("pe.OPTIONAL_HEADER.CheckSum = pe.generate_checksum()", build)
+        iss = (ROOT / "packaging" / "windows" / "swangz.iss").read_text(encoding="utf-8")
+        self.assertIn("TouchDate=none", iss)
+        self.assertIn("TouchTime=none", iss)
+
+    def test_normalizing_a_windows_program_sets_the_stamps_and_keeps_the_archive(self):
+        import sys
+        if sys.platform != "win32":
+            self.skipTest("needs a Windows program to normalize; the Windows job's IDENTICAL/DIFFERENT result covers it")
+        try:
+            import pefile  # noqa: F401  (PyInstaller's Windows dependency; present on the CI build machine)
+        except ImportError:
+            self.skipTest("pefile is not installed here; the Windows job's IDENTICAL/DIFFERENT result covers it")
+        spec_b = importlib.util.spec_from_file_location("build", ROOT / "packaging" / "build.py")
+        build = importlib.util.module_from_spec(spec_b)
+        spec_b.loader.exec_module(build)
+        program = self.write("Swangz.exe", Path(sys.executable).read_bytes() + b"ARCHIVE-TAIL")
+        replaced = build.normalize_windows_program(program, 1700000000)
+        self.assertIn("file_header", replaced)
+        data = program.read_bytes()
+        self.assertTrue(data.endswith(b"ARCHIVE-TAIL"))
+        self.assertEqual(repro.pe_header(data)["timestamp"], 1700000000)
+
 
 if __name__ == "__main__":
     unittest.main()

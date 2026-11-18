@@ -25,6 +25,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Source date (reproducible builds)
+        # Build times in the program's PE header and the installer's file times become the commit time (packaging/build.py).
+        run: '"SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8'
       - name: Pinned build tools
         run: |
           python -m pip install "pyinstaller==$env:PYINSTALLER_VERSION"
