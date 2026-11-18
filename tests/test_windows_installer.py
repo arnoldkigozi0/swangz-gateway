@@ -99,6 +99,21 @@ class WorkflowTests(unittest.TestCase):
     def test_checksum_and_acceptance_evidence_are_produced(self):
         self.assertIn(".sha256", WORKFLOW)
         self.assertIn("installer_e2e.py --setup $env:SETUP --evidence evidence", WORKFLOW)
+
+    def test_upgrade_runs_from_the_previous_build_which_is_not_released(self):
+        self.assertIn("--previous $env:PREVIOUS_SETUP --previous-version $env:PREVIOUS_VERSION --new-version $env:NEW_VERSION",
+                      WORKFLOW)
+        self.assertIn('/DOutputDir=$PWD\\previous"', WORKFLOW)  # the previous installer stays out of artifacts/
+        self.assertIn("GITHUB_RUN_NUMBER", WORKFLOW)  # this build's PATCH is raised, so it is always newer
+        self.assertIn('if ($version -ne $env:NEW_VERSION)', WORKFLOW)
+        uploads = re.findall(r"path: (\S+)", WORKFLOW)
+        self.assertEqual(sorted(uploads), ["artifacts/", "evidence/"])
+
+    def test_the_e2e_checks_the_upgrade_reached_windows_and_the_hub(self):
+        e2e = (ROOT / "packaging" / "windows" / "installer_e2e.py").read_text(encoding="utf-8")
+        for needle in ('reg_value(UNINSTALL_KEY, "DisplayVersion")', "SELECT app_version FROM devices",
+                       '"the upgrade lost the device"', "install(\"install.log\", first)"):
+            self.assertIn(needle, e2e)
         self.assertIn("if: always()", WORKFLOW)
 
 

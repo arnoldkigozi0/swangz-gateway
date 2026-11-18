@@ -1,5 +1,6 @@
 name: Windows installer (RC, UNSIGNED)
-# Builds the Windows installer and runs the install -> launch -> enrol -> restart -> reconnect -> reinstall over a running copy -> uninstall while running
+# Builds the Windows installer and runs the install (previous build) -> launch -> enrol -> restart -> reconnect -> upgrade to this
+# build over a running copy -> uninstall while running
 # acceptance against the test suite's local Hub. Test artifacts only: no signing, no release, no deployment.
 on:
   pull_request:
@@ -39,11 +40,38 @@ jobs:
           Remove-Item innosetup.exe
           python --version
           python -m PyInstaller --version
+      - name: Build the previous version (for the upgrade test)
+        # The previous build is the version in the tree, which is also the server's minimum client version.
+        # It is a test input only: it is not uploaded as a release artifact.
+        run: |
+          $old = python -c "import swangz_client; print(swangz_client.__version__)"
+          python packaging/build.py
+          & $env:ISCC /Qp "/DAppVersion=$old" "/DSourceExe=$PWD\dist\Swangz.exe" "/DOutputDir=$PWD\previous" packaging\windows\swangz.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "PREVIOUS_VERSION=$old" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "PREVIOUS_SETUP=previous\Swangz-Setup-$old-UNSIGNED.exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Build this version (patch number raised by the run number)
+        # The app and its updater accept only MAJOR.MINOR.PATCH (swangz_client/updater.py version()), so the RC number
+        # goes into PATCH: 0.1.0 -> 0.1.<previous patch + run number>. Always above the previous build and the server minimum.
+        shell: python
+        run: |
+          import os, re
+          from pathlib import Path
+          major, minor, patch = (int(x) for x in os.environ["PREVIOUS_VERSION"].split("."))
+          new = f"{major}.{minor}.{patch + int(os.environ['GITHUB_RUN_NUMBER'])}"
+          init = Path("swangz_client/__init__.py")
+          text, n = re.subn(r'^__version__ = ".*"$', f'__version__ = "{new}"', init.read_text(encoding="utf-8"), flags=re.M)
+          assert n == 1, "no __version__ line"
+          init.write_text(text, encoding="utf-8")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
+              env.write(f"NEW_VERSION={new}\n")
+          print(f"previous {os.environ['PREVIOUS_VERSION']} -> this build {new}")
       - name: Build the program
         run: python packaging/build.py
       - name: Build the installer
         run: |
           $version = python -c "import swangz_client; print(swangz_client.__version__)"
+          if ($version -ne $env:NEW_VERSION) { throw "built $version, expected $env:NEW_VERSION" }
           & $env:ISCC /Qp "/DAppVersion=$version" "/DSourceExe=$PWD\dist\Swangz.exe" "/DOutputDir=$PWD\artifacts" packaging\windows\swangz.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "SETUP=artifacts\Swangz-Setup-$version-UNSIGNED.exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
@@ -57,8 +85,10 @@ jobs:
           Path(str(setup) + ".sha256").write_text(f"{digest}  {setup.name}\n", encoding="utf-8")
           Path("artifacts/RELEASE-LABEL.txt").write_text("RC — UNSIGNED — INTERNAL TEST ONLY\n", encoding="utf-8")
           print(f"{setup.name} {setup.stat().st_size} bytes SHA-256 {digest}")
-      - name: Install, launch, enrol, restart, reconnect, reinstall, uninstall
-        run: python packaging/windows/installer_e2e.py --setup $env:SETUP --evidence evidence
+      - name: Install the previous build, launch, enrol, restart, reconnect, upgrade, uninstall
+        run: >-
+          python packaging/windows/installer_e2e.py --setup $env:SETUP --evidence evidence
+          --previous $env:PREVIOUS_SETUP --previous-version $env:PREVIOUS_VERSION --new-version $env:NEW_VERSION
       - uses: actions/upload-artifact@v4
         with:
           name: Swangz-Windows-installer-RC-UNSIGNED

@@ -1,4 +1,4 @@
-"""Windows installer acceptance on a CI runner: silent install -> launch -> enrol -> restart -> reconnect -> reinstall over a running copy
+"""Windows installer acceptance on a CI runner: silent install -> launch -> enrol -> restart -> reconnect -> upgrade from the previous build over a running copy
 -> uninstall while running.
 
     python packaging/windows/installer_e2e.py --setup artifacts/Swangz-Setup-0.1.0-UNSIGNED.exe --evidence evidence
@@ -135,11 +135,14 @@ def kampala_zone(tmpdir):
         reset_tzpath([str(tmpdir), *TZPATH])
 
 
-def e2e(setup, evidence):
+def e2e(setup, evidence, previous=None, previous_version=None, new_version=None):
+    """With `previous`, steps 1-5 run on the previous build and step 6 upgrades it to `setup`; otherwise step 6 reinstalls."""
     from tests.test_devices import DeviceBase
 
     evidence.mkdir(parents=True, exist_ok=True)
-    report = {"os": platform.platform(), "setup": setup.name, "steps": [], "ok": False}
+    report = {"os": platform.platform(), "setup": setup.name, "steps": [], "ok": False,
+              "previous": previous.name if previous else None, "previous_version": previous_version, "new_version": new_version}
+    first = previous or setup
     fixture, relay, gui, initialized = DeviceBase(), None, None, False
     work = Path(tempfile.mkdtemp(prefix="swangz-installer-e2e-"))
     try:
@@ -173,15 +176,15 @@ def e2e(setup, evidence):
         def app(*args, expected=0):
             return run([exe, *args], expected=expected)
 
-        def install(log):
-            run([setup, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/TASKS=desktopicon,startup",
+        def install(log, installer=setup):
+            run([installer, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/TASKS=desktopicon,startup",
                  f"/LOG={evidence / log}"])
 
         def heartbeat(key_id):
             return rig.gw.db.scalar("SELECT last_seen FROM devices WHERE key_id = ?", (key_id,))
 
         # 1. silent install, per person, with both optional tasks
-        install("install.log")
+        install("install.log", first)
         start_menu = shell_folder("Programs") / "Swangz.lnk"
         desktop = shell_folder("Desktop") / "Swangz.lnk"
         run_value = reg_value(RUN_KEY, "Swangz")
@@ -202,6 +205,8 @@ def e2e(setup, evidence):
         check = json.loads(check.read_text(encoding="utf-8"))
         require(check["frozen"] and check["window"] == "signin", f"self-check: {check}")
         require(check["updates_enabled"] is False and check["production_keys"] == 0, "the update gate is not off")
+        if previous_version:
+            require(check["version"] == previous_version, f"installed {check['version']}, expected {previous_version}")
         report["self_check"] = check
         gui = subprocess.Popen([str(exe), "--background"], env=env, cwd=work)
         time.sleep(8)
@@ -270,18 +275,32 @@ def e2e(setup, evidence):
         passed("network interruption: sync exited 1 and recorded no sync, credentials and state kept; on return the next sync"
                " checked in with no sign-in again")
 
-        # 6. install again over the top while the program is running (same version: there is no earlier RC to upgrade
-        #    from yet); the installer closes it, and the person's device and settings stay
+        # 6. upgrade to this build over a running copy (or, with no previous build, reinstall the same version): the
+        #    installer closes the program; the person's device, key and settings stay, and the Hub sees the new version
         gui = subprocess.Popen([str(exe), "--background"], env=env, cwd=work)
         time.sleep(8)
-        require(gui.poll() is None, "the program did not start before the reinstall")
-        install("reinstall.log")
+        require(gui.poll() is None, "the program did not start before the upgrade")
+        install("upgrade.log" if previous else "reinstall.log")
         stopped(gui, "the installer did not close the running program")
         gui = None
-        require(json.loads((data / "device.json").read_text(encoding="utf-8"))["key_id"] == key_id, "reinstall lost the device")
+        require(json.loads((data / "device.json").read_text(encoding="utf-8"))["key_id"] == key_id, "the upgrade lost the device")
+        if in_os_store:
+            require(stored_secret(), "the upgrade lost the device key in Windows Credential Manager")
         app("status")
+        seen = heartbeat(key_id)
+        time.sleep(0.05)
         app("sync")
-        passed("reinstall (same version) over a running copy: the installer closed it; same device, still signed in, syncs")
+        require(heartbeat(key_id) > seen, "no check-in after the upgrade")
+        if previous:
+            shown = reg_value(UNINSTALL_KEY, "DisplayVersion")
+            hub = rig.gw.db.scalar("SELECT app_version FROM devices WHERE key_id = ?", (key_id,))
+            require(shown == new_version, f"Apps & features shows {shown}, expected {new_version}")
+            require(hub == new_version, f"the Hub records app version {hub}, expected {new_version}")
+            report["upgrade"] = {"from": previous_version, "to": new_version, "apps_and_features": shown, "hub_app_version": hub}
+            passed(f"upgrade {previous_version} -> {new_version} over a running copy: the installer closed it; Apps & features"
+                   " and the Hub's check-in show the new version; same device and key, still signed in, no new sign-in")
+        else:
+            passed("reinstall (same version) over a running copy: the installer closed it; same device, still signed in, syncs")
 
         # 7. uninstall while the program runs (as it does when started at sign-in): it is stopped, the device is signed out
         #    at the Hub, local data and the Credential Manager entry removed, program, shortcuts and Run value gone
@@ -329,9 +348,14 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--setup", type=Path, required=True)
     p.add_argument("--evidence", type=Path, required=True)
+    p.add_argument("--previous", type=Path, help="the previous build's installer: install it first, then upgrade to --setup")
+    p.add_argument("--previous-version")
+    p.add_argument("--new-version")
     args = p.parse_args()
+    require(not args.previous or (args.previous_version and args.new_version), "--previous needs both versions")
     require(sys.platform == "win32", "Windows only")
-    e2e(args.setup.resolve(), args.evidence.resolve())
+    e2e(args.setup.resolve(), args.evidence.resolve(), args.previous.resolve() if args.previous else None,
+        args.previous_version, args.new_version)
     return 0
 
 

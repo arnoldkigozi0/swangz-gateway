@@ -116,9 +116,12 @@ The artifact is `Swangz-Setup-<version>-UNSIGNED.exe` plus a `.sha256` file and 
 
 `packaging/windows/installer_e2e.py` is the acceptance run on the runner. It does: silent install, launch (self-check
 window, `--background` start), enrol against the test suite's local Hub, restart, network interruption and recovery
-(through a local relay the script cuts and restores), install over the top while the program runs, then silent
-uninstall while it runs, checking the device key is gone from Windows Credential Manager. "Install over the top" is the
-same version again, not an upgrade: there is no earlier RC to upgrade from yet. Its `report.json`
+(through a local relay the script cuts and restores), an upgrade to this build while the program runs, then silent
+uninstall while it runs, checking the device key is gone from Windows Credential Manager. Steps 1-5 run on the previous
+build: the version in the tree, which is also the server's minimum client version, built first as a test input and never
+uploaded. This build raises PATCH by the run number (0.1.0 -> 0.1.<run>), the same scheme as the macOS journey. The
+upgrade must keep the device, its key and its Credential Manager entry, need no new sign-in, and show the new version in
+Apps & features and in the Hub's check-in record. Without `--previous`, step 6 reinstalls the same version. Its `report.json`
 and the installer's and uninstaller's logs are uploaded as the `Swangz-Windows-installer-evidence` artifact.
 
 Not covered by CI: SmartScreen (the installer is unsigned, so Windows warns "unknown publisher" until Swangz signs it
