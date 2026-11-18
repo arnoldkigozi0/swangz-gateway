@@ -29,7 +29,10 @@ jobs:
           python-version: '3.12'
       - name: Build tools (pinned)
         run: |
-          python -m pip install "pyinstaller==${PYINSTALLER_VERSION}"
+          # every build tool pinned by version AND sha256: a substituted wheel fails here
+          grep -q "^pyinstaller==${PYINSTALLER_VERSION} " packaging/requirements-macos-build.txt
+          python -m pip install --require-hashes --only-binary :all: -r packaging/requirements-macos-build.txt
+          python -m PyInstaller --version
           python -c "import tkinter; print('Tk', tkinter.TkVersion)"
           sw_vers; uname -m; hdiutil info | head -3
       - name: Build the previous version (for the upgrade test)

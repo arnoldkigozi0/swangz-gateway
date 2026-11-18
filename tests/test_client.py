@@ -364,6 +364,26 @@ class RevocationTests(ClientBase):
         self.assertFalse(self.client.logout())
         self.assertFalse(self.client.signed_in())
 
+    def test_logout_turns_start_at_login_off(self):
+        # A signed-out app has nothing to start for: the macOS login item / Linux .desktop file goes with the sign-in.
+        for platform_name in ("darwin", "linux"):
+            self.sign_in()  # on this system; only start-at-login and sign out see the other platform
+            with self.subTest(platform_name), patch.dict(os.environ), patch.object(sys, "platform", platform_name):
+                os.environ.pop("XDG_CONFIG_HOME", None)
+                shell.set_autostart(self.client.paths, True, command=["/opt/swangz/swangz"])
+                f = shell.autostart_file(self.client.paths)
+                self.assertTrue(f.exists())
+                self.assertTrue(str(f).startswith(str(self.client.paths.home)))  # the test's home, never the runner's
+                self.client.logout()
+                self.assertFalse(f.exists())
+                self.assertFalse(shell.autostart_enabled(self.client.paths))
+
+    def test_logout_still_signs_out_when_start_at_login_cannot_be_removed(self):
+        self.sign_in()
+        with patch.object(shell, "set_autostart", side_effect=PermissionError("read-only")):
+            self.assertTrue(self.client.logout())
+        self.assertFalse(self.client.signed_in())
+
 
 class PackageTests(ClientBase):
     def publish(self, version="1.0.0", files=None, **kw):

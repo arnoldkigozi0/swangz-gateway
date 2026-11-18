@@ -344,7 +344,7 @@ fetch the key again or a new shell is started; the app does not wait for or inte
 
 `swangz` opens the window: a dock down the left (Home, Apps, Packages, This device), sign-in, sync every 15
 minutes while open, "start when I sign in" (a LaunchAgent on macOS, `~/.config/autostart` on Linux, the `Run`
-key on Windows). From a terminal: `swangz login|status|sync|packages|apps|open TOOL|run claude|codex|autostart on|off|logout`.
+key on Windows; signing out turns it off). From a terminal: `swangz login|status|sync|packages|apps|open TOOL|run claude|codex|autostart on|off|logout`.
 
 Build a standalone program for the computer you are on (it carries its own Python):
 

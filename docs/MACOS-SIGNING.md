@@ -113,5 +113,5 @@ the sign-in.
 |---|---|---|
 | Device key | login keychain, service "Swangz AI Hub" (a protected file only if the keychain does not work) | yes |
 | Device record, state, manifest, packages | `~/Library/Application Support/Swangz/` | yes |
-| Start at login | `~/Library/LaunchAgents/com.swangzavenue.swangz.plist` (only when turned on) | turned off first by the journey; `autostart off` removes it |
+| Start at login | `~/Library/LaunchAgents/com.swangzavenue.swangz.plist` (only when turned on) | yes (sign out turns start at login off; the journey checks the file is gone) |
 | The app | `/Applications/Swangz.app` | dragged to the Bin by the person |

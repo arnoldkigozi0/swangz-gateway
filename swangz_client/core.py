@@ -1067,6 +1067,10 @@ class Client:
         except (ApiFailure, NotSignedIn, keystore.KeyStoreError, agents.AgentConfigError):
             told = False
         self.remove_everything()
+        try:  # a signed-out app has nothing to start for: drop the login item (macOS), Run value (Windows), .desktop (Linux)
+            shell.set_autostart(self.paths, False)
+        except OSError:
+            pass  # never block sign out; `swangz autostart off` remains available
         return told
 
     # ------------------------------------------------------------ what the window shows
