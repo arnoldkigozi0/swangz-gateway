@@ -13,6 +13,15 @@ from urllib.parse import urlsplit
 COMPANY_DOMAIN = "swangzavenue.com"
 # The two explicitly approved owner identities. Fixed in code on purpose: nothing configurable can widen this list.
 OWNER_EXCEPTIONS = frozenset({"arnoldkigozi0@gmail.com", "marvinmusokessekatawa@gmail.com"})
+# Prompt and reply text are not kept unless an admin switches it on (D-023). The one place the default lives.
+STORE_BODIES_DEFAULT = "0"
+
+
+def stores_bodies(db):
+    """Whether new requests keep their prompt, reply and bodies (Settings > Records)."""
+    return db.get_setting("store_bodies", STORE_BODIES_DEFAULT) == "1"
+
+
 RESERVED_NAMES = {"admin", "api", "static", "healthz", "favicon.ico", "auth", "go", "icons"}
 
 

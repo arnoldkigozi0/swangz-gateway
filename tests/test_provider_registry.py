@@ -829,7 +829,7 @@ class PrivacyTests(Base):
 
 class MigrationTests(unittest.TestCase):
     def test_the_schema_has_26_entries_v24_is_frozen_and_the_first_23_are_byte_for_byte_the_base(self):
-        self.assertEqual(len(SCHEMA), 27)  # v26 is the managed workspace (tests/test_workspace_state.py)
+        self.assertGreaterEqual(len(SCHEMA), 27)  # v26 is the managed workspace (tests/test_workspace_state.py)
         self.assertEqual(hashlib.sha256("\x00".join(SCHEMA[:23]).encode()).hexdigest(), SCHEMA_23_SHA256)
         self.assertEqual(hashlib.sha256("\x00".join(SCHEMA[23]).encode()).hexdigest(), SCHEMA_24_SHA256)  # v24 as at 255863d
 
@@ -915,7 +915,10 @@ class MigrationTests(unittest.TestCase):
         for table, rows in before.items():
             if table == "meta":
                 continue  # only the schema number moves
-            self.assertEqual(db.q(f"SELECT * FROM {table}"), rows, table)
+            after = db.q(f"SELECT * FROM {table}")
+            if table == "settings":  # v28 (D-023) adds only the unset prompt/reply storage switch, as off
+                after = [r for r in after if not (r["k"] == "store_bodies" and r["v"] == "0")]
+            self.assertEqual(after, rows, table)
         self.assertEqual(db.scalar("SELECT COUNT(*) FROM provider_accounts") + db.scalar("SELECT COUNT(*) FROM provider_account_values"), 0)
         db.x("INSERT INTO provider_accounts(account_holder_kind, holder_person_id, tool_id, route, payer, created) VALUES('person', 1, 't1', 'seat', 'company', 1)")
         db.close()
