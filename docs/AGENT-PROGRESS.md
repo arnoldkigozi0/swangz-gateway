@@ -1668,3 +1668,6 @@ Report: docs/daily/2026-11-12.md. Main CI green (0135ac2). Open: #174 #175 #160 
 
 ## Chief status — 13 Nov 2026 21:40
 GitHub unreachable from the laptop (DNS). Main c780331 CI unconfirmed. Next at 00:00: read `gh pr list` and main CI first, fix red; then Probe QA + Sentinel review of feature/managed-workspace (03e01aa); merge registry PR when CI green. Waiting on Arnold: #160 prompt-text visibility; manual provider sign-in check for the 9.3 demo. Report: docs/daily/2026-11-13.md.
+
+## Chief — 18 Nov 2026 21:30 daily report
+Report: docs/daily/2026-11-18.md. GitHub unreachable at report time; CI on main not re-read. Open: #249 (D-023, needs Probe + Sentinel), #251, #242, #235 (browser job red), #160 (Arnold). Next: re-run `gh pr checks` on each when network returns; merge green ones; Sentinel on #249/#248.
