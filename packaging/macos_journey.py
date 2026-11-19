@@ -455,6 +455,8 @@ def main(argv=None):
             code, out = j.run([binary(app), command], env=env)
             j.step(f"older build over the newer one: `{command}` refuses and says why",
                    code == 5 and f"Swangz {args.new_version} is already in use" in out, f"exit {code}")
+        j.step("the refusal gives the full sign-out command (`swangz` is not on PATH on a Mac)",
+               "Contents/MacOS/Swangz logout" in out, out.strip()[-160:])
         kept = json.loads((data / "device.json").read_text(encoding="utf-8"))
         j.step("the refused older build changed nothing: same device record and keychain key",
                kept == device and keychain_secret(app_url, kept.get("key_id")) == secret, f"key {kept.get('key_id')}")

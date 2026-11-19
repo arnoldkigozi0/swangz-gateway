@@ -118,7 +118,7 @@ def check_newest_app(paths, running=__version__):
             failed = None
         if not failed or version_tuple(failed) < version_tuple(seen):
             raise OlderBuild(f"Swangz {seen} is already in use on this computer; this copy is the older {running}, so "
-                             f"it will not run. Install Swangz {seen} or newer, or sign out first (swangz logout).")
+                             f"it will not run. Install Swangz {seen} or newer, or sign out first.")
     if seen != running:
         write_private(data / NEWEST_APP, json.dumps({"version": running}))
 
