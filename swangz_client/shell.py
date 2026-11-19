@@ -48,14 +48,16 @@ def set_autostart(paths, on, command=None):
     command = (command or app_command()) + ["--background"]
     if sys.platform == "win32":
         import winreg as reg
-        with reg.OpenKey(reg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, reg.KEY_SET_VALUE) as k:
-            if on:
-                reg.SetValueEx(k, "Swangz", 0, reg.REG_SZ, subprocess.list2cmdline(command))
-            else:
-                try:
+        try:
+            with reg.OpenKey(reg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, reg.KEY_SET_VALUE) as k:
+                if on:
+                    reg.SetValueEx(k, "Swangz", 0, reg.REG_SZ, subprocess.list2cmdline(command))
+                else:
                     reg.DeleteValue(k, "Swangz")
-                except FileNotFoundError:
-                    pass  # already off; any other error (access denied, ...) is raised
+        except FileNotFoundError:
+            if on:
+                raise
+            # The Run key or our value is absent: already off. Access denied and other errors still raise.
         return
     f = autostart_file(paths)
     if not on:

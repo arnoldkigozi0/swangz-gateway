@@ -10,7 +10,7 @@ import sys
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -421,6 +421,98 @@ class WindowsAutostartTests(unittest.TestCase):
     def test_other_registry_errors_are_raised(self):
         with self.assertRaises(PermissionError):
             self.turn_off(PermissionError(5, "access denied"))
+
+    def test_an_absent_run_key_is_already_off_but_not_silently_enabled(self):
+        reg = self.fake_winreg(None)
+        reg.OpenKey = Mock(side_effect=FileNotFoundError(2, "Run key absent"))
+        with patch.dict(sys.modules, {"winreg": reg}), patch.object(sys, "platform", "win32"):
+            shell.set_autostart(None, False, command=["Swangz.exe"])
+            with self.assertRaises(FileNotFoundError):
+                shell.set_autostart(None, True, command=["Swangz.exe"])
+
+    def test_access_denied_opening_the_run_key_is_not_an_absent_key(self):
+        reg = self.fake_winreg(None)
+        reg.OpenKey = Mock(side_effect=PermissionError(5, "access denied"))
+        with patch.dict(sys.modules, {"winreg": reg}), patch.object(sys, "platform", "win32"):
+            with self.assertRaises(PermissionError):
+                shell.set_autostart(None, False, command=["Swangz.exe"])
+
+
+class DeviceRemovalStartupTests(unittest.TestCase):
+    """Port-free Windows registry/state tests: use the real cleanup and startup functions, no real registry or key."""
+
+    def setUp(self):
+        import contextlib
+        self.values = {"Swangz": "Swangz.exe --background", "Another app": "untouched"}
+        self.reg = SimpleNamespace(HKEY_CURRENT_USER="HKCU", KEY_SET_VALUE=2)
+        self.reg.OpenKey = lambda *args: contextlib.nullcontext("Run")
+        def delete(key, name):
+            if name not in self.values:
+                raise FileNotFoundError(name)
+            del self.values[name]
+        self.reg.DeleteValue = delete
+        for p in (patch.dict(sys.modules, {"winreg": self.reg}), patch.object(sys, "platform", "win32")):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def client(self):
+        client = object.__new__(core.Client)
+        client.paths = SimpleNamespace()
+        client.store = Mock()
+        client.store.state.return_value = {"installed": {}}
+        client.store.roots.return_value = []
+        client.workspace = Mock()
+        client._arm_policy_check = Mock()
+        client._reconnect_pending = Mock(return_value=False)
+        client.api = Mock()
+        return client
+
+    def test_direct_cleanup_guard_revocation_and_logout_remove_only_our_run_value(self):
+        for route in ("cleanup", "revoke", "logout"):
+            with self.subTest(route=route):
+                self.values["Swangz"] = "Swangz.exe --background"
+                client = self.client()
+                if route == "revoke":
+                    with self.assertRaises(core.Revoked):
+                        client._guard(Mock(side_effect=core.Revoked(401, "device_revoked", "disconnected")))
+                elif route == "logout":
+                    self.assertTrue(client.logout())
+                else:
+                    client.remove_everything()
+                self.assertEqual(self.values, {"Another app": "untouched"})
+                client.store.wipe.assert_called_once_with()
+
+    def test_removal_is_idempotent_with_an_absent_run_value(self):
+        client = self.client()
+        client.remove_everything()
+        client.remove_everything()
+        self.assertEqual(self.values, {"Another app": "untouched"})
+        self.assertEqual(client.store.wipe.call_count, 2)
+
+    def test_startup_is_disabled_even_if_reading_local_state_fails(self):
+        client = self.client()
+        client.store.state.side_effect = OSError("unreadable state")
+        with self.assertRaisesRegex(OSError, "unreadable state"):
+            client.remove_everything()
+        self.assertNotIn("Swangz", self.values)
+
+    def test_registry_denial_does_not_prevent_credential_removal(self):
+        client = self.client()
+        self.reg.DeleteValue = Mock(side_effect=PermissionError("registry denied"))
+        client.remove_everything()
+        client.store.wipe.assert_called_once_with()
+        client.workspace.forget.assert_called_once_with()
+
+    def test_revocation_during_rotation_removes_startup_too(self):
+        client = self.client()
+        client.store.device.return_value = {"server": "https://hub.example.com"}
+        client._heartbeat_body = Mock(return_value={})
+        client._api_factory = Mock()
+        client._api_factory.return_value.call.side_effect = core.Revoked(401, "device_revoked", "disconnected")
+        with self.assertRaises(core.Revoked):
+            client._confirm_staged((12, "synthetic-credential"))
+        self.assertNotIn("Swangz", self.values)
+        client.store.wipe.assert_called_once_with()
 
 
 class PackageTests(ClientBase):

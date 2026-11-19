@@ -423,10 +423,10 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         hub_journey.kept(check, data, folder, marker, "after sign out")
 
         # 7b. revoked while away: a separate signed-in browser reaches the fixture directly, not the stopped relay.
-        # Match macOS: the preceding explicit logout disabled startup; re-enrol without enabling it again.
         device = enrol()
         key_id = device["key_id"]
-        require(reg_value(RUN_KEY, "Swangz") is None, "startup was not disabled by the preceding logout")
+        app("autostart", "on")
+        require(reg_value(RUN_KEY, "Swangz"), "startup was not enabled before revocation")
         before_key, before_codes = stored_fingerprint(), sign_in_codes()
         relay.stop()
         require(fixture.staff("POST", f"/keys/{key_id}/revoke", cookie=fixture.person_cookie)[0] == 200,
@@ -437,6 +437,7 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         passed("revoked while away: separate browser disconnects the device; offline sync exits 1 and keeps its credential")
         relay.start()
         app("sync", expected=3)
+        require(reg_value(RUN_KEY, "Swangz") is None, "revocation left the start-at-sign-in value")
         leftovers = {p.name for p in data.iterdir()} if data.exists() else set()
         require(leftovers <= {"browser-profiles"}, "revoked device left app data: " + ", ".join(sorted(leftovers)))
         if device["key_storage"] != "file":
@@ -444,8 +445,8 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         require(sign_in_codes() == before_codes, "revocation issued a new sign-in code")
         app("status", expected=2)
         report["revoked_while_away"] = {"offline_exit": 1, "return_exit": 3, "signed_out_exit": 2,
-                                         "kept": sorted(leftovers)}
-        passed("revoked on return: sync exits 3, device data and stored key removed, status exits 2;"
+                                         "startup_removed": True, "kept": sorted(leftovers)}
+        passed("startup-enabled revocation: sync exits 3, Run value, device data and stored key removed, status exits 2;"
                " only browser-profiles may remain (R-12)")
 
         hub_journey.kept(check, data, folder, marker, "after revocation")
