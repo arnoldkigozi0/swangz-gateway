@@ -14,6 +14,7 @@ from .support import Rig, sse_events
 class ProxyTests(unittest.TestCase):
     def setUp(self):
         self.rig = Rig()
+        self.rig.gw.db.set_setting("store_bodies", "1")  # these tests read stored content; D-023 defaults it off
 
     def tearDown(self):
         self.rig.close()
@@ -299,6 +300,7 @@ class ProxyTests(unittest.TestCase):
 class ConsoleTests(unittest.TestCase):
     def setUp(self):
         self.rig = Rig()
+        self.rig.gw.db.set_setting("store_bodies", "1")  # these tests read stored content; D-023 defaults it off
 
     def tearDown(self):
         self.rig.close()
@@ -438,8 +440,8 @@ class ConsoleTests(unittest.TestCase):
         self.assertEqual(rig.api("PUT", "/settings", {"retention_days": 30, "store_bodies": False})[0], 200)
         rig.anthropic({"model": "claude-opus-5-5", "messages": [{"role": "user", "content": "private"}]})
         r = rig.last_record()
-        self.assertEqual(r["prompt"], "private")  # the summary is kept…
-        self.assertIsNone(r["req_head"])  # …but not the body
+        self.assertIsNone(r["prompt"])  # D-023: off keeps no text at all…
+        self.assertIsNone(r["req_head"])  # …and no body
 
     def test_admins(self):
         rig = self.rig
@@ -691,6 +693,7 @@ class MediaTests(unittest.TestCase):
 
     def setUp(self):
         self.rig = Rig()
+        self.rig.gw.db.set_setting("store_bodies", "1")  # these tests read stored content; D-023 defaults it off
 
     def tearDown(self):
         self.rig.close()
@@ -761,8 +764,21 @@ class StudioTests(StaffBase):
         token = self.invite()
         self.staff("POST", "/welcome", {"token": token, "password": "a-long-password"})
 
+    def test_voice_with_storage_off(self):
+        """D-023: the clip comes back once to the person who made it, and nothing of it is kept."""
+        import base64
+        status, made = self.staff("POST", "/studio/voice", {"text": "Welcome to the showcase.", "voice_id": "JBFqnCBsd6RMkjVDRZzb"})
+        self.assertEqual(status, 200, made)
+        self.assertIsNone(made["audio"])
+        self.assertTrue(made["audio_once"]["type"].startswith("audio/"))
+        self.assertTrue(base64.b64decode(made["audio_once"]["data"]).startswith(b"ID3"))
+        r = self.rig.gw.db.one("SELECT * FROM requests WHERE id = ?", (made["id"],))
+        self.assertEqual((r["outcome"], r["prompt"], r["reply"], r["resp_blob"]), ("ok", None, None, None))
+        self.assertNotIn("audio_once", self.staff("GET", "/studio")[1]["recent"][0])
+
     def test_voice(self):
         rig = self.rig
+        rig.gw.db.set_setting("store_bodies", "1")  # stored playback; the default (off) is test_voice_with_storage_off
         status, studio = self.staff("GET", "/studio")
         self.assertEqual((status, studio["voice"], studio["image"]), (200, True, True))
         self.assertEqual(studio["voices"][0]["name"], "George")
@@ -784,6 +800,28 @@ class StudioTests(StaffBase):
         self.assertEqual(self.staff("GET", "/studio")[1]["recent"][0]["id"], made["id"])
         self.assertEqual(self.staff("POST", "/studio/voice", {"text": "please fail", "voice_id": "JBFqnCBsd6RMkjVDRZzb"})[1]["error"],
                          "This request exceeds your quota.")
+
+    def test_your_creations_pages_back_through_all_of_them(self):
+        rig = self.rig
+        other = rig.gw.db.x("INSERT INTO people(name, created) VALUES('Someone else', 0)").lastrowid
+        mine = [rig.gw.db.x("INSERT INTO requests(ts,person_id,provider,method,path,kind,client,outcome,media_type,prompt) VALUES(?,?,'higgsfield','POST','/x','media',"
+                            "'Swangz AI Hub Studio','ok','image',?)", (i, rig.person_id, f"mine {i}")).lastrowid for i in range(30)]
+        rig.gw.db.x("INSERT INTO requests(ts,person_id,provider,method,path,kind,client,outcome,media_type,prompt) VALUES(99,?,'higgsfield','POST','/x','media',"
+                    "'Swangz AI Hub Studio','ok','image','theirs')", (other,))
+        status, studio = self.staff("GET", "/studio")
+        self.assertEqual(status, 200)
+        self.assertEqual((studio["recent_total"], studio["recent_more"], len(studio["recent"])), (30, True, 12))
+        seen = [c["id"] for c in studio["recent"]]
+        while True:
+            status, page = self.staff("GET", f"/studio/creations?before={seen[-1]}")
+            self.assertEqual(status, 200)
+            seen += [c["id"] for c in page["items"]]
+            if not page["more"]:
+                break
+        self.assertEqual(seen, sorted(mine, reverse=True))  # every one of theirs, once, newest first, and nobody else's
+        self.assertEqual(self.staff("GET", "/studio/creations")[0], 400)
+        self.assertEqual(self.staff("GET", "/studio/creations?before=x")[0], 400)
+        self.assertEqual(self.staff("GET", "/studio/creations?before=1", cookie="sgw_staff=nope")[0], 401)
 
     def test_image_job(self):
         status, made = self.staff("POST", "/studio/generate", {"kind": "image", "prompt": "A poster for the showcase", "aspect_ratio": "9:16"})

@@ -1,0 +1,146 @@
+name: Windows installer (RC, UNSIGNED)
+# Builds the Windows installer and runs the install (previous build) -> launch -> enrol -> restart -> reconnect -> upgrade to this
+# build over a running copy -> uninstall while running
+# acceptance against the test suite's local Hub. Test artifacts only: no signing, no release, no deployment.
+on:
+  pull_request:
+    paths:
+      - 'packaging/**'
+      - 'swangz_client/**'
+      - '.github/workflows/release-windows.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  PYINSTALLER_VERSION: '6.11.1'   # build tool only, pinned with every wheel's SHA-256; not shipped as a library
+  INNO_SETUP_VERSION: '6.4.3'     # build tool only, pinned to the official release and its SHA-256
+  INNO_SETUP_SHA256: 'f3c42116542c4cc57263c5ba6c4feabfc49fe771f2f98a79d2f7628b8762723b'
+  CYCLONEDX_CLI_VERSION: '0.33.1'  # the official CycloneDX tool, CI-side only, validates the SBOM
+  CYCLONEDX_CLI_SHA256: '9b360974c41a5d612eb026fb5e3bb1fa28e08865f7a4f915665b8bc94bd3bc31'  # cyclonedx-win-x64.exe
+jobs:
+  installer:
+    name: RC — UNSIGNED — INTERNAL TEST ONLY (Windows installer)
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Source date (reproducible builds)
+        # Build times in the program's PE header and the installer's file times become the commit time (packaging/build.py).
+        run: '"SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8'
+      - name: Pinned build tools
+        run: |
+          # Every wheel is pinned by SHA-256 (packaging/requirements-windows-build.txt); the version there must match the env pin.
+          if (-not (Select-String -Path packaging\requirements-windows-build.txt -SimpleMatch -Pattern "pyinstaller==$env:PYINSTALLER_VERSION " -Quiet)) { throw "packaging/requirements-windows-build.txt does not pin pyinstaller $env:PYINSTALLER_VERSION" }
+          python -m pip install --require-hashes --only-binary :all: -r packaging\requirements-windows-build.txt
+          $tag = "is-" + $env:INNO_SETUP_VERSION.Replace('.', '_')
+          $url = "https://github.com/jrsoftware/issrc/releases/download/$tag/innosetup-$env:INNO_SETUP_VERSION.exe"
+          Invoke-WebRequest -Uri $url -OutFile innosetup.exe
+          $got = (Get-FileHash innosetup.exe -Algorithm SHA256).Hash.ToLower()
+          if ($got -ne $env:INNO_SETUP_SHA256) { throw "Inno Setup download SHA-256 $got does not match the pin" }
+          $iscc = "$env:RUNNER_TEMP\InnoSetup"
+          Start-Process -Wait -FilePath .\innosetup.exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/CURRENTUSER',"/DIR=$iscc"
+          if (-not (Test-Path "$iscc\ISCC.exe")) { throw "Pinned Inno Setup did not install" }
+          "ISCC=$iscc\ISCC.exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Remove-Item innosetup.exe
+          python --version
+          python -m PyInstaller --version
+      - name: Build the previous version (for the upgrade test)
+        # The previous build is the version in the tree, which is also the server's minimum client version.
+        # It is a test input only: it is not uploaded as a release artifact.
+        run: |
+          $old = python -c "import swangz_client; print(swangz_client.__version__)"
+          python packaging/build.py
+          & $env:ISCC /Qp "/DAppVersion=$old" "/DSourceExe=$PWD\dist\Swangz.exe" "/DOutputDir=$PWD\previous" packaging\windows\swangz.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "PREVIOUS_VERSION=$old" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "PREVIOUS_SETUP=previous\Swangz-Setup-$old-UNSIGNED.exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Build this version (patch number raised by the run number)
+        # The app and its updater accept only MAJOR.MINOR.PATCH (swangz_client/updater.py version()), so the RC number
+        # goes into PATCH: 0.1.0 -> 0.1.<previous patch + run number>. Always above the previous build and the server minimum.
+        shell: python
+        run: |
+          import os, re
+          from pathlib import Path
+          major, minor, patch = (int(x) for x in os.environ["PREVIOUS_VERSION"].split("."))
+          new = f"{major}.{minor}.{patch + int(os.environ['GITHUB_RUN_NUMBER'])}"
+          init = Path("swangz_client/__init__.py")
+          text, n = re.subn(r'^__version__ = ".*"$', f'__version__ = "{new}"', init.read_text(encoding="utf-8"), flags=re.M)
+          assert n == 1, "no __version__ line"
+          init.write_text(text, encoding="utf-8")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
+              env.write(f"NEW_VERSION={new}\n")
+          print(f"previous {os.environ['PREVIOUS_VERSION']} -> this build {new}")
+      - name: Build the program
+        run: python packaging/build.py
+      - name: Build the installer
+        run: |
+          $version = python -c "import swangz_client; print(swangz_client.__version__)"
+          if ($version -ne $env:NEW_VERSION) { throw "built $version, expected $env:NEW_VERSION" }
+          & $env:ISCC /Qp "/DAppVersion=$version" "/DSourceExe=$PWD\dist\Swangz.exe" "/DOutputDir=$PWD\artifacts" packaging\windows\swangz.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "SETUP=artifacts\Swangz-Setup-$version-UNSIGNED.exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: SHA-256 checksum
+        shell: python
+        run: |
+          import hashlib, os
+          from pathlib import Path
+          setup = Path(os.environ["SETUP"])
+          digest = hashlib.sha256(setup.read_bytes()).hexdigest()
+          Path(str(setup) + ".sha256").write_text(f"{digest}  {setup.name}\n", encoding="utf-8")
+          Path("artifacts/RELEASE-LABEL.txt").write_text("RC — UNSIGNED — INTERNAL TEST ONLY\n", encoding="utf-8")
+          print(f"{setup.name} {setup.stat().st_size} bytes SHA-256 {digest}")
+      - name: SBOM (CycloneDX, shipped next to the installer)
+        # Lists the program, its Python runtime, the client code, every bundled native file with its SHA-256, and the
+        # hash-pinned build tools. Fails if a third-party Python package is found inside the program.
+        # Then the official CycloneDX tool (pinned by SHA-256, CI-side only) checks it against the 1.5 schema.
+        run: |
+          python packaging/sbom.py --program dist\Swangz.exe --version $env:NEW_VERSION `
+          --requirements packaging\requirements-windows-build.txt --epoch $env:SOURCE_DATE_EPOCH `
+          --out artifacts\Swangz-$env:NEW_VERSION.cdx.json
+          if ($LASTEXITCODE -ne 0) { throw "SBOM failed" }
+          $cli = "$env:RUNNER_TEMP\cyclonedx.exe"
+          Invoke-WebRequest -Uri "https://github.com/CycloneDX/cyclonedx-cli/releases/download/v$env:CYCLONEDX_CLI_VERSION/cyclonedx-win-x64.exe" -OutFile $cli
+          $got = (Get-FileHash $cli -Algorithm SHA256).Hash.ToLower()
+          if ($got -ne $env:CYCLONEDX_CLI_SHA256) { throw "cyclonedx-cli SHA-256 $got does not match the pin" }
+          & $cli validate --input-file artifacts\Swangz-$env:NEW_VERSION.cdx.json --input-format json --input-version v1_5 --fail-on-errors
+          if ($LASTEXITCODE -ne 0) { throw "the SBOM is not valid CycloneDX 1.5" }
+          "- SBOM artifacts\Swangz-$env:NEW_VERSION.cdx.json: valid CycloneDX 1.5 (cyclonedx-cli $env:CYCLONEDX_CLI_VERSION)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+      - name: Install the previous build, launch, enrol, restart, reconnect, upgrade, uninstall
+        run: >-
+          python packaging/windows/installer_e2e.py --setup $env:SETUP --evidence evidence
+          --previous $env:PREVIOUS_SETUP --previous-version $env:PREVIOUS_VERSION --new-version $env:NEW_VERSION
+      - name: Secret scan (program, installer, checksum, label and the acceptance logs)
+        # Fails on any embedded key, token, private key, .env file or deployment address (packaging/secret_scan.py).
+        # The installer's payload is compressed; its contents are dist\Swangz.exe (opened entry by entry) and swangz.iss.
+        run: >-
+          python packaging/secret_scan.py --report evidence\secret-scan.json --summary $env:GITHUB_STEP_SUMMARY
+          --min-archives 1 dist artifacts evidence packaging\windows\swangz.iss
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Swangz-Windows-installer-RC-UNSIGNED
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Reproducible-build check (build again from the same tree, compare byte for byte)
+        # Records the result in the evidence and the job summary; a difference is reported, not hidden and not a failure.
+        run: |
+          python packaging/build.py --dist dist-b --work build/packaging-b
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $env:ISCC /Qp "/DAppVersion=$env:NEW_VERSION" "/DSourceExe=$PWD\dist-b\Swangz.exe" "/DOutputDir=$PWD\repro-b" packaging\windows\swangz.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $setupName = Split-Path $env:SETUP -Leaf
+          python packaging/reproducible.py --a dist\Swangz.exe --b dist-b\Swangz.exe --label program --report evidence\reproducible-program.json --summary $env:GITHUB_STEP_SUMMARY
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python packaging/reproducible.py --a $env:SETUP --b "repro-b\$setupName" --label installer --report evidence\reproducible-installer.json --summary $env:GITHUB_STEP_SUMMARY
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Swangz-Windows-installer-evidence
+          path: evidence/
+          if-no-files-found: warn
+          retention-days: 14

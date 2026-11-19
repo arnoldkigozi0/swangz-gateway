@@ -245,7 +245,6 @@ class ConsoleMetadataTests(CoreBase):
             dump = "\n".join(str(tuple(r.values())) for r in self.db.q(f"SELECT * FROM {table}"))
             self.assertNotIn(PROMPT_MARK, dump, table)
 
-    @unittest.expectedFailure  # KNOWN GAP: requests.prompt / requests.reply keep a summary whatever the setting says
     def test_with_body_storage_off_no_console_page_shows_what_was_written(self):
         self.db.set_setting("store_bodies", "0")
         self.assertEqual(self.ask_model(), 200)

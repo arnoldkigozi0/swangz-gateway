@@ -522,6 +522,10 @@ SCHEMA = [
     """
     ALTER TABLE launches ADD COLUMN device_id TEXT;
     """,
+    # v28: prompt and reply text are not kept by default (D-023). Only where no choice was ever saved; a saved '1' stays.
+    """
+    INSERT OR IGNORE INTO settings(k, v) VALUES ('store_bodies', '0');
+    """,
 ]
 
 

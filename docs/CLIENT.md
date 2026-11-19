@@ -49,6 +49,20 @@ the website tools they may open (`/go/<tool>`, which checks access, records it a
 them a company browser of their own — the credential rules in CLAUDE.md are unchanged). The app installs
 exactly this and removes what is no longer offered. The key is never in the manifest.
 
+**An older build never replaces a newer one.** The Windows installer refuses it. On a Mac the app is dragged into
+Applications, so the app itself refuses: while the device is signed in, `newest-app.json` in the app's data folder
+records the newest version that ran, and an older copy exits 5 (with a dialog when opened from Finder) without
+touching the sign-in. `swangz logout` still works; sign out and revocation remove the record. A version the updater
+rolled back from (`updates/state.json` `failed_version`) does not count (`core.check_newest_app`).
+On a Mac `swangz` is not on PATH, so the refusal dialog offers **Sign out** (the same path as `swangz logout`), and
+the terminal message prints the full command (`/Applications/Swangz.app/Contents/MacOS/Swangz logout`).
+
+**Version numbers: the first real release is 0.2.0.** Test (RC) builds from CI are numbered `0.1.<PATCH + run
+number>` (for example 0.1.400), so a later official 0.1.x could sort below a test build a tester already ran and be
+refused. The first non-RC release therefore raises MINOR to **0.2.0**, which sorts above every 0.1.<run> test build;
+later releases keep going up from there. The credential helper (`swangz key`) is deliberately not covered by this
+floor, so Claude Code and Codex keep working; the server's minimum client version is the control for agent use.
+
 ## Personal and company devices
 
 | | Personal device | Company device |
@@ -205,10 +219,18 @@ byte for byte; `apps[].open` links carry `?d=<device_id>` **only** under contrac
   Fails closed (`ok: false`): an unreadable, invalid or oversized (> 1 MB) file, a symlink in place of a policy file or of the
   Linux folder, a key given twice in one JSON file, or two sources that disagree. `ok` is true only if every `REQUIRED` setting of the policy pack holds, `URLBlocklist` carries `*`, `file://*`, `chrome://*`
   and `view-source:*`, `URLAllowlist` is not open (`*`, `*://*`, `http://*`, `https://*`), `ExtensionInstallBlocklist` is `["*"]`,
-  the allow and force lists are filled in, and no two policy sources disagree. Missing or unreadable policy is `ok: false`; the check
+  the allow and force lists are filled in, no two policy sources disagree, and none of the policies that would quietly undo
+  the pack is set at all (`machine_policy.FORBIDDEN`: `ExtensionSettings`, the two `...MultipleSourceMergeList` policies,
+  `CloudPolicyOverridesPlatformPolicy`; they are reported as `forbidden:<key>` and never change the hash). Missing or unreadable policy is `ok: false`; the check
   never raises. `sha256` is the **baseline hash**: canonical JSON (sorted, compact) of the policies the pack sets, the same on all
-  three systems; `deploy/chrome-policy/prepare.py` prints it as "Baseline SHA-256" and that is the value to pin. The report is only
-  sent while the managed workspace turns the check on (`Client.policy_check`); until then the heartbeat is exactly as before.
+  three systems; `deploy/chrome-policy/prepare.py` prints it as "Baseline SHA-256" and that is the value to pin. The report is sent
+  by **company devices only** (D-024): a company enrolment sets `Client.policy_check = machine_policy.report`; a personal one sends
+  no `policy` field and keeps the extension gate, and the Hub never refuses it for policy. The app checks at every heartbeat and
+  before every Open, never reusing a result older than 60 s. Before a window starts it compares its own hash with the baseline the
+  Hub sent (`policy.sha256`) and requires `ok`: in `enforce` a mismatch is refused on the device (`workspace_policy`, no browser is
+  started, no open is recorded); in `warn` the window opens and the result goes in the next heartbeat. The Hub's own refusal
+  (`/device/open` 409 `workspace_policy`, `/go/` 403) stays in place. This is tamper-evident, not tamper-proof: a local
+  administrator who also patches the app defeats it.
 - **What the report cannot prove (W5 limits).** It reads where the OS keeps policy, not `chrome://policy`, so it says the policy is
   *installed*, not that the running browser applied it. On **Windows computers that are not joined to a domain (Active Directory or
   Microsoft Entra ID) or enrolled in Chrome Browser Cloud Management**, Chrome ignores some policies set in the registry (for example
@@ -336,7 +358,7 @@ fetch the key again or a new shell is started; the app does not wait for or inte
 
 `swangz` opens the window: a dock down the left (Home, Apps, Packages, This device), sign-in, sync every 15
 minutes while open, "start when I sign in" (a LaunchAgent on macOS, `~/.config/autostart` on Linux, the `Run`
-key on Windows). From a terminal: `swangz login|status|sync|packages|apps|open TOOL|run claude|codex|autostart on|off|logout`.
+key on Windows; signing out turns it off). From a terminal: `swangz login|status|sync|packages|apps|open TOOL|run claude|codex|autostart on|off|logout`.
 
 Build a standalone program for the computer you are on (it carries its own Python):
 

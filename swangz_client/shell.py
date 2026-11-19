@@ -48,14 +48,16 @@ def set_autostart(paths, on, command=None):
     command = (command or app_command()) + ["--background"]
     if sys.platform == "win32":
         import winreg as reg
-        with reg.OpenKey(reg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, reg.KEY_SET_VALUE) as k:
-            if on:
-                reg.SetValueEx(k, "Swangz", 0, reg.REG_SZ, subprocess.list2cmdline(command))
-            else:
-                try:
+        try:
+            with reg.OpenKey(reg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, reg.KEY_SET_VALUE) as k:
+                if on:
+                    reg.SetValueEx(k, "Swangz", 0, reg.REG_SZ, subprocess.list2cmdline(command))
+                else:
                     reg.DeleteValue(k, "Swangz")
-                except OSError:
-                    pass
+        except FileNotFoundError:
+            if on:
+                raise
+            # The Run key or our value is absent: already off. Access denied and other errors still raise.
         return
     f = autostart_file(paths)
     if not on:
@@ -99,3 +101,23 @@ def open_terminal(args, cwd=None):
 
 def open_url(url):
     return webbrowser.open(url)
+
+
+HUB_PAGES = {"weekly": "/#/weekly", "devices": "/#/devices", "admin": "/admin"}
+
+
+def hub_url(server, page):
+    """Only existing Hub pages, on the enrolled server; never put a device key in a URL."""
+    from .core import normalise_server
+    return normalise_server(server) + HUB_PAGES[page]
+
+
+def open_hub(client, page):
+    from .core import NotSignedIn
+    if not client.signed_in():
+        raise NotSignedIn("Connect this device before opening the Hub.")
+    device = client.store.device() or {}
+    url = hub_url(device.get("server"), page)
+    if not open_url(url):
+        raise OSError("The browser could not open. Start your browser and try again.")
+    return url

@@ -49,10 +49,10 @@ the exact element or message, do not repair the code.
 **Step 3: suspend, then reactivate.**
 - Admin: there is no console button yet. Use the device workspace route, signed in as the owner:
   `POST /admin/api/devices/<device_id>/workspace` with `{"action": "suspend"}` (header `x-gateway-admin: 1`; the
-  device id is on the Devices page and in `swangz status`). Expect an audit entry.
+  the device id is the `device_id` field of `GET /admin/api/devices`: neither the Devices page nor `swangz status` shows it, checked 14 Nov at `9260034`). Expect an audit entry.
 - The app checks in every 15 minutes. To avoid waiting, run `swangz sync` on the device and say so in the record.
 - Expect: the workspace window closes; `swangz open <tool>` is refused with the plain "paused" message from
-  `swangz_client/workspace_launcher.py`; the Hub records the refusal (Activity, Tools opened, outcome refused).
+  `swangz_client/workspace_launcher.py`; an Open sent before the app has checked in is refused by the Hub and recorded (Activity, Tools opened, outcome refused, rule `workspace_suspended`); once the app knows the workspace is paused it refuses on the device and the Hub records nothing.
 - Then `{"action": "reactivate"}`, `swangz sync`, `swangz open <tool>`: Open works and the earlier sign-in is still there.
 - Capture: the refusal text, the three console records, and the time between the API call and the window closing.
 

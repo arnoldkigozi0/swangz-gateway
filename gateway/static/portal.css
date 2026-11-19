@@ -348,6 +348,7 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
 .creation-media img, .creation-media video { width: 100%; aspect-ratio: 16 / 10; object-fit: contain; border-radius: var(--r-sm); background: var(--ink-3); }
 .creation-media audio { width: 100%; }
 .creation-media .btn { align-self: flex-start; }
+.creations-more { display: flex; justify-content: center; margin-top: var(--s4); }
 .creation-state { flex: 1; display: flex; align-items: center; justify-content: center; gap: var(--s3); color: var(--tx-2); font-size: var(--t-small); text-align: center; padding: var(--s4); }
 .creation-state.bad { color: var(--bad-hi); }
 .creation-meta { padding: var(--s3) var(--s4) var(--s4); }
@@ -417,7 +418,8 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
   .studio-submit .btn { width: 100%; }
   .search-wrap { flex-basis: 100%; max-width: none; }
   .search-wrap kbd { display: none; }
-  .toolbar .u-seg { order: 2; }
+  .toolbar .u-seg { order: 2; display: grid; grid-auto-flow: column; grid-auto-columns: auto; width: 100%; }
+  .toolbar .u-seg button { padding: 8px 6px; }   /* Everything · Available to me · Others share one row at 390 */
   .section { padding-top: var(--s6); }
   .trust-card { padding: var(--s5); }
   .req-list li { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; }

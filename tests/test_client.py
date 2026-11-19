@@ -1,6 +1,7 @@
 """The Swangz app's core, driven against a real running gateway: sign in with a code, what gets installed on a
 personal and on a company device, removal, revocation, and the ways a package or manifest could be hostile."""
 
+import io
 import json
 import os
 import re
@@ -10,7 +11,7 @@ import sys
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -364,6 +365,207 @@ class RevocationTests(ClientBase):
         self.assertFalse(self.client.logout())
         self.assertFalse(self.client.signed_in())
 
+    def test_logout_turns_start_at_login_off(self):
+        # A signed-out app has nothing to start for: the macOS login item / Linux .desktop file goes with the sign-in.
+        for platform_name in ("darwin", "linux"):
+            self.sign_in()  # on this system; only start-at-login and sign out see the other platform
+            with self.subTest(platform_name), patch.dict(os.environ), patch.object(sys, "platform", platform_name):
+                os.environ.pop("XDG_CONFIG_HOME", None)
+                shell.set_autostart(self.client.paths, True, command=["/opt/swangz/swangz"])
+                f = shell.autostart_file(self.client.paths)
+                self.assertTrue(f.exists())
+                self.assertTrue(str(f).startswith(str(self.client.paths.home)))  # the test's home, never the runner's
+                self.client.logout()
+                self.assertFalse(f.exists())
+                self.assertFalse(shell.autostart_enabled(self.client.paths))
+
+    def test_logout_still_signs_out_when_start_at_login_cannot_be_removed(self):
+        self.sign_in()
+        with patch.object(shell, "set_autostart", side_effect=PermissionError("read-only")):
+            self.assertTrue(self.client.logout())
+        self.assertFalse(self.client.signed_in())
+
+    def test_logout_turns_start_at_login_off_even_when_clean_up_fails(self):
+        self.sign_in()
+        with patch.object(self.client, "remove_everything", side_effect=OSError("file in use")), \
+                patch.object(shell, "set_autostart") as autostart:
+            with self.assertRaises(OSError):
+                self.client.logout()
+        autostart.assert_called_once_with(self.client.paths, False)
+
+
+class WindowsAutostartTests(unittest.TestCase):
+    """Turning start-at-sign-in off on Windows: an absent Run value is already off; any other registry error is raised."""
+
+    def fake_winreg(self, delete_error):
+        import contextlib
+        reg = SimpleNamespace(HKEY_CURRENT_USER="HKCU", KEY_SET_VALUE=2, REG_SZ=1, deleted=[])
+
+        def delete(key, name):
+            reg.deleted.append(name)
+            if delete_error:
+                raise delete_error
+        reg.OpenKey = lambda *a: contextlib.nullcontext("run-key")
+        reg.DeleteValue = delete
+        return reg
+
+    def turn_off(self, delete_error):
+        reg = self.fake_winreg(delete_error)
+        with patch.dict(sys.modules, {"winreg": reg}), patch.object(sys, "platform", "win32"):
+            shell.set_autostart(None, False, command=["Swangz.exe"])
+        return reg
+
+    def test_an_absent_run_value_is_already_off(self):
+        self.assertEqual(self.turn_off(FileNotFoundError(2, "not found")).deleted, ["Swangz"])
+        self.assertEqual(self.turn_off(None).deleted, ["Swangz"])
+
+    def test_other_registry_errors_are_raised(self):
+        with self.assertRaises(PermissionError):
+            self.turn_off(PermissionError(5, "access denied"))
+
+    def test_an_absent_run_key_is_already_off_but_not_silently_enabled(self):
+        reg = self.fake_winreg(None)
+        reg.OpenKey = Mock(side_effect=FileNotFoundError(2, "Run key absent"))
+        with patch.dict(sys.modules, {"winreg": reg}), patch.object(sys, "platform", "win32"):
+            shell.set_autostart(None, False, command=["Swangz.exe"])
+            with self.assertRaises(FileNotFoundError):
+                shell.set_autostart(None, True, command=["Swangz.exe"])
+
+    def test_access_denied_opening_the_run_key_is_not_an_absent_key(self):
+        reg = self.fake_winreg(None)
+        reg.OpenKey = Mock(side_effect=PermissionError(5, "access denied"))
+        with patch.dict(sys.modules, {"winreg": reg}), patch.object(sys, "platform", "win32"):
+            with self.assertRaises(PermissionError):
+                shell.set_autostart(None, False, command=["Swangz.exe"])
+
+
+class DeviceRemovalStartupTests(unittest.TestCase):
+    """Port-free Windows registry/state tests: use the real cleanup and startup functions, no real registry or key."""
+
+    def setUp(self):
+        import contextlib
+        self.values = {"Swangz": "Swangz.exe --background", "Another app": "untouched"}
+        self.reg = SimpleNamespace(HKEY_CURRENT_USER="HKCU", KEY_SET_VALUE=2)
+        self.reg.OpenKey = lambda *args: contextlib.nullcontext("Run")
+        def delete(key, name):
+            if name not in self.values:
+                raise FileNotFoundError(name)
+            del self.values[name]
+        self.reg.DeleteValue = delete
+        for p in (patch.dict(sys.modules, {"winreg": self.reg}), patch.object(sys, "platform", "win32")):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def client(self):
+        client = object.__new__(core.Client)
+        client.paths = SimpleNamespace()
+        client.store = Mock()
+        client.store.state.return_value = {"installed": {}}
+        client.store.roots.return_value = []
+        client.workspace = Mock()
+        client._arm_policy_check = Mock()
+        client._reconnect_pending = Mock(return_value=False)
+        client.api = Mock()
+        return client
+
+    def test_direct_cleanup_guard_revocation_and_logout_remove_only_our_run_value(self):
+        for route in ("cleanup", "revoke", "logout"):
+            with self.subTest(route=route):
+                self.values["Swangz"] = "Swangz.exe --background"
+                client = self.client()
+                if route == "revoke":
+                    with self.assertRaises(core.Revoked):
+                        client._guard(Mock(side_effect=core.Revoked(401, "device_revoked", "disconnected")))
+                elif route == "logout":
+                    self.assertTrue(client.logout())
+                else:
+                    client.remove_everything()
+                self.assertEqual(self.values, {"Another app": "untouched"})
+                client.store.wipe.assert_called_once_with()
+
+    def test_removal_is_idempotent_with_an_absent_run_value(self):
+        client = self.client()
+        client.remove_everything()
+        client.remove_everything()
+        self.assertEqual(self.values, {"Another app": "untouched"})
+        self.assertEqual(client.store.wipe.call_count, 2)
+
+    def test_startup_is_disabled_even_if_reading_local_state_fails(self):
+        client = self.client()
+        client.store.state.side_effect = OSError("unreadable state")
+        with self.assertRaisesRegex(OSError, "unreadable state"):
+            client.remove_everything()
+        self.assertNotIn("Swangz", self.values)
+
+    def test_registry_denial_does_not_prevent_credential_removal(self):
+        client = self.client()
+        self.reg.DeleteValue = Mock(side_effect=PermissionError("registry denied"))
+        with patch.object(sys, "stderr", io.StringIO()) as err:
+            client.remove_everything()
+        client.store.wipe.assert_called_once_with()
+        client.workspace.forget.assert_called_once_with()
+        lines = err.getvalue().splitlines()
+        self.assertEqual(len(lines), 1)  # one line, naming the error type and the retry; no path or value
+        self.assertIn("couldn't turn off start at login (PermissionError)", lines[0])
+        self.assertIn("swangz autostart off", lines[0])
+
+    def test_revocation_during_rotation_removes_startup_too(self):
+        client = self.client()
+        client.store.device.return_value = {"server": "https://hub.example.com"}
+        client._heartbeat_body = Mock(return_value={})
+        client._api_factory = Mock()
+        client._api_factory.return_value.call.side_effect = core.Revoked(401, "device_revoked", "disconnected")
+        with self.assertRaises(core.Revoked):
+            client._confirm_staged((12, "synthetic-credential"))
+        self.assertNotIn("Swangz", self.values)
+        client.store.wipe.assert_called_once_with()
+
+
+class MacLinuxRemovalStartupTests(unittest.TestCase):
+    """Sentinel's #281 Low finding: revocation and `swangz cleanup` drop the macOS LaunchAgent / Linux .desktop file
+    too, not only the Windows Run value, so a revoked app does not relaunch at every login."""
+
+    def client(self, home):
+        client = DeviceRemovalStartupTests.client(self)
+        client.paths = SimpleNamespace(home=home)
+        return client
+
+    def each_platform(self):
+        for name in ("darwin", "linux"):
+            home = tempfile.mkdtemp(prefix="sgw-home-")
+            self.addCleanup(shutil.rmtree, home, True)
+            with self.subTest(name), patch.dict(os.environ), patch.object(sys, "platform", name):
+                os.environ.pop("XDG_CONFIG_HOME", None)
+                yield name, home
+
+    def test_revoke_and_cleanup_remove_the_launch_agent_and_the_desktop_file(self):
+        for name, home in self.each_platform():
+            for route in ("revoke", "cleanup"):
+                client = self.client(home)
+                shell.set_autostart(client.paths, True, command=["/opt/swangz/swangz"])
+                f = shell.autostart_file(client.paths)
+                self.assertTrue(f.is_file() and str(f).startswith(home))
+                if route == "revoke":
+                    with self.assertRaises(core.Revoked):
+                        client._guard(Mock(side_effect=core.Revoked(401, "device_revoked", "disconnected")))
+                else:
+                    client.remove_everything()
+                self.assertFalse(f.exists(), f"{name} {route}: {f}")
+                self.assertFalse(shell.autostart_enabled(client.paths))
+                client.store.wipe.assert_called_once_with()
+
+    def test_an_absent_file_is_already_off_and_a_failure_never_blocks_removal(self):
+        for name, home in self.each_platform():
+            client = self.client(home)
+            client.remove_everything()  # nothing there: a no-op
+            client.store.wipe.assert_called_once_with()
+            client = self.client(home)
+            with patch.object(Path, "unlink", side_effect=PermissionError("read-only")), \
+                    patch.object(Path, "exists", return_value=True), patch.object(sys, "stderr", io.StringIO()) as err:
+                client.remove_everything()
+            client.store.wipe.assert_called_once_with()
+            self.assertEqual(len(err.getvalue().splitlines()), 1)
+
 
 class PackageTests(ClientBase):
     def publish(self, version="1.0.0", files=None, **kw):
@@ -489,6 +691,43 @@ class ShellTests(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp(prefix="sgw-shell-"))
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.paths = core.Paths(self.tmp / "home", self.tmp / "data")
+
+    def test_hub_links_use_only_enrolled_origin_and_never_device_credentials(self):
+        device = {"server": "https://hub.example:8443", "key": "never-in-url"}
+        client = SimpleNamespace(signed_in=lambda: True, store=SimpleNamespace(device=lambda: device))
+        expected = {"weekly": "/#/weekly", "devices": "/#/devices", "admin": "/admin"}
+        with patch.object(shell, "open_url", return_value=True) as opened:
+            for page, path in expected.items():
+                self.assertEqual(shell.open_hub(client, page), device["server"] + path)
+                opened.assert_called_with(device["server"] + path)
+        # Reject arbitrary routes, embedded credentials, query strings and foreign destinations.
+        with patch.object(shell, "open_url") as opened:
+            for bad in ("https://elsewhere.example/", "/admin", "../admin", "tools", "home", "/go/canva"):
+                with self.assertRaises(KeyError):
+                    shell.open_hub(client, bad)
+            for bad in (None, "javascript:alert(1)", "https://user:secret@hub.example",
+                        "https://hub.example?key=secret", "https://hub.example/#secret"):
+                device["server"] = bad
+                with self.assertRaises(ValueError):
+                    shell.open_hub(client, "weekly")
+            opened.assert_not_called()
+
+    def test_hub_browser_routes_exclude_provider_launches(self):
+        # Only these account/reporting surfaces are exempt from the managed workspace.
+        self.assertEqual(set(shell.HUB_PAGES.values()), {"/#/weekly", "/#/devices", "/admin"})
+        self.assertTrue(all("/go/" not in path for path in shell.HUB_PAGES.values()))
+
+    def test_hub_open_reports_browser_failure_and_requires_connection(self):
+        client = SimpleNamespace(signed_in=lambda: False)
+        with patch.object(shell, "open_url") as opened:
+            with self.assertRaises(core.NotSignedIn):
+                shell.open_hub(client, "admin")
+            opened.assert_not_called()
+        client = SimpleNamespace(signed_in=lambda: True,
+                                 store=SimpleNamespace(device=lambda: {"server": "https://hub.example"}))
+        with patch.object(shell, "open_url", return_value=False):
+            with self.assertRaisesRegex(OSError, "browser could not open"):
+                shell.open_hub(client, "weekly")
 
     def test_start_at_login_on_linux_and_macos(self):
         for platform_name in ("linux", "darwin"):

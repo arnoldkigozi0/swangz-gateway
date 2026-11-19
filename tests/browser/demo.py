@@ -11,9 +11,30 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from gateway import authz, security
 from tests.support import Rig
 
+KEEP = bool(os.environ.get("HUB_FIXTURE_KEEP"))  # leave the data folder behind on stop, so it can be restarted
+
+
+def serve(rig, reports=()):
+    print(json.dumps({"reports": list(reports), "url": rig.settings.public_url, "port": rig.port, "person": rig.person_id,
+                      "key": rig.key_id, "session": "local-ui-session", "data": rig.tmp, "pid": os.getpid()}), flush=True)
+    stop = threading.Event()
+    signal.signal(signal.SIGTERM, lambda *_: stop.set())
+    signal.signal(signal.SIGINT, lambda *_: stop.set())
+    stop.wait()
+
+
+if os.environ.get("HUB_FIXTURE_DATA"):  # a Hub process restart: the same data folder and port, nothing seeded again
+    rig = Rig(data_dir=os.environ["HUB_FIXTURE_DATA"], port=int(os.environ.get("HUB_FIXTURE_PORT") or 0))
+    try:
+        rig.settings.public_url = os.environ.get("HUB_FIXTURE_PUBLIC_URL") or f"http://127.0.0.1:{rig.port}"
+        serve(rig)
+    finally:
+        rig.close(keep=KEEP)
+    sys.exit(0)
+
 rig = Rig()
 try:
-    rig.settings.public_url = f"http://127.0.0.1:{rig.port}"
+    rig.settings.public_url = os.environ.get("HUB_FIXTURE_PUBLIC_URL") or f"http://127.0.0.1:{rig.port}"
     rig.gw.db.x("UPDATE people SET email=?, pw_hash=? WHERE id=?",
                 ("grace@swangzavenue.com", security.hash_password("demo-password", 1000), rig.person_id))
     for tool in ("canva", "chatgpt", "claude", "midjourney"):
@@ -53,10 +74,13 @@ try:
             t=rig.gw.db.one('SELECT * FROM tools WHERE id=?',(tool,))
             rid=rig.gw.db.x("INSERT INTO hub_reports(kind,person_id,tool_id,department,submitter_name,submitter_email,tool_name,official_url,category,created,updated) VALUES('adoption',?,?,?,?,?,?,?,?,?,?)",(rig.person_id,tool,'Creative','Nansubuga Grace','grace@swangzavenue.com',t['name'],t['url'],t['category'],time.time()-i*30*86400,time.time())).lastrowid
             reporting.save(rig.gw,rig.person_id,rid,{'usage_confirmation':'used','reason':'Synthetic production research','impact':'A clearer client proposal','quality':'Reported faster iteration','manual_hours':16-i*2,'ai_hours':2,'manual_unit':'d','frequency':4,'frequency_period':'month','manual_cost':100,'ai_cost':5,'subscription_cost':30,'extra_credits':0,'other_expenses':0,'currency':'USD','projects':[{'name':'Synthetic project '+str(i+1),'description':'Client presentation deliverable','traditional':'Manual research and drafts','ai_way':'Assisted outlines','benefit':'More iterations in the same working time','link':'https://example.test/project'}]},True)
-    print(json.dumps({"reports": reports, "url": rig.settings.public_url, "person": rig.person_id, "key": rig.key_id, "session": "local-ui-session"}), flush=True)
-    stop = threading.Event()
-    signal.signal(signal.SIGTERM, lambda *_: stop.set())
-    signal.signal(signal.SIGINT, lambda *_: stop.set())
-    stop.wait()
+    if os.environ.get("HUB_STAFF_PHONE_FIXTURE"):
+        now=time.time()
+        rig.gw.db.x("INSERT INTO procurement_requests(person_id,tool_name,purchase_type,reason,created,updated) VALUES(?,?,'subscription','Synthetic long-name fixture',?,?)",
+                    (rig.person_id,"Tool number 29 with a long name for wrapping checks",now-3600,now-3600))
+        for i in range(40):
+            rig.gw.db.x("INSERT INTO requests(ts,person_id,provider,method,path,kind,client,outcome,reason,media_type,prompt,result_urls) VALUES(?,?,'higgsfield','POST','/v1/image','media','Swangz AI Hub Studio','error','The service couldn''t make this one. Try again.','image',?,'[]')",
+                        (now-(40-i)*60,rig.person_id,"Synthetic creation "+str(i+1)))
+    serve(rig, reports)
 finally:
-    rig.close()
+    rig.close(keep=KEEP)

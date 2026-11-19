@@ -14,7 +14,7 @@ import re
 import time
 import urllib.parse
 
-from . import geo, proxy, turns
+from . import admin, geo, proxy, turns
 from .admin import ApiError, licence_data, route
 
 DAY = 86400
@@ -297,6 +297,9 @@ def timeline(ctx):
         raise ApiError(404, "no such tool")
     q = ctx.arg("q")
     like = "%" + q.replace("%", "").replace("_", "") + "%" if q else None
+    content = admin.can_read_content(ctx)
+    if q and content and kind in (None, "request"):
+        ctx.audit("searched request content", f"{len(q)} characters", "timeline")
     tools = Tools(db)
     events = []
 
@@ -325,8 +328,12 @@ def timeline(ctx):
             sql += " AND " + where[0]
             args += where[1]
         if sql and like:
-            sql += " AND (r.prompt LIKE ? OR r.actions LIKE ? OR p.name LIKE ? OR r.client LIKE ? OR r.model LIKE ?)"
-            args += [like] * 5
+            if content:
+                sql += " AND (r.prompt LIKE ? OR r.actions LIKE ? OR p.name LIKE ? OR r.client LIKE ? OR r.model LIKE ?)"
+                args += [like] * 5
+            else:  # D-023: without the trust area a search matches metadata only
+                sql += " AND (p.name LIKE ? OR r.client LIKE ? OR r.model LIKE ?)"
+                args += [like] * 3
         if sql:
             for r in db.q(sql + " ORDER BY r.ts DESC LIMIT ?", args + [limit + 1]):
                 t = tools.for_request(r["client"], r["provider"])
@@ -340,7 +347,8 @@ def timeline(ctx):
                     "app": r["client"] or None, "model": r["model"], "kind": r["kind"], "media_type": r["media_type"],
                     "outcome": r["outcome"], "reason": r["reason"], "cost": r["cost"], "tokens": r["tokens"],
                     "duration_ms": r["duration_ms"], "session": r["session"], "agent": r["agent"],
-                    "prompt": (r["prompt"] or "")[:240] or None, "actions": n_actions,
+                    "prompt": ((r["prompt"] or "")[:240] or None) if content else None,
+                    "actions": n_actions if content else None, **({} if content else {"content": "withheld"}),
                     "credential": "secret:" in (r["flags"] or ""), "device": r["device"], "key_id": r["key_id"],
                     "platform": platform(r["user_agent"], r["client"] if r["client"] not in ("", "unknown") else None),
                     "ip": r["client_ip"] or None, "place": ip_kind(r["client_ip"]),
@@ -528,6 +536,8 @@ def device(ctx, kid):
         " MAX(client) AS client, (SELECT prompt FROM requests r2 WHERE r2.session = r.session AND r2.prompt IS NOT NULL"
         " ORDER BY r2.id LIMIT 1) AS first_prompt FROM requests r WHERE key_id = ? AND session IS NOT NULL"
         f" AND {USED} GROUP BY session ORDER BY last DESC LIMIT 15", (kid,))
+    for sess in sessions:
+        admin.withhold(ctx, sess)
     flagged = db.q("SELECT id, ts, outcome, reason, flags, client, model FROM requests WHERE key_id = ?"
                    " AND (flags LIKE '%secret:%' OR outcome != 'ok') ORDER BY id DESC LIMIT 12", (kid,))
     off, since, starts = _days(ctx, 30)
@@ -797,7 +807,7 @@ def _personal(db, now, since, offset_minutes):
                         "text": f"{names.get(pid) or 'Someone'} made {n} requests at " + ", ".join(f"{h['hour']:02d}:00" for h in sorted(odd, key=lambda h: h["hour"]))
                                 + f", hours they rarely use; they usually work {span}.",
                         "href": f"#/records/{max(h['last_id'] for h in odd)}",
-                        "evidence": f"Compared with their own previous 30 days ({total} requests on {days_seen} days), in gateway time."})
+                        "evidence": f"Compared with their own previous 30 days ({total} requests on {days_seen} days), by the Hub's clock."})
     # a model new to the company
     for r in db.q("SELECT model, MIN(ts) AS first, MIN(id) AS id, COUNT(DISTINCT person_id) AS people FROM requests WHERE ts >= ?"
                   " AND outcome = 'ok' AND model IS NOT NULL AND model != '' AND kind IN ('messages', 'chat', 'responses', 'completions')"
@@ -1081,7 +1091,8 @@ def search(ctx):
         if r:
             found.append({"title": f"Request #{r['id']}", "sub": " · ".join(x for x in (r["name"], r["client"], r["model"]) if x),
                           "href": f"#/records/{r['id']}", "ts": r["ts"]})
-    if len(q) >= 3:
+    if len(q) >= 3 and admin.can_read_content(ctx):  # D-023: what people typed is searched only for trust
+        ctx.audit("searched request content", f"{len(q)} characters", "command menu")
         found += [{"title": (r["prompt"] or "")[:90], "sub": " · ".join(x for x in (r["name"], r["client"]) if x),
                    "href": f"#/records/{r['id']}", "ts": r["ts"]}
                   for r in db.q("SELECT r.id, r.ts, r.prompt, r.client, p.name FROM requests r LEFT JOIN people p"

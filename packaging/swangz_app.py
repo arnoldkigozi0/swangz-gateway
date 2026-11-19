@@ -24,7 +24,7 @@ def self_check(destination):
         app = gui.App(client, root=root, inline=True)
         root.update_idletasks()
         report = {"version": __version__, "frozen": bool(getattr(sys, "frozen", False)),
-                  "window": app.page, "tk": root.tk.call("info", "patchlevel"),
+                  "window": app.page, "hub_address": app.server_var.get() if app.page == "signin" else None, "tk": root.tk.call("info", "patchlevel"),
                   "updates_enabled": release_keys.ENABLED, "production_keys": len(release_keys.KEYS)}
     finally:
         root.destroy()

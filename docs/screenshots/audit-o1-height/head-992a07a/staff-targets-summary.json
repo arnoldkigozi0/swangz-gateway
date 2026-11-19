@@ -1,0 +1,436 @@
+{
+ "dark 390 home": {
+  "controls": 37,
+  "minH": 39.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": []
+ },
+ "dark 390 tools": {
+  "controls": 61,
+  "minH": 39.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": [
+   "Codex — details<-A.on",
+   "Connect<-DIV.stb-bar"
+  ]
+ },
+ "dark 390 requests-updates": {
+  "controls": 33,
+  "minH": 39.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48",
+   "button.|Updates|157x43.7@35,146",
+   "button.|Access requests|157x43.7@198,146"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": []
+ },
+ "dark 390 devices": {
+  "controls": 32,
+  "minH": 39.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48",
+   "button.|Connected1|157x43.7@35,182",
+   "button.|Connect a tool|157x43.7@198,182"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": []
+ },
+ "dark 390 weekly": {
+  "controls": 35,
+  "minH": 39.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": []
+ },
+ "dark 390 privacy": {
+  "controls": 43,
+  "minH": 39.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": []
+ },
+ "dark 390 tools-drawer": {
+  "controls": 65,
+  "minH": 16,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48",
+   "button.btn btn--quiet icon-only|Close|36x36@330,24",
+   "button.btn btn--quiet|Close|62.3x36@205,792",
+   "a.btn|Open Canva (opens in a new tab)|86.6x36@279,792"
+  ],
+  "inlineLinks": 1,
+  "clipped": [],
+  "covered": [
+   "Open navigation<-SPAN.logo lg mono",
+   "Search pages (Ctrl+K or Command+K)<-HEADER.",
+   "Updates<-HEADER.",
+   "Your account<-BUTTON.btn btn--quiet icon-only",
+   "Search AI tools<-P.",
+   "Everything<-P.",
+   "Available to me<-P.",
+   "Others<-P.",
+   "Sort<-H3.",
+   "Tool category<-H3.",
+   "Canva — details<-DL.facts",
+   "Open Canva (opens in a new tab)<-DD.",
+   "ChatGPT — details<-DIV.body",
+   "Open ChatGPT (opens in a new tab)<-DIV.body",
+   "Claude — details<-P.muted",
+   "Open Claude (opens in a new tab)<-P.muted",
+   "Claude Code — details<-DIV.body",
+   "Connect<-DIV.body",
+   "Codex — details<-FOOTER.",
+   "Connect<-A.btn",
+   "Home<-FOOTER.",
+   "Search tools<-FOOTER.",
+   "My tools<-BUTTON.btn btn--quiet",
+   "Alerts<-BUTTON.btn btn--quiet",
+   "Access requests<-A.btn"
+  ]
+ },
+ "dark 640 home": {
+  "controls": 37,
+  "minH": 39.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": []
+ },
+ "dark 640 tools": {
+  "controls": 61,
+  "minH": 39.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": []
+ },
+ "dark 640 requests-updates": {
+  "controls": 33,
+  "minH": 39.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48",
+   "button.|Updates|282x43.7@35,146",
+   "button.|Access requests|282x43.7@323,146",
+   "button.|Tool & subscription purchases|282x43.7@35,196",
+   "button.|Department reports|282x43.7@323,196"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": []
+ },
+ "dark 640 devices": {
+  "controls": 32,
+  "minH": 39.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48",
+   "button.|Connected1|282x43.7@35,164",
+   "button.|Connect a tool|282x43.7@323,164"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": []
+ },
+ "dark 640 weekly": {
+  "controls": 38,
+  "minH": 39.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48",
+   "button.|Pending & returned|282x43.7@35,288",
+   "button.|Submitted|282x43.7@323,288",
+   "button.|Adoption & impact|282x43.7@35,338"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": []
+ },
+ "dark 640 privacy": {
+  "controls": 43,
+  "minH": 23.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48",
+   "summary.|Weekly reporting and your declaratio|558x23.3@41,2843"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": []
+ },
+ "dark 640 tools-drawer": {
+  "controls": 65,
+  "minH": 16,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48",
+   "button.btn btn--quiet icon-only|Close|36x36@580,24",
+   "button.btn btn--quiet|Close|62.3x36@455,848",
+   "a.btn|Open Canva (opens in a new tab)|86.6x36@529,848"
+  ],
+  "inlineLinks": 1,
+  "clipped": [],
+  "covered": [
+   "Open navigation<-HEADER.",
+   "Search pages (Ctrl+K or Command+K)<-HEADER.",
+   "Updates<-HEADER.",
+   "Your account<-BUTTON.btn btn--quiet icon-only",
+   "Search AI tools<-P.",
+   "Everything<-P.muted",
+   "Available to me<-P.muted",
+   "Others<-P.muted",
+   "Sort<-H3.",
+   "Tool category<-P.",
+   "Canva — details<-DIV.body",
+   "Open Canva (opens in a new tab)<-DIV.body",
+   "ChatGPT — details<-A.tlink",
+   "Open ChatGPT (opens in a new tab)<-P.muted",
+   "Claude — details<-DIV.body",
+   "Open Claude (opens in a new tab)<-DIV.body",
+   "Claude Code — details<-DIV.body",
+   "Connect<-DIV.body",
+   "Codex — details<-DIV.body",
+   "Connect<-DIV.body",
+   "Midjourney — details<-FOOTER.",
+   "Open Midjourney (opens in a new tab)<-FOOTER.",
+   "Home<-FOOTER.",
+   "Search tools<-FOOTER.",
+   "My tools<-FOOTER.",
+   "Alerts<-FOOTER.",
+   "Access requests<-BUTTON.btn btn--quiet"
+  ]
+ },
+ "light 390 home": {
+  "controls": 37,
+  "minH": 39.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": []
+ },
+ "light 390 tools": {
+  "controls": 61,
+  "minH": 39.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": [
+   "Codex — details<-A.on",
+   "Connect<-DIV.stb-bar"
+  ]
+ },
+ "light 390 requests-updates": {
+  "controls": 33,
+  "minH": 39.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48",
+   "button.|Updates|157x43.7@35,146",
+   "button.|Access requests|157x43.7@198,146"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": []
+ },
+ "light 390 devices": {
+  "controls": 32,
+  "minH": 39.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48",
+   "button.|Connected1|157x43.7@35,182",
+   "button.|Connect a tool|157x43.7@198,182"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": []
+ },
+ "light 390 weekly": {
+  "controls": 38,
+  "minH": 39.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": []
+ },
+ "light 390 privacy": {
+  "controls": 43,
+  "minH": 39.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": []
+ },
+ "light 390 tools-drawer": {
+  "controls": 65,
+  "minH": 16,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48",
+   "button.btn btn--quiet icon-only|Close|36x36@330,24",
+   "button.btn btn--quiet|Close|62.3x36@205,792",
+   "a.btn|Open Canva (opens in a new tab)|86.6x36@279,792"
+  ],
+  "inlineLinks": 1,
+  "clipped": [],
+  "covered": [
+   "Open navigation<-SPAN.logo lg mono",
+   "Search pages (Ctrl+K or Command+K)<-HEADER.",
+   "Updates<-HEADER.",
+   "Your account<-BUTTON.btn btn--quiet icon-only",
+   "Search AI tools<-P.",
+   "Everything<-P.",
+   "Available to me<-P.",
+   "Others<-P.",
+   "Sort<-H3.",
+   "Tool category<-H3.",
+   "Canva — details<-DL.facts",
+   "Open Canva (opens in a new tab)<-DD.",
+   "ChatGPT — details<-DIV.body",
+   "Open ChatGPT (opens in a new tab)<-DIV.body",
+   "Claude — details<-P.muted",
+   "Open Claude (opens in a new tab)<-P.muted",
+   "Claude Code — details<-DIV.body",
+   "Connect<-DIV.body",
+   "Codex — details<-FOOTER.",
+   "Connect<-A.btn",
+   "Home<-FOOTER.",
+   "Search tools<-FOOTER.",
+   "My tools<-BUTTON.btn btn--quiet",
+   "Alerts<-BUTTON.btn btn--quiet",
+   "Access requests<-A.btn"
+  ]
+ },
+ "light 640 home": {
+  "controls": 37,
+  "minH": 39.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": []
+ },
+ "light 640 tools": {
+  "controls": 61,
+  "minH": 39.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": []
+ },
+ "light 640 requests-updates": {
+  "controls": 33,
+  "minH": 39.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48",
+   "button.|Updates|282x43.7@35,146",
+   "button.|Access requests|282x43.7@323,146",
+   "button.|Tool & subscription purchases|282x43.7@35,196",
+   "button.|Department reports|282x43.7@323,196"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": []
+ },
+ "light 640 devices": {
+  "controls": 32,
+  "minH": 39.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48",
+   "button.|Connected1|282x43.7@35,164",
+   "button.|Connect a tool|282x43.7@323,164"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": []
+ },
+ "light 640 weekly": {
+  "controls": 38,
+  "minH": 39.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48",
+   "button.|Pending & returned|282x43.7@35,288",
+   "button.|Submitted|282x43.7@323,288",
+   "button.|Adoption & impact|282x43.7@35,338"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": []
+ },
+ "light 640 privacy": {
+  "controls": 43,
+  "minH": 23.3,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48",
+   "summary.|Weekly reporting and your declaratio|558x23.3@41,2843"
+  ],
+  "inlineLinks": 0,
+  "clipped": [],
+  "covered": []
+ },
+ "light 640 tools-drawer": {
+  "controls": 65,
+  "minH": 16,
+  "below44": [
+   "a.skip|Skip to content|139.1x39.3@12,-48",
+   "button.btn btn--quiet icon-only|Close|36x36@580,24",
+   "button.btn btn--quiet|Close|62.3x36@455,848",
+   "a.btn|Open Canva (opens in a new tab)|86.6x36@529,848"
+  ],
+  "inlineLinks": 1,
+  "clipped": [],
+  "covered": [
+   "Open navigation<-HEADER.",
+   "Search pages (Ctrl+K or Command+K)<-HEADER.",
+   "Updates<-HEADER.",
+   "Your account<-BUTTON.btn btn--quiet icon-only",
+   "Search AI tools<-P.",
+   "Everything<-P.muted",
+   "Available to me<-P.muted",
+   "Others<-P.muted",
+   "Sort<-H3.",
+   "Tool category<-P.",
+   "Canva — details<-DIV.body",
+   "Open Canva (opens in a new tab)<-DIV.body",
+   "ChatGPT — details<-A.tlink",
+   "Open ChatGPT (opens in a new tab)<-P.muted",
+   "Claude — details<-DIV.body",
+   "Open Claude (opens in a new tab)<-DIV.body",
+   "Claude Code — details<-DIV.body",
+   "Connect<-DIV.body",
+   "Codex — details<-DIV.body",
+   "Connect<-DIV.body",
+   "Midjourney — details<-FOOTER.",
+   "Open Midjourney (opens in a new tab)<-FOOTER.",
+   "Home<-FOOTER.",
+   "Search tools<-FOOTER.",
+   "My tools<-FOOTER.",
+   "Alerts<-FOOTER.",
+   "Access requests<-BUTTON.btn btn--quiet"
+  ]
+ }
+}

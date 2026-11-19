@@ -63,9 +63,12 @@ const ok = (name, cond) => { assert.ok(cond, name); checks++; };
       if (width >= 1440) {
         // a long list scrolls inside its panel and the page itself does not: one vertical scrollbar at 1440x852
         await p.evaluate(() => { const b = document.querySelector('main .u-table tbody'); const r = b.querySelector('tr'); for (let i = 0; i < 80; i++) b.append(r.cloneNode(true)); });
-        const m = await p.evaluate(() => { const w = document.querySelector('main .u-table-wrap'); return { inner: w.scrollHeight > w.clientHeight + 1, page: document.documentElement.scrollHeight - innerHeight }; });
+        const m = await p.evaluate(() => { const w = document.querySelector('main .u-table-wrap'); return { inner: w.scrollHeight > w.clientHeight + 1, page: document.documentElement.scrollHeight - innerHeight,
+          bottom: w.closest('.panel').getBoundingClientRect().bottom,
+          available: innerHeight - parseFloat(getComputedStyle(w.closest('.page')).paddingBottom) }; });
         ok(T + `a long list scrolls inside its panel (${JSON.stringify(m)})`, m.inner);
         ok(T + 'and the page itself does not scroll', m.page <= 1);
+        ok(T + 'a long Audit list uses the free height above the footer', m.bottom >= m.available - 4 && m.bottom <= m.available + 1);
         await open('#/audit', '.u-filter');
       }
       await p.getByRole('searchbox').first().fill('zzz-nothing-like-this');

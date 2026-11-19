@@ -858,3 +858,129 @@ phone-light console and desktop-dark staff captures and the geometry JSON. This 
 overhang finding for this product head. Probe's verdict is single-model. Normal-mode overlays,
 the main re-test and real Windows High Contrast remain unverified. The historical 2.39:1 focus
 finding was on People, not a current sign-in measurement. New-head CI remains pending.
+
+## Lane B O2: light breadcrumb backing — 13 November 2026
+
+The light console area/trail now follows BRIEF 10.3 as bare text instead of a white
+backing. Primary ink also colours the separators. The obsolete CSS assertions
+requiring the backing are replaced by a rendered check in `tests/browser/money.cjs`
+that rejects a background or rim on the Licences breadcrumb. No new tokens or dependencies.
+
+Code checks: JavaScript syntax and whitespace checks passed. Not run locally:
+Python or browser suites (one laptop test/browser slot, reserved for Probe). Full
+Python and browser checks run on CI. Photo contrast, keyboard focus, 390/1440 light
+and dark screenshots and exact-match acceptance remain pending Probe's actual review.
+
+14 November continuation: O2 is built on `fix/light-trail-o2`, pending rendered
+contrast review and CI. Push/PR use `[skip netlify]` because credits are exhausted;
+GitHub checks remain enabled. Audit O1 stays open pending current default/long-list
+height measurements; the Settings header icon nick stays open pending an exact
+element/capture; staff targets stay open pending re-measure after #215/#217/#227.
+Glass/photo stays open: no asset change, Arnold's replacement photo is needed.
+D-016 E/I follow-ups belong to Forge's backend/policy lane. No real-device checks.
+
+### O2 restart recovery — 14 November 2026
+
+PR #231 passed all four GitHub checks on `89e25eb` (Python 3.10/3.12, app-window,
+browser). The independent review was interrupted, so that head was not accepted
+or merged. Recovered fixture measurements found the nested area label still used
+muted ink: 2.18:1 desktop light, 3.12:1 phone light, 3.31:1 phone dark. The CSS
+now applies primary ink to the nested area and phone separators. The browser
+regression checks the effective child colours, not just the transparent parent.
+Before-fix measurements and scope are in `docs/screenshots/light-trail-o2/RECOVERY.md`.
+Changed-script syntax and whitespace checks pass; new-head CI and rendered
+contrast/focus review are pending. No local browser/test suite was started.
+
+The recovered Spend focus capture also showed the trail container clipping the
+link outline at its left edge. The outline is now inset 2px; keyboard/capture
+verification of that change remains pending.
+
+### Lane B O2 independent review — 14 November 2026
+
+PR #231 product head `9acb442` passed independent real-Chrome fixture measurements.
+Desktop light worst-pixel contrast: area 5.75:1, separator 5.89:1, current page
+4.74:1. Desktop dark: 9.36:1 / 4.76:1 / 6.23:1. Phone in-bar crumbs at 390/640
+were at least 7.5:1 in both themes. No white backing/rim or clipped trail; links
+work and the focus outline is whole. Evidence and method are committed under
+`docs/screenshots/light-trail-o2/head-9acb442/`. The ellipsis link measures 23.9px
+wide, recorded as a minor observation. No current documentation-head CI result
+is implied by this product-head verdict.
+
+The Settings header nick could not be reproduced: seven badges in both themes
+are 42×42 with centred 20px SVGs and no clipping (same evidence folder). No
+Settings code change is made. Staff-phone regression: 52 checks passed at
+390 light/dark plus 1440 dark, and a 640 light/dark copy passed 36 checks. These
+check purchase names, creations and Tools Show controls; a comprehensive shell
+control measurement remains open. Glass/photo remains open for Arnold's asset.
+
+### Lane B final review checkpoint — 14 November 2026
+
+This checkpoint supersedes the earlier pending-review statuses for these items.
+The shared progress update is carried by #234 (#231 merged at `9a40f7a` before it was pushed); #233/#234 keep detailed evidence
+in their own screenshot notes so the three small PRs do not conflict at this
+file's end. All remain pending their final pushed-head CI and merge.
+
+- O2 (#231): product `9acb442` passed contrast, clipping, focus and link checks
+  at 1440/390/640 light/dark; worst desktop light contrast 4.74:1.
+- Audit O1 (#233): product `992a07a` passed 164 shipped browser checks, plus
+  explicit default/long, with/without-pager measurements. Panel bottom 772,
+  footer 796–812, no page overflow/movement at 1440×852. Detailed/Models and
+  tablet/phone regressions pass. Evidence: `docs/screenshots/audit-o1-height/head-992a07a/`.
+- Staff targets (#234): product `cf5aa20` passed independent 390/640 light/dark
+  measurements. Drawer actions, tabs, six Privacy summaries and the focused skip
+  link reach 44px; no overlapping targets in changed groups. Keyboard focus,
+  Escape return, disclosure activation and scroll-into-view coverage pass;
+  desktop 1440 light/dark is unchanged. The committed suite printed 156 checks
+  passed, then the local 280s shell timeout returned exit 124 during shutdown;
+  this is not recorded as an exit-zero suite run. CI remains required. Evidence:
+  `docs/screenshots/staff-target-gaps/head-cf5aa20/`. No local process remains.
+- Settings header icon nick: could not reproduce across seven badges in both
+  themes (42px badge, centred 20px SVG, no clipping); no Settings change.
+- Glass/photo remains open for Arnold's replacement asset. Real devices and
+  the full local Python suite were not tested; full suites run on GitHub CI.
+
+## 2026-11-17 — Desktop Hub entry points (feature/desktop-functions)
+
+- Resumed the saved worktree after restart. Added Reports & Hub to the existing Tk shell: weekly reports, tools, devices and the administrator control room open only fixed routes on the enrolled origin. Browser-open failures are shown. Device keys are never transferred to the website; website sign-in and all authorization/report gates remain server-side.
+- Existing device-code enrollment and editable server address at enrollment are retained. Changing servers still requires sign-out/re-enrollment. This patch embeds no address, credential, web session or new runtime dependency.
+- Scope limitation: these are system-browser entry points, **not embedded reporting/admin forms**. Browser sign-in is separate from device enrollment. Employees must use separate OS/browser profiles; this patch does not provide managed profile isolation. The tests-only browser_profiles module remains inert. Managed workspace PR #204 is separate. Native Windows/macOS acceptance and a complete desktop reporting/admin journey remain unverified.
+- Actual local checks: `python3 -m unittest tests.test_client.ShellTests -v`: Ran 4 tests in 0.061s, OK. `python3 -m unittest tests.test_client_gui -v`: Ran 16 tests in 0.003s, OK (skipped=16: no usable Tk/display). `git diff --check`: passed. Full Python suite, display-backed GUI checks and browser journeys: not run locally; CI/Probe requested. Web exact-match/phone screenshots do not describe this native Tk window; no web styles changed.
+
+### #246 review corrections — 17 Nov
+
+- Probe and Sentinel rejected initial head `021924f`: CI app-window run 44170872187/job 134349279264 had 15 passes and one failure (stale four-item dock assertion). Updated the dock assertion and click-through to cover Reports & Hub.
+- Removed the Tools browser link and the unused Home route. The bridge now exposes only weekly reports, devices and the control room; no provider-launch route is allowed. New regression check fixes the permitted route set and excludes `/go/`; tests also reject tools/home/arbitrary page requests.
+- Actual corrected local check: `python3 -m unittest tests.test_client.ShellTests -v`: Ran 5 tests in 0.159s, OK. `git diff --check`: passed. Display-backed corrected GUI run and independent verification still pending CI. The initial CI passed the two new GUI tests; this is not a corrected-head result.
+- Integration requirement: #204 adds `tests/test_workspace_launcher.py` (absent from this branch/main). Its `InventoryTests.ALLOWED` must add `("shell.py", "open_hub")` per Sentinel's PR246 review. Do not copy the pending feature wholesale; apply this one-line compatibility correction when integrating #204. The route guard is already included here.
+- Sentinel's recommended release scope keeps admin in the separately authenticated browser, embedded webviews rejected; native weekly reports need a separately approved device-key API from Forge. That API and managed isolation are not claimed by #246.
+
+### #246 integration and drawer keyboard correction — 18 Nov
+
+- Merged main at `a44af1f` normally (includes #204/#245/#243), with no conflicts. Applied Sentinel's required `("shell.py", "open_hub")` caller inventory exception; provider-route exclusion remains tested. Browser profiles now follow merged #204; this bridge adds no separate profile mechanism.
+- Verified the reported browser failure in Windows branch run 44166348431: `light 640: drawer keyboard focus stays inside`. Initial #246 run 44170872187 actually passed browser (its failure was the stale dock assertion); corrected remote head 0c346be run 44176430634 was still pending during inspection.
+- Root-cause risk in staff drawer: initial focus is assigned on an animation frame while the existing trap only receives keys from inside the drawer. A Tab pressed with focus still on the opener can escape. The drawer document key handler now recovers forward/backward Tab from outside, respects a nested native dialog, and its opening frame preserves focus already inside. Existing close/focus-return behavior is retained.
+- Extended staff-phone checks to deliberately focus the opener with the drawer open, recover forward/backward Tab and wrap both drawer boundaries at 390/640 in light/dark. No layout/style change; rendered accessibility verification is pending Probe/CI.
+- Actual local check: `python3 -m unittest tests.test_client.ShellTests tests.test_workspace_launcher.InventoryTests -v`: Ran 8 tests in 1.752s, OK. Node syntax checks for portal.js and staff-phone.cjs and `git diff --check`: passed. No local browser/full Python suite/native build run. CI and Probe verification still required before merge.
+
+### Select positioning test race — 19 November
+
+- Run 44430560966 failed kit.cjs with an upward panel at bottom 846 and trigger top 848: gap 2px instead of the required 4–8px. The product already follows trigger rect changes on requestAnimationFrame; two test frames do not signal that following has caught up with a later layout change. Reduced motion is enabled in this fixture, so the popup entrance animation is disabled.
+- Replaced the two fixed-frame waits (initial upward open and explicit trigger movement) with bounded RAF polling of the actual upward class, 4–8px gap and top viewport clearance. Geometry is returned from the successful poll to avoid a second measurement race. The original assertions and tolerances remain. No product or CSS change.
+- Actual local checks: node --check tests/browser/kit.cjs and git diff --check passed; three VM scenarios against the real helper passed (late alignment, persistent bad gap and wrong direction). These mocks do not reproduce the browser layout. Not run locally: Chromium/real-layout reproduction (mounted browser tools unavailable); full suites/browser checks run on CI. CI and merge pending.
+
+## 2026-11-19 — Anvil: release scan hardening (feature/macos-scan-hardening), from Probe's #262 review
+
+- `packaging/secret_scan.py --min-archives N`: the scan fails (exit 1, listed under `problems`) unless at least N PyInstaller programs were opened entry by entry; a folder given as a path that holds no files fails too. A scan that saw nothing no longer reports CLEAN.
+- macOS job: `--min-archives 2` (`dist/Swangz/Swangz` and `dist/Swangz.app/Contents/MacOS/Swangz`, the two opened in main run 44434293090). Windows job: `--min-archives 1` (`dist\Swangz.exe`, main run 44433661042).
+- Part 2 (mount the DMG read-only, compare its app with `dist/Swangz.app`, scan the mounted volume) is #265 (`fix/macos-dmg-scan`, merged); not duplicated. Added on top: the journey's mounted-DMG scan fails unless it opened at least one PyInstaller archive (the app's program), the same gate as `--min-archives`.
+- Local: `python3 -m unittest tests.test_secret_scan tests.test_sbom tests.test_packaging_macos tests.test_windows_installer`: Ran 46 tests, OK (after merging main with #265). Real macOS/Windows runs are this PR's CI.
+
+## 19 Nov 2026 — macOS journey gaps from #269 (Anvil, PR #271, `feature/macos-journey-gaps`)
+- `packaging/macos_journey.py` closes RELEASE-EVIDENCE rows 4, 7 and 9 on macOS, plus Probe's reconnect note:
+  - **Fresh install:** no address is saved; plain http is refused before any sign-in code is issued.
+  - **Hub down:** the window opens while the Hub is down.
+  - **Outage:** the Keychain key is the same secret and the sign-in codes are unchanged; the key is in no file.
+  - **Revoked while away:** the device is refused on return (exit 3) and removes itself, keeping `browser-profiles` only.
+  - **Older build:** an older build dragged over a newer one refuses to run (exit 5) and changes nothing.
+- The product change for row 9 is `core.check_newest_app` (docs/CLIENT.md).
+- Local: `tests.test_packaging_macos tests.test_client_newest_app`: 28 OK. The client and Windows installer modules pass. The macOS run is this PR's CI.

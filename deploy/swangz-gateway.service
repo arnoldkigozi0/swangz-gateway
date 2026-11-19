@@ -10,11 +10,27 @@ WorkingDirectory=/opt/swangz-gateway
 ExecStart=/usr/bin/python3 -m gateway serve
 Restart=always
 RestartSec=3
-# the gateway needs nothing but its own folder
+# the gateway needs nothing but its own folder; files it creates are private to it
+UMask=0077
 NoNewPrivileges=true
 ProtectSystem=strict
 ReadWritePaths=/opt/swangz-gateway/data
 PrivateTmp=true
+# Hardening (security review, Nov 14, 2026): no capabilities, no device nodes, no other users' homes, only the
+# socket kinds it uses (outbound calls to providers, Google, SMTP and icon hosts need AF_INET/AF_INET6).
+# Not MemoryDenyWriteExecute or IPAddressDeny: the outbound calls are by design.
+ProtectHome=true
+PrivateDevices=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
 
 [Install]
 WantedBy=multi-user.target

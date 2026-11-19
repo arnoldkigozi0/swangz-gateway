@@ -388,7 +388,7 @@
     [["retention_bodies_days", "Full bodies"], ["retention_site_days", "Website visits"], ["retention_launch_days", "Tools opened"], ["retention_audit_days", "Audit log"]].forEach(([k, l]) => {
       ret[k] = el("input", { type: "number", min: "0", step: "1", value: String(st[k] || 0), disabled: off(k), "aria-label": l + ", days" });
     });
-    const storeBodies = A.switchInput(st.store_bodies, off("store_bodies"), "Keep full request and response bodies");
+    const storeBodies = A.switchInput(st.store_bodies, off("store_bodies"), "Keep prompt and reply text");
     const blockSecrets = A.switchInput(st.block_secrets, off("block_secrets"), "Refuse requests that contain credentials");
     const selfKeys = A.switchInput(st.staff_self_keys, off("staff_self_keys"), "Staff can connect their own devices");
     const gateFull = A.switchInput(st.gate_log_full, off("gate_log_full"), "Website gate: full-content logging");
@@ -450,7 +450,7 @@
       if (shorter("retention_days")) out.push(`Request records older than ${v.retention_days} days are deleted within the hour.`);
       [["retention_bodies_days", "Stored bodies"], ["retention_site_days", "Website visits"], ["retention_launch_days", "Tools-opened records"], ["retention_audit_days", "Audit entries"]]
         .forEach(([k, l]) => { if (shorter(k)) out.push(`${l} older than ${v[k]} days are deleted within the hour.`); });
-      if (v.store_bodies === false) out.push("New requests keep only their summary; full bodies are no longer stored.");
+      if (v.store_bodies === false) out.push("New requests keep no prompt or reply text, only who, tool, model, when and cost.");
       if (v.gate_log_full === true) out.push("The website gate starts recording page content. Staff must be told before this is on.");
       if (v.block_secrets === false) out.push("Requests containing credentials are let through (and flagged) instead of refused.");
       return out;
@@ -488,7 +488,7 @@
         ["Full API bodies", st.store_bodies ? "Stored" : "Summary only", "Applies to new gateway requests"]]),
       A.panel("Request records", `${st.records.toLocaleString()} requests · ${(st.db_bytes / 1048576).toFixed(1)} MB on disk`,
         row("retention_days", "Keep records for", "Older request records are deleted automatically every hour. 0 keeps everything. Staff see this number on their privacy page.", unit(retention, "days", "retention_days")),
-        row("store_bodies", "Keep full request and response bodies", "Needed to pull back exactly what was sent. Off keeps only the summary: who, model, prompt, commands, cost.", storeBodies)),
+        row("store_bodies", "Keep prompt and reply text", "Keeps the prompt, reply and full bodies, readable only by roles with Security. Off (the default) keeps no text: who, tool, model, when, cost.", storeBodies)),
       el("details", { class: "hub-setting-details" },
         el("summary", null, "Advanced retention by record type"),
         A.panel("Retention by kind", "days · each row explains what 0 means",

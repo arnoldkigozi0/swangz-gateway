@@ -132,8 +132,8 @@ Heavy jobs run on Actions only.
 |---|---|
 | E-1 | `http://127.0.0.1:PORT/` (fixture listens, so the hit log works), `http://[::1]:PORT/`, `http://localhost:PORT/`, `http://0.0.0.0:PORT/` |
 | E-2 | Encoded loopback: `http://2130706433/`, `http://0x7f000001/`, `http://0177.0.0.1/`, `http://[::ffff:127.0.0.1]/` |
-| E-3 | `data:text/html,<h1>x</h1>` typed, and clicked from an allowed page; `javascript:` typed; `about:srcdoc` |
-| E-4 | `blob:` created by script on an allowed page and then navigated; `filesystem:`; `blob:https://claude.ai/<id>` is the dangerous one (inherits the allowed origin). Record the result for each |
+| E-3 | `data:text/html,<h1>x</h1>` typed, and clicked from an allowed page; `javascript:` typed; `about:srcdoc`. **Result (same run, full pack):** `about:srcdoc` frame REACHED the off-list host; `data:` link clicked sent nothing; `javascript:` typed sent nothing (1 request without the pack). Listed in the README as a limit |
+| E-4 | `blob:` created by script on an allowed page and then navigated; `filesystem:`; `blob:https://claude.ai/<id>` is the dangerous one (inherits the allowed origin). Record the result for each. **Result (Chrome 156, Linux, run 43380200973, full pack):** `blob:` page and `blob:` frame REACHED the off-list host; `filesystem:` not run (deprecated). Listed in the README as a limit |
 | E-5 | `file:///etc/hostname` (Windows: `file:///C:/Windows/win.ini`) typed and clicked from an allowed page |
 | E-6 | `view-source:https://claude.ai/` (D-016 wants it blocked; the pack does not list it yet) |
 | E-7 | `chrome://settings`, `chrome://extensions`, `chrome://version`, `chrome://newtab`, `chrome://flags`, `chrome://inspect`, `chrome://policy`, `chrome-extension://<some id>/`, `devtools://devtools/` (Chrome 147 changes the result; fails until `chrome://*` is added) |

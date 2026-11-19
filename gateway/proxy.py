@@ -14,7 +14,7 @@ import ssl
 import threading
 import time
 
-from . import parse, pricing, purpose, security, store
+from . import config, parse, pricing, purpose, security, store
 
 STRIP_REQUEST = {
     "connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "proxy-connection", "te",
@@ -289,7 +289,8 @@ class Call:
 
         ticket = gw.live.start(person_id=self.key["person_id"], person=self.key["person_name"],
                                key_id=self.key["id"], provider=provider.name, model=self.rec["model"],
-                               client=self.rec["client"], session=self.rec["session"], prompt=self.rec["prompt"])
+                               client=self.rec["client"], session=self.rec["session"],
+                               prompt=self.rec["prompt"] if config.stores_bodies(gw.db) else None)
         try:
             resp, conn = self._send(ticket, target, payload, headers)
         except (OSError, http.client.HTTPException) as exc:
@@ -422,8 +423,9 @@ class Call:
         job = result["job_id"] or next(iter(re.findall(r"/requests/([^/]+)/", self.rest)), None)
         self.rec["turn_id"] = job
         if job and (result["urls"] or result["status"] in ("completed", "failed", "nsfw")):
+            reply = result["reply"] if config.stores_bodies(self.gw.db) else None
             self.gw.db.x("UPDATE requests SET reply = ?, result_urls = COALESCE(?, result_urls) WHERE provider = ? AND kind = 'media'"
-                         " AND turn_id = ?", (result["reply"], self.rec["result_urls"], self.provider.name, job))
+                         " AND turn_id = ?", (reply, self.rec["result_urls"], self.provider.name, job))
 
     # ------------------------------------------------------------ the record
 
@@ -448,7 +450,9 @@ class Call:
             rec["cost"], rec["cost_source"] = money.media_cost(gw.db, rec)
         if rec["kind"] not in ("other", "media-status"):
             rec.update(purpose.classify(gw.db, rec, self.h.headers, enabled=gw.db.get_setting("purpose_inference", "1") == "1"))
-        keep_bodies = gw.db.get_setting("store_bodies", "1") == "1"
+        keep_bodies = config.stores_bodies(gw.db)
+        if not keep_bodies:  # D-023: purpose inference above saw the text in memory; only its label is kept
+            rec.update(prompt=None, reply=None, actions=None)
         try:
             with gw.db.tx():
                 if keep_bodies and keep_request and (self.body is not None or self.raw):

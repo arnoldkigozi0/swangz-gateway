@@ -4,6 +4,7 @@ For staff, Swangz AI Hub is simply how they reach AI tools at work. This API onl
 signed-in person's own profile, budget and keys.
 """
 
+import base64
 import html
 import http.client
 import json
@@ -13,7 +14,7 @@ import ssl
 import time
 from urllib.parse import parse_qs, quote, unquote
 
-from . import credentials, entitle, guides, parse, proxy, security, store
+from . import config, credentials, entitle, guides, parse, proxy, security, store
 from .admin import ApiError, Ctx
 
 COOKIE = "sgw_staff"
@@ -401,7 +402,7 @@ def me(ctx):
         # what the company records, stated plainly on the staff app's privacy page
         "privacy": {
             "retention_days": int(ctx.db.get_setting("retention_days", "90") or 0),
-            "store_bodies": ctx.db.get_setting("store_bodies", "1") == "1",
+            "store_bodies": config.stores_bodies(ctx.db),
             "block_secrets": ctx.db.get_setting("block_secrets", "0") == "1",
             "gate_log_full": ctx.db.get_setting("gate_log_full", "0") == "1",
             "support_contact": ctx.db.get_setting("support_contact", "") or "",
@@ -869,17 +870,41 @@ def _creation(row):
             "audio": f"/api/studio/media/{row['id']}" if row["resp_blob"] and (row["resp_ctype"] or "").startswith("audio/") else None}
 
 
+STUDIO_MINE = "person_id = ? AND kind = 'media' AND client IN ('Swangz AI Studio','Swangz AI Hub Studio')"
+CREATIONS_PAGE = 12
+
+
+def _creations(ctx, before=None):
+    """One page of the person's own Studio creations, newest first, older than `before` (a request id) when given."""
+    where, args = STUDIO_MINE, [ctx.person["id"]]
+    if before:
+        where += " AND id < ?"
+        args.append(before)
+    rows = ctx.db.q(f"SELECT * FROM requests WHERE {where} ORDER BY id DESC LIMIT ?", (*args, CREATIONS_PAGE + 1))
+    return [_creation(r) for r in rows[:CREATIONS_PAGE]], len(rows) > CREATIONS_PAGE
+
+
+@route("GET", r"/studio/creations")
+def studio_creations(ctx):
+    """Older creations for Your creations' "Show older" (the first page comes with /studio)."""
+    before = ctx.arg("before", 0, int)
+    if before < 1:
+        raise ApiError(400, "Say which creation to continue after.")
+    items, more = _creations(ctx, before)
+    return {"items": items, "more": more}
+
+
 @route("GET", r"/studio")
 def studio(ctx):
     voice, visual = _service(ctx, "elevenlabs"), _service(ctx, "higgsfield")
-    recent = ctx.db.q("SELECT * FROM requests WHERE person_id = ? AND kind = 'media' AND client IN ('Swangz AI Studio','Swangz AI Hub Studio')"
-                      " ORDER BY id DESC LIMIT 12", (ctx.person["id"],))
+    recent, more = _creations(ctx)
+    total = ctx.db.one(f"SELECT COUNT(*) AS n FROM requests WHERE {STUDIO_MINE}", (ctx.person["id"],))["n"]
     return {"voice": bool(voice), "image": bool(visual), "video": bool(visual),
             "voices": _voices(ctx, voice) if voice else [],
             "voice_models": [{"id": m, "name": n} for m, n in VOICE_MODELS],
             "purposes": [{"id": r["id"], "name": r["name"]} for r in ctx.db.q(
                 "SELECT id, name FROM purposes WHERE archived = 0 AND id NOT IN ('other') ORDER BY sort, name")],
-            "recent": [_creation(r) for r in recent]}
+            "recent": recent, "recent_more": more, "recent_total": total}
 
 
 @route("POST", r"/studio/voice")
@@ -903,8 +928,13 @@ def studio_voice(ctx):
                                               {"text": text, "model_id": model}, ref, purpose=ctx.body.get("purpose"))
     if status != 200 or not ctype.startswith("audio/"):
         raise ApiError(status if status >= 400 else 502, _error_from(payload, "The voice service didn't return audio."))
-    return _creation(_await_record(ctx, "SELECT * FROM requests WHERE turn_id = ? AND person_id = ? AND resp_blob IS NOT NULL",
-                                   (ref, ctx.person["id"])))
+    if config.stores_bodies(ctx.db):
+        return _creation(_await_record(ctx, "SELECT * FROM requests WHERE turn_id = ? AND person_id = ? AND resp_blob IS NOT NULL",
+                                       (ref, ctx.person["id"])))
+    # D-023: with storage off the clip is not kept, so it comes back once, to the person who made it, and is gone after
+    out = _creation(_await_record(ctx, "SELECT * FROM requests WHERE turn_id = ? AND person_id = ?", (ref, ctx.person["id"])))
+    out["audio_once"] = {"type": ctype.split(";")[0], "data": base64.b64encode(payload).decode()}
+    return out
 
 
 @route("POST", r"/studio/generate")

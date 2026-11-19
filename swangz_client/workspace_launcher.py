@@ -53,6 +53,8 @@ MESSAGES = {
     "refused_by_hub": "Swangz AI Hub didn't accept this device, so the workspace window is closed. Sign in to Swangz again, or ask your admin.",
     "revoked": "This device was disconnected from Swangz AI Hub, so the workspace window is closed.",
     "signed_out": "You signed out of Swangz, so the workspace window is closed.",
+    "workspace_policy": "The company browser settings on this computer aren't in force, so nothing was opened. Check that "
+                        "they are installed, or talk to your admin.",
 }
 
 
