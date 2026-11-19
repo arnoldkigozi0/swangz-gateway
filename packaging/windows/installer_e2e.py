@@ -279,6 +279,24 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         passed("network interruption: sync exited 1 and recorded no sync, credentials and state kept; on return the next sync"
                " checked in with no sign-in again")
 
+        # 5b. deliverable 5 and F-18 (packaging/hub_journey.py): the installed program opens a granted tool in its Chrome
+        #     workspace window on the person's own folder; a request with its own credential is not stored by default,
+        #     and once stored only a role with the trust area reads it
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # packaging/
+        import hub_journey
+
+        def check(name, ok, detail=""):
+            require(ok, f"{name}: {detail}")
+            passed(name + (f" ({detail})" if detail else ""))
+
+        def run_app(*args):
+            result = subprocess.run([str(exe), *args], env=env, capture_output=True, text=True, timeout=180, cwd=work)
+            return result.returncode, (result.stdout + result.stderr).strip()
+
+        owner = hub_journey.Console(origin, "owner")
+        report["workspace_folder"] = hub_journey.workspace(check, run_app, data, owner, rig.person_id).name
+        hub_journey.f18(check, exe, env, origin, owner, rig.person_id, cwd=work)
+
         # 6. upgrade to this build over a running copy (or, with no previous build, reinstall the same version): the
         #    installer closes the program; the person's device, key and settings stay, and the Hub sees the new version
         gui = subprocess.Popen([str(exe), "--background"], env=env, cwd=work)

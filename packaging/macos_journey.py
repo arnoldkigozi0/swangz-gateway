@@ -43,6 +43,7 @@ KEPT_AFTER_SIGNOUT = {"browser-profiles"}
 KEYCHAIN_SERVICE = "Swangz AI Hub"  # swangz_client/keystore.py SERVICE
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import secret_scan  # noqa: E402  packaging/secret_scan.py, the same scan the workflow runs over dist/
+import hub_journey  # noqa: E402  packaging/hub_journey.py, the workspace and F-18 steps both journeys run
 
 CODE = re.compile(r"\b([BCDFGHJKMNPQRSTVWXZ2-9]{4}-[BCDFGHJKMNPQRSTVWXZ2-9]{4})\b")
 
@@ -99,7 +100,7 @@ def start_server(public_url):
     line = proc.stdout.readline()
     if not line:
         raise SystemExit("fixture server did not start: " + proc.stderr.read()[-2000:])
-    return proc, json.loads(line)["port"]
+    return proc, json.loads(line)
 
 
 class Browser:
@@ -269,7 +270,8 @@ def main(argv=None):
     relay = relay_class()(None)
     relay.start()
     app_url = f"http://127.0.0.1:{relay.port}"  # the Hub's public address: everyone reaches it only through the relay
-    server, relay.target = start_server(app_url)  # the fixture's own port; relay.target is read per connection
+    server, fixture = start_server(app_url)
+    relay.target = fixture["port"]  # the fixture's own port; relay.target is read per connection
     j.note(f"fixture server on port {relay.target}, reached through the relay at {app_url}")
     try:
         browser = Browser(app_url)
@@ -328,6 +330,11 @@ def main(argv=None):
                code == 0 and (state().get("last_sync") or 0) > (synced or 0) and not device.get("reconnect"), f"exit {code}")
         now = [k.get("last_used") for k in browser.my_devices() or []]
         j.step("Hub back: the server records the device's check-in", now != used and any(now), f"{used} -> {now}")
+
+        # deliverable 5 and F-18 (packaging/hub_journey.py): the workspace window, then prompt/reply privacy
+        owner = hub_journey.Console(app_url, "owner")
+        hub_journey.workspace(j.step, lambda *a: j.run([binary(app), *a], env=env), data, owner, fixture["person"])
+        hub_journey.f18(j.step, binary(app), env, app_url, owner, fixture["person"])
 
         keep = sorted(p.name for p in data.iterdir()) if data.exists() else []
         app = install(j, args.new, apps, args.new_app)

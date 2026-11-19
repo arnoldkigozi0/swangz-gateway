@@ -569,6 +569,15 @@ class OneRotationAtATime(RotationBase):
         self.client.remove_everything()
         self.assertFalse(self.lock_path().exists())
 
+    def test_signing_out_removes_the_local_access_logs(self):
+        # which tools were opened and when the key was handed out belong to this enrolment, like the device record
+        data = self.client.paths.data
+        for name in ("credential-access.log", "workspace-open.log"):
+            (data / name).write_text("1795000000 open canva\n")
+        self.client.remove_everything()
+        for name in ("credential-access.log", "workspace-open.log"):
+            self.assertFalse((data / name).exists(), name)
+
 
 class KeyRotatedNeverWipes(RotationBase):
     def staged_rotation(self):

@@ -378,7 +378,7 @@ class Store:
             for root in reversed(self.roots()):
                 keystore.erase_file(root / "device.key")
                 keystore.erase_file(root / "device.key.next")
-                for name in ("state.json", "manifest.json", "device.json", "credential-access.log", "rotate.lock"):
+                for name in ("state.json", "manifest.json", "device.json", "credential-access.log", "workspace-open.log", "rotate.lock"):
                     (root / name).unlink(missing_ok=True)
 
 
