@@ -181,6 +181,44 @@ class RestartEvidenceTests(unittest.TestCase):
         self.assertIn("address == moved == origin", upgrade)
 
 
+class EnrolmentRefusalTests(unittest.TestCase):
+    """Deliverable 3 gaps through the installed program: wrong, expired and reused sign-in codes; and (5d) grants that
+    take effect only when the program starts again."""
+
+    def setUp(self):
+        self.e2e = (ROOT / "packaging" / "windows" / "installer_e2e.py").read_text(encoding="utf-8")
+
+    def section(self, start, end):
+        return self.e2e.split(start, 1)[1].split(end, 1)[0]
+
+    def test_wrong_then_expired_code_while_the_program_waits(self):
+        refused = self.section("# 3a.", "device = enrol()")
+        steps = ['[str(exe), "login", "--server", origin', "That code isn't right", 'require(status == 400',
+                 "== \"pending\"", "login.poll() is None and not", "UPDATE device_codes SET expires", "login.communicate(timeout=120)",
+                 "login.returncode == 1", '"expired" in (out + err).lower()', "keys_issued() == issued",
+                 'unusable(row["user_code"])']
+        at = [refused.index(s) for s in steps]
+        self.assertEqual(at, sorted(at), "the refused-code steps are out of order")
+        self.assertLess(self.e2e.index("# 3a."), self.e2e.index("device = enrol()"))
+        # the expired code stays 'pending' at the Hub, so the real enrolment after it must take the newest live code
+        enrol = self.section("def enrol(approve=None):", "# 3a.")
+        self.assertIn("status = 'pending' AND expires > ?", enrol)
+        self.assertIn("ORDER BY id DESC LIMIT 1", enrol)
+
+    def test_a_used_code_is_not_reusable(self):
+        used = self.section("# 3b.", "# 4. restart")
+        for needle in ("unusable(used)", 'expected=1', "sign_in_codes() == codes", "keys_issued() == issued",
+                       '["key_id"] == key_id'):
+            self.assertIn(needle, used)
+        self.assertLess(self.e2e.index("enrol against the CI Hub"), self.e2e.index("# 3b."))
+
+    def test_grants_take_effect_after_the_program_starts_again(self):
+        grants = self.section("# 5d.", "# 6. upgrade")
+        self.assertIn('[str(exe), "--background"]', grants)
+        self.assertIn("hub_journey.grants_after_restart(check, start_program, close_program, data, owner, rig.person_id)", grants)
+        self.assertNotIn('app("sync")', grants)  # the program's own start-up sync is what is proven
+
+
 def load_e2e():
     spec = importlib.util.spec_from_file_location("installer_e2e", ROOT / "packaging" / "windows" / "installer_e2e.py")
     module = importlib.util.module_from_spec(spec)
