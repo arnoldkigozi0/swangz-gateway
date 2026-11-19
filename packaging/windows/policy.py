@@ -42,6 +42,13 @@ LISTS = ("URLBlocklist", "URLAllowlist", "ExtensionInstallBlocklist", "Extension
 JSON_STRING = ("AutoLaunchProtocolsFromOrigins",)  # machine_policy.JSON_STRING: one JSON string on Windows
 
 
+def runner_only():
+    """This replaces and then deletes the machine's whole Chrome policy key. On a real Swangz PC that would destroy the
+    company pack and quietly switch the managed-browser controls off, so it runs on a GitHub-hosted runner only."""
+    if os.environ.get("GITHUB_ACTIONS") != "true" or os.environ.get("RUNNER_ENVIRONMENT") != "github-hosted":
+        raise SystemExit("runner only: this rewrites and deletes HKLM Chrome policy; it runs on a GitHub-hosted runner")
+
+
 def registry_values(policy):
     """-> (scalar values {name: (kind, value)}, list subkeys {name: [str, ...]}), the way Chrome's ADMX writes them."""
     import winreg
@@ -82,6 +89,7 @@ def remove():
     """Take the whole Chrome policy key away (64-bit view), as removing the pack would."""
     import winreg
 
+    runner_only()
     _delete_tree(winreg, winreg.HKEY_LOCAL_MACHINE, KEY)
 
 
@@ -102,6 +110,7 @@ def install(policy):
 
     from swangz_client import machine_policy
 
+    runner_only()
     values, lists = registry_values(policy)
     remove()
     access = winreg.KEY_ALL_ACCESS | winreg.KEY_WOW64_64KEY
@@ -134,6 +143,7 @@ def run(check, run_app, enrol_company, owner, db, person_id, data, evidence, too
     enrol_company() signs it in as a company device and returns its device id; `db` is the Hub's database file."""
     import hub_journey
 
+    runner_only()  # before anything is prepared, pinned or written
     report = {"registry": WHERE, "cases": []}
     work = Path(tempfile.mkdtemp(prefix="swangz-policy-"))
     policy, baseline = macos_policy.prepare(work)
@@ -207,7 +217,24 @@ def run(check, run_app, enrol_company, owner, db, person_id, data, evidence, too
         code, out = run_app("logout")
         check("policy: the company device signs out", code == 0 and "removed" in out, out.strip()[-160:])
     finally:
-        remove()
-        owner.call("PUT", "/settings", {"managed_policy_sha256": "", "managed_policy_mode": "warn"})
-        (Path(evidence) / "policy-tamper.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        # each cleanup step on its own, so a key that cannot be removed does not skip the Hub reset or the evidence
+        errors = []
+        try:
+            remove()
+        except Exception as exc:  # noqa: BLE001 - recorded, and failed below
+            errors.append(f"removing {WHERE}: {exc!r}")
+        try:
+            status, _ = owner.call("PUT", "/settings", {"managed_policy_sha256": "", "managed_policy_mode": "warn"})
+            if status != 200:
+                errors.append(f"resetting the Hub to warn: HTTP {status}")
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"resetting the Hub to warn: {exc!r}")
+        report["cleanup_errors"] = errors
+        try:
+            (Path(evidence) / "policy-tamper.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"writing policy-tamper.json: {exc!r}")
+    # reached only when every case passed: a failed cleanup is then a failed step of its own
+    check("policy: the runner is restored (pack removed, Hub back to warn, evidence written)",
+          not errors and not present(), "; ".join(errors) or WHERE + " gone")
     return report

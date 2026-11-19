@@ -120,6 +120,9 @@ def run(check, run_app, enrol_company, owner, db, person_id, data, evidence, too
     enrol_company() signs the installed app in as a company device and returns its device id."""
     import hub_journey  # packaging/, already on sys.path when the macOS journey runs
 
+    if os.environ.get("GITHUB_ACTIONS") != "true" or os.environ.get("RUNNER_ENVIRONMENT") != "github-hosted":
+        raise SystemExit("runner only: this replaces and removes the device-wide Chrome policy; GitHub-hosted runners only")
+
     report = {"plist": str(PLIST), "cases": []}
     work = Path(tempfile.mkdtemp(prefix="swangz-policy-"))
     policy, baseline = prepare(work)

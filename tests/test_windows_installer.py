@@ -1,6 +1,7 @@
 """The Windows installer's promises, checked on any OS (the build and the real install run on windows-latest in CI)."""
 
 import http.server
+import json
 import importlib.util
 import re
 import threading
@@ -345,9 +346,10 @@ class WindowsPolicyTamperTests(unittest.TestCase):
         sys.path.insert(0, str(ROOT / "packaging"))
         self.addCleanup(sys.path.remove, str(ROOT / "packaging"))
         self.reg = WritableRegistry()
-        patch = mock.patch.dict(sys.modules, {"winreg": self.reg})
-        patch.start()
-        self.addCleanup(patch.stop)
+        for patch in (mock.patch.dict(sys.modules, {"winreg": self.reg}),
+                      mock.patch.dict("os.environ", {"GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "github-hosted"})):
+            patch.start()
+            self.addCleanup(patch.stop)
         spec = importlib.util.spec_from_file_location("windows_policy", ROOT / "packaging" / "windows" / "policy.py")
         self.p = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self.p)
@@ -418,3 +420,52 @@ class WindowsPolicyTamperTests(unittest.TestCase):
                        "device = enrol()", 'key_id = device["key_id"]'):
             self.assertIn(needle, block)
         self.assertLess(block.index("windows_policy.run("), block.index("device = enrol()"))
+
+    def test_it_refuses_to_touch_the_registry_off_a_github_hosted_runner(self):
+        """A real Swangz PC holds the company pack in this key: run, install and remove all refuse there."""
+        from unittest import mock
+        policy, _ = self.prepared()
+        self.reg.CreateKeyEx(self.reg.HKEY_LOCAL_MACHINE, self.p.KEY)
+        self.reg.SetValueEx(_Key(self.p.KEY), "BrowserSignin", 0, self.reg.REG_DWORD, 0)
+        company_pack = {k: dict(v) for k, v in self.reg.keys.items()}
+        for env in ({}, {"GITHUB_ACTIONS": "true"}, {"GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "self-hosted"},
+                    {"RUNNER_ENVIRONMENT": "github-hosted"}):
+            with self.subTest(env=env), mock.patch.dict("os.environ", env, clear=True):
+                calls = []
+                with self.assertRaisesRegex(SystemExit, "runner only"):
+                    self.p.run(lambda *a: calls.append(a), None, None, None, None, None, None, None)
+                self.assertEqual(calls, [], "refused before any step, pin or write")
+                with self.assertRaisesRegex(SystemExit, "runner only"):
+                    self.p.install(policy)
+                with self.assertRaisesRegex(SystemExit, "runner only"):
+                    self.p.remove()
+                self.assertEqual(self.reg.keys, company_pack, "the machine's own pack is untouched")
+
+    def test_the_macos_steps_refuse_off_a_github_hosted_runner_too(self):
+        from unittest import mock
+        with mock.patch.dict("os.environ", {"GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "self-hosted"}, clear=True):
+            with self.assertRaisesRegex(SystemExit, "runner only"):
+                self.p.macos_policy.run(None, None, None, None, None, None, None, None)
+
+    def test_each_cleanup_step_runs_even_when_the_one_before_fails(self):
+        import tempfile
+        from unittest import mock
+        policy, baseline = self.prepared()
+        settings = []
+
+        class Owner:
+            def call(self, method, path, body=None):
+                settings.append(body)
+                return 200, {}
+
+        checks = []
+        with tempfile.TemporaryDirectory() as evidence, \
+                mock.patch.object(self.p, "install", side_effect=RuntimeError("the case failed")), \
+                mock.patch.object(self.p, "remove", side_effect=PermissionError("access denied")):
+            with self.assertRaisesRegex(RuntimeError, "the case failed"):  # the real failure is the one reported
+                self.p.run(lambda *a: checks.append(a), None, None, Owner(), None, None, None, evidence)
+            written = json.loads((Path(evidence) / "policy-tamper.json").read_text(encoding="utf-8"))
+        self.assertEqual(settings[-1], {"managed_policy_sha256": "", "managed_policy_mode": "warn"})
+        self.assertIn("access denied", written["cleanup_errors"][0])
+        body = self.src[self.src.index("    finally:"):]
+        self.assertIn('check("policy: the runner is restored', body, "a failed cleanup is a failed step when the cases pass")
