@@ -101,6 +101,12 @@ jobs:
         run: >-
           python packaging/windows/installer_e2e.py --setup $env:SETUP --evidence evidence
           --previous $env:PREVIOUS_SETUP --previous-version $env:PREVIOUS_VERSION --new-version $env:NEW_VERSION
+      - name: Secret scan (program, installer, checksum, label and the acceptance logs)
+        # Fails on any embedded key, token, private key, .env file or deployment address (packaging/secret_scan.py).
+        # The installer's payload is compressed; its contents are dist\Swangz.exe (opened entry by entry) and swangz.iss.
+        run: >-
+          python packaging/secret_scan.py --report evidence\secret-scan.json --summary $env:GITHUB_STEP_SUMMARY
+          dist artifacts evidence packaging\windows\swangz.iss
       - uses: actions/upload-artifact@v4
         with:
           name: Swangz-Windows-installer-RC-UNSIGNED
