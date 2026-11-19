@@ -5,6 +5,7 @@ import io
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -80,6 +81,32 @@ class SecretScanTests(unittest.TestCase):
         code, rep, _, _ = self.run_scan(self.dir / "sub")
         self.assertEqual(code, 1)
         self.assertEqual(len(rep["files"]), 1)
+
+    def test_an_empty_folder_fails(self):
+        (self.dir / "empty" / "nested").mkdir(parents=True)  # folders but no files: nothing was scanned
+        (self.dir / "a.txt").write_text("clean")
+        code, rep, out, summary = self.run_scan(self.dir / "a.txt", self.dir / "empty")
+        self.assertEqual(code, 1)
+        self.assertEqual(rep["hits"], [])
+        self.assertEqual(rep["problems"], [f"{self.dir / 'empty'}: no files to scan"])
+        self.assertIn("FAILED", out)
+        self.assertIn("**FAILED**", summary)
+
+    def test_min_archives_fails_when_too_few_programs_were_opened(self):
+        (self.dir / "a.txt").write_text("clean")
+        report = self.dir / "r.json"
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(secret_scan.main([str(self.dir / "a.txt"), "--report", str(report), "--min-archives", "1"]), 1)
+        self.assertEqual(json.loads(report.read_text())["problems"], ["0 PyInstaller archives opened, at least 1 expected"])
+        with redirect_stdout(io.StringIO()), patch.object(secret_scan, "scan_pyinstaller", return_value=None):
+            (self.dir / "prog").write_bytes(b"MZ program")  # stands in for a program the reader opened
+            self.assertEqual(secret_scan.main([str(self.dir / "prog"), "--report", str(report), "--min-archives", "1"]), 0)
+        self.assertEqual(json.loads(report.read_text())["problems"], [])
+
+    def test_the_jobs_require_their_programs_to_be_opened(self):
+        mac = (ROOT / ".github" / "workflows" / "build-macos.yml").read_text(encoding="utf-8")
+        self.assertIn("--min-archives 2 dist evidence", mac)  # dist/Swangz/Swangz and Swangz.app/Contents/MacOS/Swangz
+        self.assertIn("--min-archives 1 dist artifacts evidence", WORKFLOW)  # dist\Swangz.exe
 
     def test_missing_input_exits_2(self):
         with redirect_stdout(io.StringIO()):

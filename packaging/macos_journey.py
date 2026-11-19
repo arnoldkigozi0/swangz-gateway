@@ -6,7 +6,11 @@
 2. launch the window, take a screenshot, quit
 3. enrol: `Swangz login`, the code approved by the person signed in to the staff app, as a person would in a browser
 4. restart: launch and quit again; the device is still signed in and syncs
-5. upgrade: replace the app with the NEW build from its DMG; the version changes, the sign-in and data stay
+4b. Hub down: the app reaches the Hub through a relay that is cut; sync fails, nothing is lost or claimed; the relay
+   comes back on the same address and the next sync checks in with no new sign-in
+5. upgrade: replace the app with the NEW build from its DMG; the version changes, the sign-in and data stay.
+   With --new-app, the mounted DMG's app is first compared entry by entry with that build, and everything on the
+   volume (READ ME FIRST.txt included) is secret-scanned (DIR/secret-scan-dmg.json)
 6. uninstall: `Swangz logout`, the server shows the device disconnected, the app's data and login item are gone,
    the bundle is removed
 
@@ -16,6 +20,8 @@ server is tests/browser/demo.py (a stand-in for every provider; nothing real is 
 """
 
 import argparse
+import hashlib
+import importlib.util
 import http.cookiejar
 import json
 import os
@@ -35,6 +41,9 @@ DEVICE = "CI Mac"
 # swangz_client/core.py remove_everything: the managed-browser folders stay (R-12); each profile is bound to its owner.
 KEPT_AFTER_SIGNOUT = {"browser-profiles"}
 KEYCHAIN_SERVICE = "Swangz AI Hub"  # swangz_client/keystore.py SERVICE
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import secret_scan  # noqa: E402  packaging/secret_scan.py, the same scan the workflow runs over dist/
+
 CODE = re.compile(r"\b([BCDFGHJKMNPQRSTVWXZ2-9]{4}-[BCDFGHJKMNPQRSTVWXZ2-9]{4})\b")
 
 
@@ -72,13 +81,25 @@ class Journey:
 # ---------------------------------------------------------------- the server and the person's browser
 
 
-def start_server():
+def relay_class():
+    """The Windows acceptance run's relay (packaging/windows/installer_e2e.py): stop() is the network going away,
+    start() brings it back on the same port, so the device's saved Hub address does not change."""
+    spec = importlib.util.spec_from_file_location("installer_e2e", ROOT / "packaging" / "windows" / "installer_e2e.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.Relay
+
+
+def start_server(public_url):
+    """The fixture Hub, announcing public_url (the relay) as its address, so the codes and links it hands the app are
+    on the server the app signed in to (the app refuses anything else)."""
     proc = subprocess.Popen([sys.executable, str(ROOT / "tests" / "browser" / "demo.py")], cwd=ROOT,
+                            env={**os.environ, "HUB_FIXTURE_PUBLIC_URL": public_url},
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     line = proc.stdout.readline()
     if not line:
         raise SystemExit("fixture server did not start: " + proc.stderr.read()[-2000:])
-    return proc, json.loads(line)["url"]
+    return proc, json.loads(line)["port"]
 
 
 class Browser:
@@ -119,13 +140,70 @@ class Browser:
 # ---------------------------------------------------------------- the Mac side
 
 
-def install(j, dmg, apps):
+def tree_digest(root):
+    """Every entry under root: relative path -> its kind and content (file SHA-256 + executable bit, link target).
+    Links are recorded, never followed, so two trees compare equal only if they hold exactly the same things."""
+    root, out = Path(root), {}
+    for here, dirs, files in os.walk(root, followlinks=False):
+        for name in dirs + files:
+            p = Path(here) / name
+            rel = p.relative_to(root).as_posix()
+            if p.is_symlink():
+                out[rel] = ("link", os.readlink(p))
+            elif p.is_dir():
+                out[rel] = ("dir",)
+            else:
+                out[rel] = ("file", hashlib.sha256(p.read_bytes()).hexdigest(), os.access(p, os.X_OK))
+    return out
+
+
+def differences(a, b, limit=10):
+    keys = sorted(set(a) | set(b))
+    return [f"{k}: {'missing' if k not in a else a[k][0]} != {'missing' if k not in b else b[k][0]}"
+            for k in keys if a.get(k) != b.get(k)][:limit]
+
+
+VOLUME_CONTENT = {"Swangz.app", "Applications", "READ ME FIRST.txt"}
+# What macOS itself puts on a mounted HFS+ volume; any other hidden entry fails the check above.
+VOLUME_SYSTEM = {".fseventsd", ".Trashes", ".Spotlight-V100", ".DS_Store", ".HFS+ Private Directory Data\r",
+                 ".journal", ".journal_info_block"}
+
+
+def check_mounted(j, mount, expected_app, report):
+    """What a person actually gets: the mounted DMG's app must be the very app the workflow scanned and listed
+    in the SBOM, and the volume must hold only the app, READ ME FIRST.txt and the Applications link (plus macOS's own
+    system entries), and every visible file on it is secret-scanned.
+    The Applications link and the volume's hidden system folders (.fseventsd, .Trashes) are not content."""
+    mount = Path(mount)
+    top = {p.name for p in mount.iterdir()}
+    extra = sorted(top - VOLUME_CONTENT - VOLUME_SYSTEM)
+    link = mount / "Applications"
+    j.step("the volume holds nothing else: the app, the RC notice, an Applications link to /Applications",
+           VOLUME_CONTENT <= top and not extra and link.is_symlink() and os.readlink(link) == "/Applications",
+           ", ".join(sorted(top)) + (f"; unexpected: {', '.join(extra)}" if extra else ""))
+    got, want = tree_digest(mount / "Swangz.app"), tree_digest(expected_app)
+    j.step("the app inside the mounted DMG is byte-for-byte the scanned build", got == want,
+           f"{len(got)} entries compared with {expected_app}" if got == want else "; ".join(differences(got, want)))
+    paths = [p for p in sorted(mount.iterdir()) if not p.is_symlink() and not p.name.startswith(".")]
+    result = secret_scan.scan(paths)
+    Path(report).write_text(json.dumps(result, indent=2), encoding="utf-8")
+    opened = sum(a["pyinstaller"] for a in result["archives"])  # the app's program must be opened, not skipped
+    j.step("secret scan of the mounted DMG (the app and the RC notice: every visible file on the volume)",
+           not result["hits"] and not result["unreadable"] and opened >= 1,
+           f"{', '.join(p.name for p in paths)}: {len(result['files'])} files, {opened} PyInstaller archives opened, "
+           f"{result['inner_entries_scanned']} archive entries, {len(result['unreadable'])} unreadable, "
+           f"{len(result['hits'])} hits" + "".join(f"; {h['pattern']} @ {h['where']}" for h in result["hits"][:5]))
+
+
+def install(j, dmg, apps, expected_app=None):
     mount = Path(tempfile.mkdtemp(prefix="swangz-dmg-"))
     j.run(["hdiutil", "attach", dmg, "-nobrowse", "-readonly", "-mountpoint", mount], check=True)
     try:
         listing = sorted(p.name for p in mount.iterdir())
         j.step(f"DMG {Path(dmg).name} holds the app, an Applications link and the RC notice",
                {"Swangz.app", "Applications", "READ ME FIRST.txt"} <= set(listing), ", ".join(listing))
+        if expected_app:
+            check_mounted(j, mount, expected_app, j.evidence / "secret-scan-dmg.json")
         target = apps / "Swangz.app"
         if target.exists():
             shutil.rmtree(target)
@@ -180,6 +258,7 @@ def main(argv=None):
     ap.add_argument("--old-version", required=True)
     ap.add_argument("--new-version", required=True)
     ap.add_argument("--evidence", required=True)
+    ap.add_argument("--new-app", help="the built Swangz.app the workflow scanned; the new DMG's app must equal it")
     args = ap.parse_args(argv)
     j = Journey(args.evidence)
     apps = Path(tempfile.mkdtemp(prefix="Applications-"))
@@ -187,10 +266,13 @@ def main(argv=None):
     data = home / "Library" / "Application Support" / "Swangz"
     login_item = home / "Library" / "LaunchAgents" / "com.swangzavenue.swangz.plist"
     env = {**os.environ, "BROWSER": "/usr/bin/true"}  # the code is approved by the fixture's browser, not Safari
-    server, url = start_server()
-    j.note("fixture server at " + url)
+    relay = relay_class()(None)
+    relay.start()
+    app_url = f"http://127.0.0.1:{relay.port}"  # the Hub's public address: everyone reaches it only through the relay
+    server, relay.target = start_server(app_url)  # the fixture's own port; relay.target is read per connection
+    j.note(f"fixture server on port {relay.target}, reached through the relay at {app_url}")
     try:
-        browser = Browser(url)
+        browser = Browser(app_url)
         j.step("person signs in to the staff app", browser.sign_in() == 200)
 
         app = install(j, args.old, apps)
@@ -201,8 +283,8 @@ def main(argv=None):
         signature_state(j, app)
         j.step("window opens (first launch)", launch_and_quit(j, app, j.evidence / "1-first-launch.png"))
 
-        j.note("$ Swangz login --server " + url)
-        proc = subprocess.Popen([str(binary(app)), "login", "--server", url, "--name", DEVICE], env=env,
+        j.note("$ Swangz login --server " + app_url)
+        proc = subprocess.Popen([str(binary(app)), "login", "--server", app_url, "--name", DEVICE], env=env,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         seen, code_text = [], None
         while code_text is None:
@@ -227,8 +309,28 @@ def main(argv=None):
         code, out = j.run([binary(app), "sync"], env=env)
         j.step("after restart: still signed in and syncs", code == 0)
 
+        # Hub down, then back: the same check as the Windows run (row 2-R of docs/RELEASE-EVIDENCE.md)
+        state = lambda: json.loads((data / "state.json").read_text(encoding="utf-8"))
+        synced, used = state().get("last_sync"), [k.get("last_used") for k in browser.my_devices() or []]
+        relay.stop()
+        code, out = j.run([binary(app), "sync"], env=env)
+        j.step("Hub unreachable: sync fails and says so", code != 0, f"exit {code}")
+        j.step("Hub unreachable: no sync is claimed, the device record is kept",
+               state().get("last_sync") == synced and (data / "device.json").is_file())
+        code, out = j.run([binary(app), "status"], env=env)
+        j.step("Hub unreachable: status still names the person and this device", PERSON in out and DEVICE in out, f"exit {code}")
+        time.sleep(1.1)  # last_used is stored to the second
+        relay.start()
+        j.step("Hub back on the same address", relay.port == urllib.parse.urlsplit(app_url).port, app_url)
+        code, out = j.run([binary(app), "sync"], env=env)
+        device = json.loads((data / "device.json").read_text(encoding="utf-8"))
+        j.step("Hub back: the next sync succeeds with no new sign-in",
+               code == 0 and (state().get("last_sync") or 0) > (synced or 0) and not device.get("reconnect"), f"exit {code}")
+        now = [k.get("last_used") for k in browser.my_devices() or []]
+        j.step("Hub back: the server records the device's check-in", now != used and any(now), f"{used} -> {now}")
+
         keep = sorted(p.name for p in data.iterdir()) if data.exists() else []
-        app = install(j, args.new, apps)
+        app = install(j, args.new, apps, args.new_app)
         code, out = j.run([binary(app), "--version"], env=env)
         j.step("upgraded in place to the new build", code == 0 and args.new_version in out, out)
         code, _ = j.run([binary(app), "--self-check", j.evidence / "self-check-new.json"], env=env)
@@ -259,6 +361,7 @@ def main(argv=None):
         j.step("app removed from Applications", not app.exists())
         j.step("no Swangz process left running", not pids(app))
     finally:
+        relay.stop()
         server.terminate()
         try:
             server.wait(timeout=10)
