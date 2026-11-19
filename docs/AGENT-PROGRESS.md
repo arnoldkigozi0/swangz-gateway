@@ -961,3 +961,10 @@ file's end. All remain pending their final pushed-head CI and merge.
 - Root-cause risk in staff drawer: initial focus is assigned on an animation frame while the existing trap only receives keys from inside the drawer. A Tab pressed with focus still on the opener can escape. The drawer document key handler now recovers forward/backward Tab from outside, respects a nested native dialog, and its opening frame preserves focus already inside. Existing close/focus-return behavior is retained.
 - Extended staff-phone checks to deliberately focus the opener with the drawer open, recover forward/backward Tab and wrap both drawer boundaries at 390/640 in light/dark. No layout/style change; rendered accessibility verification is pending Probe/CI.
 - Actual local check: `python3 -m unittest tests.test_client.ShellTests tests.test_workspace_launcher.InventoryTests -v`: Ran 8 tests in 1.752s, OK. Node syntax checks for portal.js and staff-phone.cjs and `git diff --check`: passed. No local browser/full Python suite/native build run. CI and Probe verification still required before merge.
+
+## 2026-11-19 — Anvil: release scan hardening (feature/macos-scan-hardening), from Probe's #262 review
+
+- `packaging/secret_scan.py --min-archives N`: the scan fails (exit 1, listed under `problems`) unless at least N PyInstaller programs were opened entry by entry; a folder given as a path that holds no files fails too. A scan that saw nothing no longer reports CLEAN.
+- macOS job: `--min-archives 2` (`dist/Swangz/Swangz` and `dist/Swangz.app/Contents/MacOS/Swangz`, the two opened in main run 44434293090). Windows job: `--min-archives 1` (`dist\Swangz.exe`, main run 44433661042).
+- Part 2 (mount the DMG read-only, compare its app with `dist/Swangz.app`, scan the mounted volume) is already in open PR #265 (`fix/macos-dmg-scan`); not duplicated here, `macos_journey.py` untouched.
+- Local: `python3 -m unittest tests.test_secret_scan tests.test_sbom tests.test_packaging_macos tests.test_windows_installer`: Ran 41 tests, OK. Real macOS/Windows runs are this PR's CI.

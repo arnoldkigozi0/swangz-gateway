@@ -86,7 +86,7 @@ jobs:
         # The app is opened entry by entry (its module archive included); the DMG's compressed contents are the app itself.
         run: >-
           python packaging/secret_scan.py --report evidence/secret-scan.json --summary "$GITHUB_STEP_SUMMARY"
-          dist evidence
+          --min-archives 2 dist evidence
       - name: Evidence summary
         if: always()
         run: python packaging/macos_summary.py --dist dist --evidence evidence --pyinstaller "$PYINSTALLER_VERSION" >> "$GITHUB_STEP_SUMMARY"

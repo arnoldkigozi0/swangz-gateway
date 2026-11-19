@@ -117,7 +117,7 @@ jobs:
         # The installer's payload is compressed; its contents are dist\Swangz.exe (opened entry by entry) and swangz.iss.
         run: >-
           python packaging/secret_scan.py --report evidence\secret-scan.json --summary $env:GITHUB_STEP_SUMMARY
-          dist artifacts evidence packaging\windows\swangz.iss
+          --min-archives 1 dist artifacts evidence packaging\windows\swangz.iss
       - uses: actions/upload-artifact@v4
         with:
           name: Swangz-Windows-installer-RC-UNSIGNED
