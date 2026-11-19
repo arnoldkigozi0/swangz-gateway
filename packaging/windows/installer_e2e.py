@@ -284,13 +284,16 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         def stored_secret():
             return keystore.CredentialManager().get(origin, key_id)
 
-        def stored_fingerprint():
-            # Read only into memory. Only the SHA-256, never the credential, reaches the report or a message.
+        def stored_raw():
+            # Read only into memory, never written: only its SHA-256 or a yes/no reaches the report or a message.
             record = json.loads((data / "device.json").read_text(encoding="utf-8"))
             secret = ((data / "device.key").read_text(encoding="utf-8").strip()
                       if record["key_storage"] == "file" else stored_secret())
             require(bool(secret), "no stored device credential to compare")
-            return hashlib.sha256(secret.encode()).hexdigest()
+            return secret
+
+        def stored_fingerprint():
+            return hashlib.sha256(stored_raw().encode()).hexdigest()
 
         in_os_store = device["key_storage"] != "file"
         if in_os_store:
@@ -344,12 +347,76 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         passed("network interruption: sync exited 1 and recorded no sync, credentials and state kept; on return the next sync"
                " checked in with the same key SHA-256 and unchanged sign-in-code count")
 
+        # 5a. after the outage the device key is in no log or file: the app's data folder (but the key's own file when
+        #     it is file-stored) and this journey's evidence, the Hub fixture's log included
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # packaging/
+        import hub_journey
+        leaks = hub_journey.files_holding(stored_raw(), [data, evidence], skip={"device.key", "device.key.next"})
+        require(not leaks, "the device key is in: " + ", ".join(leaks))
+        report["key_in_no_file"] = {"searched": [str(data), str(evidence)], "hits": 0}
+        passed(f"after the outage the device key is in no log or file (searched {data} and {evidence})")
+
+        # 5c. a real Hub PROCESS restart: the journey's own Hub stops, a new process (tests/browser/demo.py restart mode)
+        #     serves the same data folder on the same port, then the journey's Hub comes back on that port again
+        from contextlib import closing
+        import sqlite3
+
+        def peek(sql, args=()):  # read the Hub's database while the journey's own Hub is stopped
+            with closing(sqlite3.connect(Path(rig.tmp) / "gateway.db", timeout=30)) as c:
+                return c.execute(sql, args).fetchone()
+
+        before_key, synced = stored_fingerprint(), json.loads((data / "state.json").read_text(encoding="utf-8"))["last_sync"]
+        before_codes, seen = sign_in_codes(), heartbeat(key_id)
+        rig.server.shutdown()
+        rig.server.server_close()
+        rig.gw.db.close()
+        app("sync", expected=1)
+        require(json.loads((data / "state.json").read_text(encoding="utf-8"))["last_sync"] == synced, "sync claimed success with the Hub stopped")
+        require((data / "device.json").is_file(), "the device record was lost while the Hub was stopped")
+        hub = subprocess.Popen([sys.executable, str(ROOT / "tests" / "browser" / "demo.py")], cwd=ROOT, text=True,
+                               env={**os.environ, "HUB_FIXTURE_DATA": rig.tmp, "HUB_FIXTURE_PORT": str(rig.port),
+                                    "HUB_FIXTURE_PUBLIC_URL": origin, "HUB_FIXTURE_KEEP": "1"},
+                               stdout=subprocess.PIPE, stderr=sys.stderr.file if isinstance(sys.stderr, Tee) else None)
+        try:
+            line = hub.stdout.readline()
+            require(bool(line), "the restarted Hub process did not start")
+            again = json.loads(line)
+            require(again["pid"] != os.getpid() and again["port"] == rig.port and again["data"] == rig.tmp,
+                    f"restarted Hub: pid {again['pid']} (journey {os.getpid()}), port {again['port']}, data {again['data']}")
+            time.sleep(0.05)
+            app("sync")
+            after_device = json.loads((data / "device.json").read_text(encoding="utf-8"))
+            require(not after_device.get("reconnect"), "asked to reconnect after the Hub restart")
+            after_key = stored_fingerprint()
+            after_codes = peek("SELECT COUNT(*), COALESCE(MAX(id), 0) FROM device_codes")
+            now = peek("SELECT last_seen FROM devices WHERE key_id = ?", (key_id,))[0]
+            require(after_device["key_id"] == key_id and after_key == before_key, "the Hub restart changed the device credential")
+            require(tuple(after_codes) == tuple(before_codes), "the Hub restart issued a new sign-in code")
+            require(now > seen, "no check-in recorded by the restarted Hub")
+        finally:
+            hub.terminate()  # Windows: TerminateProcess, as when a service is stopped hard; the data folder stays
+            hub.wait(30)
+            hub.stdout.close()
+        report["hub_restart"] = {"journey_pid": os.getpid(), "hub_pid": again["pid"], "port": rig.port,
+                                 "key_sha256_before": before_key, "key_sha256_after": after_key,
+                                 "sign_in_codes_before": before_codes, "sign_in_codes_after": list(after_codes)}
+        passed(f"Hub process restart: sync exited 1 while stopped; a new Hub process (pid {again['pid']}) on the same port"
+               " and data: the next sync checked in with the same key SHA-256, no reconnect and no new sign-in code")
+        from gateway.server import make_server  # the journey's own Hub again, on the same port and data
+        import threading
+        rig.settings.port = rig.port
+        rig.server, rig.gw = make_server(rig.settings)
+        rig.gw.settings.public_url = origin
+        threading.Thread(target=rig.server.serve_forever, daemon=True).start()
+        seen = heartbeat(key_id)
+        time.sleep(0.05)
+        app("sync")
+        require(heartbeat(key_id) > seen and sign_in_codes() == before_codes, "no check-in after the journey's Hub came back")
+        passed("the journey's Hub back on the same port and data: the next sync checks in, still no new sign-in code")
+
         # 5b. deliverable 5 and F-18 (packaging/hub_journey.py): the installed program opens a granted tool in its Chrome
         #     workspace window on the person's own folder; a request with its own credential is not stored by default,
         #     and once stored only a role with the trust area reads it
-        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # packaging/
-        import hub_journey
-
         def check(name, ok, detail=""):
             require(ok, f"{name}: {detail}")
             passed(name + (f" ({detail})" if detail else ""))
@@ -366,6 +433,7 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
 
         # 6. upgrade to this build over a running copy (or, with no previous build, reinstall the same version): the
         #    installer closes the program; the person's device, key and settings stay, and the Hub sees the new version
+        address = json.loads((data / "device.json").read_text(encoding="utf-8"))["server"]
         gui = subprocess.Popen([str(exe), "--background"], env=env, cwd=work)
         time.sleep(8)
         require(gui.poll() is None, "the program did not start before the upgrade")
@@ -391,6 +459,9 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         else:
             passed("reinstall (same version) over a running copy: the installer closed it; same device, still signed in, syncs")
         hub_journey.kept(check, data, folder, marker, "after the upgrade")
+        moved = json.loads((data / "device.json").read_text(encoding="utf-8"))["server"]
+        check("after the upgrade the Hub address is unchanged and the new build syncs to it",
+              address == moved == origin, f"{address} -> {moved}")
 
         # 6b. an older build is refused: the previous installer, run over this build, ends with exit code 1 and changes
         #     nothing (same version in Apps & features, same program, still signed in)

@@ -256,6 +256,23 @@ class WorkspaceTests(unittest.TestCase):
         self.assertNotIn("taskkill /IM", src)
 
 
+class FilesHoldingTests(unittest.TestCase):
+    def test_finds_the_secret_skips_the_store_and_reports_unreadable_files(self):
+        from unittest import mock
+        h = load()
+        root = Path(tempfile.mkdtemp(prefix="sgw-hold-"))
+        self.addCleanup(shutil.rmtree, root, True)
+        (root / "logs").mkdir()
+        (root / "logs" / "app.log").write_bytes(b"line sgw_example_secret line")
+        (root / "device.key").write_text("sgw_example_secret")
+        (root / "clean.txt").write_text("nothing here")
+        self.assertEqual(h.files_holding("sgw_example_secret", [root, root / "missing"], skip={"device.key"}),
+                         [str(root / "logs" / "app.log")])
+        with mock.patch.object(h, "read_bytes", return_value=None):
+            hits = h.files_holding("sgw_example_secret", [root], skip={"device.key"})
+        self.assertTrue(hits and all(x.startswith("unreadable: ") for x in hits))
+
+
 class WiringTests(unittest.TestCase):
     def test_both_journeys_run_the_steps_after_reconnect_and_before_the_upgrade(self):
         mac = (ROOT / "packaging" / "macos_journey.py").read_text(encoding="utf-8")

@@ -148,6 +148,39 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('app("autostart", "on")', e2e[sign_out:uninstall])  # the uninstall still proves it removes the value
 
 
+class RestartEvidenceTests(unittest.TestCase):
+    """The Windows gaps closed after macOS #277: the key in no log or file after the outage, a real Hub process
+    restart (new pid, same key hash, no new sign-in code), and the Hub address unchanged across the upgrade."""
+
+    def setUp(self):
+        self.e2e = (ROOT / "packaging" / "windows" / "installer_e2e.py").read_text(encoding="utf-8")
+
+    def section(self, start, end):
+        return self.e2e.split(start, 1)[1].split(end, 1)[0]
+
+    def test_the_key_is_searched_for_after_the_outage(self):
+        leak = self.section("# 5a.", "# 5c.")
+        self.assertIn('hub_journey.files_holding(stored_raw(), [data, evidence], skip={"device.key", "device.key.next"})', leak)
+        self.assertIn("require(not leaks", leak)
+        self.assertLess(self.e2e.index('passed("network interruption'), self.e2e.index("# 5a."))
+        self.assertNotIn("stored_raw()}", self.e2e)  # the key itself is never formatted into a message
+
+    def test_a_real_hub_process_restart_on_the_same_port_and_data(self):
+        restart = self.section("# 5c.", "# 5b.")
+        steps = ["rig.server.shutdown()", "rig.gw.db.close()", 'app("sync", expected=1)', '"HUB_FIXTURE_DATA": rig.tmp',
+                 '"HUB_FIXTURE_PORT": str(rig.port)', 'again["pid"] != os.getpid()', 'app("sync")',
+                 "after_key == before_key", "tuple(after_codes) == tuple(before_codes)", "now > seen",
+                 "hub.terminate()", "make_server(rig.settings)", "sign_in_codes() == before_codes"]
+        at = [restart.index(s) for s in steps]
+        self.assertEqual(at, sorted(at), "the restart steps are out of order")
+        self.assertNotIn("relay.stop()", restart)  # the Hub process stops, not the relay
+
+    def test_the_hub_address_is_unchanged_across_the_upgrade(self):
+        upgrade = self.section("# 6. upgrade", "# 6b.")
+        self.assertLess(upgrade.index('["server"]'), upgrade.index('install("upgrade.log"'))
+        self.assertIn("address == moved == origin", upgrade)
+
+
 def load_e2e():
     spec = importlib.util.spec_from_file_location("installer_e2e", ROOT / "packaging" / "windows" / "installer_e2e.py")
     module = importlib.util.module_from_spec(spec)

@@ -274,6 +274,19 @@ def read_bytes(path, tries=20):
     return None
 
 
+def files_holding(secret, roots, skip=()):
+    """Every file under roots whose bytes contain secret, and every file that could not be read (so a locked file is
+    reported, never silently passed). The device key must be in no log or file but its own store."""
+    needle, hits = secret.encode(), []
+    for root in roots:
+        for p in Path(root).rglob("*") if Path(root).exists() else ():
+            if p.is_file() and not p.is_symlink() and p.name not in skip:
+                data = read_bytes(p)
+                if data is None or needle in data:
+                    hits.append(("unreadable: " if data is None else "") + str(p))
+    return hits
+
+
 def traces(hub_data, logs, marker):
     """Where `marker` appears in the Hub's own storage: every file in its data folder byte for byte (the database, its
     WAL and shared-memory files, anything else), every stored body blob decompressed (including blobs no request
