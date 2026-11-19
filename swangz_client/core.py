@@ -892,13 +892,14 @@ class Client:
     def remove_everything(self):
         """Take Swangz off this device: everything it installed, and the key. (Run when the server disconnects the
         device, and when the person signs out.)"""
-        if sys.platform == "win32":
-            # Every removal path (including revoke, rotation and CLI cleanup) must drop our Run value,
-            # even if a later file/key cleanup fails. Registry failure must never block credential removal.
-            try:
-                shell.set_autostart(self.paths, False)
-            except OSError:
-                pass  # same best-effort policy as logout; autostart off reports registry errors directly
+        # Every removal path (revoke, rotation, CLI cleanup, sign out) drops start at login on every system: the Run
+        # value (Windows), the LaunchAgent (macOS), the .desktop file (Linux); an absent one is already off. Failure
+        # here must never block credential removal; `swangz autostart off` reports the error directly.
+        try:
+            shell.set_autostart(self.paths, False)
+        except OSError as exc:
+            print(f"Swangz: couldn't turn off start at login ({type(exc).__name__}); "
+                  "run 'swangz autostart off' to retry.", file=sys.stderr)
         state = self.store.state()
         for pid, record in list(state["installed"].items()):
             self._uninstall(pid, record)

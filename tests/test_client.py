@@ -1,6 +1,7 @@
 """The Swangz app's core, driven against a real running gateway: sign in with a code, what gets installed on a
 personal and on a company device, removal, revocation, and the ways a package or manifest could be hostile."""
 
+import io
 import json
 import os
 import re
@@ -499,9 +500,14 @@ class DeviceRemovalStartupTests(unittest.TestCase):
     def test_registry_denial_does_not_prevent_credential_removal(self):
         client = self.client()
         self.reg.DeleteValue = Mock(side_effect=PermissionError("registry denied"))
-        client.remove_everything()
+        with patch.object(sys, "stderr", io.StringIO()) as err:
+            client.remove_everything()
         client.store.wipe.assert_called_once_with()
         client.workspace.forget.assert_called_once_with()
+        lines = err.getvalue().splitlines()
+        self.assertEqual(len(lines), 1)  # one line, naming the error type and the retry; no path or value
+        self.assertIn("couldn't turn off start at login (PermissionError)", lines[0])
+        self.assertIn("swangz autostart off", lines[0])
 
     def test_revocation_during_rotation_removes_startup_too(self):
         client = self.client()
@@ -513,6 +519,52 @@ class DeviceRemovalStartupTests(unittest.TestCase):
             client._confirm_staged((12, "synthetic-credential"))
         self.assertNotIn("Swangz", self.values)
         client.store.wipe.assert_called_once_with()
+
+
+class MacLinuxRemovalStartupTests(unittest.TestCase):
+    """Sentinel's #281 Low finding: revocation and `swangz cleanup` drop the macOS LaunchAgent / Linux .desktop file
+    too, not only the Windows Run value, so a revoked app does not relaunch at every login."""
+
+    def client(self, home):
+        client = DeviceRemovalStartupTests.client(self)
+        client.paths = SimpleNamespace(home=home)
+        return client
+
+    def each_platform(self):
+        for name in ("darwin", "linux"):
+            home = tempfile.mkdtemp(prefix="sgw-home-")
+            self.addCleanup(shutil.rmtree, home, True)
+            with self.subTest(name), patch.dict(os.environ), patch.object(sys, "platform", name):
+                os.environ.pop("XDG_CONFIG_HOME", None)
+                yield name, home
+
+    def test_revoke_and_cleanup_remove_the_launch_agent_and_the_desktop_file(self):
+        for name, home in self.each_platform():
+            for route in ("revoke", "cleanup"):
+                client = self.client(home)
+                shell.set_autostart(client.paths, True, command=["/opt/swangz/swangz"])
+                f = shell.autostart_file(client.paths)
+                self.assertTrue(f.is_file() and str(f).startswith(home))
+                if route == "revoke":
+                    with self.assertRaises(core.Revoked):
+                        client._guard(Mock(side_effect=core.Revoked(401, "device_revoked", "disconnected")))
+                else:
+                    client.remove_everything()
+                self.assertFalse(f.exists(), f"{name} {route}: {f}")
+                self.assertFalse(shell.autostart_enabled(client.paths))
+                client.store.wipe.assert_called_once_with()
+
+    def test_an_absent_file_is_already_off_and_a_failure_never_blocks_removal(self):
+        for name, home in self.each_platform():
+            client = self.client(home)
+            client.remove_everything()  # nothing there: a no-op
+            client.store.wipe.assert_called_once_with()
+            client = self.client(home)
+            with patch.object(Path, "unlink", side_effect=PermissionError("read-only")), \
+                    patch.object(Path, "exists", return_value=True), patch.object(sys, "stderr", io.StringIO()) as err:
+                client.remove_everything()
+            client.store.wipe.assert_called_once_with()
+            self.assertEqual(len(err.getvalue().splitlines()), 1)
 
 
 class PackageTests(ClientBase):
