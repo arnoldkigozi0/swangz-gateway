@@ -14,17 +14,18 @@ Chrome may fetch the tool's public start page; nobody signs in to it.
 import http.cookiejar
 import json
 import os
+import re
 import secrets
 import subprocess
-import sys
 import time
 import urllib.error
 import urllib.request
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-from swangz_client import browser_profiles  # noqa: E402  (the marker's name and format, read-only)
+# The workspace folder's name and marker (swangz_client/browser_profiles.py FOLDER and MARKER). Only the launcher may
+# import that module, so they are restated here; tests/test_hub_journey.py checks they still agree.
+FOLDER = re.compile(r"[0-9a-f]{32}\Z")
+MARKER = ".swangz-profile.json"
 
 TOOL = "canva"  # a website tool on the company plan, not a shared account: it opens in the workspace window
 F18_MODEL = "claude-haiku-4-5"
@@ -69,7 +70,7 @@ def workspace_folders(data):
     root = Path(data) / "browser-profiles"
     if not root.is_dir():
         return []
-    return [p for p in root.iterdir() if browser_profiles.FOLDER.fullmatch(p.name) and (p / browser_profiles.MARKER).is_file()]
+    return [p for p in root.iterdir() if FOLDER.fullmatch(p.name) and (p / MARKER).is_file()]
 
 
 def chrome_wrote(folder, timeout=45):
@@ -108,7 +109,7 @@ def workspace(check, run_app, data, owner, person_id, tool=TOOL):
           ", ".join(p.name for p in folders))
     folder = folders[0]
     try:
-        marker = json.loads((folder / browser_profiles.MARKER).read_text(encoding="utf-8"))
+        marker = json.loads((folder / MARKER).read_text(encoding="utf-8"))
         browser = json.loads((Path(data) / "manifest.json").read_text(encoding="utf-8")).get("browser") or {}
         check("workspace: the folder belongs to this person on this device (separate employee profile)",
               marker.get("person_id") == str(person_id) == browser.get("person_id")

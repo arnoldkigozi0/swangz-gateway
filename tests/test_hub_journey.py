@@ -140,5 +140,10 @@ class WiringTests(unittest.TestCase):
             self.assertLess(text.index("hub_journey.workspace("), text.index("hub_journey.f18("))
             self.assertLess(text.index("hub_journey.f18("), text.index(after))
 
+    def test_the_folder_name_and_marker_agree_with_the_app(self):
+        from swangz_client import browser_profiles
+        h = load()
+        self.assertEqual((h.FOLDER.pattern, h.MARKER), (browser_profiles.FOLDER.pattern, browser_profiles.MARKER))
+
     def test_the_fixture_reports_its_person(self):
         self.assertIn('"person": rig.person_id', (ROOT / "tests" / "browser" / "demo.py").read_text(encoding="utf-8"))
