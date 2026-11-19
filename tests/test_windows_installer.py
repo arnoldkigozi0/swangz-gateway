@@ -168,7 +168,7 @@ class RestartEvidenceTests(unittest.TestCase):
     def test_a_real_hub_process_restart_on_the_same_port_and_data(self):
         restart = self.section("# 5c.", "# 5b.")
         steps = ["rig.server.shutdown()", "rig.gw.db.close()", 'app("sync", expected=1)', '"HUB_FIXTURE_DATA": rig.tmp',
-                 '"HUB_FIXTURE_PORT": str(rig.port)', 'again["pid"] != os.getpid()', 'app("sync")',
+                 '"HUB_FIXTURE_PORT": str(rig.port)', '"PYTHONTZPATH"', 'again["pid"] != os.getpid()', 'app("sync")',
                  "after_key == before_key", "tuple(after_codes) == tuple(before_codes)", "now > seen",
                  "hub.terminate()", "make_server(rig.settings)", "sign_in_codes() == before_codes"]
         at = [restart.index(s) for s in steps]

@@ -23,6 +23,7 @@ import sys
 import tempfile
 import threading
 import time
+import zoneinfo
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -375,7 +376,9 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         require((data / "device.json").is_file(), "the device record was lost while the Hub was stopped")
         hub = subprocess.Popen([sys.executable, str(ROOT / "tests" / "browser" / "demo.py")], cwd=ROOT, text=True,
                                env={**os.environ, "HUB_FIXTURE_DATA": rig.tmp, "HUB_FIXTURE_PORT": str(rig.port),
-                                    "HUB_FIXTURE_PUBLIC_URL": origin, "HUB_FIXTURE_KEEP": "1"},
+                                    "HUB_FIXTURE_PUBLIC_URL": origin, "HUB_FIXTURE_KEEP": "1",
+                                    # the child needs the same zone search path kampala_zone() gave this process
+                                    "PYTHONTZPATH": os.pathsep.join(zoneinfo.TZPATH)},
                                stdout=subprocess.PIPE, stderr=sys.stderr.file if isinstance(sys.stderr, Tee) else None)
         try:
             line = hub.stdout.readline()
