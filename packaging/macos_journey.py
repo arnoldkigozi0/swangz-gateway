@@ -159,9 +159,10 @@ def check_mounted(j, mount, expected_app, report):
     paths = [p for p in sorted(mount.iterdir()) if not p.is_symlink() and not p.name.startswith(".")]
     result = secret_scan.scan(paths)
     Path(report).write_text(json.dumps(result, indent=2), encoding="utf-8")
+    opened = sum(a["pyinstaller"] for a in result["archives"])  # the app's program must be opened, not skipped
     j.step("secret scan of the mounted DMG (app, RC notice, every file on the volume)",
-           not result["hits"] and not result["unreadable"],
-           f"{', '.join(p.name for p in paths)}: {len(result['files'])} files, "
+           not result["hits"] and not result["unreadable"] and opened >= 1,
+           f"{', '.join(p.name for p in paths)}: {len(result['files'])} files, {opened} PyInstaller archives opened, "
            f"{result['inner_entries_scanned']} archive entries, {len(result['unreadable'])} unreadable, "
            f"{len(result['hits'])} hits" + "".join(f"; {h['pattern']} @ {h['where']}" for h in result["hits"][:5]))
 

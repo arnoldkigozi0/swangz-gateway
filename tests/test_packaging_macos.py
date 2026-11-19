@@ -149,6 +149,10 @@ class MountedDmgTests(unittest.TestCase):
         os.symlink("/Applications", self.mount / "Applications")
         (self.mount / ".fseventsd").mkdir()
         self.journey = self.j_mod.Journey(self.dir / "ev")
+        # the fixture's program is a stand-in: let the scan count it as an opened PyInstaller archive
+        opened = __import__("unittest.mock").mock.patch.object(self.j_mod.secret_scan, "scan_pyinstaller", return_value=None)
+        opened.start()
+        self.addCleanup(opened.stop)
 
     def check(self):
         self.j_mod.check_mounted(self.journey, self.mount, self.build, self.dir / "ev" / "secret-scan-dmg.json")
@@ -186,3 +190,10 @@ class MountedDmgTests(unittest.TestCase):
             self.check()
         self.assertEqual(self.journey.results[-1]["result"], "FAIL")
         self.assertIn("Anthropic key", self.journey.results[-1]["detail"])
+
+    def test_a_volume_whose_program_could_not_be_opened_fails(self):
+        with __import__("unittest.mock").mock.patch.object(self.j_mod.secret_scan, "scan_pyinstaller", return_value="not a PyInstaller program"):
+            with self.assertRaises(SystemExit):
+                self.check()
+        self.assertEqual(self.journey.results[-1]["result"], "FAIL")
+        self.assertIn("0 PyInstaller archives opened", self.journey.results[-1]["detail"])
