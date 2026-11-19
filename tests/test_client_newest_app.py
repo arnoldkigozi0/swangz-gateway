@@ -82,12 +82,49 @@ class NewestAppTests(unittest.TestCase):
             self.assertEqual(code, 5, argv)
             self.assertIn("Swangz 999.0.0 is already in use", out)
             alert.assert_not_called()
-        code, out, alert = self.run_cli()  # the window: opened from Finder, so the refusal is also a dialog
+        with mock.patch.object(cli, "offer_sign_out", return_value=False) as offer:
+            code, out, alert = self.run_cli()  # the window: opened from Finder, so the refusal is also a dialog
         self.assertEqual(code, 5)
-        alert.assert_called_once()
+        offer.assert_called_once()
         with mock.patch.object(core.Client, "logout", return_value=True) as logout:
             self.run_cli("logout")
         logout.assert_called_once()
+
+    def test_an_rc_numbered_floor_then_a_lower_patch_build_is_refused_and_can_sign_out(self):
+        # Sentinel on #271: a tester ran CI build 0.1.400, then installed 0.1.5 (or the in-tree 0.1.0).
+        self.sign_in()
+        core.check_newest_app(self.paths, running="0.1.400")
+        for lower in ("0.1.5", "0.1.0"):
+            with self.assertRaises(core.OlderBuild):
+                core.check_newest_app(self.paths, running=lower)
+        self.assertEqual(self.floor(), "0.1.400")
+        core.check_newest_app(self.paths, running="0.2.0")  # the first real release sorts above every RC
+        self.assertEqual(self.floor(), "0.2.0")
+
+    def test_the_terminal_message_gives_the_full_sign_out_command(self):
+        self.sign_in()
+        (self.data / core.NEWEST_APP).write_text(json.dumps({"version": "0.1.400"}))
+        bundle = ["/Applications/Swangz.app/Contents/MacOS/Swangz"]
+        with mock.patch.object(cli.shell, "app_command", return_value=bundle):
+            code, out, _ = self.run_cli("status")
+        self.assertEqual(code, 5)
+        self.assertIn("/Applications/Swangz.app/Contents/MacOS/Swangz logout", out)
+
+    def test_the_refusal_dialog_offers_sign_out(self):
+        self.sign_in()
+        (self.data / core.NEWEST_APP).write_text(json.dumps({"version": "0.1.400"}))
+        with mock.patch.object(cli, "offer_sign_out", return_value=False) as offer, \
+                mock.patch.object(core.Client, "logout") as logout:
+            code, _, _ = self.run_cli()
+        self.assertEqual(code, 5)
+        offer.assert_called_once()
+        logout.assert_not_called()
+        with mock.patch.object(cli, "offer_sign_out", return_value=True), \
+                mock.patch.object(core.Client, "logout", return_value=True) as logout:
+            code, _, alert = self.run_cli()
+        self.assertEqual(code, 0)
+        logout.assert_called_once()
+        self.assertIn("removed", alert.call_args[0][0])
 
 
 if __name__ == "__main__":

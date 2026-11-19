@@ -54,6 +54,14 @@ Applications, so the app itself refuses: while the device is signed in, `newest-
 records the newest version that ran, and an older copy exits 5 (with a dialog when opened from Finder) without
 touching the sign-in. `swangz logout` still works; sign out and revocation remove the record. A version the updater
 rolled back from (`updates/state.json` `failed_version`) does not count (`core.check_newest_app`).
+On a Mac `swangz` is not on PATH, so the refusal dialog offers **Sign out** (the same path as `swangz logout`), and
+the terminal message prints the full command (`/Applications/Swangz.app/Contents/MacOS/Swangz logout`).
+
+**Version numbers: the first real release is 0.2.0.** Test (RC) builds from CI are numbered `0.1.<PATCH + run
+number>` (for example 0.1.400), so a later official 0.1.x could sort below a test build a tester already ran and be
+refused. The first non-RC release therefore raises MINOR to **0.2.0**, which sorts above every 0.1.<run> test build;
+later releases keep going up from there. The credential helper (`swangz key`) is deliberately not covered by this
+floor, so Claude Code and Codex keep working; the server's minimum client version is the control for agent use.
 
 ## Personal and company devices
 
