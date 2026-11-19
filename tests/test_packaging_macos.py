@@ -257,11 +257,12 @@ class RefusedCodeTests(unittest.TestCase):
         refused = self.text.split("def refused_codes(", 1)[1].split("def reused_code(", 1)[0]
         steps = ["status = 'pending' AND id > ?", "hub_enroll._new_user_code()", "That code isn't right",
                  '"csrf": "0" * 64', "posted == 400", 'waiting == "pending" and login.poll() is None',
+                 "real_token_refusals(j, browser, app_url, db, row)",
                  "UPDATE device_codes SET expires = ?", "login.returncode == 1", '"expired" in out.lower()',
                  "keys() == issued", "unusable(browser, row[1])"]
         at = [refused.index(s) for s in steps]
         self.assertEqual(at, sorted(at))
-        reused = self.text.split("def reused_code(", 1)[1].split("def start_in_background(", 1)[0]
+        reused = self.text.split("def reused_code(", 1)[1].split("def start_window(", 1)[0]
         for needle in ("WHERE key_id = ?", "unusable(browser, used[0][0])", "stdin=subprocess.DEVNULL", "code == 1",
                        "sign_in_codes(db) == codes", "keys() == issued", 'again.get("key_id") == device.get("key_id")'):
             self.assertIn(needle, reused)
@@ -296,6 +297,12 @@ class RefusedCodeTests(unittest.TestCase):
         self.assertFalse(j.unusable(Page(500, "already used or has expired"), "X"))
         self.assertFalse(j.unusable(Page(200, "Approve this device"), "X"))
 
+    def test_the_grants_check_starts_the_window_not_background(self):
+        start = self.text.split("def start_window(", 1)[1].split("def close_app(", 1)[0]
+        self.assertNotIn('"--background"', start)
+        self.assertIn("start_window(app, env, starts)", self.main)
+        self.assertIn("starts == [True, True]", self.main)
+
     def test_close_app_stops_the_program(self):
         import subprocess
         import sys
@@ -304,6 +311,58 @@ class RefusedCodeTests(unittest.TestCase):
         j.close_app(proc)
         self.assertIsNotNone(proc.poll())
         j.close_app(proc)  # already closed: nothing to do
+
+
+class RealTokenCsrfTests(unittest.TestCase):
+    """macos_journey.real_token_refusals against a real Hub (tests/support.Rig): a real pending code posted with an
+    altered, missing, empty, other-code or other-session token is refused and stays pending."""
+
+    def setUp(self):
+        from gateway import security
+        from .support import Rig
+        self.j = load("macos_journey")
+        self.rig = Rig()
+        self.addCleanup(self.rig.close)
+        self.rig.gw.db.x("UPDATE people SET pw_hash = ? WHERE id = ?",
+                         (security.hash_password(self.j.PASSWORD, 1000), self.rig.person_id))
+        self.base = f"http://127.0.0.1:{self.rig.port}"
+        self.db = Path(self.rig.tmp) / "gateway.db"
+        self.browser = self.j.Browser(self.base)
+        self.assertEqual(self.browser.sign_in(), 200)
+        status, text = self.browser.call("POST", "/api/device/code", {"name": "CI Mac", "os": "macos"},
+                                           headers={"x-swangz-app": "1"})
+        code = json.loads(text)["user_code"]
+        self.row = (self.rig.gw.db.scalar("SELECT id FROM device_codes WHERE user_code = ?", (code,)), code)
+
+    def steps(self):
+        class J:
+            results = []
+
+            def step(self, name, ok, detail=""):
+                self.results.append((name, ok, detail))
+        return J()
+
+    def test_every_real_token_variant_is_refused_and_both_codes_stay_pending(self):
+        keys = lambda: self.rig.gw.db.scalar("SELECT COUNT(*) FROM keys")  # noqa: E731
+        before, j = keys(), self.steps()
+        self.j.real_token_refusals(j, self.browser, self.base, self.db, self.row)
+        self.assertEqual(keys(), before)
+        self.assertEqual(len(j.results), 8, j.results)
+        self.assertTrue(all(ok for _, ok, _ in j.results), [r for r in j.results if not r[1]])
+        self.assertEqual(self.rig.gw.db.scalar("SELECT status FROM device_codes WHERE id = ?", (self.row[0],)), "pending")
+        # the real token itself still works, so the refusals above were about the token, not the code
+        self.assertEqual(self.browser.approve(self.row[1]), 200)
+        self.assertEqual(self.rig.gw.db.scalar("SELECT status FROM device_codes WHERE id = ?", (self.row[0],)), "approved")
+
+    def test_the_check_fails_if_the_hub_accepted_a_bad_token(self):
+        from gateway import enroll
+        real = enroll._csrf
+        enroll._csrf = lambda gw, token, code: real(gw, "", code)  # a broken Hub: the token ignores the session
+        self.addCleanup(setattr, enroll, "_csrf", real)
+        j = self.steps()
+        self.j.real_token_refusals(j, self.browser, self.base, self.db, self.row)
+        failed = [name for name, ok, _ in j.results if not ok]
+        self.assertTrue(any("another session" in n for n in failed), j.results)
 
 
 class MountedDmgTests(unittest.TestCase):
