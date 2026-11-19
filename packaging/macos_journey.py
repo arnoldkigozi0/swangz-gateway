@@ -46,6 +46,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 EMAIL, PASSWORD, PERSON = "grace@swangzavenue.com", "demo-password", "Nansubuga Grace"
 DEVICE = "CI Mac"
+SECOND = "Okello Brian"  # the second person hub_journey.second_person adds
 # swangz_client/core.py remove_everything: the managed-browser folders stay (R-12); each profile is bound to its owner.
 KEPT_AFTER_SIGNOUT = {"browser-profiles"}
 KEYCHAIN_SERVICE = "Swangz AI Hub"  # swangz_client/keystore.py SERVICE
@@ -99,15 +100,16 @@ def relay_class():
     return module.Relay
 
 
-def start_server(public_url):
+def start_server(public_url, log):
     """The fixture Hub, announcing public_url (the relay) as its address, so the codes and links it hands the app are
-    on the server the app signed in to (the app refuses anything else)."""
-    proc = subprocess.Popen([sys.executable, str(ROOT / "tests" / "browser" / "demo.py")], cwd=ROOT,
-                            env={**os.environ, "HUB_FIXTURE_PUBLIC_URL": public_url},
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    on the server the app signed in to (the app refuses anything else). Its log goes to `log` (the F-18 scan reads it)."""
+    with open(log, "ab") as err:
+        proc = subprocess.Popen([sys.executable, str(ROOT / "tests" / "browser" / "demo.py")], cwd=ROOT,
+                                env={**os.environ, "HUB_FIXTURE_PUBLIC_URL": public_url},
+                                stdout=subprocess.PIPE, stderr=err, text=True)
     line = proc.stdout.readline()
     if not line:
-        raise SystemExit("fixture server did not start: " + proc.stderr.read()[-2000:])
+        raise SystemExit("fixture server did not start: " + Path(log).read_text(errors="replace")[-2000:])
     return proc, json.loads(line)
 
 
@@ -296,7 +298,15 @@ def pids(app):
     return [p for p in out.split() if p.isdigit()]
 
 
-def enrol(j, app, browser, env, app_url, label=""):
+def data_folder():
+    """The app's data folder on a Mac."""
+    return Path.home() / "Library" / "Application Support" / "Swangz"
+
+
+def enrol(j, app, browser, env, app_url, label="", approve=None, who=PERSON):
+    """Sign the installed app in; `approve` approves the code (the person's browser by default). Returns the device id
+    the app's manifest names."""
+    approve = approve or browser.approve
     j.note("$ Swangz login --server " + app_url)
     proc = subprocess.Popen([str(binary(app)), "login", "--server", app_url, "--name", DEVICE], env=env,
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -309,10 +319,11 @@ def enrol(j, app, browser, env, app_url, label=""):
         m = CODE.search(line)
         code_text = m.group(1) if m else None
     j.step("app shows a sign-in code" + label, bool(code_text), code_text or "\n".join(seen))
-    j.step("person approves the code in their browser" + label, browser.approve(code_text) == 200, code_text)
+    j.step("person approves the code in their browser" + label, approve(code_text) == 200, code_text)
     rest, _ = proc.communicate(timeout=120)
     j.note("\n".join(seen) + "\n" + rest)
-    j.step("app finishes signing in" + label, proc.returncode == 0 and PERSON in rest, f"exit {proc.returncode}")
+    j.step("app finishes signing in" + label, proc.returncode == 0 and who in rest, f"exit {proc.returncode}")
+    return json.loads((data_folder() / "manifest.json").read_text(encoding="utf-8")).get("browser", {}).get("device_id")
 
 
 def fresh_install(j, dmg, env, data, db):
@@ -349,14 +360,15 @@ def main(argv=None):
     j = Journey(args.evidence)
     apps = Path(tempfile.mkdtemp(prefix="Applications-"))
     home = Path.home()
-    data = home / "Library" / "Application Support" / "Swangz"
+    data = data_folder()
     login_item = home / "Library" / "LaunchAgents" / "com.swangzavenue.swangz.plist"
     env = {k: v for k, v in os.environ.items() if k not in ("SWANGZ_SERVER", "SWANGZ_ALLOW_HTTP", "SWANGZ_HOME")}
     env["BROWSER"] = "/usr/bin/true"  # the code is approved by the fixture's browser, not Safari
     relay = relay_class()(None)
     relay.start()
     app_url = f"http://127.0.0.1:{relay.port}"  # the Hub's public address: everyone reaches it only through the relay
-    server, fixture = start_server(app_url)
+    hub_log = j.evidence / "hub-fixture.log"
+    server, fixture = start_server(app_url, hub_log)
     relay.target = fixture["port"]  # the fixture's own port; relay.target is read per connection
     db = Path(fixture["data"]) / "gateway.db"
     j.note(f"fixture server on port {relay.target}, reached through the relay at {app_url}")
@@ -418,8 +430,10 @@ def main(argv=None):
 
         # deliverable 5 and F-18 (packaging/hub_journey.py): the workspace window, then prompt/reply privacy
         owner = hub_journey.Console(app_url, "owner")
-        hub_journey.workspace(j.step, lambda *a: j.run([binary(app), *a], env=env), data, owner, fixture["person"])
-        hub_journey.f18(j.step, binary(app), env, app_url, owner, fixture["person"])
+        run_app = lambda *a: j.run([binary(app), *a], env=env)  # noqa: E731  `app` is read at call time (upgrade)
+        folder = hub_journey.workspace(j.step, run_app, data, owner, fixture["person"])
+        marker = hub_journey.marker_of(folder)
+        hub_journey.f18(j.step, binary(app), env, app_url, owner, fixture["person"], fixture["data"], [hub_log])
 
         keep = sorted(p.name for p in data.iterdir()) if data.exists() else []
         app = install(j, args.new, apps, args.new_app)
@@ -432,6 +446,7 @@ def main(argv=None):
         j.step("after upgrade: same person and device, data kept", code == 0 and PERSON in out and DEVICE in out
                and data.exists() and set(keep) <= {p.name for p in data.iterdir()}, ", ".join(keep))
         j.step("window opens after upgrade", launch_and_quit(j, app, j.evidence / "3-after-upgrade.png"))
+        hub_journey.kept(j.step, data, folder, marker, "after the upgrade")
 
         # 5b (row 9): a person drags the older build over the newer one; it refuses to run and changes nothing
         device = json.loads((data / "device.json").read_text(encoding="utf-8"))
@@ -464,6 +479,18 @@ def main(argv=None):
         j.step("sign out removed the login item", not login_item.exists(), str(login_item))
         code, out = j.run([binary(app), "status"], env=env)
         j.step("status says not signed in", code == 2)
+        hub_journey.kept(j.step, data, folder, marker, "after sign out")
+
+        # a second person on the same Mac: their own workspace folder; then they sign out too
+        hub_journey.second_person(j.step, lambda approve: enrol(j, app, browser, env, app_url, " (second person)",
+                                                                approve, SECOND), run_app, data, owner, app_url, folder, marker)
+        code, out = j.run([binary(app), "logout"], env=env)
+        j.step("second person signs out", code == 0 and "removed" in out and "couldn't" not in out, out)
+        leftovers = [p.name for p in data.iterdir()] if data.exists() else []
+        j.step("after the second sign out only the company-browser folder is kept", set(leftovers) <= KEPT_AFTER_SIGNOUT,
+               ", ".join(leftovers) or "folder empty or gone")
+        code, _ = j.run(["security", "find-generic-password", "-s", KEYCHAIN_SERVICE])
+        j.step("no Swangz item left in the login keychain after the second sign out", code != 0)
 
         # 7 (row 7d): disconnected while the Hub was out of reach, from another browser that still reaches it
         enrol(j, app, browser, env, app_url, " (again, for the revocation check)")

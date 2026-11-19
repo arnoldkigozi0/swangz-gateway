@@ -136,6 +136,25 @@ def kampala_zone(tmpdir):
         reset_tzpath([str(tmpdir), *TZPATH])
 
 
+class Tee:
+    """The in-process Hub logs to sys.stderr; this keeps a copy in a file the F-18 scan reads."""
+
+    def __init__(self, stream, path):
+        self.stream, self.file = stream, open(path, "a", encoding="utf-8")
+
+    def write(self, text):
+        self.file.write(text)
+        self.file.flush()
+        return self.stream.write(text)
+
+    def flush(self):
+        self.file.flush()
+        self.stream.flush()
+
+    def close(self):
+        self.file.close()
+
+
 def e2e(setup, evidence, previous=None, previous_version=None, new_version=None):
     """With `previous`, steps 1-5 run on the previous build and step 6 upgrades it to `setup`; otherwise step 6 reinstalls."""
     from tests.test_devices import DeviceBase
@@ -146,6 +165,8 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
     first = previous or setup
     fixture, relay, gui, initialized = DeviceBase(), None, None, False
     work = Path(tempfile.mkdtemp(prefix="swangz-installer-e2e-"))
+    hub_log = evidence / "hub-fixture.log"
+    real_stderr, sys.stderr = sys.stderr, Tee(sys.stderr, hub_log)
     try:
         kampala_zone(work / "tz")
         fixture.setUp()
@@ -234,7 +255,7 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         passed(f"launch: --version, the Tk {check['tk']} sign-in window, the --background start; updates off, no release keys")
 
         # 3. enrol: first run asks for the Hub address; the person approves the code in their browser
-        def enrol():
+        def enrol(approve=None):
             login = subprocess.Popen(    [str(exe), "login", "--server", origin, "--name", "CI installer"], env=env, cwd=work,
                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             try:
@@ -243,7 +264,8 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
                     code = rig.gw.db.one("SELECT user_code FROM device_codes WHERE status = 'pending'")
                     time.sleep(0.2)
                 require(code is not None, "the installed program did not ask for a device code")
-                require(fixture.approve(code["user_code"], "personal")[0] == 200, "approval failed")
+                ok = approve(code["user_code"]) == 200 if approve else fixture.approve(code["user_code"], "personal")[0] == 200
+                require(ok, "approval failed")
                 out, err = login.communicate(timeout=120)
                 require(login.returncode == 0, "login/sync failed: " + out[-2000:] + err[-2000:])
             finally:
@@ -337,8 +359,10 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
             return result.returncode, (result.stdout + result.stderr).strip()
 
         owner = hub_journey.Console(origin, "owner")
-        report["workspace_folder"] = hub_journey.workspace(check, run_app, data, owner, rig.person_id).name
-        hub_journey.f18(check, exe, env, origin, owner, rig.person_id, cwd=work)
+        folder = hub_journey.workspace(check, run_app, data, owner, rig.person_id)
+        marker = hub_journey.marker_of(folder)
+        report["workspace_folder"] = folder.name
+        hub_journey.f18(check, exe, env, origin, owner, rig.person_id, rig.tmp, [hub_log], cwd=work)
 
         # 6. upgrade to this build over a running copy (or, with no previous build, reinstall the same version): the
         #    installer closes the program; the person's device, key and settings stay, and the Hub sees the new version
@@ -366,6 +390,7 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
                    " and the Hub's check-in show the new version; same device and key, still signed in, no new sign-in")
         else:
             passed("reinstall (same version) over a running copy: the installer closed it; same device, still signed in, syncs")
+        hub_journey.kept(check, data, folder, marker, "after the upgrade")
 
         # 6b. an older build is refused: the previous installer, run over this build, ends with exit code 1 and changes
         #     nothing (same version in Apps & features, same program, still signed in)
@@ -395,6 +420,8 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
                 "the Hub did not disconnect the signed-out device")
         passed("sign out: device disconnected at the Hub, local credentials removed, start-at-sign-in value gone")
 
+        hub_journey.kept(check, data, folder, marker, "after sign out")
+
         # 7b. revoked while away: a separate signed-in browser reaches the fixture directly, not the stopped relay.
         # Match macOS: the preceding explicit logout disabled startup; re-enrol without enabling it again.
         device = enrol()
@@ -421,9 +448,20 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         passed("revoked on return: sync exits 3, device data and stored key removed, status exits 2;"
                " only browser-profiles may remain (R-12)")
 
-        # enrol again and switch start-at-sign-in back on, so uninstall is still tested against a connected device
-        device = enrol()
+        hub_journey.kept(check, data, folder, marker, "after revocation")
+
+        # a second person enrols this PC (and switches start-at-sign-in back on, so the uninstall below is proven to
+        # remove both itself): they get a workspace folder of their own, and the first person's is left as it was
+        def enrol_second(approve):
+            enrol(approve)
+            return json.loads((data / "manifest.json").read_text(encoding="utf-8")).get("browser", {}).get("device_id")
+
+        second, _ = hub_journey.second_person(check, enrol_second, run_app, data, owner, origin, folder, marker)
+        device = json.loads((data / "device.json").read_text(encoding="utf-8"))
         key_id = device["key_id"]
+        require(rig.gw.db.scalar("SELECT person_id FROM keys WHERE id = ?", (key_id,)) == second,
+                "the second enrolment's key is not the second person's")
+        report["second_person"] = second
         app("autostart", "on")
         require(reg_value(RUN_KEY, "Swangz"), "autostart on did not write the Run value")
 
@@ -460,6 +498,9 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
             gui.kill()
         if relay:
             relay.stop()
+        if isinstance(sys.stderr, Tee):
+            sys.stderr.close()
+            sys.stderr = real_stderr
         if initialized:
             fixture.tearDown()
             shutil.rmtree(fixture.tmp, ignore_errors=True)

@@ -8,6 +8,7 @@ import os
 import shutil
 import tempfile
 import unittest
+import zlib
 from pathlib import Path
 
 from .support import Rig
@@ -42,9 +43,11 @@ class F18Tests(unittest.TestCase):
 
     def test_round_trip_passes_and_the_key_never_reaches_the_evidence(self):
         steps = Steps()
-        self.h.f18(steps, "unused", {}, self.base, self.h.Console(self.base, "owner"), self.rig.person_id)
+        self.h.f18(steps, "unused", {}, self.base, self.h.Console(self.base, "owner"), self.rig.person_id, self.rig.tmp)
         names = [n for n, _, _ in steps.seen]
-        for want in ("F-18: prompt and reply storage is off by default", "F-18 off: the request is recorded, with no prompt or reply stored",
+        for want in ("F-18: prompt and reply storage is off by default", "F-18 off: the request is recorded, with no prompt and an empty reply",
+                     "F-18 off: the prompt is nowhere in the Hub's database, WAL, stored bodies (orphans too) or logs",
+                     "F-18 on: the same scan finds the stored prompt (the scan can see what it looks for)",
                      "F-18 on: a role with the trust area reads the prompt", "F-18: storage is off again"):
             self.assertIn(want, names)
         self.assertTrue(any(n.startswith("F-18 on: a role without it (viewer)") for n in names))
@@ -57,7 +60,7 @@ class F18Tests(unittest.TestCase):
     def test_a_hub_that_stores_by_default_fails_the_first_step(self):
         self.rig.gw.db.set_setting("store_bodies", "1")
         with self.assertRaisesRegex(AssertionError, "off by default"):
-            self.h.f18(Steps(), "unused", {}, self.base, self.h.Console(self.base, "owner"), self.rig.person_id)
+            self.h.f18(Steps(), "unused", {}, self.base, self.h.Console(self.base, "owner"), self.rig.person_id, self.rig.tmp)
 
     def test_storage_is_turned_off_again_even_when_a_step_fails(self):
         h, steps = self.h, Steps()
@@ -65,13 +68,86 @@ class F18Tests(unittest.TestCase):
 
         def record(console, person_id, after, timeout=20):
             calls.append(after)
-            return real(console, person_id, after) if len(calls) == 1 else None  # the second lookup finds nothing
+            return real(console, person_id, after) if len(calls) == 1 else (None, None)  # the second finds nothing
         h.record = record
         with self.assertRaises(AssertionError):
-            h.f18(steps, "unused", {}, self.base, h.Console(self.base, "owner"), self.rig.person_id)
+            h.f18(steps, "unused", {}, self.base, h.Console(self.base, "owner"), self.rig.person_id, self.rig.tmp)
         self.assertEqual(self.rig.gw.db.get_setting("store_bodies"), "0")
         self.assertEqual([n for n, ok, _ in steps.seen if not ok], ["F-18 on: a role with the trust area reads the prompt"])
         self.assertEqual(steps.seen[-1][:2], ("F-18: storage is off again", True))
+
+
+    def test_a_prompt_left_in_a_hub_log_fails_before_storage_is_touched(self):
+        h, log = self.h, Path(self.rig.tmp).parent / (Path(self.rig.tmp).name + "-hub.log")
+        self.addCleanup(lambda: log.unlink(missing_ok=True))
+        real = h.send
+
+        def send(base, key, text):
+            with open(log, "a", encoding="utf-8") as f:
+                f.write("debug: " + text + "\n")  # a Hub that logs prompts
+            return real(base, key, text)
+        h.send, steps = send, Steps()
+        with self.assertRaisesRegex(AssertionError, "nowhere in the Hub"):
+            h.f18(steps, "unused", {}, self.base, h.Console(self.base, "owner"), self.rig.person_id, self.rig.tmp, [log])
+        self.assertFalse(steps.seen[-1][1])
+        self.assertIn("log " + log.name, steps.seen[-1][2])
+        self.assertEqual(self.rig.gw.db.get_setting("store_bodies"), "0")
+
+    def test_a_record_detail_that_is_refused_fails_the_step(self):
+        h = self.h
+        h.record = lambda *a, **k: (500, {"error": "boom"})
+        with self.assertRaisesRegex(AssertionError, "lookup answers"):
+            h.f18(Steps(), "unused", {}, self.base, h.Console(self.base, "owner"), self.rig.person_id, self.rig.tmp)
+
+    def test_newest_and_record_raise_when_the_hub_refuses(self):
+        class Refused:
+            def call(self, *a, **k):
+                return 403, {"error": "no"}
+        with self.assertRaisesRegex(RuntimeError, "403"):
+            self.h.newest(Refused(), 1)
+        with self.assertRaisesRegex(RuntimeError, "403"):
+            self.h.record(Refused(), 1, 0)
+        owner = self.h.Console(self.base, "owner")
+        self.assertEqual(self.h.record(owner, self.rig.person_id, 10 ** 9, timeout=0), (None, None))
+
+    def test_the_scan_finds_the_text_in_an_orphan_blob_a_raw_file_and_a_log(self):
+        h, db, marker = self.h, self.rig.gw.db, "swangz-f18-off-0123456789abcdef"
+        self.assertEqual(h.traces(self.rig.tmp, (), marker), [])
+        db.x("INSERT INTO blobs(hash, data, size) VALUES(?, ?, ?)", ("f" * 64, zlib.compress(marker.encode()), len(marker)))
+        found = h.traces(self.rig.tmp, (), marker)
+        self.assertIn("blob " + "f" * 12, found)  # compressed and pointed at by no request
+        (Path(self.rig.tmp) / "stray.txt").write_text(marker)
+        log = Path(self.rig.tmp) / "logs" / "hub.log"
+        log.parent.mkdir()
+        log.write_text("x " + marker)
+        found = h.traces(self.rig.tmp, [log], marker)
+        self.assertIn("stray.txt", found)
+        self.assertIn("log hub.log", found)
+
+    def test_an_unreadable_file_fails_the_scan(self):
+        h = self.h
+        (Path(self.rig.tmp) / "locked.bin").write_bytes(b"x")
+        h.read_bytes = lambda path, tries=20: None if Path(path).name == "locked.bin" else Path(path).read_bytes()
+        self.assertIn("unreadable locked.bin", h.traces(self.rig.tmp, (), "anything"))
+
+
+class SecondPersonTests(unittest.TestCase):
+    def setUp(self):
+        self.h = load()
+        self.rig = Rig()
+        self.addCleanup(self.rig.close)
+        self.base = f"http://127.0.0.1:{self.rig.port}"
+
+    def test_the_admin_adds_a_person_who_signs_in_and_approves_a_device_code(self):
+        owner = self.h.Console(self.base, "owner")
+        pid, staff = self.h.add_person(owner, self.base, "Okello Brian", "brian.okello@swangzavenue.com")
+        self.assertNotEqual(pid, self.rig.person_id)
+        self.assertTrue(self.h.grant(owner, pid))
+        status, _, out = self.rig.request("POST", "/api/device/code", {"name": "CI", "os": "Windows 11", "arch": "x86_64",
+                                                                      "app_version": "0.1.0"}, {"x-swangz-app": "1"})
+        code = json.loads(out)["user_code"]
+        self.assertEqual(staff.approve(code), 200)
+        self.assertEqual(self.rig.gw.db.scalar("SELECT person_id FROM device_codes WHERE user_code = ?", (code,)), pid)
 
 
 class FakeOwner:
@@ -81,6 +157,10 @@ class FakeOwner:
     def call(self, method, path, body=None):
         if path.startswith("/launches"):
             return 200, {"items": [{"tool_id": "canva", "outcome": "opened"}] if self.opened else []}
+        if path == "/people":
+            return 200, {"id": 8}
+        if path.endswith("/invite"):
+            return 200, {"link": "http://hub/#/welcome/" + "t" * 32}
         return 200, {}
 
 
@@ -122,6 +202,52 @@ class WorkspaceTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "records the open"):
             self.h.workspace(Steps(), self.app(), self.data, FakeOwner(opened=False), 7)
 
+    def second(self, person="8", same_folder=False):
+        def run_app(*args):
+            folder = self.data / "browser-profiles" / (("a" if same_folder else "b") * 32)
+            folder.mkdir(parents=True, exist_ok=True)
+            (folder / ".swangz-profile.json").write_text(json.dumps({"person_id": person, "device_id": "dev1", "state": "prepared"}))
+            (folder / "Local State").write_text("{}")
+            return 0, "Opened in the Swangz workspace window."
+        return run_app
+
+    def first(self):
+        folder = self.h.workspace(Steps(), self.app(), self.data, FakeOwner(), 7)
+        return folder, self.h.marker_of(folder)
+
+    def second_person(self, steps, run_app, first, marker):
+        self.h.add_person = lambda owner, base, name, email: (8, type("S", (), {"approve": lambda self, code: 200})())
+        return self.h.second_person(steps, lambda approve: "dev1", run_app, self.data, FakeOwner(), "http://hub", first, marker)
+
+    def test_kept_passes_for_an_unchanged_folder_and_fails_for_a_changed_or_missing_one(self):
+        folder, marker = self.first()
+        self.h.kept(Steps(), self.data, folder, marker, "after the upgrade")
+        (folder / ".swangz-profile.json").write_text(json.dumps({**marker, "person_id": "9"}))
+        with self.assertRaisesRegex(AssertionError, "kept unchanged"):
+            self.h.kept(Steps(), self.data, folder, marker, "after the upgrade")
+        shutil.rmtree(folder)
+        with self.assertRaisesRegex(AssertionError, "kept unchanged"):
+            self.h.kept(Steps(), self.data, folder, marker, "after sign out")
+
+    def test_a_second_person_gets_a_separate_folder_and_the_first_is_kept(self):
+        folder, marker = self.first()
+        steps = Steps()
+        pid, theirs = self.second_person(steps, self.second(), folder, marker)
+        self.assertEqual(pid, 8)
+        self.assertNotEqual(theirs, folder)
+        self.assertEqual(self.closed[-1], theirs)
+        self.assertTrue(steps.seen[-1][0].startswith("workspace: with a second person on this device"))
+
+    def test_a_second_person_reusing_the_first_folder_or_marked_as_the_first_fails(self):
+        folder, marker = self.first()
+        with self.assertRaisesRegex(AssertionError, "separate workspace folder"):
+            self.second_person(Steps(), self.second(same_folder=True), folder, marker)
+        folder, marker = folder, self.h.marker_of(folder)
+        shutil.rmtree(self.data / "browser-profiles")
+        folder, marker = self.first()
+        with self.assertRaisesRegex(AssertionError, "marked for them"):
+            self.second_person(Steps(), self.second(person="7"), folder, marker)
+
     def test_close_only_targets_this_folder(self):
         src = (ROOT / "packaging" / "hub_journey.py").read_text(encoding="utf-8")
         self.assertIn('"--user-data-dir=" + needle', src)
@@ -139,6 +265,17 @@ class WiringTests(unittest.TestCase):
             self.assertLess(text.index(before), text.index("hub_journey.workspace("))
             self.assertLess(text.index("hub_journey.workspace("), text.index("hub_journey.f18("))
             self.assertLess(text.index("hub_journey.f18("), text.index(after))
+            self.assertLess(text.index(after), text.index('"after the upgrade")'))
+            self.assertLess(text.index('"after the upgrade")'), text.index('"after sign out")'))
+            self.assertLess(text.index('"after sign out")'), text.index("hub_journey.second_person("))
+
+    def test_both_journeys_scan_the_fixture_hubs_data_and_log(self):
+        mac = (ROOT / "packaging" / "macos_journey.py").read_text(encoding="utf-8")
+        win = (ROOT / "packaging" / "windows" / "installer_e2e.py").read_text(encoding="utf-8")
+        self.assertIn('fixture["data"], [hub_log])', mac)
+        self.assertIn("stderr=err", mac)
+        self.assertIn("rig.tmp, [hub_log]", win)
+        self.assertIn("Tee(sys.stderr, hub_log)", win)
 
     def test_the_folder_name_and_marker_agree_with_the_app(self):
         from swangz_client import browser_profiles
@@ -146,4 +283,6 @@ class WiringTests(unittest.TestCase):
         self.assertEqual((h.FOLDER.pattern, h.MARKER), (browser_profiles.FOLDER.pattern, browser_profiles.MARKER))
 
     def test_the_fixture_reports_its_person(self):
-        self.assertIn('"person": rig.person_id', (ROOT / "tests" / "browser" / "demo.py").read_text(encoding="utf-8"))
+        demo = (ROOT / "tests" / "browser" / "demo.py").read_text(encoding="utf-8")
+        self.assertIn('"person": rig.person_id', demo)
+        self.assertIn('"data": rig.tmp', demo)
