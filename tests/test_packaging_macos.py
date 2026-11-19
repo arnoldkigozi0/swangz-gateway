@@ -73,6 +73,27 @@ class MacBuildTests(unittest.TestCase):
             self.assertIn(step, text)
         self.assertNotIn("xattr", text)
 
+    def test_journey_cuts_the_hub_and_reconnects_on_the_same_address(self):
+        text = (ROOT / "packaging" / "macos_journey.py").read_text(encoding="utf-8")
+        # the app signs in through the relay, never straight to the fixture server
+        self.assertIn('"login", "--server", app_url', text)
+        self.assertNotIn('"login", "--server", url', text)
+        cut = text.split("relay.stop()", 1)[1].split("relay.start()", 1)[0]
+        for needle in ("Hub unreachable: sync fails", "code != 0", "no sync is claimed", 'device.json").is_file()'):
+            self.assertIn(needle, cut)
+        back = text.split("relay.start()", 2)[2].split("# keep", 1)[0]
+        for needle in ("Hub back: the next sync succeeds with no new sign-in", 'not device.get("reconnect")',
+                       "the server records the device's check-in"):
+            self.assertIn(needle, back)
+        self.assertLess(text.index("after restart: still signed in"), text.index("Hub unreachable"))
+        self.assertLess(text.index("Hub back: the server records"), text.index("install(j, args.new, apps)"))
+
+        from importlib.util import module_from_spec, spec_from_file_location
+        spec = spec_from_file_location("macos_journey", ROOT / "packaging" / "macos_journey.py")
+        module = module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertTrue(hasattr(module.relay_class(), "stop"))  # the Windows relay loads on any OS (no winreg at import)
+
     def test_the_signing_doc_lists_what_only_arnold_can_provide(self):
         doc = (ROOT / "docs" / "MACOS-SIGNING.md").read_text(encoding="utf-8")
         for item in ("Apple Developer Program", "Developer ID Application", "notarytool", "stapler staple",
