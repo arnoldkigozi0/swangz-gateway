@@ -26,6 +26,19 @@ def say(text=""):
     print(text, flush=True)
 
 
+def alert(text):
+    try:
+        import tkinter
+        from tkinter import messagebox
+
+        root = tkinter.Tk()
+        root.withdraw()
+        messagebox.showerror("Swangz", text)
+        root.destroy()
+    except Exception:  # no display: the terminal message stands
+        pass
+
+
 def when(ts):
     return time.strftime("%Y-%m-%d %H:%M", time.localtime(ts)) if ts else "never"
 
@@ -84,10 +97,17 @@ def main(argv=None, client=None):
                 subprocess.Popen([str(updater.target), *command_argv], env=dict(os.environ),
                                  stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 return 1
+        if args.cmd not in ("logout", "cleanup") and isinstance(getattr(client, "paths", None), core.Paths):
+            core.check_newest_app(client.paths)  # after recover(): a rolled-back update has recorded its failed_version
         return run(args, client)
     except core.Revoked:
         say("This device was disconnected from Swangz AI Hub, so Swangz has been removed from it.")
         return 3
+    except core.OlderBuild as exc:
+        say(str(exc))
+        if args.cmd in (None, "gui"):
+            alert(str(exc))  # opened from Finder: nobody reads the terminal
+        return 5
     except core.NeedsReconnect as exc:
         say(str(exc) + "  Run: swangz logout, then swangz login")
         return 4

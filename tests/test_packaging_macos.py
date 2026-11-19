@@ -147,6 +147,78 @@ class MacSummaryTests(unittest.TestCase):
         self.assertNotIn("release create", wf)  # building an artifact is not publishing a release
 
 
+class JourneyGapTests(unittest.TestCase):
+    """PR #269's macOS gaps: the fresh-install address rule (row 4), Hub down at app start and revoked while away
+    (row 7), the reconnect check comparing the key and counting sign-in codes, and the older build refused (row 9)."""
+
+    def setUp(self):
+        self.text = (ROOT / "packaging" / "macos_journey.py").read_text(encoding="utf-8")
+        self.main = self.text.split("def main(", 1)[1]
+
+    def test_a_fresh_install_has_no_address_and_refuses_plain_http_before_any_code(self):
+        fresh = self.text.split("def fresh_install(", 1)[1].split("def main(", 1)[0]
+        for needle in ('"status"', "code == 2", 'check.get("window") == "signin"', 'check.get("hub_address") == ""',
+                       '"http://hub.example.com"', '"http://192.0.2.10:8787"', "only connects over https",
+                       "sign_in_codes(db) == before", "shutil.rmtree(apps)"):
+            self.assertIn(needle, fresh)
+        self.assertLess(self.main.index("fresh_install(j, args.new"), self.main.index("install(j, args.old, apps)"))
+        self.assertIn('"SWANGZ_SERVER", "SWANGZ_ALLOW_HTTP"', self.main)  # nothing in the runner's env supplies one
+        app = (ROOT / "packaging" / "swangz_app.py").read_text(encoding="utf-8")
+        self.assertIn('"hub_address": app.server_var.get() if app.page == "signin" else None', app)
+        self.assertIn('"data": rig.tmp', (ROOT / "tests" / "browser" / "demo.py").read_text(encoding="utf-8"))
+
+    def test_the_outage_opens_the_window_and_compares_the_key_and_the_codes(self):
+        cut = self.main.split("relay.stop()", 1)[1].split("relay.start()", 1)[0]
+        self.assertIn("Hub down at app start: the window still opens", cut)
+        self.assertIn("Couldn't reach", cut)
+        back = self.main.split("relay.start()", 2)[2].split("keep = sorted", 1)[0]
+        for needle in ("after == secret", 'device.get("key_id") == key_id', "sign_in_codes(db) == codes",
+                       "files_holding(secret, [data, j.evidence]"):
+            self.assertIn(needle, back)
+        # the key itself is never written: only a 12-character SHA-256 prefix is
+        self.assertNotIn("j.note(secret", self.text)
+        self.assertNotIn("{secret}", self.text)
+
+    def test_the_older_build_over_the_newer_refuses_and_changes_nothing(self):
+        older = self.main.split("# 5b (row 9)", 1)[1].split("sign out", 1)[0]
+        for needle in ("install(j, args.old, apps)", '("status", "sync")', "code == 5",
+                       'f"Swangz {args.new_version} is already in use"', "kept == device",
+                       "install(j, args.new, apps)"):
+            self.assertIn(needle, older)
+        self.assertLess(self.main.index("upgraded in place"), self.main.index("# 5b (row 9)"))
+
+    def test_revoked_while_away_is_refused_on_return_and_cleans_up(self):
+        away = self.main.split("# 7 (row 7d)", 1)[1].split("shutil.rmtree(app)", 1)[0]
+        steps = ["enrol(j, app", "relay.stop()", "direct.revoke(key_id) == 200", "code == 1", "relay.start()",
+                 "code == 3", "KEPT_AFTER_SIGNOUT", "keychain_secret(app_url, key_id) is None", "code == 2"]
+        at = [away.index(s) for s in steps]
+        self.assertEqual(at, sorted(at), "the revocation steps are out of order")
+        self.assertIn('Browser(f"http://127.0.0.1:{relay.target}")', away)  # the other browser reaches the Hub directly
+
+    def test_sign_in_codes_and_files_holding(self):
+        import sqlite3
+        import tempfile
+        j = load("macos_journey")
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, d, True)
+        db = d / "gateway.db"
+        con = sqlite3.connect(db)
+        con.execute("CREATE TABLE device_codes (id INTEGER PRIMARY KEY, user_code TEXT)")
+        con.commit()
+        self.assertEqual(j.sign_in_codes(db), (0, 0))
+        con.execute("INSERT INTO device_codes(user_code) VALUES ('BCDF-GHJK')")
+        con.commit()
+        con.close()
+        self.assertEqual(j.sign_in_codes(db), (1, 1))
+        (d / "logs").mkdir()
+        (d / "logs" / "app.log").write_text("ok sgw_secret_value here")
+        (d / "device.key").write_text("sgw_secret_value")
+        self.assertEqual(j.files_holding("sgw_secret_value", [d], skip={"device.key"}), [str(d / "logs" / "app.log")])
+        self.assertEqual(j.files_holding("sgw_secret_value", [d / "missing"]), [])
+        self.assertEqual(j.fingerprint(None), "none")
+        self.assertEqual(len(j.fingerprint("x")), 12)
+
+
 class MountedDmgTests(unittest.TestCase):
     """macos_journey.check_mounted: the mounted DMG's app must equal the scanned build, and the whole volume
     (READ ME FIRST.txt included) is secret-scanned. Runs on any OS against a folder laid out like a mounted DMG."""

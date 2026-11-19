@@ -974,3 +974,13 @@ file's end. All remain pending their final pushed-head CI and merge.
 - macOS job: `--min-archives 2` (`dist/Swangz/Swangz` and `dist/Swangz.app/Contents/MacOS/Swangz`, the two opened in main run 44434293090). Windows job: `--min-archives 1` (`dist\Swangz.exe`, main run 44433661042).
 - Part 2 (mount the DMG read-only, compare its app with `dist/Swangz.app`, scan the mounted volume) is #265 (`fix/macos-dmg-scan`, merged); not duplicated. Added on top: the journey's mounted-DMG scan fails unless it opened at least one PyInstaller archive (the app's program), the same gate as `--min-archives`.
 - Local: `python3 -m unittest tests.test_secret_scan tests.test_sbom tests.test_packaging_macos tests.test_windows_installer`: Ran 46 tests, OK (after merging main with #265). Real macOS/Windows runs are this PR's CI.
+
+## 19 Nov 2026 — macOS journey gaps from #269 (Anvil, PR #271, `feature/macos-journey-gaps`)
+- `packaging/macos_journey.py` closes RELEASE-EVIDENCE rows 4, 7 and 9 on macOS, plus Probe's reconnect note:
+  - **Fresh install:** no address is saved; plain http is refused before any sign-in code is issued.
+  - **Hub down:** the window opens while the Hub is down.
+  - **Outage:** the Keychain key is the same secret and the sign-in codes are unchanged; the key is in no file.
+  - **Revoked while away:** the device is refused on return (exit 3) and removes itself, keeping `browser-profiles` only.
+  - **Older build:** an older build dragged over a newer one refuses to run (exit 5) and changes nothing.
+- The product change for row 9 is `core.check_newest_app` (docs/CLIENT.md).
+- Local: `tests.test_packaging_macos tests.test_client_newest_app`: 28 OK. The client and Windows installer modules pass. The macOS run is this PR's CI.
