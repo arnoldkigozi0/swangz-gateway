@@ -396,9 +396,10 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         passed("sign out: device disconnected at the Hub, local credentials removed, start-at-sign-in value gone")
 
         # 7b. revoked while away: a separate signed-in browser reaches the fixture directly, not the stopped relay.
+        # Match macOS: the preceding explicit logout disabled startup; re-enrol without enabling it again.
         device = enrol()
         key_id = device["key_id"]
-        app("autostart", "on")
+        require(reg_value(RUN_KEY, "Swangz") is None, "startup was not disabled by the preceding logout")
         before_key, before_codes = stored_fingerprint(), sign_in_codes()
         relay.stop()
         require(fixture.staff("POST", f"/keys/{key_id}/revoke", cookie=fixture.person_cookie)[0] == 200,
@@ -411,14 +412,13 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         app("sync", expected=3)
         leftovers = {p.name for p in data.iterdir()} if data.exists() else set()
         require(leftovers <= {"browser-profiles"}, "revoked device left app data: " + ", ".join(sorted(leftovers)))
-        require(reg_value(RUN_KEY, "Swangz") is None, "revocation left the start-at-sign-in value")
         if device["key_storage"] != "file":
             require(stored_secret() is None, "revocation left a Windows Credential Manager entry")
         require(sign_in_codes() == before_codes, "revocation issued a new sign-in code")
         app("status", expected=2)
         report["revoked_while_away"] = {"offline_exit": 1, "return_exit": 3, "signed_out_exit": 2,
                                          "kept": sorted(leftovers)}
-        passed("revoked on return: sync exits 3, device data and stored key removed, startup off, status exits 2;"
+        passed("revoked on return: sync exits 3, device data and stored key removed, status exits 2;"
                " only browser-profiles may remain (R-12)")
 
         # enrol again and switch start-at-sign-in back on, so uninstall is still tested against a connected device
