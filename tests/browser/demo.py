@@ -13,7 +13,7 @@ from tests.support import Rig
 
 rig = Rig()
 try:
-    rig.settings.public_url = f"http://127.0.0.1:{rig.port}"
+    rig.settings.public_url = os.environ.get("HUB_FIXTURE_PUBLIC_URL") or f"http://127.0.0.1:{rig.port}"
     rig.gw.db.x("UPDATE people SET email=?, pw_hash=? WHERE id=?",
                 ("grace@swangzavenue.com", security.hash_password("demo-password", 1000), rig.person_id))
     for tool in ("canva", "chatgpt", "claude", "midjourney"):
@@ -60,7 +60,7 @@ try:
         for i in range(40):
             rig.gw.db.x("INSERT INTO requests(ts,person_id,provider,method,path,kind,client,outcome,reason,media_type,prompt,result_urls) VALUES(?,?,'higgsfield','POST','/v1/image','media','Swangz AI Hub Studio','error','The service couldn''t make this one. Try again.','image',?,'[]')",
                         (now-(40-i)*60,rig.person_id,"Synthetic creation "+str(i+1)))
-    print(json.dumps({"reports": reports, "url": rig.settings.public_url, "person": rig.person_id, "key": rig.key_id, "session": "local-ui-session"}), flush=True)
+    print(json.dumps({"reports": reports, "url": rig.settings.public_url, "port": rig.port, "person": rig.person_id, "key": rig.key_id, "session": "local-ui-session"}), flush=True)
     stop = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())

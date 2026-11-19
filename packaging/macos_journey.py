@@ -6,6 +6,8 @@
 2. launch the window, take a screenshot, quit
 3. enrol: `Swangz login`, the code approved by the person signed in to the staff app, as a person would in a browser
 4. restart: launch and quit again; the device is still signed in and syncs
+4b. Hub down: the app reaches the Hub through a relay that is cut; sync fails, nothing is lost or claimed; the relay
+   comes back on the same address and the next sync checks in with no new sign-in
 5. upgrade: replace the app with the NEW build from its DMG; the version changes, the sign-in and data stay.
    With --new-app, the mounted DMG's app is first compared entry by entry with that build, and everything on the
    volume (READ ME FIRST.txt included) is secret-scanned (DIR/secret-scan-dmg.json)
@@ -19,6 +21,7 @@ server is tests/browser/demo.py (a stand-in for every provider; nothing real is 
 
 import argparse
 import hashlib
+import importlib.util
 import http.cookiejar
 import json
 import os
@@ -78,13 +81,25 @@ class Journey:
 # ---------------------------------------------------------------- the server and the person's browser
 
 
-def start_server():
+def relay_class():
+    """The Windows acceptance run's relay (packaging/windows/installer_e2e.py): stop() is the network going away,
+    start() brings it back on the same port, so the device's saved Hub address does not change."""
+    spec = importlib.util.spec_from_file_location("installer_e2e", ROOT / "packaging" / "windows" / "installer_e2e.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.Relay
+
+
+def start_server(public_url):
+    """The fixture Hub, announcing public_url (the relay) as its address, so the codes and links it hands the app are
+    on the server the app signed in to (the app refuses anything else)."""
     proc = subprocess.Popen([sys.executable, str(ROOT / "tests" / "browser" / "demo.py")], cwd=ROOT,
+                            env={**os.environ, "HUB_FIXTURE_PUBLIC_URL": public_url},
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     line = proc.stdout.readline()
     if not line:
         raise SystemExit("fixture server did not start: " + proc.stderr.read()[-2000:])
-    return proc, json.loads(line)["url"]
+    return proc, json.loads(line)["port"]
 
 
 class Browser:
@@ -251,10 +266,13 @@ def main(argv=None):
     data = home / "Library" / "Application Support" / "Swangz"
     login_item = home / "Library" / "LaunchAgents" / "com.swangzavenue.swangz.plist"
     env = {**os.environ, "BROWSER": "/usr/bin/true"}  # the code is approved by the fixture's browser, not Safari
-    server, url = start_server()
-    j.note("fixture server at " + url)
+    relay = relay_class()(None)
+    relay.start()
+    app_url = f"http://127.0.0.1:{relay.port}"  # the Hub's public address: everyone reaches it only through the relay
+    server, relay.target = start_server(app_url)  # the fixture's own port; relay.target is read per connection
+    j.note(f"fixture server on port {relay.target}, reached through the relay at {app_url}")
     try:
-        browser = Browser(url)
+        browser = Browser(app_url)
         j.step("person signs in to the staff app", browser.sign_in() == 200)
 
         app = install(j, args.old, apps)
@@ -265,8 +283,8 @@ def main(argv=None):
         signature_state(j, app)
         j.step("window opens (first launch)", launch_and_quit(j, app, j.evidence / "1-first-launch.png"))
 
-        j.note("$ Swangz login --server " + url)
-        proc = subprocess.Popen([str(binary(app)), "login", "--server", url, "--name", DEVICE], env=env,
+        j.note("$ Swangz login --server " + app_url)
+        proc = subprocess.Popen([str(binary(app)), "login", "--server", app_url, "--name", DEVICE], env=env,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         seen, code_text = [], None
         while code_text is None:
@@ -290,6 +308,26 @@ def main(argv=None):
         j.step("window opens again (restart)", launch_and_quit(j, app, j.evidence / "2-restart.png"))
         code, out = j.run([binary(app), "sync"], env=env)
         j.step("after restart: still signed in and syncs", code == 0)
+
+        # Hub down, then back: the same check as the Windows run (row 2-R of docs/RELEASE-EVIDENCE.md)
+        state = lambda: json.loads((data / "state.json").read_text(encoding="utf-8"))
+        synced, used = state().get("last_sync"), [k.get("last_used") for k in browser.my_devices() or []]
+        relay.stop()
+        code, out = j.run([binary(app), "sync"], env=env)
+        j.step("Hub unreachable: sync fails and says so", code != 0, f"exit {code}")
+        j.step("Hub unreachable: no sync is claimed, the device record is kept",
+               state().get("last_sync") == synced and (data / "device.json").is_file())
+        code, out = j.run([binary(app), "status"], env=env)
+        j.step("Hub unreachable: status still names the person and this device", PERSON in out and DEVICE in out, f"exit {code}")
+        time.sleep(1.1)  # last_used is stored to the second
+        relay.start()
+        j.step("Hub back on the same address", relay.port == urllib.parse.urlsplit(app_url).port, app_url)
+        code, out = j.run([binary(app), "sync"], env=env)
+        device = json.loads((data / "device.json").read_text(encoding="utf-8"))
+        j.step("Hub back: the next sync succeeds with no new sign-in",
+               code == 0 and (state().get("last_sync") or 0) > (synced or 0) and not device.get("reconnect"), f"exit {code}")
+        now = [k.get("last_used") for k in browser.my_devices() or []]
+        j.step("Hub back: the server records the device's check-in", now != used and any(now), f"{used} -> {now}")
 
         keep = sorted(p.name for p in data.iterdir()) if data.exists() else []
         app = install(j, args.new, apps, args.new_app)
@@ -323,6 +361,7 @@ def main(argv=None):
         j.step("app removed from Applications", not app.exists())
         j.step("no Swangz process left running", not pids(app))
     finally:
+        relay.stop()
         server.terminate()
         try:
             server.wait(timeout=10)
