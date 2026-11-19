@@ -48,18 +48,18 @@ so in the row.
 ## 4. Deliverables 1-10
 
 The baseline below is the acceptance table in RELEASE-EVIDENCE.md and its post-merge sections as of main
-`939d585` (19 Nov 2026). On Saturday, replace each run ID with the release runs once Probe has read them. Do not
+`5005b37` (19 Nov 2026). On Saturday, replace each run ID with the release runs once Probe has read them. Do not
 upgrade a result that Probe has not read.
 
 | # | Deliverable | Result | Runs (baseline) | Open, not proven |
 |---|---|---|---|---|
-| 1 | Windows installer | **PASS (runner)** | Windows 44475955390 (43 steps, #281 head); reproducibility 44418629043 | SmartScreen, a real reboot with start at sign-in, a second Windows user (OWNER) |
-| 2 | macOS app and DMG | **PASS (runner)** | macOS 44499097781 (114 steps, all `pass`, #286 head) | Developer ID, notarization, a real first open, a real Keychain prompt (OWNER) |
+| 1 | Windows installer | **PASS (runner)** | Windows 44500938493 (47 steps, #287 head); reproducibility 44418629043 | SmartScreen, a real reboot with start at sign-in, a second Windows user (OWNER) |
+| 2 | macOS app and DMG | **PASS (runner)** | macOS 44506182423 (114 steps, all `pass`, main `13e22b2`) | Developer ID, notarization, a real first open, a real Keychain prompt (OWNER) |
 | 3 | Enrolment and approved sign-in | **PASS (runner)** | both journeys above | wrong, expired and reused codes and non-company emails through the packaged app (Hub unit tests only); real Google sign-in (OWNER) |
-| 4 | Server address, no embedded secrets | **PARTIAL** | secret scans on both; fresh install and https-only rule on macOS (#271) and Windows (#276, 44471096830); address kept across an upgrade on macOS (#277) and Windows (#287, 44500938493; Probe to confirm) | the production address (OWNER) |
+| 4 | Server address, no embedded secrets | **PARTIAL** | secret scans on both; fresh install and https-only rule on macOS (#271) and Windows (#276, 44471096830); address kept across an upgrade on both (macOS #277, Windows #287 step 31) | the production address (OWNER) |
 | 5 | Company browser workspace | **PARTIAL (runner)** | Windows 44455161915, macOS 44455029714 (#270); #272 runs 44463794008 (Windows), 44467560442 (macOS) | two people signed in at once; ACLs and a second OS user (OWNER); a real provider sign-in (OWNER); the Chrome command line |
 | 6 | Staff reporting, admin, F-18, machine policy | **PARTIAL** | F-18 packaged round trip on both (#270, #272: same runs as row 5); Hub checks 44488549742 | the production Hub; the packaged app's grants after restart; machine-policy tamper through the packaged app |
-| 7 | Reconnect after restart or outage | **PASS (runner)**, with gaps | Windows 44500938493 (47 steps, #287 head: key in no log after the outage, a real Hub process restart with the same key and no new sign-in code; Probe to confirm); macOS 44499097781 (start at login removed on revoke, step 110, #286) | Linux: start-at-login removal on revoke (unit tests only); sleep, Wi-Fi, VPN (OWNER) |
+| 7 | Reconnect after restart or outage | **PASS (runner)**, with gaps | Windows 44500938493 (key in no file step 8, Hub process restart step 9, Run entry removed step 36); macOS 44506182423 (login item removed on revoke, step 110, #286) | Linux: start-at-login removal on revoke (unit tests only); sleep, Wi-Fi, VPN (OWNER) |
 | 8 | Versioned artifacts, checksums, reproducibility, notes | **PASS** checksums and Windows reproducibility | Windows 44418629043; SBOM rows read on 19 Nov 2026 | macOS reproducibility not checked; two runs of one commit differ in version, so they also differ in hash |
 | 9 | Updates off until signing | **PARTIAL** | self-check on both; older build refused on both (macOS #271, Windows #258) | the "older" build is the same source relabelled; tampered update packages are covered by unit tests only; turning updates on is Arnold's decision (OWNER) |
 | 10 | Evidence from the runs | **PASS for what runners can do** | the release runs in section 2 | O-1 to O-7 have no results |
