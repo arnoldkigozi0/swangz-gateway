@@ -6,7 +6,9 @@
 2. launch the window, take a screenshot, quit
 3. enrol: `Swangz login`, the code approved by the person signed in to the staff app, as a person would in a browser
 4. restart: launch and quit again; the device is still signed in and syncs
-5. upgrade: replace the app with the NEW build from its DMG; the version changes, the sign-in and data stay
+5. upgrade: replace the app with the NEW build from its DMG; the version changes, the sign-in and data stay.
+   With --new-app, the mounted DMG's app is first compared entry by entry with that build, and everything on the
+   volume (READ ME FIRST.txt included) is secret-scanned (DIR/secret-scan-dmg.json)
 6. uninstall: `Swangz logout`, the server shows the device disconnected, the app's data and login item are gone,
    the bundle is removed
 
@@ -16,6 +18,7 @@ server is tests/browser/demo.py (a stand-in for every provider; nothing real is 
 """
 
 import argparse
+import hashlib
 import http.cookiejar
 import json
 import os
@@ -35,6 +38,9 @@ DEVICE = "CI Mac"
 # swangz_client/core.py remove_everything: the managed-browser folders stay (R-12); each profile is bound to its owner.
 KEPT_AFTER_SIGNOUT = {"browser-profiles"}
 KEYCHAIN_SERVICE = "Swangz AI Hub"  # swangz_client/keystore.py SERVICE
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import secret_scan  # noqa: E402  packaging/secret_scan.py, the same scan the workflow runs over dist/
+
 CODE = re.compile(r"\b([BCDFGHJKMNPQRSTVWXZ2-9]{4}-[BCDFGHJKMNPQRSTVWXZ2-9]{4})\b")
 
 
@@ -119,13 +125,56 @@ class Browser:
 # ---------------------------------------------------------------- the Mac side
 
 
-def install(j, dmg, apps):
+def tree_digest(root):
+    """Every entry under root: relative path -> its kind and content (file SHA-256 + executable bit, link target).
+    Links are recorded, never followed, so two trees compare equal only if they hold exactly the same things."""
+    root, out = Path(root), {}
+    for here, dirs, files in os.walk(root, followlinks=False):
+        for name in dirs + files:
+            p = Path(here) / name
+            rel = p.relative_to(root).as_posix()
+            if p.is_symlink():
+                out[rel] = ("link", os.readlink(p))
+            elif p.is_dir():
+                out[rel] = ("dir",)
+            else:
+                out[rel] = ("file", hashlib.sha256(p.read_bytes()).hexdigest(), os.access(p, os.X_OK))
+    return out
+
+
+def differences(a, b, limit=10):
+    keys = sorted(set(a) | set(b))
+    return [f"{k}: {'missing' if k not in a else a[k][0]} != {'missing' if k not in b else b[k][0]}"
+            for k in keys if a.get(k) != b.get(k)][:limit]
+
+
+def check_mounted(j, mount, expected_app, report):
+    """What a person actually gets: the mounted DMG's app must be the very app the workflow scanned and listed
+    in the SBOM, and everything else on the volume (READ ME FIRST.txt included) is secret-scanned too.
+    The Applications link and the volume's hidden system folders (.fseventsd, .Trashes) are not content."""
+    mount = Path(mount)
+    got, want = tree_digest(mount / "Swangz.app"), tree_digest(expected_app)
+    j.step("the app inside the mounted DMG is byte-for-byte the scanned build", got == want,
+           f"{len(got)} entries compared with {expected_app}" if got == want else "; ".join(differences(got, want)))
+    paths = [p for p in sorted(mount.iterdir()) if not p.is_symlink() and not p.name.startswith(".")]
+    result = secret_scan.scan(paths)
+    Path(report).write_text(json.dumps(result, indent=2), encoding="utf-8")
+    j.step("secret scan of the mounted DMG (app, RC notice, every file on the volume)",
+           not result["hits"] and not result["unreadable"],
+           f"{', '.join(p.name for p in paths)}: {len(result['files'])} files, "
+           f"{result['inner_entries_scanned']} archive entries, {len(result['unreadable'])} unreadable, "
+           f"{len(result['hits'])} hits" + "".join(f"; {h['pattern']} @ {h['where']}" for h in result["hits"][:5]))
+
+
+def install(j, dmg, apps, expected_app=None):
     mount = Path(tempfile.mkdtemp(prefix="swangz-dmg-"))
     j.run(["hdiutil", "attach", dmg, "-nobrowse", "-readonly", "-mountpoint", mount], check=True)
     try:
         listing = sorted(p.name for p in mount.iterdir())
         j.step(f"DMG {Path(dmg).name} holds the app, an Applications link and the RC notice",
                {"Swangz.app", "Applications", "READ ME FIRST.txt"} <= set(listing), ", ".join(listing))
+        if expected_app:
+            check_mounted(j, mount, expected_app, j.evidence / "secret-scan-dmg.json")
         target = apps / "Swangz.app"
         if target.exists():
             shutil.rmtree(target)
@@ -180,6 +229,7 @@ def main(argv=None):
     ap.add_argument("--old-version", required=True)
     ap.add_argument("--new-version", required=True)
     ap.add_argument("--evidence", required=True)
+    ap.add_argument("--new-app", help="the built Swangz.app the workflow scanned; the new DMG's app must equal it")
     args = ap.parse_args(argv)
     j = Journey(args.evidence)
     apps = Path(tempfile.mkdtemp(prefix="Applications-"))
@@ -228,7 +278,7 @@ def main(argv=None):
         j.step("after restart: still signed in and syncs", code == 0)
 
         keep = sorted(p.name for p in data.iterdir()) if data.exists() else []
-        app = install(j, args.new, apps)
+        app = install(j, args.new, apps, args.new_app)
         code, out = j.run([binary(app), "--version"], env=env)
         j.step("upgraded in place to the new build", code == 0 and args.new_version in out, out)
         code, _ = j.run([binary(app), "--self-check", j.evidence / "self-check-new.json"], env=env)
