@@ -28,7 +28,7 @@ Rollback is SERVER-DAY section 11.
 ## Decisions waiting on Arnold, first (12 Nov 2026)
 
 1. **#150 (managed workspace W1): approved after the fact by Arnold, 12 Nov.** #149 (spec, docs) merged 23:34 and #150 23:35 Kampala time on 11 Nov without prior approval (the merger is not identifiable; shared account). Nothing was deployed, no OS policy installed, nothing bought. Arnold's decision: keep #150. The revert, draft #156, is closed unmerged and is not to be reopened. This approval covers #150 only; W2 to W7 and #160 stay open until Arnold approves each in writing.
-2. **R-8, who may read prompts and replies (F-18).** The options and a recommendation are in PR #160. The default is unchanged until Arnold decides.
+2. **R-8, who may read prompts and replies (F-18): decided.** The sprint brief of 17 Nov chose #160's option D, recorded as D-023 in `docs/DECISIONS.md` and built in #249: prompt and reply text are not stored by default, and only the trust area can read them. #160 is closed because D-023 replaces it.
 3. **The five owner decisions** in `docs/MANAGED-WORKSPACE.md` section 8. W2 to W7 PRs stay open with `needs-arnold`.
 4. **D-022 (shared company accounts).** The Swangz app keeps refusing shared company accounts for the 20 Nov release; turns stay in the staff web app (`/go/`) and the extension. This changes what staff experience, so confirm or overrule it on the 15th. Known risk R-10: the web app's Open puts the turn's company-browser sign-in in a redirect address, so it lands in browser history.
 5. **The liquid footer (S4).** It makes every staff page scroll at 1440x852. Keep it everywhere, or only on Home and sign-in with a compact bottom row elsewhere (BRIEF section 15 would narrow).
