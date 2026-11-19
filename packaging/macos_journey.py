@@ -51,6 +51,7 @@ KEPT_AFTER_SIGNOUT = {"browser-profiles"}
 KEYCHAIN_SERVICE = "Swangz AI Hub"  # swangz_client/keystore.py SERVICE
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import secret_scan  # noqa: E402  packaging/secret_scan.py, the same scan the workflow runs over dist/
+import hub_journey  # noqa: E402  packaging/hub_journey.py, the workspace and F-18 steps both journeys run
 
 CODE = re.compile(r"\b([BCDFGHJKMNPQRSTVWXZ2-9]{4}-[BCDFGHJKMNPQRSTVWXZ2-9]{4})\b")
 
@@ -414,6 +415,11 @@ def main(argv=None):
                not leaks, ", ".join(leaks) or f"searched {data} and {j.evidence}")
         now = [k.get("last_used") for k in browser.my_devices() or []]
         j.step("Hub back: the server records the device's check-in", now != used and any(now), f"{used} -> {now}")
+
+        # deliverable 5 and F-18 (packaging/hub_journey.py): the workspace window, then prompt/reply privacy
+        owner = hub_journey.Console(app_url, "owner")
+        hub_journey.workspace(j.step, lambda *a: j.run([binary(app), *a], env=env), data, owner, fixture["person"])
+        hub_journey.f18(j.step, binary(app), env, app_url, owner, fixture["person"])
 
         keep = sorted(p.name for p in data.iterdir()) if data.exists() else []
         app = install(j, args.new, apps, args.new_app)
