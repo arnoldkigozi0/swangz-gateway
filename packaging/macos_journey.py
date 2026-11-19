@@ -84,13 +84,16 @@ def relay_class():
     return module.Relay
 
 
-def start_server():
+def start_server(public_url):
+    """The fixture Hub, announcing public_url (the relay) as its address, so the codes and links it hands the app are
+    on the server the app signed in to (the app refuses anything else)."""
     proc = subprocess.Popen([sys.executable, str(ROOT / "tests" / "browser" / "demo.py")], cwd=ROOT,
+                            env={**os.environ, "HUB_FIXTURE_PUBLIC_URL": public_url},
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     line = proc.stdout.readline()
     if not line:
         raise SystemExit("fixture server did not start: " + proc.stderr.read()[-2000:])
-    return proc, json.loads(line)["url"]
+    return proc, json.loads(line)["port"]
 
 
 class Browser:
@@ -199,14 +202,13 @@ def main(argv=None):
     data = home / "Library" / "Application Support" / "Swangz"
     login_item = home / "Library" / "LaunchAgents" / "com.swangzavenue.swangz.plist"
     env = {**os.environ, "BROWSER": "/usr/bin/true"}  # the code is approved by the fixture's browser, not Safari
-    server, url = start_server()
-    j.note("fixture server at " + url)
-    relay = relay_class()(urllib.parse.urlsplit(url).port)
+    relay = relay_class()(None)
     relay.start()
-    app_url = f"http://127.0.0.1:{relay.port}"  # the app reaches the Hub only through the relay; the browser goes direct
-    j.note("the app's Hub address (relay) " + app_url)
+    app_url = f"http://127.0.0.1:{relay.port}"  # the Hub's public address: everyone reaches it only through the relay
+    server, relay.target = start_server(app_url)  # the fixture's own port; relay.target is read per connection
+    j.note(f"fixture server on port {relay.target}, reached through the relay at {app_url}")
     try:
-        browser = Browser(url)
+        browser = Browser(app_url)
         j.step("person signs in to the staff app", browser.sign_in() == 200)
 
         app = install(j, args.old, apps)
