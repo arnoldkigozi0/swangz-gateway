@@ -88,7 +88,7 @@ Each cell is the evidence a runner job must produce. `n/a` = does not apply to t
 | Kind | Runner evidence (W and M) | TODAY | OWNER-only |
 |---|---|---|---|
 | I | a fresh install has no address; it is given by the person (`login --server`, the sign-in window) | not tested | |
-| S | scan of the built binary, archive and installer for keys, tokens, `.env`, company hostnames and common secret patterns: zero hits; a non-https address is refused except 127.0.0.1 (the rule is in `swangz_client/core.py`: https only, except `localhost`, `127.0.0.1` and `::1`; checked in code 18 Nov, the packaged-app test is still to write) | no scan exists | the production address itself |
+| S | scan of the built binary, archive and installer for keys, tokens, `.env`, company hostnames and common secret patterns: zero hits; a non-https address is refused except 127.0.0.1 (the rule is in `swangz_client/core.py`: https only, except `localhost`, `127.0.0.1` and `::1`; checked in code 18 Nov, the packaged-app test is still to write) | PASS on both runners: Windows and macOS scans clean (see the acceptance table); `--min-archives` makes an empty or wrong folder fail (#266). The packaged app's address rule is not tested | the production address itself |
 | R, U | the address survives restart and upgrade | not tested | |
 
 ### 5. Company-managed AI browser workspace, separate employee profiles
@@ -115,7 +115,7 @@ Needs #204 merged first. Today the only evidence is Linux, headless (#236).
 
 | Kind | Runner evidence (W and M) | TODAY | OWNER-only |
 |---|---|---|---|
-| R | (a) kill and relaunch: still signed in; (b) stop the CI Hub, wait past two heartbeats, restart it: the app is signed in again with no new code; (c) Hub down at app start: a clear message, no key deleted, no second code issued; (d) revoked while the Hub was away: refused on return, local data kept as documented | client logic and unit tests only; **no packaged-app run** | real laptop sleep, Wi-Fi switch, VPN (O-4 below) |
+| R | (a) kill and relaunch: still signed in; (b) stop the CI Hub, wait past two heartbeats, restart it: the app is signed in again with no new code; (c) Hub down at app start: a clear message, no key deleted, no second code issued; (d) revoked while the Hub was away: refused on return, local data kept as documented | (a) and (b) PASS on both runners (Windows: relay cut then restored; macOS: #263, same address, next sync succeeds, the Hub records a new check-in). (c) Hub down at app start and (d) revoked while away: **not run in a packaged app** | real laptop sleep, Wi-Fi switch, VPN (O-4 below) |
 | S | after an outage no log line exposes the key; offline never deletes a profile folder | not tested | |
 | U | restart after upgrade still signed in | PASS on both runners: after the upgrade the device is still signed in and checks in (Windows: heartbeat after upgrade; macOS: window opens, same device). Reconnect after a Hub outage is Windows only | |
 
@@ -124,7 +124,7 @@ Needs #204 merged first. Today the only evidence is Linux, headless (#236).
 | Kind | Runner evidence (W and M) | TODAY | OWNER-only |
 |---|---|---|---|
 | I | the name carries the version and `UNSIGNED`; the `sha256` file verifies on a clean runner | sidecar checksums exist and verify (Windows, macOS). The shipped version is `0.1.<patch + run number>`: two builds of one commit differ | |
-| S | two builds of the same commit give the same SHA-256, or the differing bytes are listed and explained (timestamps, signatures); an SBOM is attached; pinned tool versions are listed | no reproducibility check, no SBOM. Build tools: macOS pinned by version and SHA-256 (#253, `--require-hashes`); Windows PyInstaller pinned by version only, Inno Setup by SHA-256 | the approver reads the notes; they may not say production-ready |
+| S | two builds of the same commit give the same SHA-256, or the differing bytes are listed and explained (timestamps, signatures); an SBOM is attached; pinned tool versions are listed | Windows: two builds of one tree identical (program and installer); SBOM read (67 components) and validated by `cyclonedx-cli`. macOS: SBOM read (53 components, validated); **no macOS reproducibility check**. Build tools: macOS pinned by version and SHA-256 (#253, `--require-hashes`); Windows PyInstaller pinned by version only, Inno Setup by SHA-256 | the approver reads the notes; they may not say production-ready |
 
 ### 9. Controlled update architecture, updates disabled until signing
 
@@ -137,7 +137,7 @@ Needs #204 merged first. Today the only evidence is Linux, headless (#236).
 ### 10. Evidence from install, auth, restart, security, upgrade and uninstall
 
 One `release-evidence` workflow runs rows 1 to 9 on both runners and uploads logs, a JSON report and the checksums. It
-writes a table keyed by commit and SHA-256. Today: **none exists**. Every OWNER cell above is recorded by whoever ran it.
+writes a table keyed by commit and SHA-256. Today there is no single combined workflow: each platform's own workflow (`release-windows.yml`, `build-macos.yml`) uploads its logs, JSON report, checksums and SBOM, and the acceptance table below joins them. Every OWNER cell above is recorded by whoever ran it.
 
 ## Results read by Probe
 
@@ -188,6 +188,32 @@ Main `1a38664` (after #259 and #260): `Hub checks` and `macOS app (RC, unsigned)
 | 9 / 1-U older build refused | PASS (runner) | after upgrading 0.1.0 to 0.1.25, installing 0.1.0 over it aborts: "Swangz 0.1.25 is already installed. This installer is an older version (0.1.0) and will not replace it." | that the sign-in and profile marker survive the refusal (the report's wording not re-read for this) |
 | 1-S, 4-S secret scan | PASS (runner), PR #258 VERIFIED by Probe | 11 files, 1318 inner entries, `dist\Swangz.exe` opened as a PyInstaller archive, 0 hits, 0 unreadable. A planted fake key, API_KEY assignment, tunnel address and `.env` were all caught (exit 1) in Probe's own run; the report masks values | the setup .exe is scanned as raw bytes only (LZMA payload); macOS scan not wired |
 
+SBOM (#260): read from the runs below (row 8).
+
+## Acceptance table, main `46bdec1` (rows 5, 6 and 10 updated at `8013574`), read 19 Nov 2026 (runner scope; every build is an unsigned internal RC, not production)
+
+Runs read by Probe: Windows https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44448432643 (`workflow_dispatch` on main; the Windows workflow runs on pull requests only), macOS https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44446670259 (push to main), Hub checks https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44446670258 (python 3.10 and 3.12 and app-window success; `browser` was still running when I read it, so the Hub suite is not yet green on this commit).
+Artifacts: `Swangz-Setup-0.1.38-UNSIGNED.exe`, SHA-256 `61595534f526977a…` (sidecar and my `sha256sum` equal); `Swangz-0.1.41-RC-UNSIGNED-macos-arm64.dmg`, SHA-256 `e7dddf4e642d5d9c…`.
+
+| # | Deliverable | Runner result | Open, not proven |
+|---|---|---|---|
+| 1 | Windows installer | **PASS**: silent install, launch, enrol, restart, network cut and return, upgrade over a running copy, older build refused, sign out, uninstall while running; secret scan clean (1,318 entries, 0 hits) | SmartScreen, reboot with start on login, second Windows user (OWNER); install-folder ACL not listed |
+| 2 | macOS app and DMG | **PASS**: 41 journey steps; DMG and `.app` checks, `codesign` intact (ad hoc), Gatekeeper rejects the unsigned RC as documented; the mounted DMG's app equals the scanned build and the mounted volume is scanned (0 hits); upgrade in place; sign out removes the login item; only `browser-profiles` kept | Developer ID, notarization, a real first open, real Keychain (OWNER) |
+| 3 | Enrolment and approved sign-in | **PASS** for code, approval, sign-in, sync, sign out and revoke on both runners | wrong, expired and reused codes and non-company emails through the packaged app (Hub unit tests only); real Google sign-in (OWNER) |
+| 4 | Server address, no embedded secrets | **PARTIAL**: both scans clean; empty or wrong scan folders now fail (#266, tested here with synthetic folders: exit 1 for an empty folder, exit 1 for `--min-archives 1` on a plain folder, exit 2 for a missing path) | a fresh install has no address and a non-https address is refused: not tested in the packaged app; the production address (OWNER) |
+| 5 | Company browser workspace, separate profiles | **PARTIAL (runner)** since #270: on both runners the installed app opens a granted tool in a real Google Chrome window on one per-person folder inside its own data folder; the folder's marker matches this person and this device; Chrome wrote `Local State` there; the Hub records the open. 6 steps on each OS | a second person getting a different folder; the profile and its marker surviving an upgrade (not asserted); ACLs and a second OS user (OWNER); a real provider sign-in (OWNER); proof of the Chrome command line (only `Local State` is checked) |
+| 6 | Staff reporting and admin functions; F-18; machine policy | **PARTIAL**: F-18 (#249) and policy integrity (#248) merged with Hub tests; since #270 a **packaged F-18 round trip PASSES on both runners** (9 steps: storage off by default; request with the app's own credential recorded with no prompt or reply; owner turns storage on; trust role reads the prompt; viewer gets `content=withheld`; storage off again); staff and admin screens by the app-window and browser suites | the "off" check reads the console API only, not the database, WAL or logs; the packaged app's grants after restart; machine-policy tamper through the packaged app |
+| 7 | Reconnect after restart or outage | **PASS** for relaunch and Hub unreachable then back, on both runners | Hub down at app start; revoked while away; key never in logs after an outage; sleep, Wi-Fi, VPN (OWNER) |
+| 8 | Versioned artifacts, checksums, reproducibility, notes | **PASS** checksums both; **PASS** Windows reproducibility (program `3d7f9e40…`, installer `61595534…`, both `identical: true`); SBOM read on both (Windows 67 components, macOS 53, CycloneDX 1.5, tool-validated); RC notice and `RELEASE-NOTES-RC.md` exist | macOS reproducibility not checked; version is `0.1.<run>`, so two runs of one commit differ in name and hash |
+| 9 | Updates off until signing | **PARTIAL**: `updates off, no release keys` in the self-check on both; Windows refuses an older build over a newer one; upgrade N+1 over N PASS on both | macOS older-build refusal; a tampered or older update package through the packaged app (unit tests only); enabling updates is Arnold's decision (OWNER) |
+| 10 | Evidence from install, auth, restart, security, upgrade, uninstall | **PASS for what the runners can do** (Windows run 44455161915 and macOS run 44455029714, both on main `8013574`, both success): the two platform workflows produce the logs, reports, checksums and SBOMs listed above | OWNER-only checklist O-1 to O-7 has no results yet |
+
+**Probe's reading of #263 and #266 (main):** both hold at the level stated, with limits from GPT-6.1 Sol (read-only; the author is Claude, so it is the independent vendor) that I confirmed in `packaging/macos_journey.py`:
+- "Hub unreachable" cuts a relay in front of a running Hub; it does not stop the Hub process, so a Hub restart is not tested.
+- "No new sign-in" is inferred from the next sync succeeding without `reconnect` set and the Hub's `last_used` changing. The journey does not compare the key itself or count sign-in codes.
+- "Byte-for-byte" compares names, entry types, file SHA-256, symlink targets and executability, not other modes, ownership or extended attributes.
+- The mounted-DMG compare and scan are skipped if `--new-app` is omitted (CI passes it).
+
 ### SBOM rows, artifacts read by Probe on 19 Nov 2026
 
 Both files are CycloneDX 1.5 JSON, produced and checked by the official `cyclonedx-cli` 0.33.1 (pinned by SHA-256) in the job log: `BOM validated successfully.`
@@ -200,6 +226,18 @@ Both files are CycloneDX 1.5 JSON, produced and checked by the official `cyclone
 The macOS secret scan in the same artifact (`evidence/secret-scan.json`): 771 files, 805 inner entries, 0 hits, nothing unreadable. The DMG's `READ ME FIRST.txt` is listed by the journey ("holds the app, an Applications link and the RC notice") but is not itself scanned or proven equal to the scanned `.app`; a follow-up PR for that was asked of Forge on 19 Nov and had not landed when I wrote this.
 
 Row 8 SBOM: PASS on both runners for the unsigned RC; that the SBOM matches a tagged, reproducible release is still open. The Windows and macOS file versions differ (0.1.26 and 0.1.28) because each run built its own workflow's version; that is noted, not a defect I can judge.
+
+### #270 post-merge, main `8013574`, read 19 Nov 2026 (deliverables 5 and 6)
+
+Runs: Windows https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44455161915 (started by hand, `workflow_dispatch`; `report.json` ok, 0.1.45, 15 steps including the 6 workspace and 9 F-18 steps), macOS https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44455029714 (push to main, success, 56 PASS lines in the log, SBOM 53 components, secret scan CLEAN 772 files, 0 hits). The same steps passed on the PR runs 44451865923 (Windows) and 44451865888 (macOS). Hub checks on `46bdec1` were success (run 44446670258); the run on `8013574` was still going when I wrote this.
+
+**Probe:** #270 does what it says at the level stated. **GPT-6.1 Sol** (read-only; Forge is Claude, so it is the independent vendor) found limits, which I confirmed in `packaging/hub_journey.py`:
+- F-18 "off" proves only that the console API record has no prompt text. It does not scan the database, orphaned body blobs, the SQLite WAL or server logs, and does not assert the reply field is empty by a reply sentinel. (My own earlier DB-wide scan for D-023 covered cells of every table; this journey does not.)
+- The workspace step shows one folder, one marker that matches the manifest, `Local State` present and one recorded open. It does not show a second person getting a separate folder, the Chrome command line, or that the profile survives an upgrade (macOS lists top-level names only; Windows checks device and key).
+- Possible false passes: `newest()` turns an error into 0, `record()` can pick another request if two run at once (CI is serial), and the detail call's HTTP status is not checked, so an error body would satisfy "off".
+- `close_chrome()` ends processes by matching the folder in the command line, with no check that they exited. The app's `open` output is kept in the evidence, so a leaked key would be kept there; the scan does cover the evidence folder.
+
+Fix tasks: (1) in the F-18 step, also scan the fixture database and logs for the `off` marker and assert the reply is empty; check the detail call returns 200. (2) After the upgrade, assert the workspace folder and its marker are still there, and add a second person with their own folder.
 
 ## Owner-only checklist (never closed by a runner)
 
