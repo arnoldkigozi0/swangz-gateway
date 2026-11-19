@@ -148,11 +148,24 @@ def differences(a, b, limit=10):
             for k in keys if a.get(k) != b.get(k)][:limit]
 
 
+VOLUME_CONTENT = {"Swangz.app", "Applications", "READ ME FIRST.txt"}
+# What macOS itself puts on a mounted HFS+ volume; any other hidden entry fails the check above.
+VOLUME_SYSTEM = {".fseventsd", ".Trashes", ".Spotlight-V100", ".DS_Store", ".HFS+ Private Directory Data\r",
+                 ".journal", ".journal_info_block"}
+
+
 def check_mounted(j, mount, expected_app, report):
     """What a person actually gets: the mounted DMG's app must be the very app the workflow scanned and listed
-    in the SBOM, and everything else on the volume (READ ME FIRST.txt included) is secret-scanned too.
+    in the SBOM, and the volume must hold only the app, READ ME FIRST.txt and the Applications link (plus macOS's own
+    system entries), and every visible file on it is secret-scanned.
     The Applications link and the volume's hidden system folders (.fseventsd, .Trashes) are not content."""
     mount = Path(mount)
+    top = {p.name for p in mount.iterdir()}
+    extra = sorted(top - VOLUME_CONTENT - VOLUME_SYSTEM)
+    link = mount / "Applications"
+    j.step("the volume holds nothing else: the app, the RC notice, an Applications link to /Applications",
+           VOLUME_CONTENT <= top and not extra and link.is_symlink() and os.readlink(link) == "/Applications",
+           ", ".join(sorted(top)) + (f"; unexpected: {', '.join(extra)}" if extra else ""))
     got, want = tree_digest(mount / "Swangz.app"), tree_digest(expected_app)
     j.step("the app inside the mounted DMG is byte-for-byte the scanned build", got == want,
            f"{len(got)} entries compared with {expected_app}" if got == want else "; ".join(differences(got, want)))
@@ -160,7 +173,7 @@ def check_mounted(j, mount, expected_app, report):
     result = secret_scan.scan(paths)
     Path(report).write_text(json.dumps(result, indent=2), encoding="utf-8")
     opened = sum(a["pyinstaller"] for a in result["archives"])  # the app's program must be opened, not skipped
-    j.step("secret scan of the mounted DMG (app, RC notice, every file on the volume)",
+    j.step("secret scan of the mounted DMG (the app and the RC notice: every visible file on the volume)",
            not result["hits"] and not result["unreadable"] and opened >= 1,
            f"{', '.join(p.name for p in paths)}: {len(result['files'])} files, {opened} PyInstaller archives opened, "
            f"{result['inner_entries_scanned']} archive entries, {len(result['unreadable'])} unreadable, "

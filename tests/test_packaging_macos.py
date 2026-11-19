@@ -160,7 +160,7 @@ class MountedDmgTests(unittest.TestCase):
 
     def test_identical_clean_volume_passes_and_the_report_lists_the_notice(self):
         results = self.check()
-        self.assertEqual([r["result"] for r in results], ["pass", "pass"])
+        self.assertEqual([r["result"] for r in results], ["pass", "pass", "pass"])
         report = json.loads((self.dir / "ev" / "secret-scan-dmg.json").read_text())
         self.assertTrue(any(f.endswith("READ ME FIRST.txt") for f in report["files"]))
         self.assertFalse(any("Applications" in f or ".fseventsd" in f for f in report["files"]))
@@ -190,6 +190,19 @@ class MountedDmgTests(unittest.TestCase):
             self.check()
         self.assertEqual(self.journey.results[-1]["result"], "FAIL")
         self.assertIn("Anthropic key", self.journey.results[-1]["detail"])
+
+    def test_a_hidden_or_unexpected_entry_on_the_volume_fails(self):
+        (self.mount / ".hidden").write_text("sk-ant-" + "a1" * 20)
+        with self.assertRaises(SystemExit):
+            self.check()
+        self.assertIn("unexpected: .hidden", self.journey.results[-1]["detail"])
+
+    def test_an_applications_link_pointing_elsewhere_fails(self):
+        self.os.remove(self.mount / "Applications")
+        self.os.symlink("/tmp", self.mount / "Applications")
+        with self.assertRaises(SystemExit):
+            self.check()
+        self.assertEqual(self.journey.results[-1]["result"], "FAIL")
 
     def test_a_volume_whose_program_could_not_be_opened_fails(self):
         with __import__("unittest.mock").mock.patch.object(self.j_mod.secret_scan, "scan_pyinstaller", return_value="not a PyInstaller program"):

@@ -85,7 +85,8 @@ jobs:
             --new-app dist/Swangz.app
       - name: Secret scan (app, DMG, checksums, SBOM and the journey logs)
         # The app is opened entry by entry (its module archive included). The DMG is compressed, so the journey mounts it,
-        # proves its app equals dist/Swangz.app and scans the whole volume, READ ME FIRST.txt included (secret-scan-dmg.json).
+        # proves its app equals dist/Swangz.app checks the volume holds nothing else and scans every
+        # visible file on it, READ ME FIRST.txt included (secret-scan-dmg.json).
         run: >-
           python packaging/secret_scan.py --report evidence/secret-scan.json --summary "$GITHUB_STEP_SUMMARY"
           --min-archives 2 dist evidence
