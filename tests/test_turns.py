@@ -93,6 +93,22 @@ class TakingATurnTests(TurnBase):
         self.assertEqual(self.go_as_other("midjourney")[0], 302)
         self.assertEqual(self.rig.gw.db.scalar("SELECT COUNT(*) FROM tool_turns WHERE ended IS NULL"), 2)
 
+    def test_two_holders_are_named_with_are_and_still_count_as_a_wait(self):
+        self.rig.api("PATCH", "/tools/midjourney", {"seats_at_once": 2})
+        third = self.rig.gw.db.x("INSERT INTO people(name, email, department, status, created, pw_hash) VALUES(?,?,?,?,?,?)",
+                                 ("Akello Joy", "joy@swangzavenue.com", "Creative", "active", time.time(),
+                                  security.hash_password("third-long-pw", 1000))).lastrowid
+        self.rig.api("POST", f"/people/{third}/tools/midjourney")
+        self.go("midjourney")
+        self.go_as_other("midjourney")
+        _, h, _ = self.rig.request("POST", "/api/login", {"email": "joy@swangzavenue.com", "password": "third-long-pw"},
+                                   {"x-swangz-app": "1"})
+        status, _, body = self.rig.request("GET", "/go/midjourney", None, {"cookie": h["set-cookie"].split(";")[0]})
+        self.assertEqual(status, 403)
+        self.assertIn("Nansubuga Grace, Okello Brian are using the shared Midjourney account until", body.decode())
+        status, out = self.rig.api("POST", "/simulate/seats", {"tool_id": "midjourney", "seats": 2})
+        self.assertEqual((status, out["shared"]["waits_30d"]), (200, 1), "the seat simulator still counts the wait")
+
     def test_a_tool_that_is_not_shared_needs_no_turn(self):
         self.enable("canva")
         self.assertEqual(self.go("canva")[0], 302)

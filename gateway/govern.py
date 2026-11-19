@@ -666,7 +666,8 @@ def simulate_seats(ctx):
             level += step
             peak = max(peak, level)
         waits = ctx.db.scalar("SELECT COUNT(*) FROM launches WHERE tool_id = ? AND ts >= ? AND outcome = 'refused'"
-                              " AND reason LIKE '%is using the shared%'", (tool["id"], now - 30 * DAY)) or 0
+                              " AND (reason LIKE '%is using the shared%' OR reason LIKE '%are using the shared%')",
+                              (tool["id"], now - 30 * DAY)) or 0
         out["shared"] = {"seats_at_once": turns.seats(tool), "peak_at_once_30d": peak, "turns_30d": len(intervals), "waits_30d": waits}
         out["notes"].append("For a shared account, seats are how many people can hold it at once; everyone assigned can take turns.")
     return out

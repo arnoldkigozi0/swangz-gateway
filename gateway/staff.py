@@ -538,7 +538,7 @@ def launch(h, gw, tool_id):
         if not turn:
             who = ", ".join(t["person"] for t in busy)
             until = min(t["expires"] for t in busy)
-            ok, reason = False, (f"{who} is using the shared {tool['name']} account until "
+            ok, reason = False, (f"{who} {'are' if len(busy) > 1 else 'is'} using the shared {tool['name']} account until "
                                  f"{_clock(gw, until)}. You'll get it next — try again then.")
         elif pool and not browser:
             ok, reason = False, full
