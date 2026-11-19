@@ -100,17 +100,31 @@ def relay_class():
     return module.Relay
 
 
-def start_server(public_url, log):
+def start_server(public_url, log, data=None, port=None):
     """The fixture Hub, announcing public_url (the relay) as its address, so the codes and links it hands the app are
-    on the server the app signed in to (the app refuses anything else). Its log goes to `log` (the F-18 scan reads it)."""
+    on the server the app signed in to (the app refuses anything else). Its log goes to `log` (the F-18 scan reads it).
+    With `data` and `port` it is a restart: a new process on the same data folder and port, nothing seeded again."""
+    extra = {"HUB_FIXTURE_DATA": str(data), "HUB_FIXTURE_PORT": str(port)} if data else {}
     with open(log, "ab") as err:
         proc = subprocess.Popen([sys.executable, str(ROOT / "tests" / "browser" / "demo.py")], cwd=ROOT,
-                                env={**os.environ, "HUB_FIXTURE_PUBLIC_URL": public_url},
+                                env={**os.environ, "HUB_FIXTURE_PUBLIC_URL": public_url, "HUB_FIXTURE_KEEP": "1", **extra},
                                 stdout=subprocess.PIPE, stderr=err, text=True)
     line = proc.stdout.readline()
     if not line:
         raise SystemExit("fixture server did not start: " + Path(log).read_text(errors="replace")[-2000:])
     return proc, json.loads(line)
+
+
+def stop_server(proc):
+    """Stop the fixture Hub process (SIGTERM, as a service manager would); its data folder stays."""
+    proc.terminate()
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=10)
+    if proc.stdout:
+        proc.stdout.close()
 
 
 class Browser:
@@ -428,6 +442,30 @@ def main(argv=None):
         now = [k.get("last_used") for k in browser.my_devices() or []]
         j.step("Hub back: the server records the device's check-in", now != used and any(now), f"{used} -> {now}")
 
+        # a real Hub process restart (row 2-R): the Hub process stops, and a new one starts on the same address and data
+        synced, used, codes, old_pid = state().get("last_sync"), now, sign_in_codes(db), server.pid
+        stop_server(server)
+        j.step("Hub process stopped", server.returncode is not None, f"pid {old_pid}, exit {server.returncode}")
+        code, out = j.run([binary(app), "sync"], env=env)
+        j.step("Hub stopped: sync fails and says so, the device record is kept", code != 0 and "Couldn't reach" in out
+               and state().get("last_sync") == synced and (data / "device.json").is_file(), f"exit {code}")
+        time.sleep(1.1)  # last_used is stored to the second
+        server, again = start_server(app_url, hub_log, data=fixture["data"], port=fixture["port"])
+        j.step("Hub restarted: a new process on the same port and data", server.pid != old_pid
+               and again["port"] == fixture["port"] and again["data"] == fixture["data"],
+               f"pid {old_pid} -> {server.pid}, port {again['port']}, data {again['data']}")
+        code, out = j.run([binary(app), "sync"], env=env)
+        device = json.loads((data / "device.json").read_text(encoding="utf-8"))
+        j.step("Hub restarted: the next sync succeeds with no new sign-in",
+               code == 0 and (state().get("last_sync") or 0) > (synced or 0) and not device.get("reconnect"), f"exit {code}")
+        after = keychain_secret(app_url, device.get("key_id"))
+        j.step("Hub restarted: the same device key, unchanged in the keychain", device.get("key_id") == key_id and after == secret,
+               f"key {key_id} -> {device.get('key_id')}, secret sha256 {fingerprint(secret)} -> {fingerprint(after)}")
+        j.step("Hub restarted: the Hub issued no new sign-in code", sign_in_codes(db) == codes, f"codes (count, newest id) {codes}")
+        now = [k.get("last_used") for k in browser.my_devices() or []]
+        j.step("Hub restarted: the server records the device's check-in (the browser session survived too)",
+               now != used and any(now), f"{used} -> {now}")
+
         # deliverable 5 and F-18 (packaging/hub_journey.py): the workspace window, then prompt/reply privacy
         owner = hub_journey.Console(app_url, "owner")
         run_app = lambda *a: j.run([binary(app), *a], env=env)  # noqa: E731  `app` is read at call time (upgrade)
@@ -436,6 +474,7 @@ def main(argv=None):
         hub_journey.f18(j.step, binary(app), env, app_url, owner, fixture["person"], fixture["data"], [hub_log])
 
         keep = sorted(p.name for p in data.iterdir()) if data.exists() else []
+        address = json.loads((data / "device.json").read_text(encoding="utf-8")).get("server")
         app = install(j, args.new, apps, args.new_app)
         code, out = j.run([binary(app), "--version"], env=env)
         j.step("upgraded in place to the new build", code == 0 and args.new_version in out, out)
@@ -447,6 +486,10 @@ def main(argv=None):
                and data.exists() and set(keep) <= {p.name for p in data.iterdir()}, ", ".join(keep))
         j.step("window opens after upgrade", launch_and_quit(j, app, j.evidence / "3-after-upgrade.png"))
         hub_journey.kept(j.step, data, folder, marker, "after the upgrade")
+        moved = json.loads((data / "device.json").read_text(encoding="utf-8")).get("server")
+        code, out = j.run([binary(app), "sync"], env=env)
+        j.step("after upgrade: the Hub address is unchanged and the new build syncs to it",
+               address == moved == app_url and code == 0, f"{address} -> {moved}, sync exit {code}")
 
         # 5b (row 9): a person drags the older build over the newer one; it refuses to run and changes nothing
         device = json.loads((data / "device.json").read_text(encoding="utf-8"))
@@ -518,11 +561,8 @@ def main(argv=None):
         j.step("no Swangz process left running", not pids(app))
     finally:
         relay.stop()
-        server.terminate()
-        try:
-            server.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            server.kill()
+        stop_server(server)
+        shutil.rmtree(fixture["data"], ignore_errors=True)  # the fixture keeps its data on stop (for the restart)
     j.note(f"journey passed: {len(j.results)} steps")
     return 0
 

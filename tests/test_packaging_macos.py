@@ -179,6 +179,23 @@ class JourneyGapTests(unittest.TestCase):
         self.assertNotIn("j.note(secret", self.text)
         self.assertNotIn("{secret}", self.text)
 
+    def test_a_real_hub_process_restart_on_the_same_address_and_data(self):
+        restart = self.main.split("# a real Hub process restart", 1)[1].split("# deliverable 5", 1)[0]
+        steps = ["stop_server(server)", "server.returncode is not None", "Couldn't reach",
+                 'start_server(app_url, hub_log, data=fixture["data"], port=fixture["port"])', "server.pid != old_pid",
+                 'not device.get("reconnect")', "after == secret", "sign_in_codes(db) == codes", "now != used"]
+        at = [restart.index(s) for s in steps]
+        self.assertEqual(at, sorted(at), "the restart steps are out of order")
+        self.assertNotIn("relay.stop()", restart)  # the process stops, not the relay
+        self.assertIn('"HUB_FIXTURE_KEEP": "1"', self.text)
+        self.assertIn('shutil.rmtree(fixture["data"]', self.main.split("finally:")[-1])
+
+    def test_the_hub_address_survives_the_upgrade_as_its_own_step(self):
+        upgrade = self.main.split("keep = sorted", 1)[1].split("# 5b (row 9)", 1)[0]
+        self.assertLess(upgrade.index('.get("server")'), upgrade.index("install(j, args.new, apps, args.new_app)"))
+        self.assertIn("after upgrade: the Hub address is unchanged", upgrade)
+        self.assertIn("address == moved == app_url and code == 0", upgrade)
+
     def test_the_older_build_over_the_newer_refuses_and_changes_nothing(self):
         older = self.main.split("# 5b (row 9)", 1)[1].split("sign out", 1)[0]
         for needle in ("install(j, args.old, apps)", '("status", "sync")', "code == 5",
@@ -303,3 +320,43 @@ class MountedDmgTests(unittest.TestCase):
                 self.check()
         self.assertEqual(self.journey.results[-1]["result"], "FAIL")
         self.assertIn("0 PyInstaller archives opened", self.journey.results[-1]["detail"])
+
+
+class FixtureRestartTests(unittest.TestCase):
+    """tests/browser/demo.py restart mode: a new process reopens the same data folder on the same port, seeds nothing."""
+
+    def start(self, env):
+        import os
+        import subprocess
+        import sys
+        proc = subprocess.Popen([sys.executable, str(ROOT / "tests" / "browser" / "demo.py")], cwd=ROOT,
+                                env={**os.environ, "HUB_FIXTURE_KEEP": "1", **env}, stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, text=True)
+        self.addCleanup(lambda: proc.poll() is None and (proc.kill(), proc.wait()))
+        return proc, json.loads(proc.stdout.readline())
+
+    def stop(self, proc):
+        proc.terminate()
+        proc.wait(timeout=20)
+        proc.stdout.close()
+
+    def test_restart_reopens_the_same_data_and_port_without_seeding(self):
+        import shutil
+        import sqlite3
+        import urllib.request
+        first, a = self.start({})
+        self.addCleanup(shutil.rmtree, a["data"], True)
+        db = Path(a["data"]) / "gateway.db"
+        count = lambda: sqlite3.connect(db).execute(
+            "SELECT (SELECT COUNT(*) FROM people), (SELECT COUNT(*) FROM keys), (SELECT COUNT(*) FROM admins)").fetchone()
+        self.stop(first)
+        self.assertTrue(db.is_file(), "HUB_FIXTURE_KEEP leaves the data folder behind")
+        before = count()
+        second, b = self.start({"HUB_FIXTURE_DATA": a["data"], "HUB_FIXTURE_PORT": str(a["port"])})
+        self.assertNotEqual(a["pid"], b["pid"])
+        self.assertEqual((a["port"], a["data"], a["person"], a["key"]), (b["port"], b["data"], b["person"], b["key"]))
+        with urllib.request.urlopen(f"http://127.0.0.1:{b['port']}/healthz", timeout=10) as r:
+            self.assertEqual(r.status, 200)
+        self.assertEqual(count(), before, "a restart seeds nothing again")
+        self.stop(second)
+        self.assertTrue(db.is_file())
