@@ -11,6 +11,27 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from gateway import authz, security
 from tests.support import Rig
 
+KEEP = bool(os.environ.get("HUB_FIXTURE_KEEP"))  # leave the data folder behind on stop, so it can be restarted
+
+
+def serve(rig, reports=()):
+    print(json.dumps({"reports": list(reports), "url": rig.settings.public_url, "port": rig.port, "person": rig.person_id,
+                      "key": rig.key_id, "session": "local-ui-session", "data": rig.tmp, "pid": os.getpid()}), flush=True)
+    stop = threading.Event()
+    signal.signal(signal.SIGTERM, lambda *_: stop.set())
+    signal.signal(signal.SIGINT, lambda *_: stop.set())
+    stop.wait()
+
+
+if os.environ.get("HUB_FIXTURE_DATA"):  # a Hub process restart: the same data folder and port, nothing seeded again
+    rig = Rig(data_dir=os.environ["HUB_FIXTURE_DATA"], port=int(os.environ.get("HUB_FIXTURE_PORT") or 0))
+    try:
+        rig.settings.public_url = os.environ.get("HUB_FIXTURE_PUBLIC_URL") or f"http://127.0.0.1:{rig.port}"
+        serve(rig)
+    finally:
+        rig.close(keep=KEEP)
+    sys.exit(0)
+
 rig = Rig()
 try:
     rig.settings.public_url = os.environ.get("HUB_FIXTURE_PUBLIC_URL") or f"http://127.0.0.1:{rig.port}"
@@ -60,10 +81,6 @@ try:
         for i in range(40):
             rig.gw.db.x("INSERT INTO requests(ts,person_id,provider,method,path,kind,client,outcome,reason,media_type,prompt,result_urls) VALUES(?,?,'higgsfield','POST','/v1/image','media','Swangz AI Hub Studio','error','The service couldn''t make this one. Try again.','image',?,'[]')",
                         (now-(40-i)*60,rig.person_id,"Synthetic creation "+str(i+1)))
-    print(json.dumps({"reports": reports, "url": rig.settings.public_url, "port": rig.port, "person": rig.person_id, "key": rig.key_id, "session": "local-ui-session", "data": rig.tmp}), flush=True)
-    stop = threading.Event()
-    signal.signal(signal.SIGTERM, lambda *_: stop.set())
-    signal.signal(signal.SIGINT, lambda *_: stop.set())
-    stop.wait()
+    serve(rig, reports)
 finally:
-    rig.close()
+    rig.close(keep=KEEP)

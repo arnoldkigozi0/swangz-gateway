@@ -22,9 +22,10 @@ warnings.simplefilter("ignore", ResourceWarning)
 class Rig:
     """A gateway in front of a fake provider, with one owner, one viewer, and one person holding a key."""
 
-    def __init__(self):
+    def __init__(self, data_dir=None, port=0):
+        """data_dir reopens an existing gateway's data on `port` (a restart) and seeds nothing."""
         self.fake = FakeUpstream()
-        self.tmp = tempfile.mkdtemp(prefix="sgw-test-")
+        self.tmp = data_dir or tempfile.mkdtemp(prefix="sgw-test-")
         os.environ["FAKE_ANTHROPIC_KEY"] = "sk-ant-provider-secret"
         os.environ["FAKE_OPENAI_KEY"] = "sk-openai-provider-secret"
         providers = {
@@ -36,13 +37,19 @@ class Rig:
         }
         os.environ["FAKE_ELEVEN_KEY"] = "eleven-provider-secret"
         os.environ["FAKE_HF_KEY"] = "hf-id:hf-provider-secret"
-        self.settings = Settings(host="127.0.0.1", port=0, data_dir=self.tmp, pbkdf2_iterations=1000,
+        self.settings = Settings(host="127.0.0.1", port=port, data_dir=self.tmp, pbkdf2_iterations=1000,
                                  providers=providers, public_url="https://ai.example.test")
         self.server, self.gw = make_server(self.settings)
         self.port = self.server.server_address[1]
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
-        now = time.time()
+        self.cookies = {}
         db = self.gw.db
+        if data_dir:
+            self.person_id = db.scalar("SELECT MIN(id) FROM people")
+            self.key_id = db.scalar("SELECT id FROM keys ORDER BY created, id LIMIT 1")
+            self.key = None  # only its hash is stored
+            return
+        now = time.time()
         db.x("INSERT INTO admins(username, pw_hash, role, created) VALUES(?,?,?,?)",
              ("owner@swangzavenue.com", security.hash_password("owner-password", 1000), "owner", now))
         db.x("INSERT INTO admins(username, pw_hash, role, created) VALUES(?,?,?,?)",
@@ -57,12 +64,13 @@ class Rig:
                  (tool_id, self.person_id, now))
         self.cookies = {}
 
-    def close(self):
+    def close(self, keep=False):
         self.server.shutdown()
         self.server.server_close()
         self.gw.db.close()
         self.fake.close()
-        shutil.rmtree(self.tmp, ignore_errors=True)
+        if not keep:
+            shutil.rmtree(self.tmp, ignore_errors=True)
 
     # ------------------------------------------------------------ raw HTTP
 
