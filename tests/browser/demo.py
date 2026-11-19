@@ -60,7 +60,7 @@ try:
         for i in range(40):
             rig.gw.db.x("INSERT INTO requests(ts,person_id,provider,method,path,kind,client,outcome,reason,media_type,prompt,result_urls) VALUES(?,?,'higgsfield','POST','/v1/image','media','Swangz AI Hub Studio','error','The service couldn''t make this one. Try again.','image',?,'[]')",
                         (now-(40-i)*60,rig.person_id,"Synthetic creation "+str(i+1)))
-    print(json.dumps({"reports": reports, "url": rig.settings.public_url, "port": rig.port, "person": rig.person_id, "key": rig.key_id, "session": "local-ui-session"}), flush=True)
+    print(json.dumps({"reports": reports, "url": rig.settings.public_url, "port": rig.port, "person": rig.person_id, "key": rig.key_id, "session": "local-ui-session", "data": rig.tmp}), flush=True)
     stop = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
