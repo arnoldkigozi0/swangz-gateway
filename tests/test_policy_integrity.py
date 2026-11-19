@@ -241,6 +241,19 @@ class OpenGateTests(Base):
         self.assertEqual(len(started), 1)
         self.assertEqual(self.db.scalar("SELECT policy_sha FROM devices WHERE device_id = ?", (self.did,)), SHA)
 
+    def test_tamper_restore_and_open_are_audited_both_ways(self):
+        c, started = self.app("enforce", {"ok": True, "sha256": SHA})
+        self.beat({"browser_contract": 2, "policy": {"ok": True, "sha256": SHA}})
+        self.beat({"browser_contract": 2, "policy": {"ok": False, "sha256": OTHER_SHA}})  # tampered
+        self.assertEqual(c.open_app("canva"), "workspace")  # restored: Open carries the passing result
+        self.assertEqual(len(started), 1)
+        self.beat({"browser_contract": 2, "policy": {"ok": True, "sha256": SHA}})  # still passing: no new line
+        rows = self.db.q("SELECT action, before_json, after_json FROM audit WHERE correlation = ? AND action LIKE '%browser policy%'"
+                         " ORDER BY id", (f"device:{self.did}",))
+        self.assertEqual([r["action"] for r in rows], ["device reported its browser policy is not in force",
+                                                       "device reported its browser policy is in force again"])
+        self.assertEqual(json.loads(rows[1]["after_json"])["sha256"], SHA)
+
     def test_open_records_the_report_it_carries_and_a_failing_one_is_refused_and_audited(self):
         self.app("enforce", {"ok": True, "sha256": SHA})
         self.beat({"browser_contract": 2, "policy": {"ok": True, "sha256": SHA}})

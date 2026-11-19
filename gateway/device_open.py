@@ -111,7 +111,8 @@ def device_open(ctx):
         raise ApiError(429, f"Too many opens. The limit is {OPENS_PER_MIN} a minute; wait a moment.", "rate_limited")
     # An app with a policy check sends the result it just took (`policy`, the heartbeat's shape). Recorded first, so a
     # pack put back after a failing report opens now rather than at the next heartbeat; a failing one is recorded and
-    # refused as from a heartbeat. The same app's claim as the heartbeat's: it is only ever used to refuse.
+    # refused as from a heartbeat. It is the same app's claim as the heartbeat's, with the same weight: a failing one
+    # refuses, and a passing one with the baseline hash clears an earlier failing report (audited both ways).
     managed.record_policy_report(ctx, person, device, time.time())
     tool_id = ctx.body.get("tool")
     tool = ctx.db.one("SELECT * FROM tools WHERE id = ? AND archived = 0", (tool_id,)) \
