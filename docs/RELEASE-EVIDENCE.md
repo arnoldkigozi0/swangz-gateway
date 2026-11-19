@@ -178,6 +178,18 @@ Main at `e27ceb4` (#252 merged `0075869`, #253 merged `dadf6de`, this matrix mer
 - **macOS**, run https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44391151264 (main `dadf6de`): journey success. `Swangz-0.1.10-RC-UNSIGNED-macos-arm64.dmg`; old 0.1.0 installed, upgraded in place to 0.1.10 with data kept; "start at login still on before sign out", then sign out, then "sign out removed the login item" (no `autostart off` beforehand); keychain item gone; only `browser-profiles` kept (R-12); no Swangz process left.
 - **Not proven by a runner:** sign out removing the Windows `Run` value (#253's unit tests patch the platform to darwin and linux only, the Windows journey ends in uninstall, not sign out); an older build refused after N+1; the stored Credential Manager secret equal to the original (it is checked as present); the `key_id` value is asserted equal but not printed in `report.json`.
 
+### Windows RC rows read on 19 Nov 2026: reproducibility, downgrade refusal, secret scan (run 44418629043, head 7907035 of PR #258)
+
+Main `1a38664` (after #259 and #260): `Hub checks` and `macOS app (RC, unsigned)` both completed success (runs 44418358789 and 44418358776). The Windows installer workflow runs on PRs, not on main pushes, so the Windows rows below come from the #258 run, whose Windows tree equals main plus the scan. Artifact `Swangz-Windows-installer-evidence`; read by Probe.
+
+| Row | Result | What the artifact shows | Not shown |
+|---|---|---|---|
+| 8 reproducible build (Windows) | PASS (runner) | two builds from the same tree give identical SHA-256: program `e90390864fd4...` (12426096 bytes) and installer `1330d627f682...` (13956394 bytes), `identical: true` | a macOS equivalent; a build on a second runner image |
+| 9 / 1-U older build refused | PASS (runner) | after upgrading 0.1.0 to 0.1.25, installing 0.1.0 over it aborts: "Swangz 0.1.25 is already installed. This installer is an older version (0.1.0) and will not replace it." | that the sign-in and profile marker survive the refusal (the report's wording not re-read for this) |
+| 1-S, 4-S secret scan | PASS (runner), PR #258 VERIFIED by Probe | 11 files, 1318 inner entries, `dist\Swangz.exe` opened as a PyInstaller archive, 0 hits, 0 unreadable. A planted fake key, API_KEY assignment, tunnel address and `.env` were all caught (exit 1) in Probe's own run; the report masks values | the setup .exe is scanned as raw bytes only (LZMA payload); macOS scan not wired |
+
+SBOM (#260): merged and on main; Probe has not yet read an SBOM artifact, so row 8 SBOM stays NOT TESTED until it is read.
+
 ## Owner-only checklist (never closed by a runner)
 
 Record device, OS version, date, who, result, and a screenshot with no secret in it.
