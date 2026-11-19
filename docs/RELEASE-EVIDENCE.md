@@ -150,7 +150,7 @@ Runner: Windows Server 2025 10.0.26100 (`windows-latest`), Inno Setup 6.4.3, `Sw
 | I | PASS (runner) | silent install, no admin install mode (HKCU); files under `%LOCALAPPDATA%\Programs\Swangz`; Start-menu and desktop shortcuts created (installed with the desktop task selected); `Run` value `Swangz` with `--background`; Apps and features entry 0.1.0 | desktop shortcut left out when not chosen; Add or remove programs seen by a person; SmartScreen |
 | A | PASS (runner) | device code approved against the CI Hub, first sync done, `key_storage: keychain` | wrong, expired, reused code refusals through the installed binary |
 | R | PASS (runner) | program closed and started again, still signed in; Hub recorded sync and check-in; Hub unreachable: sync exited 1, credentials and state kept, next sync checked in with no new sign-in | revoked-while-down; reboot with start at sign-in (OWNER) |
-| S | PARTIAL | `self_check`: frozen, updates off, 0 production keys | install-folder ACL listing; secret scan of the installer; checksum verified on a clean runner; SBOM |
+| S | PARTIAL | `self_check`: frozen, updates off, 0 production keys | install-folder ACL listing; secret scan of the installer; checksum verified on a clean runner |
 | U | PARTIAL | install over an existing install (same version): same device, still signed in | N+1 over N; profile folder marker kept; older build refused |
 | X | PASS (runner) | silent uninstall ran `Swangz logout` first: device disconnected at the Hub, credentials removed; program, both shortcuts, Run value and uninstall entry deleted; install folder removed (first delete failed with code 145 and succeeded on retry, `Removed all? Yes`) | the person's data folder, if the doc keeps one; no Hub row read by Probe beyond the report's statement |
 
@@ -188,7 +188,18 @@ Main `1a38664` (after #259 and #260): `Hub checks` and `macOS app (RC, unsigned)
 | 9 / 1-U older build refused | PASS (runner) | after upgrading 0.1.0 to 0.1.25, installing 0.1.0 over it aborts: "Swangz 0.1.25 is already installed. This installer is an older version (0.1.0) and will not replace it." | that the sign-in and profile marker survive the refusal (the report's wording not re-read for this) |
 | 1-S, 4-S secret scan | PASS (runner), PR #258 VERIFIED by Probe | 11 files, 1318 inner entries, `dist\Swangz.exe` opened as a PyInstaller archive, 0 hits, 0 unreadable. A planted fake key, API_KEY assignment, tunnel address and `.env` were all caught (exit 1) in Probe's own run; the report masks values | the setup .exe is scanned as raw bytes only (LZMA payload); macOS scan not wired |
 
-SBOM (#260): merged and on main; Probe has not yet read an SBOM artifact, so row 8 SBOM stays NOT TESTED until it is read.
+### SBOM rows, artifacts read by Probe on 19 Nov 2026
+
+Both files are CycloneDX 1.5 JSON, produced and checked by the official `cyclonedx-cli` 0.33.1 (pinned by SHA-256) in the job log: `BOM validated successfully.`
+
+| Platform | Run, head | File | Result | What it lists | Not shown |
+|---|---|---|---|---|---|
+| Windows | run 44430620385, head 9fb391a (job green), artifact `Swangz-Windows-installer-RC-UNSIGNED` | `Swangz-0.1.26.cdx.json` | PASS (runner) | 67 components, 65 with SHA-256; the program `Swangz.exe` 0.1.26 with its hash; no secret-pattern text in the file (my own search for key, private-key and tunnel strings) | the SBOM's program hash was not compared with the installed program; the build ran on a pull-request head, not a tagged release |
+| macOS | run 44430620376, head 9fb391a (job green), artifact `swangz-macos-RC-UNSIGNED-INTERNAL-TEST-ONLY` | `Swangz-0.1.28-macos.cdx.json` | PASS (runner) | 53 components (51 files, CPython 3.12.10, the swangz client 0.1.28), 51 with SHA-256; pinned build tools PyInstaller 6.22.3 and hooks 2026.10 with hashes; the subject hash `98254788d698...` equals the SHA-256 of the DMG in `SHA256SUMS` (I recomputed it) | no secret-pattern text found; the DMG's contents are not in the SBOM beyond the `.app` files |
+
+The macOS secret scan in the same artifact (`evidence/secret-scan.json`): 771 files, 805 inner entries, 0 hits, nothing unreadable. The DMG's `READ ME FIRST.txt` is listed by the journey ("holds the app, an Applications link and the RC notice") but is not itself scanned or proven equal to the scanned `.app`; a follow-up PR for that was asked of Forge on 19 Nov and had not landed when I wrote this.
+
+Row 8 SBOM: PASS on both runners for the unsigned RC; that the SBOM matches a tagged, reproducible release is still open. The Windows and macOS file versions differ (0.1.26 and 0.1.28) because each run built its own workflow's version; that is noted, not a defect I can judge.
 
 ## Owner-only checklist (never closed by a runner)
 
