@@ -1671,3 +1671,6 @@ GitHub unreachable from the laptop (DNS). Main c780331 CI unconfirmed. Next at 0
 
 ## Chief — 18 Nov 2026 21:30 daily report
 Report: docs/daily/2026-11-18.md. GitHub unreachable at report time; CI on main not re-read. Open: #249 (D-023, needs Probe + Sentinel), #251, #242, #235 (browser job red), #160 (Arnold). Next: re-run `gh pr checks` on each when network returns; merge green ones; Sentinel on #249/#248.
+
+## Chief, 19 Nov 2026 21:30
+Daily report written: docs/daily/2026-11-19.md. GitHub unreachable at the time: PR states and main CI not re-read. Main head d011074. Open: #297 (CI pending), #298 (draft). Next: read their checks and merge when green; retry pushes.
