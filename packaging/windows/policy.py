@@ -175,18 +175,28 @@ def run(check, run_app, enrol_company, owner, db, person_id, data, evidence, too
             before = time.time() - 1
             code, out = run_app("open", tool)
             n = macos_policy.opens(owner, person_id, before, tool)
-            check(f"policy {label}: Open is refused with the policy message and the Hub records no open",
-                  code == 1 and macos_policy.REFUSED in out and n == 0, f"exit {code}, opens {n}, {out.strip()[-160:]}")
-            report["cases"].append({"case": label, "open_exit": code, "hub_opens": n, "message": macos_policy.REFUSED in out})
+            # nothing started: no chrome.exe on any workspace folder (a short wait, so a late start would be seen)
+            folders = hub_journey.workspace_folders(data)
+            running = [f.name for f in folders if chrome_running(f, timeout=5)]
+            check(f"policy {label}: Open is refused with the policy message, no Chrome starts and the Hub records no open",
+                  code == 1 and macos_policy.REFUSED in out and n == 0 and not running,
+                  f"exit {code}, opens {n}, Chrome on {running or 'no folder'}, {out.strip()[-160:]}")
+            report["cases"].append({"case": label, "open_exit": code, "hub_opens": n, "chrome_running": running,
+                                    "message": macos_policy.REFUSED in out})
 
         def synced(label, ok, sha_is_baseline):
+            # the Open before this may have refreshed the report already: only a report made by THIS sync counts
+            earlier = macos_policy.device_row(db, device_id).get("policy_reported") or 0
+            time.sleep(1.1)  # make a fresh report distinguishable even with a coarse clock
             code, _ = run_app("sync")
             row = macos_policy.device_row(db, device_id)
+            fresh = (row.get("policy_reported") or 0) > earlier
             want_sha = (row.get("policy_sha") == baseline) if sha_is_baseline else (row.get("policy_sha") != baseline)
-            check(f"policy {label}: sync reports it and the Hub records policy_ok={int(ok)}"
+            check(f"policy {label}: sync reports it afresh and the Hub records policy_ok={int(ok)}"
                   + (", the baseline hash" if sha_is_baseline else ", a hash that is not the baseline"),
-                  code == 0 and row.get("policy_ok") == int(ok) and want_sha,
-                  f"exit {code}, policy_ok {row.get('policy_ok')}, sha {str(row.get('policy_sha'))[:16]}")
+                  code == 0 and fresh and row.get("policy_ok") == int(ok) and want_sha,
+                  f"exit {code}, reported {earlier} -> {row.get('policy_reported')}, policy_ok {row.get('policy_ok')},"
+                  f" sha {str(row.get('policy_sha'))[:16]}")
             report["cases"].append({"case": label + " (sync)", "sync_exit": code, "hub_policy_ok": row.get("policy_ok"),
                                     "hub_policy_sha": row.get("policy_sha")})
 

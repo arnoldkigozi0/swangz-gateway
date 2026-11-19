@@ -417,9 +417,24 @@ class WindowsPolicyTamperTests(unittest.TestCase):
         self.assertLess(call, self.e2e.rindex('app("autostart", "on")'))
         block = self.e2e[self.e2e.index("# 7c."):self.e2e.index("# 8. uninstall")]
         for needle in ('app("logout")', 'fixture.approve(c, "company")', 'Path(rig.tmp) / "gateway.db"',
-                       "device = enrol()", 'key_id = device["key_id"]'):
+                       "device = enrol(approve_second[0])", 'key_id = device["key_id"]', "== second"):
             self.assertIn(needle, block)
-        self.assertLess(block.index("windows_policy.run("), block.index("device = enrol()"))
+        self.assertLess(block.index("windows_policy.run("), block.index("device = enrol(approve_second[0])"))
+
+    def test_the_uninstall_runs_as_the_second_person_and_keeps_the_first_persons_folder(self):
+        self.assertIn("approve_second[:] = [approve]", self.e2e[self.e2e.index("def enrol_second"):])
+        after = self.e2e[self.e2e.index("# 8. uninstall"):self.e2e.index("report[\"ok\"] = True")]
+        self.assertIn('hub_journey.kept(check, data, folder, marker, "after the uninstall', after)
+        self.assertLess(after.index("the Hub did not disconnect the device"), after.index("hub_journey.kept("))
+
+    def test_a_refused_open_starts_no_chrome_and_each_sync_must_report_afresh(self):
+        refused = self.src[self.src.index("def refused("):self.src.index("def synced(")]
+        self.assertIn("chrome_running(f, timeout=5)", refused)
+        self.assertIn("and not running", refused)
+        synced = self.src[self.src.index("def synced("):self.src.index('synced("intact"')]
+        self.assertLess(synced.index('get("policy_reported")'), synced.index('run_app("sync")'))
+        self.assertIn('fresh = (row.get("policy_reported") or 0) > earlier', synced)
+        self.assertIn("code == 0 and fresh and", synced)
 
     def test_it_refuses_to_touch_the_registry_off_a_github_hosted_runner(self):
         """A real Swangz PC holds the company pack in this key: run, install and remove all refuse there."""
