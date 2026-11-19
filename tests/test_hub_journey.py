@@ -273,6 +273,47 @@ class FilesHoldingTests(unittest.TestCase):
         self.assertTrue(hits and all(x.startswith("unreadable: ") for x in hits))
 
 
+class GrantsAfterRestartTests(unittest.TestCase):
+    """The offer on the device changes only when the program starts (and syncs); a closed program keeps the old one."""
+
+    def run_helper(self, sync_on_start=True):
+        import json
+        from unittest import mock
+        h = load()
+        data = Path(tempfile.mkdtemp(prefix="sgw-grants-"))
+        self.addCleanup(shutil.rmtree, data, True)
+        hub = {"canva"}
+
+        def save():
+            (data / "manifest.json").write_text(json.dumps({"apps": [{"id": t} for t in sorted(hub)]}), encoding="utf-8")
+
+        class Owner:
+            def call(self, method, path, body=None):
+                tool = path.rsplit("/", 1)[1]
+                if method == "POST":
+                    hub.add(tool)
+                elif method == "DELETE":
+                    hub.discard(tool)
+                return 200, {}
+
+        save()
+        results, starts = [], []
+        check = lambda name, ok, detail="": results.append((name, ok))
+        start = lambda: starts.append(1) or (save() if sync_on_start else None)
+        with mock.patch.object(h, "time", mock.Mock(monotonic=mock.Mock(side_effect=range(0, 10**6, 30)), sleep=lambda s: None)):
+            h.grants_after_restart(check, start, lambda proc: None, data, Owner(), 7, timeout=60)
+        return results, starts
+
+    def test_a_grant_and_its_removal_show_only_after_the_program_starts(self):
+        results, starts = self.run_helper()
+        self.assertEqual(len(starts), 2)
+        self.assertEqual([ok for _, ok in results], [True, True])
+
+    def test_a_program_that_does_not_sync_on_start_fails_both_steps(self):
+        results, _ = self.run_helper(sync_on_start=False)
+        self.assertEqual([ok for _, ok in results], [False, False])
+
+
 class WiringTests(unittest.TestCase):
     def test_both_journeys_run_the_steps_after_reconnect_and_before_the_upgrade(self):
         mac = (ROOT / "packaging" / "macos_journey.py").read_text(encoding="utf-8")

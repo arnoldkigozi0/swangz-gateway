@@ -277,6 +277,53 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
             require(device["server"] == origin, "wrong server saved")
             return device
 
+        # 3a. refused sign-in codes, through the installed program: while it waits, a wrong code entered on /device
+        #     approves nothing; the code it shows then expires, `login` ends with exit 1 and saves no device or key, and
+        #     the expired code can no longer be approved
+        from gateway import enroll as hub_enroll
+
+        def keys_issued():
+            return rig.gw.db.scalar("SELECT COUNT(*) FROM keys")
+
+        def unusable(code):
+            status, text, _ = fixture.page(query="?code=" + code)
+            return status == 200 and "already used or has expired" in text and "name=csrf" not in text
+
+        issued = keys_issued()
+        login = subprocess.Popen([str(exe), "login", "--server", origin, "--name", "CI installer"], env=env, cwd=work,
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        out = err = ""
+        try:
+            deadline, row = time.monotonic() + 90, None
+            while time.monotonic() < deadline and row is None and login.poll() is None:
+                row = rig.gw.db.one("SELECT id, user_code FROM device_codes WHERE status = 'pending'")
+                time.sleep(0.2)
+            require(row is not None, "the installed program did not ask for a device code")
+            wrong = hub_enroll._new_user_code()
+            while rig.gw.db.one("SELECT id FROM device_codes WHERE user_code = ?", (wrong,)):
+                wrong = hub_enroll._new_user_code()
+            status, text, _ = fixture.page(query="?code=" + wrong)
+            require(status == 200 and "That code isn't right" in text and "name=csrf" not in text,
+                    "a wrong code was offered for approval")
+            status, _, _ = fixture.page("POST", form={"code": wrong, "csrf": "0" * 64, "owner": "personal", "decision": "approve"})
+            require(status == 400, f"approving a wrong code answered {status}")
+            require(rig.gw.db.scalar("SELECT status FROM device_codes WHERE id = ?", (row["id"],)) == "pending",
+                    "a wrong code changed the waiting sign-in")
+            require(login.poll() is None and not (data / "device.json").exists(), "the program stopped waiting after a wrong code")
+            passed("wrong sign-in code: /device says the code isn't right and approves nothing; the installed program keeps waiting")
+            rig.gw.db.x("UPDATE device_codes SET expires = ? WHERE id = ?", (time.time() - 1, row["id"]))
+            out, err = login.communicate(timeout=120)
+        finally:
+            if login.poll() is None:
+                login.kill()
+                login.communicate()
+        require(login.returncode == 1, f"login with an expired code exited {login.returncode}: " + out[-1000:] + err[-1000:])
+        require("expired" in (out + err).lower(), "login did not say the code expired")
+        require(not (data / "device.json").exists() and keys_issued() == issued, "an expired code left a device or issued a key")
+        require(unusable(row["user_code"]), "the expired code can still be approved")
+        passed("expired sign-in code: the installed program's login exits 1 saying it expired, no device or key is saved,"
+               " and /device refuses that code")
+
         device = enrol()
         key_id = device["key_id"]
         report["key_storage"] = device["key_storage"]
@@ -300,6 +347,19 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         if in_os_store:
             require(stored_secret(), "the device key is not in Windows Credential Manager")
         passed(f"enrol against the CI Hub: device code approved, first sync done; key storage {device['key_storage']}")
+
+        # 3b. a used code is not reusable: /device refuses it, and a second login on the signed-in program is refused
+        #     without asking the Hub for a new code
+        used = rig.gw.db.scalar("SELECT user_code FROM device_codes WHERE key_id = ?", (key_id,))
+        require(used and unusable(used), "the used sign-in code can still be approved")
+        codes, issued = sign_in_codes(), keys_issued()
+        run([exe, "login", "--server", origin, "--name", "CI installer again"], expected=1, timeout=60)
+        require(sign_in_codes() == codes and keys_issued() == issued, "a second login asked for a code or issued a key")
+        require(json.loads((data / "device.json").read_text(encoding="utf-8"))["key_id"] == key_id,
+                "the second login replaced the device")
+        passed("used sign-in code: /device refuses it again; a second login on the signed-in program exits 1, asks for no"
+               " new code and keeps the same device and key")
+
 
         # 4. restart: a new process (and the window started and closed again) is still signed in and syncs
         seen = heartbeat(key_id)
@@ -433,6 +493,20 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         marker = hub_journey.marker_of(folder)
         report["workspace_folder"] = folder.name
         hub_journey.f18(check, exe, env, origin, owner, rig.person_id, rig.tmp, [hub_log], cwd=work)
+
+        # 5d. grants after an app restart: with the program closed the admin grants a tool, then takes it away; each time
+        #     the device's offer only changes when the program starts again (it syncs on start; nobody runs sync)
+        def start_program():
+            proc = subprocess.Popen([str(exe), "--background"], env=env, cwd=work)
+            time.sleep(1)
+            require(proc.poll() is None, f"the program exited with {proc.returncode} on start")
+            return proc
+
+        def close_program(proc):
+            proc.terminate()
+            proc.wait(30)
+
+        hub_journey.grants_after_restart(check, start_program, close_program, data, owner, rig.person_id)
 
         # 6. upgrade to this build over a running copy (or, with no previous build, reinstall the same version): the
         #    installer closes the program; the person's device, key and settings stay, and the Hub sees the new version
