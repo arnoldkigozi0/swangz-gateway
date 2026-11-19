@@ -9,7 +9,8 @@ The installed Swangz.app is signed in as a company device. The company browser p
    the Hub records no open; `sync` reports `ok: false`, and the Hub writes one audit line for the move to failing;
 3. tampered pack that still passes every rule but is not the pinned one (an extra blocked host): `open` is refused,
    `sync` reports a hash that is not the baseline;
-4. the original pack put back: `open` works again and the Hub has the baseline hash again;
+4. the original pack put back: `open` works again at once (it carries its fresh result, so the Hub does not wait for
+   the next heartbeat) and the Hub has the baseline hash again;
 5. the pack removed: `open` is refused and `sync` reports `ok: false`.
 
 What this does NOT prove: that Chrome itself applies the plist (no MDM profile here; Chrome's own enforcement is the
@@ -78,6 +79,17 @@ def extra_block(policy):
     return p
 
 
+def chrome_running(folder, timeout=30):
+    """A Chrome process whose command line names this workspace folder: this Open started a window (the folder and
+    its Local State stay from an earlier open, so they alone prove nothing). The opens close it after every case."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if subprocess.run(["pgrep", "-f", "--", "--user-data-dir=" + str(folder)], capture_output=True).returncode == 0:
+            return True
+        time.sleep(0.5)
+    return False
+
+
 def device_row(db, device_id):
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     try:
@@ -125,8 +137,8 @@ def run(check, run_app, enrol_company, owner, db, person_id, data, evidence, too
         def opened(label):
             before = time.time() - 1
             code, out = run_app("open", tool)
-            folders = sorted(hub_journey.workspace_folders(data), key=lambda p: p.stat().st_mtime)
-            started = bool(folders) and hub_journey.chrome_wrote(folders[-1])
+            folders = hub_journey.workspace_folders(data)
+            started = code == 0 and any(chrome_running(f) for f in folders) and any(hub_journey.chrome_wrote(f) for f in folders)
             for f in folders:
                 hub_journey.close_chrome(f)
             n = opens(owner, person_id, before, tool)

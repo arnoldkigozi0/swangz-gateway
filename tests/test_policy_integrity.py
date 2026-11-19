@@ -232,6 +232,27 @@ class OpenGateTests(Base):
         self.assertEqual(c.open_app("canva"), "workspace")
         self.assertEqual(len(started), 1)
 
+    def test_a_pack_put_back_opens_at_once_without_waiting_for_a_heartbeat(self):
+        # Found on the macOS runner (packaging/macos_policy.py): the Hub still held the tampered heartbeat's report,
+        # so Open was refused for up to 15 minutes after the pack was restored. Open now carries the fresh result.
+        c, started = self.app("enforce", {"ok": True, "sha256": SHA})
+        self.beat({"browser_contract": 2, "policy": {"ok": True, "sha256": OTHER_SHA}})
+        self.assertEqual(c.open_app("canva"), "workspace")
+        self.assertEqual(len(started), 1)
+        self.assertEqual(self.db.scalar("SELECT policy_sha FROM devices WHERE device_id = ?", (self.did,)), SHA)
+
+    def test_open_records_the_report_it_carries_and_a_failing_one_is_refused_and_audited(self):
+        self.app("enforce", {"ok": True, "sha256": SHA})
+        self.beat({"browser_contract": 2, "policy": {"ok": True, "sha256": SHA}})
+        status, out, _ = self.api("POST", "/device/open", {"tool": "canva", "policy": {"ok": False, "sha256": ""}}, key=self.key)
+        self.assertEqual((status, out.get("code")), (409, "workspace_policy"), out)
+        self.assertEqual(self.db.scalar("SELECT policy_ok FROM devices WHERE device_id = ?", (self.did,)), 0)
+        self.assertEqual(self.db.scalar("SELECT COUNT(*) FROM audit WHERE action = ? AND correlation = ?",
+                                        ("device reported its browser policy is not in force", f"device:{self.did}")), 1)
+        for junk in (None, "ok", {"ok": "yes", "sha256": SHA}):  # malformed: nothing recorded, the stored report decides
+            status, out, _ = self.api("POST", "/device/open", {"tool": "canva", "policy": junk}, key=self.key)
+            self.assertEqual((status, out.get("code")), (409, "workspace_policy"), out)
+
     def test_warn_with_a_mismatch_opens_and_the_console_shows_not_in_force(self):
         c, started = self.app("warn", {"ok": False, "sha256": ""})
         self.assertEqual(c.open_app("canva"), "workspace")

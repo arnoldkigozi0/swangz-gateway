@@ -104,11 +104,15 @@ def _hub_host(ctx):
 
 @route("POST", r"/device/open", signed_in=False)
 def device_open(ctx):
-    """Body `{"tool": "<tool id>"}`, device key as `Authorization: Bearer`, header `X-Swangz-App: 1`.
+    """Body `{"tool": "<tool id>"}` (+ `"policy": {"ok", "sha256"}` from a company device), device key as `Authorization: Bearer`, header `X-Swangz-App: 1`.
     200 `{"ok": true, "tool": {"id", "name"}, "url", "allowed_hosts", "workspace": {"state", "generation"}}`."""
     person, device, _ = enroll.device_key_auth(ctx)
     if ctx.gw.open_limit.over(person["id"], OPENS_PER_MIN):
         raise ApiError(429, f"Too many opens. The limit is {OPENS_PER_MIN} a minute; wait a moment.", "rate_limited")
+    # An app with a policy check sends the result it just took (`policy`, the heartbeat's shape). Recorded first, so a
+    # pack put back after a failing report opens now rather than at the next heartbeat; a failing one is recorded and
+    # refused as from a heartbeat. The same app's claim as the heartbeat's: it is only ever used to refuse.
+    managed.record_policy_report(ctx, person, device, time.time())
     tool_id = ctx.body.get("tool")
     tool = ctx.db.one("SELECT * FROM tools WHERE id = ? AND archived = 0", (tool_id,)) \
         if isinstance(tool_id, str) and TOOL_ID.fullmatch(tool_id) else None
