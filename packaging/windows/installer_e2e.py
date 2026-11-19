@@ -10,6 +10,7 @@ this script can cut and restore, which is how a network interruption is made. Ev
 """
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -160,6 +161,8 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
                "BROWSER": f'"{sys.executable}" "{Path(__file__).resolve()}" --browser %s'}
         for name in ("PYTHONPATH", "PYTHONHOME"):
             env.pop(name, None)
+        for name in ("SWANGZ_SERVER", "SWANGZ_ALLOW_HTTP"):
+            env.pop(name, None)  # fresh-install/address checks must not inherit a runner's configuration
         app_dir = Path(os.environ["LOCALAPPDATA"]) / "Programs" / "Swangz"
         exe = app_dir / "Swangz.exe"
 
@@ -183,6 +186,10 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         def heartbeat(key_id):
             return rig.gw.db.scalar("SELECT last_seen FROM devices WHERE key_id = ?", (key_id,))
 
+        def sign_in_codes():
+            return (rig.gw.db.scalar("SELECT COUNT(*) FROM device_codes"),
+                    rig.gw.db.scalar("SELECT COALESCE(MAX(id), 0) FROM device_codes"))
+
         # 1. silent install, per person, with both optional tasks
         install("install.log", first)
         start_menu = shell_folder("Programs") / "Swangz.lnk"
@@ -204,6 +211,16 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         app("--self-check", check)
         check = json.loads(check.read_text(encoding="utf-8"))
         require(check["frozen"] and check["window"] == "signin", f"self-check: {check}")
+        require(not (data / "device.json").exists() and check.get("hub_address") == "",
+                "fresh install saved or prefilled a Hub address")
+        app("status", expected=2)
+        codes = sign_in_codes()
+        for address in ("http://hub.example.com", "http://192.0.2.10:8787"):
+            run([exe, "login", "--server", address, "--name", "CI installer"], expected=1, timeout=60)
+            require(not (data / "device.json").exists(), "refused address left a device record")
+            require(sign_in_codes() == codes, "refused address requested a sign-in code")
+        passed("fresh install: sign-in window has no Hub address; status exits 2; non-https addresses exit 1 without"
+               " saving a device or issuing a sign-in code")
         require(check["updates_enabled"] is False and check["production_keys"] == 0, "the update gate is not off")
         if previous_version:
             require(check["version"] == previous_version, f"installed {check['version']}, expected {previous_version}")
@@ -245,6 +262,14 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         def stored_secret():
             return keystore.CredentialManager().get(origin, key_id)
 
+        def stored_fingerprint():
+            # Read only into memory. Only the SHA-256, never the credential, reaches the report or a message.
+            record = json.loads((data / "device.json").read_text(encoding="utf-8"))
+            secret = ((data / "device.key").read_text(encoding="utf-8").strip()
+                      if record["key_storage"] == "file" else stored_secret())
+            require(bool(secret), "no stored device credential to compare")
+            return hashlib.sha256(secret.encode()).hexdigest()
+
         in_os_store = device["key_storage"] != "file"
         if in_os_store:
             require(stored_secret(), "the device key is not in Windows Credential Manager")
@@ -264,8 +289,20 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         passed("restart: the program closed and started again, still signed in; sync and check-in recorded by the Hub")
 
         # 5. network interruption: the Hub is unreachable, nothing is lost; it comes back and the app reconnects by itself
-        relay.stop()
+        before_key, before_codes = stored_fingerprint(), sign_in_codes()
         synced = json.loads((data / "state.json").read_text(encoding="utf-8"))["last_sync"]
+        relay.stop()
+        down_check = work / "self-check-offline.json"
+        app("--self-check", down_check)
+        require(json.loads(down_check.read_text(encoding="utf-8"))["window"] == "home",
+                "Hub down at app start: window did not open on Home")
+        gui = subprocess.Popen([str(exe), "--background"], env=env, cwd=work)
+        time.sleep(8)  # allow the normal startup sync to run while the relay is down
+        require(gui.poll() is None, "Hub down at app start: the window exited")
+        gui.terminate()
+        gui.wait(30)
+        gui = None
+        passed("Hub down at app start: the installed Home window opens and the background process stays running")
         app("sync", expected=1)  # the windowed program has no console; its exit code is the evidence (1 = could not reach)
         require(json.loads((data / "state.json").read_text(encoding="utf-8"))["last_sync"] == synced, "offline sync claimed success")
         require((data / "device.json").is_file(), "the device record was lost while offline")
@@ -275,9 +312,15 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         time.sleep(0.05)
         app("sync")
         require(heartbeat(key_id) > seen, "no check-in after the network came back")
-        require(not json.loads((data / "device.json").read_text(encoding="utf-8")).get("reconnect"), "asked to reconnect")
+        after_device = json.loads((data / "device.json").read_text(encoding="utf-8"))
+        require(not after_device.get("reconnect"), "asked to reconnect")
+        after_key, after_codes = stored_fingerprint(), sign_in_codes()
+        require(after_device["key_id"] == key_id and after_key == before_key, "outage changed the device credential")
+        require(after_codes == before_codes, "outage issued a new sign-in code")
+        report["reconnect"] = {"key_sha256_before": before_key, "key_sha256_after": after_key,
+                               "sign_in_codes_before": before_codes, "sign_in_codes_after": after_codes}
         passed("network interruption: sync exited 1 and recorded no sync, credentials and state kept; on return the next sync"
-               " checked in with no sign-in again")
+               " checked in with the same key SHA-256 and unchanged sign-in-code count")
 
         # 5b. deliverable 5 and F-18 (packaging/hub_journey.py): the installed program opens a granted tool in its Chrome
         #     workspace window on the person's own folder; a request with its own credential is not stored by default,
@@ -352,7 +395,33 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
                 "the Hub did not disconnect the signed-out device")
         passed("sign out: device disconnected at the Hub, local credentials removed, start-at-sign-in value gone")
 
-        # enrol again and switch start-at-sign-in back on, so the uninstall below is proven to remove both itself
+        # 7b. revoked while away: a separate signed-in browser reaches the fixture directly, not the stopped relay.
+        device = enrol()
+        key_id = device["key_id"]
+        app("autostart", "on")
+        before_key, before_codes = stored_fingerprint(), sign_in_codes()
+        relay.stop()
+        require(fixture.staff("POST", f"/keys/{key_id}/revoke", cookie=fixture.person_cookie)[0] == 200,
+                "the person could not disconnect the device while it was away")
+        app("sync", expected=1)
+        require((data / "device.json").is_file(), "offline revoked device lost its record before learning of revocation")
+        require(stored_fingerprint() == before_key, "offline revoked device changed its stored credential")
+        passed("revoked while away: separate browser disconnects the device; offline sync exits 1 and keeps its credential")
+        relay.start()
+        app("sync", expected=3)
+        leftovers = {p.name for p in data.iterdir()} if data.exists() else set()
+        require(leftovers <= {"browser-profiles"}, "revoked device left app data: " + ", ".join(sorted(leftovers)))
+        require(reg_value(RUN_KEY, "Swangz") is None, "revocation left the start-at-sign-in value")
+        if device["key_storage"] != "file":
+            require(stored_secret() is None, "revocation left a Windows Credential Manager entry")
+        require(sign_in_codes() == before_codes, "revocation issued a new sign-in code")
+        app("status", expected=2)
+        report["revoked_while_away"] = {"offline_exit": 1, "return_exit": 3, "signed_out_exit": 2,
+                                         "kept": sorted(leftovers)}
+        passed("revoked on return: sync exits 3, device data and stored key removed, startup off, status exits 2;"
+               " only browser-profiles may remain (R-12)")
+
+        # enrol again and switch start-at-sign-in back on, so uninstall is still tested against a connected device
         device = enrol()
         key_id = device["key_id"]
         app("autostart", "on")
@@ -377,7 +446,7 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         require(not (data / "device.json").exists(), "local credentials left behind")
         if in_os_store:
             require(stored_secret() is None, "the device key is still in Windows Credential Manager")
-        revoked = rig.gw.db.scalar("SELECT revoked FROM keys WHERE id = ?", (key_id,))  # the second enrolment's key
+        revoked = rig.gw.db.scalar("SELECT revoked FROM keys WHERE id = ?", (key_id,))  # the final enrolment's key
         require(revoked is not None, "the Hub did not disconnect the device")
         passed("silent uninstall while running: program stopped, device disconnected at the Hub, local credentials"
                + (" and Credential Manager entry" if in_os_store else "") + " removed, program, shortcuts, Run value"
