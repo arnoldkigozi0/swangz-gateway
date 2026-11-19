@@ -18,6 +18,9 @@
 5b. older build: the OLD app dragged over the NEW one refuses to run (exit 5) and changes nothing; NEW goes back
 6. uninstall: `Swangz logout`, the server shows the device disconnected, the app's data and login item are gone,
    the bundle is removed
+6b. machine policy (deliverable 6, packaging/macos_policy.py): sign in as a company device with the prepared pack installed
+   root-owned and its baseline pinned in enforce; tamper with the pack, swap in a valid but unpinned one, put it back,
+   remove it: Open is refused each time it is not the pinned pack, and the Hub records what the app reports
 7. revoked while away: enrol again, turn start at login on, cut the Hub, disconnect the device from another browser, bring the Hub back:
    the next sync is refused (exit 3) and Swangz removes itself and its login item, keeping only the company-browser
    folder (R-12)
@@ -54,6 +57,7 @@ KEYCHAIN_SERVICE = "Swangz AI Hub"  # swangz_client/keystore.py SERVICE
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import secret_scan  # noqa: E402  packaging/secret_scan.py, the same scan the workflow runs over dist/
 import hub_journey  # noqa: E402  packaging/hub_journey.py, the workspace and F-18 steps both journeys run
+import macos_policy  # noqa: E402  packaging/macos_policy.py, deliverable 6: the machine policy tampered with
 
 CODE = re.compile(r"\b([BCDFGHJKMNPQRSTVWXZ2-9]{4}-[BCDFGHJKMNPQRSTVWXZ2-9]{4})\b")
 
@@ -151,12 +155,12 @@ class Browser:
     def sign_in(self):
         return self.call("POST", "/api/login", {"email": EMAIL, "password": PASSWORD}, headers={"x-swangz-app": "1"})[0]
 
-    def approve(self, code):
+    def approve(self, code, kind="personal"):
         status, page = self.call("GET", "/device?code=" + urllib.parse.quote(code))
         csrf = re.search(r"name=csrf value='([0-9a-f]+)'", page)
         if status != 200 or not csrf:
             return status
-        return self.call("POST", "/device", form={"code": code, "csrf": csrf.group(1), "owner": "personal", "decision": "approve"})[0]
+        return self.call("POST", "/device", form={"code": code, "csrf": csrf.group(1), "owner": kind, "decision": "approve"})[0]
 
     def revoke(self, key_id):
         return self.call("POST", f"/api/keys/{key_id}/revoke", {}, headers={"x-swangz-app": "1"})[0]
@@ -537,6 +541,12 @@ def main(argv=None):
                ", ".join(leftovers) or "folder empty or gone")
         code, _ = j.run(["security", "find-generic-password", "-s", KEYCHAIN_SERVICE])
         j.step("no Swangz item left in the login keychain after the second sign out", code != 0)
+
+        # deliverable 6 (packaging/macos_policy.py): the machine policy pack tampered with on a company device
+        macos_policy.run(j.step, run_app,
+                         lambda: enrol(j, app, browser, env, app_url, " (company device, for the policy check)",
+                                       approve=lambda code: browser.approve(code, "company")),
+                         owner, db, fixture["person"], data, j.evidence)
 
         # 7 (row 7d): disconnected while the Hub was out of reach, from another browser that still reaches it
         enrol(j, app, browser, env, app_url, " (again, for the revocation check)")
