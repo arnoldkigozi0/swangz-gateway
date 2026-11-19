@@ -1,12 +1,16 @@
 """Scan built release artifacts for embedded secrets and server addresses.
 
-    python packaging/secret_scan.py --report evidence/secret-scan.json [--summary FILE] PATH [PATH ...]
+    python packaging/secret_scan.py --report evidence/secret-scan.json [--summary FILE] [--min-archives N] PATH [PATH ...]
 
 Each PATH is a file or a folder. Every file is searched as raw bytes. A PyInstaller program is also opened and every
 entry is searched after decompression, including each module inside its PYZ archive; zip files are searched entry by
 entry. Archives that cannot be opened are listed under "unreadable" rather than silently skipped.
 
-Exit codes: 0 no hits, 1 at least one hit, 2 an input is missing.
+A scan that saw nothing is not clean: a folder given as PATH that holds no files fails, and with --min-archives N the
+scan fails unless at least N PyInstaller programs were actually opened (so a build that moved or broke cannot pass
+by being skipped). Both are listed under "problems" in the report.
+
+Exit codes: 0 no hits and no problems, 1 at least one hit or problem, 2 an input is missing.
 """
 import argparse
 import io
@@ -137,25 +141,37 @@ def main(argv=None):
     ap.add_argument("paths", nargs="+")
     ap.add_argument("--report", required=True)
     ap.add_argument("--summary")
+    ap.add_argument("--min-archives", type=int, default=0, metavar="N",
+                    help="fail unless at least N PyInstaller programs were opened and searched entry by entry")
     args = ap.parse_args(argv)
     missing = [p for p in args.paths if not Path(p).exists()]
     if missing:
         print("missing input: " + ", ".join(missing), file=sys.stderr)
         return 2
     result = scan(args.paths)
+    opened = sum(a["pyinstaller"] for a in result["archives"])
+    problems = [f"{p}: no files to scan" for p in args.paths
+                if Path(p).is_dir() and not any(f.is_file() for f in Path(p).rglob("*"))]
+    if opened < args.min_archives:
+        problems.append(f"{opened} PyInstaller archives opened, at least {args.min_archives} expected")
+    result["problems"] = problems
     Path(args.report).parent.mkdir(parents=True, exist_ok=True)
     Path(args.report).write_text(json.dumps(result, indent=2))
-    n, opened = len(result["hits"]), sum(a["pyinstaller"] for a in result["archives"])
+    n = len(result["hits"])
+    ok = n == 0 and not problems
     line = (f"Secret scan: {len(result['files'])} files, {opened} PyInstaller archives opened, "
             f"{result['inner_entries_scanned']} archive entries and modules searched, "
             f"{len(result['unreadable'])} unreadable, {n} hits")
-    print(("CLEAN " if n == 0 else "HITS ") + line)
+    print(("CLEAN " if ok else "HITS " if n else "FAILED ") + line)
+    for problem in problems:
+        print("  " + problem)
     for h in result["hits"][:50]:
         print(f"  {h['pattern']}: {h['where']} @{h['offset']} {h['sample']}")
     if args.summary:
         with open(args.summary, "a", encoding="utf-8") as fh:
-            fh.write(f"- {'CLEAN' if n == 0 else '**HITS**'}: {line}\n")
-    return 0 if n == 0 else 1
+            fh.write(f"- {'CLEAN' if ok else '**HITS**' if n else '**FAILED**'}: {line}"
+                     + "".join(f"; **{problem}**" for problem in problems) + "\n")
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":
