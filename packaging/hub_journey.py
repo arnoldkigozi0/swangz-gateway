@@ -31,6 +31,7 @@ FOLDER = re.compile(r"[0-9a-f]{32}\Z")
 MARKER = ".swangz-profile.json"
 
 TOOL = "canva"  # a website tool on the company plan, not a shared account: it opens in the workspace window
+LATER_TOOL = "perplexity"  # granted and taken away while the app is closed (grants_after_restart)
 F18_MODEL = "claude-haiku-4-5"
 
 
@@ -115,6 +116,49 @@ def grant(owner, person_id, tool=TOOL):
 
 
 # ---------------------------------------------------------------- deliverable 5: the workspace window
+
+def offered_apps(data):
+    """The website tools the app's last sync was offered (its saved manifest), as a set of tool ids."""
+    try:
+        manifest = json.loads((Path(data) / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    return {a.get("id") for a in manifest.get("apps") or []}
+
+
+def grants_after_restart(check, start, stop, data, owner, person_id, tool=LATER_TOOL, timeout=60):
+    """With the app closed, the admin grants a tool and later takes it away. Nothing on the device changes while it is
+    closed; starting the app again (it syncs on start, nobody runs sync) is what offers the tool, and then stops
+    offering it. `start()` returns the running program, `stop(proc)` closes it."""
+    def settle(wanted):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if wanted(offered_apps(data)):
+                return True
+            time.sleep(0.5)
+        return False
+
+    before = offered_apps(data)
+    granted = tool not in before and grant(owner, person_id, tool)
+    unchanged = tool not in offered_apps(data)
+    proc = start()
+    try:
+        appeared = settle(lambda apps: tool in apps)
+    finally:
+        stop(proc)
+    check("a grant made while the app was closed is offered after the app starts again", granted and unchanged and appeared,
+          f"{tool}: before {tool in before}, closed {not unchanged}, after start {appeared}")
+    removed = owner.call("DELETE", f"/people/{person_id}/tools/{tool}")[0] == 200
+    kept = tool in offered_apps(data)
+    proc = start()
+    try:
+        gone = settle(lambda apps: tool not in apps)
+    finally:
+        stop(proc)
+    check("a grant taken away while the app was closed is no longer offered after it starts again", removed and kept and gone,
+          f"{tool}: removed {removed}, still offered while closed {kept}, gone after start {gone}")
+    return before
+
 
 def workspace_folders(data):
     root = Path(data) / "browser-profiles"

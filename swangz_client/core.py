@@ -1238,9 +1238,11 @@ class Client:
         # What this device can check on its own comes first, so a missing browser or a bad folder is never recorded
         # at the Hub as an open.
         self.launcher.ready(owner, gen(browser.get("workspace")))
-        self.policy_gate()  # D-024: in enforce a failing or unexpected policy is refused here, before the Hub records an open
-        # The Hub decides (same checks and launch record as /go/); the address is checked again here.
-        out = self._guard(lambda: self.api().call("POST", "/device/open", {"tool": app["id"]}))
+        report = self.policy_gate()  # D-024: in enforce a failing or unexpected policy is refused here, before the Hub records an open
+        # The Hub decides (same checks and launch record as /go/); the address is checked again here. The fresh policy
+        # result goes with it, so the Hub never decides on an older heartbeat's report (a pack put back opens at once).
+        body = {"tool": app["id"], **({"policy": report} if report is not None else {})}
+        out = self._guard(lambda: self.api().call("POST", "/device/open", body))
         try:
             self.workspace.apply({"contract": 2, "workspace": out["workspace"]} if "workspace" in out else None)
             self.workspace.check_open()
