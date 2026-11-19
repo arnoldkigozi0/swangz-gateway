@@ -86,7 +86,7 @@ class MacBuildTests(unittest.TestCase):
                        "the server records the device's check-in"):
             self.assertIn(needle, back)
         self.assertLess(text.index("after restart: still signed in"), text.index("Hub unreachable"))
-        self.assertLess(text.index("Hub back: the server records"), text.index("install(j, args.new, apps)"))
+        self.assertLess(text.index("Hub back: the server records"), text.index("install(j, args.new, apps"))
 
         from importlib.util import module_from_spec, spec_from_file_location
         spec = spec_from_file_location("macos_journey", ROOT / "packaging" / "macos_journey.py")
@@ -145,3 +145,78 @@ class MacSummaryTests(unittest.TestCase):
         self.assertIn("macos_summary.py", wf)
         self.assertIn("GITHUB_STEP_SUMMARY", wf)
         self.assertNotIn("release create", wf)  # building an artifact is not publishing a release
+
+
+class MountedDmgTests(unittest.TestCase):
+    """macos_journey.check_mounted: the mounted DMG's app must equal the scanned build, and the whole volume
+    (READ ME FIRST.txt included) is secret-scanned. Runs on any OS against a folder laid out like a mounted DMG."""
+
+    def setUp(self):
+        import os
+        import tempfile
+        self.os = os
+        self.j_mod = load("macos_journey")
+        self.dir = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, self.dir, True)
+        self.build = self.dir / "dist" / "Swangz.app"
+        (self.build / "Contents" / "MacOS").mkdir(parents=True)
+        (self.build / "Contents" / "MacOS" / "Swangz").write_bytes(b"\xcf\xfa\xed\xfe program")
+        (self.build / "Contents" / "Info.plist").write_text("<plist/>")
+        os.symlink("MacOS/Swangz", self.build / "Contents" / "current")
+        self.mount = self.dir / "mount"
+        self.mount.mkdir()
+        __import__("shutil").copytree(self.build, self.mount / "Swangz.app", symlinks=True)
+        (self.mount / "READ ME FIRST.txt").write_text("RC — UNSIGNED — INTERNAL TEST ONLY")
+        os.symlink("/Applications", self.mount / "Applications")
+        (self.mount / ".fseventsd").mkdir()
+        self.journey = self.j_mod.Journey(self.dir / "ev")
+
+    def check(self):
+        self.j_mod.check_mounted(self.journey, self.mount, self.build, self.dir / "ev" / "secret-scan-dmg.json")
+        return self.journey.results
+
+    def test_identical_clean_volume_passes_and_the_report_lists_the_notice(self):
+        results = self.check()
+        self.assertEqual([r["result"] for r in results], ["pass", "pass", "pass"])
+        report = json.loads((self.dir / "ev" / "secret-scan-dmg.json").read_text())
+        self.assertTrue(any(f.endswith("READ ME FIRST.txt") for f in report["files"]))
+        self.assertFalse(any("Applications" in f or ".fseventsd" in f for f in report["files"]))
+        scan = load("secret_scan")
+        self.assertEqual(scan.scan([self.dir / "ev"])["hits"], [])  # the later workflow scan of evidence/ stays clean
+
+    def test_a_changed_file_in_the_dmg_fails(self):
+        (self.mount / "Swangz.app" / "Contents" / "Info.plist").write_text("<plist>other</plist>")
+        with self.assertRaises(SystemExit):
+            self.check()
+        self.assertIn("Contents/Info.plist", self.journey.results[-1]["detail"])
+
+    def test_an_extra_file_or_a_retargeted_link_fails(self):
+        (self.mount / "Swangz.app" / "Contents" / "extra.py").write_text("x")
+        with self.assertRaises(SystemExit):
+            self.check()
+        (self.mount / "Swangz.app" / "Contents" / "extra.py").unlink()
+        self.os.remove(self.mount / "Swangz.app" / "Contents" / "current")
+        self.os.symlink("Info.plist", self.mount / "Swangz.app" / "Contents" / "current")
+        self.journey.results.clear()
+        with self.assertRaises(SystemExit):
+            self.check()
+
+    def test_a_secret_in_the_rc_notice_fails(self):
+        (self.mount / "READ ME FIRST.txt").write_text("key sk-ant-" + "a1" * 20)
+        with self.assertRaises(SystemExit):
+            self.check()
+        self.assertEqual(self.journey.results[-1]["result"], "FAIL")
+        self.assertIn("Anthropic key", self.journey.results[-1]["detail"])
+
+    def test_a_hidden_or_unexpected_entry_on_the_volume_fails(self):
+        (self.mount / ".hidden").write_text("sk-ant-" + "a1" * 20)
+        with self.assertRaises(SystemExit):
+            self.check()
+        self.assertIn("unexpected: .hidden", self.journey.results[-1]["detail"])
+
+    def test_an_applications_link_pointing_elsewhere_fails(self):
+        self.os.remove(self.mount / "Applications")
+        self.os.symlink("/tmp", self.mount / "Applications")
+        with self.assertRaises(SystemExit):
+            self.check()
+        self.assertEqual(self.journey.results[-1]["result"], "FAIL")
