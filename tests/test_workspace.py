@@ -13,6 +13,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from gateway import security, turns, workspace
 
+from workspace_agent.agent import container_name
+
 from .fake_neko import FakeNeko
 from .test_turns import TurnBase
 from .test_workspace_agent import TOKEN, AgentRig
@@ -327,6 +329,52 @@ class AgentModeTests(ThreePeople):
     def test_the_mode_is_checked(self):
         self.assertEqual(self.rig.api("PATCH", "/tools/midjourney", {"workspace_mode": "kasm"})[0], 400)
         self.assertEqual(self.rig.api("GET", "/catalog")[1]["workspace_agent"], True)
+
+
+class TwoAtOnceAgentTests(ThreePeople):
+    """Deliverable 5 level A (docs/TWO-PEOPLE-AT-ONCE-PLAN.md, A3): two people hold turns together on the Workspace Agent."""
+
+    open_until_in = AgentModeTests.open_until_in
+
+    def setUp(self):
+        super().setUp()
+        self.ws = AgentRig()
+        self.addCleanup(self.ws.close)
+        settings = self.rig.gw.settings
+        settings.workspace_agent_url, settings.workspace_agent_token = self.ws.url, TOKEN
+        self.assertEqual(self.rig.api("PATCH", "/tools/midjourney", {"workspace_mode": "agent", "seats_at_once": 2})[0], 200)
+        self.n1, self.n2 = self.ws.nekos["midjourney-1"], self.ws.nekos["midjourney-2"]
+
+    def test_two_turns_get_two_browsers_and_two_sign_ins_and_one_release_touches_only_its_own(self):
+        _, h1, _ = self.open_until_in(self.go)
+        _, h2, _ = self.open_until_in(lambda tool: self.go_as_other(tool))
+        grace, brian = self.turn_of(self.rig.person_id), self.turn_of(self.other)
+        self.assertEqual({grace["workspace"], brian["workspace"]}, {"agent:midjourney-1", "agent:midjourney-2"})
+        (u1, p1), (u2, p2) = signin_in(h1["location"]), signin_in(h2["location"])
+        self.assertEqual((u1, u2), (workspace.username(self.rig.person_id), workspace.username(self.other)))
+        self.assertNotEqual(p1, p2)
+        neko = {"agent:midjourney-1": self.n1, "agent:midjourney-2": self.n2}
+        mine, his = neko[grace["workspace"]], neko[brian["workspace"]]
+        self.assertTrue(mine.sign_in(u1, p1) and his.sign_in(u2, p2))
+        self.assertFalse(mine.sign_in(u2, p2) or his.sign_in(u1, p1), "each sign-in works only in its own browser")
+        # Grace hands back: only her sign-in is deleted and only her container recycled; Brian keeps his browser
+        slot = grace["workspace"].split(":", 1)[1]
+        other_slot = brian["workspace"].split(":", 1)[1]
+        log_before = len(self.ws.docker.log)
+        self.staff("POST", "/tools/midjourney/turn/end")
+        self.rig.wait_for(lambda: ("DELETE", f"/{slot}/api/members/{u1}", None) in mine.calls)
+        self.rig.wait_for(lambda: self.turn_of(self.rig.person_id)["ws_closed"])
+        self.assertFalse([c for c in his.calls if c[0] == "DELETE"], "Brian's sign-in is left alone")
+        touched = {name for _, name in self.ws.docker.log[log_before:]}
+        self.assertIn(container_name(slot), touched)
+        self.assertNotIn(container_name(other_slot), touched, "Brian's container is not recycled")
+        holders = {b["slot"]: b["holder"] for b in self.ws.call("GET", "/status")[1]["browsers"]}
+        self.assertIsNone(holders[slot])
+        self.assertIsNotNone(holders[other_slot])
+        still = self.turn_of(self.other)
+        self.assertEqual((still["id"], still["ended"], still["ws_closed"]), (brian["id"], None, brian["ws_closed"]))
+        self.assertEqual(his.members.get(u2, {}).get("password"), p2, "Brian's sign-in is still there")
+        self.assertIn(u2, his.sessions, "and his session is still open")
 
 
 class PlacesTests(ThreePeople):
