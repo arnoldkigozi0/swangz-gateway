@@ -18,8 +18,9 @@
 5b. older build: the OLD app dragged over the NEW one refuses to run (exit 5) and changes nothing; NEW goes back
 6. uninstall: `Swangz logout`, the server shows the device disconnected, the app's data and login item are gone,
    the bundle is removed
-7. revoked while away: enrol again, cut the Hub, disconnect the device from another browser, bring the Hub back:
-   the next sync is refused (exit 3) and Swangz removes itself, keeping only the company-browser folder (R-12)
+7. revoked while away: enrol again, turn start at login on, cut the Hub, disconnect the device from another browser, bring the Hub back:
+   the next sync is refused (exit 3) and Swangz removes itself and its login item, keeping only the company-browser
+   folder (R-12)
 
 Every step writes to DIR/journey.log and DIR/journey.json (uploaded as evidence). Gatekeeper is never bypassed:
 `spctl --assess` is run and its refusal of the unsigned build is recorded as the expected result. The fixture
@@ -540,6 +541,8 @@ def main(argv=None):
         # 7 (row 7d): disconnected while the Hub was out of reach, from another browser that still reaches it
         enrol(j, app, browser, env, app_url, " (again, for the revocation check)")
         key_id = json.loads((data / "device.json").read_text(encoding="utf-8")).get("key_id")
+        code, out = j.run([binary(app), "autostart", "on"], env=env)  # revocation must remove the login item too (#283)
+        j.step("start at login turned on before the revocation", code == 0 and login_item.exists(), str(login_item))
         relay.stop()
         direct = Browser(f"http://127.0.0.1:{relay.target}")
         j.step("while the app cannot reach the Hub, the person disconnects this device elsewhere",
@@ -553,6 +556,7 @@ def main(argv=None):
         leftovers = [p.name for p in data.iterdir()] if data.exists() else []
         j.step("revoked: Swangz removed itself, only the company-browser folder is kept (R-12)",
                set(leftovers) <= KEPT_AFTER_SIGNOUT, ", ".join(leftovers) or "folder empty or gone")
+        j.step("revoked: the login item is removed", not login_item.exists(), str(login_item))
         j.step("revoked: no Swangz item left in the login keychain", keychain_secret(app_url, key_id) is None, f"key {key_id}")
         code, out = j.run([binary(app), "status"], env=env)
         j.step("revoked: status says not signed in", code == 2, f"exit {code}")

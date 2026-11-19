@@ -300,6 +300,8 @@ Runs read: Windows PR run https://github.com/arnoldkigozi0/swangz-gateway/action
 
 **Fix task for Forge/Anvil:** in `packaging/macos_journey.py`, turn start at login on before the revocation check (after step 104) and assert the LaunchAgent plist is gone after step 107, next to steps 108–110. The Windows journey already does this (report step 32).
 
+**Fix task closed by #286 (macOS, row 7):** run https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44499097781 (PR head `85f5f13`, macOS journey success, 114 steps, all `pass`; read from `evidence/journey.json`). Step 105 turns start at login on after the person signs in again for the revocation check (the LaunchAgent plist exists); after the revoked sync (108, exit 3), step 110 "revoked: the login item is removed" passes, next to 109 (only `browser-profiles` kept), 111 (keychain) and 112 (`status` exit 2). So start-at-login removal on revoke is now **PASS (runner) on macOS and Windows**; **Linux stays unit-test only** (no Linux runner journey), and **no runner makes the Windows registry refuse** (the one-line message is a unit test only).
+
 **Hub checks on main `31a60fe`, run 44488549742 (read 19 Nov 2026):** success. python 3.10 and 3.12 each ran 1440 tests, OK (skipped=20); app-window ran 16 tests, OK; the browser job passed all 34 steps. Earlier Hub checks runs on main were cancelled by the next merge; it is the first full success I have read since `63e3251` (run 44470485377).
 
 **Probe (no second opinion):** I did not ask GPT-6.1 Sol; the claims are read from the runs and the diff.
