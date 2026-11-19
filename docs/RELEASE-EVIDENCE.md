@@ -395,7 +395,7 @@ macOS run https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/445680889
 
 ### #298 draft, head `fbf5e87`, read 19 Nov 2026 (row 5, level A of the two-people plan; read before merge)
 
-Tests only: `tests/test_turns.py` (`TwoAtOnceTests`, 3 tests) and `tests/test_workspace.py` (`TwoAtOnceAgentTests`, 1 test). python 3.10 and 3.12, app-window green on the head; `browser` still running at the last read (see below). The four new tests were not marked skipped: I ran them on the head, 4 tests OK in 5.6 s (targeted run, not the full suite). Everything runs against the Hub and the fake Workspace Agent in-process, so this is the Hub's own behaviour, not the installed app and not a real browser.
+Tests only: `tests/test_turns.py` (`TwoAtOnceTests`, 3 tests) and `tests/test_workspace.py` (`TwoAtOnceAgentTests`, 1 test). python 3.10 and 3.12, app-window green on the head; `browser` still running at the last read. The four new tests were not marked skipped: I ran them on the head, 4 tests OK in 5.6 s (targeted run, not the full suite). Everything runs against the Hub and the fake Workspace Agent in-process, so this is the Hub's own behaviour, not the installed app and not a real browser.
 
 | Plan item | Result | Test | Not shown |
 |---|---|---|---|
@@ -405,8 +405,6 @@ Tests only: `tests/test_turns.py` (`TwoAtOnceTests`, 3 tests) and `tests/test_wo
 | A4: the audit trail shows two overlapping turns, each under its own person | PASS (Hub tests) | `test_the_record_shows_two_overlapping_turns_each_under_its_own_person`: the timeline returns two turn events under the two people, the second began before the first ended, the audit has one "took a turn on a shared account" line per actor | the audit and timeline are the Hub's; they say who held the account when, not what they did inside the provider |
 
 **Result:** #298 VERIFIED for A1 to A4 at `fbf5e87` (browser job pending at the last read; the PR changes no code the browser suite touches). Row 5 stays PARTIAL: B (two installed-app instances at once) and C (two real machines, a real provider sign-in) are not done.
-
-**The `browser` check on #297 and #298:** both jobs are running, not stuck. The #298 job (run 44578001756) started at 17:31:03 UTC on a GitHub-hosted `ubuntu-latest` runner and had completed 25 of its 36 steps at 17:48 UTC, with "Tracker parity and responsive matrix" in progress. GitHub's `gh pr checks` prints `pending` for an in-progress job, which is why it looks stuck. The job normally takes 27 to 32 minutes, so it is only a little over halfway.
 
 ### #296 Windows machine-policy tamper, head `0ef0676`, read 19 Nov 2026 (rows 5 and 6; read before merge)
 
