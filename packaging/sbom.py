@@ -1,6 +1,10 @@
 """A CycloneDX 1.5 software bill of materials for the built Swangz program.
 
     python packaging/sbom.py --program dist/Swangz.exe --version 0.1.23 --requirements packaging/requirements-windows-build.txt --out artifacts/Swangz-0.1.23.cdx.json
+    python packaging/sbom.py --program dist/Swangz.app --artifact dist/Swangz-0.1.23-RC-UNSIGNED-macos-arm64.dmg ...
+
+The program is a one-file Windows .exe or a macOS .app folder. For a folder, the program hash is the --artifact file's
+(the .dmg people download); without one, a hash over every file's path and SHA-256.
 
 What it lists, and where each fact comes from:
 - the program itself (SHA-256 of the file);
@@ -25,6 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 NATIVE = re.compile(r"\.(dll|pyd|so|dylib)$", re.I)
+MACHO = (b"\xcf\xfa\xed\xfe", b"\xce\xfa\xed\xfe", b"\xca\xfe\xba\xbe", b"\xfe\xed\xfa\xcf")
 OWN = ("swangz_client",)
 
 
@@ -43,21 +48,55 @@ def read_requirements(path):
     return out
 
 
-def archive_contents(program):
-    """(native files {name: sha256}, python modules [name]) from a PyInstaller program."""
-    from PyInstaller.archive.readers import CArchiveReader
-    reader = CArchiveReader(str(program))
-    native, modules = {}, []
+def _modules(reader):
+    modules = []
     for name in reader.toc:
-        if NATIVE.search(name):
-            native[name] = sha256(reader.extract(name))
-        elif name.endswith(".pyz") or name.startswith("PYZ"):
+        if name.endswith(".pyz") or name.startswith("PYZ"):
             modules.extend(reader.open_embedded_archive(name).toc)
+    return modules
+
+
+def archive_contents(program):
+    """(native files {name: sha256}, python modules [name]) from a PyInstaller program: a one-file .exe, or a .app
+    folder whose native files sit beside the executable that carries the module archive."""
+    from PyInstaller.archive.readers import CArchiveReader
+    program = Path(program)
+    if program.is_file():
+        reader = CArchiveReader(str(program))
+        native = {name: sha256(reader.extract(name)) for name in reader.toc if NATIVE.search(name)}
+        return native, sorted(set(_modules(reader)))
+    native, modules, opened = {}, [], 0
+    for f in sorted(p for p in program.rglob("*") if p.is_file() and not p.is_symlink()):
+        data = f.read_bytes()
+        rel = f.relative_to(program).as_posix()
+        if NATIVE.search(f.name) or data[:4] in MACHO:
+            native[rel] = sha256(data)
+        if data[:4] in MACHO or f.suffix == ".pkg":
+            try:
+                found = _modules(CArchiveReader(str(f)))
+            except Exception:  # an ordinary library, not a PyInstaller archive
+                continue
+            modules.extend(found)
+            opened += 1
+    if not opened:
+        raise SystemExit(f"no PyInstaller archive found in {program}")
     return native, sorted(set(modules))
 
 
-def build(program, version, requirements, native, modules, python_version, epoch=None):
-    data = Path(program).read_bytes()
+def program_digest(program, artifact=None):
+    """SHA-256 of the program file, of the --artifact (the .dmg), or over a folder's sorted (path, SHA-256) list."""
+    if artifact:
+        return sha256(Path(artifact).read_bytes())
+    program = Path(program)
+    if program.is_file():
+        return sha256(program.read_bytes())
+    lines = [f"{p.relative_to(program).as_posix()} {sha256(p.read_bytes())}\n"
+             for p in sorted(program.rglob("*")) if p.is_file() and not p.is_symlink()]
+    return sha256("".join(lines).encode())
+
+
+def build(program, version, requirements, native, modules, python_version, epoch=None, artifact=None):
+    program_hash = program_digest(program, artifact)
     stamp = datetime.fromtimestamp(epoch, timezone.utc) if epoch else datetime.now(timezone.utc)
     own = [m for m in modules if m.split(".")[0] in OWN]
     stdlib = set(getattr(sys, "stdlib_module_names", ())) | {"_pyi_rth_utils", "pyimod01_archive", "pyimod02_importers",
@@ -78,13 +117,13 @@ def build(program, version, requirements, native, modules, python_version, epoch
               "hashes": [{"alg": "SHA-256", "content": h} for h in hs]} for n, v, hs in requirements]
     bom = {
         "bomFormat": "CycloneDX", "specVersion": "1.5",
-        "serialNumber": "urn:uuid:" + str(uuid.uuid5(uuid.NAMESPACE_URL, "swangz:" + sha256(data))),
+        "serialNumber": "urn:uuid:" + str(uuid.uuid5(uuid.NAMESPACE_URL, "swangz:" + program_hash)),
         "version": 1,
         "metadata": {
             "timestamp": stamp.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "tools": {"components": tools},
-            "component": {"type": "application", "bom-ref": "program", "name": Path(program).name, "version": version,
-                          "hashes": [{"alg": "SHA-256", "content": sha256(data)}]},
+            "component": {"type": "application", "bom-ref": "program", "name": Path(artifact or program).name, "version": version,
+                          "hashes": [{"alg": "SHA-256", "content": program_hash}]},
             "properties": [{"name": "swangz:label", "value": "RC — UNSIGNED — INTERNAL TEST ONLY"}],
         },
         "components": components,
@@ -99,15 +138,16 @@ def main(argv=None):
     ap.add_argument("--version", required=True)
     ap.add_argument("--requirements", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--artifact", help="the file people download (a .dmg), whose SHA-256 names the program")
     ap.add_argument("--epoch", type=int, help="timestamp to record (SOURCE_DATE_EPOCH), so the SBOM is reproducible")
     args = ap.parse_args(argv)
-    for p in (args.program, args.requirements):
-        if not Path(p).is_file():
+    for p in (args.program, args.requirements, args.artifact):
+        if p and not Path(p).exists():
             print(f"missing input: {p}", file=sys.stderr)
             return 2
     native, modules = archive_contents(args.program)
     bom, unexpected = build(args.program, args.version, read_requirements(args.requirements), native, modules,
-                            platform.python_version(), args.epoch)
+                            platform.python_version(), args.epoch, args.artifact)
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps(bom, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"SBOM {args.out}: {len(bom['components'])} components ({len(native)} native files, {len(modules)} modules), "

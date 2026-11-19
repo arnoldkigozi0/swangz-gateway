@@ -12,6 +12,8 @@ sbom = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(sbom)
 REQS = ROOT / "packaging" / "requirements-windows-build.txt"
 WORKFLOW = (ROOT / ".github/workflows/release-windows.yml").read_text(encoding="utf-8")
+MAC_REQS = ROOT / "packaging" / "requirements-macos-build.txt"
+MAC = (ROOT / ".github/workflows/build-macos.yml").read_text(encoding="utf-8")
 
 
 class SbomTests(unittest.TestCase):
@@ -63,11 +65,44 @@ class SbomTests(unittest.TestCase):
 
     def test_the_release_job_ships_the_sbom_with_the_installer(self):
         self.assertIn("python packaging/sbom.py --program dist\\Swangz.exe --version $env:NEW_VERSION", WORKFLOW)
+        self.assertRegex(WORKFLOW, r"CYCLONEDX_CLI_SHA256: '[0-9a-f]{64}'")
+        self.assertIn("does not match the pin", WORKFLOW.split("- name: SBOM", 1)[1])
+        self.assertIn("--input-version v1_5 --fail-on-errors", WORKFLOW)
         self.assertIn("--epoch $env:SOURCE_DATE_EPOCH", WORKFLOW)
         self.assertIn("--out artifacts\\Swangz-$env:NEW_VERSION.cdx.json", WORKFLOW)
         step = WORKFLOW.split("- name: SBOM", 1)[1].split("\n      - ", 1)[0]
         self.assertNotIn("continue-on-error", step)
         self.assertLess(WORKFLOW.index("- name: SBOM"), WORKFLOW.index("name: Swangz-Windows-installer-RC-UNSIGNED"))
+
+
+    def test_a_macos_app_folder_is_named_by_its_dmg(self):
+        app = Path(self.tmp.name) / "Swangz.app"
+        (app / "Contents" / "MacOS").mkdir(parents=True)
+        (app / "Contents" / "MacOS" / "Swangz").write_bytes(b"\xcf\xfa\xed\xfe program")
+        dmg = Path(self.tmp.name) / "Swangz-0.1.9-RC-UNSIGNED-macos-arm64.dmg"
+        dmg.write_bytes(b"dmg bytes")
+        bom, _ = sbom.build(app, "0.1.9", sbom.read_requirements(MAC_REQS), {}, ["json"], "3.12.7", epoch=1, artifact=dmg)
+        self.assertEqual(bom["metadata"]["component"]["name"], dmg.name)
+        self.assertEqual(bom["metadata"]["component"]["hashes"][0]["content"], sbom.sha256(b"dmg bytes"))
+        self.assertIn("macholib", {t["name"] for t in bom["metadata"]["tools"]["components"]})
+        # without a .dmg, the folder's own file list is hashed, and a changed file changes it
+        before = sbom.program_digest(app)
+        (app / "Contents" / "MacOS" / "Swangz").write_bytes(b"\xcf\xfa\xed\xfe changed")
+        self.assertNotEqual(before, sbom.program_digest(app))
+
+    def test_the_macos_job_ships_a_validated_sbom_and_scans_for_secrets(self):
+        self.assertIn("python packaging/sbom.py --program dist/Swangz.app", MAC)
+        self.assertIn("--requirements packaging/requirements-macos-build.txt", MAC)
+        self.assertRegex(MAC, r"CYCLONEDX_CLI_SHA256: '[0-9a-f]{64}'")
+        self.assertIn("validate --input-file", MAC)
+        self.assertIn("--fail-on-errors", MAC)
+        self.assertIn("python packaging/secret_scan.py --report evidence/secret-scan.json", MAC)
+        for step in ("- name: SBOM", "- name: Secret scan"):
+            body = MAC.split(step, 1)[1].split("\n      - ", 1)[0]
+            self.assertNotIn("continue-on-error", body)
+            self.assertNotIn("if: always()", body)
+        self.assertLess(MAC.index("macos_journey.py"), MAC.index("- name: Secret scan"))
+        self.assertIn("dist/*.cdx.json", MAC.split("upload-artifact", 1)[1])
 
 
 if __name__ == "__main__":
