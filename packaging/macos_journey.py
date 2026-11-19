@@ -327,7 +327,7 @@ def fresh_install(j, dmg, env, data, db):
            check.get("window") == "signin" and check.get("hub_address") == "",
            f"window {check.get('window')!r}, address {check.get('hub_address')!r}")
     before = sign_in_codes(db)
-    for address in ("http://hub.swangzavenue.com", "http://192.0.2.10:8787"):
+    for address in ("http://hub.example.com", "http://192.0.2.10:8787"):
         code, out = j.run([binary(app), "login", "--server", address, "--name", DEVICE], env=env,
                           stdin=subprocess.DEVNULL, timeout=60)
         j.step(f"a non-https Hub address is refused: {address}",

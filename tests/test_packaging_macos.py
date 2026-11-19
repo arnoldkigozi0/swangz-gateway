@@ -158,7 +158,7 @@ class JourneyGapTests(unittest.TestCase):
     def test_a_fresh_install_has_no_address_and_refuses_plain_http_before_any_code(self):
         fresh = self.text.split("def fresh_install(", 1)[1].split("def main(", 1)[0]
         for needle in ('"status"', "code == 2", 'check.get("window") == "signin"', 'check.get("hub_address") == ""',
-                       '"http://hub.swangzavenue.com"', '"http://192.0.2.10:8787"', "only connects over https",
+                       '"http://hub.example.com"', '"http://192.0.2.10:8787"', "only connects over https",
                        "sign_in_codes(db) == before", "shutil.rmtree(apps)"):
             self.assertIn(needle, fresh)
         self.assertLess(self.main.index("fresh_install(j, args.new"), self.main.index("install(j, args.old, apps)"))
