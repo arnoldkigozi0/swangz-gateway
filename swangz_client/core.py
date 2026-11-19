@@ -64,6 +64,10 @@ class ClientTooOld(Exception):
     pass
 
 
+class OlderBuild(Exception):
+    """A newer Swangz already ran with this device's sign-in: an older copy put over it must not roll back fixes."""
+
+
 # ---------------------------------------------------------------- where things live
 
 
@@ -91,6 +95,32 @@ class Paths:
 
 def write_private(path, text):
     keystore.write_private(path, text)
+
+
+NEWEST_APP = "newest-app.json"  # the newest app version that ran while this device was signed in
+
+
+def check_newest_app(paths, running=__version__):
+    """An older build never replaces a newer one (the Windows installer refuses it; on a Mac the app is dragged in,
+    so the older copy refuses to run instead). Only while signed in: the floor belongs to the enrolment and sign out
+    removes it. A version the updater rolled back from (its failed_version) does not count."""
+    data = Path(paths.data)
+    if not (data / "device.json").is_file():
+        return
+    try:
+        seen = str(json.loads((data / NEWEST_APP).read_text(encoding="utf-8"))["version"])
+    except (OSError, ValueError, KeyError, TypeError):
+        seen = None
+    if seen and version_tuple(seen) > version_tuple(running):
+        try:
+            failed = json.loads((data / "updates" / "state.json").read_text(encoding="utf-8")).get("failed_version")
+        except (OSError, ValueError, AttributeError):
+            failed = None
+        if not failed or version_tuple(failed) < version_tuple(seen):
+            raise OlderBuild(f"Swangz {seen} is already in use on this computer; this copy is the older {running}, so "
+                             f"it will not run. Install Swangz {seen} or newer, or sign out first (swangz logout).")
+    if seen != running:
+        write_private(data / NEWEST_APP, json.dumps({"version": running}))
 
 
 class RotationLock:
@@ -378,7 +408,8 @@ class Store:
             for root in reversed(self.roots()):
                 keystore.erase_file(root / "device.key")
                 keystore.erase_file(root / "device.key.next")
-                for name in ("state.json", "manifest.json", "device.json", "credential-access.log", "workspace-open.log", "rotate.lock"):
+                for name in ("state.json", "manifest.json", "device.json", "credential-access.log", "workspace-open.log", "rotate.lock",
+                             NEWEST_APP):
                     (root / name).unlink(missing_ok=True)
 
 

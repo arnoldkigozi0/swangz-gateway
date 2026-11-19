@@ -49,6 +49,12 @@ the website tools they may open (`/go/<tool>`, which checks access, records it a
 them a company browser of their own — the credential rules in CLAUDE.md are unchanged). The app installs
 exactly this and removes what is no longer offered. The key is never in the manifest.
 
+**An older build never replaces a newer one.** The Windows installer refuses it. On a Mac the app is dragged into
+Applications, so the app itself refuses: while the device is signed in, `newest-app.json` in the app's data folder
+records the newest version that ran, and an older copy exits 5 (with a dialog when opened from Finder) without
+touching the sign-in. `swangz logout` still works; sign out and revocation remove the record. A version the updater
+rolled back from (`updates/state.json` `failed_version`) does not count (`core.check_newest_app`).
+
 ## Personal and company devices
 
 | | Personal device | Company device |
