@@ -15,10 +15,10 @@ says NOT TESTED, PARTIAL or OWNER, so do these notes. Windows build details: `pa
 | Piece | What it does | Evidence |
 |---|---|---|
 | **Windows installer** | Per-person install with no administrator rights. It adds a Start-menu entry, plus two optional tasks that are off by default: a desktop shortcut and starting at sign-in. It also adds an uninstaller in Apps & features. An older installer run over a newer install is refused | #243, #250. Install, sign-in, restart, network cut and restore, upgrade over a running copy and uninstall all pass on `windows-latest` (RELEASE-EVIDENCE rows 1, 7 and 9) |
-| **macOS app and DMG** | `Swangz.app` in a DMG for Apple silicon. You drag it into Applications. An older copy put over a newer one refuses to run (exit 5) | #244, #253, #263, #271, #275. The 31-step journey passes on `macos-latest`. Gatekeeper rejects the unsigned app as expected (row 2) |
+| **macOS app and DMG** | `Swangz.app` in a DMG for Apple silicon. You drag it into Applications. An older copy put over a newer one refuses to run (exit 5) | #244, #253, #263, #271, #275. The 83-step journey passes on `macos-latest` (run 44458636155). Gatekeeper rejects the unsigned app as expected (row 2) |
 | **Device sign-in** | The device is approved with a code in the person's own browser (`/device`). The key is stored in the system keychain (Credential Manager on Windows, Keychain on macOS). No Hub address, key or secret is built in: the person enters the address at first run, and it must be https, except `localhost`, `127.0.0.1` and `::1` | Rows 3 and 4. The macOS app refuses `http://` addresses (#271) |
-| **Managed AI browser workspace** | A company-managed browser profile per person for approved AI sites, kept apart from personal browsing. Company devices check the machine policy before Open and report it if it has been tampered with (D-024, #248) | #204, #248. Linux headless only (#236) and Linux Chrome CI (`w6-step5`). No real-Chrome run on Windows or macOS yet (row 5) |
-| **Prompt and reply privacy (F-18)** | `store_bodies` is **off by default**: no prompt or reply text is stored. If an admin turns it on, only console roles with the `trust` area (owner, security) can read the content. Every other role sees "withheld" | #249, D-023. Probe verified at `58da416`. Content already stored stays until retention removes it. Not yet checked as a round trip through the packaged app |
+| **Managed AI browser workspace** | A company-managed browser profile per person for approved AI sites, kept apart from personal browsing. Company devices check the machine policy before Open and report it if it has been tampered with (D-024, #248) | #204, #248, #270, #272. **PARTIAL (runner, row 5):** on `windows-latest` and `macos-latest` the installed app opens a granted tool in real Google Chrome on one per-person folder inside its data folder; the folder's marker matches the person and the device; the Hub records the open (runs 44455161915 and 44455029714, main `8013574`). #272 adds: the folder and marker are unchanged after an upgrade and after sign-out, and a second person on the same device gets their own folder. Machine-policy tamper check: Linux Chrome CI only (`w6-step5`) |
+| **Prompt and reply privacy (F-18)** | `store_bodies` is **off by default**: no prompt or reply text is stored. If an admin turns it on, only console roles with the `trust` area (owner, security) can read the content. Every other role sees "withheld" | #249, D-023. Probe verified at `58da416`. Content already stored stays until retention removes it. The packaged app's F-18 round trip passes on both runners (#270, 9 steps, row 6); #272 adds a byte scan of the database, its WAL and the Hub log |
 | **Updates** | Off. The app reports "Updates unavailable: no pinned release key". A newer RC is installed by hand | `release_keys.ENABLED = False` |
 
 ## Version rules
@@ -50,12 +50,14 @@ says NOT TESTED, PARTIAL or OWNER, so do these notes. Windows build details: `pa
   - the Hub being down when the app starts;
   - a device revoked while the Hub was away;
   - the key appearing in no log after an outage.
-- **The managed workspace has not run with real Chrome on Windows or macOS.** There is no evidence yet that the
-  profile folder survives an upgrade, or of what uninstall does to it.
+- **The managed workspace is proven on runners only (row 5 PARTIAL).** Real Chrome opens a granted tool on one
+  per-person folder on both runners, and the folder survives an upgrade and sign-out (#270, #272). Not proven: a
+  real provider sign-in inside that browser, the exact Chrome command line (only Chrome's `Local State` file is
+  checked), and folder permissions against a second OS user. Those are owner checks (O-1, O-2, O-3).
 - **macOS reproducibility is not checked.** Windows builds are byte-identical only for two builds in one job on one
   runner image.
 - **Runners are not company devices.** They show no real SmartScreen or Gatekeeper prompt, no Keychain dialog, no
-  sleep or Wi-Fi change, and no second person. A program restart stands in for a reboot.
+  sleep or Wi-Fi change, and no second OS user. A program restart stands in for a reboot.
 - **Owner-only checks O-1 to O-7 are open.** None has a result yet: the physical Windows PC and Mac, a second OS
   user, sleep/Wi-Fi/VPN, the production address and Google sign-in, signing and the decision on updates, and the
   provider-seat inventory. See [RELEASE-OWNER-CHECKLIST.md](RELEASE-OWNER-CHECKLIST.md).
