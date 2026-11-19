@@ -73,7 +73,7 @@ Fill in on Saturday. Each line names the thing, its evidence row and who clears 
 - **No production address, DNS or Google OAuth redirect.** Arnold, O-5.
 - **No provider-seat inventory.** Arnold, O-7.
 - **Updates are off** (`release_keys.ENABLED = False`) until signed builds and a pinned release key exist.
-- RELEASE-EVIDENCE.md does not yet record #287 (Windows key in no log, Hub process restart, address across upgrade). Probe reads run 44500938493 before Saturday.
+- RELEASE-EVIDENCE.md records #286 and #287 (PR #290). #292 and #293 are recorded from their PR-head runs (both merged).
 - `<any red run, open PR or new defect at the release commit>`
 
 ## 6. Owner actions left
