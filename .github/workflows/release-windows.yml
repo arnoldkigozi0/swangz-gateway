@@ -15,6 +15,8 @@ env:
   PYINSTALLER_VERSION: '6.11.1'   # build tool only, pinned with every wheel's SHA-256; not shipped as a library
   INNO_SETUP_VERSION: '6.4.3'     # build tool only, pinned to the official release and its SHA-256
   INNO_SETUP_SHA256: 'f3c42116542c4cc57263c5ba6c4feabfc49fe771f2f98a79d2f7628b8762723b'
+  CYCLONEDX_CLI_VERSION: '0.33.1'  # the official CycloneDX tool, CI-side only, validates the SBOM
+  CYCLONEDX_CLI_SHA256: '9b360974c41a5d612eb026fb5e3bb1fa28e08865f7a4f915665b8bc94bd3bc31'  # cyclonedx-win-x64.exe
 jobs:
   installer:
     name: RC — UNSIGNED — INTERNAL TEST ONLY (Windows installer)
@@ -93,14 +95,29 @@ jobs:
       - name: SBOM (CycloneDX, shipped next to the installer)
         # Lists the program, its Python runtime, the client code, every bundled native file with its SHA-256, and the
         # hash-pinned build tools. Fails if a third-party Python package is found inside the program.
-        run: >-
-          python packaging/sbom.py --program dist\Swangz.exe --version $env:NEW_VERSION
-          --requirements packaging\requirements-windows-build.txt --epoch $env:SOURCE_DATE_EPOCH
+        # Then the official CycloneDX tool (pinned by SHA-256, CI-side only) checks it against the 1.5 schema.
+        run: |
+          python packaging/sbom.py --program dist\Swangz.exe --version $env:NEW_VERSION `
+          --requirements packaging\requirements-windows-build.txt --epoch $env:SOURCE_DATE_EPOCH `
           --out artifacts\Swangz-$env:NEW_VERSION.cdx.json
+          if ($LASTEXITCODE -ne 0) { throw "SBOM failed" }
+          $cli = "$env:RUNNER_TEMP\cyclonedx.exe"
+          Invoke-WebRequest -Uri "https://github.com/CycloneDX/cyclonedx-cli/releases/download/v$env:CYCLONEDX_CLI_VERSION/cyclonedx-win-x64.exe" -OutFile $cli
+          $got = (Get-FileHash $cli -Algorithm SHA256).Hash.ToLower()
+          if ($got -ne $env:CYCLONEDX_CLI_SHA256) { throw "cyclonedx-cli SHA-256 $got does not match the pin" }
+          & $cli validate --input-file artifacts\Swangz-$env:NEW_VERSION.cdx.json --input-format json --input-version v1_5 --fail-on-errors
+          if ($LASTEXITCODE -ne 0) { throw "the SBOM is not valid CycloneDX 1.5" }
+          "- SBOM artifacts\Swangz-$env:NEW_VERSION.cdx.json: valid CycloneDX 1.5 (cyclonedx-cli $env:CYCLONEDX_CLI_VERSION)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
       - name: Install the previous build, launch, enrol, restart, reconnect, upgrade, uninstall
         run: >-
           python packaging/windows/installer_e2e.py --setup $env:SETUP --evidence evidence
           --previous $env:PREVIOUS_SETUP --previous-version $env:PREVIOUS_VERSION --new-version $env:NEW_VERSION
+      - name: Secret scan (program, installer, checksum, label and the acceptance logs)
+        # Fails on any embedded key, token, private key, .env file or deployment address (packaging/secret_scan.py).
+        # The installer's payload is compressed; its contents are dist\Swangz.exe (opened entry by entry) and swangz.iss.
+        run: >-
+          python packaging/secret_scan.py --report evidence\secret-scan.json --summary $env:GITHUB_STEP_SUMMARY
+          dist artifacts evidence packaging\windows\swangz.iss
       - uses: actions/upload-artifact@v4
         with:
           name: Swangz-Windows-installer-RC-UNSIGNED

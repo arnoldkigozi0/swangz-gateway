@@ -69,7 +69,8 @@ class ReproducibleTests(unittest.TestCase):
         self.assertIn("python packaging/build.py --dist dist-b --work build/packaging-b", WORKFLOW)
         self.assertIn("--label program --report evidence\\reproducible-program.json", WORKFLOW)
         self.assertIn("--label installer --report evidence\\reproducible-installer.json", WORKFLOW)
-        self.assertEqual(WORKFLOW.count("--summary $env:GITHUB_STEP_SUMMARY"), 2)
+        step = WORKFLOW.split("- name: Reproducible-build check", 1)[1].split("\n      - ", 1)[0]
+        self.assertEqual(step.count("--summary $env:GITHUB_STEP_SUMMARY"), 2)
         self.assertNotIn("path: repro-b", WORKFLOW)  # the second build is a test input, never uploaded
 
     def test_build_times_are_replaced_by_the_source_date(self):
