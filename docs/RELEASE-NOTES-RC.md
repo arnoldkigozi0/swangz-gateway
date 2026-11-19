@@ -15,7 +15,7 @@ says NOT TESTED, PARTIAL or OWNER, so do these notes. Windows build details: `pa
 | Piece | What it does | Evidence |
 |---|---|---|
 | **Windows installer** | Per-person install with no administrator rights. It adds a Start-menu entry, plus two optional tasks that are off by default: a desktop shortcut and starting at sign-in. It also adds an uninstaller in Apps & features. An older installer run over a newer install is refused | #243, #250. Install, sign-in, restart, network cut and restore, upgrade over a running copy and uninstall all pass on `windows-latest` (RELEASE-EVIDENCE rows 1, 7 and 9) |
-| **macOS app and DMG** | `Swangz.app` in a DMG for Apple silicon. You drag it into Applications. An older copy put over a newer one refuses to run (exit 5) | #244, #253, #263, #271, #275. The 104-step journey passes on `macos-latest` (run 44470485409, main `63e3251`). Gatekeeper rejects the unsigned app as expected (row 2) |
+| **macOS app and DMG** | `Swangz.app` in a DMG for Apple silicon. You drag it into Applications. An older copy put over a newer one refuses to run (exit 5) | #244, #253, #263, #271, #275, #277, #281. The 112-step journey passes on `macos-latest` (run 44480358944, main `35008b8`). Gatekeeper rejects the unsigned app as expected (row 2) |
 | **Device sign-in** | The device is approved with a code in the person's own browser (`/device`). The key is stored in the system keychain (Credential Manager on Windows, Keychain on macOS). No Hub address, key or secret is built in: the person enters the address at first run, and it must be https, except `localhost`, `127.0.0.1` and `::1` | Rows 3 and 4. The macOS app refuses `http://` addresses (#271) |
 | **Managed AI browser workspace** | A company-managed browser profile per person for approved AI sites, kept apart from personal browsing. Company devices check the machine policy before Open and report it if it has been tampered with (D-024, #248) | #204, #248, #270, #272. **PARTIAL (runner, row 5):** on `windows-latest` and `macos-latest` the installed app opens a granted tool in real Google Chrome on one per-person folder inside its data folder; the folder's marker matches the person and the device; the Hub records the open (runs 44455161915 and 44455029714, main `8013574`). #272 adds: the folder and marker are unchanged after an upgrade and after sign-out, and a second person on the same device gets their own folder. Not shown: two people signed in at the same time. Machine-policy tamper check: Linux Chrome CI only (`w6-step5`) |
 | **Prompt and reply privacy (F-18)** | `store_bodies` is **off by default**: no prompt or reply text is stored. If an admin turns it on, only console roles with the `trust` area (owner, security) can read the content. Every other role sees "withheld" | #249, D-023. Probe verified at `58da416`. Content already stored stays until retention removes it. The round trip through the packaged app passes on both runners (#270, #272; 11 steps, row 6), including a scan of the Hub's database, WAL, stored bodies and log for the prompt when storage is off. This was a fixture Hub on the runner, not the production Hub |
@@ -45,12 +45,14 @@ says NOT TESTED, PARTIAL or OWNER, so do these notes. Windows build details: `pa
     quarantine flag.
 - **Auto-update is OFF** until signed builds exist, the app checks signatures against a pinned release key, and
   Arnold decides to turn it on.
-- **Windows packaged-app parity is merged, one fix is open.** #276 (merged) adds to the Windows journey: a fresh
-  install with no saved address, the https-only address rule, the Hub down at app start, the same key and no new
-  sign-in code after reconnecting, and a device revoked while the Hub was away (Windows run 44471096830, 43 steps).
-  #277 (merged) adds a real Hub process restart and the Hub address kept across an upgrade to the macOS journey.
-  #276 does not list a check that the key is in no log after an outage on Windows. Still open: #281. A device revoked with start-at-sign-in on keeps its Windows startup entry until #281 merges.
-  RELEASE-EVIDENCE.md does not yet record Probe's reading of the #276 and #277 runs.
+- **Windows packaged-app parity is merged (#276, #277, #281).** The Windows journey (43 steps, run 44475955390 on
+  #281's head) covers a fresh install with no saved address, the https-only address rule, the Hub down at app start,
+  the same key and no new sign-in code after an outage, a device revoked while the Hub was away, and the Windows
+  startup entry removed on revoke, sign out and uninstall. The macOS journey (112 steps, run 44480358944 on main) adds
+  a real Hub process restart and the Hub address kept across an upgrade. Not proven: on Windows, the key being in no
+  log after an outage, a Hub process restart and the address across an upgrade (the Windows journey cuts a relay);
+  on macOS and Linux, the startup entry being removed when a device is revoked (sign out is shown on macOS; a fix
+  for the other paths is open, Forge's `65cb7a81`).
 - **The managed workspace is proven on runners only (row 5 PARTIAL).** Real Chrome opens a granted tool on one
   per-person folder on both runners, and the folder survives an upgrade and sign-out (#270, #272). Not proven: a
   real provider sign-in inside that browser, the exact Chrome command line (only Chrome's `Local State` file is
