@@ -206,8 +206,9 @@ class JourneyGapTests(unittest.TestCase):
 
     def test_revoked_while_away_is_refused_on_return_and_cleans_up(self):
         away = self.main.split("# 7 (row 7d)", 1)[1].split("shutil.rmtree(app)", 1)[0]
-        steps = ["enrol(j, app", "relay.stop()", "direct.revoke(key_id) == 200", "code == 1", "relay.start()",
-                 "code == 3", "KEPT_AFTER_SIGNOUT", "keychain_secret(app_url, key_id) is None", "code == 2"]
+        steps = ["enrol(j, app", '"autostart", "on"', "login_item.exists()", "relay.stop()",
+                 "direct.revoke(key_id) == 200", "code == 1", "relay.start()", "code == 3", "KEPT_AFTER_SIGNOUT",
+                 "not login_item.exists()", "keychain_secret(app_url, key_id) is None", "code == 2"]
         at = [away.index(s) for s in steps]
         self.assertEqual(at, sorted(at), "the revocation steps are out of order")
         self.assertIn('Browser(f"http://127.0.0.1:{relay.target}")', away)  # the other browser reaches the Hub directly
