@@ -30,7 +30,7 @@ env:
 jobs:
   macos:
     runs-on: macos-latest
-    timeout-minutes: 40
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -44,6 +44,8 @@ jobs:
           python -m PyInstaller --version
           python -c "import tkinter; print('Tk', tkinter.TkVersion)"
           sw_vers; uname -m; hdiutil info | head -3
+      - name: Fix the build time to the commit time (SOURCE_DATE_EPOCH, as the Windows release does)
+        run: echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >> "$GITHUB_ENV"
       - name: Build the previous version (for the upgrade test)
         # The previous build is the version in the tree, which is also the server's minimum client version
         # (gateway/enroll.py CLIENT_MINIMUM), so the server accepts it. Replace with the last published RC once one exists.
@@ -61,6 +63,15 @@ jobs:
           sed -i '' "s/^__version__ = .*/__version__ = \"${NEW}\"/" swangz_client/__init__.py
           python packaging/macos_dmg.py --dist dist --work build/macos
           git checkout -- swangz_client/__init__.py
+      - name: Reproducibility — build this version a second time and compare (honest result, never fails on a difference)
+        # Same commit, same version, same runner, separate folders. packaging/macos_reproducible.py compares the two
+        # Swangz.app trees file by file and the two DMGs byte for byte, and records the result in the evidence.
+        run: |
+          sed -i '' "s/^__version__ = .*/__version__ = \"${NEW_VERSION}\"/" swangz_client/__init__.py
+          python packaging/macos_dmg.py --dist dist-b --work build/macos-b
+          git checkout -- swangz_client/__init__.py
+          python packaging/macos_reproducible.py --app-a dist/Swangz.app --app-b dist-b/Swangz.app \
+            --dmg-a dist/*.dmg --dmg-b dist-b/*.dmg --report evidence/reproducible-macos.json --summary "$GITHUB_STEP_SUMMARY"
       - name: Checksums
         run: |
           cd dist && shasum -a 256 -c ./*.dmg.sha256 && cat ./*.dmg.sha256 > SHA256SUMS && cat SHA256SUMS

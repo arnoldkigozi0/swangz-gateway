@@ -361,3 +361,133 @@ class FixtureRestartTests(unittest.TestCase):
         self.assertEqual(count(), before, "a restart seeds nothing again")
         self.stop(second)
         self.assertTrue(db.is_file())
+
+
+class PolicyTamperTests(unittest.TestCase):
+    """Deliverable 6 (packaging/macos_policy.py): the machine policy pack tampered with, through the packaged app."""
+
+    def setUp(self):
+        self.p = load("macos_policy")
+        self.journey = (ROOT / "packaging" / "macos_journey.py").read_text(encoding="utf-8")
+
+    def test_the_journey_runs_it_on_a_company_device_before_the_disconnect_rows(self):
+        call = self.journey.index("macos_policy.run(")
+        self.assertLess(call, self.journey.index("# 7 (row 7d)"))
+        self.assertIn('browser.approve(code, "company")', self.journey[call:call + 600])
+        self.assertIn('"owner": kind', self.journey)
+
+    def test_the_messages_it_looks_for_are_the_ones_the_app_and_the_hub_write(self):
+        launcher = (ROOT / "swangz_client" / "workspace_launcher.py").read_text(encoding="utf-8")
+        self.assertIn(self.p.REFUSED, launcher.replace("\\'", "'"))
+        self.assertIn(self.p.AUDIT, (ROOT / "gateway" / "managed.py").read_text(encoding="utf-8"))
+        self.assertIn(str(self.p.PLIST), (ROOT / "swangz_client" / "machine_policy.py").read_text(encoding="utf-8"))
+
+    def test_the_tampered_packs(self):
+        policy = {"URLBlocklist": ["*", "file://*"], "URLAllowlist": ["hub.swangz-ci.com"]}
+        self.assertEqual(self.p.without_default_deny(policy)["URLBlocklist"], ["file://*"])
+        self.assertEqual(self.p.extra_block(policy)["URLBlocklist"], ["*", "file://*", self.p.EXTRA_BLOCK])
+        self.assertEqual(policy["URLBlocklist"], ["*", "file://*"], "the original pack is not changed")
+
+    def test_prepare_returns_the_pack_and_its_printed_baseline(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as work:
+            policy, baseline = self.p.prepare(work)
+        self.assertRegex(baseline, r"^[0-9a-f]{64}$")
+        self.assertIn("*", policy["URLBlocklist"])
+        from swangz_client import machine_policy
+        self.assertEqual(machine_policy.problems_in(policy), [])
+        self.assertEqual(machine_policy.problems_in(self.p.extra_block(policy)), [], "case 3 still passes every rule")
+        self.assertNotEqual(machine_policy.problems_in(self.p.without_default_deny(policy)), [])
+        self.assertEqual(machine_policy.baseline_sha(policy), baseline, "the app computes the hash prepare.py printed")
+        self.assertNotEqual(machine_policy.baseline_sha(self.p.extra_block(policy)), baseline)
+
+    def test_it_always_restores_the_runner_and_writes_its_evidence(self):
+        src = (ROOT / "packaging" / "macos_policy.py").read_text(encoding="utf-8")
+        tail = src[src.index("    finally:"):]
+        for needed in ("remove()", '"managed_policy_mode": "warn"', "policy-tamper.json"):
+            self.assertIn(needed, tail)
+
+
+class MacReproducibleTests(unittest.TestCase):
+    def setUp(self):
+        self.r = load("macos_reproducible")
+        self.workflow = (ROOT / ".github" / "workflows" / "build-macos.yml").read_text(encoding="utf-8")
+
+    def make(self, root, files):
+        import os
+        for rel, data in files.items():
+            p = Path(root) / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_bytes(data)
+        os.symlink("Contents/MacOS/Swangz", Path(root) / "link")
+
+    def test_identical_and_different_trees_and_files(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as t:
+            a, b, c = Path(t, "a.app"), Path(t, "b.app"), Path(t, "c.app")
+            base = {"Contents/MacOS/Swangz": b"prog", "Contents/Info.plist": b"<plist/>"}
+            self.make(a, base)
+            self.make(b, base)
+            self.make(c, {**base, "Contents/MacOS/Swangz": b"prog2"})
+            same = self.r.compare_apps(a, b)
+            self.assertTrue(same["identical"])
+            self.assertEqual(same["a"]["tree_sha256"], same["b"]["tree_sha256"])
+            diff = self.r.compare_apps(a, c)
+            self.assertFalse(diff["identical"])
+            self.assertEqual([d["path"] for d in diff["differing"]], ["Contents/MacOS/Swangz"])
+            report = Path(t, "out", "r.json")
+            summary = Path(t, "summary.md")
+            (Path(t) / "x.dmg").write_bytes(b"1")
+            (Path(t) / "y.dmg").write_bytes(b"2")
+            code = self.r.main(["--app-a", str(a), "--app-b", str(c), "--dmg-a", str(Path(t, "x.dmg")),
+                                "--dmg-b", str(Path(t, "y.dmg")), "--report", str(report), "--summary", str(summary)])
+            self.assertEqual(code, 0, "a difference is reported, never a failure")
+            data = json.loads(report.read_text())
+            self.assertFalse(data["app"]["identical"] or data["dmg"]["identical"])
+            self.assertEqual(summary.read_text().count("**DIFFERENT**"), 2)
+            self.assertEqual(self.r.main(["--app-a", str(a), "--app-b", str(Path(t, "nope")), "--dmg-a", "x",
+                                          "--dmg-b", "y", "--report", str(report)]), 2)
+
+    def test_the_workflow_builds_twice_with_the_same_version_and_keeps_the_report(self):
+        step = self.workflow[self.workflow.index("Reproducibility"):self.workflow.index("- name: Checksums")]
+        self.assertIn("--dist dist-b", step)
+        self.assertIn("${NEW_VERSION}", step)
+        self.assertIn("git checkout -- swangz_client/__init__.py", step)
+        self.assertIn("evidence/reproducible-macos.json", step)
+        self.assertIn("SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)", self.workflow)
+        self.assertIn("evidence/", self.workflow[self.workflow.index("upload-artifact"):])
+
+
+class BumpVersionTests(unittest.TestCase):
+    def setUp(self):
+        import shutil
+        import tempfile
+        self.b = load("bump_version")
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root)
+        for rel in ("swangz_client/__init__.py", "gateway/enroll.py"):
+            (self.root / rel).parent.mkdir(parents=True)
+            (self.root / rel).write_text((ROOT / rel).read_text(encoding="utf-8"), encoding="utf-8")
+
+    def test_the_real_tree_has_each_value_once(self):
+        now = self.b.read()
+        self.assertEqual(set(now), {"__version__", "CLIENT_LATEST", "CLIENT_MINIMUM"})
+        for v in now.values():
+            self.b.parse(v)
+
+    def test_bump_changes_the_app_and_latest_but_not_the_minimum(self):
+        before = self.b.read(self.root)
+        changed = self.b.bump("0.2.0", root=self.root)
+        after = self.b.read(self.root)
+        self.assertEqual((after["__version__"], after["CLIENT_LATEST"]), ("0.2.0", "0.2.0"))
+        self.assertEqual(after["CLIENT_MINIMUM"], before["CLIENT_MINIMUM"])
+        self.assertIn("__version__", changed)
+
+    def test_minimum_only_when_asked_and_refusals(self):
+        self.b.bump("0.2.0", minimum="0.2.0", root=self.root)
+        self.assertEqual(self.b.read(self.root)["CLIENT_MINIMUM"], "0.2.0")
+        for bad in (("0.2.0", None), ("0.1.9", None), ("0.3.0", "0.4.0"), ("0.3.0", "0.1.0")):
+            with self.assertRaises(SystemExit):
+                self.b.bump(*bad, root=self.root)
+        with self.assertRaises(ValueError):
+            self.b.bump("0.3", root=self.root)

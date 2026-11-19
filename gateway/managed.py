@@ -72,9 +72,15 @@ def record_policy_report(ctx, person, device, now):
     sha = sha if SHA256.fullmatch(sha) else ""
     ok = 1 if report["ok"] else 0
     ctx.db.x("UPDATE devices SET policy_ok = ?, policy_sha = ?, policy_reported = ? WHERE device_id = ?", (ok, sha, now, device["device_id"]))
-    if not ok and device.get("policy_ok") != 0:  # only the move to failing is worth a line in the audit log
+    # Only the moves are worth a line in the audit log: to failing, and from failing back to passing (a pack put back,
+    # which now also clears a refusal at Open), so a tamper and its repair are both on the record.
+    if not ok and device.get("policy_ok") != 0:
         ctx.gw.audit(person["name"], "device reported its browser policy is not in force", person["name"], device["name"], ctx.ip,
                      before={"policy_ok": device.get("policy_ok")}, after={"policy_ok": 0, "reported_by": "the app"},
+                     correlation=f"device:{device['device_id']}")
+    elif ok and device.get("policy_ok") == 0:
+        ctx.gw.audit(person["name"], "device reported its browser policy is in force again", person["name"], device["name"], ctx.ip,
+                     before={"policy_ok": 0}, after={"policy_ok": 1, "sha256": sha, "reported_by": "the app"},
                      correlation=f"device:{device['device_id']}")
 
 
