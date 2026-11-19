@@ -345,6 +345,112 @@ def enrol(j, app, browser, env, app_url, label="", approve=None, who=PERSON):
     return json.loads((data_folder() / "manifest.json").read_text(encoding="utf-8")).get("browser", {}).get("device_id")
 
 
+def hub_rows(db, sql, args=()):
+    """Read the fixture Hub's database (read-only)."""
+    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=10)
+    try:
+        return con.execute(sql, args).fetchall()
+    finally:
+        con.close()
+
+
+def unusable(browser, code):
+    """/device refuses a used or expired code: it says so and offers no approval form."""
+    status, text = browser.call("GET", "/device?code=" + urllib.parse.quote(code))
+    return status == 200 and "already used or has expired" in text and "name=csrf" not in text
+
+
+def refused_codes(j, app, browser, env, app_url, data, db):
+    """Row 3a (as packaging/windows/installer_e2e.py step 3a): while the installed app waits, a wrong code entered on
+    /device approves nothing; the code it shows then expires, `login` exits 1 and saves no device or key, and /device
+    refuses the expired code."""
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from gateway import enroll as hub_enroll  # the Hub's own code alphabet, for a well-formed wrong code
+
+    keys = lambda: hub_rows(db, "SELECT COUNT(*) FROM keys")[0][0]  # noqa: E731
+    issued, newest = keys(), sign_in_codes(db)[1]
+    j.note("$ Swangz login --server " + app_url + "   (refused-code checks)")
+    login = subprocess.Popen([str(binary(app)), "login", "--server", app_url, "--name", DEVICE], env=env,
+                             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    out, row = "", None
+    try:
+        deadline = time.monotonic() + 90
+        while time.monotonic() < deadline and row is None and login.poll() is None:
+            found = hub_rows(db, "SELECT id, user_code FROM device_codes WHERE status = 'pending' AND id > ? AND expires > ?"
+                                 " ORDER BY id DESC LIMIT 1", (newest, time.time()))
+            row = found[0] if found else None
+            time.sleep(0.2)
+        j.step("refused codes: the app asks the Hub for a sign-in code and waits", row is not None and login.poll() is None,
+               f"code id {row[0] if row else None}")
+        if row is None:
+            return
+        wrong = hub_enroll._new_user_code()
+        while hub_rows(db, "SELECT id FROM device_codes WHERE user_code = ?", (wrong,)):
+            wrong = hub_enroll._new_user_code()
+        status, text = browser.call("GET", "/device?code=" + urllib.parse.quote(wrong))
+        shown = status == 200 and "That code isn't right" in text and "name=csrf" not in text
+        posted = browser.call("POST", "/device", form={"code": wrong, "csrf": "0" * 64, "owner": "personal",
+                                                       "decision": "approve"})[0]
+        waiting = hub_rows(db, "SELECT status FROM device_codes WHERE id = ?", (row[0],))[0][0]
+        j.step("wrong sign-in code: /device says it isn't right and approves nothing; the app keeps waiting",
+               shown and posted == 400 and waiting == "pending" and login.poll() is None
+               and not (data / "device.json").exists(),
+               f"page {status} (says not right: {shown}), approve answered {posted}, waiting code {waiting}")
+        con = sqlite3.connect(str(db), timeout=10)
+        try:
+            with con:
+                con.execute("UPDATE device_codes SET expires = ? WHERE id = ?", (time.time() - 1, row[0]))
+        finally:
+            con.close()
+        out, _ = login.communicate(timeout=120)
+    finally:
+        if login.poll() is None:
+            login.kill()
+            out += login.communicate()[0] or ""
+    j.note(out)
+    j.step("expired sign-in code: login exits 1 and says the code expired",
+           login.returncode == 1 and "expired" in out.lower(), f"exit {login.returncode}")
+    j.step("expired sign-in code: no device record saved and no key issued",
+           not (data / "device.json").exists() and keys() == issued, f"keys {issued} -> {keys()}")
+    j.step("expired sign-in code: /device refuses it", unusable(browser, row[1]), row[1])
+
+
+def reused_code(j, app, browser, env, app_url, data, db):
+    """Row 3b: the code that signed this Mac in cannot be used again, and a second login on the signed-in app is
+    refused without asking the Hub for a new code."""
+    device = json.loads((data / "device.json").read_text(encoding="utf-8"))
+    used = hub_rows(db, "SELECT user_code FROM device_codes WHERE key_id = ?", (device.get("key_id"),))
+    j.step("used sign-in code: /device refuses it again", bool(used) and unusable(browser, used[0][0]),
+           used[0][0] if used else "no code recorded for this key")
+    keys = lambda: hub_rows(db, "SELECT COUNT(*) FROM keys")[0][0]  # noqa: E731
+    codes, issued = sign_in_codes(db), keys()
+    code, out = j.run([binary(app), "login", "--server", app_url, "--name", DEVICE + " again"], env=env,
+                      stdin=subprocess.DEVNULL, timeout=60)
+    again = json.loads((data / "device.json").read_text(encoding="utf-8"))
+    j.step("a second login on the signed-in app exits 1, asks for no code, issues no key and keeps the device",
+           code == 1 and sign_in_codes(db) == codes and keys() == issued and again.get("key_id") == device.get("key_id"),
+           f"exit {code}, codes {codes} -> {sign_in_codes(db)}, keys {issued} -> {keys()}")
+
+
+def start_in_background(app, env):
+    """The installed app as it starts at login (minimised); it syncs on start."""
+    proc = subprocess.Popen([str(binary(app)), "--background"], env=env, stdin=subprocess.DEVNULL,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    time.sleep(1)
+    return proc
+
+
+def close_app(proc):
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(30)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(10)
+
+
 def fresh_install(j, dmg, env, data, db):
     """Row 4: what a person gets before signing in. The NEW build in its own folder, removed afterwards."""
     apps = Path(tempfile.mkdtemp(prefix="Fresh-"))
@@ -404,7 +510,9 @@ def main(argv=None):
         signature_state(j, app)
         j.step("window opens (first launch)", launch_and_quit(j, app, j.evidence / "1-first-launch.png"))
 
+        refused_codes(j, app, browser, env, app_url, data, db)
         enrol(j, app, browser, env, app_url)
+        reused_code(j, app, browser, env, app_url, data, db)
         code, out = j.run([binary(app), "status"], env=env)
         j.step("status shows the person and this device", code == 0 and PERSON in out and DEVICE in out)
         j.step("server lists the device as connected", any(not k.get("revoked") for k in browser.my_devices() or []))
@@ -477,6 +585,9 @@ def main(argv=None):
         folder = hub_journey.workspace(j.step, run_app, data, owner, fixture["person"])
         marker = hub_journey.marker_of(folder)
         hub_journey.f18(j.step, binary(app), env, app_url, owner, fixture["person"], fixture["data"], [hub_log])
+        # grants made and taken away while the app is closed reach it when it starts again (shared helper)
+        hub_journey.grants_after_restart(j.step, lambda: start_in_background(app, env), close_app, data, owner,
+                                         fixture["person"])
 
         keep = sorted(p.name for p in data.iterdir()) if data.exists() else []
         address = json.loads((data / "device.json").read_text(encoding="utf-8")).get("server")

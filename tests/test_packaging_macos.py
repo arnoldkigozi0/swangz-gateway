@@ -237,6 +237,75 @@ class JourneyGapTests(unittest.TestCase):
         self.assertEqual(len(j.fingerprint("x")), 12)
 
 
+class RefusedCodeTests(unittest.TestCase):
+    """Row 3a/3b and the grants check on macOS, the same as packaging/windows/installer_e2e.py: a wrong code, an expired
+    code and a reused code are refused through the installed app; grants reach it only after it starts again."""
+
+    def setUp(self):
+        self.text = (ROOT / "packaging" / "macos_journey.py").read_text(encoding="utf-8")
+        self.main = self.text.split("def main(", 1)[1]
+
+    def test_the_steps_run_in_order_around_the_first_sign_in(self):
+        steps = ["fresh_install(j, args.new", "install(j, args.old, apps)",
+                 "refused_codes(j, app, browser, env, app_url, data, db)", "enrol(j, app, browser, env, app_url)",
+                 "reused_code(j, app, browser, env, app_url, data, db)", "hub_journey.f18(",
+                 "hub_journey.grants_after_restart(", "install(j, args.new, apps, args.new_app)"]
+        at = [self.main.index(s) for s in steps]
+        self.assertEqual(at, sorted(at), "the refused-code or grants steps are out of order")
+
+    def test_each_refusal_checks_what_the_windows_run_checks(self):
+        refused = self.text.split("def refused_codes(", 1)[1].split("def reused_code(", 1)[0]
+        steps = ["status = 'pending' AND id > ?", "hub_enroll._new_user_code()", "That code isn't right",
+                 '"csrf": "0" * 64', "posted == 400", 'waiting == "pending" and login.poll() is None',
+                 "UPDATE device_codes SET expires = ?", "login.returncode == 1", '"expired" in out.lower()',
+                 "keys() == issued", "unusable(browser, row[1])"]
+        at = [refused.index(s) for s in steps]
+        self.assertEqual(at, sorted(at))
+        reused = self.text.split("def reused_code(", 1)[1].split("def start_in_background(", 1)[0]
+        for needle in ("WHERE key_id = ?", "unusable(browser, used[0][0])", "stdin=subprocess.DEVNULL", "code == 1",
+                       "sign_in_codes(db) == codes", "keys() == issued", 'again.get("key_id") == device.get("key_id")'):
+            self.assertIn(needle, reused)
+        for words in ("That code isn't right", "already used or has expired"):  # the Hub really says these
+            self.assertTrue(any(words in f.read_text(encoding="utf-8") for f in (ROOT / "gateway").glob("*.py")), words)
+
+    def test_unusable_and_hub_rows(self):
+        import sqlite3
+        import tempfile
+        j = load("macos_journey")
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, d, True)
+        db = d / "gateway.db"
+        con = sqlite3.connect(db)
+        con.execute("CREATE TABLE keys (id INTEGER PRIMARY KEY)")
+        con.execute("INSERT INTO keys DEFAULT VALUES")
+        con.commit()
+        con.close()
+        self.assertEqual(j.hub_rows(db, "SELECT COUNT(*) FROM keys"), [(1,)])
+        with self.assertRaises(sqlite3.OperationalError):  # read-only: the journey never writes through it
+            j.hub_rows(db, "DELETE FROM keys")
+
+        class Page:
+            def __init__(self, status, text):
+                self.answer = (status, text)
+
+            def call(self, method, path):
+                return self.answer
+
+        self.assertTrue(j.unusable(Page(200, "That code was already used or has expired."), "BCDF-GHJK"))
+        self.assertFalse(j.unusable(Page(200, "already used or has expired <input name=csrf value='ab'>"), "X"))
+        self.assertFalse(j.unusable(Page(500, "already used or has expired"), "X"))
+        self.assertFalse(j.unusable(Page(200, "Approve this device"), "X"))
+
+    def test_close_app_stops_the_program(self):
+        import subprocess
+        import sys
+        j = load("macos_journey")
+        proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+        j.close_app(proc)
+        self.assertIsNotNone(proc.poll())
+        j.close_app(proc)  # already closed: nothing to do
+
+
 class MountedDmgTests(unittest.TestCase):
     """macos_journey.check_mounted: the mounted DMG's app must equal the scanned build, and the whole volume
     (READ ME FIRST.txt included) is secret-scanned. Runs on any OS against a folder laid out like a mounted DMG."""
