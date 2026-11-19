@@ -1,6 +1,7 @@
 """The Windows installer's promises, checked on any OS (the build and the real install run on windows-latest in CI)."""
 
 import http.server
+import json
 import importlib.util
 import re
 import threading
@@ -265,3 +266,206 @@ class RelayTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class _Key:
+    def __init__(self, path):
+        self.path = path
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def Close(self):
+        pass
+
+
+class WritableRegistry:
+    """Just enough of `winreg` to write a policy pack and read it back with the app's own reader, on any OS."""
+    HKEY_LOCAL_MACHINE = "HKLM"
+    KEY_READ, KEY_WOW64_64KEY, KEY_ALL_ACCESS = 0x20019, 0x0100, 0xF003F
+    REG_SZ, REG_DWORD = 1, 4
+
+    def __init__(self):
+        self.keys = {}  # path -> {name: (value, kind)}
+        self.access = []
+
+    def _path(self, parent, sub):
+        return sub if parent == self.HKEY_LOCAL_MACHINE else parent.path + "\\" + sub
+
+    def OpenKey(self, parent, sub, reserved=0, access=None):
+        self.access.append(access)
+        path = self._path(parent, sub)
+        if path not in self.keys:
+            raise FileNotFoundError(path)
+        return _Key(path)
+
+    def CreateKeyEx(self, parent, sub, reserved=0, access=None):
+        self.access.append(access)
+        path = self._path(parent, sub)
+        parts = path.split("\\")
+        for i in range(1, len(parts) + 1):
+            self.keys.setdefault("\\".join(parts[:i]), {})
+        return _Key(path)
+
+    def SetValueEx(self, key, name, reserved, kind, value):
+        self.keys[key.path][name] = (value, kind)
+
+    def EnumValue(self, key, i):
+        items = list(self.keys[key.path].items())
+        if i >= len(items):
+            raise OSError("no more")
+        name, (value, kind) = items[i]
+        return name, value, kind
+
+    def children(self, path):
+        return [p.rsplit("\\", 1)[1] for p in self.keys if p.startswith(path + "\\") and "\\" not in p[len(path) + 1:]]
+
+    def EnumKey(self, key, i):
+        names = self.children(key.path)
+        if i >= len(names):
+            raise OSError("no more")
+        return names[i]
+
+    def DeleteKeyEx(self, root, path, access=0, reserved=0):
+        self.access.append(access)
+        if self.children(path):
+            raise PermissionError("a key with subkeys cannot be deleted")
+        del self.keys[path]
+
+
+class WindowsPolicyTamperTests(unittest.TestCase):
+    """D-024 W5 on Windows (packaging/windows/policy.py): the pack written where the app reads it, the five cases."""
+
+    def setUp(self):
+        import sys
+        from unittest import mock
+
+        sys.path.insert(0, str(ROOT / "packaging"))
+        self.addCleanup(sys.path.remove, str(ROOT / "packaging"))
+        self.reg = WritableRegistry()
+        for patch in (mock.patch.dict(sys.modules, {"winreg": self.reg}),
+                      mock.patch.dict("os.environ", {"GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "github-hosted"})):
+            patch.start()
+            self.addCleanup(patch.stop)
+        spec = importlib.util.spec_from_file_location("windows_policy", ROOT / "packaging" / "windows" / "policy.py")
+        self.p = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.p)
+        self.src = (ROOT / "packaging" / "windows" / "policy.py").read_text(encoding="utf-8")
+        self.e2e = (ROOT / "packaging" / "windows" / "installer_e2e.py").read_text(encoding="utf-8")
+
+    def prepared(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as work:
+            return self.p.macos_policy.prepare(work)
+
+    def test_the_location_is_the_one_the_app_reads(self):
+        from swangz_client import machine_policy
+        self.assertEqual(self.p.KEY, machine_policy.WINDOWS_KEYS["chrome"])
+        self.assertEqual(set(self.p.LISTS), set(machine_policy.LISTS))
+        self.assertEqual(set(self.p.JSON_STRING), set(machine_policy.JSON_STRING))
+
+    def test_the_written_pack_reads_back_as_the_printed_baseline(self):
+        policy, baseline = self.prepared()
+        seen = self.p.install(policy)
+        self.assertTrue(seen.ok, seen.problems)
+        self.assertEqual(seen.sha256, baseline)
+        chrome = self.reg.keys[self.p.KEY]
+        self.assertEqual(chrome["BrowserSignin"], (0, self.reg.REG_DWORD))
+        self.assertEqual(chrome["SyncDisabled"], (1, self.reg.REG_DWORD))
+        self.assertEqual(chrome["AutoLaunchProtocolsFromOrigins"][1], self.reg.REG_SZ)
+        self.assertEqual(self.reg.keys[self.p.KEY + "\\URLBlocklist"]["1"], (policy["URLBlocklist"][0], self.reg.REG_SZ))
+        self.assertTrue(all(a & self.reg.KEY_WOW64_64KEY for a in self.reg.access), "the 64-bit view, as the app reads")
+
+    def test_each_tampered_pack_replaces_the_last_and_reads_as_expected(self):
+        from swangz_client import machine_policy
+        policy, baseline = self.prepared()
+        self.p.install(policy)
+        seen = self.p.install(self.p.macos_policy.without_default_deny(policy))
+        self.assertFalse(seen.ok)
+        self.assertNotIn("*", self.reg.keys[self.p.KEY + "\\URLBlocklist"].values(), "no value left from the last pack")
+        seen = self.p.install(self.p.macos_policy.extra_block(policy))
+        self.assertTrue(seen.ok, seen.problems)
+        self.assertNotEqual(seen.sha256, baseline)
+        self.assertEqual(self.p.install(policy).sha256, baseline)
+        self.p.remove()
+        self.assertFalse(self.p.present())
+        self.assertEqual(self.reg.keys, {k: v for k, v in self.reg.keys.items() if not k.startswith(self.p.KEY)})
+        self.assertEqual(machine_policy.check("chrome", "win32").problems, ["missing"])
+        self.p.remove()  # removing an absent pack is not an error
+
+    def test_the_five_cases_in_order_and_the_runner_is_always_restored(self):
+        body = self.src[self.src.index("def run("):]
+        steps = ['synced("intact", True, True)', 'opened("intact")', "without_default_deny(policy)",
+                 'refused("tampered, default-deny removed")', 'synced("tampered, default-deny removed", False, False)',
+                 "after == before + 1", "extra_block(policy)", 'refused("tampered, valid but not the pinned pack")',
+                 'synced("tampered, valid but not the pinned pack", True, False)', "        install(policy)\n",
+                 'opened("restored")', 'synced("restored", True, True)', "        remove()\n", 'refused("removed")',
+                 'synced("removed", False, False)', 'run_app("logout")']
+        at = [body.index(s) for s in steps]
+        self.assertEqual(at, sorted(at), "the policy cases are out of order")
+        self.assertIn('"managed_policy_mode": "enforce"', body[:body.index("try:")])
+        tail = body[body.index("    finally:"):]
+        for needed in ("remove()", '"managed_policy_mode": "warn"', "policy-tamper.json"):
+            self.assertIn(needed, tail)
+
+    def test_the_journey_runs_it_as_a_company_device_and_signs_in_again_before_the_uninstall(self):
+        call = self.e2e.index("windows_policy.run(")
+        self.assertLess(self.e2e.index('report["second_person"] = second'), call)
+        self.assertLess(call, self.e2e.rindex('app("autostart", "on")'))
+        block = self.e2e[self.e2e.index("# 7c."):self.e2e.index("# 8. uninstall")]
+        for needle in ('app("logout")', 'fixture.approve(c, "company")', 'Path(rig.tmp) / "gateway.db"',
+                       "device = enrol()", 'key_id = device["key_id"]'):
+            self.assertIn(needle, block)
+        self.assertLess(block.index("windows_policy.run("), block.index("device = enrol()"))
+
+    def test_it_refuses_to_touch_the_registry_off_a_github_hosted_runner(self):
+        """A real Swangz PC holds the company pack in this key: run, install and remove all refuse there."""
+        from unittest import mock
+        policy, _ = self.prepared()
+        self.reg.CreateKeyEx(self.reg.HKEY_LOCAL_MACHINE, self.p.KEY)
+        self.reg.SetValueEx(_Key(self.p.KEY), "BrowserSignin", 0, self.reg.REG_DWORD, 0)
+        company_pack = {k: dict(v) for k, v in self.reg.keys.items()}
+        for env in ({}, {"GITHUB_ACTIONS": "true"}, {"GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "self-hosted"},
+                    {"RUNNER_ENVIRONMENT": "github-hosted"}):
+            with self.subTest(env=env), mock.patch.dict("os.environ", env, clear=True):
+                calls = []
+                with self.assertRaisesRegex(SystemExit, "runner only"):
+                    self.p.run(lambda *a: calls.append(a), None, None, None, None, None, None, None)
+                self.assertEqual(calls, [], "refused before any step, pin or write")
+                with self.assertRaisesRegex(SystemExit, "runner only"):
+                    self.p.install(policy)
+                with self.assertRaisesRegex(SystemExit, "runner only"):
+                    self.p.remove()
+                self.assertEqual(self.reg.keys, company_pack, "the machine's own pack is untouched")
+
+    def test_the_macos_steps_refuse_off_a_github_hosted_runner_too(self):
+        from unittest import mock
+        with mock.patch.dict("os.environ", {"GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "self-hosted"}, clear=True):
+            with self.assertRaisesRegex(SystemExit, "runner only"):
+                self.p.macos_policy.run(None, None, None, None, None, None, None, None)
+
+    def test_each_cleanup_step_runs_even_when_the_one_before_fails(self):
+        import tempfile
+        from unittest import mock
+        policy, baseline = self.prepared()
+        settings = []
+
+        class Owner:
+            def call(self, method, path, body=None):
+                settings.append(body)
+                return 200, {}
+
+        checks = []
+        with tempfile.TemporaryDirectory() as evidence, \
+                mock.patch.object(self.p, "install", side_effect=RuntimeError("the case failed")), \
+                mock.patch.object(self.p, "remove", side_effect=PermissionError("access denied")):
+            with self.assertRaisesRegex(RuntimeError, "the case failed"):  # the real failure is the one reported
+                self.p.run(lambda *a: checks.append(a), None, None, Owner(), None, None, None, evidence)
+            written = json.loads((Path(evidence) / "policy-tamper.json").read_text(encoding="utf-8"))
+        self.assertEqual(settings[-1], {"managed_policy_sha256": "", "managed_policy_mode": "warn"})
+        self.assertIn("access denied", written["cleanup_errors"][0])
+        body = self.src[self.src.index("    finally:"):]
+        self.assertIn('check("policy: the runner is restored', body, "a failed cleanup is a failed step when the cases pass")

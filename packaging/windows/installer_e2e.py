@@ -613,6 +613,21 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         require(rig.gw.db.scalar("SELECT person_id FROM keys WHERE id = ?", (key_id,)) == second,
                 "the second enrolment's key is not the second person's")
         report["second_person"] = second
+
+        # 7c. machine-policy tamper (D-024 W5, the Windows twin of the macOS steps): the second person signs out, the
+        #     first signs this PC in as a COMPANY device with the Chrome policy pack pinned in enforce mode, and the five
+        #     cases run through the installed program (packaging/windows/policy.py); then they sign in again, personally
+        app("logout")
+        import policy as windows_policy
+
+        def enrol_company():
+            enrol(lambda c: fixture.approve(c, "company")[0])
+            return json.loads((data / "manifest.json").read_text(encoding="utf-8")).get("browser", {}).get("device_id")
+
+        report["policy_tamper"] = windows_policy.run(check, run_app, enrol_company, owner, Path(rig.tmp) / "gateway.db",
+                                                     rig.person_id, data, evidence)
+        device = enrol()
+        key_id = device["key_id"]
         app("autostart", "on")
         require(reg_value(RUN_KEY, "Swangz"), "autostart on did not write the Run value")
 
