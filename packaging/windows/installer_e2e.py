@@ -262,7 +262,8 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
             try:
                 deadline, code = time.monotonic() + 90, None
                 while time.monotonic() < deadline and code is None and login.poll() is None:
-                    code = rig.gw.db.one("SELECT user_code FROM device_codes WHERE status = 'pending'")
+                    code = rig.gw.db.one("SELECT user_code FROM device_codes WHERE status = 'pending' AND expires > ?"
+                                     " ORDER BY id DESC LIMIT 1", (time.time(),))
                     time.sleep(0.2)
                 require(code is not None, "the installed program did not ask for a device code")
                 ok = approve(code["user_code"]) == 200 if approve else fixture.approve(code["user_code"], "personal")[0] == 200
@@ -296,7 +297,8 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         try:
             deadline, row = time.monotonic() + 90, None
             while time.monotonic() < deadline and row is None and login.poll() is None:
-                row = rig.gw.db.one("SELECT id, user_code FROM device_codes WHERE status = 'pending'")
+                row = rig.gw.db.one("SELECT id, user_code FROM device_codes WHERE status = 'pending' AND expires > ?"
+                                     " ORDER BY id DESC LIMIT 1", (time.time(),))
                 time.sleep(0.2)
             require(row is not None, "the installed program did not ask for a device code")
             wrong = hub_enroll._new_user_code()
