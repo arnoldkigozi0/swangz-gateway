@@ -51,8 +51,9 @@ says NOT TESTED, PARTIAL or OWNER, so do these notes. Windows build details: `pa
   startup entry removed on revoke, sign out and uninstall. The macOS journey (112 steps, run 44480358944 on main) adds
   a real Hub process restart and the Hub address kept across an upgrade. Not proven: on Windows, the key being in no
   log after an outage, a Hub process restart and the address across an upgrade (the Windows journey cuts a relay);
-  on macOS and Linux, the startup entry being removed when a device is revoked (sign out is shown on macOS; a fix
-  for the other paths is open, Forge's `65cb7a81`).
+  on macOS and Linux, the startup entry being removed when a device is revoked (sign out is shown on macOS; #283
+  makes every removal path turn it off on every system, but only unit tests prove it for revoke, and no runner
+  covers Linux).
 - **The managed workspace is proven on runners only (row 5 PARTIAL).** Real Chrome opens a granted tool on one
   per-person folder on both runners, and the folder survives an upgrade and sign-out (#270, #272). Not proven: a
   real provider sign-in inside that browser, the exact Chrome command line (only Chrome's `Local State` file is
