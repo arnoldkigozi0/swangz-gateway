@@ -1088,6 +1088,9 @@
         hosts: el("input", { type: "text", value: (v.hosts || []).join(", "), placeholder: "Filled from the website if left empty" }),
         color: el("input", { type: "color", value: /^#[0-9a-f]{6}$/i.test(v.color || "") ? v.color : "#3F3F46" }),
         pricing_url: el("input", { type: "url", value: v.pricing_url || "", placeholder: "https://…/pricing" }),
+        info_url: el("input", { type: "url", value: v.info_url || "", placeholder: "https://… (product page, optional)" }),
+        oauth_hosts: el("input", { type: "text", value: (v.oauth_hosts || []).join(", "), placeholder: "e.g. auth.openai.com, accounts.google.com" }),
+        last_verified: el("input", { type: "date", value: v.last_verified || "" }),
         seats_at_once: el("input", { type: "number", min: "1", max: "50", step: "1", value: String(v.seats_at_once || 1) }),
         turn_minutes: el("input", { type: "number", min: "5", max: "720", step: "5", value: String(v.turn_minutes || 120) }),
         workspace_url: el("textarea", { rows: "3", spellcheck: "false", placeholder: "https://workspace.swangzavenue.com/chatgpt-1/\nhttps://workspace.swangzavenue.com/chatgpt-2/" }, v.workspace_url || ""),
@@ -1096,6 +1099,13 @@
           el("option", { value: "" }, "The browsers listed below, or none")),
       };
       f.workspace_mode.value = v.workspace_mode === "agent" ? "agent" : "";
+      const MODES = { web: "Web", desktop: "Desktop app", cli: "Command line", api: "API", mobile: "Mobile app" };
+      const modeBoxes = Object.entries(MODES).map(([k, l]) => {
+        const box = el("input", { type: "checkbox", value: k });
+        box.checked = (v.modes || []).includes(k);
+        return el("label", { class: "check" }, box, " ", l);
+      });
+      const modeInputs = modeBoxes.map((x) => x.querySelector("input"));
       const listField = el("label", { class: "field" }, "Shared workspace browsers", f.workspace_url,
         el("span", { class: "hint" }, "Optional. One address per line — each is a browser on Swangz's own server that an admin has signed in to this tool once. Everyone holding a turn gets a browser to themselves. Leave empty and Open goes to the tool's own site. See deploy/WORKSPACE.md."),
         el("span", { class: "hint" }, S.workspaceManaged ? "The gateway gives each person a sign-in for their turn and removes it the moment the turn ends."
@@ -1123,6 +1133,8 @@
       const err = el("div", { class: "err", role: "alert" });
       const values = () => ({ name: f.name.value, category: f.category.value, kind: f.kind.value, description: f.description.value, url: f.url.value,
         signin: f.signin.value, launch_url: f.launch_url.value, hosts: f.hosts.value, color: f.color.value, pricing_url: f.pricing_url.value,
+        info_url: f.info_url.value, oauth_hosts: f.oauth_hosts.value, last_verified: f.last_verified.value,
+        modes: modeInputs.filter((x) => x.checked).map((x) => x.value),
         ...(t ? { classification: f.classification.value } : { seats_at_once: f.seats_at_once.value, turn_minutes: f.turn_minutes.value, workspace_url: f.workspace_url.value, workspace_mode: f.workspace_mode.value }) });
       const save = el("button", { class: "btn primary", onclick: async () => {
         err.textContent = "";
@@ -1135,7 +1147,7 @@
           }
         } catch (e) { err.textContent = e.message; }
       } }, t ? "Save changes" : "Add tool");
-      if (!owner) Object.values(f).forEach((x) => { x.disabled = true; });
+      if (!owner) [...Object.values(f), ...modeInputs].forEach((x) => { x.disabled = true; });
       let logoBox = null;
       if (t) {
         const file = el("input", { type: "file", accept: "image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon,image/gif", hidden: true });
@@ -1175,6 +1187,13 @@
           el("label", { class: "field" }, "Domains (for the browser extension)", f.hosts),
           el("label", { class: "field" }, "Pricing page", f.pricing_url),
           el("label", { class: "field" }, "Brand colour", f.color)),
+        el("fieldset", { class: "field" }, el("legend", null, "How it's used"), el("div", { class: "row" }, modeBoxes),
+          el("span", { class: "hint" }, "From the provider's own documentation. Website is where Open goes; the product page is for reading about it.")),
+        el("div", { class: "form-grid" },
+          el("label", { class: "field" }, "Product page", f.info_url),
+          el("label", { class: "field" }, "Official sign-in hosts", f.oauth_hosts,
+            el("span", { class: "hint" }, "The provider's own sign-in addresses its site hands off to.")),
+          el("label", { class: "field" }, "Last checked against the provider", f.last_verified)),
         owner ? el("div", { class: "btn-row end form-actions" }, el("span", { class: "grow" }, err), save) : null,
         t && owner ? el("div", { class: "danger-zone" },
           el("div", null, el("strong", null, t.builtin ? "Remove from the catalog" : "Remove or delete"),

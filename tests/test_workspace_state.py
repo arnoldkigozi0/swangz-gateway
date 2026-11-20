@@ -62,6 +62,8 @@ class MigrationTests(unittest.TestCase):
         for col in sorted(COLUMNS):
             old.x(f"ALTER TABLE devices DROP COLUMN {col}")
         old.x("ALTER TABLE launches DROP COLUMN device_id")  # v27 came later
+        for col in ("info_url", "modes", "oauth_hosts", "last_verified"):  # and so did v29
+            old.x(f"ALTER TABLE tools DROP COLUMN {col}")
         old.x("UPDATE meta SET v = '25' WHERE k = 'schema'")
         before = old.q("SELECT * FROM devices")
         old.close()

@@ -128,6 +128,9 @@ DETAILS = {
 
 SIGNIN = ("sso", "seat", "own", "api", "shared")
 
+# How a tool is used. A tool may have several; the admin sets them from the provider's own documentation.
+MODES = ("web", "desktop", "cli", "api", "mobile")
+
 # The official sign-in hosts a tool's website hands off to, kept out of `hosts` so the access gate never governs
 # them (accounts.google.com is everyone's Google sign-in, not a tool). /api/device/open adds them to the tool's
 # allowed hosts for the Swangz workspace window only. To be confirmed against each provider (Probe, 9.3 step 1).

@@ -1015,6 +1015,8 @@ def _tool_row(t, sub, counts):
     out["hosts"] = [h for h in (t["hosts"] or "").split(",") if h]
     out["subscription"] = {k: sub[k] for k in ("state", "plan", "seats", "monthly_cost", "renews_on", "note",
                                                "updated", "updated_by")} if sub else {"state": "none"}
+    out["modes"] = [m for m in (t["modes"] or "").split(",") if m]
+    out["oauth_hosts"] = [h for h in (t["oauth_hosts"] or "").split(",") if h]
     out["workspace_url"] = t["workspace_url"]
     out["workspace_mode"] = t["workspace_mode"]
     out["seats_at_once"] = t["seats_at_once"]
@@ -1336,6 +1338,48 @@ def _sharing(body):
     return out
 
 
+def _modes(value):
+    """How a tool is used: a subset of catalog.MODES, in that order. Anything else is refused, not dropped."""
+    from . import catalog
+
+    raw = value if isinstance(value, list) else str(value or "").split(",")
+    picked = {str(m).strip().lower() for m in raw if str(m).strip()}
+    unknown = picked - set(catalog.MODES)
+    if unknown:
+        raise ApiError(400, "mode must be one or more of " + ", ".join(catalog.MODES))
+    return ",".join(m for m in catalog.MODES if m in picked)
+
+
+def _verified_day(value):
+    """The day the tool's facts were last checked against the provider: YYYY-MM-DD, not in the future, or empty."""
+    v = str(value or "").strip()
+    if not v:
+        return ""
+    try:
+        day = time.strptime(v, "%Y-%m-%d")
+    except ValueError:
+        raise ApiError(400, "last verified must be a date like 2026-11-20")
+    if time.mktime(day) > time.time() + 86400:
+        raise ApiError(400, "last verified can't be in the future")
+    return v
+
+
+def _tool_facts(body):
+    """The catalogue facts (v29) present in a request body, validated."""
+    out = {}
+    if "info_url" in body:
+        out["info_url"] = _web(body["info_url"], "product page")
+        if out["info_url"] and not out["info_url"].lower().startswith("https://"):
+            raise ApiError(400, "the product page must start with https://")
+    if "modes" in body:
+        out["modes"] = _modes(body["modes"])
+    if "oauth_hosts" in body:
+        out["oauth_hosts"] = ",".join(_clean_hosts(body["oauth_hosts"]))
+    if "last_verified" in body:
+        out["last_verified"] = _verified_day(body["last_verified"])
+    return out
+
+
 def _signin(value, kind):
     from . import catalog
 
@@ -1372,6 +1416,7 @@ def add_tool(ctx):
     if ctx.body.get("workspace_mode"):
         ctx.db.x("UPDATE tools SET workspace_mode = ? WHERE id = ?", (_workspace_mode(ctx.body.get("workspace_mode")), tid))
     share = _sharing(ctx.body)
+    share.update(_tool_facts(ctx.body))
     if share:
         ctx.db.x(f"UPDATE tools SET {', '.join(f'{k}=?' for k in share)} WHERE id = ?", [*share.values(), tid])
     ctx.audit("added a tool to the catalog", name)
@@ -1414,6 +1459,7 @@ def edit_tool(ctx, tid):
     if "signin" in ctx.body:
         fields["signin"] = _signin(ctx.body["signin"], tool["kind"])
     fields.update(_sharing(ctx.body))
+    fields.update(_tool_facts(ctx.body))
     if "hosts" in ctx.body:
         fields["hosts"] = ",".join(_clean_hosts(ctx.body["hosts"]))
     if "entry_usd" in ctx.body:
