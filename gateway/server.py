@@ -45,6 +45,7 @@ class Gateway:
         purpose.seed(self.db)
         catalog.seed(self.db)
         catalog.refine(self.db)
+        catalog.settle_hosts(self.db)
         self.live = Live()
         self.workspaces = Workspaces(self)
         self.pool = proxy.Pool(settings.upstream_timeout)
