@@ -39,7 +39,7 @@ SEED = [
     ["cursor", "Cursor", "Coding", "site", "", "https://www.cursor.com/", ["cursor.com"], "https://www.cursor.com/pricing", 20, [{"name": "Pro", "monthlyUSD": 20, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Pro+", "monthlyUSD": 60, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Ultra", "monthlyUSD": 200, "unit": None, "included": None, "unitCostUSD": None}]],
     ["canva", "Canva", "Design", "site", "", "https://www.canva.com/", ["canva.com"], "https://www.canva.com/pricing/", 10, [{"name": "Pro", "monthlyUSD": 15, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Teams (per seat)", "monthlyUSD": 10, "unit": None, "included": None, "unitCostUSD": None}]],
     ["figma-ai", "Figma AI", "Design", "site", "", "https://www.figma.com/ai/", ["figma.com"], "https://www.figma.com/pricing/", 15, [{"name": "Professional", "monthlyUSD": 15, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Organization", "monthlyUSD": 45, "unit": None, "included": None, "unitCostUSD": None}]],
-    ["photoshop", "Photoshop", "Design", "site", "", "https://www.adobe.com/products/photoshop.html", ["photoshop.adobe.com"], "https://www.adobe.com/products/photoshop/plans.html", 10, [{"name": "Photography", "monthlyUSD": 10, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Single app", "monthlyUSD": 23, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Creative Cloud", "monthlyUSD": 60, "unit": None, "included": None, "unitCostUSD": None}]],
+    ["photoshop", "Photoshop", "Design", "site", "", "https://photoshop.adobe.com/", ["photoshop.adobe.com"], "https://www.adobe.com/products/photoshop/plans.html", 10, [{"name": "Photography", "monthlyUSD": 10, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Single app", "monthlyUSD": 23, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Creative Cloud", "monthlyUSD": 60, "unit": None, "included": None, "unitCostUSD": None}]],
     ["adobe-firefly", "Adobe Firefly", "Image", "site", "", "https://firefly.adobe.com/", ["firefly.adobe.com"], "https://www.adobe.com/products/firefly/plans.html", 10, [{"name": "Standard", "monthlyUSD": 10, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Pro", "monthlyUSD": 30, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Premium", "monthlyUSD": 200, "unit": None, "included": None, "unitCostUSD": None}]],
     ["dall-e", "DALL-E", "Image", "site", "", "https://openai.com/dall-e-3", ["openai.com"], "https://openai.com/chatgpt/pricing/", 20, [{"name": "ChatGPT Plus (incl.)", "monthlyUSD": 20, "unit": None, "included": None, "unitCostUSD": None}]],
     ["ideogram", "Ideogram", "Image", "site", "", "https://ideogram.ai/", ["ideogram.ai"], "https://ideogram.ai/features/pricing", 8, [{"name": "Basic", "monthlyUSD": 8, "unit": "credits", "included": 400, "unitCostUSD": None}, {"name": "Plus", "monthlyUSD": 20, "unit": "credits", "included": 1000, "unitCostUSD": None}, {"name": "Pro", "monthlyUSD": 60, "unit": "credits", "included": 3500, "unitCostUSD": None}]],
@@ -188,6 +188,28 @@ def settle_hosts(db):
         for tid, (old, new) in HOST_OWNERS.items():
             db.x("UPDATE tools SET hosts = ? WHERE id = ? AND builtin = 1 AND hosts = ?", (new, tid, old))
         db.set_setting("catalog_host_owners", "1")
+
+
+# A built-in tool's address must be on its own gate hosts, or /device/open refuses it and /go/ lands on a host the gate
+# attributes to another tool (Sentinel's #306 ruling). Photoshop's product page is on www.adobe.com, Premiere's host;
+# Photoshop on the web is photoshop.adobe.com. Same rule as HOST_OWNERS: only the exact old default is changed.
+TOOL_URLS = {
+    "photoshop": ("https://www.adobe.com/products/photoshop.html", "https://photoshop.adobe.com/"),
+}
+
+# Built-in tools that live inside another tool's site, so a hostname gate can't tell them apart: they have no hosts of
+# their own and the workspace refuses them by name (fail closed), never by opening the other tool's site.
+INSIDE = {"seedance": "higgsfield-ai"}
+
+
+def settle_urls(db):
+    """Apply TOOL_URLS once (its own setting: catalog_host_owners may already be set). Never overwrites an admin's edit."""
+    if db.get_setting("catalog_tool_urls") == "1":
+        return
+    with db.tx():
+        for tid, (old, new) in TOOL_URLS.items():
+            db.x("UPDATE tools SET url = ? WHERE id = ? AND builtin = 1 AND url = ?", (new, tid, old))
+        db.set_setting("catalog_tool_urls", "1")
 
 
 def launch_target(tool):

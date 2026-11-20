@@ -134,6 +134,12 @@ def device_open(ctx):
         url = next((u.strip() for u in (tool.get("launch_url"), tool.get("url")) if (u or "").strip()), "")
         if not url:
             ok, code, reason = False, "no_address", "This tool has no web address yet. Ask your admin."
+        elif not hosts and tool.get("builtin") and tool["id"] in catalog.INSIDE:
+            # Seedance opens inside Higgsfield AI: a hostname gate can't separate them, so its grant never opens the host
+            home = ctx.db.one("SELECT name FROM tools WHERE id = ?", (catalog.INSIDE[tool["id"]],))
+            home = home["name"] if home else "another tool"
+            ok, code = False, "inside_other_tool"
+            reason = f"{tool['name']} opens inside {home}. Ask your admin for {home} access."
         elif not hosts:
             ok, code, reason = False, "host_not_allowed", UNSAFE
         else:
@@ -147,7 +153,8 @@ def device_open(ctx):
                     device["device_id"]))
     if not ok:
         # workspace_policy is the device's state, not the person's access (D-024): a conflict, like an unsafe address
-        status = 409 if code in ("no_address", "unsafe_address", "host_not_allowed", "shared_account", "workspace_policy") else 403
+        status = 409 if code in ("no_address", "unsafe_address", "host_not_allowed", "inside_other_tool", "shared_account",
+                                 "workspace_policy") else 403
         details = {"report": report_denial["href"]} if report_denial else None
         raise ApiError(status, reason or "This tool isn't open to you right now.", code, details)
     return 200, {"ok": True, "tool": {"id": tool["id"], "name": tool["name"]}, "url": url, "allowed_hosts": allowed_hosts(tool),
