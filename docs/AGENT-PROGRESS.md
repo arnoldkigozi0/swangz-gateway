@@ -1674,3 +1674,6 @@ Report: docs/daily/2026-11-18.md. GitHub unreachable at report time; CI on main 
 
 ## Chief, 19 Nov 2026 21:30
 Daily report written: docs/daily/2026-11-19.md. GitHub unreachable at the time: PR states and main CI not re-read. Main head d011074. Open: #297 (CI pending), #298 (draft). Next: read their checks and merge when green; retry pushes.
+
+## Chief, 20 Nov 21:30
+- Merged today: #297 #298 #299 #300 #301 #302 #303 (main 046f6e5). Open PRs: 0 as last read. GitHub unreachable at 20:00 and 21:30, so main CI is unconfirmed. Next: re-read PRs and main CI when the network returns. Report: docs/daily/2026-11-20.md.
