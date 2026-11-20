@@ -143,5 +143,20 @@ class CatalogueAddressTests(unittest.TestCase):
         self.assertEqual(db.get_setting("catalog_host_owners"), "1")  # its own key: the host step is not re-run
 
 
+class AdobeSignInTests(unittest.TestCase):
+    def test_adobe_id_sign_in_is_not_governed_as_premiere_but_adobe_com_still_is(self):
+        rig = Rig()
+        try:
+            index = catalog.host_index(rig.gw.db)
+            for h in ("auth.services.adobe.com", "auth-light.identity.adobe.com", "federatedid-na1.services.adobe.com"):
+                self.assertIsNone(catalog.match_host(index, h), h)
+            self.assertEqual(catalog.match_host(index, "www.adobe.com")["id"], "adobe-premiere")
+            self.assertEqual(catalog.match_host(index, "evil.auth.services.adobe.com")["id"], "adobe-premiere")  # exact only
+            self.assertEqual(catalog.match_host(index, "photoshop.adobe.com")["id"], "photoshop")
+            self.assertEqual(catalog.match_host(index, "auth.openai.com")["id"], "dall-e")  # unchanged (audit defect 3)
+        finally:
+            rig.close()
+
+
 if __name__ == "__main__":
     unittest.main()
