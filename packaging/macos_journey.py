@@ -360,6 +360,54 @@ def unusable(browser, code):
     return status == 200 and "already used or has expired" in text and "name=csrf" not in text
 
 
+def csrf_of(browser, code):
+    """The approval form's real CSRF token for `code`, as this browser's /device page serves it (None if no form)."""
+    status, page = browser.call("GET", "/device?code=" + urllib.parse.quote(code))
+    m = re.search(r"name=csrf value='([0-9a-f]+)'", page)
+    return m.group(1) if status == 200 and m else None
+
+
+def real_token_refusals(j, browser, app_url, db, row):
+    """Row 3a, CSRF: a REAL pending code (the one the waiting app shows) is posted with a real token that is wrong in
+    each way that matters: altered, missing, issued for another real code, and issued to another session of the same
+    person. Each must answer 400 and leave the code pending. (A made-up code only proves 'no such code'.)"""
+    def status_of(code_id):
+        return hub_rows(db, "SELECT status FROM device_codes WHERE id = ?", (code_id,))[0][0]
+
+    mine = csrf_of(browser, row[1])
+    other = browser.call("POST", "/api/device/code", {"name": "CI other code", "os": "macos"},
+                         headers={"x-swangz-app": "1"})
+    other_code = json.loads(other[1]).get("user_code") if other[0] == 200 else None
+    other_id = hub_rows(db, "SELECT id FROM device_codes WHERE user_code = ?", (other_code,))[0][0] if other_code else None
+    theirs = csrf_of(browser, other_code) if other_code else None
+    second = Browser(app_url)
+    elsewhere = csrf_of(second, row[1]) if second.sign_in() == 200 else None
+    j.step("real CSRF tokens: the waiting code's form, a second real code's form and another session's form are served",
+           bool(mine and theirs and elsewhere) and len({mine, theirs, elsewhere}) == 3,
+           f"second code id {other_id}, three distinct tokens: {len({mine, theirs, elsewhere}) == 3 if mine else False}")
+    if not (mine and theirs and elsewhere):
+        return
+    flipped = mine[:-1] + ("0" if mine[-1] != "0" else "1")
+    cases = [("an altered token", {"csrf": flipped}), ("no token", {}), ("an empty token", {"csrf": ""}),
+             ("the token issued for another real code", {"csrf": theirs}),
+             ("a token from another session of the same person", {"csrf": elsewhere}),
+             ("an altered token on Cancel", {"csrf": flipped, "decision": "deny"})]
+    for label, extra in cases:
+        form = {"code": row[1], "owner": "personal", "decision": "approve", **extra}
+        answered = browser.call("POST", "/device", form=form)[0]
+        left = status_of(row[0])
+        j.step(f"real pending code posted with {label}: refused (400), the code stays pending",
+               answered == 400 and left == "pending", f"answered {answered}, code {left}")
+    j.step("the second real code was not approved or cancelled by any of these", status_of(other_id) == "pending",
+           f"code id {other_id}: {status_of(other_id)}")
+    con = sqlite3.connect(str(db), timeout=10)  # the second code is not needed again: expire it
+    try:
+        with con:
+            con.execute("UPDATE device_codes SET expires = ? WHERE id = ?", (time.time() - 1, other_id))
+    finally:
+        con.close()
+
+
 def refused_codes(j, app, browser, env, app_url, data, db):
     """Row 3a (as packaging/windows/installer_e2e.py step 3a): while the installed app waits, a wrong code entered on
     /device approves nothing; the code it shows then expires, `login` exits 1 and saves no device or key, and /device
@@ -397,6 +445,7 @@ def refused_codes(j, app, browser, env, app_url, data, db):
                shown and posted == 400 and waiting == "pending" and login.poll() is None
                and not (data / "device.json").exists(),
                f"page {status} (says not right: {shown}), approve answered {posted}, waiting code {waiting}")
+        real_token_refusals(j, browser, app_url, db, row)
         con = sqlite3.connect(str(db), timeout=10)
         try:
             with con:
@@ -433,11 +482,13 @@ def reused_code(j, app, browser, env, app_url, data, db):
            f"exit {code}, codes {codes} -> {sign_in_codes(db)}, keys {issued} -> {keys()}")
 
 
-def start_in_background(app, env):
-    """The installed app as it starts at login (minimised); it syncs on start."""
-    proc = subprocess.Popen([str(binary(app)), "--background"], env=env, stdin=subprocess.DEVNULL,
+def start_window(app, env, seen):
+    """The installed app started the way a person starts it: its window, no --background (the window syncs on start,
+    as gui.App does). `seen` collects whether each start was still running after 2 s, for the journey to record."""
+    proc = subprocess.Popen([str(binary(app))], env=env, stdin=subprocess.DEVNULL,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    time.sleep(1)
+    time.sleep(2)
+    seen.append(proc.poll() is None)
     return proc
 
 
@@ -586,8 +637,11 @@ def main(argv=None):
         marker = hub_journey.marker_of(folder)
         hub_journey.f18(j.step, binary(app), env, app_url, owner, fixture["person"], fixture["data"], [hub_log])
         # grants made and taken away while the app is closed reach it when it starts again (shared helper)
-        hub_journey.grants_after_restart(j.step, lambda: start_in_background(app, env), close_app, data, owner,
+        starts = []
+        hub_journey.grants_after_restart(j.step, lambda: start_window(app, env, starts), close_app, data, owner,
                                          fixture["person"])
+        j.step("grants check: the app was started as a person starts it (its window, no --background) both times",
+               starts == [True, True], f"running after start: {starts}")
 
         keep = sorted(p.name for p in data.iterdir()) if data.exists() else []
         address = json.loads((data / "device.json").read_text(encoding="utf-8")).get("server")
