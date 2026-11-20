@@ -11,6 +11,7 @@ this script can cut and restore, which is how a network interruption is made. Ev
 
 import argparse
 import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
@@ -307,12 +308,20 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
             status, text, _ = fixture.page(query="?code=" + wrong)
             require(status == 200 and "That code isn't right" in text and "name=csrf" not in text,
                     "a wrong code was offered for approval")
-            status, _, _ = fixture.page("POST", form={"code": wrong, "csrf": "0" * 64, "owner": "personal", "decision": "approve"})
-            require(status == 400, f"approving a wrong code answered {status}")
+            # a REAL token, fetched from the waiting code's own /device form in this signed-in browser (as the macOS
+            # journey does), and checked against the Hub's own CSRF rule for this session: so the 400 below can only
+            # mean the code is wrong, never a bad token
+            real = fixture.csrf(row["user_code"])
+            session = hub_enroll._cookie(fixture.person_cookie, hub_enroll.COOKIE)
+            require(hmac.compare_digest(real, hub_enroll._csrf(rig.gw, session, row["user_code"])),
+                    "the token fetched from /device is not the Hub's real token for this session")
+            status, text, _ = fixture.page("POST", form={"code": wrong, "csrf": real, "owner": "personal", "decision": "approve"})
+            require(status == 400 and "Open the link from your device again and retry." in text, f"approving a wrong code with a real token answered {status}")
             require(rig.gw.db.scalar("SELECT status FROM device_codes WHERE id = ?", (row["id"],)) == "pending",
                     "a wrong code changed the waiting sign-in")
             require(login.poll() is None and not (data / "device.json").exists(), "the program stopped waiting after a wrong code")
-            passed("wrong sign-in code: /device says the code isn't right and approves nothing; the installed program keeps waiting")
+            passed("wrong sign-in code: /device says the code isn't right; posted with a real CSRF token (the Hub's own,"
+                   " for this session) it is refused 400 and approves nothing; the installed program keeps waiting")
             rig.gw.db.x("UPDATE device_codes SET expires = ? WHERE id = ?", (time.time() - 1, row["id"]))
             out, err = login.communicate(timeout=120)
         finally:
