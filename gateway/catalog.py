@@ -138,6 +138,11 @@ SIGNIN_HOSTS = {
     "chatgpt": ("auth.openai.com", "accounts.google.com"),
     "claude": ("accounts.google.com",),
     "gemini": ("accounts.google.com",),
+    # Adobe ID, captured by Probe from a real browser at photoshop.adobe.com (21 Nov 2026): the sign-in frame, the sign-in
+    # page, the Google return, and the token callback named in the sign-in request. Exact hosts only, never adobe.com
+    # (Premiere's gate host). Firefly is left out until its sign-in is captured too.
+    "photoshop": ("auth-light.identity.adobe.com", "auth.services.adobe.com", "federatedid-na1.services.adobe.com",
+                  "ims-na1.adobelogin.com", "accounts.google.com"),
 }
 
 FIELDS = ("id", "name", "category", "kind", "provider", "url", "hosts", "pricing_url", "entry_usd", "plans")
