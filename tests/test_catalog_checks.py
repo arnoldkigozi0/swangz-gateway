@@ -34,16 +34,21 @@ DEV_TOOLS = {"claude-code": "anthropic", "codex": "openai"}
 
 # Audit defect 5: desktop applications whose "address" is the product/pricing page (no web app to open).
 KNOWN_URL_IS_PRICING = {"davinci-resolve", "topaz-video-ai"}
-# Audit defect 1, what is left after PR #306: Open lands on a page of another tool's site (photoshop's
-# www.adobe.com is adobe-premiere's host; seedance's higgsfield.ai/seedance is higgsfield-ai's).
-KNOWN_OPENS_ON_ANOTHER_TOOLS_HOST = {"photoshop", "seedance"}
+# Audit defect 1, what is left after PR #308: seedance's higgsfield.ai/seedance is higgsfield-ai's host (Open refuses
+# it as inside_other_tool). Photoshop now opens on photoshop.adobe.com, so it may not come back.
+KNOWN_OPENS_ON_ANOTHER_TOOLS_HOST = {"seedance"}
 # Audit defect 1, shared gate hosts as (tool, host) pairs: PR #306 settled them all, so none may come back.
 KNOWN_SHARED_HOSTS = set()
 # Audit defect 2: a path where a hostname belongs. PR #306 removed github.com/copilot, so none may come back.
 KNOWN_NOT_A_HOSTNAME = set()
 # Audit defect 3: openai.com is DALL-E's gate host, so ChatGPT's sign-in host auth.openai.com is governed as DALL-E
 # (pinned on purpose in tests/test_device_open.py, "as before: openai.com is DALL-E").
-KNOWN_SIGN_IN_HOST_GOVERNED = {"auth.openai.com": "dall-e"}
+# PR #311: adobe.com is Premiere's gate host, so Adobe ID's sign-in hosts under it are governed as Premiere too. The
+# workspace window may still follow them (SIGNIN_HOSTS); on personal devices the extension counts them as Premiere.
+KNOWN_SIGN_IN_HOST_GOVERNED = {"auth.openai.com": "dall-e",
+                               "auth.services.adobe.com": "adobe-premiere",
+                               "auth-light.identity.adobe.com": "adobe-premiere",
+                               "federatedid-na1.services.adobe.com": "adobe-premiere"}
 
 
 def fresh():

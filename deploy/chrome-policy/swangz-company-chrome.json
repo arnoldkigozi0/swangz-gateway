@@ -69,7 +69,8 @@
     "github.com/sessions",
     "www.google.com/recaptcha",
     "challenges.cloudflare.com",
-    "hcaptcha.com"
+    "hcaptcha.com",
+    ".ims-na1.adobelogin.com"
   ],
   "BrowserSignin": 0,
   "SyncDisabled": true,
