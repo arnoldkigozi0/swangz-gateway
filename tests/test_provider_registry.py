@@ -44,6 +44,17 @@ VALUES = [("plan", "Max 20x", None), ("quota_limit", 900, None), ("quota_used", 
           ("credit_balance", "42.10", "USD"), ("monthly_price", 200000, "UGX")]
 
 
+V29_TOOL_COLUMNS = ("info_url", "modes", "oauth_hosts", "last_verified")  # v29 adds these, empty, to every tool
+
+
+def without_v29(table, rows):
+    """A tools row after v29 is the same row plus four empty catalogue columns; compare the rest."""
+    if table != "tools":
+        return rows
+    for r in rows:
+        assert all(r[c] == "" for c in V29_TOOL_COLUMNS), r
+    return [{k: v for k, v in r.items() if k not in V29_TOOL_COLUMNS} for r in rows]
+
 class Base(DeviceBase):
     def setUp(self):
         super().setUp()
@@ -918,7 +929,7 @@ class MigrationTests(unittest.TestCase):
             after = db.q(f"SELECT * FROM {table}")
             if table == "settings":  # v28 (D-023) adds only the unset prompt/reply storage switch, as off
                 after = [r for r in after if not (r["k"] == "store_bodies" and r["v"] == "0")]
-            self.assertEqual(after, rows, table)
+            self.assertEqual(without_v29(table, after), rows, table)
         self.assertEqual(db.scalar("SELECT COUNT(*) FROM provider_accounts") + db.scalar("SELECT COUNT(*) FROM provider_account_values"), 0)
         db.x("INSERT INTO provider_accounts(account_holder_kind, holder_person_id, tool_id, route, payer, created) VALUES('person', 1, 't1', 'seat', 'company', 1)")
         db.close()
@@ -1537,7 +1548,7 @@ class WeakV24UpgradeTests(unittest.TestCase):
             upgraded = DB(path)
             self.assertEqual(upgraded.scalar("SELECT v FROM meta WHERE k = 'schema'"), str(len(SCHEMA)), variant)
             for table, rows in before.items():
-                self.assertEqual(upgraded.q(f"SELECT * FROM {table} ORDER BY 1"), rows, (variant, table))
+                self.assertEqual(without_v29(table, upgraded.q(f"SELECT * FROM {table} ORDER BY 1")), rows, (variant, table))
             names = {r["name"] for r in upgraded.q("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'provider_account%'")}
             self.assertEqual(names, GUARDS, variant)
             attack_suite(self, upgraded, 1, 2)
