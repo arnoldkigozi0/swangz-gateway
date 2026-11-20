@@ -125,9 +125,25 @@ decision on which tool owns `sora.com`, `adobe.com` and `higgsfield.ai` (suggest
 | Host collisions (`sora.com`, `adobe.com`, `higgsfield.ai`) or path hosts (`github.com/copilot`) | none | NOT TESTED: no test |
 | Fresh-database sign-in of the two dev tools | none | NOT TESTED |
 
-## Directive section 13, checks 1 to 10
+## Directive section 13, checks 1 to 10: what an existing test covers
 
-NOT TESTED. The text of section 13 was not in the repository, the mission files or the handoff Probe received, and the checks
-are not guessed here. Send the ten checks and Probe will map each to a test, or to "no test", in a follow-up commit on this
-branch. The existing journey and catalog tests are listed above; the end-to-end journey is `tests/test_user_journey.py:41`
-(add, grant, sign in, open, see, revoke, sign out).
+The ten checks, as Chief gave them on 20 Nov 22:30. "Covered" means a test by that name exists on main `046f6e5` and asserts
+the behaviour in its name. I read the names and spot-read the bodies of the device-open and workspace tests; I did **not** re-run
+the whole suite for this table (CI does). Only `test_portal` and `test_chrome_policy` were run for this document. "No test"
+means no test asserts it, not that the behaviour is wrong.
+
+| # | Check | Existing tests | Verdict |
+|---|---|---|---|
+| 1 | Catalog metadata correct | `test_gateway.py:878` (49 seeded); `test_chrome_policy.py:45` (every catalogue host reaches the policy pack). Nothing asserts a URL is the official app, a mode, an OAuth list or a verified date | **No test** for correctness; PR #304 adds the fields, so its tests are the first |
+| 2 | Valid verified launch destination, or native integration | `test_device_open.py:34, :92, :318, :323` (official address, off-host refused, unsafe addresses refused); `test_portal.py:46, :77` | Covered for *safe*; **no test** that the destination is the *official* app, and no native-integration test for desktop tools |
+| 3 | Access control enforced per employee | `test_user_journey.py:41` (add, grant, open, revoke); `test_portal.py:54, :92`; `test_gateway.py:173`; `test_core_proof.py:130, :154, :222`; `test_v2.py:450` | Covered |
+| 4 | Correct employee-specific browser profile | `test_browser_profiles.py` (43 tests, e.g. `test_different_owners_do_not_reuse`); `test_w6_matrix.py` (one folder per person, device and OS user); `test_workspace_launcher.py:240` (exact argv); `test_workspace_revocation.py` | Covered (the real Chrome run is the browser job and `docs/RELEASE-EVIDENCE.md`, not a unit test) |
+| 5 | Approved auth redirect behaviour | `test_device_open.py:132, :149, :173, :351`; `test_chrome_policy.py:52` (Google only for sign-in and catalogue tools) | Covered for the 3 tools in `SIGNIN_HOSTS`; **no test** for any other tool, and the hosts are unconfirmed (defect 3 above) |
+| 6 | Reopen without losing an authorised session | `test_workspace.py:98, :166`; `test_workspace_revocation.py` (`test_2_active_again_with_the_same_generation_reuses_the_folder`); `test_continuity.py:194` | Covered for the Hub session and the workspace folder; **no test** that a *provider's* own session survives a reopen (needs a real provider; NOT TESTED by design) |
+| 7 | Refusal for unassigned or revoked users | `test_portal.py:54, :85`; `test_continuity.py:59, :68`; `test_device_open.py:54, :69`; `test_core_proof.py:69` (revoke, next request refused); `test_turns.py:193` | Covered |
+| 8 | No cross-user workspace leakage | `test_workspace_revocation.py` (`test_9_another_owners_folder_survives_a_retired`); `test_workspace.py:348`; `test_probe_managed_gaps.py:25`; `test_core_proof.py:130, :149`; `test_provider_registry.py:122`; `test_device_open.py:209` | Covered |
+| 9 | No credentials in CLI args, URLs, audit logs or uploads | URLs: `test_device_open.py:323` (`access_token`, `API_KEY`, `id_token`, `password`, userinfo refused); args: `test_workspace_launcher.py:240`; audit: `test_continuity.py:234`, `test_core_proof.py` (audited without the key), `test_w7_existing_contexts.py` (no key audit line); `test_managed_workspace.py:418` (no provider credential); uploads: `test_secret_scan.py` plus the release scan | Covered for URLs, args, audit and release artifacts; **no test** for admin or staff uploads (only `test_portal.py:242`, which checks size and type, not content) |
+| 10 | No regression to gateway, reports, admin, device lifecycle | `test_gateway.py`, `test_hub.py`, `test_business.py`, `test_device_lifecycle.py`, `test_core_proof.py`, `test_w7_existing_contexts.py`, and the browser suites (`tests/browser/*.cjs`) | Covered by the full suite on CI; this document changes no code |
+
+Gaps to close with tests: check 1 (metadata correctness) and check 2 (official, not just safe, destination) once PR #304 has
+the fields; check 5 beyond three tools; check 9 uploads.
