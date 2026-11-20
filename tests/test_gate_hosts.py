@@ -49,9 +49,15 @@ class GateHostOwnerTests(unittest.TestCase):
         self.assertEqual(hosts["photoshop"], "adobe.com,photoshop.example.com")
         self.assertEqual([tuple(r) for r in db.q("SELECT * FROM entitlements ORDER BY 1, 2")], grants)
         self.assertEqual([tuple(r) for r in db.q("SELECT id, url, launch_url FROM tools ORDER BY id")], urls)
+        moved = {r["target"]: r for r in db.q("SELECT * FROM audit WHERE action = 'moved a tool''s gate hosts'")}
+        self.assertEqual(set(moved), {"chatgpt", "seedance", "copilot"})  # the admin-edited Photoshop row is not logged
+        self.assertEqual(moved["seedance"]["correlation"], "tool:seedance")
+        self.assertIn("higgsfield.ai", moved["seedance"]["before_json"])
+        self.assertEqual(moved["seedance"]["actor"], "system")
         db.x("UPDATE tools SET hosts = 'sora.com,chatgpt.com' WHERE id = 'chatgpt'")
         catalog.settle_hosts(db)  # runs once: a later edit is never touched
         self.assertEqual(db.one("SELECT hosts FROM tools WHERE id = 'chatgpt'")["hosts"], "sora.com,chatgpt.com")
+        self.assertEqual(db.one("SELECT COUNT(*) AS n FROM audit WHERE action = 'moved a tool''s gate hosts'")["n"], 3)
 
     def test_a_custom_tool_with_an_old_default_is_never_touched(self):
         db = self.db
@@ -59,6 +65,17 @@ class GateHostOwnerTests(unittest.TestCase):
         db.set_setting("catalog_host_owners", "0")
         catalog.settle_hosts(db)
         self.assertEqual(db.one("SELECT hosts FROM tools WHERE id = 'seedance'")["hosts"], "higgsfield.ai")
+
+    def test_an_admin_cannot_give_one_host_to_two_tools(self):
+        api = self.rig.api
+        status, out = api("PATCH", "/tools/midjourney", {"hosts": "midjourney.com,chatgpt.com"})
+        self.assertEqual(status, 409, out)
+        self.assertIn("chatgpt.com", str(out))
+        self.assertEqual(self.db.one("SELECT hosts FROM tools WHERE id = 'midjourney'")["hosts"], "midjourney.com")
+        self.assertEqual(api("PATCH", "/tools/midjourney", {"hosts": "midjourney.com,alpha.midjourney.com"})[0], 200)
+        self.assertEqual(api("PATCH", "/tools/midjourney", {"hosts": "midjourney.com,sora.com"})[0], 409)
+        self.db.x("UPDATE tools SET archived = 1 WHERE id = 'sora'")  # an archived tool owns nothing
+        self.assertEqual(api("PATCH", "/tools/midjourney", {"hosts": "midjourney.com,sora.com"})[0], 200)
 
 
 if __name__ == "__main__":

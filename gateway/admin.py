@@ -1453,6 +1453,19 @@ def _clean_hosts(value):
     return out
 
 
+def _hosts_unowned(db, hosts, tid=None):
+    """Each website host has one owning tool: the gate would otherwise give it silently to whichever
+    row came last. Refuses a host another active tool already lists."""
+    wanted = set(hosts)
+    clash = []
+    for t in db.q("SELECT id, name, hosts FROM tools WHERE hosts != '' AND archived = 0 AND id != ?", (tid or "",)):
+        for h in t["hosts"].split(","):
+            if h.strip().lower() in wanted:
+                clash.append(f"{h.strip().lower()} (already on {t['name']})")
+    if clash:
+        raise ApiError(409, "each website host can belong to one tool: " + ", ".join(sorted(clash)))
+
+
 @route("PATCH", r"/tools/(?P<tid>[a-z0-9-]+)", area="govern")
 def edit_tool(ctx, tid):
     tool = ctx.db.one("SELECT * FROM tools WHERE id = ?", (tid,))
@@ -1478,7 +1491,9 @@ def edit_tool(ctx, tid):
     fields.update(_sharing(ctx.body))
     fields.update(_tool_facts(ctx.body))
     if "hosts" in ctx.body:
-        fields["hosts"] = ",".join(_clean_hosts(ctx.body["hosts"]))
+        hosts = _clean_hosts(ctx.body["hosts"])
+        _hosts_unowned(ctx.db, hosts, tid)
+        fields["hosts"] = ",".join(hosts)
     if "entry_usd" in ctx.body:
         fields["entry_usd"] = _money(ctx.body["entry_usd"]) or 0
     if "plans" in ctx.body and isinstance(ctx.body["plans"], list):
