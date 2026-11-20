@@ -191,6 +191,20 @@ class DeviceOpenTests(Base):
         self.assertEqual(device_open.allowed_hosts({"id": "chatgpt", "builtin": 1, "hosts": "chatgpt.com"}),
                          ["chatgpt.com", "auth.openai.com", "accounts.google.com"])
 
+    def test_photoshops_adobe_sign_in_hosts_are_window_only_and_never_gate_hosts(self):
+        from gateway import catalog
+        tool = {"id": "photoshop", "builtin": 1, "hosts": "photoshop.adobe.com"}
+        self.assertEqual(device_open.allowed_hosts(tool),
+                         ["photoshop.adobe.com", "auth-light.identity.adobe.com", "auth.services.adobe.com",
+                          "federatedid-na1.services.adobe.com", "ims-na1.adobelogin.com", "accounts.google.com"])
+        self.assertEqual(device_open.own_hosts(tool), ["photoshop.adobe.com"])  # the start address still needs its own host
+        self.assertEqual(device_open.check_url("https://auth.services.adobe.com/", device_open.own_hosts(tool)), "host_not_allowed")
+        for hosts in catalog.SIGNIN_HOSTS.values():
+            self.assertNotIn("adobe.com", hosts)  # never the bare domain: that is every Adobe app
+        index = catalog.host_index(self.db)
+        self.assertEqual(catalog.match_host(index, "photoshop.adobe.com")["id"], "photoshop")  # the gate is unchanged
+        self.assertIsNone(catalog.match_host(index, "ims-na1.adobelogin.com"))
+
     def test_unknown_or_malformed_tool_ids(self):
         for tool in ("no-such-tool", "Canva", "../canva", "", None, 7, ["canva"]):
             status, out, _ = self.open(tool=tool)
