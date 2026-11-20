@@ -178,6 +178,26 @@ class DeviceOpenTests(Base):
         self.assertIn("higgsfield.ai", h.get("location"))
         self.assertEqual(self.open("seedance")[0], 409)
 
+    def gate(self, host):
+        status, _, payload = self.rig.request("POST", "/api/gate/open", {"host": host},
+                                              {"cookie": self.person_cookie, "x-swangz-app": "1"})
+        import json
+        return status, json.loads(payload)
+
+    def test_the_extension_gate_attributes_higgsfield_to_higgsfield_even_when_seedance_is_given_its_hosts(self):
+        self.grant("seedance")
+        self.assertEqual(self.gate("higgsfield.ai")[1]["tool_id"], "higgsfield-ai")  # the shipped catalogue
+        self.db.x("UPDATE tools SET hosts = 'higgsfield.ai,www.higgsfield.ai' WHERE id = 'seedance'")
+        for host in ("higgsfield.ai", "www.higgsfield.ai"):
+            status, out = self.gate(host)
+            self.assertEqual(status, 200, out)
+            self.assertEqual((out["allowed"], out["tool_id"]), (False, "higgsfield-ai"), out)
+        self.assertNotIn("seedance", self.rig.request("GET", "/api/gate/config", None,
+                                                      {"cookie": self.person_cookie})[2].decode())
+        self.grant("higgsfield-ai")
+        status, out = self.gate("higgsfield.ai")
+        self.assertEqual((out["allowed"], out["tool_id"]), (True, "higgsfield-ai"), out)
+
     def test_chatgpt_claude_and_gemini_open_in_the_workspace_with_their_sign_in_hosts(self):
         want = {"chatgpt": ("https://chatgpt.com/", {"chatgpt.com", "auth.openai.com", "accounts.google.com"}),
                 "claude": ("https://claude.ai/", {"claude.ai", "accounts.google.com"}),
