@@ -970,6 +970,14 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual((row["url"], row["info_url"], row["modes"], row["last_verified"]),
                          ("https://lovable.dev", "https://lovable.dev/pricing", "web", "2026-11-19"))
 
+    def test_a_refused_new_tool_leaves_no_row_behind(self):
+        before = self.rig.gw.db.one("SELECT COUNT(*) AS n FROM tools")["n"]
+        for bad in ({"modes": ["fax"]}, {"last_verified": "20/11/2026"}, {"info_url": "http://x.example"}):
+            status, _ = self.rig.api("POST", "/tools", {"name": "Refused tool", "url": "https://refused.example", **bad})
+            self.assertEqual(status, 400, bad)
+        self.assertEqual(self.rig.gw.db.one("SELECT COUNT(*) AS n FROM tools")["n"], before)
+        self.assertIsNone(self.rig.gw.db.one("SELECT id FROM tools WHERE name = 'Refused tool'"))
+
     def test_v29_only_adds_columns_and_keeps_rows_and_grants(self):
         rig = self.rig
         db = rig.gw.db

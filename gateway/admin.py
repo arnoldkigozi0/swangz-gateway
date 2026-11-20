@@ -1417,6 +1417,11 @@ def add_tool(ctx):
     url = _web(ctx.body.get("url"), "website")
     hosts = _clean_hosts(ctx.body.get("hosts")) or catalog.hosts_from_url(url)
     plans = ctx.body.get("plans") if isinstance(ctx.body.get("plans"), list) else []
+    # Validate everything before the row exists, so a refused request leaves no tool behind.
+    browsers = _browsers(ctx.body.get("workspace_url")) if ctx.body.get("workspace_url") else None
+    ws_mode = _workspace_mode(ctx.body.get("workspace_mode")) if ctx.body.get("workspace_mode") else None
+    share = _sharing(ctx.body)
+    share.update(_tool_facts(ctx.body))
     ctx.db.x("INSERT INTO tools(id, name, category, kind, provider, url, hosts, pricing_url, entry_usd, plans,"
              " builtin, created, signin, launch_url, description, color) VALUES(?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?)",
              (tid, name, str(ctx.body.get("category") or "Other").strip()[:40] or "Other", kind,
@@ -1425,12 +1430,10 @@ def add_tool(ctx):
               json.dumps(plans), time.time(), _signin(ctx.body.get("signin"), kind),
               _web(ctx.body.get("launch_url"), "sign-in link"), str(ctx.body.get("description") or "").strip()[:200],
               _color(ctx.body.get("color"))))
-    if ctx.body.get("workspace_url"):
-        ctx.db.x("UPDATE tools SET workspace_url = ? WHERE id = ?", (_browsers(ctx.body.get("workspace_url")), tid))
-    if ctx.body.get("workspace_mode"):
-        ctx.db.x("UPDATE tools SET workspace_mode = ? WHERE id = ?", (_workspace_mode(ctx.body.get("workspace_mode")), tid))
-    share = _sharing(ctx.body)
-    share.update(_tool_facts(ctx.body))
+    if browsers is not None:
+        ctx.db.x("UPDATE tools SET workspace_url = ? WHERE id = ?", (browsers, tid))
+    if ws_mode is not None:
+        ctx.db.x("UPDATE tools SET workspace_mode = ? WHERE id = ?", (ws_mode, tid))
     if share:
         ctx.db.x(f"UPDATE tools SET {', '.join(f'{k}=?' for k in share)} WHERE id = ?", [*share.values(), tid])
     ctx.audit("added a tool to the catalog", name)
