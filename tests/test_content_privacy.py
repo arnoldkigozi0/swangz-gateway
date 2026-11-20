@@ -16,6 +16,10 @@ from gateway.db import DB, SCHEMA
 from .test_core_proof import CoreBase, concrete
 from .test_v2 import add_admin
 
+# D-023 is SCHEMA[D023] (meta 'schema' = D023 means it has not run yet); later migrations are undone by _upgrade.
+D023 = next(i for i, s in enumerate(SCHEMA) if isinstance(s, str) and "INSERT OR IGNORE" in s and "store_bodies" in s)
+LATER_TOOL_COLUMNS = ("info_url", "modes", "oauth_hosts", "last_verified")  # v29
+
 MARK = "okapi-lantern-content-9353"
 CONTENT_COLUMNS = ("prompt", "reply", "actions", "req_head", "req_items", "resp_blob")
 WITHHELD_ROLES = ("viewer", "billing", "operations")
@@ -37,7 +41,10 @@ class DefaultTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, tmp, True)
         path = os.path.join(tmp, "old.db")
         before = DB(path)  # at the newest schema; rewind it to just before the D-023 migration
-        before.x("UPDATE meta SET v = ? WHERE k = 'schema'", (str(len(SCHEMA) - 1),))
+        self.assertEqual(len(SCHEMA), D023 + 2, "a migration was added after v29: undo it here as well")
+        before.x("UPDATE meta SET v = ? WHERE k = 'schema'", (str(D023),))
+        for column in LATER_TOOL_COLUMNS:
+            before.x(f"ALTER TABLE tools DROP COLUMN {column}")
         before.x("DELETE FROM settings WHERE k = 'store_bodies'")
         if saved is not None:
             before.set_setting("store_bodies", saved)
@@ -53,11 +60,11 @@ class DefaultTests(unittest.TestCase):
         self.assertEqual(self._upgrade("1"), "1")
         self.assertEqual(self._upgrade("0"), "0")
 
-    def test_the_migration_is_the_last_one_and_only_inserts_where_missing(self):
+    def test_the_migration_only_inserts_where_missing(self):
         conn = sqlite3.connect(":memory:")
         conn.execute("CREATE TABLE settings (k TEXT PRIMARY KEY, v TEXT)")
         conn.execute("INSERT INTO settings VALUES ('store_bodies', '1')")
-        conn.executescript(SCHEMA[-1])
+        conn.executescript(SCHEMA[D023])
         self.assertEqual(conn.execute("SELECT v FROM settings WHERE k = 'store_bodies'").fetchone()[0], "1")
 
 

@@ -526,6 +526,16 @@ SCHEMA = [
     """
     INSERT OR IGNORE INTO settings(k, v) VALUES ('store_bodies', '0');
     """,
+    # v29: catalogue facts kept apart from where Open goes. `url` stays the app address people are sent to; info_url is
+    # the product or pricing page; modes says how the tool is used (web, desktop, cli, api, mobile); oauth_hosts are the
+    # official sign-in hosts its site hands off to; last_verified is the day someone checked these against the
+    # provider's own documentation. New columns only, empty by default: no existing row, grant or URL is changed.
+    """
+    ALTER TABLE tools ADD COLUMN info_url TEXT NOT NULL DEFAULT '';
+    ALTER TABLE tools ADD COLUMN modes TEXT NOT NULL DEFAULT '';
+    ALTER TABLE tools ADD COLUMN oauth_hosts TEXT NOT NULL DEFAULT '';
+    ALTER TABLE tools ADD COLUMN last_verified TEXT NOT NULL DEFAULT '';
+    """,
 ]
 
 

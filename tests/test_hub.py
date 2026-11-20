@@ -14,6 +14,7 @@ from gateway.config import Settings
 from gateway.db import DB, SCHEMA
 from gateway.hub_import import import_entries, backup
 from .support import Rig
+from .test_provider_registry import without_v29
 
 
 class HubServiceTests(unittest.TestCase):
@@ -213,7 +214,7 @@ class HubServiceTests(unittest.TestCase):
             info=backup(path,tmp+'/verified.db');self.assertEqual(info['integrity'],'ok')
             new=DB(path)
             self.assertEqual(new.scalar("SELECT v FROM meta WHERE k='schema'"),str(len(SCHEMA)))
-            for table,rows in original.items():self.assertEqual(new.q('SELECT * FROM '+table),rows)
+            for table,rows in original.items():self.assertEqual(without_v29(table,new.q('SELECT * FROM '+table)),rows)
             new.close();again=DB(path);again.close()
             with self.assertRaises(FileExistsError):backup(path,tmp+'/verified.db')
 

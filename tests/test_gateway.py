@@ -930,6 +930,73 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(rig.api("POST", "/tools/lovable/archive")[0], 200)
         self.assertNotIn("lovable", {t["id"] for t in rig.api("GET", "/catalog")[1]["tools"]})
 
+    def test_catalogue_facts_are_editable_validated_and_audited(self):
+        rig = self.rig
+        before = rig.gw.db.one("SELECT url, launch_url, hosts FROM tools WHERE id = 'chatgpt'")
+        facts = {"info_url": "https://openai.com/chatgpt/pricing", "modes": ["desktop", "web", "web"],
+                 "oauth_hosts": "auth.openai.com, https://accounts.google.com/x", "last_verified": "2026-11-20"}
+        self.assertEqual(rig.api("PATCH", "/tools/chatgpt", facts)[0], 200)
+        row = rig.gw.db.one("SELECT * FROM tools WHERE id = 'chatgpt'")
+        self.assertEqual((row["info_url"], row["modes"], row["oauth_hosts"], row["last_verified"]),
+                         ("https://openai.com/chatgpt/pricing", "web,desktop", "auth.openai.com,accounts.google.com",
+                          "2026-11-20"))
+        self.assertEqual(dict(rig.gw.db.one("SELECT url, launch_url, hosts FROM tools WHERE id = 'chatgpt'")),
+                         dict(before))  # where Open goes is untouched
+        audit = rig.gw.db.one("SELECT * FROM audit ORDER BY id DESC LIMIT 1")
+        self.assertEqual((audit["action"], audit["correlation"]), ("edited a tool", "tool:chatgpt"))
+        self.assertEqual(json.loads(audit["before_json"])["modes"], "")
+        self.assertEqual(json.loads(audit["after_json"])["modes"], "web,desktop")
+        tool = next(t for t in rig.api("GET", "/catalog")[1]["tools"] if t["id"] == "chatgpt")
+        self.assertEqual((tool["modes"], tool["oauth_hosts"]), (["web", "desktop"], ["auth.openai.com", "accounts.google.com"]))
+        self.assertEqual(rig.api("PATCH", "/tools/chatgpt", {"modes": "", "last_verified": ""})[0], 200)
+        tool = next(t for t in rig.api("GET", "/catalog")[1]["tools"] if t["id"] == "chatgpt")
+        self.assertEqual((tool["modes"], tool["last_verified"]), ([], ""))
+        self.assertEqual(rig.api("PATCH", "/tools/chatgpt", {"last_verified": "2026-1-5"})[0], 200)
+        self.assertEqual(rig.gw.db.one("SELECT last_verified FROM tools WHERE id = 'chatgpt'")["last_verified"], "2026-01-05")
+        for bad in ({"modes": ["web", "fax"]}, {"last_verified": "20/11/2026"}, {"last_verified": "2999-01-01"},
+                    {"last_verified": time.strftime("%Y-%m-%d", time.localtime(time.time() + 86400))},
+                    {"info_url": "https://u:p@openai.com/"}, {"info_url": "https://openai.com/?api_key=x"},
+                    {"info_url": "http://openai.com"}, {"info_url": "javascript:alert(1)"}):
+            self.assertEqual(rig.api("PATCH", "/tools/chatgpt", bad)[0], 400, bad)
+        self.assertEqual(rig.api("PATCH", "/tools/chatgpt", {"modes": ["api"]}, who="viewer")[0], 403)
+        self.assertEqual(rig.gw.db.one("SELECT modes FROM tools WHERE id = 'chatgpt'")["modes"], "")
+
+    def test_a_new_tool_can_carry_catalogue_facts(self):
+        status, out = self.rig.api("POST", "/tools", {"name": "Lovable", "category": "Coding", "kind": "site",
+                                                      "url": "https://lovable.dev", "info_url": "https://lovable.dev/pricing",
+                                                      "modes": "web", "last_verified": "2026-11-19"})
+        self.assertEqual(status, 200)
+        row = self.rig.gw.db.one("SELECT * FROM tools WHERE id = ?", (out["id"],))
+        self.assertEqual((row["url"], row["info_url"], row["modes"], row["last_verified"]),
+                         ("https://lovable.dev", "https://lovable.dev/pricing", "web", "2026-11-19"))
+
+    def test_a_refused_new_tool_leaves_no_row_behind(self):
+        before = self.rig.gw.db.one("SELECT COUNT(*) AS n FROM tools")["n"]
+        for bad in ({"modes": ["fax"]}, {"last_verified": "20/11/2026"}, {"info_url": "http://x.example"}):
+            status, _ = self.rig.api("POST", "/tools", {"name": "Refused tool", "url": "https://refused.example", **bad})
+            self.assertEqual(status, 400, bad)
+        self.assertEqual(self.rig.gw.db.one("SELECT COUNT(*) AS n FROM tools")["n"], before)
+        self.assertIsNone(self.rig.gw.db.one("SELECT id FROM tools WHERE name = 'Refused tool'"))
+
+    def test_v29_only_adds_columns_and_keeps_rows_and_grants(self):
+        rig = self.rig
+        db = rig.gw.db
+        tools = [dict(r) for r in db.q("SELECT id, url, launch_url, hosts, signin, archived FROM tools ORDER BY id")]
+        grants = [tuple(r) for r in db.q("SELECT * FROM entitlements ORDER BY 1, 2")]
+        v29 = SCHEMA[-1]
+        self.assertNotIn("UPDATE", v29.upper())
+        self.assertNotIn("DELETE", v29.upper())
+        self.assertNotIn("DROP", v29.upper())
+        for column in ("info_url", "modes", "oauth_hosts", "last_verified"):
+            db.x(f"ALTER TABLE tools DROP COLUMN {column}")
+        db.x("UPDATE meta SET v = ? WHERE k = 'schema'", (str(len(SCHEMA) - 1),))
+        db._migrate()
+        self.assertEqual(db.one("SELECT v FROM meta WHERE k = 'schema'")["v"], str(len(SCHEMA)))
+        self.assertEqual([dict(r) for r in db.q("SELECT id, url, launch_url, hosts, signin, archived FROM tools ORDER BY id")], tools)
+        self.assertEqual([tuple(r) for r in db.q("SELECT * FROM entitlements ORDER BY 1, 2")], grants)
+        self.assertEqual(db.one("SELECT COUNT(*) AS n FROM tools WHERE info_url <> '' OR modes <> '' OR oauth_hosts <> '' "
+                                "OR last_verified <> ''")["n"], 0)
+
     def test_dev_tool_needs_assignment_at_the_proxy(self):
         rig = self.rig
         # the rig grants claude-code to the person; remove it and Claude Code is refused

@@ -10,7 +10,7 @@ import json
 import re
 import sqlite3
 import time
-from urllib.parse import parse_qs, unquote
+from urllib.parse import parse_qs, parse_qsl, unquote, urlsplit
 
 from . import authz, config, credentials, geo, guides, proxy, security, store
 
@@ -1015,6 +1015,8 @@ def _tool_row(t, sub, counts):
     out["hosts"] = [h for h in (t["hosts"] or "").split(",") if h]
     out["subscription"] = {k: sub[k] for k in ("state", "plan", "seats", "monthly_cost", "renews_on", "note",
                                                "updated", "updated_by")} if sub else {"state": "none"}
+    out["modes"] = [m for m in (t["modes"] or "").split(",") if m]
+    out["oauth_hosts"] = [h for h in (t["oauth_hosts"] or "").split(",") if h]
     out["workspace_url"] = t["workspace_url"]
     out["workspace_mode"] = t["workspace_mode"]
     out["seats_at_once"] = t["seats_at_once"]
@@ -1336,6 +1338,62 @@ def _sharing(body):
     return out
 
 
+def _modes(value):
+    """How a tool is used: a subset of catalog.MODES, in that order. Anything else is refused, not dropped."""
+    from . import catalog
+
+    raw = value if isinstance(value, list) else str(value or "").split(",")
+    picked = {str(m).strip().lower() for m in raw if str(m).strip()}
+    unknown = picked - set(catalog.MODES)
+    if unknown:
+        raise ApiError(400, "mode must be one or more of " + ", ".join(catalog.MODES))
+    return ",".join(m for m in catalog.MODES if m in picked)
+
+
+def _verified_day(value):
+    """The day the tool's facts were last checked against the provider: YYYY-MM-DD, not in the future, or empty."""
+    v = str(value or "").strip()
+    if not v:
+        return ""
+    try:
+        day = time.strptime(v, "%Y-%m-%d")
+    except ValueError:
+        raise ApiError(400, "last verified must be a date like 2026-11-20")
+    v = time.strftime("%Y-%m-%d", day)  # 2026-1-5 is stored as 2026-01-05, so dates sort and compare as text
+    if v > time.strftime("%Y-%m-%d"):
+        raise ApiError(400, "last verified can't be in the future")
+    return v
+
+
+_SECRET_QUERY = re.compile(r"(key|token|secret|password|passwd|pwd|auth|sig|signature|session|credential)", re.I)
+
+
+def _url_has_credentials(url):
+    """True when a link carries sign-in material: user:pass@ in the address or a key/token-like query parameter."""
+    parts = urlsplit(url)
+    if "@" in parts.netloc:
+        return True
+    return any(_SECRET_QUERY.search(k) for k, _ in parse_qsl(parts.query, keep_blank_values=True))
+
+
+def _tool_facts(body):
+    """The catalogue facts (v29) present in a request body, validated."""
+    out = {}
+    if "info_url" in body:
+        out["info_url"] = _web(body["info_url"], "product page")
+        if out["info_url"] and not out["info_url"].lower().startswith("https://"):
+            raise ApiError(400, "the product page must start with https://")
+        if out["info_url"] and _url_has_credentials(out["info_url"]):
+            raise ApiError(400, "the product page can't carry a username, password, key or token")
+    if "modes" in body:
+        out["modes"] = _modes(body["modes"])
+    if "oauth_hosts" in body:
+        out["oauth_hosts"] = ",".join(_clean_hosts(body["oauth_hosts"]))
+    if "last_verified" in body:
+        out["last_verified"] = _verified_day(body["last_verified"])
+    return out
+
+
 def _signin(value, kind):
     from . import catalog
 
@@ -1359,6 +1417,11 @@ def add_tool(ctx):
     url = _web(ctx.body.get("url"), "website")
     hosts = _clean_hosts(ctx.body.get("hosts")) or catalog.hosts_from_url(url)
     plans = ctx.body.get("plans") if isinstance(ctx.body.get("plans"), list) else []
+    # Validate everything before the row exists, so a refused request leaves no tool behind.
+    browsers = _browsers(ctx.body.get("workspace_url")) if ctx.body.get("workspace_url") else None
+    ws_mode = _workspace_mode(ctx.body.get("workspace_mode")) if ctx.body.get("workspace_mode") else None
+    share = _sharing(ctx.body)
+    share.update(_tool_facts(ctx.body))
     ctx.db.x("INSERT INTO tools(id, name, category, kind, provider, url, hosts, pricing_url, entry_usd, plans,"
              " builtin, created, signin, launch_url, description, color) VALUES(?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?)",
              (tid, name, str(ctx.body.get("category") or "Other").strip()[:40] or "Other", kind,
@@ -1367,11 +1430,10 @@ def add_tool(ctx):
               json.dumps(plans), time.time(), _signin(ctx.body.get("signin"), kind),
               _web(ctx.body.get("launch_url"), "sign-in link"), str(ctx.body.get("description") or "").strip()[:200],
               _color(ctx.body.get("color"))))
-    if ctx.body.get("workspace_url"):
-        ctx.db.x("UPDATE tools SET workspace_url = ? WHERE id = ?", (_browsers(ctx.body.get("workspace_url")), tid))
-    if ctx.body.get("workspace_mode"):
-        ctx.db.x("UPDATE tools SET workspace_mode = ? WHERE id = ?", (_workspace_mode(ctx.body.get("workspace_mode")), tid))
-    share = _sharing(ctx.body)
+    if browsers is not None:
+        ctx.db.x("UPDATE tools SET workspace_url = ? WHERE id = ?", (browsers, tid))
+    if ws_mode is not None:
+        ctx.db.x("UPDATE tools SET workspace_mode = ? WHERE id = ?", (ws_mode, tid))
     if share:
         ctx.db.x(f"UPDATE tools SET {', '.join(f'{k}=?' for k in share)} WHERE id = ?", [*share.values(), tid])
     ctx.audit("added a tool to the catalog", name)
@@ -1414,6 +1476,7 @@ def edit_tool(ctx, tid):
     if "signin" in ctx.body:
         fields["signin"] = _signin(ctx.body["signin"], tool["kind"])
     fields.update(_sharing(ctx.body))
+    fields.update(_tool_facts(ctx.body))
     if "hosts" in ctx.body:
         fields["hosts"] = ",".join(_clean_hosts(ctx.body["hosts"]))
     if "entry_usd" in ctx.body:

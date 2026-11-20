@@ -124,7 +124,7 @@ gateway/
   backup.py     verified, compressed database copies (SQLite backup API, never migrates), optional rsync off-server
   pricing.py    model price table and cost per request
   live.py       requests in flight, and cutting them
-  db.py         SQLite + append-only numbered migrations (currently schema v28)
+  db.py         SQLite + append-only numbered migrations (currently schema v29: v29 adds catalogue facts to tools — info_url, modes, oauth_hosts, last_verified)
   registry.py   Amendment 01 task 1: the manual provider-account registry (people declare the AI subscriptions they hold; v24 + the v25 NULL-safe guard repair in registry_schema.py)
   security.py   key/password hashing, sign-in throttle, per-person rate limiter
   admin.py      control-room API: the route decorator (role + area), people, keys, tools, settings, audit
