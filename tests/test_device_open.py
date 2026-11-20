@@ -145,6 +145,39 @@ class DeviceOpenTests(Base):
         self.assertEqual(self.launches()[-1]["outcome"], "refused")
         self.assertEqual(self.launches()[-1]["rule"], "inside_other_tool")
 
+    def go_tool(self, tool_id):
+        status, h, payload = self.rig.request("GET", "/go/" + tool_id, None, {"cookie": self.person_cookie})
+        return status, h, payload.decode()
+
+    def test_go_refuses_a_seedance_only_person_the_same_way_and_never_redirects_to_higgsfield(self):
+        self.grant("seedance")
+        status, h, page = self.go_tool("seedance")
+        self.assertEqual(status, 403, page)
+        self.assertNotIn("higgsfield.ai", h.get("location") or "")
+        self.assertIn("opens inside Higgsfield AI", page)
+        self.assertEqual((self.launches()[-1]["outcome"], self.launches()[-1]["rule"]), ("refused", "inside_other_tool"))
+        self.assertEqual(self.open("seedance")[0], 409)  # /device/open agrees
+
+    def test_seedance_is_refused_even_when_an_admin_gives_it_higgsfield_hosts(self):
+        self.grant("seedance")
+        self.db.x("UPDATE tools SET hosts = 'higgsfield.ai,www.higgsfield.ai', url = 'https://higgsfield.ai/seedance'"
+                  " WHERE id = 'seedance'")
+        status, out, _ = self.open("seedance")
+        self.assertEqual((status, out.get("code")), (409, "inside_other_tool"), out)
+        self.assertNotIn("higgsfield.ai", str(out))
+        self.assertEqual(self.go_tool("seedance")[0], 403)
+
+    def test_a_higgsfield_grant_still_opens_higgsfield(self):
+        self.grant("seedance")
+        self.grant("higgsfield-ai")
+        status, out, _ = self.open("higgsfield-ai")
+        self.assertEqual(status, 200, out)
+        self.assertIn("higgsfield.ai", out["allowed_hosts"])
+        status, h, _ = self.go_tool("higgsfield-ai")
+        self.assertEqual(status, 302)
+        self.assertIn("higgsfield.ai", h.get("location"))
+        self.assertEqual(self.open("seedance")[0], 409)
+
     def test_chatgpt_claude_and_gemini_open_in_the_workspace_with_their_sign_in_hosts(self):
         want = {"chatgpt": ("https://chatgpt.com/", {"chatgpt.com", "auth.openai.com", "accounts.google.com"}),
                 "claude": ("https://claude.ai/", {"claude.ai", "accounts.google.com"}),

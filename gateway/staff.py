@@ -480,7 +480,7 @@ def launch_checks(gw, person, tool):
     """The access checks every Open makes, in order: the entitlement, the weekly report, the global pause, then the
     company policies. Shared by /go/<tool> and the app's /api/device/open so the two can never disagree.
     -> (ok, state, reason, rule, report_denial)."""
-    from . import reporting
+    from . import catalog, reporting
 
     ok, state, reason = entitle.is_enabled(gw.db, person, tool)
     report_denial = reporting.gate(gw, person["id"], tool["id"]) if ok else None
@@ -489,6 +489,13 @@ def launch_checks(gw, person, tool):
     rule = "weekly_report_required" if report_denial else None
     if gw.db.get_setting("paused", "0") == "1":
         ok, reason = False, "AI access is paused for everyone right now."
+    if ok and tool.get("builtin") and tool["id"] in catalog.INSIDE:
+        # Seedance opens inside Higgsfield AI: a hostname gate can't separate them, so its own grant never opens the
+        # other tool's site. Checked on the built-in id, not its hosts, so an admin adding the host can't open it.
+        home = gw.db.one("SELECT name FROM tools WHERE id = ?", (catalog.INSIDE[tool["id"]],))
+        home = home["name"] if home else "another tool"
+        ok, rule = False, "inside_other_tool"
+        reason = f"{tool['name']} opens inside {home}. Ask your admin for {home} access."
     if ok:
         ruled = gw.tool_policy(person, tool, "launch")
         if ruled:
