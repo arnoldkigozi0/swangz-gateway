@@ -55,6 +55,16 @@ class AppUrlTests(unittest.TestCase):
         catalog.settle_app_urls(db)
         self.assertEqual(dict(self.tool("photoshop"))["info_url"], "https://example.com/ps")
 
+    def test_a_database_already_moved_by_settle_urls_still_keeps_the_product_page(self):
+        db = self.db  # a live Hub that ran #308's settle_urls before this fix-up existed
+        old, new = catalog.APP_URLS["photoshop"]
+        db.x("UPDATE tools SET url = ?, info_url = '' WHERE id = 'photoshop'", (old,))
+        db.set_setting("catalog_tool_urls", "0")
+        catalog.settle_urls(db)
+        db.set_setting("catalog_app_urls", "0")
+        catalog.settle_app_urls(db)
+        self.assertEqual((self.tool("photoshop")["url"], self.tool("photoshop")["info_url"]), (new, old))
+
     def test_a_custom_tool_is_never_touched(self):
         db = self.db
         db.x("UPDATE tools SET url = ?, info_url = '', builtin = 0 WHERE id = 'photoshop'", (catalog.APP_URLS["photoshop"][0],))

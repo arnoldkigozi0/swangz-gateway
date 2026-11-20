@@ -219,6 +219,28 @@ def settle_app_urls(db):
         db.set_setting("catalog_app_urls", "1")
 
 
+# A built-in tool's address must be on its own gate hosts, or /device/open refuses it and /go/ lands on a host the gate
+# attributes to another tool (Sentinel's #306 ruling). Photoshop's product page is on www.adobe.com, Premiere's host;
+# Photoshop on the web is photoshop.adobe.com. Same rule as HOST_OWNERS: only the exact old default is changed.
+TOOL_URLS = {
+    "photoshop": ("https://www.adobe.com/products/photoshop.html", "https://photoshop.adobe.com/"),
+}
+
+# Built-in tools that live inside another tool's site, so a hostname gate can't tell them apart: they have no hosts of
+# their own and the workspace refuses them by name (fail closed), never by opening the other tool's site.
+INSIDE = {"seedance": "higgsfield-ai"}
+
+
+def settle_urls(db):
+    """Apply TOOL_URLS once (its own setting: catalog_host_owners may already be set). Never overwrites an admin's edit."""
+    if db.get_setting("catalog_tool_urls") == "1":
+        return
+    with db.tx():
+        for tid, (old, new) in TOOL_URLS.items():
+            db.x("UPDATE tools SET url = ? WHERE id = ? AND builtin = 1 AND url = ?", (new, tid, old))
+        db.set_setting("catalog_tool_urls", "1")
+
+
 def launch_target(tool):
     """Where the portal sends someone who opens this tool, best first:
 

@@ -129,6 +129,22 @@ class DeviceOpenTests(Base):
         self.rig.api("PUT", f"/subscriptions/{tool_id}", {"state": "active", "monthly_cost": 20, "seats": 5})
         self.assertEqual(self.rig.api("POST", f"/people/{self.rig.person_id}/tools/{tool_id}")[0], 200)
 
+    def test_photoshop_opens_on_photoshop_on_the_web(self):
+        self.grant("photoshop")
+        status, out, _ = self.open("photoshop")
+        self.assertEqual(status, 200, out)
+        self.assertEqual((out["url"], out["allowed_hosts"][0]), ("https://photoshop.adobe.com/", "photoshop.adobe.com"))
+        self.assertNotIn("adobe.com", out["allowed_hosts"])  # never Premiere's host
+
+    def test_a_seedance_only_person_is_refused_by_name_and_never_given_higgsfield(self):
+        self.grant("seedance")
+        status, out, _ = self.open("seedance")
+        self.assertEqual((status, out.get("code")), (409, "inside_other_tool"), out)
+        self.assertEqual(out.get("error"), "Seedance opens inside Higgsfield AI. Ask your admin for Higgsfield AI access.")
+        self.assertNotIn("higgsfield.ai", str(out))
+        self.assertEqual(self.launches()[-1]["outcome"], "refused")
+        self.assertEqual(self.launches()[-1]["rule"], "inside_other_tool")
+
     def test_chatgpt_claude_and_gemini_open_in_the_workspace_with_their_sign_in_hosts(self):
         want = {"chatgpt": ("https://chatgpt.com/", {"chatgpt.com", "auth.openai.com", "accounts.google.com"}),
                 "claude": ("https://claude.ai/", {"claude.ai", "accounts.google.com"}),
