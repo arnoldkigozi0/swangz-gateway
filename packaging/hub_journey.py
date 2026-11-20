@@ -328,12 +328,10 @@ def two_at_once(check, owner, a, b, tool=TOOL):
         check("two at once: two Chrome windows run together, on two different folders in two different data folders",
               folders[0] != folders[1] and both_running(*folders) and all(chrome_wrote(f) for f in folders),
               f"{folders[0].name} / {folders[1].name}")
-        # B4: b's data folder is new, so it must hold nothing of a's; neither data folder holds the other device's key
+        # B4: b's data folder is new, so it must hold nothing of a's
         a_in_b = [f.name for f in workspace_folders(b["data"]) if marker_of(f).get("person_id") == str(a["person_id"])]
-        leaks = files_holding(keys[1], [a["data"]]) + files_holding(keys[0], [b["data"]])
-        check("two at once: no folder of the first person's in the second copy's data folder, and neither data folder"
-              " holds the other device's key", not a_in_b and not leaks,
-              f"{len(a_in_b)} folder(s), {len(leaks)} file(s) holding the other key")
+        check("two at once: no folder of the first person's in the second copy's data folder", not a_in_b,
+              f"{len(a_in_b)} folder(s)")
         for s in sides:  # B5
             status, out = owner.call("GET", f"/launches?person={s['person_id']}&since={before}")
             opened = [r for r in out.get("items", []) if r.get("tool_id") == tool and r.get("outcome") == "opened"]
@@ -348,6 +346,11 @@ def two_at_once(check, owner, a, b, tool=TOOL):
     finally:
         for f in folders:  # B8
             close_chrome(f)
+    # B4, key half: scanned once both windows are closed, because a running Chrome holds its profile files locked on
+    # Windows and every locked file counts as a failure (unreadable is never passed silently)
+    leaks = files_holding(keys[1], [a["data"]]) + files_holding(keys[0], [b["data"]])
+    check("two at once: with both windows closed, neither data folder holds the other device's key (an unreadable file"
+          " fails)", not leaks, f"{len(leaks)} file(s): " + ", ".join(Path(h).name for h in leaks[:5]))
     marker_a = marker_of(folders[0])
     status, _ = owner.call("POST", f"/keys/{ids[1][0]}/revoke")  # B6, B7
     code_b, _ = b["run"]("sync")
