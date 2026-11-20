@@ -237,6 +237,10 @@ class DeviceOpenTests(Base):
         index = catalog.host_index(self.db)
         self.assertEqual(catalog.match_host(index, "photoshop.adobe.com")["id"], "photoshop")  # the gate is unchanged
         self.assertIsNone(catalog.match_host(index, "ims-na1.adobelogin.com"))
+        firefly = {"id": "adobe-firefly", "builtin": 1, "hosts": "firefly.adobe.com"}
+        self.assertEqual(device_open.allowed_hosts(firefly)[1:], device_open.allowed_hosts(tool)[1:])
+        self.assertEqual(device_open.own_hosts(firefly), ["firefly.adobe.com"])
+        self.assertEqual(catalog.match_host(index, "firefly.adobe.com")["id"], "adobe-firefly")
 
     def test_unknown_or_malformed_tool_ids(self):
         for tool in ("no-such-tool", "Canva", "../canva", "", None, 7, ["canva"]):
