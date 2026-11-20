@@ -9,6 +9,7 @@ from gateway import catalog
 
 HERE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "deploy", "chrome-policy")
 PATH = os.path.join(HERE, "swangz-company-chrome.json")
+CHROME_PATHS = {"github.com/copilot"}
 KNOWN = {"URLBlocklist", "URLAllowlist", "BrowserSignin", "SyncDisabled", "BrowserAddPersonEnabled",
          "BrowserGuestModeEnabled", "IncognitoModeAvailability", "DeveloperToolsAvailability", "RemoteDebuggingAllowed",
          "PasswordManagerEnabled", "AutoLaunchProtocolsFromOrigins", "ExternalProtocolDialogShowAlwaysOpenCheckbox",
@@ -47,7 +48,8 @@ class ChromePolicyPackTests(unittest.TestCase):
         for row in catalog.SEED:
             hosts.update(dict(zip(catalog.FIELDS, row))["hosts"])
         self.assertTrue(hosts)
-        self.assertEqual(set(self.policy["URLAllowlist"]), hosts | SIGN_IN | {"SWANGZ_HUB_HOST"})
+        # Chrome allowlists match paths; the Hub's hostname gate cannot, so Copilot on GitHub lives only here.
+        self.assertEqual(set(self.policy["URLAllowlist"]), hosts | SIGN_IN | {"SWANGZ_HUB_HOST"} | CHROME_PATHS)
 
     def test_google_is_reachable_only_for_sign_in_and_tools_in_the_catalogue(self):
         google = {e for e in self.policy["URLAllowlist"] if re.search(r"(google|youtube|gmail)\.", e)}
