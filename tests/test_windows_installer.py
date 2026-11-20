@@ -194,13 +194,15 @@ class EnrolmentRefusalTests(unittest.TestCase):
 
     def test_wrong_then_expired_code_while_the_program_waits(self):
         refused = self.section("# 3a.", "device = enrol()")
-        steps = ['[str(exe), "login", "--server", origin', "That code isn't right", 'require(status == 400',
+        steps = ['[str(exe), "login", "--server", origin', "That code isn't right", "fixture.csrf(row[\"user_code\"])",
+                 "hub_enroll._csrf(rig.gw, session, row[\"user_code\"])", '"csrf": real', 'require(status == 400',
                  "== \"pending\"", "login.poll() is None and not", "UPDATE device_codes SET expires", "login.communicate(timeout=120)",
                  "login.returncode == 1", '"expired" in (out + err).lower()', "keys_issued() == issued",
                  'unusable(row["user_code"])']
         at = [refused.index(s) for s in steps]
         self.assertEqual(at, sorted(at), "the refused-code steps are out of order")
         self.assertLess(self.e2e.index("# 3a."), self.e2e.index("device = enrol()"))
+        self.assertNotIn('"csrf": "0" * 64', refused)  # no made-up token: a 400 must mean the code is wrong
         # the expired code stays 'pending' at the Hub, so the real enrolment after it must take the newest live code
         enrol = self.section("def enrol(approve=None):", "# 3a.")
         self.assertIn("status = 'pending' AND expires > ?", enrol)
