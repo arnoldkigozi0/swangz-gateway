@@ -22,7 +22,7 @@ import time
 
 # id, name, category, kind, provider, url, hosts (for the access gate), pricing_url, entry_usd, plans
 SEED = [
-    ["chatgpt", "ChatGPT", "Assistant", "api", "openai", "https://chatgpt.com/", ["chat.openai.com", "chatgpt.com", "sora.com"], "https://openai.com/chatgpt/pricing/", 20, [{"name": "Plus", "monthlyUSD": 20, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Pro", "monthlyUSD": 200, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Team (per seat)", "monthlyUSD": 30, "unit": None, "included": None, "unitCostUSD": None}]],
+    ["chatgpt", "ChatGPT", "Assistant", "api", "openai", "https://chatgpt.com/", ["chat.openai.com", "chatgpt.com"], "https://openai.com/chatgpt/pricing/", 20, [{"name": "Plus", "monthlyUSD": 20, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Pro", "monthlyUSD": 200, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Team (per seat)", "monthlyUSD": 30, "unit": None, "included": None, "unitCostUSD": None}]],
     ["claude", "Claude", "Assistant", "api", "anthropic", "https://claude.ai/", ["claude.ai"], "https://www.anthropic.com/pricing", 20, [{"name": "Pro", "monthlyUSD": 20, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Max 5x", "monthlyUSD": 100, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Max 20x", "monthlyUSD": 200, "unit": None, "included": None, "unitCostUSD": None}]],
     ["higgsfield-ai", "Higgsfield AI", "Video", "api", "higgsfield", "https://higgsfield.ai/", ["higgsfield.ai"], "https://higgsfield.ai/pricing", 19, [{"name": "Starter", "monthlyUSD": 19, "unit": "credits", "included": 270, "unitCostUSD": 0.05}, {"name": "Plus", "monthlyUSD": 59, "unit": "credits", "included": 1200, "unitCostUSD": 0.05}, {"name": "Ultra", "monthlyUSD": 129, "unit": "credits", "included": 3000, "unitCostUSD": 0.05}]],
     ["elevenlabs", "ElevenLabs", "Voice", "api", "elevenlabs", "https://elevenlabs.io/", ["elevenlabs.io"], "https://elevenlabs.io/pricing", 6, [{"name": "Free", "monthlyUSD": 0, "unit": "credits", "included": 10000, "unitCostUSD": None}, {"name": "Starter", "monthlyUSD": 6, "unit": "credits", "included": 30000, "unitCostUSD": None}, {"name": "Creator", "monthlyUSD": 22, "unit": "credits", "included": 121000, "unitCostUSD": 0.0003}, {"name": "Pro", "monthlyUSD": 99, "unit": "credits", "included": 600000, "unitCostUSD": 0.00024}, {"name": "Scale", "monthlyUSD": 299, "unit": "credits", "included": 1800000, "unitCostUSD": 0.00018}, {"name": "Business", "monthlyUSD": 990, "unit": "credits", "included": 6000000, "unitCostUSD": 0.00012}]],
@@ -35,11 +35,11 @@ SEED = [
     ["n8n", "n8n", "Automation", "site", "", "https://n8n.io/", ["n8n.io"], "https://n8n.io/pricing/", 24, [{"name": "Starter", "monthlyUSD": 24, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Pro", "monthlyUSD": 60, "unit": None, "included": None, "unitCostUSD": None}]],
     ["heygen", "Heygen", "Avatar video", "site", "", "https://www.heygen.com/", ["heygen.com"], "https://www.heygen.com/pricing", 29, [{"name": "Creator", "monthlyUSD": 29, "unit": "credits", "included": 600, "unitCostUSD": None}, {"name": "Pro", "monthlyUSD": 49, "unit": "credits", "included": 1000, "unitCostUSD": None}, {"name": "Business", "monthlyUSD": 149, "unit": "credits", "included": 1500, "unitCostUSD": None}]],
     ["synthesia", "Synthesia", "Avatar video", "site", "", "https://www.synthesia.io/", ["synthesia.io"], "https://www.synthesia.io/pricing", 29, [{"name": "Starter", "monthlyUSD": 29, "unit": "minutes", "included": 10, "unitCostUSD": None}, {"name": "Creator", "monthlyUSD": 89, "unit": "minutes", "included": 30, "unitCostUSD": None}]],
-    ["copilot", "Copilot", "Coding", "site", "", "https://copilot.microsoft.com/", ["copilot.microsoft.com", "github.com/copilot"], "https://github.com/features/copilot/plans", 10, [{"name": "Pro", "monthlyUSD": 10, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Pro+", "monthlyUSD": 39, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Business", "monthlyUSD": 19, "unit": None, "included": None, "unitCostUSD": None}]],
+    ["copilot", "Copilot", "Coding", "site", "", "https://copilot.microsoft.com/", ["copilot.microsoft.com"], "https://github.com/features/copilot/plans", 10, [{"name": "Pro", "monthlyUSD": 10, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Pro+", "monthlyUSD": 39, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Business", "monthlyUSD": 19, "unit": None, "included": None, "unitCostUSD": None}]],
     ["cursor", "Cursor", "Coding", "site", "", "https://www.cursor.com/", ["cursor.com"], "https://www.cursor.com/pricing", 20, [{"name": "Pro", "monthlyUSD": 20, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Pro+", "monthlyUSD": 60, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Ultra", "monthlyUSD": 200, "unit": None, "included": None, "unitCostUSD": None}]],
     ["canva", "Canva", "Design", "site", "", "https://www.canva.com/", ["canva.com"], "https://www.canva.com/pricing/", 10, [{"name": "Pro", "monthlyUSD": 15, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Teams (per seat)", "monthlyUSD": 10, "unit": None, "included": None, "unitCostUSD": None}]],
     ["figma-ai", "Figma AI", "Design", "site", "", "https://www.figma.com/ai/", ["figma.com"], "https://www.figma.com/pricing/", 15, [{"name": "Professional", "monthlyUSD": 15, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Organization", "monthlyUSD": 45, "unit": None, "included": None, "unitCostUSD": None}]],
-    ["photoshop", "Photoshop", "Design", "site", "", "https://www.adobe.com/products/photoshop.html", ["adobe.com"], "https://www.adobe.com/products/photoshop/plans.html", 10, [{"name": "Photography", "monthlyUSD": 10, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Single app", "monthlyUSD": 23, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Creative Cloud", "monthlyUSD": 60, "unit": None, "included": None, "unitCostUSD": None}]],
+    ["photoshop", "Photoshop", "Design", "site", "", "https://www.adobe.com/products/photoshop.html", ["photoshop.adobe.com"], "https://www.adobe.com/products/photoshop/plans.html", 10, [{"name": "Photography", "monthlyUSD": 10, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Single app", "monthlyUSD": 23, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Creative Cloud", "monthlyUSD": 60, "unit": None, "included": None, "unitCostUSD": None}]],
     ["adobe-firefly", "Adobe Firefly", "Image", "site", "", "https://firefly.adobe.com/", ["firefly.adobe.com"], "https://www.adobe.com/products/firefly/plans.html", 10, [{"name": "Standard", "monthlyUSD": 10, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Pro", "monthlyUSD": 30, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Premium", "monthlyUSD": 200, "unit": None, "included": None, "unitCostUSD": None}]],
     ["dall-e", "DALL-E", "Image", "site", "", "https://openai.com/dall-e-3", ["openai.com"], "https://openai.com/chatgpt/pricing/", 20, [{"name": "ChatGPT Plus (incl.)", "monthlyUSD": 20, "unit": None, "included": None, "unitCostUSD": None}]],
     ["ideogram", "Ideogram", "Image", "site", "", "https://ideogram.ai/", ["ideogram.ai"], "https://ideogram.ai/features/pricing", 8, [{"name": "Basic", "monthlyUSD": 8, "unit": "credits", "included": 400, "unitCostUSD": None}, {"name": "Plus", "monthlyUSD": 20, "unit": "credits", "included": 1000, "unitCostUSD": None}, {"name": "Pro", "monthlyUSD": 60, "unit": "credits", "included": 3500, "unitCostUSD": None}]],
@@ -59,7 +59,7 @@ SEED = [
     ["luma-dream-machine", "Luma Dream Machine", "Video", "site", "", "https://lumalabs.ai/dream-machine", ["lumalabs.ai"], "https://lumalabs.ai/dream-machine/pricing", 30, [{"name": "Plus", "monthlyUSD": 30, "unit": "credits", "included": 10000, "unitCostUSD": None}, {"name": "Pro", "monthlyUSD": 90, "unit": "credits", "included": 40000, "unitCostUSD": None}, {"name": "Ultra", "monthlyUSD": 300, "unit": "credits", "included": 150000, "unitCostUSD": None}]],
     ["pika-labs", "Pika Labs", "Video", "site", "", "https://pika.art/", ["pika.art"], "https://pika.art/pricing", 10, [{"name": "Standard", "monthlyUSD": 10, "unit": "credits", "included": 700, "unitCostUSD": None}, {"name": "Pro", "monthlyUSD": 35, "unit": "credits", "included": 2300, "unitCostUSD": None}, {"name": "Fancy", "monthlyUSD": 95, "unit": "credits", "included": 6000, "unitCostUSD": None}]],
     ["runway", "Runway", "Video", "site", "", "https://runwayml.com/", ["app.runwayml.com", "runwayml.com"], "https://runway.com/pricing", 15, [{"name": "Standard", "monthlyUSD": 15, "unit": "credits", "included": 625, "unitCostUSD": None}, {"name": "Pro", "monthlyUSD": 35, "unit": "credits", "included": 2250, "unitCostUSD": None}, {"name": "Max", "monthlyUSD": 95, "unit": "credits", "included": 9500, "unitCostUSD": None}]],
-    ["seedance", "Seedance", "Video", "site", "", "https://higgsfield.ai/seedance", ["higgsfield.ai"], "", 0, []],
+    ["seedance", "Seedance", "Video", "site", "", "https://higgsfield.ai/seedance", [], "", 0, []],
     ["sora", "Sora", "Video", "site", "", "https://sora.com/", ["sora.com"], "https://openai.com/chatgpt/pricing/", 20, [{"name": "ChatGPT Plus", "monthlyUSD": 20, "unit": None, "included": None, "unitCostUSD": None}, {"name": "ChatGPT Pro", "monthlyUSD": 200, "unit": None, "included": None, "unitCostUSD": None}]],
     ["adobe-premiere", "Adobe Premiere", "Video editing", "site", "", "https://www.adobe.com/products/premiere.html", ["adobe.com"], "https://www.adobe.com/creativecloud/plans.html", 23, [{"name": "Single app", "monthlyUSD": 23, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Creative Cloud", "monthlyUSD": 60, "unit": None, "included": None, "unitCostUSD": None}]],
     ["capcut", "CapCut", "Video editing", "site", "", "https://www.capcut.com/", ["capcut.com"], "https://www.capcut.com/pricing", 8, [{"name": "Pro", "monthlyUSD": 8, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Pro+", "monthlyUSD": 20, "unit": None, "included": None, "unitCostUSD": None}]],
@@ -164,6 +164,27 @@ def refine(db):
             db.x("UPDATE tools SET description = ? WHERE id = ? AND description = ''", (description, tid))
             db.x("UPDATE tools SET color = ? WHERE id = ? AND color = ''", (color, tid))
         db.set_setting("catalog_details", "1")
+
+
+# One owner per gate host (Probe's catalogue audit, defect 1 and 2). Before this, a host listed on two tools went to
+# whichever row the database returned last, and "github.com/copilot" is a path the hostname gate can never match.
+# Only a built-in row that still holds the exact old default is changed; an admin's own edit is left alone.
+HOST_OWNERS = {
+    "chatgpt": ("chat.openai.com,chatgpt.com,sora.com", "chat.openai.com,chatgpt.com"),  # sora.com is Sora's
+    "photoshop": ("adobe.com", "photoshop.adobe.com"),  # adobe.com stays Premiere's; Photoshop on the web has its own host
+    "seedance": ("higgsfield.ai", ""),  # a model on Higgsfield's site: the site is governed as Higgsfield AI
+    "copilot": ("copilot.microsoft.com,github.com/copilot", "copilot.microsoft.com"),  # a path is not a hostname
+}
+
+
+def settle_hosts(db):
+    """Apply HOST_OWNERS once. Never overwrites an admin's edit."""
+    if db.get_setting("catalog_host_owners") == "1":
+        return
+    with db.tx():
+        for tid, (old, new) in HOST_OWNERS.items():
+            db.x("UPDATE tools SET hosts = ? WHERE id = ? AND builtin = 1 AND hosts = ?", (new, tid, old))
+        db.set_setting("catalog_host_owners", "1")
 
 
 def launch_target(tool):
