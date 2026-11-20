@@ -26,18 +26,21 @@ from gateway.db import DB
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CHROME_PACK = os.path.join(ROOT, "deploy", "chrome-policy", "swangz-company-chrome.json")
 
-ID = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
-COLOUR = re.compile(r"#[0-9A-Fa-f]{6}")
+ID = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+COLOUR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 KINDS = {"api", "dev", "site"}
 API_PROVIDERS = {"anthropic", "openai", "elevenlabs", "higgsfield"}  # the providers the gateway routes on the company key
 DEV_TOOLS = {"claude-code": "anthropic", "codex": "openai"}
 
 # Audit defect 5: desktop applications whose "address" is the product/pricing page (no web app to open).
 KNOWN_URL_IS_PRICING = {"davinci-resolve", "topaz-video-ai"}
-# Audit defect 1: Open lands on a host the gate counts as another tool (shared host, or a page on another tool's site).
-KNOWN_OPENS_ON_ANOTHER_TOOLS_HOST = {"photoshop", "seedance", "higgsfield-ai"}
-# Audit defect 2: a path where a hostname belongs (PR #306 removes it).
-KNOWN_NOT_A_HOSTNAME = {("copilot", "github.com/copilot")}
+# Audit defect 1, what is left after PR #306: Open lands on a page of another tool's site (photoshop's
+# www.adobe.com is adobe-premiere's host; seedance's higgsfield.ai/seedance is higgsfield-ai's).
+KNOWN_OPENS_ON_ANOTHER_TOOLS_HOST = {"photoshop", "seedance"}
+# Audit defect 1, shared gate hosts as (tool, host) pairs: PR #306 settled them all, so none may come back.
+KNOWN_SHARED_HOSTS = set()
+# Audit defect 2: a path where a hostname belongs. PR #306 removed github.com/copilot, so none may come back.
+KNOWN_NOT_A_HOSTNAME = set()
 # Audit defect 3: openai.com is DALL-E's gate host, so ChatGPT's sign-in host auth.openai.com is governed as DALL-E
 # (pinned on purpose in tests/test_device_open.py, "as before: openai.com is DALL-E").
 KNOWN_SIGN_IN_HOST_GOVERNED = {"auth.openai.com": "dall-e"}
@@ -200,14 +203,12 @@ class FreshDatabaseTests(unittest.TestCase):
                     continue
                 owner = catalog.match_host(index, h)
                 if owner["id"] != tid:
-                    # only the audit's shared hosts (defect 1) may resolve elsewhere
-                    self.assertIn(tid, KNOWN_OPENS_ON_ANOTHER_TOOLS_HOST | {"chatgpt"}, (tid, h, owner["id"]))
+                    self.assertIn((tid, h), KNOWN_SHARED_HOSTS, f"{h} of {tid} is governed as {owner['id']}")
 
     def test_catalogue_facts_are_valid_when_the_columns_exist(self):
         """PR #304 (v29): info_url, modes, oauth_hosts, last_verified. Empty means not verified, never a guess."""
         needed = {"info_url", "modes", "oauth_hosts", "last_verified"}
-        if not needed <= self.columns:
-            self.skipTest("catalogue-facts columns (PR #304, v29) are not on this branch yet")
+        self.assertLessEqual(needed, self.columns, "catalogue-facts columns (v29) are missing or renamed")
         modes = set(getattr(catalog, "MODES", ()))
         self.assertTrue(modes)
         gate = {h for row in self.rows.values() for h in hosts_of(row)}
