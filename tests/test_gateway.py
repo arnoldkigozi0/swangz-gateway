@@ -951,7 +951,11 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(rig.api("PATCH", "/tools/chatgpt", {"modes": "", "last_verified": ""})[0], 200)
         tool = next(t for t in rig.api("GET", "/catalog")[1]["tools"] if t["id"] == "chatgpt")
         self.assertEqual((tool["modes"], tool["last_verified"]), ([], ""))
+        self.assertEqual(rig.api("PATCH", "/tools/chatgpt", {"last_verified": "2026-1-5"})[0], 200)
+        self.assertEqual(rig.gw.db.one("SELECT last_verified FROM tools WHERE id = 'chatgpt'")["last_verified"], "2026-01-05")
         for bad in ({"modes": ["web", "fax"]}, {"last_verified": "20/11/2026"}, {"last_verified": "2999-01-01"},
+                    {"last_verified": time.strftime("%Y-%m-%d", time.localtime(time.time() + 86400))},
+                    {"info_url": "https://u:p@openai.com/"}, {"info_url": "https://openai.com/?api_key=x"},
                     {"info_url": "http://openai.com"}, {"info_url": "javascript:alert(1)"}):
             self.assertEqual(rig.api("PATCH", "/tools/chatgpt", bad)[0], 400, bad)
         self.assertEqual(rig.api("PATCH", "/tools/chatgpt", {"modes": ["api"]}, who="viewer")[0], 403)

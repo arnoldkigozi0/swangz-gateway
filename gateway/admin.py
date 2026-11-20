@@ -10,7 +10,7 @@ import json
 import re
 import sqlite3
 import time
-from urllib.parse import parse_qs, unquote
+from urllib.parse import parse_qs, parse_qsl, unquote, urlsplit
 
 from . import authz, config, credentials, geo, guides, proxy, security, store
 
@@ -1359,9 +1359,21 @@ def _verified_day(value):
         day = time.strptime(v, "%Y-%m-%d")
     except ValueError:
         raise ApiError(400, "last verified must be a date like 2026-11-20")
-    if time.mktime(day) > time.time() + 86400:
+    v = time.strftime("%Y-%m-%d", day)  # 2026-1-5 is stored as 2026-01-05, so dates sort and compare as text
+    if v > time.strftime("%Y-%m-%d"):
         raise ApiError(400, "last verified can't be in the future")
     return v
+
+
+_SECRET_QUERY = re.compile(r"(key|token|secret|password|passwd|pwd|auth|sig|signature|session|credential)", re.I)
+
+
+def _url_has_credentials(url):
+    """True when a link carries sign-in material: user:pass@ in the address or a key/token-like query parameter."""
+    parts = urlsplit(url)
+    if "@" in parts.netloc:
+        return True
+    return any(_SECRET_QUERY.search(k) for k, _ in parse_qsl(parts.query, keep_blank_values=True))
 
 
 def _tool_facts(body):
@@ -1371,6 +1383,8 @@ def _tool_facts(body):
         out["info_url"] = _web(body["info_url"], "product page")
         if out["info_url"] and not out["info_url"].lower().startswith("https://"):
             raise ApiError(400, "the product page must start with https://")
+        if out["info_url"] and _url_has_credentials(out["info_url"]):
+            raise ApiError(400, "the product page can't carry a username, password, key or token")
     if "modes" in body:
         out["modes"] = _modes(body["modes"])
     if "oauth_hosts" in body:

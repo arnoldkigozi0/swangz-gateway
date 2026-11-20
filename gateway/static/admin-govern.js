@@ -1192,7 +1192,7 @@
         el("div", { class: "form-grid" },
           el("label", { class: "field" }, "Product page", f.info_url),
           el("label", { class: "field" }, "Official sign-in hosts", f.oauth_hosts,
-            el("span", { class: "hint" }, "The provider's own sign-in addresses its site hands off to.")),
+            el("span", { class: "hint" }, "The provider's own sign-in addresses its site hands off to. Recorded only: the workspace window still allows the Hub's built-in list.")),
           el("label", { class: "field" }, "Last checked against the provider", f.last_verified)),
         owner ? el("div", { class: "btn-row end form-actions" }, el("span", { class: "grow" }, err), save) : null,
         t && owner ? el("div", { class: "danger-zone" },
