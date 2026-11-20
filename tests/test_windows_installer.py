@@ -204,7 +204,7 @@ class EnrolmentRefusalTests(unittest.TestCase):
         self.assertLess(self.e2e.index("# 3a."), self.e2e.index("device = enrol()"))
         self.assertNotIn('"csrf": "0" * 64', refused)  # no made-up token: a 400 must mean the code is wrong
         # the expired code stays 'pending' at the Hub, so the real enrolment after it must take the newest live code
-        enrol = self.section("def enrol(approve=None):", "# 3a.")
+        enrol = self.section("def enrol(approve=None, env=env, data=data):", "# 3a.")
         self.assertIn("status = 'pending' AND expires > ?", enrol)
         self.assertIn("ORDER BY id DESC LIMIT 1", enrol)
 

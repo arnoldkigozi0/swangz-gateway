@@ -257,7 +257,7 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         passed(f"launch: --version, the Tk {check['tk']} sign-in window, the --background start; updates off, no release keys")
 
         # 3. enrol: first run asks for the Hub address; the person approves the code in their browser
-        def enrol(approve=None):
+        def enrol(approve=None, env=env, data=data):  # env/data: another copy's (level B), defaults this one's
             login = subprocess.Popen(    [str(exe), "login", "--server", origin, "--name", "CI installer"], env=env, cwd=work,
                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             try:
@@ -643,6 +643,30 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         key_id = device["key_id"]
         require(rig.gw.db.scalar("SELECT person_id FROM keys WHERE id = ?", (key_id,)) == second,
                 "the enrolment before the uninstall is not the second person's")
+
+        # 7d. deliverable 5 level B (hub_journey.two_at_once): while the second person stays signed in, a second copy of
+        #     the installed program with its own data folder (SWANGZ_HOME) signs in as the first person; both are signed
+        #     in, open the tool in two Chrome windows at once on separate folders, hold separate keys; the admin then
+        #     disconnects the first person's copy and the second person's carries on
+        data_b = work / "data-b"
+        env_b = {**env, "SWANGZ_HOME": str(data_b)}
+
+        def stored_key(folder):
+            record = json.loads((folder / "device.json").read_text(encoding="utf-8"))
+            if record["key_storage"] == "file":
+                return (folder / "device.key").read_text(encoding="utf-8").strip() or None
+            return keystore.CredentialManager().get(origin, record["key_id"])
+
+        def run_app_b(*args):
+            result = subprocess.run([str(exe), *args], env=env_b, capture_output=True, text=True, timeout=180, cwd=work)
+            return result.returncode, (result.stdout + result.stderr).strip()
+
+        enrol(env=env_b, data=data_b)
+        report["two_at_once"] = hub_journey.two_at_once(
+            check, owner,
+            {"name": "Okello Brian", "person_id": second, "data": data, "run": run_app, "key": lambda: stored_key(data)},
+            {"name": "Nansubuga Grace", "person_id": rig.person_id, "data": data_b, "run": run_app_b,
+             "key": lambda: stored_key(data_b)})
         app("autostart", "on")
         require(reg_value(RUN_KEY, "Swangz"), "autostart on did not write the Run value")
 
