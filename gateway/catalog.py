@@ -39,7 +39,7 @@ SEED = [
     ["cursor", "Cursor", "Coding", "site", "", "https://www.cursor.com/", ["cursor.com"], "https://www.cursor.com/pricing", 20, [{"name": "Pro", "monthlyUSD": 20, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Pro+", "monthlyUSD": 60, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Ultra", "monthlyUSD": 200, "unit": None, "included": None, "unitCostUSD": None}]],
     ["canva", "Canva", "Design", "site", "", "https://www.canva.com/", ["canva.com"], "https://www.canva.com/pricing/", 10, [{"name": "Pro", "monthlyUSD": 15, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Teams (per seat)", "monthlyUSD": 10, "unit": None, "included": None, "unitCostUSD": None}]],
     ["figma-ai", "Figma AI", "Design", "site", "", "https://www.figma.com/ai/", ["figma.com"], "https://www.figma.com/pricing/", 15, [{"name": "Professional", "monthlyUSD": 15, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Organization", "monthlyUSD": 45, "unit": None, "included": None, "unitCostUSD": None}]],
-    ["photoshop", "Photoshop", "Design", "site", "", "https://www.adobe.com/products/photoshop.html", ["photoshop.adobe.com"], "https://www.adobe.com/products/photoshop/plans.html", 10, [{"name": "Photography", "monthlyUSD": 10, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Single app", "monthlyUSD": 23, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Creative Cloud", "monthlyUSD": 60, "unit": None, "included": None, "unitCostUSD": None}]],
+    ["photoshop", "Photoshop", "Design", "site", "", "https://photoshop.adobe.com/", ["photoshop.adobe.com"], "https://www.adobe.com/products/photoshop/plans.html", 10, [{"name": "Photography", "monthlyUSD": 10, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Single app", "monthlyUSD": 23, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Creative Cloud", "monthlyUSD": 60, "unit": None, "included": None, "unitCostUSD": None}]],
     ["adobe-firefly", "Adobe Firefly", "Image", "site", "", "https://firefly.adobe.com/", ["firefly.adobe.com"], "https://www.adobe.com/products/firefly/plans.html", 10, [{"name": "Standard", "monthlyUSD": 10, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Pro", "monthlyUSD": 30, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Premium", "monthlyUSD": 200, "unit": None, "included": None, "unitCostUSD": None}]],
     ["dall-e", "DALL-E", "Image", "site", "", "https://openai.com/dall-e-3", ["openai.com"], "https://openai.com/chatgpt/pricing/", 20, [{"name": "ChatGPT Plus (incl.)", "monthlyUSD": 20, "unit": None, "included": None, "unitCostUSD": None}]],
     ["ideogram", "Ideogram", "Image", "site", "", "https://ideogram.ai/", ["ideogram.ai"], "https://ideogram.ai/features/pricing", 8, [{"name": "Basic", "monthlyUSD": 8, "unit": "credits", "included": 400, "unitCostUSD": None}, {"name": "Plus", "monthlyUSD": 20, "unit": "credits", "included": 1000, "unitCostUSD": None}, {"name": "Pro", "monthlyUSD": 60, "unit": "credits", "included": 3500, "unitCostUSD": None}]],
@@ -50,7 +50,7 @@ SEED = [
     ["suno", "Suno", "Music", "site", "", "https://suno.com/", ["suno.com"], "https://suno.com/pricing", 10, [{"name": "Pro", "monthlyUSD": 10, "unit": "credits", "included": 2500, "unitCostUSD": None}, {"name": "Premier", "monthlyUSD": 30, "unit": "credits", "included": 10000, "unitCostUSD": None}]],
     ["udio", "Udio", "Music", "site", "", "https://www.udio.com/", ["udio.com"], "https://www.udio.com/pricing", 10, [{"name": "Standard", "monthlyUSD": 10, "unit": "credits", "included": 2400, "unitCostUSD": 0.025}, {"name": "Pro", "monthlyUSD": 30, "unit": "credits", "included": 6000, "unitCostUSD": 0.025}]],
     ["heyeddie", "HeyEddie", "Other", "site", "", "https://heyeddie.ai/", ["heyeddie.ai"], "", 0, []],
-    ["airtable-ai", "Airtable AI", "Productivity", "site", "", "https://www.airtable.com/platform/ai", ["airtable.com"], "https://www.airtable.com/pricing", 24, [{"name": "Team", "monthlyUSD": 24, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Business", "monthlyUSD": 54, "unit": None, "included": None, "unitCostUSD": None}]],
+    ["airtable-ai", "Airtable AI", "Productivity", "site", "", "https://airtable.com/", ["airtable.com"], "https://www.airtable.com/pricing", 24, [{"name": "Team", "monthlyUSD": 24, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Business", "monthlyUSD": 54, "unit": None, "included": None, "unitCostUSD": None}]],
     ["loom-ai", "Loom AI", "Productivity", "site", "", "https://www.loom.com/ai", ["loom.com"], "https://www.loom.com/pricing", 15, [{"name": "Business", "monthlyUSD": 15, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Business + AI", "monthlyUSD": 20, "unit": None, "included": None, "unitCostUSD": None}]],
     ["notion-ai", "Notion AI", "Productivity", "site", "", "https://www.notion.so/product/ai", ["notion.so"], "https://www.notion.so/pricing", 12, [{"name": "Plus", "monthlyUSD": 12, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Business", "monthlyUSD": 18, "unit": None, "included": None, "unitCostUSD": None}]],
     ["otter-ai", "Otter.ai", "Productivity", "site", "", "https://otter.ai/", ["otter.ai"], "https://otter.ai/pricing", 17, [{"name": "Pro", "monthlyUSD": 17, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Business", "monthlyUSD": 30, "unit": None, "included": None, "unitCostUSD": None}]],
@@ -188,6 +188,35 @@ def settle_hosts(db):
         for tid, (old, new) in HOST_OWNERS.items():
             db.x("UPDATE tools SET hosts = ? WHERE id = ? AND builtin = 1 AND hosts = ?", (new, tid, old))
         db.set_setting("catalog_host_owners", "1")
+
+
+# Open used to land on these tools' marketing pages (Probe's catalogue audit). Each new address is the app
+# itself, confirmed on the provider's own site on 20 Nov 2026:
+#   photoshop   - adobe.com/products/photoshop/online.html: "Launch Photoshop online" -> photoshop.adobe.com
+#   airtable-ai - support.airtable.com "Airtable home screen": "Open your Airtable home screen" -> airtable.com
+# The old page is kept as the product page (info_url). Others stay as they are until official docs confirm
+# an app address.
+APP_URLS = {
+    "photoshop": ("https://www.adobe.com/products/photoshop.html", "https://photoshop.adobe.com/"),
+    "airtable-ai": ("https://www.airtable.com/platform/ai", "https://airtable.com/"),
+}
+
+
+def settle_app_urls(db):
+    """Apply APP_URLS once. Only a built-in row still on the old default moves; an admin's edit is kept."""
+    if db.get_setting("catalog_app_urls") == "1":
+        return
+    with db.tx():
+        for tid, (old, new) in APP_URLS.items():
+            changed = db.x("UPDATE tools SET url = ? WHERE id = ? AND builtin = 1 AND url = ?", (new, tid, old)).rowcount
+            db.x("UPDATE tools SET info_url = ? WHERE id = ? AND builtin = 1 AND url = ? AND info_url = ''", (old, tid, new))
+            if changed:
+                db.x("INSERT INTO audit(ts, actor, action, target, detail, ip, reason, before_json, after_json, outcome, correlation, area)"
+                     " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                     (time.time(), "system", "moved a tool's website to its app", tid, f"url: {old} -> {new}", "",
+                      "one-time catalogue fix: Open goes to the app, the product page is kept",
+                      json.dumps({"url": old}), json.dumps({"url": new, "info_url": old}), "ok", f"tool:{tid}", "govern"))
+        db.set_setting("catalog_app_urls", "1")
 
 
 def launch_target(tool):
