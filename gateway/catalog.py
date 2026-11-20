@@ -299,6 +299,8 @@ def host_index(db):
     """
     index = {}
     for t in db.q("SELECT * FROM tools WHERE hosts != '' AND archived = 0"):
+        if t["builtin"] and t["id"] in INSIDE:
+            continue  # its site is the other tool's: hosts an admin adds to it never make it the owner (#312 follow-up)
         for h in t["hosts"].split(","):
             h = h.strip().lower()
             if h:
