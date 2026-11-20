@@ -80,7 +80,7 @@ class OpeningTests(PoolBase):
         # three people may share it, but there are only two browsers
         status, _, body = self.go_as_third()
         self.assertEqual(status, 403)
-        self.assertIn("Nansubuga Grace, Okello Brian is using the shared Midjourney account", body)
+        self.assertIn("Nansubuga Grace, Okello Brian are using the shared Midjourney account", body)
         self.assertEqual(self.rig.gw.db.scalar("SELECT COUNT(*) FROM tool_turns WHERE ended IS NULL"), 2)
         me = self.staff("GET", "/me")[1]
         self.assertEqual(next(t for t in me["catalog"] if t["id"] == "midjourney")["turn"]["seats"], 2)

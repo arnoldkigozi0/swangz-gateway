@@ -603,7 +603,10 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
 
         # a second person enrols this PC (and switches start-at-sign-in back on, so the uninstall below is proven to
         # remove both itself): they get a workspace folder of their own, and the first person's is left as it was
+        approve_second = []  # the second person's own browser approves their codes; kept to sign them in again below
+
         def enrol_second(approve):
+            approve_second[:] = [approve]
             enrol(approve)
             return json.loads((data / "manifest.json").read_text(encoding="utf-8")).get("browser", {}).get("device_id")
 
@@ -616,7 +619,8 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
 
         # 7c. machine-policy tamper (D-024 W5, the Windows twin of the macOS steps): the second person signs out, the
         #     first signs this PC in as a COMPANY device with the Chrome policy pack pinned in enforce mode, and the five
-        #     cases run through the installed program (packaging/windows/policy.py); then they sign in again, personally
+        #     cases run through the installed program (packaging/windows/policy.py); then the SECOND person signs in again,
+        #     so the uninstall below runs with someone other than the first folder's owner signed in
         app("logout")
         import policy as windows_policy
 
@@ -626,8 +630,10 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
 
         report["policy_tamper"] = windows_policy.run(check, run_app, enrol_company, owner, Path(rig.tmp) / "gateway.db",
                                                      rig.person_id, data, evidence)
-        device = enrol()
+        device = enrol(approve_second[0])
         key_id = device["key_id"]
+        require(rig.gw.db.scalar("SELECT person_id FROM keys WHERE id = ?", (key_id,)) == second,
+                "the enrolment before the uninstall is not the second person's")
         app("autostart", "on")
         require(reg_value(RUN_KEY, "Swangz"), "autostart on did not write the Run value")
 
@@ -652,6 +658,8 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
             require(stored_secret() is None, "the device key is still in Windows Credential Manager")
         revoked = rig.gw.db.scalar("SELECT revoked FROM keys WHERE id = ?", (key_id,))  # the final enrolment's key
         require(revoked is not None, "the Hub did not disconnect the device")
+        # the uninstall ran with the second person signed in: the first person's workspace folder is still theirs (R-12)
+        hub_journey.kept(check, data, folder, marker, "after the uninstall, with the second person signed in")
         passed("silent uninstall while running: program stopped, device disconnected at the Hub, local credentials"
                + (" and Credential Manager entry" if in_os_store else "") + " removed, program, shortcuts, Run value"
                " and Apps & features entry gone")
