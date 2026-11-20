@@ -115,6 +115,70 @@ class TakingATurnTests(TurnBase):
         self.assertEqual(self.rig.gw.db.scalar("SELECT COUNT(*) FROM tool_turns"), 0)
 
 
+class TwoAtOnceTests(TurnBase):
+    """Deliverable 5 level A (docs/TWO-PEOPLE-AT-ONCE-PLAN.md, A1, A2, A4): two seats on one shared account."""
+
+    def setUp(self):
+        super().setUp()
+        self.assertEqual(self.rig.api("PATCH", "/tools/midjourney", {"seats_at_once": 2})[0], 200)
+        self.third = self.rig.gw.db.x("INSERT INTO people(name, email, department, status, created, pw_hash) VALUES(?,?,?,?,?,?)",
+                                      ("Akello Joy", "joy@swangzavenue.com", "Creative", "active", time.time(),
+                                       security.hash_password("third-long-pw", 1000))).lastrowid
+        self.rig.api("POST", f"/people/{self.third}/tools/midjourney")
+
+    def go_as_third(self):
+        _, h, _ = self.rig.request("POST", "/api/login", {"email": "joy@swangzavenue.com", "password": "third-long-pw"},
+                                   {"x-swangz-app": "1"})
+        status, _, payload = self.rig.request("GET", "/go/midjourney", None, {"cookie": h["set-cookie"].split(";")[0]})
+        return status, payload.decode()
+
+    def open_turns(self):
+        return self.rig.gw.db.q("SELECT * FROM tool_turns WHERE tool_id = 'midjourney' AND ended IS NULL ORDER BY id")
+
+    def test_a_third_person_is_refused_while_two_hold_it(self):
+        self.assertEqual(self.go("midjourney")[0], 302)
+        self.assertEqual(self.go_as_other("midjourney")[0], 302)
+        status, body = self.go_as_third()
+        self.assertEqual(status, 403)
+        # both holders are named; the verb ("are", since #300) is not pinned here, so this holds before and after it
+        self.assertRegex(body, r"Nansubuga Grace, Okello Brian (is|are) using the shared Midjourney account until")
+        self.assertEqual([t["person_id"] for t in self.open_turns()], [self.rig.person_id, self.other])
+        refused = self.rig.gw.db.one("SELECT * FROM launches WHERE person_id = ? ORDER BY id DESC LIMIT 1", (self.third,))
+        self.assertEqual(refused["outcome"], "refused")
+
+    def test_releasing_one_turn_frees_exactly_one_seat(self):
+        self.go("midjourney")
+        self.go_as_other("midjourney")
+        brian = self.rig.gw.db.one("SELECT * FROM tool_turns WHERE person_id = ? AND ended IS NULL", (self.other,))
+        status, out = self.staff("POST", "/tools/midjourney/turn/end")
+        self.assertEqual((status, out["ended"]), (200, 1))
+        self.assertEqual(self.go_as_third()[0], 302, "the freed seat goes to the next person")
+        again = self.rig.gw.db.one("SELECT * FROM tool_turns WHERE id = ?", (brian["id"],))
+        self.assertEqual(dict(again), dict(brian), "Brian's turn is unchanged")
+        self.assertEqual([t["person_id"] for t in self.open_turns()], [self.other, self.third])
+        # exactly one: with both seats taken again, Grace coming back is refused
+        self.assertEqual(self.go("midjourney")[0], 403)
+        self.assertEqual(len(self.open_turns()), 2)
+
+    def test_the_record_shows_two_overlapping_turns_each_under_its_own_person(self):
+        since = time.time() - 5
+        self.go("midjourney")
+        self.go_as_other("midjourney")
+        self.staff("POST", "/tools/midjourney/turn/end")
+        status, out = self.rig.api("GET", f"/timeline?type=turn&since={since}")
+        self.assertEqual(status, 200)
+        turns_seen = sorted((e for e in out["items"] if e["type"] == "turn"), key=lambda e: e["ts"])
+        self.assertEqual([(e["person_id"], e["person"]) for e in turns_seen],
+                         [(self.rig.person_id, "Nansubuga Grace"), (self.other, "Okello Brian")])
+        first, second = turns_seen
+        self.assertIsNotNone(first["ended"])
+        self.assertLess(second["ts"], first["ended"], "Brian's turn began before Grace's ended: they overlapped")
+        self.assertIsNone(second["ended"])
+        audit = self.rig.gw.db.q("SELECT actor FROM audit WHERE action = 'took a turn on a shared account'"
+                                 " AND target = 'Midjourney' AND ts >= ? ORDER BY id", (since,))
+        self.assertEqual([a["actor"] for a in audit], ["Nansubuga Grace", "Okello Brian"])
+
+
 class GateAndSignOutTests(TurnBase):
     def ext_token(self, email="grace@swangzavenue.com", password="a-long-password"):
         s, out = self.staff("POST", "/extension/login", {"email": email, "password": password})
