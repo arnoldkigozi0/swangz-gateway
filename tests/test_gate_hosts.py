@@ -77,6 +77,19 @@ class GateHostOwnerTests(unittest.TestCase):
         self.db.x("UPDATE tools SET archived = 1 WHERE id = 'sora'")  # an archived tool owns nothing
         self.assertEqual(api("PATCH", "/tools/midjourney", {"hosts": "midjourney.com,sora.com"})[0], 200)
 
+    def test_tools_that_already_share_a_host_stay_editable_and_adding_one_warns(self):
+        api = self.rig.api
+        status, out = api("POST", "/tools", {"name": "Suno Team", "url": "https://suno.com", "signin": "shared"})
+        self.assertEqual(status, 200, out)
+        self.assertIn("suno.com (already on Suno)", out["warning"])
+        added = self.db.one("SELECT detail FROM audit WHERE action = 'added a tool to the catalog' ORDER BY id DESC LIMIT 1")
+        self.assertIn("suno.com", added["detail"])
+        for tid in ("suno", out["id"]):  # the console sends hosts on every save
+            self.assertEqual(api("PATCH", f"/tools/{tid}", {"hosts": "suno.com", "description": "edited"})[0], 200, tid)
+        self.assertEqual(api("PATCH", "/tools/suno", {"hosts": "suno.com,chatgpt.com"})[0], 409)
+        self.assertEqual(api("PATCH", "/tools/suno", {"hosts": ""})[0], 200)  # dropping a host is always allowed
+        self.assertNotIn("warning", api("POST", "/tools", {"name": "Home grown", "url": "https://example.test/"})[1])
+
 
 if __name__ == "__main__":
     unittest.main()
