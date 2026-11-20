@@ -263,6 +263,106 @@ def second_person(check, enrol, run_app, data, owner, base, first, first_marker,
     return pid, folder
 
 
+def chrome_on(folder):
+    """True while a Chrome process runs whose command line names this workspace folder (`--user-data-dir`)."""
+    needle = str(folder)
+    if os.name == "nt":
+        script = ("if (Get-CimInstance Win32_Process -Filter \"Name='chrome.exe'\" | Where-Object { $_.CommandLine -and "
+                  "$_.CommandLine.Contains($env:SWANGZ_WS_FOLDER) }) { exit 0 } else { exit 1 }")
+        return subprocess.run(["powershell", "-NoProfile", "-Command", script], capture_output=True, timeout=60,
+                              env={**os.environ, "SWANGZ_WS_FOLDER": needle}).returncode == 0
+    return subprocess.run(["pgrep", "-f", "--", "--user-data-dir=" + needle], capture_output=True, timeout=60).returncode == 0
+
+
+def both_running(a, b, timeout=45):
+    """Both folders have a Chrome on them at the same moment (polled until both are seen in one round)."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if chrome_on(a) and chrome_on(b):
+            return True
+        time.sleep(1)
+    return False
+
+
+def device_of(data):
+    """(key id, device id) from an app data folder's own record and manifest."""
+    try:
+        device = json.loads((Path(data) / "device.json").read_text(encoding="utf-8"))
+        manifest = json.loads((Path(data) / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None, None
+    return device.get("key_id"), (manifest.get("browser") or {}).get("device_id")
+
+
+def two_at_once(check, owner, a, b, tool=TOOL):
+    """Deliverable 5 level B (docs/TWO-PEOPLE-AT-ONCE-PLAN.md): two copies of the installed app, each with its own data
+    folder (SWANGZ_HOME), signed in as two different people AT THE SAME TIME on one OS user. `a` and `b` are dicts:
+    name, person_id, data, run (run_app for that copy) and key (() -> that copy's device key from its own store, the
+    OS credential store looked up by its key id, or None; in memory only, never printed).
+    Both are signed in already and granted `tool`. Then the admin disconnects b's device; a carries on.
+
+    Same OS user, so this says nothing about OS-level separation (ACLs, a second user: owner checks O-1 to O-3); the
+    windows are Chrome on a fixture tool, not a real provider sign-in."""
+    sides = (a, b)
+    for me, other in ((a, b), (b, a)):  # B1
+        code, out = me["run"]("status")
+        check(f"two at once: {me['name']}'s copy is signed in as them while the other copy is signed in too",
+              code == 0 and me["name"] in out and other["name"] not in out, f"exit {code}")
+    ids = [device_of(s["data"]) for s in sides]  # B3
+    keys = [s["key"]() for s in sides]
+    check("two at once: two devices, two key ids, two stored device keys, each found under its own key id and different"
+          " (compared in memory, never shown)",
+          all(k and d for k, d in ids) and ids[0][0] != ids[1][0] and ids[0][1] != ids[1][1]
+          and all(keys) and keys[0] != keys[1],
+          f"keys {ids[0][0]} / {ids[1][0]}, devices {ids[0][1]} / {ids[1][1]}")
+    before = time.time() - 1
+    folders = []
+    try:
+        for s, (_, device_id) in zip(sides, ids):  # B2
+            code, out = s["run"]("open", tool)
+            mine = [f for f in workspace_folders(s["data"])
+                    if marker_of(f).get("person_id") == str(s["person_id"]) and marker_of(f).get("device_id") == device_id]
+            check(f"two at once: {s['name']}'s copy opens the tool in a workspace folder marked for them and this device",
+                  code == 0 and len(mine) == 1, f"exit {code}, {len(mine)} folder(s)")
+            folders.append(mine[0])
+        check("two at once: two Chrome windows run together, on two different folders in two different data folders",
+              folders[0] != folders[1] and both_running(*folders) and all(chrome_wrote(f) for f in folders),
+              f"{folders[0].name} / {folders[1].name}")
+        # B4: b's data folder is new, so it must hold nothing of a's; neither data folder holds the other device's key
+        a_in_b = [f.name for f in workspace_folders(b["data"]) if marker_of(f).get("person_id") == str(a["person_id"])]
+        leaks = files_holding(keys[1], [a["data"]]) + files_holding(keys[0], [b["data"]])
+        check("two at once: no folder of the first person's in the second copy's data folder, and neither data folder"
+              " holds the other device's key", not a_in_b and not leaks,
+              f"{len(a_in_b)} folder(s), {len(leaks)} file(s) holding the other key")
+        for s in sides:  # B5
+            status, out = owner.call("GET", f"/launches?person={s['person_id']}&since={before}")
+            opened = [r for r in out.get("items", []) if r.get("tool_id") == tool and r.get("outcome") == "opened"]
+            check(f"two at once: the Hub records {s['name']}'s open under their name", status == 200 and len(opened) >= 1,
+                  f"{len(opened)} open(s)")
+        status, out = owner.call("GET", "/devices")
+        rows = {r.get("id"): r for r in out.get("items", [])} if status == 200 else {}
+        live = [rows.get(k) or {} for k, _ in ids]
+        check("two at once: the admin's Devices list shows both devices connected, each under its own person",
+              all(str(r.get("person_id")) == str(s["person_id"]) and r.get("revoked") is None for r, s in zip(live, sides)),
+              ", ".join(f"{r.get('person')} {r.get('id')}" for r in live))
+    finally:
+        for f in folders:  # B8
+            close_chrome(f)
+    marker_a = marker_of(folders[0])
+    status, _ = owner.call("POST", f"/keys/{ids[1][0]}/revoke")  # B6, B7
+    code_b, _ = b["run"]("sync")
+    code_a, _ = a["run"]("sync")
+    left_b = sorted(p.name for p in Path(b["data"]).iterdir()) if Path(b["data"]).exists() else []
+    check(f"two at once: the admin disconnects {b['name']}'s device; its next sync is refused and removes only its own"
+          " data, keeping its workspace folder (R-12)", status == 200 and code_b == 3 and set(left_b) <= {"browser-profiles"},
+          f"HTTP {status}, sync exit {code_b}, left {left_b}")
+    code, out = a["run"]("status")
+    check(f"two at once: {a['name']} stays signed in and syncing, with the same key and an unchanged folder",
+          code_a == 0 and code == 0 and a["name"] in out and device_of(a["data"]) == ids[0]
+          and a["key"]() == keys[0] and marker_of(folders[0]) == marker_a, f"sync exit {code_a}, status exit {code}")
+    return [f.name for f in folders]
+
+
 # ---------------------------------------------------------------- deliverable 6: F-18 in the packaged app
 
 def device_key(program, env, cwd=None):

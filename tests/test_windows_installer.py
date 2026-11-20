@@ -202,7 +202,7 @@ class EnrolmentRefusalTests(unittest.TestCase):
         self.assertEqual(at, sorted(at), "the refused-code steps are out of order")
         self.assertLess(self.e2e.index("# 3a."), self.e2e.index("device = enrol()"))
         # the expired code stays 'pending' at the Hub, so the real enrolment after it must take the newest live code
-        enrol = self.section("def enrol(approve=None):", "# 3a.")
+        enrol = self.section("def enrol(approve=None, env=env, data=data):", "# 3a.")
         self.assertIn("status = 'pending' AND expires > ?", enrol)
         self.assertIn("ORDER BY id DESC LIMIT 1", enrol)
 

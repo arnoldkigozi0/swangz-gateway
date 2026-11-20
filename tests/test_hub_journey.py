@@ -327,6 +327,14 @@ class WiringTests(unittest.TestCase):
             self.assertLess(text.index('"after the upgrade")'), text.index('"after sign out")'))
             self.assertLess(text.index('"after sign out")'), text.index("hub_journey.second_person("))
 
+    def test_both_journeys_run_two_people_at_once_with_separate_data_folders(self):
+        mac = (ROOT / "packaging" / "macos_journey.py").read_text(encoding="utf-8")
+        win = (ROOT / "packaging" / "windows" / "installer_e2e.py").read_text(encoding="utf-8")
+        for text in (mac, win):
+            self.assertIn('"SWANGZ_HOME": str(data_b)', text)
+            self.assertLess(text.index("hub_journey.second_person("), text.index("hub_journey.two_at_once("))
+        self.assertLess(win.index("hub_journey.two_at_once("), win.rindex('app("autostart", "on")'))
+
     def test_both_journeys_scan_the_fixture_hubs_data_and_log(self):
         mac = (ROOT / "packaging" / "macos_journey.py").read_text(encoding="utf-8")
         win = (ROOT / "packaging" / "windows" / "installer_e2e.py").read_text(encoding="utf-8")

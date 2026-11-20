@@ -322,7 +322,7 @@ def data_folder():
     return Path.home() / "Library" / "Application Support" / "Swangz"
 
 
-def enrol(j, app, browser, env, app_url, label="", approve=None, who=PERSON):
+def enrol(j, app, browser, env, app_url, label="", approve=None, who=PERSON, data=None):
     """Sign the installed app in; `approve` approves the code (the person's browser by default). Returns the device id
     the app's manifest names."""
     approve = approve or browser.approve
@@ -342,7 +342,7 @@ def enrol(j, app, browser, env, app_url, label="", approve=None, who=PERSON):
     rest, _ = proc.communicate(timeout=120)
     j.note("\n".join(seen) + "\n" + rest)
     j.step("app finishes signing in" + label, proc.returncode == 0 and who in rest, f"exit {proc.returncode}")
-    return json.loads((data_folder() / "manifest.json").read_text(encoding="utf-8")).get("browser", {}).get("device_id")
+    return json.loads(((data or data_folder()) / "manifest.json").read_text(encoding="utf-8")).get("browser", {}).get("device_id")
 
 
 def hub_rows(db, sql, args=()):
@@ -699,6 +699,25 @@ def main(argv=None):
         # a second person on the same Mac: their own workspace folder; then they sign out too
         hub_journey.second_person(j.step, lambda approve: enrol(j, app, browser, env, app_url, " (second person)",
                                                                 approve, SECOND), run_app, data, owner, app_url, folder, marker)
+        second = hub_rows(db, "SELECT id FROM people WHERE name = ?", (SECOND,))[0][0]
+
+        # deliverable 5 level B (hub_journey.two_at_once): while the second person stays signed in, a second copy of the
+        # app with its own data folder (SWANGZ_HOME) signs in as the first person; both open the tool at once
+        data_b = Path(tempfile.mkdtemp(prefix="swangz-b-"))
+        env_b = {**env, "SWANGZ_HOME": str(data_b)}
+
+        def stored_key(folder):
+            record = json.loads((folder / "device.json").read_text(encoding="utf-8"))
+            if record.get("key_storage") == "file":
+                return (folder / "device.key").read_text(encoding="utf-8").strip() or None
+            return keychain_secret(app_url, record.get("key_id"))
+
+        enrol(j, app, browser, env_b, app_url, " (first person, second copy)", data=data_b)
+        hub_journey.two_at_once(
+            j.step, owner,
+            {"name": SECOND, "person_id": second, "data": data, "run": run_app, "key": lambda: stored_key(data)},
+            {"name": PERSON, "person_id": fixture["person"], "data": data_b,
+             "run": lambda *a: j.run([binary(app), *a], env=env_b), "key": lambda: stored_key(data_b)})
         code, out = j.run([binary(app), "logout"], env=env)
         j.step("second person signs out", code == 0 and "removed" in out and "couldn't" not in out, out)
         leftovers = [p.name for p in data.iterdir()] if data.exists() else []
