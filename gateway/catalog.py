@@ -186,7 +186,13 @@ def settle_hosts(db):
         return
     with db.tx():
         for tid, (old, new) in HOST_OWNERS.items():
-            db.x("UPDATE tools SET hosts = ? WHERE id = ? AND builtin = 1 AND hosts = ?", (new, tid, old))
+            changed = db.x("UPDATE tools SET hosts = ? WHERE id = ? AND builtin = 1 AND hosts = ?", (new, tid, old)).rowcount
+            if changed:  # say why a gate host moved, so an admin can find it in the audit log
+                db.x("INSERT INTO audit(ts, actor, action, target, detail, ip, reason, before_json, after_json, outcome, correlation, area)"
+                     " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                     (time.time(), "system", "moved a tool's gate hosts", tid, f"hosts: {old or '(none)'} -> {new or '(none)'}", "",
+                      "one-time catalogue fix: each website host has one owning tool",
+                      json.dumps({"hosts": old}), json.dumps({"hosts": new}), "ok", f"tool:{tid}", "govern"))
         db.set_setting("catalog_host_owners", "1")
 
 

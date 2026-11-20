@@ -1436,9 +1436,16 @@ def add_tool(ctx):
         ctx.db.x("UPDATE tools SET workspace_mode = ? WHERE id = ?", (ws_mode, tid))
     if share:
         ctx.db.x(f"UPDATE tools SET {', '.join(f'{k}=?' for k in share)} WHERE id = ?", [*share.values(), tid])
-    ctx.audit("added a tool to the catalog", name)
+    # A new tool may share a site with an existing one (a team account next to the seat tool); say so,
+    # because the gate then resolves the host by row order.
+    shared = _host_clashes(ctx.db, hosts, tid)
+    ctx.audit("added a tool to the catalog", name, ("shares hosts: " + ", ".join(shared)) if shared else "",
+              correlation=f"tool:{tid}")
     icons.fetch_soon(ctx.db, tid, ctx.gw.log)
-    return {"id": tid}
+    out = {"id": tid}
+    if shared:
+        out["warning"] = "This tool shares a website with another tool; the access gate gives that site to one of them: " + ", ".join(shared)
+    return out
 
 
 def _clean_hosts(value):
@@ -1451,6 +1458,28 @@ def _clean_hosts(value):
         if re.fullmatch(r"[a-z0-9.-]+\.[a-z]{2,}", h) and h not in out:
             out.append(h)
     return out
+
+
+def _host_clashes(db, hosts, tid=None):
+    """'host (already on Tool)' for each of `hosts` another active tool lists."""
+    wanted = set(hosts)
+    clash = []
+    for t in db.q("SELECT id, name, hosts FROM tools WHERE hosts != '' AND archived = 0 AND id != ?", (tid or "",)):
+        for h in t["hosts"].split(","):
+            if h.strip().lower() in wanted:
+                clash.append(f"{h.strip().lower()} (already on {t['name']})")
+    return sorted(clash)
+
+
+def _hosts_unowned(db, hosts, tid):
+    """Each website host has one owning tool: the gate would otherwise give it silently to whichever row
+    came last. An edit may keep or drop the hosts a tool already has (tools that already share one stay
+    editable); it is refused only for a host it adds that another active tool lists."""
+    current = db.one("SELECT hosts FROM tools WHERE id = ?", (tid,))
+    have = {h.strip().lower() for h in (current["hosts"] if current else "").split(",") if h.strip()}
+    clash = _host_clashes(db, [h for h in hosts if h not in have], tid)
+    if clash:
+        raise ApiError(409, "each website host can belong to one tool: " + ", ".join(clash))
 
 
 @route("PATCH", r"/tools/(?P<tid>[a-z0-9-]+)", area="govern")
@@ -1478,7 +1507,9 @@ def edit_tool(ctx, tid):
     fields.update(_sharing(ctx.body))
     fields.update(_tool_facts(ctx.body))
     if "hosts" in ctx.body:
-        fields["hosts"] = ",".join(_clean_hosts(ctx.body["hosts"]))
+        hosts = _clean_hosts(ctx.body["hosts"])
+        _hosts_unowned(ctx.db, hosts, tid)
+        fields["hosts"] = ",".join(hosts)
     if "entry_usd" in ctx.body:
         fields["entry_usd"] = _money(ctx.body["entry_usd"]) or 0
     if "plans" in ctx.body and isinstance(ctx.body["plans"], list):
