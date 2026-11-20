@@ -50,7 +50,7 @@ SEED = [
     ["suno", "Suno", "Music", "site", "", "https://suno.com/", ["suno.com"], "https://suno.com/pricing", 10, [{"name": "Pro", "monthlyUSD": 10, "unit": "credits", "included": 2500, "unitCostUSD": None}, {"name": "Premier", "monthlyUSD": 30, "unit": "credits", "included": 10000, "unitCostUSD": None}]],
     ["udio", "Udio", "Music", "site", "", "https://www.udio.com/", ["udio.com"], "https://www.udio.com/pricing", 10, [{"name": "Standard", "monthlyUSD": 10, "unit": "credits", "included": 2400, "unitCostUSD": 0.025}, {"name": "Pro", "monthlyUSD": 30, "unit": "credits", "included": 6000, "unitCostUSD": 0.025}]],
     ["heyeddie", "HeyEddie", "Other", "site", "", "https://heyeddie.ai/", ["heyeddie.ai"], "", 0, []],
-    ["airtable-ai", "Airtable AI", "Productivity", "site", "", "https://www.airtable.com/platform/ai", ["airtable.com"], "https://www.airtable.com/pricing", 24, [{"name": "Team", "monthlyUSD": 24, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Business", "monthlyUSD": 54, "unit": None, "included": None, "unitCostUSD": None}]],
+    ["airtable-ai", "Airtable AI", "Productivity", "site", "", "https://airtable.com/", ["airtable.com"], "https://www.airtable.com/pricing", 24, [{"name": "Team", "monthlyUSD": 24, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Business", "monthlyUSD": 54, "unit": None, "included": None, "unitCostUSD": None}]],
     ["loom-ai", "Loom AI", "Productivity", "site", "", "https://www.loom.com/ai", ["loom.com"], "https://www.loom.com/pricing", 15, [{"name": "Business", "monthlyUSD": 15, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Business + AI", "monthlyUSD": 20, "unit": None, "included": None, "unitCostUSD": None}]],
     ["notion-ai", "Notion AI", "Productivity", "site", "", "https://www.notion.so/product/ai", ["notion.so"], "https://www.notion.so/pricing", 12, [{"name": "Plus", "monthlyUSD": 12, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Business", "monthlyUSD": 18, "unit": None, "included": None, "unitCostUSD": None}]],
     ["otter-ai", "Otter.ai", "Productivity", "site", "", "https://otter.ai/", ["otter.ai"], "https://otter.ai/pricing", 17, [{"name": "Pro", "monthlyUSD": 17, "unit": None, "included": None, "unitCostUSD": None}, {"name": "Business", "monthlyUSD": 30, "unit": None, "included": None, "unitCostUSD": None}]],
@@ -194,6 +194,35 @@ def settle_hosts(db):
                       "one-time catalogue fix: each website host has one owning tool",
                       json.dumps({"hosts": old}), json.dumps({"hosts": new}), "ok", f"tool:{tid}", "govern"))
         db.set_setting("catalog_host_owners", "1")
+
+
+# Open used to land on these tools' marketing pages (Probe's catalogue audit). Each new address is the app
+# itself, confirmed on the provider's own site on 20 Nov 2026:
+#   photoshop   - adobe.com/products/photoshop/online.html: "Launch Photoshop online" -> photoshop.adobe.com
+#   airtable-ai - support.airtable.com "Airtable home screen": "Open your Airtable home screen" -> airtable.com
+# The old page is kept as the product page (info_url). Others stay as they are until official docs confirm
+# an app address.
+APP_URLS = {
+    "photoshop": ("https://www.adobe.com/products/photoshop.html", "https://photoshop.adobe.com/"),
+    "airtable-ai": ("https://www.airtable.com/platform/ai", "https://airtable.com/"),
+}
+
+
+def settle_app_urls(db):
+    """Apply APP_URLS once. Only a built-in row still on the old default moves; an admin's edit is kept."""
+    if db.get_setting("catalog_app_urls") == "1":
+        return
+    with db.tx():
+        for tid, (old, new) in APP_URLS.items():
+            changed = db.x("UPDATE tools SET url = ? WHERE id = ? AND builtin = 1 AND url = ?", (new, tid, old)).rowcount
+            db.x("UPDATE tools SET info_url = ? WHERE id = ? AND builtin = 1 AND url = ? AND info_url = ''", (old, tid, new))
+            if changed:
+                db.x("INSERT INTO audit(ts, actor, action, target, detail, ip, reason, before_json, after_json, outcome, correlation, area)"
+                     " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                     (time.time(), "system", "moved a tool's website to its app", tid, f"url: {old} -> {new}", "",
+                      "one-time catalogue fix: Open goes to the app, the product page is kept",
+                      json.dumps({"url": old}), json.dumps({"url": new, "info_url": old}), "ok", f"tool:{tid}", "govern"))
+        db.set_setting("catalog_app_urls", "1")
 
 
 # A built-in tool's address must be on its own gate hosts, or /device/open refuses it and /go/ lands on a host the gate
