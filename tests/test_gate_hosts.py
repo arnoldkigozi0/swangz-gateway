@@ -38,8 +38,8 @@ class GateHostOwnerTests(unittest.TestCase):
         for tid, (old, _new) in catalog.HOST_OWNERS.items():
             db.x("UPDATE tools SET hosts = ? WHERE id = ?", (old, tid))
         db.x("UPDATE tools SET hosts = 'adobe.com,photoshop.example.com' WHERE id = 'photoshop'")  # an admin's edit
-        grants = [tuple(r) for r in db.q("SELECT * FROM entitlements ORDER BY 1, 2")]
-        urls = [tuple(r) for r in db.q("SELECT id, url, launch_url FROM tools ORDER BY id")]
+        grants = [tuple(r.values()) for r in db.q("SELECT * FROM entitlements ORDER BY 1, 2")]
+        urls = [tuple(r.values()) for r in db.q("SELECT id, url, launch_url FROM tools ORDER BY id")]
         db.set_setting("catalog_host_owners", "0")
         catalog.settle_hosts(db)
         hosts = {r["id"]: r["hosts"] for r in db.q("SELECT id, hosts FROM tools")}
@@ -47,8 +47,8 @@ class GateHostOwnerTests(unittest.TestCase):
         self.assertEqual(hosts["seedance"], "")
         self.assertEqual(hosts["copilot"], "copilot.microsoft.com")
         self.assertEqual(hosts["photoshop"], "adobe.com,photoshop.example.com")
-        self.assertEqual([tuple(r) for r in db.q("SELECT * FROM entitlements ORDER BY 1, 2")], grants)
-        self.assertEqual([tuple(r) for r in db.q("SELECT id, url, launch_url FROM tools ORDER BY id")], urls)
+        self.assertEqual([tuple(r.values()) for r in db.q("SELECT * FROM entitlements ORDER BY 1, 2")], grants)
+        self.assertEqual([tuple(r.values()) for r in db.q("SELECT id, url, launch_url FROM tools ORDER BY id")], urls)
         moved = {r["target"]: r for r in db.q("SELECT * FROM audit WHERE action = 'moved a tool''s gate hosts'")}
         self.assertEqual(set(moved), {"chatgpt", "seedance", "copilot"})  # the admin-edited Photoshop row is not logged
         self.assertEqual(moved["seedance"]["correlation"], "tool:seedance")
