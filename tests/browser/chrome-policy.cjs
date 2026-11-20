@@ -228,10 +228,11 @@ async function windowManager() {
   if (wm) return;
   wm = spawn('openbox', [], { stdio: 'ignore' });
   wm.on('error', () => {});
-  /* Wait until openbox answers rather than a fixed second: its supporting-WM-check window is named "Openbox" as soon
-     as it manages the screen. A slow runner took longer than the old fixed pause, and the first typed case failed. */
+  /* Wait until openbox answers rather than a fixed second: get_desktop reads the root window's _NET_CURRENT_DESKTOP,
+     which only a running window manager sets, and exits non-zero until then. A slow runner took longer than the old
+     fixed pause, and the first typed case failed. */
   for (let i = 0; i < 40; i++) {
-    try { execFileSync('xdotool', ['search', '--limit', '1', '--name', '^Openbox$'], { timeout: 2000, stdio: 'ignore' }); return; }
+    try { execFileSync('xdotool', ['get_desktop'], { timeout: 2000, stdio: 'ignore' }); return; }
     catch (e) { await pause(250); }
   }
   console.error('openbox did not answer within 10 s; typing anyway');
@@ -255,17 +256,17 @@ async function typed(context, c, address, n) {
       await page.bringToFront();
       execFileSync('xdotool', ['search', '--sync', '--limit', '1', '--name', 'swz-type-' + mark, 'windowactivate', '--sync', '%1',
         'key', '--clearmodifiers', 'ctrl+l', 'sleep', '0.3', 'type', '--delay', '15', text], { timeout: 15000, stdio: ['ignore', 'ignore', 'pipe'] });
-      await pause(700);   // Enter straight after the text was lost: the address bar was still working on it
-      execFileSync('xdotool', ['key', '--clearmodifiers', 'Return'], { timeout: 5000, stdio: ['ignore', 'ignore', 'pipe'] });
     };
-    /* One retry for the typing itself (not for the policy result): Ctrl+L selects the bar again, so a half-typed first
-       attempt is replaced, and nothing navigates before Return. */
+    /* One retry for the typing only (not Return, not the policy result): Ctrl+L selects the bar again, so a half-typed
+       first attempt is replaced, and nothing navigates before Return. Return is sent once; a failure there fails. */
     try { await typeIt(); }
     catch (e) {
       console.error(c.id + ' typing failed, retrying once: ' + xdoError(e));
       await pause(1000);
       await typeIt();
     }
+    await pause(700);   // Enter straight after the text was lost: the address bar was still working on it
+    execFileSync('xdotool', ['key', '--clearmodifiers', 'Return'], { timeout: 5000, stdio: ['ignore', 'ignore', 'pipe'] });
   } catch (e) { error = 'type: ' + xdoError(e); }
   if (!error) {
     for (let i = 0; i < 20 && !arrived().length; i++) await pause(250);
