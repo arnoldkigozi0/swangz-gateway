@@ -1674,3 +1674,9 @@ Report: docs/daily/2026-11-18.md. GitHub unreachable at report time; CI on main 
 
 ## Chief, 19 Nov 2026 21:30
 Daily report written: docs/daily/2026-11-19.md. GitHub unreachable at the time: PR states and main CI not re-read. Main head d011074. Open: #297 (CI pending), #298 (draft). Next: read their checks and merge when green; retry pushes.
+
+## Forge, 20 Nov 2026 14:15: RC pre-release cut from main `ec02d96`
+Pre-release "RC — UNSIGNED — INTERNAL TEST ONLY", tag `rc-unsigned-20261120-ec02d96`: https://github.com/arnoldkigozi0/swangz-gateway/releases/tag/rc-unsigned-20261120-ec02d96
+- Windows: `release-windows.yml` run 44724106592, success. `Swangz-Setup-0.1.71-UNSIGNED.exe`, sha256 `501da26e4c1df5fae1a9df879a108c6c4812c43f5e064a88e7ad4ab7d43f8d7f`
+- macOS: `build-macos.yml` run 44724112936, success. `Swangz-0.1.89-RC-UNSIGNED-macos-arm64.dmg`, sha256 `5b41b13b245c0d196ee2ad6cadbfb5601d363a35a3ce105f08219dd56d1ecda7`
+- Attached: both `.sha256` files, both CycloneDX SBOMs, an evidence zip per run, `SHA256SUMS` covering every file, and `RELEASE-LABEL.txt`. Both `.sha256` files were checked with `sha256sum -c` (OK), and the secret scans in the evidence show 0 hits. Unsigned, updates off; owner checks O-1 to O-7 still open.
