@@ -124,7 +124,8 @@ class TwoAtOnceTests(TurnBase):
         self.assertEqual(self.go_as_other("midjourney")[0], 302)
         status, body = self.go_as_third()
         self.assertEqual(status, 403)
-        self.assertIn("is using the shared Midjourney account until", body)
+        # both holders are named; the verb ("are", since #300) is not pinned here, so this holds before and after it
+        self.assertRegex(body, r"Nansubuga Grace, Okello Brian (is|are) using the shared Midjourney account until")
         self.assertEqual([t["person_id"] for t in self.open_turns()], [self.rig.person_id, self.other])
         refused = self.rig.gw.db.one("SELECT * FROM launches WHERE person_id = ? ORDER BY id DESC LIMIT 1", (self.third,))
         self.assertEqual(refused["outcome"], "refused")
