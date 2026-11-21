@@ -68,8 +68,12 @@ def set_autostart(paths, on, command=None):
     if sys.platform == "darwin":
         f.write_bytes(plistlib.dumps({"Label": LABEL, "ProgramArguments": command, "RunAtLoad": True, "ProcessType": "Interactive"}))
     else:
+        # Run from source, `python3 -m swangz_client` only resolves from the folder that holds the package; the
+        # session starts autostart entries in the home folder, so name that folder as the working directory.
+        source = Path(__file__).resolve().parent.parent
+        workdir = "" if getattr(sys, "frozen", False) or "\n" in str(source) else f"Path={source}\n"
         f.write_text("[Desktop Entry]\nType=Application\nName=Swangz\nComment=Swangz AI Hub\n"
-                     f"Exec={' '.join(shlex.quote(c) for c in command)}\nTerminal=false\nX-GNOME-Autostart-enabled=true\n", encoding="utf-8")
+                     f"Exec={' '.join(shlex.quote(c) for c in command)}\n{workdir}Terminal=false\nX-GNOME-Autostart-enabled=true\n", encoding="utf-8")
 
 
 # ---------------------------------------------------------------- a terminal, and the web browser

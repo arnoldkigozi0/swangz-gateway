@@ -5,8 +5,10 @@ import io
 import json
 import os
 import re
+import shlex
 import shutil
 import stat
+import subprocess
 import sys
 import tempfile
 import time
@@ -553,6 +555,25 @@ class MacLinuxRemovalStartupTests(unittest.TestCase):
                 self.assertFalse(f.exists(), f"{name} {route}: {f}")
                 self.assertFalse(shell.autostart_enabled(client.paths))
                 client.store.wipe.assert_called_once_with()
+
+    def test_linux_from_source_starts_in_the_folder_that_holds_the_package(self):
+        """The session runs autostart entries from the home folder, where `python3 -m swangz_client` cannot import."""
+        home = tempfile.mkdtemp(prefix="sgw-home-")
+        self.addCleanup(shutil.rmtree, home, True)
+        paths = SimpleNamespace(home=home)
+        with patch.dict(os.environ), patch.object(sys, "platform", "linux"):
+            os.environ.pop("XDG_CONFIG_HOME", None)
+            shell.set_autostart(paths, True)
+            entry = dict(line.split("=", 1) for line in shell.autostart_file(paths).read_text().splitlines() if "=" in line)
+            with patch.object(sys, "frozen", True, create=True):
+                shell.set_autostart(paths, True, command=["/opt/swangz/Swangz"])
+                packaged = shell.autostart_file(paths).read_text()
+        source = Path(shell.__file__).resolve().parent.parent
+        self.assertEqual(entry["Path"], str(source))
+        run = subprocess.run([*shlex.split(entry["Exec"].replace("--background", "--version"))],
+                             cwd=entry["Path"], capture_output=True, text=True, timeout=60)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertNotIn("Path=", packaged)
 
     def test_an_absent_file_is_already_off_and_a_failure_never_blocks_removal(self):
         for name, home in self.each_platform():
