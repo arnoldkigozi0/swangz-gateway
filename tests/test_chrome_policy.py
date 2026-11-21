@@ -57,6 +57,7 @@ class ChromePolicyPackTests(unittest.TestCase):
         self.assertEqual(google, {".accounts.google.com", ".accounts.youtube.com", "www.google.com/recaptcha",
                                   "gemini.google.com"})
         for surface in ("google.com", "mail.google.com", "gmail.com", "myaccount.google.com", "drive.google.com",
+                        "docs.google.com",
                         "youtube.com", ".google.com"):
             self.assertNotIn(surface, self.policy["URLAllowlist"])
 
