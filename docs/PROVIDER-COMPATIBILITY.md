@@ -469,6 +469,16 @@ no credentials stored or typed. Evidence labels as in section 1. Impact is on `d
 
 No official network allowlist page for ChatGPT or Claude was found (searched their help sites): **Not run: none exists on the pages read.** Provider callback hosts after Google returns (where the provider receives the code) are therefore **UNVERIFIED** from documents; the observed ones come from real-browser runs.
 
+**Do the lists block page parts (subresources)? (checked 2026-11-21)**
+
+| Fact | Source | Status |
+|---|---|---|
+| Google's policy definition says `URLBlocklist` "stops web pages with prohibited URLs from loading" and: "This policy does not apply to in-page JavaScript URLs with dynamically loaded data. If you blocked example.com/abc, then example.com could still load it using XMLHTTPRequest." | [URLBlocklist policy definition (Chromium)](https://chromium.googlesource.com/chromium/src/+/main/components/policy/resources/templates/policy_definitions/Miscellaneous/URLBlocklist.yaml), same text as [chromeenterprise.google/policies/url-blocklist](https://chromeenterprise.google/intl/en_uk/policies/url-blocklist/) | **DOC-V** for the XHR/fetch exemption |
+| The enforcement code is a navigation throttle that checks the address at the start of a navigation and at each redirect (`WillStartRequest`, `WillRedirectRequest`); it has no hook for images, scripts or fonts | [policy_blocklist_navigation_throttle.cc (Chromium source)](https://chromium.googlesource.com/chromium/src/+/main/components/policy/content/policy_blocklist_navigation_throttle.cc) | **DOC-V** as source reading, not vendor documentation. Behaviour on a real Chrome with this pack: **Not run** here (the pack's CI check C-6 pins it) |
+| `URLAllowlist` entries are exceptions to `URLBlocklist` | [URLAllowlist policy definition](https://chromium.googlesource.com/chromium/src/+/main/components/policy/resources/templates/policy_definitions/Miscellaneous/URLAllowlist.yaml) | **DOC-V** |
+
+Answer on the asset hosts: the sign-in page loading `ssl.gstatic.com`, `www.gstatic.com`, `fonts.gstatic.com` or `lh3.googleusercontent.com` as images, scripts or fonts is not stopped by the lists, so the pack needs **no** entry for them. An **iframe** is a navigation, so a framed Google page (for example the `accounts.google.com/gsi/` frame) is checked and is covered by `.accounts.google.com`. `fonts.gstatic.com` and `lh3.googleusercontent.com` are not on Google's authentication list at all (**UNVERIFIED**: no official page found). The same rule means the lists do not stop a provider page sending data to other hosts; the pack README already documents that gap.
+
 ### 9.2 What must stay blocked
 
 | Host | Why | Source | Status |
