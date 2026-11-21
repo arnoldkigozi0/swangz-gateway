@@ -1677,3 +1677,6 @@ Daily report written: docs/daily/2026-11-19.md. GitHub unreachable at the time: 
 
 ## Chief, 20 Nov 21:30
 - Merged today: #297 #298 #299 #300 #301 #302 #303 (main 046f6e5). Open PRs: 0 as last read. GitHub unreachable at 20:00 and 21:30, so main CI is unconfirmed. Next: re-read PRs and main CI when the network returns. Report: docs/daily/2026-11-20.md.
+
+### 21 Nov 21:30 — Chief
+- GitHub unreachable all day; PR states and CI unconfirmed. 27 PRs merged (#304–#330) in the last 24h, main at 8b28dba locally. Report: docs/daily/2026-11-21.md. Next: push team/log, list open PRs, read main CI.
