@@ -43,7 +43,7 @@ or **Accepted** (a known limit by design, with the mitigation on offer).
 | R-11 | If the app restarts while a workspace window is open, a later suspend cannot close that window | Team (later) | Suspend and revoke ask the person to close it | MANAGED-WORKSPACE R-11 |
 | R-12 | After a revoke, the workspace folder and its provider sessions stay on disk | Team (later) | Removing it is the person's action | MANAGED-WORKSPACE R-12 |
 | R-13 | `/go/` puts the company browser's Neko sign-in in a redirect address, so it lands in browser history | Team (after 20 Nov) | A single-use launch code replaces it | MANAGED-WORKSPACE R-13; D-022 |
-| R-14 | The Swangz app's device key sits in an owner-only file, not yet the OS keychain | Accepted | "Disconnect this device" | SECURITY "Limits" |
+| R-14 | The Swangz app keeps its device key in the OS keychain (Credential Manager, macOS Keychain, Secret Service), and falls back to an owner-only 0600 file only on a device with no working keychain. Anyone with the person's account on that device has the key | Accepted | "Disconnect this device" | `swangz_client/keystore.py`; `docs/CLIENT.md`; SECURITY "Limits" (its "not yet the OS keychain" line is out of date) |
 
 R-8 (prompt bodies readable by admins) is closed by D-023 (#249): prompt and reply text are not kept by default, and
 only the trust area may read them.
@@ -71,7 +71,7 @@ only the trust area may read them.
 | P-8 | Seedance opens inside Higgsfield AI and is refused on its own | Arnold (archive or keep) | Refused by name on `/go/` and `/device/open` (#308, #312, #314) | ARNOLD-ONLY 1 |
 | P-9 | Premiere owns `adobe.com`, so Adobe pages not listed elsewhere count as Premiere | Arnold | Photoshop moved to `photoshop.adobe.com` (#308, #310); Adobe ID sign-in hosts no longer governed as Premiere (#318) | ARNOLD-ONLY 2 |
 | P-10 | Notion AI opens a product page; moving it to `notion.com` moves its gate host | Arnold | Unchanged until decided (#310) | ARNOLD-ONLY 3 |
-| P-11 | Davinci Resolve and Topaz Video AI open their pricing pages (desktop apps with no web address) | Accepted (desktop only) | Pinned in `tests/test_catalog_checks.py` | CATALOG-AUDIT defect 5 |
+| P-11 | Davinci Resolve and Topaz Video AI open their pricing pages (desktop apps with no web address) | Team (open; no acceptance decision recorded) | Pinned in `tests/test_catalog_checks.py` | CATALOG-AUDIT defect 5 |
 | P-12 | No real provider has been tested (no LIVE row exists) | Arnold (capped test keys and accounts) | Fake upstream only | PROVIDER-COMPATIBILITY 1, 7 decision 4 |
 
 ## Keeping this page current

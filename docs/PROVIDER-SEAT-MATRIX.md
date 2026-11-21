@@ -16,7 +16,7 @@ tested against a real provider.
 | **A** | Company API credential through the gateway | `api` (and the `dev` tools) | Swangz, one bill per provider key | Swangz. The key lives only in the server environment (REPO) |
 | **B** | Vendor SSO with the company identity | `sso` | Swangz (vendor business plan) | The person, through the company identity provider |
 | **C** | An assigned company subscription seat | `seat` | Swangz, one bill | The person: one seat, one person, invited to the work email |
-| **D** | The person's own provider account | `own` | The person (or reimbursed; not tracked) | The person |
+| **D** | The person's own provider account | `own` | The person (holder and payer are recorded separately, D-012) | The person |
 | **E** | A company-held shared account, handed out in turns | `shared` | Swangz | Swangz. The turn holder works in a company browser and never sees the password |
 
 The provider-account registry (`gateway/registry.py`) records only individual accounts and seats today
@@ -29,13 +29,13 @@ The catalogue's seed carries no sign-in mode per tool. A new install gives every
 sets the real mode. Which tools are set to `shared` in live data is **UNVERIFIED**, because the live database is out
 of bounds (`docs/PROVIDER-COMPATIBILITY.md` 6.3).
 
-| Category (catalogue `kind`) | Tools | Modes the code supports | Notes |
+| Category (catalogue `kind`) | Tools | Modes (code support, limited by vendor terms) | Notes |
 |---|---|---|---|
-| `api`: the four provider routes | chatgpt, claude, higgsfield-ai, elevenlabs | A through the gateway, plus B, C, D or E for the web side | Mode A is a proposal until the vendor confirms it in writing (§4) |
+| `api`: the four provider routes | chatgpt, claude, higgsfield-ai, elevenlabs | A through the gateway, plus B, C or D for the web side. E: not allowed per vendor terms (`docs/PROVIDER-COMPATIBILITY.md` §5; DOC-V for Claude) | Mode A is a proposal until the vendor confirms it in writing (§4) |
 | `dev`: coding agents | claude-code, codex | A only (assignment-only, no host to gate) | Never route a consumer plan (Claude Pro/Max, ChatGPT plan) through the gateway. The Claude Code legal page forbids it (DOC-V). Codex's plan sign-in rule is UNVERIFIED |
-| `site`: website tools with a company route | the 38 `site` IDs listed in `docs/PROVIDER-COMPATIBILITY.md` 6.3 | B, C, D or E at the launch level | B needs the vendor's SSO set up in the vendor's admin console, and C needs the seat assigned there. **Neither is verified for any tool** |
+| `site`: website tools with a company route | the 38 `site` IDs listed in `docs/PROVIDER-COMPATIBILITY.md` 6.3 | B, C or D at the launch level. E only where the vendor allows it; otherwise UNVERIFIED, not allowed | B needs the vendor's SSO set up in the vendor's admin console, and C needs the seat assigned there. **Neither is verified for any tool** |
 | `site`: no company sign-in route confirmed | midjourney, suno, udio | D | Midjourney documents no SSO and no seats. Suno and Udio are UNVERIFIED |
-| `site`: retired at the vendor | sora, dall-e | none to rely on | Launch records continue while the entry is active. Archiving is Arnold's call (`docs/ARNOLD-ONLY.md` item 4) |
+| `site`: retired at the vendor | sora, dall-e | none to rely on | Launch records continue while the entry is active. Archiving is Arnold's call (DALL-E: `docs/ARNOLD-ONLY.md` item 4; Sora: `docs/PROVIDER-COMPATIBILITY.md` §7 decision 1) |
 
 ## 3. What Swangz can legitimately observe
 
