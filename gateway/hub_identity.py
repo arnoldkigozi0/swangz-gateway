@@ -14,11 +14,11 @@ from .hub_import import backup
 
 
 def preflight(path):
-    settings = Settings()
+    settings = Settings.from_env()
     conn = sqlite3.connect(Path(path).resolve().as_uri() + '?mode=ro', uri=True)
     conn.row_factory = sqlite3.Row
     try:
-        result = {'policy': 'Exact @swangzavenue.com, plus only the two approved owner identities',
+        result = {'policy': f'Exact @{settings.company_domain}, plus only the two approved owner identities',
                   'administrators': [], 'staff': []}
         for table, field, output in [('admins', 'username', 'administrators'), ('people', 'email', 'staff')]:
             for row in conn.execute(f'SELECT id,{field} AS email FROM {table} ORDER BY id'):
@@ -30,8 +30,9 @@ def preflight(path):
 
 def migrate_admin(path, admin_id, email, backup_path):
     email = email.strip().lower()
-    if not Settings().email_allowed(email):
-        raise ValueError(Settings().email_rule())
+    settings = Settings.from_env()
+    if not settings.email_allowed(email):
+        raise ValueError(settings.email_rule())
     verified = backup(path, backup_path)
     db = DB(path)
     try:

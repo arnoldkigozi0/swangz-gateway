@@ -210,7 +210,7 @@ def _display_name(ctx):
 def me(ctx):
     return {"username": ctx.admin["username"], "display_name": _display_name(ctx),
             **authz.describe(ctx.admin), "base_url": ctx.gw.public_url(ctx.h),
-            "providers": _providers(ctx), "tz_offset_minutes": ctx.gw.settings.tz_offset_minutes,
+            "providers": _providers(ctx), "tz_offset_minutes": ctx.gw.settings.tz_offset_minutes, "company_domain": ctx.gw.settings.company_domain,
             "areas": authz.AREAS, "roles": {k: {"label": v[0], "can": sorted(v[1]), "about": v[2]} for k, v in authz.ROLES.items()}}
 
 
@@ -703,7 +703,10 @@ def invite_person(ctx, pid):
 
     from . import google
 
-    token = staff.new_invite(ctx.db, int(pid))
+    try:
+        token = staff.new_invite(ctx.db, int(pid), ctx.gw.settings)
+    except ValueError as e:
+        raise ApiError(400, str(e))
     link = f"{google.web_url(ctx.gw, ctx.h)}/#/welcome/{token}"
     ctx.audit("created a sign-in link", person["name"], "valid 7 days")
     return {"link": link, "expires_days": 7, "email": person["email"]}

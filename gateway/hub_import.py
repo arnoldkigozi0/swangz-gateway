@@ -186,7 +186,7 @@ def import_entries(db,data,source='tracker',mapping=None,apply=False):
                    history_completeness='Not established by this import. Original backend must be reconciled independently.')
     prepared=[];seen=set();matches=[]
     from .config import Settings
-    settings=Settings()
+    settings=Settings.from_env()
     for index,entry in enumerate(entries):
         try:
             if entry.get('id') in seen:

@@ -384,7 +384,7 @@ def weekly_overview(ctx):
 def hub_settings(ctx):
     return {'timezone':ctx.gw.settings.company_timezone,'reconciliation_tolerance':float(ctx.db.get_setting('weekly_reconciliation_tolerance','0.1')),
             'correction_policy':'A formally returned report blocks only its tool until resubmission. Review and confirmation are not required for ordinary access.',
-            'identity_policy':'Exact @swangzavenue.com accounts, with the two explicitly approved owner/admin exceptions.'}
+            'identity_policy':f'Exact @{ctx.gw.settings.company_domain} accounts, with the two explicitly approved owner/admin exceptions.'}
 
 
 @admin.route('PUT', r'/hub/settings', area='govern')
