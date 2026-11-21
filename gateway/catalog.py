@@ -149,6 +149,10 @@ SIGNIN_HOSTS = {
     "adobe-firefly": ADOBE_SIGNIN,
 }
 
+# Adobe ID's sign-in hosts sit under adobe.com, Premiere's gate host: the gate must not govern them as Premiere. Only these
+# exact hosts. auth.openai.com under DALL-E's openai.com is audit defect 3, a separate decision, and is left as it was.
+SIGNIN_HOST_SET = frozenset(SIGNIN_HOSTS["photoshop"])
+
 FIELDS = ("id", "name", "category", "kind", "provider", "url", "hosts", "pricing_url", "entry_usd", "plans")
 
 
@@ -317,6 +321,8 @@ def match_host(index, hostname):
     hostname = (hostname or "").lower().split(":")[0]
     if hostname.startswith("www."):
         hostname = hostname[4:]
+    if hostname in SIGNIN_HOST_SET:
+        return None  # a provider's sign-in page is never a tool, even under another tool's domain (adobe.com)
     for h, tool in index.items():
         if hostname == h or hostname.endswith("." + h):
             return tool
