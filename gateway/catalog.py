@@ -134,15 +134,19 @@ MODES = ("web", "desktop", "cli", "api", "mobile")
 # The official sign-in hosts a tool's website hands off to, kept out of `hosts` so the access gate never governs
 # them (accounts.google.com is everyone's Google sign-in, not a tool). /api/device/open adds them to the tool's
 # allowed hosts for the Swangz workspace window only. To be confirmed against each provider (Probe, 9.3 step 1).
+ADOBE_SIGNIN = ("auth-light.identity.adobe.com", "auth.services.adobe.com", "federatedid-na1.services.adobe.com",
+                "ims-na1.adobelogin.com", "accounts.google.com")
+
 SIGNIN_HOSTS = {
     "chatgpt": ("auth.openai.com", "accounts.google.com"),
     "claude": ("accounts.google.com",),
     "gemini": ("accounts.google.com",),
-    # Adobe ID, captured by Probe from a real browser at photoshop.adobe.com (21 Nov 2026): the sign-in frame, the sign-in
-    # page, the Google return, and the token callback named in the sign-in request. Exact hosts only, never adobe.com
-    # (Premiere's gate host). Firefly is left out until its sign-in is captured too.
-    "photoshop": ("auth-light.identity.adobe.com", "auth.services.adobe.com", "federatedid-na1.services.adobe.com",
-                  "ims-na1.adobelogin.com", "accounts.google.com"),
+    # Adobe ID, captured by Probe in a real browser (21 Nov 2026) at photoshop.adobe.com and, in part, firefly.adobe.com:
+    # the sign-in frame and page (seen loading on both), Google (seen from Photoshop), and two hosts named only in the
+    # sign-in requests, not yet seen loading: federatedid-na1 (Google's return) and ims-na1.adobelogin.com (the token
+    # callback). Exact hosts only, never adobe.com (Premiere's gate host).
+    "photoshop": ADOBE_SIGNIN,
+    "adobe-firefly": ADOBE_SIGNIN,
 }
 
 FIELDS = ("id", "name", "category", "kind", "provider", "url", "hosts", "pricing_url", "entry_usd", "plans")
@@ -299,6 +303,8 @@ def host_index(db):
     """
     index = {}
     for t in db.q("SELECT * FROM tools WHERE hosts != '' AND archived = 0"):
+        if t["builtin"] and t["id"] in INSIDE:
+            continue  # its site is the other tool's: hosts an admin adds to it never make it the owner (#312 follow-up)
         for h in t["hosts"].split(","):
             h = h.strip().lower()
             if h:
