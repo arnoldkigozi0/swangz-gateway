@@ -1,8 +1,9 @@
 # RC acceptance matrix: deliverables 1 to 10 against the new unsigned RC
 
-Status: **draft, written 21 Nov 2026 against `main` `13966ba` (code identical to `4c451fe`).** The new RC tag has not been
-given to Probe yet, so every "New RC" cell below says **Not run: awaiting RC tag**. Nothing here is production-ready:
-every build is `RC — UNSIGNED — INTERNAL TEST ONLY`, and no row is closed by a real device.
+Status: **filled 21 Nov 2026 from the runs on the RC tag `rc-unsigned-20261121-13966ba` (built from `main` `13966ba`, code
+identical to `4c451fe`).** Every build is `RC — UNSIGNED — INTERNAL TEST ONLY`. PASS below means a GitHub-hosted runner with
+test data, one OS user and nobody at a desktop. It is never a company device, and no row is closed by a real device.
+This is not a release approval.
 
 Companion to `docs/RELEASE-EVIDENCE.md` (the dated record, how each row was proven and what each run does not show),
 `docs/RELEASE-OWNER-CHECKLIST.md` and `docs/ARNOLD-ONLY.md` (what only Arnold can do). The deliverables are numbered as in
@@ -61,32 +62,35 @@ Read by Probe from the downloaded artifacts of the two runs above (21 Nov).
 
 ## 4. Matrix on the new RC tag
 
-Fill this table when Anvil gives the tag. A cell may say PASS only with a run URL for that exact commit and a SHA-256 read
-from the uploaded sidecar, and **Not run** otherwise. The old RC's results do not carry over.
+Read by Probe from the release assets and the run artifacts, not copied from the hand-off. The release is a pre-release
+(not a draft) whose target is `13966ba00826633188daf172ddd3ad6a10ddef95`.
 
-RC tag: **Not run: awaiting RC tag from Anvil.** Release commit: pending. Hub checks run: pending. Windows run: pending.
-macOS run: pending.
+RC tag: `rc-unsigned-20261121-13966ba`. Windows 0.1.75: run [44867345311](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44867345311) (manual dispatch on `13966ba`, success).
+macOS 0.1.95: run [44867348632](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44867348632) (manual dispatch on `13966ba`, success).
+Hashes: I ran `sha256sum` on the exe and DMG downloaded from the release and on the copies in the run artifacts. All four
+files agree with the release `SHA256SUMS`: exe `464b63354033…`, DMG `b72b69f376f9…`. The two SBOMs agree too. The `.sha256`
+sidecars contain the same hash as the file they name.
 
 | # | Deliverable | Runner result on the new tag | Run URL | Artifact SHA-256 (first 12) | First failure | Blockers that stay |
 |---|---|---|---|---|---|---|
-| 1 | Windows installer | **Not run: awaiting RC tag** | | | | SmartScreen on a real PC, reboot with start on login, install-folder ACL not listed, second Windows user (O-1, O-3); Authenticode signing (O-6) |
-| 2 | macOS app and DMG | **Not run: awaiting RC tag** | | | | real Gatekeeper first-open and Keychain prompt (O-2); Developer ID and notarization (O-6); the DMG is not reproducible |
-| 3 | Enrolment and sign-in | **Not run: awaiting RC tag** | | | | Google sign-in on the first-party address (O-5); expiry forced through the database, not waited |
-| 4 | Server address, no secrets | **Not run: awaiting RC tag** | | | | real https address, domain, TLS (O-5); runners use `127.0.0.1`; the setup `.exe` is scanned as raw bytes |
-| 5 | Company browser workspace | **Not run: awaiting RC tag** | | | | two real machines and a real provider sign-in (level C, O-7); a second OS user (O-3); Chrome's own enforcement of the pack and Group Policy or MDM delivery on a company machine |
-| 6 | Staff reporting, admin functions | **Not run: awaiting RC tag** | | | | the packaged app shows no staff reports or admin screens (Hub tests and the browser job cover them); admin judgement inside the shell is OWNER |
-| 7 | Reconnect after restart or outage | **Not run: awaiting RC tag** | | | | sleep, Wi-Fi and VPN on a real device (O-4) |
-| 8 | Versioned artifacts, checksums, reproducible builds, notes | **Not run: awaiting RC tag** | | | | macOS DMG not reproducible; version is `0.1.<run>` not a release number; SBOM hash not compared with the installed program |
-| 9 | Updates off until signing | **Not run: awaiting RC tag** | | | | `0.2.0` never built or upgraded to; "older build" is the same source relabelled; refusal dialog's Sign out button unit-tested only; enabling updates needs a signing key and Arnold (O-6) |
-| 10 | Evidence from the runs | **Not run: awaiting RC tag** | | | | no combined workflow; Windows workflow does not run on pushes to main (started by hand); O-1 to O-7 have no results |
+| 1 | Windows installer | **PASS (runner).** Windows `report.json`: `ok true`, 84 steps, 0.1.0 to 0.1.75 upgrade, older-build refusal, silent uninstall; secret scan 0 hits | [Windows](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44867345311) | `464b63354033` | none | SmartScreen on a real PC, reboot with start on login, install-folder ACL not listed, second Windows user (O-1, O-3); Authenticode signing (O-6) |
+| 2 | macOS app and DMG | **PASS (runner).** macOS journey: 168 of 168 steps pass; DMG holds app, Applications link and RC notice; Gatekeeper refuses the unsigned build (steps 13, 84), as expected; DMG secret scan 0 hits (480 entries) | [macOS](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44867348632) | `b72b69f376f9` | none | real Gatekeeper first-open and Keychain prompt (O-2); Developer ID and notarization (O-6); the DMG is not reproducible |
+| 3 | Enrolment and sign-in | **PASS (runner).** Both: bad, expired and used codes refused; real CSRF tokens (Windows step 4; macOS steps 17 to 24, each token abuse refused 400); first sync recorded | [Windows](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44867345311), [macOS](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44867348632) | `464b63354033`, `b72b69f376f9` | none | Google sign-in on the first-party address (O-5); expiry forced through the database, not waited |
+| 4 | Server address, no secrets | **PASS (runner).** Fresh install shows no Hub address; non-https refused with no sign-in code asked; the device key is in no log or file; secret scans 0 hits and 0 problems (Windows 13 files, 1318 inner entries; macOS 777 files, 805 inner entries) | [Windows](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44867345311), [macOS](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44867348632) | `464b63354033`, `b72b69f376f9` | none | real https address, domain, TLS (O-5); runners use `127.0.0.1`; the setup `.exe` is scanned as raw bytes |
+| 5 | Company browser workspace | **PASS (runner).** Separate profile folder per person and device; Chrome started on it; policy-tamper cases (default-deny removed, valid but not the pinned pack, pack removed) refuse Open on both platforms; level B two copies at once (Windows steps 70 to 82, macOS 120 to 132) pass | [Windows](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44867345311), [macOS](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44867348632) | `464b63354033`, `b72b69f376f9` | none | two real machines and a real provider sign-in (level C, O-7); a second OS user (O-3); Chrome's own enforcement of the pack and Group Policy or MDM delivery on a company machine |
+| 6 | Staff reporting, admin functions | **PASS (runner, packaged-app side only).** Journeys cover grants made and removed while the app is closed, and (Windows) prompt storage off by default; Hub-side checks are in §5 | [Windows](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44867345311) | `464b63354033` | none | the packaged app shows no staff reports or admin screens (Hub tests and the browser job cover them); admin judgement inside the shell is OWNER |
+| 7 | Reconnect after restart or outage | **PASS (runner).** Restart, Hub down at start, network interruption and Hub process restart: same key SHA-256, no new sign-in code; revoked while away removes only its own data | [Windows](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44867345311), [macOS](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44867348632) | `464b63354033`, `b72b69f376f9` | none | sleep, Wi-Fi and VPN on a real device (O-4) |
+| 8 | Versioned artifacts, checksums, reproducible builds, notes | **PARTIAL.** Windows program and installer reproduce bit-for-bit (`identical true`); macOS `.app` reproduces (420 entries, `identical true`) but the **DMG does not** (`identical false`: 11,850,452 against 11,853,649 bytes, build B `84a9d55b0338…`). Checksums, SBOMs (Windows 67 components, macOS 53) and `RELEASE-LABEL.txt` are on the release | [Windows](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44867345311), [macOS](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44867348632) | `464b63354033`, `b72b69f376f9` | macOS DMG reproducibility: `identical false` (`reproducible-macos.json`); the build itself succeeded | macOS DMG not reproducible; version is `0.1.<run>` not a release number; SBOM hash not compared with the installed program |
+| 9 | Updates off until signing | **PASS (runner).** Updates off, no release keys (Windows launch step); the older 0.1.0 installer over 0.1.75 exits 1 and changes nothing; macOS older build refused by `status` and `sync` (steps 90, 91, 93) | [Windows](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44867345311), [macOS](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44867348632) | `464b63354033`, `b72b69f376f9` | none | `0.2.0` never built or upgraded to; "older build" is the same source relabelled; refusal dialog's Sign out button unit-tested only; enabling updates needs a signing key and Arnold (O-6) |
+| 10 | Evidence from the runs | **PASS, with the macOS DMG reproducibility FAIL (row 8).** Both journeys have evidence zips on the release (`evidence-windows-run44867345311.zip`, `evidence-macos-run44867348632.zip`) | [Windows](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44867345311), [macOS](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44867348632) | `464b63354033`, `b72b69f376f9` | same as row 8 | no combined workflow; Windows workflow does not run on pushes to main (started by hand); O-1 to O-7 have no results |
 
 ## 5. Hub-side checks on the RC commit
 
 | Check | Latest on `4c451fe` (read 21 Nov) | New RC commit |
 |---|---|---|
-| Hub checks, run [44854832588](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44854832588) | python 3.10 and 3.12: **1533 tests each, OK (skipped=20)**; app-window 16 tests OK; browser job success | Not run: awaiting RC tag (if the tag is `4c451fe` itself, this row stands) |
-| Chrome policy pack checks, run [44854832597](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44854832597) | success (job names and result only; Probe did not read its log) | Not run: awaiting RC tag |
-| Hub checks on `13966ba` (this docs-only merge), run [44867206566](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44867206566) | was in progress when written | |
+| Hub checks, run [44854832588](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44854832588) | python 3.10 and 3.12: **1533 tests each, OK (skipped=20)**; app-window 16 tests OK; browser job success | Same commit content; the run on `13966ba` is the next row |
+| Chrome policy pack checks, run [44854832597](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44854832597) | success (job names and result only; Probe did not read its log) | Not run: the workflow did not start on `13966ba` (no run for it in `gh run list --commit`). The `4c451fe` run stands, and the Windows and macOS journeys also test the pack |
+| Hub checks on `13966ba` (this docs-only merge), run [44867206566](https://github.com/arnoldkigozi0/swangz-gateway/actions/runs/44867206566) | python 3.10 and 3.12 **1533 tests each, OK (skipped=20)**; app-window 16 tests OK; browser job **success** | `13966ba` is the RC commit |
 
 ## 6. Honest blockers for the Saturday 20:00 status (all of them, whatever the new run says)
 
