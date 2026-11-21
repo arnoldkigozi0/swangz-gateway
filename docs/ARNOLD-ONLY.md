@@ -1,5 +1,26 @@
 # What only Arnold can do (10 November 2026)
 
+## 21 November: the one list
+
+As of main on 21 Nov 2026, everything left below is Arnold's: a decision, a purchase, an account, a real device or a real sign-in. The team has done the code side of each item and will not do the rest. The sections further down are the older detail; where they disagree, this list is newer.
+
+| # | Item | What is ready | Arnold's exact step |
+|---|---|---|---|
+| 1 | **Seedance: archive it, or keep it as part of Higgsfield AI** | Seedance has no gate host since #306. `/go/seedance` and `/device/open` refuse it by name ("opens inside Higgsfield AI") since #308 and #312, and a Seedance-only grant never opens higgsfield.ai (#314) | Say "archive Seedance", or "keep it" (it stays refused on its own, so people need a Higgsfield AI grant) |
+| 2 | **Adobe Premiere owning `adobe.com`** | Premiere's gate host is `adobe.com`, so every Adobe page not listed elsewhere counts as Premiere. Photoshop is on `photoshop.adobe.com` (#308, #310), and the Adobe ID sign-in hosts are no longer governed as Premiere (#318) | Confirm Premiere keeps `adobe.com`, or name the host it should have instead (Premiere is a desktop app, so it has no web address) |
+| 3 | **Notion AI address** | Open goes to `www.notion.so/product/ai`, a product page. Notion's help names `www.notion.com`, but the gate host is `notion.so`, and changing it moves the gate (#310) | Say whether Notion AI should move to `notion.com` (the gate host moves with it), or stay as it is |
+| 4 | **DALL-E** | DALL-E is retired in ChatGPT, and image generation is at `chatgpt.com/images` on ChatGPT's gate. DALL-E's gate host `openai.com` also covers `auth.openai.com`, ChatGPT's sign-in host (audit defect 3, #310) | Say "archive DALL-E" or "fold it into ChatGPT". Either one lets the team move `openai.com` off DALL-E |
+| 5 | **Official sign-in hosts** | `auth.openai.com` (ChatGPT) and `accounts.google.com` are listed as sign-in hosts. Tests show the lists are consistent and safe (#307, #313), but nobody has checked them against the providers' own documentation. The Adobe ID hosts were observed in a real browser (#311, #315) | Confirm from OpenAI's and Google's documentation (or a real sign-in, item 7) that these are the hosts, or tell the team which to use |
+| 6 | **Code-signing certificates** | CI builds unsigned installers. Desktop auto-update is off (`swangz_client/release_keys.py`, `ENABLED = False`) until builds are signed and you approve the release keys. macOS steps: `docs/MACOS-SIGNING.md` | Buy the Windows code-signing certificate and an Apple Developer ID, then approve the release keys |
+| 7 | **Real provider logins** | Sign-ins inside the Swangz workspace window were tested only up to the provider's page, without an account. The team holds no provider credentials and will not | In the workspace window, sign in to one provider yourself, close the window, reopen it and check you are still signed in (`docs/MANAGED-WORKSPACE.md` 9.3 step 2). For Adobe, a test Adobe or Google account is needed (#315) |
+| 8 | **Real-device checks: Windows and macOS** | CI builds the installers, and the device enrolment journeys pass on CI runners. Neither has been installed on a real staff computer | On one Windows PC and one Mac: install the RC, connect it at `/device` with your own account, open one tool, then disconnect it in the console and check the tool is removed |
+| 9 | **Real-device checks: Android and iPhone** | Mocked tests only; the staff web app has never been installed on a real phone | Follow the five steps in `docs/MOBILE-READINESS.md` on an Android phone and an iPhone, or lend the phones |
+| 10 | **Server (VPS) and domain** | Setup script, service files, health check and backup timers are in `deploy/`. `preflight` checks the address offline. Nothing has been run on a server | Rent the server, choose the name and add the DNS record (`docs/SERVER-DAY.md` sections 0 to 4) |
+| 11 | **Google sign-in client** | The return address follows `GATEWAY_WEB_URL`. `GATEWAY_REQUIRE_FIXED_RETURN=1` refuses Google sign-in unless the address is fixed | Create the Google web client with the return address `preflight` prints, and set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` on the server (`docs/SERVER-DAY.md` section 6) |
+| 12 | **Managed Chrome: the rest after the policy pack** | The pack and its README are in `deploy/chrome-policy/`, and `prepare.py` fills the placeholders. It has not been installed on any company computer. Until the extension id is filled in, it blocks sites but installs no extension | (a) Fill the three placeholders with `prepare.py`: `SWANGZ_HUB_HOST` (your domain, item 10), `SWANGZ_EXTENSION_ID` and `SWANGZ_EXTENSION_UPDATE_URL` (approve a Chrome Web Store developer account for an unlisted listing, or a self-hosted update file). (b) Name who installs it on company computers. (c) Decide groups G and H: downloads, and `AllowedDomainsForApps`, which blocks personal Google accounts, and with them the two approved owner exceptions, on company computers |
+
+The rest is the team's, not Arnold's: open reviews, CI and test gaps are in `docs/AGENT-PROGRESS.md`.
+
 ## Saturday 15 November: Arnold's order of the day (Kampala time)
 
 Detail for each server step is in `docs/SERVER-DAY.md`. Times are a suggestion; the team does none of this.
