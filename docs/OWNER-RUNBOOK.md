@@ -37,6 +37,16 @@ overwrites `.env`), re-running step 3 for Caddy, then steps 7 and 11 with the ne
 | 11 | Arnold (or the person with each device) | **Point the apps at the address** (`SERVER-DAY.md` section 9). **Staff web app:** give out `https://51-21-160-193.sslip.io/`. **Swangz desktop app:** an enrolled device keeps its old address, so run `swangz logout`, then `swangz login --server https://51-21-160-193.sslip.io` and approve the code in the browser. **Browser extension:** click its icon, **Sign out**, type `https://51-21-160-193.sslip.io`, sign in, **Connect**. **Managed Chrome pack** (company computers): `python3 deploy/chrome-policy/prepare.py --hub-host 51-21-160-193.sslip.io --extension-id <id> --update-url <url> --output <new file>` (`ARNOLD-ONLY.md` item 12; the extension id and update address are still Arnold's to supply). **Netlify:** only if it is kept, change `SWANGZ_GATEWAY` (`deploy/NETLIFY.md`) | The app says `Signed in as ...`; the extension says `Guarding N AI sites.` Extension and Chrome pack steps are UNVERIFIED on a real browser |
 | 12 | Arnold | **Cut over, then keep the way back** (`SERVER-DAY.md` section 11): leave the laptop serving until the server has been stable for a few days, then remove the laptop's old redirect URIs from the Google client | Staff use only the new address |
 
+**Google and the sslip.io name (step 7).** Google's documented redirect-URI rules (https, a name not a raw IP, a
+top-level domain on the public suffix list, exact match) do not rule the address out ([Manage OAuth
+Clients](https://support.google.com/cloud/answer/15549257)). Two things are UNVERIFIED: whether the Cloud Console lets
+you add `sslip.io` as an authorised domain ([Manage OAuth App
+Branding](https://support.google.com/cloud/answer/15549049)), and brand verification, which requires owning the domain
+but is not needed for an **Internal** app or one in **Testing** ([Manage App
+Audience](https://support.google.com/cloud/answer/15549945)). Check which user type the existing client uses. If
+Google refuses the redirect URI or the authorised domain, stop and move to a `swangzavenue.com` name (see the top of
+this page). Source: Probe's reading of Google's pages on 21 Nov; not tried in the console.
+
 Provider sign-in inside the managed Chrome is **Sign in with Google only, signed in by hand** by the person. The Hub
 never stores, shares or types a provider password (`CLAUDE.md`). Which Google hosts that sign-in needs is being
 checked by Probe from the providers' own documentation; the Chrome pack is extended after that (Forge).
