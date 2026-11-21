@@ -87,6 +87,18 @@ class PreflightTests(unittest.TestCase):
             for other in ("gmail.com", "swangzavenue.com.example", "evil-swangzavenue.com", "swangzavenue.co"):
                 self.assertIn("GATEWAY_COMPANY_DOMAIN", levels({**env, "GATEWAY_COMPANY_DOMAIN": other}, "fail"), other)
 
+    def test_another_company_domain_needs_a_matching_confirm(self):
+        other = {**GOOD, "GATEWAY_COMPANY_DOMAIN": "example.org"}
+        found = [r for r in preflight.check(other) if r[1] == "GATEWAY_COMPANY_DOMAIN"]
+        self.assertEqual(found[0][0], "fail")
+        self.assertIn("GATEWAY_COMPANY_DOMAIN_CONFIRM=example.org", found[0][2])
+        self.assertIn("GATEWAY_COMPANY_DOMAIN", levels({**other, "GATEWAY_COMPANY_DOMAIN_CONFIRM": "example.com"}, "fail"))
+        self.assertIn("GATEWAY_COMPANY_DOMAIN", levels({**other, "GATEWAY_COMPANY_DOMAIN_CONFIRM": "Example.org"}, "ok"))
+        self.assertNotIn("GATEWAY_COMPANY_DOMAIN", levels({**other, "GATEWAY_COMPANY_DOMAIN_CONFIRM": "example.org"}, "fail"))
+        for bad in ("@swangzavenue.com", "*.example.org", "bad domain"):  # start-up refuses these, so preflight must too
+            self.assertIn("GATEWAY_COMPANY_DOMAIN", levels({**GOOD, "GATEWAY_COMPANY_DOMAIN": bad,
+                                                            "GATEWAY_COMPANY_DOMAIN_CONFIRM": bad}, "fail"), bad)
+
     def test_proxy_and_cookie_settings(self):
         self.assertIn("GATEWAY_TRUST_PROXY", levels({**GOOD, "GATEWAY_TRUST_PROXY": ""}, "fail"))
         self.assertIn("GATEWAY_HOST", levels({**GOOD, "GATEWAY_HOST": "0.0.0.0"}, "warn"))

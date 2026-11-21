@@ -67,11 +67,23 @@ def check(env):
             add("fail", "GATEWAY_CORS_ORIGINS", f"{origin!r} must be one exact https address (no wildcard, no path)")
 
     # Whoever signs in, by password or Google: the account rule is this one domain (plus the approved exceptions).
-    domain = get("GATEWAY_COMPANY_DOMAIN").strip().lower().lstrip("@")
-    if domain and domain != "swangzavenue.com":
-        add("fail", "GATEWAY_COMPANY_DOMAIN", "must be swangzavenue.com (or unset); another domain would let its accounts sign in")
-    else:
-        add("ok", "GATEWAY_COMPANY_DOMAIN", "swangzavenue.com" + ("" if domain else " (default)"))
+    # Another domain must be confirmed by name: this one value decides who may sign in, so a typo or a value copied from
+    # another deployment would let another organisation's accounts in (Sentinel's #323 ruling).
+    from .config import COMPANY_DOMAIN, _company_domain
+    raw = get("GATEWAY_COMPANY_DOMAIN")
+    try:
+        domain = _company_domain(raw)
+    except ValueError as e:
+        domain = None
+        add("fail", "GATEWAY_COMPANY_DOMAIN", str(e))
+    if domain == COMPANY_DOMAIN:
+        add("ok", "GATEWAY_COMPANY_DOMAIN", COMPANY_DOMAIN + ("" if raw.strip() else " (default)"))
+    elif domain:
+        if get("GATEWAY_COMPANY_DOMAIN_CONFIRM").strip().lower() == domain:
+            add("ok", "GATEWAY_COMPANY_DOMAIN", f"{domain} (confirmed); accounts on {COMPANY_DOMAIN} can no longer sign in")
+        else:
+            add("fail", "GATEWAY_COMPANY_DOMAIN", f"{domain} decides who may sign in: set GATEWAY_COMPANY_DOMAIN_CONFIRM={domain} "
+                "to confirm it. Existing accounts on another domain are not moved and lose sign-in")
 
     cid, secret, fixed = get("GOOGLE_CLIENT_ID"), get("GOOGLE_CLIENT_SECRET"), get("GOOGLE_REDIRECT_URI")
     if bool(cid) != bool(secret):
