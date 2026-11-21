@@ -175,11 +175,13 @@ def _start_session(ctx, person_id):
     return {"Set-Cookie": _session_cookie(ctx, token, SESSION_SECONDS)}
 
 
-def new_invite(db, person_id):
+def new_invite(db, person_id, settings=None):
     """A one-time sign-in link token, valid for a week. Only its hash is stored."""
     person = db.one("SELECT email FROM people WHERE id=?", (person_id,))
-    from .config import Settings
-    if not person or not Settings().email_allowed(person["email"]):
+    if settings is None:  # the running gateway passes its own; never fall back to the built-in domain
+        from .config import Settings
+        settings = Settings.from_env()
+    if not person or not settings.email_allowed(person["email"]):
         raise ValueError("Only approved company identities can receive an invitation.")
     token = secrets.token_urlsafe(24)
     db.x("UPDATE people SET invite_hash = ?, invite_expires = ? WHERE id = ?",
