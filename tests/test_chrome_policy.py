@@ -17,7 +17,7 @@ KNOWN = {"URLBlocklist", "URLAllowlist", "BrowserSignin", "SyncDisabled", "Brows
 SIGN_IN = {".accounts.google.com", ".accounts.youtube.com", "login.microsoftonline.com", "login.live.com",
            "appleid.apple.com", "github.com/login", "github.com/session", "github.com/sessions",
            "www.google.com/recaptcha", "challenges.cloudflare.com", "hcaptcha.com",
-           ".ims-na1.adobelogin.com"}  # Adobe ID's token callback for Photoshop on the web (exact host)
+           ".ims-na1.adobelogin.com"}  # Adobe ID (Photoshop, Firefly): exact host only
 EXTENSION = re.compile(r"SWANGZ_EXTENSION_ID|[a-p]{32}")
 
 
