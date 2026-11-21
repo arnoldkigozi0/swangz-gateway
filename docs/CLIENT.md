@@ -312,7 +312,7 @@ extension session of such a person gets `401`; the proxy, `/device` and device k
 (`{"ok": true, "paused": true}`); `POST /api/extension/login` and invites still answer `403 person_paused`, and a wrong password is
 still the same `401` whatever the status. Suspending someone through the console still deletes their sessions. Google sign-in
 applies the same rule, and for everyone but the two approved owner addresses it requires the ID token's own `hd` claim to equal
-the company domain (`GATEWAY_COMPANY_DOMAIN`, default `swangzavenue.com`) as well as the email suffix. Any domain other than the default must be confirmed by name (`GATEWAY_COMPANY_DOMAIN_CONFIRM=<the same domain>`), or `preflight` fails: accounts on another domain are not moved and lose sign-in.
+the company domain (`GATEWAY_COMPANY_DOMAIN`, default `swangzavenue.com`) as well as the email suffix. Any domain other than the default must be confirmed by name (`GATEWAY_COMPANY_DOMAIN_CONFIRM=<the same domain>`), or `preflight` fails: accounts on another domain are not moved and lose sign-in. Only `preflight` checks the confirmation; the gateway does not check it at start-up and accepts any valid `GATEWAY_COMPANY_DOMAIN`, so run `preflight` before starting a deployment with a new domain.
 
 `device_unknown` keeps local data and asks the person to retry or reconnect. Only explicit
 `device_revoked` triggers automatic removal. Failed native deletion keeps a local cleanup marker with the
