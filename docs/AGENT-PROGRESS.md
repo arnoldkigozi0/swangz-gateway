@@ -1685,3 +1685,6 @@ Pre-release "RC — UNSIGNED — INTERNAL TEST ONLY", tag `rc-unsigned-20261120-
 - Windows: `release-windows.yml` run 44724106592, success. `Swangz-Setup-0.1.71-UNSIGNED.exe`, sha256 `501da26e4c1df5fae1a9df879a108c6c4812c43f5e064a88e7ad4ab7d43f8d7f`
 - macOS: `build-macos.yml` run 44724112936, success. `Swangz-0.1.89-RC-UNSIGNED-macos-arm64.dmg`, sha256 `5b41b13b245c0d196ee2ad6cadbfb5601d363a35a3ce105f08219dd56d1ecda7`
 - Attached: both `.sha256` files, both CycloneDX SBOMs, an evidence zip per run, `SHA256SUMS` covering every file, and `RELEASE-LABEL.txt`. Both `.sha256` files were checked with `sha256sum -c` (OK), and the secret scans in the evidence show 0 hits. Unsigned, updates off; owner checks O-1 to O-7 still open.
+
+## 22 Nov 21:30 note (Chief)
+Daily report in docs/daily/2026-11-22.md. GitHub unreachable, so PR and CI state are unconfirmed. #331 merged 04:00. No WIP is parked. Next shift: retry gh, then land green PRs and assign Forge and Prism tasks.
