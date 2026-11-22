@@ -4,7 +4,7 @@ import json
 import time
 import unittest
 
-from gateway import security, turns
+from gateway import reporting, security, turns
 
 from .support import Rig
 from .test_portal import PortalBase
@@ -46,7 +46,8 @@ class TakingATurnTests(TurnBase):
         self.assertEqual((status, h["location"]), (302, "https://www.midjourney.com/"))
         turn = self.rig.gw.db.one("SELECT * FROM tool_turns WHERE ended IS NULL")
         self.assertEqual((turn["tool_id"], turn["person_id"]), ("midjourney", self.rig.person_id))
-        self.assertAlmostEqual(turn["expires"] - turn["started"], 3600, delta=2)
+        # a turn never outlives the reporting week, so in the last hour of the week it is shorter than an hour
+        self.assertAlmostEqual(turn["expires"], min(turn["started"] + 3600, reporting.week(self.rig.gw)["ends"]), delta=2)
         # the staff app shows she is holding it, and until when
         me = self.staff("GET", "/me")[1]
         mj = next(t for t in me["catalog"] if t["id"] == "midjourney")

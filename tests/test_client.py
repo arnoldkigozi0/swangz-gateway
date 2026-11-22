@@ -101,6 +101,29 @@ class SignInTests(ClientBase):
             self.client.login(self.server, "x", timeout=0)
         self.assertEqual(caught.exception.code, "expired_token")
 
+    def test_a_dropped_connection_while_waiting_does_not_end_the_sign_in(self):
+        """Seen on a lossy Wi-Fi: one timed-out poll ended the sign-in, and the code approved a moment later was never
+        collected. Waiting rides out dropped connections until the code expires."""
+        real, drops = self.client._api_factory, {"left": 2}
+
+        def factory(server):
+            api = real(server)
+            call = api.call
+
+            def flaky(method, path, *a, **kw):
+                if path == "/device/token" and drops["left"]:
+                    drops["left"] -= 1
+                    raise core.ApiFailure(0, "offline", f"Couldn't reach {server} (timed out).")
+                return call(method, path, *a, **kw)
+            api.call = flaky
+            return api
+        self.client._api_factory = factory
+        info = self.client.login(self.server, "Grace's laptop")
+        self.assertEqual(drops["left"], 0)
+        self.assertEqual(info["owner_kind"], "personal")
+        self.assertTrue(self.client.signed_in())
+        self.assertEqual(self.gw.db.scalar("SELECT COUNT(*) FROM devices"), 1)
+
     def test_cancelling_stops_waiting(self):
         self.client.open_url = lambda url: None
         with self.assertRaises(core.ApiFailure) as caught:
