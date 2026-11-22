@@ -710,7 +710,9 @@ class Client:
             try:
                 out = api.call("POST", "/device/token", {"device_code": started["device_code"]}, auth=False)
             except ApiFailure as exc:
-                if exc.code == "authorization_pending":
+                # A dropped connection while waiting is not an answer: keep asking until the code expires. Giving up
+                # here would strand a code the person approves a moment later.
+                if exc.code in ("authorization_pending", "offline"):
                     continue
                 if exc.code == "slow_down":
                     interval += 5
