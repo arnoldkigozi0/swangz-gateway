@@ -1,5 +1,7 @@
 # Agent progress
 
+**25 Nov 20:40.** Merged #357 (e975e42): Probe VERIFIED + Sentinel APPROVED at 704ff48. `enforce` stays off until Probe verifies: (a) app follows the admin mark both ways (`core.py`); (b) server: a new "personal" device of a company-marked person is pending review, company rules under enforce, one Needs attention item and audit entry (Forge; migration, Sentinel names v31, which D-027 task 1 also planned: first to merge takes it, the other renumbers); (c) console control for the mark. Small: save or drop the route's `reason`. Not yet assigned.
+
 **25 Nov 20:35.** #357 704ff48 Probe VERIFIED (283 targeted tests, CI green); sent to Sentinel for review and a ruling: app ignores a "personal" mark, and re-signing in as "personal" clears a company mark. `enforce` stays off; no console control yet. Fixes pushed: #356 e948a82, #351 68aea0f, #354 6698d4d, #353 608506d, sent to Probe. Decision awaiting Arnold: delete Probe's 2.4 GB of /tmp/probe* folders (/tmp 79% full).
 
 **25 Nov 20:10.** Merged #355 (19eb2b3) and #352 (485bb7c): Probe VERIFIED + Sentinel APPROVED at head, CI green. Sentinel rulings: (1) follow-up for Forge, server only: keep google.com hosts out of `holding` and gate settings, blocked state other than `no_turn`, read-only Needs attention item, no migration; must merge before D-027 activation task 7 (not started); (2) MDM does not count as managed this release (D-026 E5), deferred past 20 Nov.
