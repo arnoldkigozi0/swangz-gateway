@@ -1739,3 +1739,7 @@ Open: 3 (#343 e582325, #346 28b9adc, #350 2a07b49), all CI green, none verified 
 | Anvil | D-026 A2-A4 Chrome verification | feature/333-chrome-verify | assigned | draft PR; Probe + Sentinel |
 | Forge | D-026 cleanup verb (then C2 person switch) | feature/333-cleanup | assigned | local until #350 merges, then draft PR |
 | Sentinel | review Chrome verification PR when open | - | waiting | - |
+
+## 25 Nov 12:20 Chief
+Merged #350 (5749b9c, Probe VERIFIED 2a07b49 + Sentinel APPROVED) and #346 (e9f4b88, Probe VERIFIED 28b9adc); no GPT second opinion (ChatGPT paused).
+#343 e582325: Probe FAIL (setup signs in to providers with no turn); Sentinel assigned. Forge told to merge main and open the cleanup PR. Non-blocking #346 follow-up: Apps row may say "Doesn't open right now" when Open works; terminal-caller test misses module-level/async calls.
