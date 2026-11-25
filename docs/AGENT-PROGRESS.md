@@ -1715,3 +1715,14 @@ Awaiting Arnold: shared accounts inside the app's managed Chrome? A keep refused
 ## 25 Nov 06:05 Chief (correction to the 06:00 note)
 Forge replied: its two merged slices have nothing unfinished. `feature/333-no-fallback` (worktree .worktrees/333-no-fallback) is NOT clean: uncommitted changes to docs/CLIENT.md, swangz_client/{core,repair,workspace_launcher}.py, tests/test_client_gui.py and new tests/test_no_fallback.py; no commit, remote branch or PR; another session was still running tests at 06:05. WIP commit and push NOT confirmed.
 Next (08:00): check for the commit/push; if missing and nothing is running there, confirm the owner, run `python3 -m unittest tests.test_client_gui tests.test_no_fallback`, commit as WIP, push, draft PR if green (WIP limit allows). Read D-026 (#338, 725bffe) before more install or policy code.
+
+## 25 Nov 10:00 Chief (shift end)
+Merged 08:00-10:00: 4 (#341 docs, #342, #345, #347). #339 and #340 merged just before the shift (06:55, 07:04). Open: 5. All 333 worktrees checked (no-fallback, shared-wording-clean, signout-checks, probe-333, 333-followups) are clean and tracking their remotes; the 06:05 uncommitted no-fallback work is no longer pending (#339). Stop messages sent to Forge and Probe; replies pending.
+| PR | Head | State at 10:00 | Next step |
+|---|---|---|---|
+| #338 D-026 | 896d620 | ready, checks pass, mergeable | merge at next shift start after rechecking gates |
+| #343 D-027 shared account, option B | d14eab7 | draft, checks pass | confirm Arnold's decision on A/B before merging |
+| #346 shared wording / no-fallback scan | 28b9adc | draft, 3 checks pending | check CI, Probe verifies this head, then merge |
+| #348 D-026 wording in acceptance doc | a2c4ff1 | draft, checks pass | merge after #338 |
+| #349 sign-out checks and messages | b03f90e | draft, 4 checks pending | check CI, Probe verifies, then merge |
+Not run by Chief: any local test, build or physical-device check.
