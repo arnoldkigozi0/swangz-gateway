@@ -99,8 +99,8 @@ control room.
 
 | | Sign out | Uninstall |
 |---|---|---|
-| **Windows** | In the app: This device → **Sign out and remove Swangz from this device** | Settings → Apps → Installed apps → Swangz → Uninstall. The uninstaller stops a running Swangz, runs `Swangz.exe logout`, and then removes the program, the shortcuts, the start-at-sign-in entry and the Apps & features entry |
-| **macOS** | In the app: This device → **Sign out and remove Swangz from this device**. In Terminal: `/Applications/Swangz.app/Contents/MacOS/Swangz logout` (`swangz` is not on PATH on a Mac) | Sign out first, then drag Swangz from Applications to the Bin. Signing out removes the login item |
+| **Windows** | In the app: This device → **Sign out and disconnect this device** | Settings → Apps → Installed apps → Swangz → Uninstall. The uninstaller stops a running Swangz, runs `Swangz.exe logout`, and then removes the program, the shortcuts, the start-at-sign-in entry and the Apps & features entry |
+| **macOS** | In the app: This device → **Sign out and disconnect this device**. In Terminal: `/Applications/Swangz.app/Contents/MacOS/Swangz logout` (`swangz` is not on PATH on a Mac) | Sign out first, then drag Swangz from Applications to the Bin. Signing out removes the login item |
 | **Older copy refused (macOS, exit 5)** | Choose **Sign out** in the refusal dialog (unit-tested; not run in the packaged app), or run the Terminal command above | Then install the newer build |
 
 After sign-out the data folder keeps only `browser-profiles`. This is by design (R-12): each company-browser

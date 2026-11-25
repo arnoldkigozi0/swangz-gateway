@@ -159,6 +159,12 @@ def say_repair(fix):
         say(line)
 
 
+def browser_folders_stay(client):
+    """Until deletion is built (#333), logout and cleanup leave the company-browser folders on disk; say so."""
+    return ("Not removed: browser folders that hold provider and Google sign-ins stay on this device at "
+            f"{client.paths.data / 'browser-profiles'}. Delete that folder yourself if you need those sign-ins gone.")
+
+
 def run(args, client):
     cmd = args.cmd
     if cmd in (None, "gui"):
@@ -238,11 +244,15 @@ def run(args, client):
         return 0
     if cmd == "logout":
         told = client.logout()
-        say("Swangz has been removed from this device." + ("" if told else " (The server couldn't be reached, so ask an admin to disconnect this device too.)"))
+        say("Signed out: the coding agents and packages Swangz installed were taken off this device."
+            + ("" if told else " (The server couldn't be reached, so ask an admin to disconnect this device too.)"))
+        say(browser_folders_stay(client))
         return 0
     if cmd == "cleanup":
         client.remove_everything()
-        say("Local Swangz data removed. Disconnect this device in the Hub if it is still enrolled.")
+        say("Swangz's installed agents, packages and key were removed. Disconnect this device in the Hub if it is "
+            "still enrolled.")
+        say(browser_folders_stay(client))
         return 0
     return 1
 
