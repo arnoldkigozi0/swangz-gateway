@@ -1,5 +1,7 @@
 # Agent progress
 
+**25 Nov 20:35.** #357 704ff48 Probe VERIFIED (283 targeted tests, CI green); sent to Sentinel for review and a ruling: app ignores a "personal" mark, and re-signing in as "personal" clears a company mark. `enforce` stays off; no console control yet. Fixes pushed: #356 e948a82, #351 68aea0f, #354 6698d4d, #353 608506d, sent to Probe. Decision awaiting Arnold: delete Probe's 2.4 GB of /tmp/probe* folders (/tmp 79% full).
+
 **25 Nov 20:10.** Merged #355 (19eb2b3) and #352 (485bb7c): Probe VERIFIED + Sentinel APPROVED at head, CI green. Sentinel rulings: (1) follow-up for Forge, server only: keep google.com hosts out of `holding` and gate settings, blocked state other than `no_turn`, read-only Needs attention item, no migration; must merge before D-027 activation task 7 (not started); (2) MDM does not count as managed this release (D-026 E5), deferred past 20 Nov.
 
 **25 Nov 20:00 shift.** Budget: Claude and ChatGPT both PAUSED, so lean shift, no new build tasks, Prism none. Merged: 0. Open drafts: 7. Assigned: Sentinel reviews #355 then #352 (both Probe VERIFIED, CI green; merge on APPROVED); Forge fixes #354 then #353; Anvil fixes #356 then #351; Probe clears own /tmp folders, verifies #357, then re-checks fixes. D-027 task 1 held.
