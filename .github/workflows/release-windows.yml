@@ -1,12 +1,14 @@
 name: Windows installer (RC, UNSIGNED)
 # Builds the Windows installer and runs the install (previous build) -> launch -> enrol -> restart -> reconnect -> upgrade to this
 # build over a running copy -> uninstall while running
-# acceptance against the test suite's local Hub. Test artifacts only: no signing, no release, no deployment.
+# acceptance against the test suite's local Hub; then the company installer (one-folder program, all users, D-026 B5) and its
+# own acceptance. Test artifacts only: no signing, no release, no deployment.
 on:
   pull_request:
     paths:
       - 'packaging/**'
       - 'swangz_client/**'
+      - 'deploy/chrome-policy/prepare.py'
       - '.github/workflows/release-windows.yml'
   workflow_dispatch:
 permissions:
@@ -112,12 +114,38 @@ jobs:
         run: >-
           python packaging/windows/installer_e2e.py --setup $env:SETUP --evidence evidence
           --previous $env:PREVIOUS_SETUP --previous-version $env:PREVIOUS_VERSION --new-version $env:NEW_VERSION
+      - name: Build the company program (one folder) and its installers
+        # D-026 B5: one folder, so nothing is unpacked into a person's %TEMP%. Both installers hold this program; the one
+        # labelled with the previous version is a test input for the upgrade and downgrade steps and is not uploaded.
+        run: |
+          python packaging/build.py --company
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $env:ISCC /Qp "/DAppVersion=$env:PREVIOUS_VERSION" "/DSourceFolder=$PWD\dist-company\Swangz" "/DOutputDir=$PWD\previous" packaging\windows\swangz-company.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $env:ISCC /Qp "/DAppVersion=$env:NEW_VERSION" "/DSourceFolder=$PWD\dist-company\Swangz" "/DOutputDir=$PWD\artifacts" packaging\windows\swangz-company.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $name = "Swangz-Company-Setup-$env:NEW_VERSION-UNSIGNED.exe"
+          $hash = (Get-FileHash "artifacts\$name" -Algorithm SHA256).Hash.ToLower()
+          [IO.File]::WriteAllText("$PWD\artifacts\$name.sha256", "$hash  $name`n")
+          "COMPANY_SETUP=artifacts\$name" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "COMPANY_PREVIOUS_SETUP=previous\Swangz-Company-Setup-$env:PREVIOUS_VERSION-UNSIGNED.exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          python packaging/sbom.py --program dist-company\Swangz --artifact "artifacts\$name" --version $env:NEW_VERSION `
+          --requirements packaging\requirements-windows-build.txt --epoch $env:SOURCE_DATE_EPOCH `
+          --out artifacts\Swangz-Company-$env:NEW_VERSION.cdx.json
+          if ($LASTEXITCODE -ne 0) { throw "company SBOM failed" }
+          & "$env:RUNNER_TEMP\cyclonedx.exe" validate --input-file artifacts\Swangz-Company-$env:NEW_VERSION.cdx.json --input-format json --input-version v1_5 --fail-on-errors
+          if ($LASTEXITCODE -ne 0) { throw "the company SBOM is not valid CycloneDX 1.5" }
+      - name: Company installer acceptance (all users, pinned values, permissions, upgrade, downgrade, uninstall)
+        run: >-
+          python packaging/windows/company_e2e.py --setup $env:COMPANY_SETUP --evidence evidence\company
+          --previous $env:COMPANY_PREVIOUS_SETUP --previous-version $env:PREVIOUS_VERSION --new-version $env:NEW_VERSION
       - name: Secret scan (program, installer, checksum, label and the acceptance logs)
         # Fails on any embedded key, token, private key, .env file or deployment address (packaging/secret_scan.py).
         # The installer's payload is compressed; its contents are dist\Swangz.exe (opened entry by entry) and swangz.iss.
         run: >-
           python packaging/secret_scan.py --report evidence\secret-scan.json --summary $env:GITHUB_STEP_SUMMARY
           --min-archives 1 dist artifacts evidence packaging\windows\swangz.iss
+          dist-company packaging\windows\swangz-company.iss
       - uses: actions/upload-artifact@v4
         with:
           name: Swangz-Windows-installer-RC-UNSIGNED

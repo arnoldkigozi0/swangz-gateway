@@ -91,6 +91,11 @@ base URLs must remain on that origin and use `/anthropic` or `/openai/v1`; downl
 redirects are checked too. Configuration rejects quotes, backslashes and controls rather than interpolating
 server-controlled executable configuration.
 
+**Company build on Windows.** A company computer can have the app installed for all users into `%ProgramFiles%\Swangz`
+by an administrator, with the company's pinned values recorded in `HKLM` (`packaging/README.md`, "Company installer").
+The install does not make a device a company device: enrolment still decides that. Uninstalling the company build does
+not sign anyone out; sign out in the app first, or disconnect the device in the console.
+
 ## What is recorded — and what is not
 
 The device's name, operating system, app version, which packages are installed, when it last checked in; and

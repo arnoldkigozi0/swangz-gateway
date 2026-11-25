@@ -134,4 +134,47 @@ These stay on the owner checklist.
 
 Each run also builds the program and installer a second time from the same tree and compares them byte for byte
 (`packaging/reproducible.py`, with `SOURCE_DATE_EPOCH` = the commit time). The measured result and its scope are in
-`packaging/RELEASE-NOTES-RC.md`.
+`packaging/RELEASE-NOTES-RC.md`. The company build below is not part of that comparison.
+
+## Company installer (company computers, RC — UNSIGNED — INTERNAL TEST ONLY)
+
+The installer above is for a person's own computer and does not change. A company computer can have the company build
+instead (`docs/DECISIONS.md` D-026 B4, B5, B7):
+
+- `python packaging/build.py --company` (Windows only) builds a PyInstaller **one-folder** program,
+  `dist-company\Swangz\` (`Swangz.exe` and `_internal`). A one-file program unpacks itself into the person's `%TEMP%`
+  on every start, where that person's other programs can replace what it loads.
+- `packaging/windows/swangz-company.iss` wraps that folder as `Swangz-Company-Setup-<version>-UNSIGNED.exe`. It has its
+  own application identity, so it never overwrites or uninstalls a person's own install.
+
+An administrator installs it from an elevated prompt:
+
+```
+Swangz-Company-Setup-<version>-UNSIGNED.exe /ALLUSERS /HUBHOST=<Hub host name> /EXTENSIONID=<32 letters a-p> /EXTENSIONUPDATEURL=<https update address>
+```
+
+- Without `/ALLUSERS` it refuses to run. It installs into `%ProgramFiles%\Swangz` and refuses any other folder, so only
+  administrators can change the program.
+- The three values are recorded in `HKLM\Software\Swangz\Pinned` (64-bit view) as `hub_host`, `extension_id` and
+  `extension_update_url`. Pass all three or none: some of them is refused, and an upgrade without them keeps the
+  recorded ones. The installer only checks that they were typed whole. `deploy/chrome-policy/prepare.py` decides
+  whether they are acceptable, when the policy step that reads them exists.
+- An older version never replaces a newer one. An upgrade removes the previous `_internal` folder first.
+- It adds a Start-menu entry for everyone and an optional desktop shortcut. It does not start the app, add a start-up
+  entry or a service, install a browser or write any Chrome policy.
+- Uninstalling stops every running copy and removes the program, the shortcuts and the recorded values. **It does not
+  sign anyone out**, because that would run the app with administrator rights over files a person can edit. Each person
+  signs out in the app first, or an administrator disconnects the device in the console. Data under each person's
+  profile, including the Swangz browser folders, stays on the computer, as does a person's own "Start with Windows"
+  entry if they switched it on.
+
+Not built yet: the app does not read the recorded values, does not offer any administrator step, and the per-person app
+does not yet tell people to ask for the company build. A person's own install on the same computer is left in place;
+remove it from that person's account before using the company one.
+
+The same workflow builds both company files (the installer and its `.sha256`, with a CycloneDX SBOM
+`Swangz-Company-<version>.cdx.json`) and runs `packaging/windows/company_e2e.py` on the runner: refused without
+`/ALLUSERS`, with some of the values and into another folder; installed with the values; the owner and write
+permissions of every installed item; the installed program's self-check; upgrade, refused downgrade and uninstall. The
+runner is already an administrator, so the Windows consent prompt and a standard user's attempts to change the files
+are not exercised. That needs a physical computer.
