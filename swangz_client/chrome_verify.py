@@ -127,8 +127,8 @@ def _powershell(env):
 
 
 def check_windows(binary, run=subprocess.run, env=None):
-    env = dict(os.environ if env is None else env)
-    env.pop("PSModulePath", None)  # PowerShell 7's module path breaks Windows PowerShell's own Security module
+    # PowerShell 7's module path breaks Windows PowerShell's own Security module; Windows keys are case-insensitive.
+    env = {k: v for k, v in (os.environ if env is None else env).items() if k.upper() != "PSMODULEPATH"}
     env["SWANGZ_CHROME_PATH"] = binary
     try:
         done = run([_powershell(env), "-NoProfile", "-NonInteractive", "-Command", _PS_SCRIPT], capture_output=True,

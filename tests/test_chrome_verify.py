@@ -73,7 +73,7 @@ class Stat:
 
 
 def windows(run, stat=None):
-    return cv.Verifier("win32", run=run, env=WIN_ENV, stat=stat or Stat(), realpath=lambda p: p, digest=lambda p: "ab")
+    return cv.Verifier("win32", run=run, env=dict(WIN_ENV, PSModulePath=r"C:\pwsh\Modules"), stat=stat or Stat(), realpath=lambda p: p, digest=lambda p: "ab")
 
 
 def mac(run, stat=None):
@@ -109,6 +109,7 @@ class WindowsTests(unittest.TestCase):
         argv, kw = run.calls[0]
         self.assertEqual(argv[0], os.path.join(r"C:\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe"))
         self.assertEqual(kw["env"]["SWANGZ_CHROME_PATH"], WIN_PF)
+        self.assertNotIn("PSMODULEPATH", {k.upper() for k in kw["env"]})
         self.assertNotIn(WIN_PF, " ".join(argv))  # the path never becomes script text
         self.assertFalse(kw["shell"])
 
@@ -298,6 +299,7 @@ class NativeWindowsTests(unittest.TestCase):
         with self.assertRaises(cv.Refused) as caught:
             cv.Verifier()(sys.executable, company=False)  # python.exe: signed, but not by Google
         print("\n  python.exe:", caught.exception)
+        self.assertNotIn("could not be read", str(caught.exception))  # refused for its signer, not for a broken check
 
     def test_an_unsigned_or_damaged_copy_is_refused(self):
         tmp = tempfile.mkdtemp()
@@ -305,15 +307,19 @@ class NativeWindowsTests(unittest.TestCase):
         blank = os.path.join(tmp, "chrome.exe")
         with open(blank, "wb") as f:
             f.write(b"MZ" + b"\0" * 1024)
-        with self.assertRaises(cv.Refused):
+        with self.assertRaises(cv.Refused) as caught:
             cv.Verifier()(blank, company=False)
+        print("\n  blank:", caught.exception)
+        self.assertIn("Authenticode status", str(caught.exception))
         chrome = _program_files_chrome()
         if chrome:
             cut = os.path.join(tmp, "cut.exe")
             with open(chrome, "rb") as src, open(cut, "wb") as dst:
                 dst.write(src.read(os.path.getsize(chrome) // 2))
-            with self.assertRaises(cv.Refused):
+            with self.assertRaises(cv.Refused) as caught:
                 cv.Verifier()(cut, company=False)
+            print("\n  truncated:", caught.exception)
+            self.assertIn("Authenticode status", str(caught.exception))
 
 
 @unittest.skipUnless(sys.platform == "darwin", "real codesign and spctl checks run on macOS only")
@@ -331,8 +337,22 @@ class NativeMacTests(unittest.TestCase):
         safari = "/Applications/Safari.app/Contents/MacOS/Safari"
         if not os.path.isfile(safari):
             self.skipTest("no Safari")
-        with self.assertRaises(cv.Refused):
+        with self.assertRaises(cv.Refused) as caught:
             cv.Verifier()(safari, company=False)
+        print("\n  Safari:", caught.exception)
+
+    def test_report_how_codesign_sees_the_runner_chrome(self):
+        """Evidence only, never fails: which codesign variants accept this machine's Chrome, and its extended
+        attributes. The runner's copy has been refused by --strict for Finder detritus in a helper app."""
+        app = "/Applications/Google Chrome.app"
+        if not os.path.isdir(app):
+            self.skipTest("no Google Chrome in /Applications on this machine")
+        for flags in (["--deep", "--strict"], ["--strict"], ["--deep"], []):
+            done = subprocess.run([cv.CODESIGN, "--verify", *flags, "-R=" + cv.MAC_REQUIREMENT, app],
+                                  capture_output=True, text=True)
+            print("\n  codesign --verify", " ".join(flags), "->", done.returncode, done.stderr.strip()[:300])
+        done = subprocess.run(["/usr/bin/xattr", "-lr", app], capture_output=True, text=True)
+        print("\n  xattr:", "\n".join(l for l in done.stdout.splitlines() if "quarantine" not in l)[:1500])
 
 
 if __name__ == "__main__":
