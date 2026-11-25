@@ -1,5 +1,7 @@
 # Agent progress
 
+**25 Nov 21:35 daily report** (docs/daily/2026-11-25.md). 21 merged today, open #353 only (head a9276d5; CI pending: browser, macos, python (3.10), python (3.12); failed: none). Main 801f37d CI: Hub checks in_progress. Next at 00:00: confirm main CI; #353 CI, Probe, Sentinel; Probe post-merge check of #339 (no verdict on the PR). hub.ictconnect.org runs 7c20711, 108 commits behind main (Arnold's deploy decision).
+
 **25 Nov 21:10.** Merged #351 (fdcfa81), #356 (b3864f4), #354 (801f37d): Probe VERIFIED + Sentinel APPROVED, CI green. Open: #353 only; Forge building Sentinel's ruling (then Probe, then full Sentinel review). Before release (Forge, unassigned): delete the same person's folders from an older device sign-in and amend D-026 C4. #356 Low note on the PR.
 
 **25 Nov 21:02.** Probe posted: VERIFIED #356 e948a82, #351 68aea0f, #354 6698d4d (all await Sentinel); FAIL #353 608506d (Administrator account refused; awaits Sentinel ruling, then Forge; rebase after #354).
