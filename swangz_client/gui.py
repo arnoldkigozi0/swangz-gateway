@@ -13,14 +13,13 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from . import __version__, core, repair, shell
-from .workspace_launcher import INSTALL_PAGE
+from .workspace_launcher import INSTALL_PAGE, profiles_folder
 
 def browser_folders_stay(data):
     """Until deletion is built (#333), sign out leaves the company-browser folders on disk; say so rather than promise
-    more. The folder is named by browser_profiles alone (tests/test_workspace_launcher inventory)."""
-    from .browser_profiles import Profiles
+    more. The folder is named by browser_profiles alone, reached through the launcher (inventory and import guards)."""
     return ("Browser folders that hold your provider and Google sign-ins are not removed yet. They stay on this "
-            f"device at {Profiles(data).root}; delete that folder yourself if you need those sign-ins gone.")
+            f"device at {profiles_folder(data)}; delete that folder yourself if you need those sign-ins gone.")
 
 C = dict(bg="#0b0b0c", panel="#141416", raised="#1c1c1f", line="#2a2a2e", text="#ece9e2", muted="#9a978f",
          gold="#c8a96a", gold_hi="#e2c88d", bad="#e07a6b", ok="#7bd3a7")

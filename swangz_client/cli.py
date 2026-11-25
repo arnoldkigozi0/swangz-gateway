@@ -163,10 +163,9 @@ def say_repair(fix):
 
 def browser_folders_stay(client):
     """Until deletion is built (#333), logout and cleanup leave the company-browser folders on disk; say so. The
-    folder is named by browser_profiles alone (tests/test_workspace_launcher inventory)."""
-    from .browser_profiles import Profiles
+    folder is named by browser_profiles alone, reached through the launcher (inventory and import guards)."""
     return ("Not removed: browser folders that hold provider and Google sign-ins stay on this device at "
-            f"{Profiles(client.paths.data).root}. Delete that folder yourself if you need those sign-ins gone.")
+            f"{workspace_launcher.profiles_folder(client.paths.data)}. Delete that folder yourself if you need those sign-ins gone.")
 
 
 def run(args, client):
