@@ -676,13 +676,13 @@ def suspend_person(ctx, pid, action):
 @route("POST", r"/people/(?P<pid>\d+)/keys", area="govern")
 def issue_key(ctx, pid):
     pid = int(pid)
-    person = ctx.db.one("SELECT name,email FROM people WHERE id = ?", (pid,))
+    person = ctx.db.one("SELECT * FROM people WHERE id = ?", (pid,))  # key_scope reads grants and status from the row
     if not person:
         raise ApiError(404, "no such person")
     if not ctx.gw.settings.email_allowed(person["email"]):
         raise ApiError(400, ctx.gw.settings.email_rule())
     from . import reporting
-    tool_id = reporting.key_scope(ctx.db, pid, ctx.body.get("tool_id"))
+    tool_id = reporting.key_scope(ctx.db, person, ctx.body.get("tool_id"))
     label = str(ctx.body.get("label") or "").strip()[:80] or "key"
     key_id, full, secret_hash, hint = security.new_key()
     ctx.db.x("INSERT INTO keys(id, person_id, label, secret_hash, hint, created, created_by) VALUES(?,?,?,?,?,?,?)",
