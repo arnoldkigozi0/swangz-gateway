@@ -6,7 +6,9 @@
     swangz open TOOL            open a website tool through Swangz
     swangz run claude|codex …   run a coding agent through the company gateway, for this one run
     swangz autostart on|off     start the app when you sign in to this computer
-    swangz logout               take Swangz off this device
+    swangz logout               take Swangz off this device (saved browser sign-ins stay)
+    swangz cleanup [--report FILE]
+                                remove Swangz from this account, saved browser sign-ins included
 """
 
 import argparse
@@ -56,11 +58,17 @@ def offer_sign_out(text):
         return False
 
 
-def sign_out_command():
-    """The full command that signs out, for a terminal where `swangz` is not on PATH (the Mac app bundle)."""
+def typed_command(verb):
+    """The full command for `verb`, for a terminal where `swangz` is not on PATH (the Mac app bundle), quoted the way
+    this system's command line reads it."""
     import shlex
 
-    return " ".join(shlex.quote(part) for part in [*shell.app_command(), "logout"])
+    parts = [*shell.app_command(), verb]
+    return subprocess.list2cmdline(parts) if sys.platform == "win32" else " ".join(shlex.quote(part) for part in parts)
+
+
+def sign_out_command():
+    return typed_command("logout")
 
 
 def when(ts):
@@ -90,13 +98,23 @@ def main(argv=None, client=None):
     p = sub.add_parser("autostart")
     p.add_argument("state", choices=("on", "off"))
     sub.add_parser("logout")
-    sub.add_parser("cleanup")
+    p = sub.add_parser("cleanup", help="remove Swangz from this account, saved browser sign-ins included")
+    p.add_argument("--report", help="write every folder that could not be deleted to this file, one per line, after a "
+                                    "line asking for the device to be disconnected where the Hub could not be told")
     p = sub.add_parser("key", help="credential helper for an installed coding agent (pipe only)")
     p.add_argument("--for", dest="tool", required=True, choices=("claude-code", "codex"))
     sub.add_parser("gui")
     p = sub.add_parser("update", help="check, stage or apply an authenticated app release")
     p.add_argument("action", choices=("status", "check", "apply"), nargs="?", default="status")
     args = parser.parse_args(command_argv)
+    if args.cmd == "cleanup":  # before the client: a refused run changes nothing of Swangz's
+        paths = client.paths if client else core.Paths()
+        core.claim_data_folder(paths)  # an install removed before the app ran again (D-026, ruling on #353)
+        refused = shell.cleanup_refusal(paths.data)
+        if refused:
+            write_report(args.report, [DISCONNECT])
+            say(str(core.CleanupRefused(refused)))
+            return 1
     client = client or core.Client()
     try:
         if args.cmd == "key":
@@ -164,10 +182,41 @@ def say_repair(fix):
 
 
 def browser_folders_stay(client):
-    """Until deletion is built (#333), logout and cleanup leave the company-browser folders on disk; say so. The
-    folder is named by browser_profiles alone, reached through the launcher (inventory and import guards)."""
+    """Signing out and revocation leave the company-browser folders on disk; say so. The folder is named by
+    browser_profiles alone, reached through the launcher (inventory and import guards)."""
     return ("Not removed: browser folders that hold provider and Google sign-ins stay on this device at "
-            f"{workspace_launcher.profiles_folder(client.paths.data)}. Delete that folder yourself if you need those sign-ins gone.")
+            f"{workspace_launcher.profiles_folder(client.paths.data)}. To delete them, run: {typed_command('cleanup')}")
+
+
+DISCONNECT = "Have this device disconnected from the Hub: ask your Swangz administrator to do it in the console."
+
+
+def write_report(report, lines):
+    """The file the Windows uninstaller shows; the byte order mark is how it knows the text is UTF-8."""
+    if report:
+        Path(report).write_text("".join(f"{line}\n" for line in lines), encoding="utf-8-sig")
+
+
+def cleanup(client, report=None):
+    """-> 0 when nothing of Swangz is left on this account, else 1."""
+    try:
+        out = client.cleanup()
+    except core.CleanupRefused:
+        write_report(report, [DISCONNECT])
+        raise
+    # one line per folder not deleted, after the line that says the Hub still lists this device
+    write_report(report, ([] if out["told"] else [DISCONNECT]) + [str(path) for path, _ in out["left"]])
+    if not out["told"]:
+        say(f"The server couldn't be reached. {DISCONNECT}")
+    for problem in out["problems"]:
+        say(f"Not removed: {problem}")
+    for path, reason in out["left"]:
+        say(f"Not deleted: {path} ({reason})")
+    if out["left"] or out["problems"]:
+        say("Swangz was not completely removed from this account. Close any workspace window, then run cleanup again.")
+        return 1
+    say("Swangz was removed from this account, saved browser sign-ins included.")
+    return 0
 
 
 def run(args, client):
@@ -254,11 +303,7 @@ def run(args, client):
         say(browser_folders_stay(client))
         return 0
     if cmd == "cleanup":
-        client.remove_everything()
-        say("Swangz's installed agents, packages and key were removed. Disconnect this device in the Hub if it is "
-            "still enrolled.")
-        say(browser_folders_stay(client))
-        return 0
+        return cleanup(client, args.report)
     return 1
 
 

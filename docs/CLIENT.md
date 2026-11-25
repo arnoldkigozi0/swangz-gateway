@@ -74,7 +74,7 @@ floor, so Claude Code and Codex keep working; the server's minimum client versio
 | | Personal device | Company device |
 |---|---|---|
 | Claude Code / Codex | `swangz run claude` / `swangz run codex` set the gateway and key only in the child environment; personal tool settings are untouched | Managed Claude is gated on every OS pending verification of the deployed CLI's `/anthropic` prefix. Old managed tokens are removed and the app offers existing scoped runs. Unix Codex uses a marked provider block and a login-profile helper. Windows managed Codex is gated: use `swangz run codex`. Managed Codex also requires Python 3.11+ to validate existing TOML safely. |
-| Signing out | removes the Swangz folder | also takes our lines back out of those files — only what we wrote and only if still ours — leaving anything the person changed since |
+| Signing out | removes the key and what Swangz installed; browser folders stay (see *Disconnecting*) | also takes our lines back out of those files — only what we wrote and only if still ours — leaving anything the person changed since |
 
 Managed migration removes the old Claude token only when its fingerprint still matches our recorded write.
 It removes the legacy Windows `SWANGZ_AI_KEY` registry value only when it still equals this device's key;
@@ -96,7 +96,8 @@ by an administrator, with the company's pinned values recorded in `HKLM` (`packa
 The install does not make a device a company device: enrolment still decides that. Before uninstalling the company
 build, disconnect the device in the console. The uninstaller closes every `Swangz.exe` on the computer and removes the
 program, but disconnects nothing itself. Neither signs anyone out of a provider or Google: the Swangz browser folders
-that hold those sign-ins stay on the computer.
+that hold those sign-ins stay on the computer. A person deletes their own with **Remove Swangz from this account**
+in the app, before the uninstall.
 
 ## What is recorded — and what is not
 
@@ -343,7 +344,59 @@ the company domain (`GATEWAY_COMPANY_DOMAIN`, default `swangzavenue.com`) as wel
 `device_unknown` keeps local data and asks the person to retry or reconnect. Only explicit
 `device_revoked` triggers automatic removal. Failed native deletion keeps a local cleanup marker with the
 server and key ID so **Retry local removal**, `swangz logout`, or `swangz cleanup` can finish later. The app
-does not claim successful sign-out when cleanup fails. `cleanup` makes no server call.
+does not claim successful sign-out when cleanup fails.
+
+Signing out of the app, being disconnected and signing out of the computer all **keep** the browser folders that
+hold a person's provider and Google sign-ins. The app says where they are.
+
+## Removing Swangz from an account (`cleanup`)
+
+**Remove Swangz from this account** on *This device*, or `swangz cleanup` (`Swangz.exe cleanup`), takes Swangz off
+one person's account. It:
+
+1. refuses where it must not run. Nothing changes, the exit code is 1 and the message carries the reason:
+   - `elevated_refused`: rights raised by Windows' prompt ("Run as administrator"), a Windows service account, root
+     on macOS and Linux, or rights that can't be read. An account that always has full rights because that prompt is
+     off, the built-in Administrator included, is not refused for it;
+   - `wrong_account`: the account running it does not own the app's data folder, or the owner can't be read
+     (D-026, "Amendment 25 Nov (cleanup tokens)"). Before this rule the app tries the one owner change below;
+2. closes the workspace window;
+3. signs out while the key still exists, which removes the key and what Swangz installed. If the server can't be
+   reached it carries on and says **Have this device disconnected from the Hub: ask your Swangz administrator to do
+   it in the console.**;
+4. deletes every folder under `browser-profiles/` in the app's data folder, whoever it was made for. A link or
+   junction is removed itself and what it points at is never touched. A folder that a running browser holds is left
+   whole and named (`in_use`): `cleanup` closes only a window this running app started, so close the window and run
+   it again;
+5. turns off start at sign-in.
+
+A step that fails does not stop the later ones. Everything left is named and the exit code is then 1;
+`--report FILE` writes the folders that could not be deleted, one per line (UTF-8 with a byte order mark). Where the
+server could not be told, and where the run was refused, the first line is the one asking for the device to be
+disconnected. The file is empty when nothing is left to do. Running it again is safe. The app itself stays installed.
+
+**Windows: the owner of the app's data folder.** Windows can make `BUILTIN\Administrators` the owner of a folder an
+administrator's process creates (the built-in Administrator), and `cleanup` accepts only the person as owner. So the
+app makes the person the owner, at every start, after signing in and at the start of `cleanup`, only when all of
+these hold: the rights are not raised by Windows' prompt (Default or Limited token) and are not a service account's;
+the folder is `Swangz` under the local app data folder Windows itself names for the person (no environment variable
+is read); opened without following a link, it is a real folder; and its owner is exactly `BUILTIN\Administrators`
+(`S-1-5-32-544`). Only the owner is set, on that open folder; its permissions are not changed and no special
+privilege is used. Each attempt is noted in `ownership.log` in the folder (owner before, owner after, `claimed` or
+`failed`). Where it fails, or any condition does not hold, `cleanup` refuses with `wrong_account`.
+
+- **Windows, per-person install:** uninstalling closes the person's running copy and runs `cleanup` as that person
+  before the program files go. If it fails, the uninstaller shows what was not deleted (not in a silent uninstall,
+  where it is only in the log) and carries on. If everything was removed but the server could not be told, it shows
+  the line asking for the device to be disconnected (the same way). An uninstaller started as administrator, or by an account that does not
+  own the data folder, gets the refusal: the program is removed and nothing in the account is cleaned. The message
+  names the two ways to finish: install again and choose **Remove Swangz from this account** without administrator
+  rights, or have the device disconnected in the console. The uninstaller never retries with more rights.
+- **Windows, company build:** its elevated installer and uninstaller never run `cleanup`. Each person chooses
+  **Remove Swangz from this account** first.
+- **macOS:** choose **Remove Swangz from this account** (or run
+  `/Applications/Swangz.app/Contents/MacOS/Swangz cleanup`, which signs out first), then drag Swangz to the Bin.
+  Dragging it to the Bin alone leaves the key and the browser folders on the Mac.
 
 The device screen and terminal status expose `key_storage: keychain|file`; each heartbeat reports that mode.
 Server ingestion, idle expiry and rotation belong to the later G3b change and are not implemented here.
@@ -384,7 +437,7 @@ fetch the key again or a new shell is started; the app does not wait for or inte
 
 `swangz` opens the window: a dock down the left (Home, Apps, Packages, This device), sign-in, sync every 15
 minutes while open, "start when I sign in" (a LaunchAgent on macOS, `~/.config/autostart` on Linux, the `Run`
-key on Windows; signing out turns it off). From a terminal: `swangz login|status|sync|packages|apps|open TOOL|run claude|codex|autostart on|off|logout`.
+key on Windows; signing out turns it off). From a terminal: `swangz login|status|sync|packages|apps|open TOOL|run claude|codex|autostart on|off|logout|cleanup [--report FILE]`.
 
 Build a standalone program for the computer you are on (it carries its own Python):
 
@@ -405,8 +458,8 @@ verification limits and pending tooling decisions.
 ## Inert browser-profile preparation (tests only)
 
 `swangz_client/browser_profiles.py` prepares empty app-owned directories beneath an explicitly supplied
-`<data>/browser-profiles/`. It has no production callers, browser launch, GUI/CLI integration, extension
-installation, provider login, policy installation or session data. Forge's ownership/manifest contract
+`<data>/browser-profiles/`. The workspace launcher and `cleanup` use it. It does no browser launch, extension
+installation, provider login or policy installation of its own. Forge's ownership/manifest contract
 and a separate G2 security approval are required before real use. This is not a managed browser rollout.
 
 Owners use normalized Hub origin, stable person/device identifiers, OS user and an optional seat ID plus
@@ -425,14 +478,20 @@ Explicit `retire_all()` removes structurally safe profile folders even if their 
 missing; unsafe and unknown entries remain and are reported in `skipped`, with `complete=False`.
 A revocation does not delete a folder yet; an authenticated `retired` answer or a newer generation does.
 
-**Deletion, on every system.** A folder is first renamed to `.retired-<random>`, then deleted. A link
+**Deletion, on every system.** A folder that a running browser holds is not touched (Linux and macOS: Chrome's
+`SingletonLock` names a live process, and only that link's text is read; Windows refuses the rename itself).
+A folder is taken as free only when there is no `SingletonLock`, no process has the number it names, or its text
+holds no usable process number. A process this account may not signal, a lock that cannot be read as a link and any
+other error count as a running browser.
+Any other folder is first renamed to `.retired-<random>`, then deleted. A link
 (symbolic link, junction or other reparse point) is removed itself and never entered, so what it points at
 is untouched. A linked `browser-profiles/` root is refused (`unsafe_link`) and never retargeted. A folder
 is compared by file ID before and after it is opened; a swap in between is `path_changed` and the folder is
 reported. Nothing outside the resolved root is deleted. On Windows each folder is held open, without delete
 sharing, while its entries are removed, so it cannot be renamed or replaced meanwhile; paths longer than
-260 characters are handled; a read-only attribute is cleared only on an entry already checked, and never on
-a file that also has a name elsewhere (`shared_file`).
+260 characters are handled; a read-only attribute is cleared only on an entry already checked, never through a
+link (`readonly_link`) and never on a file that also has a name elsewhere (`shared_file`). `delete_all()`, used
+only by `cleanup`, removes every entry under the root except `.lock`, whatever its marker, name or permissions.
 
 **When deleting fails** (an open file, a permission), the folder is reported as not deleted and stays. While
 a retired folder remains, preparing and opening any workspace on this account is refused with

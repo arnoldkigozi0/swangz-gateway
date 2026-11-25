@@ -10,6 +10,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from swangz_client import cli
+
 ROOT = Path(__file__).resolve().parent.parent
 ISS = (ROOT / "packaging" / "windows" / "swangz.iss").read_text(encoding="utf-8")
 CODE = "\n".join(l for l in ISS.splitlines() if not l.lstrip().startswith((";", "//")))  # without comments
@@ -54,17 +56,45 @@ class InstallerScriptTests(unittest.TestCase):
         from swangz_client import shell
         self.assertIn('"Swangz"', Path(shell.__file__).read_text(encoding="utf-8"))
 
-    def test_uninstall_signs_the_device_out_first(self):
-        stop, entry = lines("UninstallRun")
-        # the person's own running copy is stopped before sign-out, so it cannot hold the program or rewrite its state
-        self.assertIn('Filename: "{sys}\\taskkill.exe"', stop)
-        self.assertIn('/IM Swangz.exe', stop)
-        self.assertIn('USERNAME eq {username}', stop)
-        self.assertIn("waituntilterminated", stop)
+    def test_uninstall_removes_swangz_from_this_account_first_and_reports_what_stays(self):
+        # D-026 C4: from [Code], because the result of an [UninstallRun] entry is read by nobody
+        self.assertEqual(section("UninstallRun"), "")
+        self.assertEqual(section("UninstallDelete"), "")
+        for entry in lines("Run"):
+            self.assertNotRegex(entry, r"\b(cleanup|logout)\b")
+        self.assertNotRegex(CODE, r"\blogout\b")  # cleanup signs out first
+        self.assertNotIn("DelTree", CODE)  # only the program deletes inside the person's folders, link-safely
+        body = CODE.split("procedure RemoveFromThisAccount;", 1)[1].split("procedure CurUninstallStepChanged", 1)[0]
+        # the person's own running copy is stopped first, so it cannot hold a folder or rewrite its state
+        stop = body.index("Exec(ExpandConstant('{sys}\\taskkill.exe'), "
+                          "ExpandConstant('/F /T /IM Swangz.exe /FI \"USERNAME eq {username}\"')")
+        run = body.index("Ran := Exec(ExpandConstant('{app}\\Swangz.exe'), 'cleanup --report \"' + Report + '\"'")
+        self.assertLess(stop, run)
+        self.assertEqual(body.count("ewWaitUntilTerminated"), 2)
+        checked = body.index("if Ran and (ResultCode = 0) then")
+        self.assertLess(run, checked)
+        for needed in ("could not remove everything from this account", "Log(Message);",
+                       '"Remove Swangz from this account" on This device', "disconnect this device "):
+            self.assertGreater(body.index(needed), checked)
+        # the report is read first: the line about the Hub is shown whether or not cleanup succeeded
+        self.assertLess(body.index("LoadStringsFromFile(Report, Left)"), checked)
+        self.assertIn("Pos('Have this device disconnected from the Hub', Left[I])", body)
+        success = body[checked:body.index("exit;", checked)]
+        self.assertIn("MsgBox(Disconnect, mbInformation, MB_OK)", success)
+        self.assertIn("Message + #13#10 + #13#10 + Disconnect", body)
+        self.assertTrue(cli.DISCONNECT.startswith("Have this device disconnected from the Hub"))
+        # a refusal is reported, never retried with other or more rights
+        self.assertNotRegex(CODE, r"(?i)runas|ShellExec|AsOriginalUser")
+        self.assertEqual(CODE.count("'cleanup "), 1)
+        self.assertRegex(body, r"if not UninstallSilent then\s+MsgBox\(Message")
+        step = CODE.split("procedure CurUninstallStepChanged", 1)[1]
+        self.assertRegex(step, r"if CurUninstallStep = usUninstall then\s+RemoveFromThisAccount;")  # before files go
         self.assertIn("CloseApplications=force", ISS)  # a reinstall closes a running copy too
-        self.assertIn('Parameters: "logout"', entry)
-        self.assertIn("waituntilterminated", entry)
-        self.assertIn("skipifdoesntexist", entry)
+
+    def test_no_code_line_starts_with_a_hash_the_preprocessor_would_read(self):
+        # "#13#10" at the start of a line is an unknown preprocessor directive to ISCC: the script does not compile
+        for line in CODE.splitlines():
+            self.assertNotRegex(line, r"^\s*#(?!define|ifn?def|if |else|endif|error|include)")
 
     def test_no_server_address_secret_or_updater_is_built_in(self):
         self.assertIsNone(re.search(r"https?://", ISS))
@@ -425,12 +455,20 @@ class WindowsPolicyTamperTests(unittest.TestCase):
             self.assertIn(needle, block)
         self.assertLess(block.index("windows_policy.run("), block.index("device = enrol(approve_second[0])"))
 
-    def test_the_uninstall_runs_as_the_second_person_and_keeps_their_folder(self):
+    def test_the_uninstall_runs_as_the_second_person_and_really_deletes(self):
         self.assertIn("approve_second[:] = [approve]", self.e2e[self.e2e.index("def enrol_second"):])
-        after = self.e2e[self.e2e.index("# 8. uninstall"):self.e2e.index("report[\"ok\"] = True")]
         self.assertIn('held = data / "browser-profiles" / report["two_at_once"][0]', self.e2e)
-        self.assertIn('hub_journey.kept(check, data, held, held_marker, "after the uninstall', after)
-        self.assertLess(after.index("the Hub did not disconnect the device"), after.index("hub_journey.kept("))
+        # the app's own fixed folder, which is the only one it makes the person the owner of
+        self.assertIn('data, home = Path(winacl.local_app_data()) / "Swangz", work / "home"', self.e2e)
+        self.assertNotIn('"SWANGZ_HOME": str(data),', self.e2e)
+        after = self.e2e[self.e2e.index("# 8. uninstall"):self.e2e.index("report[\"ok\"] = True")]
+        # the app's own rule is asked with the token the uninstaller gets, before it runs, and must allow it
+        self.assertLess(after.index("refusal = shell.cleanup_refusal(data)"), after.index('"/VERYSILENT"'))
+        self.assertLess(after.index("require(refusal is None and"), after.index('"/VERYSILENT"'))
+        self.assertNotIn("if refusal:", after)
+        for needed in ('not in log,', "the Hub did not disconnect the device", "require(not held.exists(),",
+                       'hub_journey.removed(check, data, "after the uninstall")'):
+            self.assertGreater(after.index(needed), after.index('"/VERYSILENT"'))
 
     def test_a_refused_open_starts_no_chrome_and_each_sync_must_report_afresh(self):
         refused = self.src[self.src.index("def refused("):self.src.index("def synced(")]

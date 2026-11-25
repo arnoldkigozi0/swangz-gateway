@@ -118,6 +118,10 @@ def _before_open(path):
     """Does nothing. Tests replace it to change a checked folder before it is opened."""
 
 
+def _before_delete(path):
+    """Does nothing. Tests replace it to change a listed entry before Windows opens it for deletion."""
+
+
 def _inside(path, root):
     """True when the path, with every link resolved, is still below the resolved root."""
     real = os.path.normcase(os.path.realpath(path))
@@ -156,21 +160,31 @@ def _extended(path):
 
 
 def _remove_windows(path, info):
-    """Remove one entry by its own name. A link or junction goes itself; what it points at is never touched."""
-    attributes = getattr(info, "st_file_attributes", 0)
-    directory = bool(attributes & stat.FILE_ATTRIBUTE_DIRECTORY) or stat.S_ISDIR(info.st_mode)
-    remove = os.rmdir if directory else os.unlink
+    """Remove one entry, last seen as `info`. It is opened as itself (a link or junction is never followed), then
+    checked and deleted through that one handle, so nothing swapped under the name afterwards is acted on."""
+    from .winacl import delete_open, open_entry, set_open_attributes
+    _before_delete(path)
+    fd = open_entry(path)
     try:
-        remove(path)
-    except PermissionError:
-        if not attributes & stat.FILE_ATTRIBUTE_READONLY:
-            raise
-        # The read-only bit belongs to the file, not to this name: leave a file that also lives somewhere else alone.
-        if not directory and not _reparse(info) and info.st_nlink > 1:
-            raise ProfileError("shared_file") from None
-        from .winacl import set_attributes
-        set_attributes(path, attributes & ~stat.FILE_ATTRIBUTE_READONLY)
-        remove(path)
+        held = os.fstat(fd)
+        if stat.S_ISDIR(held.st_mode) and not _reparse(held) and not _same(info, held):
+            raise ProfileError("path_changed")  # a real folder goes only if it is the one that was seen
+        try:
+            delete_open(fd)
+        except PermissionError:
+            attributes = getattr(held, "st_file_attributes", 0)
+            if not attributes & stat.FILE_ATTRIBUTE_READONLY:
+                raise
+            if _reparse(held):
+                # Never change a link's attributes: it stays and is reported.
+                raise ProfileError("readonly_link") from None
+            # The read-only bit belongs to the file, not to this name: leave a file that also lives somewhere else alone.
+            if not stat.S_ISDIR(held.st_mode) and held.st_nlink > 1:
+                raise ProfileError("shared_file") from None
+            set_open_attributes(fd, attributes & ~stat.FILE_ATTRIBUTE_READONLY)
+            delete_open(fd)
+    finally:
+        os.close(fd)
 
 
 def _purge_windows(path, info, root):
@@ -210,7 +224,11 @@ def _purge_windows(path, info, root):
 
 def _purge(path):
     """Delete one folder of the profiles root, and nothing that a link inside it points at."""
-    info = _check(path)
+    _remove_tree(path, _check(path))
+
+
+def _remove_tree(path, info):
+    """Delete the real folder `path`, last seen as `info`, link-safely."""
     if not _inside(path, path.parent):
         raise ProfileError("unsafe_link")
     if _WINDOWS:
@@ -235,19 +253,26 @@ def _purge(path):
 def _in_use(folder):
     """True while a running browser holds the folder. On Linux and macOS Chrome keeps the link `SingletonLock` ->
     "<host>-<pid>" in a user-data folder while it runs; only that link's own text is read, and the host is ignored
-    (a computer's name can change under a running browser). A process we may not signal counts as running. Windows
+    (a computer's name can change under a running browser). Only these are not held: no lock, no such process, or
+    link text Chrome would never write. A process we may not signal, and any other error, counts as running. Windows
     needs no check: it refuses to rename a folder with open files."""
     if _WINDOWS:
         return False
     try:
-        pid = int(os.readlink(os.path.join(folder, "SingletonLock")).rpartition("-")[2])
+        link = os.readlink(os.path.join(folder, "SingletonLock"))
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+    try:
+        pid = int(link.rpartition("-")[2])
         if pid <= 0:
             return False
         os.kill(pid, 0)
-    except PermissionError:
-        return True
-    except (OSError, ValueError, OverflowError):
+    except (ProcessLookupError, ValueError, OverflowError):
         return False
+    except OSError:
+        return True
     return True
 
 
@@ -330,8 +355,10 @@ class Profiles:
             raise ProfileError("marker_invalid") from None
 
     @contextmanager
-    def _locked(self):
-        self._root()
+    def _locked(self, strict=True):
+        """`strict=False` (cleanup only) neither creates the root nor requires its private mode."""
+        if strict:
+            self._root()
         path = self.root / ".lock"
         fd, held = None, False
         try:
@@ -349,8 +376,9 @@ class Profiles:
                 raise ProfileError("path_changed")
             _lock_os(fd, True)
             held = True
-            _check(self.data, data=True)
-            _check(self.root)
+            if strict:
+                _check(self.data, data=True)
+                _check(self.root)
         except OSError as exc:
             if fd is not None:
                 os.close(fd)
@@ -531,6 +559,55 @@ class Profiles:
     def retire_all(self):
         """Explicit app-root cleanup, including safe profile folders with invalid/absent markers."""
         return self._retire_many(None)
+
+    def delete_all(self):
+        """`cleanup` (D-026): delete everything under browser-profiles/, whoever it belongs to and whatever state it is
+        in. A link or junction is removed itself and its target is never touched. Only the root and its lock stay,
+        and a folder a running browser holds, which is listed as `in_use`.
+        Creates nothing when there is nothing. -> [(path, reason)] for whatever is still there."""
+        try:
+            for folder in (self.data, self.root):
+                info = folder.lstat()
+                if stat.S_ISLNK(info.st_mode) or _reparse(info):
+                    return [(str(self.root), "unsafe_link")]  # what it leads to may hold sign-ins: say so, touch nothing
+                if not stat.S_ISDIR(info.st_mode):
+                    return [(str(folder), "unsafe_type")]
+            if not _inside(self.root, self.data):
+                return [(str(self.root), "unsafe_link")]
+            if not os.listdir(self.root):
+                return []
+            left = []
+            with self._locked(strict=False):
+                for path in sorted(self.root.iterdir()):
+                    if path.name != ".lock":
+                        left.extend(self._delete_entry(path))
+            return left
+        except FileNotFoundError:
+            return []
+        except (ProfileError, OSError) as exc:
+            return [(str(self.root), getattr(exc, "code", "cleanup_failed"))]
+
+    def _delete_entry(self, path):
+        try:
+            info = path.lstat()
+            if stat.S_ISDIR(info.st_mode) and not _reparse(info):
+                if _in_use(path):  # a browser left open would stay signed in and write the folder again
+                    return [(str(path), "in_use")]
+                if not SPECIAL.fullmatch(path.name):
+                    # Renamed first, as every other deletion does: a half-deleted folder is never opened again.
+                    retired = self.root / (".retired-" + secrets.token_hex(16))
+                    os.rename(path, retired)
+                    path = retired
+                _remove_tree(path, info)
+            elif _WINDOWS:
+                _remove_windows(_extended(path), info)
+            else:
+                path.unlink()
+        except FileNotFoundError:
+            pass
+        except (ProfileError, OSError) as exc:
+            return [(str(path), getattr(exc, "code", "cleanup_failed"))]
+        return []
 
     def _retire_many(self, fields):
         retired, skipped = [], []

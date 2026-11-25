@@ -15,11 +15,13 @@ from tkinter import messagebox, ttk
 from . import __version__, core, repair, shell
 from .workspace_launcher import INSTALL_PAGE, profiles_folder
 
+REMOVE = "Remove Swangz from this account"
+
 def browser_folders_stay(data):
-    """Until deletion is built (#333), sign out leaves the company-browser folders on disk; say so rather than promise
-    more. The folder is named by browser_profiles alone, reached through the launcher (inventory and import guards)."""
-    return ("Browser folders that hold your provider and Google sign-ins are not removed yet. They stay on this "
-            f"device at {profiles_folder(data)}; delete that folder yourself if you need those sign-ins gone.")
+    """Sign out and revocation leave the company-browser folders on disk; say so rather than promise more. The folder
+    is named by browser_profiles alone, reached through the launcher (inventory and import guards)."""
+    return ("Browser folders that hold your provider and Google sign-ins are not removed. They stay on this device at "
+            f"{profiles_folder(data)}. To delete them, choose \u201c{REMOVE}\u201d on This device, or run swangz cleanup.")
 
 C = dict(bg="#0b0b0c", panel="#141416", raised="#1c1c1f", line="#2a2a2e", text="#ece9e2", muted="#9a978f",
          gold="#c8a96a", gold_hi="#e2c88d", bad="#e07a6b", ok="#7bd3a7")
@@ -65,6 +67,7 @@ class App:
         self.cancel = False
         self.page = None
         self.error = ""
+        self.removal_incomplete = False
         self.refusal = None  # (page, tool id, tool name, repair.Repair) while an Open stays refused
         self.root.title("Swangz")
         self.root.geometry("980x660")
@@ -212,6 +215,8 @@ class App:
             self.label(f, "Credential removal is incomplete. Retry while the keychain is available.", color="bad", wrap=560).pack(anchor="w")
             self.button(f, "Retry local removal", lambda: self.work(self.client.remove_everything,
                         lambda ok, value: self.show("signin") if ok else self.failed(value))).pack(anchor="w", pady=12)
+        if self.removal_incomplete:
+            self.button(f, REMOVE, self.remove_account, danger=True).pack(anchor="w", pady=(0, 14))
         self.server_var = tk.StringVar(value=os.environ.get("SWANGZ_SERVER") or core.DEFAULT_SERVER)
         self.name_var = tk.StringVar(value=core.device_name())
         for text, var in (("Swangz AI Hub address", self.server_var), ("Name for this device", self.name_var)):
@@ -387,7 +392,10 @@ class App:
         self.label(f, st.get("recording") or "", 10, color="muted", wrap=700).pack(anchor="w", pady=(4, 14))
         self.auto_var = tk.BooleanVar(value=st.get("autostart", False))
         ttk.Checkbutton(f, text="Start Swangz when I sign in to this computer", variable=self.auto_var, command=self.toggle_autostart).pack(anchor="w", pady=(0, 18))
-        self.button(f, "Sign out and disconnect this device", self.sign_out, danger=True).pack(anchor="w")
+        row = tk.Frame(f, bg=C["bg"])
+        row.pack(anchor="w")
+        self.button(row, "Sign out and disconnect this device", self.sign_out, danger=True).pack(side="left")
+        self.button(row, REMOVE, self.remove_account, danger=True).pack(side="left", padx=(12, 0))
 
     # ------------------------------------------------------------ actions
 
@@ -493,6 +501,31 @@ class App:
                                                 + browser_folders_stay(self.client.paths.data)):
             return
         self.work(self.client.logout, lambda ok, value: (setattr(self, "error", ""), self.show("signin")) if ok else self.failed(value))
+
+    def remove_account(self):
+        if not messagebox.askyesno(REMOVE, f"{REMOVE}?\n\nThis signs you out, takes off the coding agents and packages "
+                                           "Swangz installed, deletes the browser sign-ins (provider and Google) saved by "
+                                           "Swangz on this computer, and stops Swangz starting when you sign in. The app "
+                                           "itself stays installed."):
+            return
+        self.say("Removing\u2026")
+        self.work(self.client.cleanup, self._removed)
+
+    def _removed(self, ok, value):
+        if not ok:
+            return self.failed(value)
+        left = [path for path, _ in value["left"]] + value["problems"]
+        self.removal_incomplete = bool(left)
+        self.error = ""
+        if left:
+            self.error = ("Swangz was not completely removed. Close any workspace window, then try again. Still here:\n"
+                          + "\n".join(left))
+        self.show("signin")
+        told = "" if value["told"] else " The server couldn't be reached, so ask an admin to disconnect this device."
+        if not left:
+            self.say("Swangz was removed from this account. You can now uninstall the app, or drag it to the Bin." + told)
+        elif told:
+            self.say(told.strip(), bad=True)
 
 
 def main(client=None, background=False):
