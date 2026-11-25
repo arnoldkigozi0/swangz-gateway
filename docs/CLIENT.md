@@ -284,6 +284,18 @@ Authorization: Bearer <device key>      X-Swangz-App: 1      Content-Type: appli
   wired into the workspace).
 - Not `GET`: the call records a launch. The answer is `Cache-Control: no-store` and carries no key, token or Hub session.
 
+#### When Open is refused in the app (#333)
+
+A refused Open opens nothing, in any browser. `swangz_client/repair.py` turns the refusal (made on the device or answered by
+the Hub) into a title, the plain reason, numbered next steps and at most these buttons: **Try again** (asks the Hub again,
+then opens the same tool), **Get Google Chrome** (Google's own download page, only when no usable Chrome is found) and
+**Open weekly reports** (the Hub's page). No button carries a tool or provider address. The window shows this as a panel on
+Home and Apps until it is dismissed, the page changes or the tool opens; `swangz open TOOL` prints the same steps and exits
+1. A disconnected or signed-out device goes back to sign-in instead. Command-line coding agents are separate and unchanged.
+
+This covers Open in the app only. Open in the Hub's web pages (`/go/<tool>`, including shared company accounts) still opens in
+the browser the person is using.
+
 ## Disconnecting
 
 If the server says a device was disconnected (`401 device_revoked`), the app removes everything it installed
