@@ -156,17 +156,23 @@ Swangz-Company-Setup-<version>-UNSIGNED.exe /ALLUSERS /HUBHOST=<Hub host name> /
 - Without `/ALLUSERS` it refuses to run. It installs into `%ProgramFiles%\Swangz` and refuses any other folder, so only
   administrators can change the program.
 - The three values are recorded in `HKLM\Software\Swangz\Pinned` (64-bit view) as `hub_host`, `extension_id` and
-  `extension_update_url`. Pass all three or none: some of them is refused, and an upgrade without them keeps the
-  recorded ones. The installer only checks that they were typed whole. `deploy/chrome-policy/prepare.py` decides
+  `extension_update_url`. Pass all three or none: some of them, or a switch passed empty (`/HUBHOST=`), is refused,
+  and an upgrade without them keeps the recorded ones. The installer only checks that they were typed whole. `deploy/chrome-policy/prepare.py` decides
   whether they are acceptable, when the policy step that reads them exists.
 - An older version never replaces a newer one. An upgrade removes the previous `_internal` folder first.
 - It adds a Start-menu entry for everyone and an optional desktop shortcut. It does not start the app, add a start-up
   entry or a service, install a browser or write any Chrome policy.
-- Uninstalling stops every running copy and removes the program, the shortcuts and the recorded values. **It does not
-  sign anyone out**, because that would run the app with administrator rights over files a person can edit. Each person
-  signs out in the app first, or an administrator disconnects the device in the console. Data under each person's
-  profile, including the Swangz browser folders, stays on the computer, as does a person's own "Start with Windows"
-  entry if they switched it on.
+- An upgrade first closes the running copies of the installed company program, in every Windows session. A person's own
+  per-user copy and the programs a copy started keep running. If a program file is still in use after about 15 seconds,
+  Setup changes nothing and ends with exit code 7. A copy started while the files are being replaced is not guarded
+  against, so upgrade while nobody is using the computer.
+- **Uninstalling closes every `Swangz.exe` on the computer** (every Windows session, a person's own per-user copy
+  included, and the programs they started), then removes the program, the shortcuts and the recorded values.
+- **Before uninstalling, disconnect each device in the console.** That ends the device's access on the server. The
+  uninstaller disconnects nothing itself, because that would run Swangz with administrator rights over files a person
+  can edit. Neither step signs anyone out of a provider or Google: the Swangz browser folders that hold those sign-ins
+  stay on the computer, as does other data under each person's profile and a person's own "Start with Windows" entry if
+  they switched it on.
 
 Not built yet: the app does not read the recorded values, does not offer any administrator step, and the per-person app
 does not yet tell people to ask for the company build. A person's own install on the same computer is left in place;
@@ -174,7 +180,9 @@ remove it from that person's account before using the company one.
 
 The same workflow builds both company files (the installer and its `.sha256`, with a CycloneDX SBOM
 `Swangz-Company-<version>.cdx.json`) and runs `packaging/windows/company_e2e.py` on the runner: refused without
-`/ALLUSERS`, with some of the values and into another folder; installed with the values; the owner and write
-permissions of every installed item; the installed program's self-check; upgrade, refused downgrade and uninstall. The
-runner is already an administrator, so the Windows consent prompt and a standard user's attempts to change the files
-are not exercised. That needs a physical computer.
+`/ALLUSERS`, with some or empty values and into another folder; installed with the values; the owner and write
+permissions of every installed item; an upgrade refused while a program file is held open; upgrade, refused downgrade
+and uninstall while copies run under two Windows accounts, one of them a temporary account without administrator
+rights, beside a copy in another folder; the installed program's self-check. The second account's copy runs as a
+scheduled task, not from a second signed-in desktop. The runner is already an administrator, so the Windows consent
+prompt and a standard user's attempts to change the files are not exercised. Those need a physical computer.
