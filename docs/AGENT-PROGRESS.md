@@ -1743,3 +1743,7 @@ Open: 3 (#343 e582325, #346 28b9adc, #350 2a07b49), all CI green, none verified 
 ## 25 Nov 12:20 Chief
 Merged #350 (5749b9c, Probe VERIFIED 2a07b49 + Sentinel APPROVED) and #346 (e9f4b88, Probe VERIFIED 28b9adc); no GPT second opinion (ChatGPT paused).
 #343 e582325: Probe FAIL (setup signs in to providers with no turn); Sentinel assigned. Forge told to merge main and open the cleanup PR. Non-blocking #346 follow-up: Apps row may say "Doesn't open right now" when Open works; terminal-caller test misses module-level/async calls.
+
+## 25 Nov 13:05 Chief
+#343 56ff3ae: Probe VERIFIED (Probe only); merge when browser and python checks are green. #351 e8f351f BLOCKED (Sentinel, CI red), Anvil fixing. #352 36c1bef: Probe + Sentinel assigned. #353 290fd46 draft, awaiting owner's report. Forge queue: cleanup, fix/shared-google-host, retire_owner.
+D-027 build follow-ups (Probe): task 3 Forge, no setup on staff computers before task 7; task 4 Forge, delete shared folder at app sign-out, suspended device must be disconnected; task 5 Forge, invite-link step in runbook; task 6 Prism, fix Hub address in company policy or list as unenforceable.
