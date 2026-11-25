@@ -7,6 +7,7 @@ manifest, and is handed to the browser as the last item of a fixed argument list
 folder is read except its marker; no key, token or address reaches the command line, the environment or the log.
 """
 import ipaddress
+import json
 import os
 import re
 import stat
@@ -17,6 +18,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from . import browser_profiles as bp
+from . import chrome_verify
 
 MAX_URL = 2048
 HOST = re.compile(r"(?=.{1,253}\Z)(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+\Z")
@@ -133,14 +135,23 @@ def _windows_candidates(env):
     return out
 
 
-def candidates(platform=None, env=None):
+def _windows_roots(folders=None):
+    """%ProgramFiles% from HKLM (chrome_verify.windows_folders), never the environment; %LocalAppData% may come from
+    it, because a Chrome there is only ever accepted on a personal device (A4)."""
+    fixed = (folders or chrome_verify.windows_folders)()
+    return {"ProgramFiles": fixed.get("ProgramFiles"), "ProgramFiles(x86)": fixed.get("ProgramFiles(x86)"),
+            "LocalAppData": os.environ.get("LocalAppData")}
+
+
+def candidates(platform=None, env=None, folders=None):
+    """`env` replaces every root at once and is a test seam only."""
     platform = platform or sys.platform
     if platform.startswith("linux"):
         return list(LINUX_BROWSERS)
     if platform == "darwin":
         return list(MAC_BROWSERS)
     if platform in ("win32", "cygwin"):
-        return _windows_candidates(os.environ if env is None else env)
+        return _windows_candidates(_windows_roots(folders) if env is None else env)
     return []
 
 
@@ -155,20 +166,47 @@ def _usable_linux(path):
         return f.read(4) == b"\x7fELF"
 
 
-def find_browser(platform=None, env=None, exists=os.path.isfile, usable_linux=_usable_linux):
+def find_browser(platform=None, env=None, exists=os.path.isfile, usable_linux=_usable_linux, verify=None,
+                 folders=None):
     """-> the absolute path of Chrome or .deb Chromium from fixed locations, never PATH, never the default browser.
+    `verify(path)` (D-026 A2-A4) raises chrome_verify.Refused for a binary that may not start.
     LaunchError("no_browser") when none qualifies."""
     platform = platform or sys.platform
-    for path in candidates(platform, env):
+    why = None
+    for path in candidates(platform, env, folders):
         try:
             if not exists(path):
                 continue
             if platform.startswith("linux") and not usable_linux(path):
                 continue
+            if verify is not None:
+                verify(path)
+        except chrome_verify.Refused as exc:
+            why = str(exc)
+            continue
         except OSError:
             continue
         return path
-    raise LaunchError("no_browser")
+    raise LaunchError("no_browser", why)
+
+
+def company_device(roots):
+    """The device's own records in every data root (core.Store.roots(): the data folder and, on Windows, the old
+    %APPDATA%\\Swangz one), read as core.Client.company_device does: any one saying company is enough, and a record
+    that exists but cannot be read counts as company (the stricter rule, A4)."""
+    if isinstance(roots, (str, os.PathLike)):
+        roots = [roots]
+    company = False
+    for root in roots:
+        for name, pick in (("device.json", lambda d: d), ("manifest.json", lambda d: d.get("device"))):
+            try:
+                record = pick(json.loads((Path(root) / name).read_text(encoding="utf-8")))
+            except FileNotFoundError:
+                continue
+            except (OSError, ValueError, AttributeError):
+                return True
+            company = company or (isinstance(record, dict) and record.get("owner_kind") == "company")
+    return company
 
 
 # ------------------------------------------------------------------ I1: the process
@@ -226,10 +264,19 @@ def _windows_acl_owner_only(path):
 class Launcher:
     """Starts and remembers only the browser this app started (D1). One per app process."""
 
-    def __init__(self, data, popen=subprocess.Popen, finder=find_browser, acl=None, clock=time.time):
+    def __init__(self, data, popen=subprocess.Popen, finder=None, acl=None, clock=time.time, verifier=None,
+                 roots=None):
         self.data = Path(data)
-        self.popen, self.finder, self.acl, self.clock = popen, finder, acl, clock
+        self.roots = [Path(r) for r in roots] if roots else [self.data]
+        self.popen, self.acl, self.clock = popen, acl, clock
+        self.verifier = verifier or chrome_verify.Verifier()
+        self.finder = finder or self.verified_browser
         self.process = None
+
+    def verified_browser(self):
+        """The fixed-location browser, only once its publisher and place pass D-026 A2-A4 for this device."""
+        company = company_device(self.roots)
+        return find_browser(verify=lambda path: self.verifier(path, company))
 
     def running(self):
         return self.process is not None and self.process.poll() is None
