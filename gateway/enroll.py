@@ -281,7 +281,7 @@ def build_manifest(gw, h, person, device):
 
     db, base = gw.db, gw.public_url(h)
     anthropic_url, openai_url = _agents(gw, base)
-    managed = device["owner_kind"] == "company"
+    scoped_or_managed = "managed" if managed.configures_agents(device) else "scoped"
     packages = []
     for tool_id, name, blurb in (("claude-code", "Claude Code", "Anthropic's coding agent, for automation on this device."),
                                  ("codex", "Codex", "OpenAI's coding agent, for automation on this device.")):
@@ -289,7 +289,7 @@ def build_manifest(gw, h, person, device):
         tool = db.one("SELECT * FROM tools WHERE id = ? AND archived = 0", (tool_id,))
         if not (tool and url and entitle.is_enabled(db, person, tool)[0]):
             continue
-        install = {"type": "agent", "tool": tool_id, "base_url": url, "mode": "managed" if managed else "scoped"}
+        install = {"type": "agent", "tool": tool_id, "base_url": url, "mode": scoped_or_managed}
         if tool_id == "codex":
             install.update(provider="swangz", display_name="Swangz AI Hub", env_key="SWANGZ_AI_KEY", wire_api="responses")
         else:
@@ -315,7 +315,9 @@ def build_manifest(gw, h, person, device):
                      "company_browser": bool(tool and catalog.uses_workspace(tool)), "open": f"{base}/go/{t['id']}"})
         rows[t["id"]] = tool
     manifest = {"server": base, "person": {"name": person["name"], "email": person["email"], "department": person.get("department") or ""},
-                "device": {"id": device["device_id"], "name": device["name"], "os": device["os"], "owner_kind": device["owner_kind"]},
+                # the kind that applies (the app arms its company rules from it); `owner_confirmed` only once an admin marked it
+                "device": dict({"id": device["device_id"], "name": device["name"], "os": device["os"], "owner_kind": managed.effective_kind(device)},
+                               **({"owner_confirmed": device["owner_confirmed"]} if device.get("owner_confirmed") else {})),
                 "client": {"latest": releases.latest_hint(gw, person, CLIENT_LATEST), "minimum": CLIENT_MINIMUM}, "packages": packages, "apps": apps,
                 "credential": {"rotate_after_days": credentials.ROTATE_AFTER_DAYS, "issued": device.get("key_issued")},
                 "recording": RECORDING, "generated": time.time()}

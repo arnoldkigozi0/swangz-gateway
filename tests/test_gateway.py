@@ -983,13 +983,15 @@ class CatalogTests(unittest.TestCase):
         db = rig.gw.db
         tools = [dict(r) for r in db.q("SELECT id, url, launch_url, hosts, signin, archived FROM tools ORDER BY id")]
         grants = [tuple(r) for r in db.q("SELECT * FROM entitlements ORDER BY 1, 2")]
-        v29 = SCHEMA[-1]
+        v29 = SCHEMA[28]
         self.assertNotIn("UPDATE", v29.upper())
         self.assertNotIn("DELETE", v29.upper())
         self.assertNotIn("DROP", v29.upper())
         for column in ("info_url", "modes", "oauth_hosts", "last_verified"):
             db.x(f"ALTER TABLE tools DROP COLUMN {column}")
-        db.x("UPDATE meta SET v = ? WHERE k = 'schema'", (str(len(SCHEMA) - 1),))
+        for column in ("owner_confirmed", "owner_confirmed_at", "owner_confirmed_by"):  # v30 came later
+            db.x(f"ALTER TABLE devices DROP COLUMN {column}")
+        db.x("UPDATE meta SET v = '28' WHERE k = 'schema'")
         db._migrate()
         self.assertEqual(db.one("SELECT v FROM meta WHERE k = 'schema'")["v"], str(len(SCHEMA)))
         self.assertEqual([dict(r) for r in db.q("SELECT id, url, launch_url, hosts, signin, archived FROM tools ORDER BY id")], tools)
