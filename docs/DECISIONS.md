@@ -1017,7 +1017,8 @@ or `sudo` (static test).
    deleted on revocation (F), when the person changes (C2), and on **uninstall**: `Swangz.exe cleanup` (D-005,
    "nothing is left") closes the window and deletes every folder under **that OS account's** `browser-profiles/`
    (it never reaches another account's folders); a folder it cannot delete is named in the uninstaller's result,
-   never silently left. `cleanup` always runs **as the person, unelevated** (it refuses an elevated token), and
+   never silently left. `cleanup` always runs **as the person, unelevated** (it refuses an elevated token; see
+   "Amendment 25 Nov (cleanup tokens)"), and
    deletes link-safely (a reparse point or symlink is removed itself, never followed; only paths that still resolve
    inside the app's data folder are deleted). **No elevated or all-users uninstall ever deletes inside a
    user-writable folder**: junctions and links could point that delete at system files (see the company-installer
@@ -1306,6 +1307,29 @@ removal steps; E1 names the manual-run exception; D2/D4 marked done by #339.
   - a locked folder is reported, with a non-zero exit;
   - a second run changes nothing;
   - static: the company `.iss` runs no `Swangz.exe` verb other than `admin policy-remove`.
+
+- **Amendment 25 Nov (cleanup tokens).** This replaces "refuses an elevated token" above (C4, and the first bullet and
+  first test of "What the cleanup PR builds").
+  - **Refused**, nothing changed: a UAC-raised token (`TokenElevationType` Full); the service SIDs `S-1-5-18`,
+    `S-1-5-19` and `S-1-5-20`; euid 0 on macOS and Linux; a token user (or euid) that is not the owner of the app data
+    folder (`wrong_account`); an elevation type, token user or owner that cannot be read. (As built, an unreadable
+    owner is `wrong_account`; every other refusal is `elevated_refused`.)
+  - **Allowed:** a Default full token (UAC off, or the built-in Administrator) and a Limited token.
+  - Deletion is link-safe, always.
+  - The uninstaller runs `cleanup` unelevated (`ExecAsOriginalUser` if it was started elevated). On refusal it reports
+    it, points to "Remove Swangz from this account" or to disconnecting the device in the console, and never retries
+    elevated.
+  - *Tests:* Full refused; Default and Limited allowed; the three service SIDs refused; another owner's folder refused
+    `wrong_account`; unreadable refused; euid 0 refused; on a native Windows runner with the Default token, `cleanup`
+    really deletes, a junction is removed with its target untouched, and the real elevation type is printed.
+  - **As built, open for Sentinel:**
+    - Inno Setup does not support `ExecAsOriginalUser` or `ShellExecAsOriginalUser` at uninstall time (its own
+      scripting reference). The per-user uninstaller therefore starts `cleanup` with its own rights; if those are
+      raised, `cleanup` refuses and the uninstaller reports it.
+    - A data folder that is not there has no owner and is not refused, so a second run and an account that never
+      signed in still pass.
+    - Nothing sets the owner of the data folder. Where Windows makes `BUILTIN\Administrators` the owner of what an
+      administrator's process creates, an allowed Default token is refused `wrong_account`.
 
 **Consequences.** Forge builds A–F behind these tests on feature branches. Sentinel reviews each PR before merge.
 The elevated Windows steps (`chrome-install`, `policy-write`, `policy-remove`) are not built until Prism has made the

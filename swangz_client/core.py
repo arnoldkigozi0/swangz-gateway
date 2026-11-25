@@ -58,13 +58,20 @@ class NeedsReconnect(Exception):
 
 
 class CleanupRefused(Exception):
-    """`cleanup` was started with administrator or root rights."""
+    """`cleanup` was started with raised or system rights, or by an account that does not own the app data folder."""
 
-    code = "elevated_refused"
+    REASONS = {
+        "elevated_refused": "Swangz did not remove anything: it is running with administrator or system rights, or "
+                            "that could not be checked. Close it, then run it as yourself, without \"Run as "
+                            "administrator\" or sudo.",
+        "wrong_account": "Swangz did not remove anything: the account running it does not own the Swangz folder, or "
+                         "its owner could not be checked. Run it signed in to this computer as the person who uses "
+                         "Swangz there, or ask your administrator to disconnect this device.",
+    }
 
-    def __init__(self):
-        super().__init__("Swangz did not remove anything: it is running with administrator rights. Close it, then run "
-                         "it as yourself, without \"Run as administrator\" or sudo. (elevated_refused)")
+    def __init__(self, code):
+        super().__init__(f"{self.REASONS[code]} ({code})")
+        self.code = code
 
 
 class NotSignedIn(Exception):
@@ -1131,8 +1138,9 @@ class Client:
         """"Remove Swangz from this account" (`swangz cleanup`, and the per-person Windows uninstaller; D-026): sign
         out while the key still exists, delete every workspace folder and drop start at login. A step that fails never
         stops the later ones. -> {"told": bool, "left": [(path, reason)], "problems": [str]}"""
-        if shell.elevated():
-            raise CleanupRefused()  # before anything: with raised rights nothing here may touch a person's folders
+        refused = shell.cleanup_refusal(self.paths.data)
+        if refused:
+            raise CleanupRefused(refused)  # before anything: such a run may not touch a person's folders
         told, problems = True, []
         failures = (ApiFailure, NotSignedIn, keystore.KeyStoreError, agents.AgentConfigError, OSError, ValueError)
         try:

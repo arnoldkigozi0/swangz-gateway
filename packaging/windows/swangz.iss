@@ -130,6 +130,9 @@ end;
 // browser folders open): only processes named Swangz.exe that belong to the person uninstalling. Then the program
 // removes Swangz from this account as that person: it disconnects the device, takes off what it installed and deletes
 // the saved browser sign-ins. What it could not delete is shown and logged; the uninstall carries on either way.
+// The program is started with the uninstaller's own rights (Inno Setup cannot start one as the original user during
+// uninstall). It refuses raised rights or a folder it does not own; that is reported with the two ways to finish, and
+// nothing is ever retried with more rights.
 procedure RemoveFromThisAccount;
 var
   Report, Message: String;
@@ -145,7 +148,10 @@ begin
   if Ran and (ResultCode = 0) then
     exit;
   Message := 'Swangz could not remove everything from this account (code ' + IntToStr(ResultCode) + '). ' +
-    'Saved browser sign-ins may still be in ' + ExpandConstant('{localappdata}\Swangz\browser-profiles') + '.';
+    'Saved browser sign-ins may still be in ' + ExpandConstant('{localappdata}\Swangz\browser-profiles') + '.' +
+    #13#10 + #13#10 + 'To finish: install Swangz again, open it as yourself without administrator rights and choose ' +
+    '"Remove Swangz from this account" on This device, or ask your Swangz administrator to disconnect this device ' +
+    'in the console.';
   if LoadStringsFromFile(Report, Left) and (GetArrayLength(Left) > 0) then
   begin
     Message := Message + #13#10 + #13#10 + 'Not deleted:';

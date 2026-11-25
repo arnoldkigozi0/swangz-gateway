@@ -738,24 +738,68 @@ class ShellTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.paths = core.Paths(self.tmp / "home", self.tmp / "data")
 
-    def test_elevated_fails_closed(self):
-        from swangz_client import winacl
-        with patch.object(shell.sys, "platform", "win32"):
-            for token, expected in ((True, True), (False, False)):
-                with patch.object(winacl, "token_elevated", return_value=token):
-                    self.assertIs(shell.elevated(), expected)
-            with patch.object(winacl, "token_elevated", side_effect=OSError("no token")):
-                self.assertIs(shell.elevated(), True)
-        with patch.object(shell.sys, "platform", "linux"):
-            for uid, expected in ((0, True), (1000, False)):
-                with patch.object(shell.os, "geteuid", return_value=uid, create=True):
-                    self.assertIs(shell.elevated(), expected)
+    # D-026 "Amendment 25 Nov (cleanup tokens)". Windows answers are stood in here, so every system runs them.
+    ME, ADMINS = "S-1-5-21-1-2-3-1001", "S-1-5-32-544"
 
-    @unittest.skipUnless(os.name == "nt", "reads the real Windows token")
-    def test_the_real_token_can_be_read(self):  # pragma: no cover - Windows runner
-        import ctypes
+    def windows_refusal(self, kind=1, user=ME, owner=ME):
         from swangz_client import winacl
-        self.assertEqual(winacl.token_elevated(), bool(ctypes.windll.shell32.IsUserAnAdmin()))
+
+        def answer(value):
+            return {"side_effect": value} if isinstance(value, Exception) else {"return_value": value}
+        with patch.object(shell.sys, "platform", "win32"), \
+                patch.object(winacl, "token_elevation_type", **answer(kind)), \
+                patch.object(winacl, "current_sid", **answer(user)), \
+                patch.object(winacl, "owner_sid", **answer(owner)) as asked:
+            refused = shell.cleanup_refusal(self.paths.data)
+        if asked.called:
+            asked.assert_called_once_with(str(self.paths.data))
+        return refused
+
+    def test_cleanup_allows_a_default_or_limited_token_and_refuses_a_full_one(self):
+        self.assertIsNone(self.windows_refusal(kind=1))  # default: UAC off, or the built-in Administrator
+        self.assertIsNone(self.windows_refusal(kind=3))  # limited
+        self.assertEqual(self.windows_refusal(kind=2), "elevated_refused")  # full: raised by UAC
+        self.assertEqual(self.windows_refusal(kind=0), "elevated_refused")  # an answer nobody defined
+
+    def test_cleanup_refuses_the_three_service_accounts(self):
+        for sid in ("S-1-5-18", "S-1-5-19", "S-1-5-20"):
+            for kind in (1, 3):
+                with self.subTest(sid=sid, kind=kind):
+                    self.assertEqual(self.windows_refusal(kind=kind, user=sid, owner=sid), "elevated_refused")
+
+    def test_cleanup_refuses_a_folder_somebody_else_owns(self):
+        for owner in ("S-1-5-21-1-2-3-1002", self.ADMINS, "S-1-5-18"):
+            with self.subTest(owner=owner):
+                self.assertEqual(self.windows_refusal(owner=owner), "wrong_account")
+
+    def test_cleanup_refuses_what_it_cannot_read(self):
+        for answers, expected in (({"kind": OSError("token")}, "elevated_refused"),
+                                  ({"user": OSError("sid")}, "elevated_refused"),
+                                  ({"user": None}, "elevated_refused"),
+                                  ({"owner": OSError(5, "owner")}, "wrong_account"),
+                                  ({"owner": None}, "wrong_account")):
+            with self.subTest(answers=answers):
+                self.assertEqual(self.windows_refusal(**answers), expected)
+        # no folder: nothing has an owner, so a second run (or an account that never signed in) is not refused
+        self.assertIsNone(self.windows_refusal(owner=FileNotFoundError("gone")))
+
+    def test_cleanup_on_macos_and_linux_wants_the_folders_owner_and_never_root(self):
+        self.paths.data.mkdir(parents=True)
+        owner = os.stat(self.paths.data).st_uid
+        for platform in ("linux", "darwin"):
+            with patch.object(shell.sys, "platform", platform):
+                for euid, expected in ((0, "elevated_refused"), (owner + 1, "wrong_account")):
+                    with self.subTest(platform=platform, euid=euid), \
+                            patch.object(shell.os, "geteuid", return_value=euid, create=True):
+                        self.assertEqual(shell.cleanup_refusal(self.paths.data), expected)
+                if os.name != "nt" and owner:  # the real owner of a real folder
+                    with patch.object(shell.os, "geteuid", return_value=owner, create=True):
+                        self.assertIsNone(shell.cleanup_refusal(self.paths.data))
+                        self.assertIsNone(shell.cleanup_refusal(self.tmp / "not-there"))
+                        with patch.object(shell.os, "stat", side_effect=PermissionError(13, "no")):
+                            self.assertEqual(shell.cleanup_refusal(self.paths.data), "wrong_account")
+                with patch.object(shell.os, "geteuid", side_effect=OSError("no"), create=True):
+                    self.assertEqual(shell.cleanup_refusal(self.paths.data), "elevated_refused")
 
     def test_hub_links_use_only_enrolled_origin_and_never_device_credentials(self):
         device = {"server": "https://hub.example:8443", "key": "never-in-url"}
@@ -865,9 +909,9 @@ class CommandLineTests(ClientBase):
 
     def signed_in_with_folders(self):
         """A signed-in device with saved browser sign-ins; start at login is never the test runner's real one."""
-        not_elevated = patch.object(shell, "elevated", return_value=False)
-        not_elevated.start()
-        self.addCleanup(not_elevated.stop)
+        allowed = patch.object(shell, "cleanup_refusal", return_value=None)  # the rule itself: ShellTests
+        allowed.start()
+        self.addCleanup(allowed.stop)
         autostart = patch.object(shell, "set_autostart")
         self.autostart = autostart.start()
         self.addCleanup(autostart.stop)
@@ -902,20 +946,22 @@ class CommandLineTests(ClientBase):
         self.assertEqual(self.run_cli("cleanup", "--report", str(self.report)), (0, text))
         self.assertEqual(sorted(str(p) for p in self.root.rglob("*")), before)
 
-    def test_cleanup_refuses_with_administrator_rights_and_changes_nothing(self):
+    def test_a_refused_cleanup_says_why_and_changes_nothing(self):
         info = self.signed_in_with_folders()
         before = {str(p): p.read_bytes() if p.is_file() else None for p in self.root.rglob("*")}
-        with patch.object(shell, "elevated", return_value=True):
-            code, text = self.run_cli("cleanup", "--report", str(self.report))
-            self.assertEqual(code, 1)
-            self.assertIn("elevated_refused", text)
-            self.assertNotIn("was removed from this account", text)
-            with self.assertRaises(core.CleanupRefused):
-                self.client.cleanup()
-            # the command refuses before it even builds the client, which writes in the person's folders
-            with patch.object(core, "Client") as made, patch.object(cli, "say"):
-                self.assertEqual(cli.main(["cleanup"]), 1)
-            made.assert_not_called()
+        for reason in ("elevated_refused", "wrong_account"):
+            with self.subTest(reason=reason), patch.object(shell, "cleanup_refusal", return_value=reason):
+                code, text = self.run_cli("cleanup", "--report", str(self.report))
+                self.assertEqual(code, 1)
+                self.assertIn(f"({reason})", text)
+                self.assertNotIn("was removed from this account", text)
+                with self.assertRaises(core.CleanupRefused) as refused:
+                    self.client.cleanup()
+                self.assertEqual(refused.exception.code, reason)
+                # the command refuses before it even builds the client
+                with patch.object(core, "Client") as made, patch.object(cli, "say"):
+                    self.assertEqual(cli.main(["cleanup"]), 1)
+                made.assert_not_called()
         self.assertEqual({str(p): p.read_bytes() if p.is_file() else None for p in self.root.rglob("*")}, before)
         self.assertFalse(self.revoked(info))
         self.autostart.assert_not_called()

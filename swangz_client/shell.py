@@ -19,15 +19,33 @@ def app_command():
     return [sys.executable, "-m", "swangz_client"]
 
 
-def elevated():
-    """True when this process has administrator (Windows) or root rights. An unanswered question counts as yes."""
-    if sys.platform == "win32":
-        try:
-            from .winacl import token_elevated
-            return token_elevated()
-        except Exception:
-            return True
-    return os.geteuid() == 0
+SYSTEM_SIDS = ("S-1-5-18", "S-1-5-19", "S-1-5-20")  # SYSTEM, LOCAL SERVICE, NETWORK SERVICE
+USER_TOKENS = (1, 3)  # TokenElevationType: default and limited. 2 is full: raised by UAC
+
+
+def cleanup_refusal(data):
+    """Why `cleanup` must not run on the app data folder `data` (docs/DECISIONS.md D-026, "Amendment 25 Nov (cleanup
+    tokens)"): -> "elevated_refused", "wrong_account" or None. A question that goes unanswered refuses. A folder
+    that is not there has no owner to compare, so it does not refuse."""
+    try:
+        if sys.platform == "win32":
+            from . import winacl
+            kind, user, owner_of = winacl.token_elevation_type(), winacl.current_sid(), winacl.owner_sid
+            if kind not in USER_TOKENS or not user or user in SYSTEM_SIDS:
+                return "elevated_refused"
+        else:
+            user, owner_of = os.geteuid(), lambda path: os.stat(path).st_uid
+            if user == 0:
+                return "elevated_refused"
+    except Exception:
+        return "elevated_refused"
+    try:
+        owner = owner_of(str(data))
+    except FileNotFoundError:
+        return None
+    except Exception:
+        return "wrong_account"
+    return None if owner == user else "wrong_account"
 
 
 # ---------------------------------------------------------------- start at login

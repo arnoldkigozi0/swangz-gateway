@@ -10,7 +10,6 @@ this script can cut and restore, which is how a network interruption is made. Ev
 """
 
 import argparse
-import ctypes
 import hashlib
 import hmac
 import json
@@ -339,7 +338,7 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         device = enrol()
         key_id = device["key_id"]
         report["key_storage"] = device["key_storage"]
-        from swangz_client import keystore
+        from swangz_client import keystore, shell, winacl
 
         def stored_secret():
             return keystore.CredentialManager().get(origin, key_id)
@@ -675,13 +674,15 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
 
         # 8. uninstall while the program runs (as it does when started at sign-in): it is stopped, then `cleanup` runs as
         #    the person (D-026): signed out at the Hub, local data, the Credential Manager entry and every workspace folder
-        #    removed; program, shortcuts and Run value gone. `cleanup` refuses an elevated token, so on an elevated runner
-        #    this proves the refusal instead: the person's account is left as it was and the uninstall log says so
+        #    removed; program, shortcuts and Run value gone. Where `cleanup` refuses this token or folder owner (D-026,
+        #    "Amendment 25 Nov"), this proves the refusal instead: the account is left as it was and the log says so
         gui = subprocess.Popen([str(exe), "--background"], env=env, cwd=work)
         time.sleep(8)
         require(gui.poll() is None, "the program did not start before the uninstall")
-        elevated = bool(ctypes.windll.shell32.IsUserAnAdmin())
-        report["uninstaller_elevated"] = elevated
+        refusal = shell.cleanup_refusal(data)  # this process and the uninstaller it starts have the same token
+        report["uninstaller"] = {"refusal": refusal, "elevation_type": winacl.token_elevation_type(),
+                                 "user": winacl.current_sid(), "data_owner": winacl.owner_sid(str(data))}
+        print(f"uninstaller: {report['uninstaller']}", flush=True)
         quiet = reg_value(UNINSTALL_KEY, "UninstallString").strip('"')
         run([quiet, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", f"/LOG={evidence / 'uninstall.log'}"])
         deadline = time.monotonic() + 120  # the uninstaller finishes from a copy of itself in %TEMP%
@@ -696,12 +697,12 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         log = (evidence / "uninstall.log").read_text(encoding="utf-8-sig", errors="replace")
         revoked = rig.gw.db.scalar("SELECT revoked FROM keys WHERE id = ?", (key_id,))  # the final enrolment's key
         said = "could not remove everything from this account" in log
-        if elevated:
+        if refusal:
             require(said, "the uninstall log does not say that the account was not cleaned")
-            require((data / "device.json").exists() and revoked is None, "an elevated cleanup changed the account")
-            hub_journey.kept(check, data, folder, marker, "after the elevated uninstall")
-            passed("silent elevated uninstall while running: program stopped and removed, cleanup refused and logged,"
-                   " nothing in the account deleted")
+            require((data / "device.json").exists() and revoked is None, "a refused cleanup changed the account")
+            hub_journey.kept(check, data, folder, marker, "after the refused uninstall")
+            passed(f"silent uninstall while running: program stopped and removed, cleanup refused ({refusal}) and"
+                   " logged, nothing in the account deleted")
         else:
             require(not said, "cleanup reported a failure in the uninstall log")
             require(not (data / "device.json").exists(), "local credentials left behind")

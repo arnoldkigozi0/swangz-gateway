@@ -354,8 +354,12 @@ hold a person's provider and Google sign-ins. The app says where they are.
 **Remove Swangz from this account** on *This device*, or `swangz cleanup` (`Swangz.exe cleanup`), takes Swangz off
 one person's account. It:
 
-1. refuses to run with administrator rights (Windows: an elevated token; macOS and Linux: root). Nothing changes,
-   the exit code is 1 and the message carries `elevated_refused`;
+1. refuses where it must not run. Nothing changes, the exit code is 1 and the message carries the reason:
+   - `elevated_refused`: rights raised by Windows' prompt ("Run as administrator"), a Windows service account, root
+     on macOS and Linux, or rights that can't be read. An account that always has full rights because that prompt is
+     off, the built-in Administrator included, is not refused for it;
+   - `wrong_account`: the account running it does not own the app's data folder, or the owner can't be read
+     (D-026, "Amendment 25 Nov (cleanup tokens)");
 2. closes the workspace window;
 3. signs out while the key still exists, which removes the key and what Swangz installed. If the server can't be
    reached it says so and carries on, and an admin disconnects the device in the console;
@@ -369,9 +373,10 @@ when none are left). Running it again is safe. The app itself stays installed.
 
 - **Windows, per-person install:** uninstalling closes the person's running copy and runs `cleanup` as that person
   before the program files go. If it fails, the uninstaller shows what was not deleted (not in a silent uninstall,
-  where it is only in the log) and carries on. An uninstaller that is elevated, which includes accounts where Windows
-  runs everything elevated, gets the refusal: the program is removed, nothing in the account is cleaned and the
-  device must be disconnected in the console.
+  where it is only in the log) and carries on. An uninstaller started as administrator, or by an account that does not
+  own the data folder, gets the refusal: the program is removed and nothing in the account is cleaned. The message
+  names the two ways to finish: install again and choose **Remove Swangz from this account** without administrator
+  rights, or have the device disconnected in the console. The uninstaller never retries with more rights.
 - **Windows, company build:** its elevated installer and uninstaller never run `cleanup`. Each person chooses
   **Remove Swangz from this account** first.
 - **macOS:** choose **Remove Swangz from this account** (or run

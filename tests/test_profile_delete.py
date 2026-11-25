@@ -289,6 +289,32 @@ class DeleteAllTests(Base):
             self.assertEqual(self.leftovers(), [])
 
 
+class NativeCleanupTests(Base):
+    """`swangz cleanup` with the token and folder owner Windows really reports (D-026, "Amendment 25 Nov")."""
+
+    @unittest.skipUnless(WINDOWS, "the real Windows token and folder owner")
+    def test_cleanup_with_the_real_token_deletes_and_leaves_a_junctions_target(self):  # pragma: no cover
+        from swangz_client import cli, core, shell, winacl
+        kind, user = winacl.token_elevation_type(), winacl.current_sid()
+        made_by_us = winacl.owner_sid(str(self.data))
+        print(f"\ncleanup token: TokenElevationType={kind} user={user} owner of a folder this token made={made_by_us}",
+              flush=True)
+        if os.environ.get("GITHUB_ACTIONS"):
+            self.assertEqual(kind, 1, "the hosted runner has the default token")
+        self.assertIn(kind, (1, 3))
+        self.assertEqual(shell.cleanup_refusal(self.data), None if made_by_us == user else "wrong_account")
+        winacl.restrict(str(self.data))  # the person owns the app data folder
+        self.assertEqual(winacl.owner_sid(str(self.data)), user)
+        self.assertIsNone(shell.cleanup_refusal(self.data))
+        folder = self.profile_with_content()
+        junction(folder / "Default" / "junction", self.outside)
+        client = core.Client(core.Paths(self.base / "home", self.data))
+        with mock.patch.object(shell, "set_autostart"), mock.patch.object(cli, "say"):
+            self.assertEqual(cli.main(["cleanup"], client=client), 0)
+        self.assertEqual(self.leftovers(), [])
+        self.assert_outside_untouched()
+
+
 class PendingTests(Base):
     """A retired folder that cannot be deleted: reported, Open refused with a reason, deleted before the next launch."""
 

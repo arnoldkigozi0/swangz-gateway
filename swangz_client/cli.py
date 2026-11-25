@@ -100,9 +100,11 @@ def main(argv=None, client=None):
     p = sub.add_parser("update", help="check, stage or apply an authenticated app release")
     p.add_argument("action", choices=("status", "check", "apply"), nargs="?", default="status")
     args = parser.parse_args(command_argv)
-    if args.cmd == "cleanup" and shell.elevated():  # before the client: an elevated run reads and writes nothing
-        say(str(core.CleanupRefused()))
-        return 1
+    if args.cmd == "cleanup":  # before the client: a refused run reads and writes nothing of Swangz's
+        refused = shell.cleanup_refusal((client.paths if client else core.Paths()).data)
+        if refused:
+            say(str(core.CleanupRefused(refused)))
+            return 1
     client = client or core.Client()
     try:
         if args.cmd == "key":

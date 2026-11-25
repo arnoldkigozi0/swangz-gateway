@@ -13,7 +13,7 @@ DACL_SECURITY_INFORMATION = 0x4
 PROTECTED_DACL_SECURITY_INFORMATION = 0x80000000
 TOKEN_QUERY = 0x8
 TOKEN_USER = 1
-TOKEN_ELEVATION = 20
+TOKEN_ELEVATION_TYPE = 18  # TOKEN_INFORMATION_CLASS: 1 default, 2 full, 3 limited
 ACL_REVISION = 2
 ACL_SIZE_INFORMATION = 2
 ACCESS_ALLOWED_ACE_TYPE = 0
@@ -76,18 +76,19 @@ def _user_sid(advapi, kernel):
         kernel.CloseHandle(token)
 
 
-def token_elevated():
-    """True when this process runs with an elevated token. Raises OSError when Windows will not say."""
+def token_elevation_type():
+    """-> 1 default (no split token: UAC off, built-in Administrator, or a plain user), 2 full (raised by UAC),
+    3 limited. Raises OSError when Windows will not say."""
     advapi, kernel = _libs()
     token = wintypes.HANDLE()
     if not advapi.OpenProcessToken(kernel.GetCurrentProcess(), TOKEN_QUERY, ctypes.byref(token)):
         raise OSError("token")
     try:
-        elevated, size = wintypes.DWORD(), wintypes.DWORD()
-        if not advapi.GetTokenInformation(token, TOKEN_ELEVATION, ctypes.byref(elevated), ctypes.sizeof(elevated),
+        kind, size = wintypes.DWORD(), wintypes.DWORD()
+        if not advapi.GetTokenInformation(token, TOKEN_ELEVATION_TYPE, ctypes.byref(kind), ctypes.sizeof(kind),
                                           ctypes.byref(size)):
             raise OSError("token information")
-        return bool(elevated.value)
+        return kind.value
     finally:
         kernel.CloseHandle(token)
 
@@ -103,6 +104,28 @@ def current_sid():
         return text.value
     finally:
         kernel.LocalFree(text)
+
+
+def owner_sid(path):
+    """-> the SID, as text, of the file or folder's owner. Raises FileNotFoundError when it is not there and OSError
+    when Windows will not say."""
+    advapi, kernel = _libs()
+    owner, sd, text = ctypes.c_void_p(), ctypes.c_void_p(), wintypes.LPWSTR()
+    err = advapi.GetNamedSecurityInfoW(path, SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION, ctypes.byref(owner),
+                                       None, None, None, ctypes.byref(sd))
+    if err in (2, 3):  # file or path not found
+        raise FileNotFoundError(path)
+    if err:
+        raise OSError(err, "owner")
+    try:
+        if not owner.value or not advapi.ConvertSidToStringSidW(owner, ctypes.byref(text)):
+            raise OSError("owner sid")
+        try:
+            return text.value
+        finally:
+            kernel.LocalFree(text)
+    finally:
+        kernel.LocalFree(sd)
 
 
 def restrict(path):

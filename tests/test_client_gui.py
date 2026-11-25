@@ -398,7 +398,7 @@ class WindowTests(unittest.TestCase):
     def test_a_refused_removal_says_why_and_stays_where_it_was(self):
         app = self.make()
         buttons(app.dock)["This device"].invoke()
-        self.client.account_error = core.CleanupRefused()
+        self.client.account_error = core.CleanupRefused("elevated_refused")
         self.remove_account(app)
         self.assertEqual(app.page, "device")
         self.assertIn("elevated_refused", app.statusbar.cget("text"))

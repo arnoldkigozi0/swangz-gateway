@@ -71,8 +71,12 @@ class InstallerScriptTests(unittest.TestCase):
         self.assertEqual(body.count("ewWaitUntilTerminated"), 2)
         checked = body.index("if Ran and (ResultCode = 0) then")
         self.assertLess(run, checked)
-        for needed in ("could not remove everything from this account", "LoadStringsFromFile(Report, Left)", "Log(Message);"):
+        for needed in ("could not remove everything from this account", "LoadStringsFromFile(Report, Left)", "Log(Message);",
+                       '"Remove Swangz from this account" on This device', "disconnect this device "):
             self.assertGreater(body.index(needed), checked)
+        # a refusal is reported, never retried with other or more rights
+        self.assertNotRegex(CODE, r"(?i)runas|ShellExec|AsOriginalUser")
+        self.assertEqual(CODE.count("'cleanup "), 1)
         self.assertRegex(body, r"if not UninstallSilent then\s+MsgBox\(Message")
         step = CODE.split("procedure CurUninstallStepChanged", 1)[1]
         self.assertRegex(step, r"if CurUninstallStep = usUninstall then\s+RemoveFromThisAccount;")  # before files go
@@ -435,17 +439,19 @@ class WindowsPolicyTamperTests(unittest.TestCase):
             self.assertIn(needle, block)
         self.assertLess(block.index("windows_policy.run("), block.index("device = enrol(approve_second[0])"))
 
-    def test_the_uninstall_deletes_both_peoples_folders_or_when_elevated_proves_the_refusal(self):
+    def test_the_uninstall_deletes_both_peoples_folders_or_proves_the_refusal(self):
         self.assertIn("approve_second[:] = [approve]", self.e2e[self.e2e.index("def enrol_second"):])
         after = self.e2e[self.e2e.index("# 8. uninstall"):self.e2e.index("report[\"ok\"] = True")]
-        elevated, unelevated = after.split("        if elevated:\n", 1)[1].split("        else:\n", 1)
-        for needed in ('require(said,', "an elevated cleanup changed the account",
-                       'hub_journey.kept(check, data, folder, marker, "after the elevated uninstall")'):
-            self.assertIn(needed, elevated)
+        refused, allowed = after.split("        if refusal:\n", 1)[1].split("        else:\n", 1)
+        for needed in ('require(said,', "a refused cleanup changed the account",
+                       'hub_journey.kept(check, data, folder, marker, "after the refused uninstall")'):
+            self.assertIn(needed, refused)
         for needed in ('require(not said,', "the Hub did not disconnect the device",
                        'hub_journey.removed(check, data, "after the uninstall")'):
-            self.assertIn(needed, unelevated)
-        self.assertIn('report["uninstaller_elevated"] = elevated', after)
+            self.assertIn(needed, allowed)
+        # the expectation is the app's own rule, asked with the token the uninstaller gets, before it runs
+        self.assertLess(after.index("refusal = shell.cleanup_refusal(data)"), after.index('"/VERYSILENT"'))
+        self.assertIn('report["uninstaller"] = {"refusal": refusal, "elevation_type": winacl.token_elevation_type()', after)
 
     def test_a_refused_open_starts_no_chrome_and_each_sync_must_report_afresh(self):
         refused = self.src[self.src.index("def refused("):self.src.index("def synced(")]
