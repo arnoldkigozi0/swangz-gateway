@@ -122,7 +122,8 @@ class App:
 
     def failed(self, exc):
         if isinstance(exc, core.Revoked):
-            self.error = "This device was disconnected from Swangz AI Hub, so Swangz has been removed from it."
+            self.error = ("This device was disconnected from Swangz AI Hub, so the coding agents and packages Swangz "
+                          "installed were taken off it. " + browser_folders_stay(self.client.paths.data))
             self.show("signin")
         elif isinstance(exc, core.NeedsReconnect):
             self.say(str(exc), bad=True)  # nothing was removed

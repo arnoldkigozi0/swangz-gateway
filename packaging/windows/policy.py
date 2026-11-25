@@ -225,7 +225,7 @@ def run(check, run_app, enrol_company, owner, db, person_id, data, evidence, too
         synced("removed", False, False)
 
         code, out = run_app("logout")
-        check("policy: the company device signs out", code == 0 and "removed" in out, out.strip()[-160:])
+        check("policy: the company device signs out", macos_policy.signed_out(code, out), out.strip()[-160:])
     finally:
         # each cleanup step on its own, so a key that cannot be removed does not skip the Hub reset or the evidence
         errors = []

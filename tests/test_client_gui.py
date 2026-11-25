@@ -333,7 +333,10 @@ class WindowTests(unittest.TestCase):
         app.failed(core.Revoked(401, "device_revoked", "x"))
         app.root.update()
         self.assertEqual(app.page, "signin")
-        self.assertIn("was disconnected", " ".join(self.everything()))
+        shown = " ".join(self.everything())
+        self.assertIn("was disconnected", shown)
+        self.assertNotIn("has been removed", shown)  # the browser folders stay until deletion is built
+        self.assertIn("provider and Google sign-ins are not removed", shown)
 
     def test_opening_a_coding_agent_starts_a_terminal_running_it_through_swangz(self):
         app = self.make()

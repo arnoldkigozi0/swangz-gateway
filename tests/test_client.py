@@ -861,6 +861,8 @@ class CommandLineTests(ClientBase):
         code, text = self.run_cli("sync")
         self.assertEqual(code, 3)
         self.assertIn("was disconnected", text)
+        self.assertNotIn("has been removed", text)  # the browser folders stay until deletion is built
+        self.assertIn("Not removed: browser folders that hold provider and Google sign-ins", text)
 
 
 if __name__ == "__main__":

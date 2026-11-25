@@ -491,6 +491,38 @@ class FixtureRestartTests(unittest.TestCase):
         self.assertTrue(db.is_file())
 
 
+class SignOutCheckTests(unittest.TestCase):
+    """The packaged-app sign-out checks pass only on the app's real success line. They used to match "removed",
+    which the "Not removed: browser folders ..." warning printed on every sign-out also matches."""
+
+    WARNING = ("Not removed: browser folders that hold provider and Google sign-ins stay on this device at /x. "
+               "Delete that folder yourself if you need those sign-ins gone.")
+
+    def setUp(self):
+        self.p = load("macos_policy")
+
+    def test_a_real_sign_out_passes(self):
+        ok = "Signed out: the coding agents and packages Swangz installed were taken off this device.\n" + self.WARNING
+        self.assertTrue(self.p.signed_out(0, ok))
+
+    def test_a_failed_sign_out_fails_even_with_the_warning(self):
+        self.assertFalse(self.p.signed_out(0, self.WARNING))  # only the warning: "removed" alone would have passed
+        self.assertFalse(self.p.signed_out(1, "Signed out: ... taken off this device.\n" + self.WARNING))
+        unreached = ("Signed out: the coding agents and packages Swangz installed were taken off this device. (The server "
+                     "couldn't be reached, so ask an admin to disconnect this device too.)\n" + self.WARNING)
+        self.assertFalse(self.p.signed_out(0, unreached))
+        self.assertFalse(self.p.signed_out(0, "Swangz has been removed from this device."))  # the old wording
+
+    def test_every_packaged_sign_out_check_uses_it(self):
+        texts = {name: (ROOT / "packaging" / name).read_text(encoding="utf-8")
+                 for name in ("macos_policy.py", "macos_journey.py", "windows/policy.py")}
+        for name, text in texts.items():
+            self.assertNotIn('"removed" in out', text, name)
+        self.assertEqual(texts["macos_journey.py"].count("macos_policy.signed_out(code, out)"), 2)
+        self.assertIn("macos_policy.signed_out(code, out)", texts["windows/policy.py"])
+        self.assertIn("signed_out(code, out), out.strip()", texts["macos_policy.py"])
+
+
 class PolicyTamperTests(unittest.TestCase):
     """Deliverable 6 (packaging/macos_policy.py): the machine policy pack tampered with, through the packaged app."""
 
