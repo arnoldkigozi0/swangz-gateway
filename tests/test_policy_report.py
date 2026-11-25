@@ -76,6 +76,17 @@ class StricterCheckTests(Base):
         self.assertIn("unexpected:ExtensionInstallSources", result.problems)
         self.assertFalse(result.ok)
 
+    def test_an_unreadable_hkcu_policy_key_fails(self):
+        class Denied(TypedRegistry):
+            def OpenKey(self, parent, sub, reserved=0, access=None):
+                if parent == self.HKEY_CURRENT_USER:
+                    raise PermissionError(sub)
+                return super().OpenKey(parent, sub, reserved, access)
+        result = self.check(Denied({CHROME: as_registry(self.policy)}))
+        self.assertFalse(result.ok)
+        self.assertEqual(result.problems, ["unreadable"])
+        self.assertTrue(self.check(registry(self.policy)).ok)  # an absent HKCU key is still fine
+
     def test_an_hkcu_value_fails_as_user_policy(self):
         user = {CHROME: FakeKey({"DeveloperToolsAvailability": 1}, {"URLAllowlist": FakeKey({"1": "*"})})}
         result = self.check(registry(self.policy, user=user))
@@ -208,6 +219,19 @@ class OwnershipTests(Base):
     def test_a_marker_without_a_hash_is_a_conflict(self):
         self.assertEqual(mp.ownership(registry(self.policy, marker={"written": "x"}))[0], "conflict")
 
+    def test_an_added_empty_subkey_changes_the_hash(self):
+        key = as_registry(self.policy)
+        reg = registry(key)
+        reg.tree[mp.MARKER_KEY] = FakeKey(self.pinned(reg))
+        self.assertEqual(mp.ownership(reg)[0], "ours")
+        key.subkeys["ForeignEmptyKey"] = FakeKey()
+        self.assertEqual(mp.ownership(reg)[0], "conflict")
+        nested = next(k for k in key.subkeys.values() if k is not key.subkeys["ForeignEmptyKey"])
+        del key.subkeys["ForeignEmptyKey"]
+        self.assertEqual(mp.ownership(reg)[0], "ours")
+        nested.subkeys["Deeper"] = FakeKey()
+        self.assertEqual(mp.ownership(reg)[0], "conflict")
+
     def test_an_unreadable_key_is_unreadable(self):
         class Denied(TypedRegistry):
             def EnumKey(self, key, i):
@@ -303,16 +327,24 @@ class UnenforcedTests(Base):
         self.assertEqual(mp.management("darwin", run=failing), {"domain": None, "mdm": None})
 
     def test_windows_management(self):
-        enrol = {r"SOFTWARE\Microsoft\Enrollments": FakeKey(subkeys={"ABC": FakeKey({"ProviderID": "MS DM Server"}),
-                                                                       "Context": FakeKey()})}
-        reg = TypedRegistry(enrol)
-        self.assertEqual(mp.management("win32", registry=reg, netjoin=lambda: True), {"domain": True, "mdm": True})
+        self.assertEqual(mp.management("win32", registry=TypedRegistry({}), netjoin=lambda: True),
+                         {"domain": True, "mdm": None})
         self.assertEqual(mp.management("win32", registry=TypedRegistry({}), netjoin=lambda: False),
-                         {"domain": False, "mdm": False})
+                         {"domain": False, "mdm": None})
 
         def broken():
             raise OSError("netapi")
         self.assertEqual(mp.management("win32", registry=TypedRegistry({}), netjoin=broken)["domain"], None)
+
+    def test_a_stray_enrollments_provider_id_does_not_make_windows_managed(self):
+        enrol = {r"SOFTWARE\Microsoft\Enrollments": FakeKey(subkeys={"ABC": FakeKey({"ProviderID": "AnythingAtAll"}),
+                                                                       "Context": FakeKey()})}
+        policy = dict(self.policy, ExtensionInstallForcelist=[self.OFF_STORE])
+        reg = registry(policy, **enrol)
+        self.assertEqual(mp.management("win32", registry=reg, netjoin=lambda: False), {"domain": False, "mdm": None})
+        out = mp.setup_report("win32", registry=reg, netjoin=lambda: False)
+        self.assertIn("ExtensionInstallForcelist:off_store:" + "a" * 32, out["not_guaranteed"])
+        self.assertNotIn("Microsoft\\Enrollments", Path(mp.__file__).read_text(encoding="utf-8"))  # not read at all
 
     def test_setup_report_lists_gaps_conflicts_and_never_says_enforced(self):
         policy = dict(self.policy, ExtensionInstallForcelist=[self.OFF_STORE])

@@ -228,7 +228,7 @@ def read_windows_user(browser="chrome", registry=None):
     try:
         key = registry.OpenKey(registry.HKEY_CURRENT_USER, WINDOWS_KEYS[browser], 0,
                                registry.KEY_READ | registry.KEY_WOW64_64KEY)
-    except OSError:
+    except FileNotFoundError:  # only an absent key is "nothing there"; a denied one fails the check as unreadable
         return []
     names = []
     with key:
@@ -460,8 +460,9 @@ def _data(value):
 
 
 def read_tree(registry, root, path):
-    """Every (subkey path, value name lowercased, registry type, data) under root\\path in the 64-bit view, or None
-    when the key is absent. Unreadable on any error or on a tree larger than TREE_LIMIT / deeper than TREE_DEPTH."""
+    """Every (subkey path, value name lowercased, registry type, data) under root\\path in the 64-bit view, plus one
+    (subkey path, None, "key", None) row per subkey so an added empty subkey changes the hash; or None when the key
+    is absent. Unreadable on any error or on a tree larger than TREE_LIMIT / deeper than TREE_DEPTH."""
     access = registry.KEY_READ | registry.KEY_WOW64_64KEY
     out, count = [], 0
 
@@ -489,8 +490,10 @@ def read_tree(registry, root, path):
         if count > TREE_LIMIT:
             raise Unreadable("size")
         for sub in subs:
+            path = (rel + "\\" + sub) if rel else sub
+            out.append((path, None, "key", None))
             with registry.OpenKey(key, sub, 0, access) as child:
-                walk(child, (rel + "\\" + sub) if rel else sub, depth + 1)
+                walk(child, path, depth + 1)
 
     try:
         key = registry.OpenKey(registry.HKEY_LOCAL_MACHINE, path, 0, access)
@@ -570,10 +573,10 @@ def management(platform=None, run=None, registry=None, netjoin=None):
             out["domain"] = (netjoin or _windows_joined)()
         except Exception:
             pass
-        try:
-            out["mdm"] = _windows_mdm(registry)
-        except Exception:
-            pass
+        # MDM is not read on Windows: a ProviderID under Enrollments is no evidence Chrome counts the computer as
+        # managed (Chromium asks MDMRegistration.dll, false on Home editions), and a stray one would hide the
+        # off-store force-install. Whether MDM counts at all is Sentinel's call (D-026 E5); until then only a
+        # domain join makes a Windows computer managed, and unknown stays unmanaged.
     elif platform == "darwin":
         import subprocess
         run = run or subprocess.run
@@ -605,38 +608,6 @@ def _windows_joined():  # pragma: no cover - Windows only
         raise OSError("NetGetJoinInformation")
     netapi.NetApiBufferFree(name)
     return status.value == 3
-
-
-def _windows_mdm(registry=None):
-    """An MDM enrolment leaves a subkey of HKLM\\SOFTWARE\\Microsoft\\Enrollments with a ProviderID."""
-    if registry is None:
-        import winreg as registry  # pragma: no cover - Windows only
-    access = registry.KEY_READ | registry.KEY_WOW64_64KEY
-    try:
-        root = registry.OpenKey(registry.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Enrollments", 0, access)
-    except FileNotFoundError:
-        return False
-    with root:
-        i = 0
-        while True:
-            try:
-                sub = registry.EnumKey(root, i)
-            except OSError:
-                return False
-            i += 1
-            try:
-                with registry.OpenKey(root, sub, 0, access) as key:
-                    j = 0
-                    while True:
-                        try:
-                            name, value, _ = registry.EnumValue(key, j)
-                        except OSError:
-                            break
-                        j += 1
-                        if name.lower() == "providerid" and value:
-                            return True
-            except OSError:
-                continue
 
 
 def not_guaranteed(policy, managed, platform=None, accepted=ACCEPTED):
