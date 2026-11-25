@@ -28,6 +28,7 @@ from . import __version__, agents, bundles, keystore, shell
 TIMEOUT = 30
 MAX_DOWNLOAD = 150 * 1024 * 1024
 LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1", "[::1]")
+DEFAULT_SERVER = "https://hub.ictconnect.org"  # what sign-in starts with; the person can change it. Staff accounts are a separate rule (the Hub's)
 POLICY_MAX_AGE = 60  # D-024: a machine-policy result is never reused once it is a minute old
 HEARTBEAT_SECONDS = 15 * 60  # the window's sync/check-in interval; a refused key is not retried faster than this
 ROTATE_AFTER_DAYS = 30  # used when the manifest does not say
@@ -428,7 +429,7 @@ def normalise_server(text):
     except ValueError:
         raise ValueError("Invalid port in the Hub address.") from None
     if u.scheme not in ("https", "http") or not u.hostname or u.username or u.password or u.query or u.fragment or u.path not in ("", "/"):
-        raise ValueError("That doesn't look like the address of a Swangz AI Hub (for example https://ai.swangzavenue.com).")
+        raise ValueError("That doesn't look like the address of a Swangz AI Hub (for example https://hub.ictconnect.org).")
     if u.scheme == "http" and u.hostname not in LOCAL_HOSTS and os.environ.get("SWANGZ_ALLOW_HTTP") != "1":
         raise ValueError("Swangz only connects over https. (For a test server on this computer, http://localhost works.)")
     host = u.hostname.lower()

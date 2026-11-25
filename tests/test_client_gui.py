@@ -131,6 +131,19 @@ class WindowTests(unittest.TestCase):
         self.assertIn("Swangz AI Hub address", text)
         self.assertNotIn("Home", buttons(self.app.dock))  # no dock until you are in
 
+    def test_sign_in_starts_on_the_company_hub_unless_the_environment_names_another(self):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("SWANGZ_SERVER", None)
+            app = self.make(False)
+            self.assertEqual(app.server_var.get(), "https://hub.ictconnect.org")
+            self.assertEqual(self.client.calls, [])  # nothing is sent before Sign in
+            os.environ["SWANGZ_SERVER"] = ""
+            app.show("signin")
+            self.assertEqual(app.server_var.get(), "https://hub.ictconnect.org")
+            os.environ["SWANGZ_SERVER"] = "https://other.example.org"
+            app.show("signin")
+            self.assertEqual(app.server_var.get(), "https://other.example.org")
+
     def test_signing_in_shows_the_code_then_lands_on_home(self):
         app = self.make(False)
         app.server_var.set("ai.swangzavenue.com")

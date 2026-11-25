@@ -13,6 +13,12 @@ display — `xvfb-run -a python3 -m unittest tests.test_client_gui`).
 
 ## How a device joins (the device-code flow)
 
+Sign-in starts with `https://hub.ictconnect.org` in the address box (`swangz_client/core.py` `DEFAULT_SERVER`; the
+browser extension's popup does the same). The person can type another address, `swangz login --server URL` still works,
+and `SWANGZ_SERVER` still overrides the window's box. Nothing is sent to the address before they press Sign in. Which
+accounts may sign in is the Hub's rule and is unchanged (`swangzavenue.com`). A device that is already connected keeps
+the address it was connected with.
+
 1. The app asks the gateway for a code (`POST /api/device/code`) and shows it, big, and opens the browser.
 2. The person, signed in to Swangz AI Hub in their own browser, opens `/device`, checks what is asking (name,
    system, version, the address it asked from) and presses **Approve**, saying whether the device is *their

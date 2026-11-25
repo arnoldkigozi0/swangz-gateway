@@ -234,15 +234,15 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         app("--self-check", check)
         check = json.loads(check.read_text(encoding="utf-8"))
         require(check["frozen"] and check["window"] == "signin", f"self-check: {check}")
-        require(not (data / "device.json").exists() and check.get("hub_address") == "",
-                "fresh install saved or prefilled a Hub address")
+        require(not (data / "device.json").exists() and check.get("hub_address") == "https://hub.ictconnect.org",
+                "fresh install saved a device, or did not start sign-in on the default Hub address")
         app("status", expected=2)
         codes = sign_in_codes()
         for address in ("http://hub.example.com", "http://192.0.2.10:8787"):
             run([exe, "login", "--server", address, "--name", "CI installer"], expected=1, timeout=60)
             require(not (data / "device.json").exists(), "refused address left a device record")
             require(sign_in_codes() == codes, "refused address requested a sign-in code")
-        passed("fresh install: sign-in window has no Hub address; status exits 2; non-https addresses exit 1 without"
+        passed("fresh install: sign-in window starts on the default Hub address and nothing is saved; status exits 2; non-https addresses exit 1 without"
                " saving a device or issuing a sign-in code")
         require(check["updates_enabled"] is False and check["production_keys"] == 0, "the update gate is not off")
         if previous_version:

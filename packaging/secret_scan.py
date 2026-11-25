@@ -32,11 +32,13 @@ PATTERNS = {
     "secret assignment": rb"(?:API_KEY|_SECRET|_TOKEN|PASSWORD|CREDENTIALS)\s*=\s*['\"]?[A-Za-z0-9_\-/+]{16,}",
     "Swangz Hub key": rb"sgw_[0-9a-f]{12}_[A-Za-z0-9_\-]{40,}",
     "deployment address": rb"[a-z0-9\-]+\.(?:trycloudflare\.com|netlify\.app|up\.railway\.app|ngrok(?:-free)?\.app)",
-    "company address": rb"[a-z0-9\-.]*swangzavenue\.com",
+    "company address": rb"[a-z0-9\-.]*(?:swangzavenue\.com|ictconnect\.org)",
 }
 # Text that matches a pattern but is not a secret or an embedded address. Each entry says why it is allowed.
 ALLOWED = {
-    b"ai.swangzavenue.com": "example address in the 'Hub address' prompt and error text; the app never connects to it by itself",
+    b"hub.ictconnect.org": "the address sign-in starts with (core.DEFAULT_SERVER); the person can change it, and nothing is sent "
+                           "to it before they press Sign in",
+    b"ai.swangzavenue.com": "the example address in builds made before the default address",
     b"swangzavenue.com": "the company email domain named in sign-in help text",
 }
 ENV_NAMES = re.compile(r"(^|[\\/])\.env(\.[A-Za-z0-9_-]+)?$")

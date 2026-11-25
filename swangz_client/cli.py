@@ -166,7 +166,8 @@ def run(args, client):
 
         return gui.main(client, background=args.background)
     if cmd == "login":
-        server = args.server or input("Your Swangz AI Hub address (for example https://ai.swangzavenue.com): ")
+        server = args.server or input(f"Your Swangz AI Hub address (press Enter for {core.DEFAULT_SERVER}): ").strip() \
+            or core.DEFAULT_SERVER
 
         def show(code, url):
             say(f"\nTo connect this device, open\n    {url}\nand check that the code is\n    {code}\nThen press Approve. Waiting…")
