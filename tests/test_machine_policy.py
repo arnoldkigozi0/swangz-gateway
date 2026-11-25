@@ -44,20 +44,22 @@ class FakeKey:
 class FakeRegistry:
     """The calls `read_windows` makes, over a nested dict. Opening a missing key raises OSError, as winreg does."""
 
-    HKEY_LOCAL_MACHINE = "HKLM"
+    HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER = "HKLM", "HKCU"
     KEY_READ, KEY_WOW64_64KEY = 0x20019, 0x0100
 
-    def __init__(self, tree):
+    def __init__(self, tree, user=None):
         self.tree = tree  # {"Software\\Policies\\Google\\Chrome": FakeKey}
+        self.user = user or {}  # the same, for HKCU
         self.opened = []
 
     def OpenKey(self, parent, sub, reserved=0, access=None):
         self.opened.append(sub)
         self.access = getattr(self, "access", []) + [access]
-        if parent == self.HKEY_LOCAL_MACHINE:
-            if sub not in self.tree:
+        if parent in (self.HKEY_LOCAL_MACHINE, self.HKEY_CURRENT_USER):
+            tree = self.tree if parent == self.HKEY_LOCAL_MACHINE else self.user
+            if sub not in tree:
                 raise FileNotFoundError(sub)
-            return self.tree[sub]
+            return tree[sub]
         if sub not in parent.subkeys:
             raise FileNotFoundError(sub)
         return parent.subkeys[sub]
@@ -425,12 +427,17 @@ class WindowsTests(Fixture):
         self.assertTrue(registry.access)
         self.assertTrue(all(a == registry.KEY_READ | registry.KEY_WOW64_64KEY for a in registry.access), registry.access)
 
-    def test_recommended_is_not_read(self):
+    def test_a_non_empty_recommended_fails_and_is_never_read_as_policy(self):
+        # D-026 E3 (c) replaced "Recommended is not read": a recommendation fills what the pack leaves open.
         key = as_registry(self.policy)
         key.subkeys["Recommended"] = FakeKey({"IncognitoModeAvailability": 0})
-        registry = FakeRegistry({mp.WINDOWS_KEYS["chrome"]: key})
-        self.assertTrue(mp.check("chrome", platform="win32", registry=registry).ok)
-        self.assertNotIn("Recommended", registry.opened)
+        result = mp.check("chrome", platform="win32", registry=FakeRegistry({mp.WINDOWS_KEYS["chrome"]: key}))
+        self.assertFalse(result.ok)
+        self.assertIn("recommended", result.problems)
+        self.assertEqual(result.sha256, mp.check("chrome", platform="win32", registry=FakeRegistry(
+            {mp.WINDOWS_KEYS["chrome"]: as_registry(self.policy)})).sha256)  # its values never reach the baseline
+        key.subkeys["Recommended"] = FakeKey()
+        self.assertTrue(mp.check("chrome", platform="win32", registry=FakeRegistry({mp.WINDOWS_KEYS["chrome"]: key})).ok)
 
     def test_a_registry_error_is_a_failing_check(self):
         class Broken(FakeRegistry):

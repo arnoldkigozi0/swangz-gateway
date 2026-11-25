@@ -9,10 +9,15 @@ Reads the effective machine policy from where the OS keeps it, READ-ONLY:
 * Windows: `HKLM\\Software\\Policies\\Google\\Chrome` (Chromium: `...\\Chromium`) in the 64-bit view; a list policy
   is a subkey whose values are named 1, 2, 3, ...
 
-Machine scope only: per-user copies (macOS `/Library/Managed Preferences/<user>/`, Windows HKCU) and Linux's
-`recommended` folder are never read, so a person can't make the check pass from their own account. Anything doubtful
-fails the check: an unreadable, invalid or oversized file, a symlink in place of a file or of the folder, a key given
-twice in one file, or two sources that disagree.
+Machine scope only: per-user copies (macOS `/Library/Managed Preferences/<user>/`, Windows HKCU), Windows'
+`Recommended` subkey and Linux's `recommended` folder never count towards a pass, so a person can't make the check
+pass from their own account. D-026 E3 reads HKCU, `Recommended` and `recommended` only to FAIL the check: any value
+there fills a gap the machine key leaves (`user_policy:<name>`, `recommended`). Anything doubtful fails the check: an
+unreadable, invalid or oversized file, a hidden file, a symlink in place of a file or of the folder, a key given
+twice in one file, two sources that disagree, or a policy name the pack does not set (`unexpected:<name>`).
+
+D-026 E3 `ownership()` says, read only, whether the Windows key is still exactly what Swangz wrote (the marker hash),
+and E5 `setup_report()` lists the controls Chrome may ignore on an unmanaged computer. Nothing here writes policy.
 
 It checks every control `deploy/chrome-policy/prepare.py` requires plus the default-deny and extension lists, and
 reports `{"ok": bool, "sha256": "<64 hex>"}` for the heartbeat (W2 contract 2). It never writes policy, never opens
@@ -50,6 +55,7 @@ REQUIRED = {
 REQUIRED_BLOCKS = ("*", "file://*", "chrome://*", "view-source:*")
 LISTS = ("URLBlocklist", "URLAllowlist", "ExtensionInstallBlocklist", "ExtensionInstallAllowlist", "ExtensionInstallForcelist")
 KNOWN = tuple(REQUIRED) + LISTS + ("DownloadRestrictions",)
+EXTRA = "\x00problems"  # read_windows' own findings travel with its source under a name no policy can have
 # D-024 point 5: policies the pack never sets that would quietly undo it. ExtensionSettings can re-allow every extension
 # over ExtensionInstallBlocklist; the merge lists let a second source add entries the app never sees; the cloud override
 # lets a cloud policy win over the machine's. Present at all, with any value, is a problem. Never part of the hash.
@@ -112,7 +118,7 @@ def read_linux(browser="chrome", root=None):
         raise Unreadable(folder.name)
     out = []
     for path in sorted(folder.iterdir()):
-        if path.suffix != ".json":  # Chrome loads it anyway: a policy we can't judge fails the check
+        if path.name.startswith(".") or path.suffix != ".json":  # D-026 E4 S3: a hidden file is never judged  # Chrome loads it anyway: a policy we can't judge fails the check
             raise Unreadable(path.name)
         try:
             value = json.loads(_bounded(path).decode("utf-8"), object_pairs_hook=_no_duplicates)
@@ -162,7 +168,7 @@ def read_windows(browser="chrome", registry=None):
                                registry.KEY_READ | registry.KEY_WOW64_64KEY)
     except OSError:
         return []
-    policy = {}
+    policy, extra = {}, []
     with key:
         i = 0
         while True:
@@ -179,8 +185,13 @@ def read_windows(browser="chrome", registry=None):
             except OSError:
                 break
             i += 1
+            if sub == "Recommended":
+                if _key_has_anything(registry, key, sub):
+                    extra.append("recommended")  # D-026 E3 (c): a recommendation fills what the pack leaves open
+                continue
             if sub not in LISTS and sub not in FORBIDDEN:
-                continue  # `Recommended` and anything else: not machine-enforced list policy, not read
+                extra.append("unexpected:" + sub)  # D-026 E3 (a): never read as policy, always reported
+                continue
             entries = []
             with registry.OpenKey(key, sub, 0, registry.KEY_READ | registry.KEY_WOW64_64KEY) as lst:
                 j = 0
@@ -193,7 +204,55 @@ def read_windows(browser="chrome", registry=None):
                     if name.isdigit():  # Chrome reads only the numbered values of a list key, so do we
                         entries.append((int(name), value))
             policy[sub] = [v for _, v in sorted(entries)]
+    if extra:
+        policy[EXTRA] = extra
     return [("HKLM\\" + WINDOWS_KEYS[browser], _from_registry(policy))] if policy else []
+
+
+def _key_has_anything(registry, parent, sub):
+    with registry.OpenKey(parent, sub, 0, registry.KEY_READ | registry.KEY_WOW64_64KEY) as key:
+        for enum in (registry.EnumValue, registry.EnumKey):
+            try:
+                enum(key, 0)
+                return True
+            except OSError:
+                pass
+    return False
+
+
+def read_windows_user(browser="chrome", registry=None):
+    """D-026 E3 (b): HKCU's Chrome policy. Never part of the pack: any value or list there fills a gap the machine key
+    leaves, so each name is a problem. Read only to fail the check, never to pass it."""
+    if registry is None:
+        import winreg as registry  # pragma: no cover - Windows only
+    try:
+        key = registry.OpenKey(registry.HKEY_CURRENT_USER, WINDOWS_KEYS[browser], 0,
+                               registry.KEY_READ | registry.KEY_WOW64_64KEY)
+    except FileNotFoundError:  # only an absent key is "nothing there"; a denied one fails the check as unreadable
+        return []
+    names = []
+    with key:
+        for enum in (lambda i: registry.EnumValue(key, i)[0], lambda i: registry.EnumKey(key, i)):
+            i = 0
+            while True:
+                try:
+                    names.append(enum(i))
+                except OSError:
+                    break
+                i += 1
+    return ["user_policy:" + n for n in names]
+
+
+def read_linux_recommended(browser="chrome", root=None):
+    """D-026 E3 (c) on Linux: Chrome also loads `recommended` next to `managed`; anything in it is a problem."""
+    folder = Path(root or LINUX_DIRS[browser]).parent / "recommended"
+    try:
+        info = os.lstat(folder)
+    except FileNotFoundError:
+        return []
+    if not stat.S_ISDIR(info.st_mode):
+        return ["recommended"]
+    return ["recommended"] if any(True for _ in folder.iterdir()) else []
 
 
 def normalise(policy):
@@ -229,6 +288,9 @@ def merge(sources):
     problem in themselves: which one wins is not something the app should guess."""
     merged, problems = {}, []
     for _, policy in sources:
+        problems += policy.get(EXTRA, []) if isinstance(policy.get(EXTRA), list) else []
+        # D-026 E3 (a): a name the pack does not set (ProxySettings, CloudManagementEnrollmentToken, ...) fails
+        problems += ["unexpected:" + k for k in policy if k not in KNOWN and k not in FORBIDDEN and k != EXTRA]
         for key in FORBIDDEN:  # kept for problems_in(), whatever the value; baseline_sha() never sees them
             if key in policy:
                 merged.setdefault(key, policy[key])
@@ -328,21 +390,30 @@ def check(browser="chrome", platform=None, **where):
     if browser not in table:
         return Result(False, None, ["unknown_browser"], [])
     try:
+        outside = []
         if platform == "win32":
             sources = read_windows(browser, where.get("registry"))
+            outside = read_windows_user(browser, where.get("registry"))
         elif platform == "darwin":
             sources = read_macos(browser, where.get("root"))
         else:
             sources = read_linux(browser, where.get("root"))
+            outside = read_linux_recommended(browser, where.get("root"))
     except Unreadable as exc:
         return Result(False, None, ["unreadable:" + str(exc)], [])
     except OSError:
         return Result(False, None, ["unreadable"], [])
+    except Exception:  # D-026 E4 S2: whatever a reader raises, a direct caller gets a failing result
+        return Result(False, None, ["unreadable"], [])
     if not sources:
-        return Result(False, None, ["missing"], [])
-    merged, problems = merge(sources)
-    problems += problems_in(merged)
-    return Result(not problems, baseline_sha(merged), problems, [name for name, _ in sources])
+        return Result(False, None, ["missing"] + outside, [])
+    try:
+        merged, problems = merge(sources)
+        problems = outside + problems + problems_in(merged)
+        sha = baseline_sha(merged)
+    except Exception:  # D-026 E4 S2: a TypeError or RecursionError from merge or problems_in is unreadable
+        return Result(False, None, ["unreadable"], [name for name, _ in sources])
+    return Result(not problems, sha, list(dict.fromkeys(problems)), [name for name, _ in sources])
 
 
 def browser_kind(binary):
@@ -371,3 +442,220 @@ def report(browser=None, finder=None):
         if browser is None:
             return {"ok": False, "sha256": ""}
     return check(browser).report()
+
+
+# ------------------------------------------------------------------ D-026 E3: is the key still exactly ours? (read only)
+
+MARKER_KEY = r"Software\Swangz\ChromePolicy"
+TREE_LIMIT = 10000  # values and subkeys read before the key counts as unreadable
+TREE_DEPTH = 8
+
+
+def _data(value):
+    if isinstance(value, (bytes, bytearray)):
+        return "hex:" + bytes(value).hex()
+    if isinstance(value, (list, tuple)):
+        return [_data(v) for v in value]
+    return value
+
+
+def read_tree(registry, root, path):
+    """Every (subkey path, value name lowercased, registry type, data) under root\\path in the 64-bit view, plus one
+    (subkey path, None, "key", None) row per subkey so an added empty subkey changes the hash; or None when the key
+    is absent. Unreadable on any error or on a tree larger than TREE_LIMIT / deeper than TREE_DEPTH."""
+    access = registry.KEY_READ | registry.KEY_WOW64_64KEY
+    out, count = [], 0
+
+    def walk(key, rel, depth):
+        nonlocal count
+        if depth > TREE_DEPTH:
+            raise Unreadable("depth")
+        i = 0
+        while True:
+            try:
+                name, value, kind = registry.EnumValue(key, i)
+            except OSError:
+                break
+            i += 1
+            count += 1
+            out.append((rel, name.lower(), kind, _data(value)))
+        i, subs = 0, []
+        while True:
+            try:
+                subs.append(registry.EnumKey(key, i))
+            except OSError:
+                break
+            i += 1
+        count += len(subs)
+        if count > TREE_LIMIT:
+            raise Unreadable("size")
+        for sub in subs:
+            path = (rel + "\\" + sub) if rel else sub
+            out.append((path, None, "key", None))
+            with registry.OpenKey(key, sub, 0, access) as child:
+                walk(child, path, depth + 1)
+
+    try:
+        key = registry.OpenKey(registry.HKEY_LOCAL_MACHINE, path, 0, access)
+    except FileNotFoundError:
+        return None
+    with key:
+        walk(key, "", 0)
+    return out
+
+
+def tree_sha(entries):
+    """The E3 hash: entries sorted and serialised with sort_keys. Order-independent; any type, name or data change
+    changes it. The same function hashes the key before any change and as read back after a write."""
+    rows = sorted(entries, key=lambda e: json.dumps(e, sort_keys=True, ensure_ascii=True))
+    encoded = json.dumps(rows, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def read_marker(registry):
+    """-> {"sha256": str, "written": ...} or None when the marker key is absent."""
+    try:
+        key = registry.OpenKey(registry.HKEY_LOCAL_MACHINE, MARKER_KEY, 0, registry.KEY_READ | registry.KEY_WOW64_64KEY)
+    except FileNotFoundError:
+        return None
+    marker, i = {}, 0
+    with key:
+        while True:
+            try:
+                name, value, _kind = registry.EnumValue(key, i)
+            except OSError:
+                break
+            i += 1
+            marker[name.lower()] = value
+    return marker
+
+
+def ownership(registry=None, browser="chrome"):
+    """D-026 E3, read only: what a policy-write or policy-remove would be allowed to do on this computer now.
+    -> (state, detail) with state one of
+       "absent"        key absent, marker absent: a write may create it;
+       "ours"          key present, marker hash equals the key read now: rewrite or remove may act;
+       "conflict"      key present and no marker, or a different hash: change nothing, report it;
+       "stale_marker"  key absent, marker present: only the marker may go;
+       "unreadable"    anything could not be read: treated like a conflict.
+    Nothing here writes; the writer (B5, elevated) is not part of the app yet."""
+    if registry is None:
+        import winreg as registry  # pragma: no cover - Windows only
+    try:
+        entries = read_tree(registry, registry.HKEY_LOCAL_MACHINE, WINDOWS_KEYS[browser])
+        marker = read_marker(registry)
+    except Exception:
+        return "unreadable", None
+    current = None if entries is None else tree_sha(entries)
+    pinned = marker.get("sha256") if isinstance(marker, dict) else None
+    if entries is None:
+        return ("stale_marker", None) if marker is not None else ("absent", None)
+    if not isinstance(pinned, str) or pinned != current:
+        return "conflict", current
+    return "ours", current
+
+
+# ------------------------------------------------------------------ D-026 E5: what this computer may not enforce
+
+WEB_STORE_UPDATE = "https://clients2.google.com/service/update2/crx"
+# The pack's controls, all "configured" until the physical chrome://policy acceptance check shows OK on that machine
+# type. Add a machine type here only with that evidence (D-026 E5); until then nothing is reported as enforced.
+ACCEPTED = frozenset()
+
+
+def management(platform=None, run=None, registry=None, netjoin=None):
+    """-> {"domain": True/False/None, "mdm": True/False/None}. None means it could not be read, never "no".
+    Read only, nothing elevated."""
+    platform = platform or sys.platform
+    out = {"domain": None, "mdm": None}
+    if platform == "win32":
+        try:
+            out["domain"] = (netjoin or _windows_joined)()
+        except Exception:
+            pass
+        # MDM is not read on Windows: a ProviderID under Enrollments is no evidence Chrome counts the computer as
+        # managed (Chromium asks MDMRegistration.dll, false on Home editions), and a stray one would hide the
+        # off-store force-install. Whether MDM counts at all is Sentinel's call (D-026 E5); until then only a
+        # domain join makes a Windows computer managed, and unknown stays unmanaged.
+    elif platform == "darwin":
+        import subprocess
+        run = run or subprocess.run
+        try:
+            done = run(["/usr/bin/profiles", "status", "-type", "enrollment"], capture_output=True, text=True,
+                       timeout=20, stdin=subprocess.DEVNULL)
+            if done.returncode == 0:
+                text = done.stdout.lower()
+                out["mdm"] = "mdm enrollment: yes" in text
+        except Exception:
+            pass
+        try:
+            done = run(["/usr/sbin/dsconfigad", "-show"], capture_output=True, text=True, timeout=20,
+                       stdin=subprocess.DEVNULL)
+            if done.returncode == 0:
+                out["domain"] = "active directory domain" in done.stdout.lower()
+        except Exception:
+            pass
+    return out
+
+
+def _windows_joined():  # pragma: no cover - Windows only
+    """NetGetJoinInformation: 3 = joined to a domain."""
+    import ctypes
+    from ctypes import wintypes
+    netapi = ctypes.WinDLL("netapi32")
+    name, status = wintypes.LPWSTR(), ctypes.c_int()
+    if netapi.NetGetJoinInformation(None, ctypes.byref(name), ctypes.byref(status)) != 0:
+        raise OSError("NetGetJoinInformation")
+    netapi.NetApiBufferFree(name)
+    return status.value == 3
+
+
+def not_guaranteed(policy, managed, platform=None, accepted=ACCEPTED):
+    """D-026 E5: the pack's controls Chrome may ignore on this computer, as short names. Never says "enforced":
+    `enforced` is True only for a machine type in `accepted` (none yet). Unknown management counts as unmanaged."""
+    platform = platform or sys.platform
+    is_managed = bool(managed.get("domain") or managed.get("mdm"))
+    out = []
+    if platform in ("win32", "darwin") and not is_managed:
+        forced = policy.get("ExtensionInstallForcelist") if isinstance(policy, dict) else None
+        for entry in forced if isinstance(forced, list) else []:
+            if not isinstance(entry, str):
+                continue
+            ext, _, update = entry.partition(";")
+            if update and update.strip() != WEB_STORE_UPDATE:
+                out.append("ExtensionInstallForcelist:off_store:" + ext.strip()[:32])
+    machine = platform + (":managed" if is_managed else ":unmanaged")
+    return {"machine": machine, "not_guaranteed": out, "enforced": machine in accepted}
+
+
+def setup_report(platform=None, browser="chrome", **where):
+    """What setup shows before the admin confirms (E5), read only: the check, how the machine is managed, and the
+    controls listed as "not guaranteed on this computer". Never writes, never elevates, `enforce` stays off."""
+    platform = platform or sys.platform
+    result = check(browser, platform, **where)
+    managed = management(platform, where.get("run"), where.get("registry"), where.get("netjoin"))
+    try:
+        sources = (read_windows(browser, where.get("registry")) if platform == "win32" else
+                   read_macos(browser, where.get("root")) if platform == "darwin" else
+                   read_linux(browser, where.get("root")))
+        merged, _ = merge(sources)
+    except Exception:
+        merged = {}
+    gaps = not_guaranteed(merged, managed, platform)
+    lines = []
+    for problem in result.problems:
+        lines.append("Problem: " + problem)
+    if managed["domain"] is None and managed["mdm"] is None and platform in ("win32", "darwin"):
+        lines.append("Could not read whether this computer is managed; treated as unmanaged.")
+    for gap in gaps["not_guaranteed"]:
+        lines.append("Not guaranteed on this computer: " + gap)
+    if not gaps["enforced"]:
+        lines.append("Not yet confirmed as enforced: no chrome://policy acceptance check on this machine type.")
+    out = {"ok": result.ok, "problems": result.problems, "management": managed, **gaps, "lines": lines}
+    if platform == "win32":
+        state, _ = ownership(where.get("registry"), browser)
+        out["ownership"] = state
+        if state in ("conflict", "unreadable"):
+            lines.append("Conflict: the Chrome policy on this computer is not exactly what Swangz wrote. "
+                         "Nothing was changed; an administrator must resolve it.")
+    return out
