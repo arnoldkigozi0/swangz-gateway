@@ -1705,3 +1705,7 @@ Merged 04:00-06:00: #335, #336, #337 (main c403d30). Open: #338 (draft, D-026, s
 | Anvil | idle; installer work moved to Forge | none assigned |
 | Prism | paused (ChatGPT budget) | none |
 Awaiting Arnold: shared accounts inside the app's managed Chrome? A keep refused (current) / B open them there. Before physical testing: update the server, confirm a static IP.
+
+## 25 Nov 06:05 Chief (correction to the 06:00 note)
+Forge replied: its two merged slices have nothing unfinished. `feature/333-no-fallback` (worktree .worktrees/333-no-fallback) is NOT clean: uncommitted changes to docs/CLIENT.md, swangz_client/{core,repair,workspace_launcher}.py, tests/test_client_gui.py and new tests/test_no_fallback.py; no commit, remote branch or PR; another session was still running tests at 06:05. WIP commit and push NOT confirmed.
+Next (08:00): check for the commit/push; if missing and nothing is running there, confirm the owner, run `python3 -m unittest tests.test_client_gui tests.test_no_fallback`, commit as WIP, push, draft PR if green (WIP limit allows). Read D-026 (#338, 725bffe) before more install or policy code.
