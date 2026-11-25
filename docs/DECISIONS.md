@@ -1023,12 +1023,12 @@ or `sudo` (static test).
    user-writable folder**: junctions and links could point that delete at system files (see the company-installer
    amendment below). **Signing out of the app** keeps the folder,
    because the same person signs back in to their own sessions; a different person signing in retires it (C2).
-   Today `remove_everything` on main keeps the folders in every case (R-12), and folder deletion raises
-   `unsupported_platform` on Windows (`browser_profiles._purge`, `retire`); both are Forge's work.
+   `remove_everything` (sign-out and disconnection) keeps the folders (R-12). `cleanup` deletes them, on Windows
+   too. Deletion on revocation (F1) and on a person switch (C2) is not built yet (Forge).
    - **Windows per-user uninstaller** (`packaging/windows/swangz.iss`, `PrivilegesRequired=lowest`, so it runs as the
-     person): today `[UninstallRun]` runs `Swangz.exe logout` with `runhidden`, which ignores the exit code, and the
-     exe is built `--windowed`, so nothing it prints is seen. It must instead run cleanup from `[Code]`, in
-     `CurUninstallStepChanged(usUninstall)`, before any file is removed: stop the person's running copy (the
+     person): an earlier `[UninstallRun]` entry ran `Swangz.exe logout` with `runhidden`, which ignores the exit
+     code, and the exe is built `--windowed`, so nothing it printed was seen. It must instead run cleanup from
+     `[Code]`, in `CurUninstallStepChanged(usUninstall)`, before any file is removed: stop the person's running copy (the
      existing `taskkill` filter), then `Exec('{app}\Swangz.exe', 'cleanup --report "<{tmp} file>"', …, ResultCode)`.
      `cleanup` runs `logout` itself first, while the key exists, so a separate `logout` entry is dropped. On a
      non-zero `ResultCode` (or `Exec` failing) the uninstaller reads the report, one undeleted folder per line,
@@ -1212,9 +1212,9 @@ shown when a marker exists. The console text distinguishes local from provider r
   must say so.
 - A GPO refresh can land between E3's hash and the write or delete; the next check reports the mismatch.
 - After revocation, machine policy stays until an administrator removes it (F1).
-- App sign-out keeps the browser folders, with their provider and Google sessions, on disk (C4). Until C4's
-  uninstall change is built, uninstall leaves them too. On main, disconnecting the device also keeps them (F1 is not
-  built); only an authenticated `retired` or a higher workspace generation deletes them, and not on Windows.
+- App sign-out keeps the browser folders, with their provider and Google sessions, on disk (C4). Disconnecting the
+  device keeps them too (F1 is not built); only `cleanup` (which the per-user Windows uninstaller runs), an
+  authenticated `retired` or a higher workspace generation deletes them.
 - macOS has no uninstaller: dragging Swangz to the Bin without running `cleanup` first leaves the folders (C4).
 - The per-user Windows install (`%LocalAppData%`, personal devices) cannot install Chrome: it never offers an elevated
   step (B5). The person installs Chrome themselves; A3 verifies it, and A4 accepts a per-user Chrome only there.
