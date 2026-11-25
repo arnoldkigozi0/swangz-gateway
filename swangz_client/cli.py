@@ -125,7 +125,9 @@ def main(argv=None, client=None):
             core.check_newest_app(client.paths)  # after recover(): a rolled-back update has recorded its failed_version
         return run(args, client)
     except core.Revoked:
-        say("This device was disconnected from Swangz AI Hub, so Swangz has been removed from it.")
+        say("This device was disconnected from Swangz AI Hub, so the coding agents and packages Swangz installed were "
+            "taken off it.")
+        say(browser_folders_stay(client))
         return 3
     except core.OlderBuild as exc:
         say(f"{exc}  To sign out, run: {sign_out_command()}")

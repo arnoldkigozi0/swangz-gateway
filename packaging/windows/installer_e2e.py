@@ -630,7 +630,9 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         #     first signs this PC in as a COMPANY device with the Chrome policy pack pinned in enforce mode, and the five
         #     cases run through the installed program (packaging/windows/policy.py); then the SECOND person signs in again,
         #     so the uninstall below runs with someone other than the first folder's owner signed in
-        app("logout")
+        import macos_policy  # packaging/ (on sys.path since 5a): the shared sign-out check, platform-neutral
+        code, out = run_app("logout")
+        require(macos_policy.signed_out(code, out), "the second person's sign-out did not reach the Hub: " + out[-160:])
         import policy as windows_policy
 
         def enrol_company():
