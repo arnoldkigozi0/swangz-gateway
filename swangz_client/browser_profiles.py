@@ -114,16 +114,32 @@ def _same(a, b):
     return (a.st_dev, a.st_ino) == (b.st_dev, b.st_ino)
 
 
-def _purge_fd(fd):
+def _before_open(path):
+    """Does nothing. Tests replace it to change a checked folder before it is opened."""
+
+
+def _inside(path, root):
+    """True when the path, with every link resolved, is still below the resolved root."""
+    real = os.path.normcase(os.path.realpath(path))
+    return real.startswith(os.path.join(os.path.normcase(os.path.realpath(root)), ""))
+
+
+def _purge_fd(fd, path):
     """POSIX removal relative to open directories: never descend through a planted link."""
     for name in os.listdir(fd):
         info = os.stat(name, dir_fd=fd, follow_symlinks=False)
-        if stat.S_ISDIR(info.st_mode) and not _reparse(info):
-            child = os.open(name, FLAGS, dir_fd=fd)
+        if stat.S_ISDIR(info.st_mode):
+            _before_open(os.path.join(path, name))
+            try:
+                child = os.open(name, FLAGS, dir_fd=fd)
+            except OSError as exc:
+                if exc.errno in (errno.ELOOP, errno.ENOTDIR):  # it became a link or a file after the check
+                    raise ProfileError("path_changed") from None
+                raise
             try:
                 if not _same(info, os.fstat(child)):
                     raise ProfileError("path_changed")
-                _purge_fd(child)
+                _purge_fd(child, os.path.join(path, name))
             finally:
                 os.close(child)
             os.rmdir(name, dir_fd=fd)
@@ -131,15 +147,86 @@ def _purge_fd(fd):
             os.unlink(name, dir_fd=fd)
 
 
+def _extended(path):
+    r"""The Windows form of an absolute path that is not cut at 260 characters (\\?\)."""
+    full = os.path.abspath(path)
+    if full.startswith("\\\\?\\"):
+        return full
+    return "\\\\?\\UNC\\" + full[2:] if full.startswith("\\\\") else "\\\\?\\" + full
+
+
+def _remove_windows(path, info):
+    """Remove one entry by its own name. A link or junction goes itself; what it points at is never touched."""
+    attributes = getattr(info, "st_file_attributes", 0)
+    directory = bool(attributes & stat.FILE_ATTRIBUTE_DIRECTORY) or stat.S_ISDIR(info.st_mode)
+    remove = os.rmdir if directory else os.unlink
+    try:
+        remove(path)
+    except PermissionError:
+        if not attributes & stat.FILE_ATTRIBUTE_READONLY:
+            raise
+        # The read-only bit belongs to the file, not to this name: leave a file that also lives somewhere else alone.
+        if not directory and not _reparse(info) and info.st_nlink > 1:
+            raise ProfileError("shared_file") from None
+        from .winacl import set_attributes
+        set_attributes(path, attributes & ~stat.FILE_ATTRIBUTE_READONLY)
+        remove(path)
+
+
+def _purge_windows(path, info, root):
+    """Windows removal, entry by entry. Each folder is held open without delete sharing while its entries go, so it
+    cannot be renamed or replaced meanwhile. A reparse point is never entered. An entry that cannot be removed (in
+    use) does not stop the others; its error is raised at the end."""
+    from .winacl import hold_folder
+    _before_open(path)
+    fd = hold_folder(path)
+    failed = None
+    try:
+        held = os.fstat(fd)
+        if _reparse(held) or not stat.S_ISDIR(held.st_mode) or not _same(info, held) or not _inside(path, root):
+            raise ProfileError("path_changed")
+        for name in os.listdir(path):
+            child = os.path.join(path, name)
+            try:
+                seen = os.lstat(child)
+                if stat.S_ISDIR(seen.st_mode) and not _reparse(seen) and not stat.S_ISLNK(seen.st_mode):
+                    _purge_windows(child, seen, root)
+                else:
+                    _remove_windows(child, seen)
+            except FileNotFoundError:
+                continue
+            except OSError as exc:
+                failed = failed or exc
+            except ProfileError as exc:
+                if exc.code == "path_changed":
+                    raise
+                failed = failed or exc
+    finally:
+        os.close(fd)
+    if failed:
+        raise failed
+    _remove_windows(path, info)
+
+
 def _purge(path):
-    if _WINDOWS:
-        raise ProfileError("unsupported_platform")
+    """Delete one folder of the profiles root, and nothing that a link inside it points at."""
     info = _check(path)
-    fd = os.open(path, FLAGS)
+    if not _inside(path, path.parent):
+        raise ProfileError("unsafe_link")
+    if _WINDOWS:
+        _purge_windows(_extended(path), info, _extended(path.parent))
+        return
+    _before_open(str(path))
+    try:
+        fd = os.open(path, FLAGS)
+    except OSError as exc:
+        if exc.errno in (errno.ELOOP, errno.ENOTDIR):
+            raise ProfileError("path_changed") from None
+        raise
     try:
         if not _same(info, os.fstat(fd)):
             raise ProfileError("path_changed")
-        _purge_fd(fd)
+        _purge_fd(fd, str(path))
     finally:
         os.close(fd)
     path.rmdir()
@@ -268,9 +355,6 @@ class Profiles:
             match = SPECIAL.fullmatch(path.name)
             if not match:
                 continue
-            if _WINDOWS:
-                skipped.append({"name": path.name, "reason": "unsupported_platform"})
-                continue
             try:
                 info = _check(path)
                 if match[1] == "retired" or time.time() - info.st_mtime > STALE:
@@ -278,6 +362,11 @@ class Profiles:
             except (ProfileError, OSError) as exc:
                 skipped.append({"name": path.name, "reason": getattr(exc, "code", "cleanup_failed")})
         return skipped
+
+    @staticmethod
+    def _still_retired(skipped):
+        """A folder that was retired but could not be deleted yet: it still holds sign-ins."""
+        return any(entry["name"].startswith(".retired-") for entry in skipped)
 
     def _owner(self, owner):
         if not isinstance(owner, Owner):
@@ -314,12 +403,14 @@ class Profiles:
 
     def prepare(self, owner, generation=1):
         """The owner's folder at this workspace generation (W4). An older-generation folder of the same owner must be
-        purged first (`purge_pending`); a newer one means the answer went backwards (`generation_rollback`)."""
+        purged first (`purge_pending`), and so must any retired folder that is still on disk; a newer one means the
+        answer went backwards (`generation_rollback`)."""
         fields = self._owner(owner)
         if not _generation_ok(generation):
             raise ProfileError("generation_invalid")
         with self._locked():
-            self._cleanup()
+            if self._still_retired(self._cleanup()):
+                raise ProfileError("purge_pending")
             for _, have in self._find(fields):
                 if have < generation:
                     raise ProfileError("purge_pending")
@@ -362,22 +453,20 @@ class Profiles:
             return target
 
     def _retire(self, path):
-        if _WINDOWS:
-            raise ProfileError("unsupported_platform")
         _check(path)
         retired = self.root / (".retired-" + secrets.token_hex(16))
         os.rename(path, retired)
         _purge(retired)
 
     def retire(self, profile_id, expected_owner):
-        if _WINDOWS:
-            raise ProfileError("unsupported_platform")
         if not isinstance(profile_id, str) or not FOLDER.fullmatch(profile_id):
             raise ProfileError("profile_invalid")
         fields = self._owner(expected_owner)
         with self._locked():
-            self._cleanup()
+            pending = self._still_retired(self._cleanup())
             path = self.root / profile_id
+            if pending and not os.path.lexists(path):
+                raise ProfileError("purge_pending")  # renamed away earlier, and still not deleted
             m = self._marker(path)
             if any(m[k] != v for k, v in fields.items()):
                 raise ProfileError("owner_mismatch")
@@ -400,8 +489,6 @@ class Profiles:
                 try:
                     if not FOLDER.fullmatch(path.name):
                         raise ProfileError("unknown_entry")
-                    if _WINDOWS:
-                        raise ProfileError("unsupported_platform")
                     _check(path)
                     if fields is not None:
                         m = self._marker(path)
@@ -411,4 +498,4 @@ class Profiles:
                     retired.append(path.name)
                 except (ProfileError, OSError) as exc:
                     skipped.append({"name": path.name, "reason": getattr(exc, "code", "retire_failed")})
-        return {"retired": retired, "skipped": skipped, "complete": not skipped and not _WINDOWS}
+        return {"retired": retired, "skipped": skipped, "complete": not skipped}

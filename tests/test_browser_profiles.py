@@ -47,13 +47,6 @@ class ProfileTests(unittest.TestCase):
         return {str(p.relative_to(root)): ("directory",) if p.is_dir() else ("file", p.read_bytes())
                 for p in (root, *root.rglob("*"))}
 
-    def windows_batch_refusal(self, result, candidates, unknown=()):
-        self.assertFalse(result["complete"])
-        self.assertEqual(result["retired"], [])
-        self.assertCountEqual(result["skipped"],
-                              [{"name": p.name, "reason": "unsupported_platform"} for p in candidates]
-                              + [{"name": p.name, "reason": "unknown_entry"} for p in unknown])
-
     def test_prepare_reuses_exact_owner(self):
         p = self.profiles.prepare(self.owner)
         self.assertRegex(p.name, r"^[0-9a-f]{32}$")
@@ -66,12 +59,7 @@ class ProfileTests(unittest.TestCase):
         a = self.profiles.prepare(self.owner)
         b = self.profiles.prepare(self.owner2())
         self.assertNotEqual(a, b)
-        if os.name == "nt":
-            before = self.snapshot()
-            self.error("unsupported_platform", self.profiles.retire, a.name, self.owner2())
-            self.assertEqual(self.snapshot(), before)
-        else:
-            self.error("owner_mismatch", self.profiles.retire, a.name, self.owner2())
+        self.error("owner_mismatch", self.profiles.retire, a.name, self.owner2())
         self.assertTrue(a.exists() and b.exists())
 
     def test_origin_normalization(self):
@@ -117,56 +105,31 @@ class ProfileTests(unittest.TestCase):
         b = a.parent / ("b" * 32)
         shutil.copytree(a, b)
         self.assertEqual(self.profiles.prepare(self.owner), a)
-        if os.name == "nt":
-            before = self.snapshot()
-            self.error("unsupported_platform", self.profiles.retire, b.name, self.owner)
-            self.assertEqual(self.snapshot(), before)
-        else:
-            self.error("marker_invalid", self.profiles.retire, b.name, self.owner)
+        self.error("marker_invalid", self.profiles.retire, b.name, self.owner)
         self.assertTrue(b.exists())
 
     def test_corrupt_marker_retirement_semantics(self):
         a = self.profiles.prepare(self.owner)
         (a / bp.MARKER).write_text("broken")
-        if os.name == "nt":
-            before = self.snapshot()
-            self.error("unsupported_platform", self.profiles.retire, a.name, self.owner)
-            self.assertEqual(self.snapshot(), before)
-        else:
-            self.error("marker_invalid", self.profiles.retire, a.name, self.owner)
+        self.error("marker_invalid", self.profiles.retire, a.name, self.owner)
         b = self.profiles.prepare(self.owner)
         self.assertNotEqual(a, b)
-        before = self.snapshot()
         result = self.profiles.retire_all()
-        if os.name == "nt":
-            self.windows_batch_refusal(result, (a, b))
-            self.assertEqual(self.snapshot(), before)
-        else:
-            self.assertEqual(set(result["retired"]), {a.name, b.name})
-            self.assertTrue(result["complete"])
+        self.assertEqual(set(result["retired"]), {a.name, b.name})
+        self.assertTrue(result["complete"])
 
     def test_owner_retirement_does_not_delete_others(self):
         a = self.profiles.prepare(self.owner)
         b = self.profiles.prepare(self.owner2())
-        before = self.snapshot()
         result = self.profiles.retire_owner(self.owner)
-        if os.name == "nt":
-            self.windows_batch_refusal(result, (a, b))
-            self.assertEqual(self.snapshot(), before)
-        else:
-            self.assertEqual(result["retired"], [a.name]); self.assertTrue(b.exists())
+        self.assertEqual(result["retired"], [a.name]); self.assertTrue(b.exists())
 
     def test_unknown_entry_reported_but_safe_entry_retired(self):
         a = self.profiles.prepare(self.owner)
         unknown = a.parent / "keep-this"; unknown.mkdir(mode=0o700)
-        before = self.snapshot()
         result = self.profiles.retire_all()
-        if os.name == "nt":
-            self.windows_batch_refusal(result, (a,), unknown=(unknown,))
-            self.assertEqual(self.snapshot(), before)
-        else:
-            self.assertEqual(result["retired"], [a.name]); self.assertFalse(result["complete"])
-            self.assertEqual(result["skipped"][0]["name"], "keep-this"); self.assertTrue(unknown.exists())
+        self.assertEqual(result["retired"], [a.name]); self.assertFalse(result["complete"])
+        self.assertEqual(result["skipped"][0]["name"], "keep-this"); self.assertTrue(unknown.exists())
 
     def test_owner_marker_mutation_is_rejected(self):
         self.owner.fields["token"] = "never persist"
@@ -176,12 +139,7 @@ class ProfileTests(unittest.TestCase):
     def test_marker_extra_secret_field_is_invalid(self):
         p = self.profiles.prepare(self.owner)
         marker = self.marker(p); marker["token"] = "not allowed"; self.write_marker(p, marker)
-        if os.name == "nt":
-            before = self.snapshot()
-            self.error("unsupported_platform", self.profiles.retire, p.name, self.owner)
-            self.assertEqual(self.snapshot(), before)
-        else:
-            self.error("marker_invalid", self.profiles.retire, p.name, self.owner)
+        self.error("marker_invalid", self.profiles.retire, p.name, self.owner)
 
     @unittest.skipIf(os.name == "nt", "POSIX modes")
     def test_root_preflight_blocks_all_cleanup(self):
@@ -192,12 +150,7 @@ class ProfileTests(unittest.TestCase):
 
     def test_absent_marker_device_wide_retirement(self):
         a = self.profiles.prepare(self.owner); (a / bp.MARKER).unlink()
-        if os.name == "nt":
-            before = self.snapshot()
-            self.windows_batch_refusal(self.profiles.retire_all(), (a,))
-            self.assertEqual(self.snapshot(), before)
-        else:
-            self.assertTrue(self.profiles.retire_all()["complete"]); self.assertFalse(a.exists())
+        self.assertTrue(self.profiles.retire_all()["complete"]); self.assertFalse(a.exists())
 
     @unittest.skipIf(os.name == "nt", "POSIX modes")
     def test_permissions_and_unsafe_marker(self):
@@ -220,20 +173,17 @@ class ProfileTests(unittest.TestCase):
         result = self.profiles.retire_all()
         self.assertEqual(result["retired"], [a.name]); self.assertFalse(result["complete"]); self.assertTrue(b.exists())
 
-    @unittest.skipIf(os.name == "nt", "POSIX symlink setup and semantics")
     def test_symlinked_data_and_root_refused(self):
         alias = self.base / "alias"; alias.symlink_to(self.data, target_is_directory=True)
         self.error("unsafe_link", bp.Profiles(alias).prepare, self.owner)
         self.profiles.root.symlink_to(self.base, target_is_directory=True)
         self.error("unsafe_link", self.profiles.prepare, self.owner)
 
-    @unittest.skipIf(os.name == "nt", "POSIX symlink setup and semantics")
     def test_symlinked_ancestor_is_allowed(self):
         parent = self.base / "alias"; parent.symlink_to(self.base, target_is_directory=True)
         p = bp.Profiles(parent / "data").prepare(self.owner)
         self.assertTrue(p.exists())
 
-    @unittest.skipIf(os.name == "nt", "POSIX symlink purge semantics")
     def test_purge_does_not_follow_interior_links(self):
         a = self.profiles.prepare(self.owner)
         outside = self.base / "outside"; outside.mkdir(); (outside / "precious").write_text("keep")
@@ -253,13 +203,9 @@ class ProfileTests(unittest.TestCase):
             p = self.profiles.root / (".tmp-" + str(i) * 32); p.mkdir(mode=0o700)
             if i == 1: (p / bp.MARKER).write_text("incomplete")
             if i < 2: os.utime(p, (time.time() - 200,) * 2)
-        before = self.snapshot()
         self.profiles.prepare(self.owner)
-        if os.name == "nt":
-            self.assertEqual(self.snapshot(), before)
-        else:
-            self.assertFalse((self.profiles.root / (".tmp-" + "0" * 32)).exists())
-            self.assertFalse((self.profiles.root / (".tmp-" + "1" * 32)).exists())
+        self.assertFalse((self.profiles.root / (".tmp-" + "0" * 32)).exists())
+        self.assertFalse((self.profiles.root / (".tmp-" + "1" * 32)).exists())
         self.assertTrue((self.profiles.root / (".tmp-" + "2" * 32)).exists())
 
     def test_crash_before_publish_discards_stage_after_stale_limit(self):
@@ -268,23 +214,13 @@ class ProfileTests(unittest.TestCase):
         stage, = self.profiles.root.glob(".tmp-*")
         self.assertTrue((stage / bp.MARKER).exists())
         os.utime(stage, (time.time() - 200,) * 2)
-        before = self.snapshot(stage)
         p = self.profiles.prepare(self.owner)
-        if os.name == "nt":
-            self.assertEqual(self.snapshot(stage), before)
-            self.assertTrue(p.exists()); self.assertNotEqual(p, stage)
-        else:
-            self.assertFalse(stage.exists()); self.assertTrue(p.exists())
+        self.assertFalse(stage.exists()); self.assertTrue(p.exists())
 
     def test_retired_recovery(self):
         a = self.profiles.prepare(self.owner)
         retired = a.parent / (".retired-" + "e" * 32); a.rename(retired)
-        if os.name == "nt":
-            before = self.snapshot(retired)
-            self.profiles.prepare(self.owner)
-            self.assertEqual(self.snapshot(retired), before)
-        else:
-            self.profiles.prepare(self.owner); self.assertFalse(retired.exists())
+        self.profiles.prepare(self.owner); self.assertFalse(retired.exists())
 
     def test_nested_lock_and_old_json_preserved(self):
         with self.profiles._locked():
@@ -349,15 +285,8 @@ class ProfileTests(unittest.TestCase):
     def test_lock_inode_survives_all_operations(self):
         a = self.profiles.prepare(self.owner)
         lock = self.profiles.root / ".lock"; before = lock.stat()
-        if os.name == "nt":
-            files_before = self.snapshot()
-            self.error("unsupported_platform", self.profiles.retire, a.name, self.owner)
-            self.assertEqual(self.profiles.prepare(self.owner), a)
-            self.windows_batch_refusal(self.profiles.retire_all(), (a,))
-            self.assertEqual(self.snapshot(), files_before)
-        else:
-            self.profiles.retire(a.name, self.owner)
-            self.profiles.prepare(self.owner); self.profiles.retire_all()
+        self.profiles.retire(a.name, self.owner)
+        self.profiles.prepare(self.owner); self.profiles.retire_all()
         after = lock.stat()
         self.assertEqual((before.st_dev, before.st_ino), (after.st_dev, after.st_ino))
         self.assertEqual(lock.read_bytes(), b"")
@@ -447,29 +376,6 @@ class ProfileTests(unittest.TestCase):
             self.assertEqual(caught.exception.code, "busy")
         win.locking.assert_called_once()
 
-    def test_mock_windows_retirement_refuses_without_mutation(self):
-        p = self.profiles.prepare(self.owner)
-        temp = self.profiles.root / (".tmp-" + "d" * 32); temp.mkdir(mode=0o700); os.utime(temp, (1, 1))
-        retired = self.profiles.root / (".retired-" + "e" * 32); retired.mkdir(mode=0o700)
-        before = {str(x.relative_to(self.profiles.root)): x.read_bytes() for x in self.profiles.root.rglob("*") if x.is_file()}
-        with patch.object(bp, "_WINDOWS", True), patch.object(bp, "_os_user", return_value=self.owner.fields["os_user"]), patch.object(bp, "_lock_os"), patch.object(bp.os, "rename") as rename:
-            self.error("unsupported_platform", self.profiles.retire, p.name, self.owner)
-            for operation in (self.profiles.retire_all, lambda: self.profiles.retire_owner(self.owner)):
-                result = operation(); self.assertFalse(result["complete"])
-                self.assertEqual(result["retired"], []); self.assertEqual({v["reason"] for v in result["skipped"]}, {"unsupported_platform"})
-            self.profiles.prepare(self.owner)
-            rename.assert_not_called()
-            with patch.object(Path, "iterdir", side_effect=AssertionError("must not enumerate")):
-                self.error("unsupported_platform", bp._purge, p)
-        self.assertTrue(temp.exists() and retired.exists() and p.exists())
-        after = {str(x.relative_to(self.profiles.root)): x.read_bytes() for x in self.profiles.root.rglob("*") if x.is_file()}
-        self.assertEqual(before, after)
-
-    def test_mock_windows_empty_batch_is_incomplete(self):
-        with patch.object(bp, '_WINDOWS', True), patch.object(bp, '_lock_os'):
-            result = self.profiles.retire_all()
-        self.assertEqual(result, {'retired': [], 'skipped': [], 'complete': False})
-
     @unittest.skipUnless(hasattr(os, "fork"), "POSIX fork and pipe contention")
     def test_two_process_lock_has_exactly_one_winner(self):
         # The winner holds its lock until both results arrive; no network or multiprocessing server.
@@ -502,12 +408,7 @@ class ProfileTests(unittest.TestCase):
 
     def test_traversal_retirement_refused(self):
         for name in ("../data", "..", "/tmp", "a" * 31, "A" * 32):
-            if os.name == "nt":
-                before = self.snapshot()
-                self.error("unsupported_platform", self.profiles.retire, name, self.owner)
-                self.assertEqual(self.snapshot(), before)
-            else:
-                self.error("profile_invalid", self.profiles.retire, name, self.owner)
+            self.error("profile_invalid", self.profiles.retire, name, self.owner)
 
     def test_temporary_home_unchanged(self):
         home = self.base / "home"; home.mkdir(); (home / "existing").write_text("unchanged")

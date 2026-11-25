@@ -159,16 +159,10 @@ class DeviceExistingContextsTests(unittest.TestCase):
         self.assertEqual(self.profiles.prepare(self.owner), profile)  # a second Open reuses it
         self.assertEqual(self.outside(), before, "second prepare")
         self.profiles.prepare(bp.Owner("https://hub.example", "person_8", "device-1"))
-        if os.name == "nt":  # retiring is refused on Windows and reported, never half done
-            out = self.profiles.retire_owner(self.owner)
-            self.assertFalse(out["complete"])
-            self.assertIn({"name": profile.name, "reason": "unsupported_platform"}, out["skipped"])
-            self.assertTrue(profile.exists())
-        else:
-            out = self.profiles.retire_owner(self.owner)
-            self.assertEqual(out["retired"], [profile.name])
-            self.assertFalse(profile.exists())
-            self.assertTrue(self.profiles.retire_all()["complete"])
+        out = self.profiles.retire_owner(self.owner)
+        self.assertEqual(out["retired"], [profile.name])
+        self.assertFalse(profile.exists())
+        self.assertTrue(self.profiles.retire_all()["complete"])
         self.assertEqual(self.outside(), before, "retire")
 
     def test_existing_browser_profiles_inside_the_data_folder_are_not_adopted(self):
@@ -181,10 +175,9 @@ class DeviceExistingContextsTests(unittest.TestCase):
         profile = self.profiles.prepare(self.owner)
         self.assertNotEqual(profile.name, "Default")
         self.assertEqual((stranger / "Preferences").read_text(), "{}")
-        if os.name != "nt":
-            out = self.profiles.retire_owner(self.owner)
-            self.assertIn({"name": "Default", "reason": "unknown_entry"}, out["skipped"])
-            self.assertTrue((stranger / "Preferences").exists(), "an unknown folder is skipped, never deleted")
+        out = self.profiles.retire_owner(self.owner)
+        self.assertIn({"name": "Default", "reason": "unknown_entry"}, out["skipped"])
+        self.assertTrue((stranger / "Preferences").exists(), "an unknown folder is skipped, never deleted")
 
 
 if __name__ == "__main__":

@@ -95,21 +95,11 @@ class ProfileFolderTests(unittest.TestCase):
             self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o700, path)
         self.assertEqual(stat.S_IMODE((a / bp.MARKER).stat().st_mode), 0o600)
 
-    @unittest.skipIf(os.name == "nt", "retiring is refused on Windows (see the next test)")
-    def test_retire_removes_the_folder_on_linux_and_macos(self):
+    def test_retire_removes_the_folder(self):
         a = self.profiles.prepare(self.owner)
         self.assertEqual(self.profiles.retire_owner(self.owner)["retired"], [a.name])
         self.assertFalse(a.exists())
 
-    @unittest.skipUnless(os.name == "nt", "Windows only")
-    def test_retire_is_refused_on_windows_rather_than_half_done(self):  # pragma: no cover - Windows runner
-        a = self.profiles.prepare(self.owner)
-        out = self.profiles.retire_owner(self.owner)
-        self.assertFalse(out["complete"])
-        self.assertIn({"name": a.name, "reason": "unsupported_platform"}, out["skipped"])
-        self.assertTrue(a.exists())
-
-    @unittest.skipIf(os.name == "nt", "symlinks need privileges on Windows runners")
     def test_a_symlinked_root_is_refused(self):
         real = self.data.parent / "elsewhere"
         real.mkdir(mode=0o700)
