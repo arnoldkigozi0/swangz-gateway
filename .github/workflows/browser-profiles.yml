@@ -6,6 +6,7 @@ on:
       - '.github/workflows/browser-profiles.yml'
       - 'swangz_client/**'
       - 'tests/test_browser_profiles.py'
+      - 'tests/test_profile_delete.py'
       - 'tests/test_w6_matrix.py'
       - 'tests/test_w7_existing_contexts.py'
       - 'tests/test_workspace_launcher.py'
@@ -17,6 +18,7 @@ on:
       - '.github/workflows/browser-profiles.yml'
       - 'swangz_client/**'
       - 'tests/test_browser_profiles.py'
+      - 'tests/test_profile_delete.py'
       - 'tests/test_w6_matrix.py'
       - 'tests/test_w7_existing_contexts.py'
       - 'tests/test_workspace_launcher.py'
@@ -47,10 +49,10 @@ jobs:
       - name: Record native test environment
         run: python -c "import platform, sys; print(platform.platform()); print(sys.version)"
       # Standard library only; test skips/refusals remain visible with verbose output.
-      # Windows retirement is unsupported; mocked checks do not establish native support.
+      # Deletion, links and junctions run for real on each system's runner; nothing is established by a mock.
       # This inert suite never launches a browser or accesses a provider.
-      - name: Test inert profile preparation and refusal limits
-        run: python -m unittest tests.test_browser_profiles tests.test_workspace_launcher tests.test_w6_matrix tests.test_w7_existing_contexts -v
+      - name: Test profile preparation, deletion and refusal limits
+        run: python -m unittest tests.test_browser_profiles tests.test_profile_delete tests.test_workspace_launcher tests.test_w6_matrix tests.test_w7_existing_contexts -v
       # W5: the policy readers for all three systems, against stand-ins; the Windows job also reads the real registry.
       - name: Test the read-only machine policy check
         run: python -m unittest tests.test_machine_policy -v

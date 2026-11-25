@@ -462,24 +462,21 @@ class MarkerTests(Base):
         self.assertEqual(profiles._marker(folder)["generation"], 3)
 
 
-class WindowsTests(Base):
-    def unsupported(self):
-        """On the Windows CI runner this is the real `retire`; elsewhere it stands in for it."""
-        if os.name == "nt":
-            return mock.patch.object(bp, "_WINDOWS", True)
-        return mock.patch.object(bp.Profiles, "retire", side_effect=bp.ProfileError("unsupported_platform"))
-
-    def test_15_retired_on_windows_closes_refuses_and_reports_the_purge_not_done(self):
+class UndeletedFolderTests(Base):
+    def test_15_a_retired_folder_that_cannot_be_deleted_stays_pending_until_it_can(self):
         self.running()
-        before = self.folders()
-        with self.unsupported():
+        with mock.patch.object(bp, "_purge", side_effect=OSError("in use")):  # renamed away, then the delete fails
             self.beat("retired")
             self.assertEqual(self.log, ["close"])
-            self.assertEqual(self.folders(), before)
+            self.assertTrue(list((self.data / "browser-profiles").glob(".retired-*")))
             latch = self.client.workspace.latch()
-            self.assertEqual((latch["purge_error"], latch["notice"]), ("unsupported_platform", ws.NOTICE_PURGE_FAILED))
-            self.refused("purge_unsupported")
-        self.assertIn("Windows", wl.MESSAGES["purge_unsupported"])
+            self.assertEqual((len(latch["purge_pending"]), latch["notice"]), (1, ws.NOTICE_PURGE_FAILED))
+            self.assertFalse(self.client.workspace.resume())  # the folder's old name is gone: still not "done"
+            self.assertEqual(self.client.workspace.latch()["purge_error"], "purge_pending")
+            self.refused("purge_pending")
+        self.assertTrue(self.client.workspace.resume())
+        self.assertFalse(list((self.data / "browser-profiles").glob(".retired-*")))
+        self.assertEqual(self.client.workspace.latch()["notice"], ws.NOTICE_PURGED)
 
 
 if __name__ == "__main__":

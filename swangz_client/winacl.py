@@ -1,8 +1,10 @@
-"""Windows only: the current user's SID, and an owner-only ACL on the workspace folder (W3 threat note, T1).
+"""Windows only: the current user's SID, an owner-only ACL on the workspace folder (W3 threat note, T1), and the two
+file calls that deleting a profile folder safely needs.
 
 Standard library `ctypes` over advapi32. Every failure is reported as "not verified", and the launcher refuses.
 """
 import ctypes
+import os
 from ctypes import wintypes
 
 SE_FILE_OBJECT = 1
@@ -16,6 +18,10 @@ ACL_SIZE_INFORMATION = 2
 ACCESS_ALLOWED_ACE_TYPE = 0
 OBJECT_INHERIT_ACE, CONTAINER_INHERIT_ACE = 0x1, 0x2
 FILE_ALL_ACCESS = 0x1F01FF
+FILE_LIST_DIRECTORY, FILE_READ_ATTRIBUTES = 0x1, 0x80
+FILE_SHARE_READ, FILE_SHARE_WRITE = 0x1, 0x2  # no FILE_SHARE_DELETE: a held folder cannot be renamed or replaced
+OPEN_EXISTING = 3
+FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT = 0x02000000, 0x00200000
 
 
 class ACL_SIZE(ctypes.Structure):
@@ -132,3 +138,31 @@ def owner_only(path):
             kernel.LocalFree(sd)
     except Exception:
         return False
+
+
+def hold_folder(path):
+    """-> a file descriptor on the folder itself (a junction or link is opened, not followed). While it is open nobody
+    can rename or delete that folder. Raises OSError, also when someone else holds it for deletion."""
+    import msvcrt
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.CreateFileW.restype = wintypes.HANDLE
+    kernel.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD,
+                                   wintypes.DWORD, wintypes.HANDLE]
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    handle = kernel.CreateFileW(path, FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                None, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, None)
+    if handle == wintypes.HANDLE(-1).value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        return msvcrt.open_osfhandle(handle, os.O_RDONLY)
+    except OSError:
+        kernel.CloseHandle(handle)
+        raise
+
+
+def set_attributes(path, attributes):
+    """Set a file's attributes on that name itself; a link is not followed."""
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.SetFileAttributesW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD]
+    if not kernel.SetFileAttributesW(path, attributes or 0x80):  # 0x80 = FILE_ATTRIBUTE_NORMAL
+        raise ctypes.WinError(ctypes.get_last_error())
