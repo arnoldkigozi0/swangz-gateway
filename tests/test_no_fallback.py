@@ -1,6 +1,7 @@
 """#333, D-026 D1-D4: a refused Open reaches no browser and starts no process; a company computer is never told to use
 another browser for a shared account; and only the listed places may open anything in the default browser."""
 import ast
+import re
 import contextlib
 import io
 import unittest
@@ -104,6 +105,47 @@ class RefusalTests(twl.Base):
                 self.assertEqual((exc.code, exc.message), ("shared_account", words))
 
 
+class AppsRowTests(RefusalTests):
+    """The Apps page's line for each tool agrees with what Open really does, on a real Client (#333 D-026 D4)."""
+
+    def note(self, client, tool):
+        try:
+            from swangz_client import gui
+        except ImportError:  # no tkinter on this Python
+            self.skipTest("needs tkinter")
+        return gui.app_note(client, next(a for a in client.apps() if a["id"] == tool))
+
+    def test_each_row_says_what_open_does(self):
+        rows = {
+            "company": {"midjourney": "Shared company account. Doesn't open on this company computer yet; ask your administrator",
+                        "canva": "Doesn't open on this company computer yet; ask your administrator"},
+            "personal": {"midjourney": "Shared company account, one turn at a time. Open it from Swangz AI Hub",
+                         "canva": "Open it from Swangz AI Hub"},
+        }
+        for kind, expected in rows.items():
+            for tool, words in expected.items():
+                client, opened, _ = self.client(kind)
+                self.assertEqual(self.note(client, tool), words, (kind, tool))
+                exc = self.refused(client, opened, tool)  # and Open really opens nothing, saying the same
+                self.assertIn("ask your administrator" if kind == "company" else "Open it from Swangz AI Hub", str(exc))
+            client, _, _ = self.client(kind)
+            self.assertEqual(self.note(client, "chatgpt"), "Opens in your Swangz workspace window")
+            self.assertTrue(client.workspace_app(next(a for a in client.apps() if a["id"] == "chatgpt")))
+
+    def test_no_row_promises_a_company_browser_of_your_own(self):
+        for kind in ("company", "personal"):
+            client, _, _ = self.client(kind)
+            for app in client.apps():
+                self.assertNotIn("company browser", self.note(client, app["id"]), (kind, app["id"]))
+
+    def test_a_workspace_tool_without_a_workspace_window_says_so(self):
+        client, _, _ = self.client("personal")
+        manifest = client.store.manifest()
+        manifest["browser"] = None
+        self.assertIn("once this device has one", self.note(client, "chatgpt"))
+        self.assertEqual(self.refused(client, mock.Mock(), "chatgpt").code, "no_workspace")
+
+
 class RepairPanelTests(unittest.TestCase):
     def test_the_company_panel_has_no_button_and_names_no_other_way_in(self):
         fix = repair.explain(wl.LaunchError("shared_account_company"))
@@ -131,12 +173,28 @@ class RepairPanelTests(unittest.TestCase):
 
 OPENERS = ("open_url", "webbrowser", "startfile")
 OPENER_TEXT = (*OPENERS, "xdg-open")
+# Programs that hand an address to the default browser: macOS `open`, Windows `cmd /c start` and `explorer`, and
+# `osascript` (AppleScript can `open location`). Caught as an argv's first item, or as the start of a shell string.
+LAUNCHERS = ("open", "cmd", "explorer", "osascript", "xdg-open")
+# `open` and `start` are ordinary words too, so as a shell string they count only lower-case, at the very start and
+# followed by an address, a quote, an option or nothing (`'open ' + url`).
+SHELL_LAUNCH = re.compile(r"(?:(?i:\s*(?:\S*[/\\])?(?:explorer|osascript|xdg-open)(?:\.exe)?(?:\s|$))"
+                          r"|(?i:\s*(?:\S*[/\\])?cmd(?:\.exe)?\s+/[ck]\s+start\b)"
+                          r"|(?:start|open)\s+(?:$|-|[\"'{]|https?:))")
+
+
+def launcher(text):
+    """-> True when `text`, an argv's first item, names one of LAUNCHERS (any folder, any case, with or without .exe)."""
+    name = re.split(r"[/\\]", text.strip())[-1].lower()
+    return (name[:-4] if name.endswith(".exe") else name) in LAUNCHERS
 
 
 def browser_references(source):
     """-> Counter of the enclosing "Class.function" for every way `source` can reach the default browser: the names
     above used, aliased or imported, or spelled as a string (getattr, __import__, a command)."""
     found = Counter()
+    tree = ast.parse(source)
+    argv0 = {id(n.elts[0]) for n in ast.walk(tree) if isinstance(n, (ast.List, ast.Tuple)) and n.elts}
 
     def visit(node, scope):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
@@ -146,8 +204,9 @@ def browser_references(source):
             hits = [node.id]
         elif isinstance(node, ast.Attribute):
             hits = [node.attr]
-        elif isinstance(node, ast.Constant) and node.value in OPENER_TEXT:
-            hits = [node.value]
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            if node.value in OPENER_TEXT or SHELL_LAUNCH.match(node.value) or (id(node) in argv0 and launcher(node.value)):
+                hits = ["xdg-open"]  # any launcher counts once, as a way to the default browser
         elif isinstance(node, ast.Import):
             hits = [a.name.split(".")[0] for a in node.names]
         elif isinstance(node, ast.ImportFrom):
@@ -157,7 +216,7 @@ def browser_references(source):
         for child in ast.iter_child_nodes(node):
             visit(child, scope)
 
-    visit(ast.parse(source), ())
+    visit(tree, ())
     return found
 
 
@@ -171,6 +230,9 @@ class BrowserCallerTests(unittest.TestCase):
         ("core.py", "Client.__init__"): 3, ("core.py", "Client.login"): 1, ("gui.py", "App._show_code"): 1,
         # the Chrome-page repair button: INSTALL_PAGE and nothing else
         ("gui.py", "App.repair_action"): 1,
+        # a terminal window for a coding agent: `cmd.exe /c start ... cmd.exe /k` on Windows, Terminal via osascript on
+        # macOS. Both start a fixed terminal program on the agent's own command, never an address.
+        ("shell.py", "terminal_command"): 2,
     }
 
     def sources(self):
@@ -204,8 +266,27 @@ class BrowserCallerTests(unittest.TestCase):
             ("def a():\n    __import__('webbrowser').open('x')\n", "a"),
             ("def a():\n    os.startfile('x')\n", "a"),
             ("def a():\n    subprocess.run(['xdg-open', 'x'])\n", "a"),
+            ("def a(u):\n    subprocess.run(['open', u])\n", "a"),
+            ("def a(u):\n    subprocess.Popen(['/usr/bin/open', '-a', 'Safari', u])\n", "a"),
+            ("def a(u):\n    subprocess.run(('cmd', '/c', 'start', '', u))\n", "a"),
+            ("def a(u):\n    subprocess.run(['CMD.EXE', '/C', 'start', u])\n", "a"),
+            ("def a(u):\n    os.system('cmd /c start ' + u)\n", "a"),
+            ("def a(u):\n    os.system('start \"\" ' + u)\n", "a"),
+            ("def a(u):\n    subprocess.run(['explorer', u])\n", "a"),
+            ("def a(u):\n    subprocess.run([r'C:\\Windows\\explorer.exe', u])\n", "a"),
+            ("def a(u):\n    subprocess.run(f'explorer {u}', shell=True)\n", "a"),
+            ("def a(u):\n    os.system('open ' + u)\n", "a"),
+            ("def a(u):\n    os.system(f'open \"{u}\"')\n", "a"),
+            ("def a(u):\n    subprocess.run(['osascript', '-e', 'open location \"' + u + '\"'])\n", "a"),
         ):
             self.assertIn(where, browser_references(source), source)
+
+
+    def test_ordinary_words_are_not_launchers(self):
+        """`open` is also a sub-command, a dict key and a word in help text; only a command shape counts."""
+        for source in ("a = app['open']\n", "p = sub.add_parser('open')\n", "x = 'open the window minimised'\n",
+                       "def f():\n    return 'open'\n", "x = 'start Swangz at sign-in'\n", "x = 'Open ' + name\n", "log(t + ' open ' + u)\n", "x = ['opener', 'cmdline']\n"):
+            self.assertEqual(browser_references(source), Counter(), source)
 
 
 if __name__ == "__main__":

@@ -27,6 +27,23 @@ def clock(ts):
     return time.strftime("%H:%M", time.localtime(ts)) if ts else "never"
 
 
+
+def app_note(client, app):
+    """The Apps row's line: what pressing Open really does for `app` on this computer (core.Client.open_app). A tool
+    the Hub marks for the workspace opens in the Swangz workspace window; anything else opens nothing in this app
+    (D-026 D4): a company computer is told to ask the administrator, a personal one to use Swangz AI Hub."""
+    shared = app.get("signin") == "shared"
+    if client.workspace_app(app):
+        return "Opens in your Swangz workspace window"
+    if app.get("workspace") is True:
+        return "Opens in your Swangz workspace window once this device has one. Update Swangz, or ask your admin"
+    if client.company_device():
+        return ("Shared company account. " if shared else "") + \
+            "Doesn't open on this company computer yet; ask your administrator"
+    if shared:
+        return "Shared company account, one turn at a time. Open it from Swangz AI Hub"
+    return "Open it from Swangz AI Hub"
+
 class App:
     def __init__(self, client, root=None, inline=False, background=False):
         self.client, self.inline = client, inline
@@ -306,7 +323,7 @@ class App:
             text = tk.Frame(row, bg=C["panel"])
             text.pack(side="left", fill="x", expand=True)
             self.label(text, a["name"], 12, bold=True, bg=C["panel"]).pack(anchor="w")
-            note = "Opens in a company browser of your own" if a.get("company_browser") else ("Shared company account, one turn at a time" if a.get("signin") == "shared" else a.get("category", ""))
+            note = app_note(self.client, a)
             self.label(text, note, 9, color="muted", bg=C["panel"]).pack(anchor="w")
             self.button(row, "Open", lambda t=a["id"]: self.open_app(t)).pack(side="right")
 
