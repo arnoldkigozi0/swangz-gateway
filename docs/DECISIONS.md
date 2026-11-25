@@ -932,7 +932,8 @@ setup and run nothing. A redirect to `http://` is refused. A changed binary is c
      with `/ALLUSERS` into `%ProgramFiles%\Swangz` **and is a PyInstaller one-folder build**: today's one-file
      `Swangz.exe` unpacks its Python into the person's `%TEMP%` on every start, where any program running as the
      person can replace it before the elevated process loads it. At its start the elevated process checks, and refuses
-     with `admin_install_required` unless: it is frozen and not one-file (`sys._MEIPASS` is its own folder); its folder
+     with `admin_install_required` unless: it is frozen and not one-file (`sys._MEIPASS`
+     resolves to the `_internal` folder directly beside `sys.executable`, as PyInstaller 6 one-folder builds lay out); its folder
      is under the `ProgramFiles` known folder; the folder and every parent up to `ProgramFiles` is owned by
      Administrators, SYSTEM or TrustedInstaller and grants no write, delete or change-permission right to any other SID
      (including the person's own); the same holds for `Swangz.exe` and the one-folder's `_internal`.
@@ -956,7 +957,7 @@ setup and run nothing. A redirect to `http://` is refused. A changed binary is c
    build; both are Prism's (`packaging/`).
 
 *Tests:* the elevated entry point refuses any argv other than `admin <one of three actions>`. It refuses when: run
-one-file; run from a folder under `%LocalAppData%`; run from a folder whose DACL grants the person write (CI: create
+one-file (`sys._MEIPASS` under `%TEMP%`, not `<exe folder>\_internal`); it accepts a correct one-folder layout; run from a folder under `%LocalAppData%`; run from a folder whose DACL grants the person write (CI: create
 one, grant the runner's SID, expect `admin_install_required`); `%ProgramData%\Swangz` pre-exists with a user-writable
 DACL (`staging_unsafe`); pinned values are missing, malformed, or differ from the enrolled host. The staging folder is
 gone after success and after a failed signature. `chrome-install` reads nothing from the app data folder (static test:
