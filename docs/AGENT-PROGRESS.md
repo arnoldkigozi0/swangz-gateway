@@ -6,7 +6,7 @@
 |---|---|---|---|
 | #351 Chrome publisher check (49b96c0) | Anvil | pushed after Sentinel's review; some checks not finished | check CI at head, Sentinel re-review, then merge on green |
 | #352 policy report (36c1bef) | Anvil | Sentinel BLOCKED (one Medium, MDM signal) and Probe FAIL on the same check | after #351: MDM alone never removes a "not guaranteed" line, test with a stale enrolment key, plus Probe's two smaller items; re-review |
-| #353 cleanup (e879bf9 pushed) | Forge | Windows installer build failed; fix b9de6c4 committed locally at 14:00, other checks pending | push the fix, CI green, reviews |
+| #353 cleanup (b9de6c4) | Forge | Windows installer build failed at e879bf9; fix b9de6c4 pushed about 14:00, CI not finished | check CI at b9de6c4, then reviews |
 | #354 person switch (a69f99f) | Forge | CI not finished when counted | check CI, queued reviews |
 
 **25 Nov 09:58.** Merged since 08:00: #341, #342, #345, #347. #346 (draft, 28b9adc) fixes Probe's FAIL at 0573daa; 4 CI jobs pending. Next at 12:00: check CI, Probe verifies 28b9adc, then merge. Anvil saw one local test_client_gui stall (passes alone, CI app-window passed). Open drafts: #343 (D-027), #348 (merge after #338), #349 (CI pending). #338 CI green, not merged: confirm review at its head first. Folder-removal task (feature/333-folder-cleanup, Anvil) waits on #338.
