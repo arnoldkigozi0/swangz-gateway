@@ -229,6 +229,16 @@ class WorkspaceTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "kept unchanged"):
             self.h.kept(Steps(), self.data, folder, marker, "after sign out")
 
+    def test_removed_passes_with_only_the_lock_left_and_fails_while_a_folder_stays(self):
+        folder, _ = self.first()
+        with self.assertRaisesRegex(AssertionError, "every workspace folder is deleted"):
+            self.h.removed(Steps(), self.data, "after the uninstall")
+        shutil.rmtree(folder)
+        (self.data / "browser-profiles" / ".lock").touch()
+        self.h.removed(Steps(), self.data, "after the uninstall")
+        shutil.rmtree(self.data / "browser-profiles")
+        self.h.removed(Steps(), self.data, "after the uninstall")
+
     def test_a_second_person_gets_a_separate_folder_and_the_first_is_kept(self):
         folder, marker = self.first()
         steps = Steps()

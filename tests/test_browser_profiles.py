@@ -418,6 +418,21 @@ class ProfileTests(unittest.TestCase):
         after = {p.relative_to(home): p.read_bytes() for p in home.rglob("*") if p.is_file()}
         self.assertEqual(before, after)
 
+    def test_the_modules_that_handle_the_folders_cannot_send_what_is_in_them(self):
+        # D-026 C: no folder content is returned or uploaded. None of the three opens a connection or calls the Hub.
+        package = Path(__file__).resolve().parents[1] / "swangz_client"
+        network = {"urllib.request", "http", "http.client", "socket", "ssl", "ftplib", "smtplib", "xmlrpc"}
+        for name in ("browser_profiles.py", "workspace_launcher.py", "workspace_state.py"):
+            for node in ast.walk(ast.parse((package / name).read_text(encoding="utf-8"))):
+                if isinstance(node, ast.Import):
+                    self.assertFalse({n.name for n in node.names} & network, name)
+                elif isinstance(node, ast.ImportFrom):
+                    names = {node.module} | {f"{node.module}.{n.name}" for n in node.names}
+                    self.assertFalse(names & network, name)
+                    self.assertFalse({n.name for n in node.names} & {"Api"}, name)
+                elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                    self.assertNotIn(node.func.attr, ("api", "urlopen"), name)
+
     def test_only_the_workspace_launcher_imports_it(self):
         # W3 (docs/W3-THREAT-NOTE.md, T1): the launcher is the one production user that prepares folders; W4's
         # workspace_state is the one that purges them (docs/W4-THREAT-NOTE.md ruling 3). Everything else stays out.

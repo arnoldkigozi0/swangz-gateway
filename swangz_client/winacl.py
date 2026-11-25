@@ -13,6 +13,7 @@ DACL_SECURITY_INFORMATION = 0x4
 PROTECTED_DACL_SECURITY_INFORMATION = 0x80000000
 TOKEN_QUERY = 0x8
 TOKEN_USER = 1
+TOKEN_ELEVATION = 20
 ACL_REVISION = 2
 ACL_SIZE_INFORMATION = 2
 ACCESS_ALLOWED_ACE_TYPE = 0
@@ -71,6 +72,22 @@ def _user_sid(advapi, kernel):
         if not advapi.GetTokenInformation(token, TOKEN_USER, buf, size, ctypes.byref(size)):
             raise OSError("token information")
         return buf, ctypes.c_void_p.from_buffer(buf).value
+    finally:
+        kernel.CloseHandle(token)
+
+
+def token_elevated():
+    """True when this process runs with an elevated token. Raises OSError when Windows will not say."""
+    advapi, kernel = _libs()
+    token = wintypes.HANDLE()
+    if not advapi.OpenProcessToken(kernel.GetCurrentProcess(), TOKEN_QUERY, ctypes.byref(token)):
+        raise OSError("token")
+    try:
+        elevated, size = wintypes.DWORD(), wintypes.DWORD()
+        if not advapi.GetTokenInformation(token, TOKEN_ELEVATION, ctypes.byref(elevated), ctypes.sizeof(elevated),
+                                          ctypes.byref(size)):
+            raise OSError("token information")
+        return bool(elevated.value)
     finally:
         kernel.CloseHandle(token)
 

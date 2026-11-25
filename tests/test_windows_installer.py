@@ -54,17 +54,29 @@ class InstallerScriptTests(unittest.TestCase):
         from swangz_client import shell
         self.assertIn('"Swangz"', Path(shell.__file__).read_text(encoding="utf-8"))
 
-    def test_uninstall_signs_the_device_out_first(self):
-        stop, entry = lines("UninstallRun")
-        # the person's own running copy is stopped before sign-out, so it cannot hold the program or rewrite its state
-        self.assertIn('Filename: "{sys}\\taskkill.exe"', stop)
-        self.assertIn('/IM Swangz.exe', stop)
-        self.assertIn('USERNAME eq {username}', stop)
-        self.assertIn("waituntilterminated", stop)
+    def test_uninstall_removes_swangz_from_this_account_first_and_reports_what_stays(self):
+        # D-026 C4: from [Code], because the result of an [UninstallRun] entry is read by nobody
+        self.assertEqual(section("UninstallRun"), "")
+        self.assertEqual(section("UninstallDelete"), "")
+        for entry in lines("Run"):
+            self.assertNotRegex(entry, r"\b(cleanup|logout)\b")
+        self.assertNotRegex(CODE, r"\blogout\b")  # cleanup signs out first
+        self.assertNotIn("DelTree", CODE)  # only the program deletes inside the person's folders, link-safely
+        body = CODE.split("procedure RemoveFromThisAccount;", 1)[1].split("procedure CurUninstallStepChanged", 1)[0]
+        # the person's own running copy is stopped first, so it cannot hold a folder or rewrite its state
+        stop = body.index("Exec(ExpandConstant('{sys}\\taskkill.exe'), "
+                          "ExpandConstant('/F /T /IM Swangz.exe /FI \"USERNAME eq {username}\"')")
+        run = body.index("Ran := Exec(ExpandConstant('{app}\\Swangz.exe'), 'cleanup --report \"' + Report + '\"'")
+        self.assertLess(stop, run)
+        self.assertEqual(body.count("ewWaitUntilTerminated"), 2)
+        checked = body.index("if Ran and (ResultCode = 0) then")
+        self.assertLess(run, checked)
+        for needed in ("could not remove everything from this account", "LoadStringsFromFile(Report, Left)", "Log(Message);"):
+            self.assertGreater(body.index(needed), checked)
+        self.assertRegex(body, r"if not UninstallSilent then\s+MsgBox\(Message")
+        step = CODE.split("procedure CurUninstallStepChanged", 1)[1]
+        self.assertRegex(step, r"if CurUninstallStep = usUninstall then\s+RemoveFromThisAccount;")  # before files go
         self.assertIn("CloseApplications=force", ISS)  # a reinstall closes a running copy too
-        self.assertIn('Parameters: "logout"', entry)
-        self.assertIn("waituntilterminated", entry)
-        self.assertIn("skipifdoesntexist", entry)
 
     def test_no_server_address_secret_or_updater_is_built_in(self):
         self.assertIsNone(re.search(r"https?://", ISS))
@@ -423,11 +435,17 @@ class WindowsPolicyTamperTests(unittest.TestCase):
             self.assertIn(needle, block)
         self.assertLess(block.index("windows_policy.run("), block.index("device = enrol(approve_second[0])"))
 
-    def test_the_uninstall_runs_as_the_second_person_and_keeps_the_first_persons_folder(self):
+    def test_the_uninstall_deletes_both_peoples_folders_or_when_elevated_proves_the_refusal(self):
         self.assertIn("approve_second[:] = [approve]", self.e2e[self.e2e.index("def enrol_second"):])
         after = self.e2e[self.e2e.index("# 8. uninstall"):self.e2e.index("report[\"ok\"] = True")]
-        self.assertIn('hub_journey.kept(check, data, folder, marker, "after the uninstall', after)
-        self.assertLess(after.index("the Hub did not disconnect the device"), after.index("hub_journey.kept("))
+        elevated, unelevated = after.split("        if elevated:\n", 1)[1].split("        else:\n", 1)
+        for needed in ('require(said,', "an elevated cleanup changed the account",
+                       'hub_journey.kept(check, data, folder, marker, "after the elevated uninstall")'):
+            self.assertIn(needed, elevated)
+        for needed in ('require(not said,', "the Hub did not disconnect the device",
+                       'hub_journey.removed(check, data, "after the uninstall")'):
+            self.assertIn(needed, unelevated)
+        self.assertIn('report["uninstaller_elevated"] = elevated', after)
 
     def test_a_refused_open_starts_no_chrome_and_each_sync_must_report_afresh(self):
         refused = self.src[self.src.index("def refused("):self.src.index("def synced(")]

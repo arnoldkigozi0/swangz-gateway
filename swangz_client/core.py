@@ -57,6 +57,16 @@ class NeedsReconnect(Exception):
     reconnects the device."""
 
 
+class CleanupRefused(Exception):
+    """`cleanup` was started with administrator or root rights."""
+
+    code = "elevated_refused"
+
+    def __init__(self):
+        super().__init__("Swangz did not remove anything: it is running with administrator rights. Close it, then run "
+                         "it as yourself, without \"Run as administrator\" or sudo. (elevated_refused)")
+
+
 class NotSignedIn(Exception):
     pass
 
@@ -1116,6 +1126,30 @@ class Client:
             except OSError:
                 pass  # never block sign out; `swangz autostart off` remains available and reports the error
         return told
+
+    def cleanup(self):
+        """"Remove Swangz from this account" (`swangz cleanup`, and the per-person Windows uninstaller; D-026): sign
+        out while the key still exists, delete every workspace folder and drop start at login. A step that fails never
+        stops the later ones. -> {"told": bool, "left": [(path, reason)], "problems": [str]}"""
+        if shell.elevated():
+            raise CleanupRefused()  # before anything: with raised rights nothing here may touch a person's folders
+        told, problems = True, []
+        failures = (ApiFailure, NotSignedIn, keystore.KeyStoreError, agents.AgentConfigError, OSError, ValueError)
+        try:
+            self.workspace.close()
+            if self.store.device():
+                told = self.logout()
+            else:
+                self.remove_everything()  # already signed out or revoked: take away whatever is left
+        except failures as exc:
+            problems.append("Swangz's key, agents or packages: " + (getattr(exc, "message", None) or str(exc)))
+        from . import workspace_state  # imports browser_profiles, which imports this module
+        left = workspace_state.delete_folders(self.paths.data)
+        try:
+            shell.set_autostart(self.paths, False)
+        except OSError as exc:
+            problems.append(f"start at login ({type(exc).__name__})")
+        return {"told": told, "left": left, "problems": problems}
 
     # ------------------------------------------------------------ what the window shows
 

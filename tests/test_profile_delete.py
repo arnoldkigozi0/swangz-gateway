@@ -71,6 +71,31 @@ class Base(unittest.TestCase):
         (folder / "Default" / "Cache" / "data_0").write_bytes(b"cache")
         return folder
 
+    def block(self, folder):
+        """Make deleting fail after the rename, the way this system really does it. -> the undo."""
+        stuck = folder / "Default" / "stuck"
+        if WINDOWS:  # a read-only file that also lives elsewhere: its attribute is not ours to clear
+            shared = self.base / "shared"
+            shared.write_bytes(b"shared")
+            os.link(shared, stuck)
+            os.chmod(shared, stat.S_IREAD)
+
+            def undo():
+                self.assertEqual(shared.read_bytes(), b"shared")
+                self.assertFalse(shared.stat().st_mode & stat.S_IWRITE, "the other file kept its attribute")
+                os.chmod(shared, stat.S_IWRITE)
+            return undo
+        if os.geteuid() == 0:
+            self.skipTest("root ignores folder permissions")
+        stuck.mkdir()
+        (stuck / "file").write_text("x")
+        stuck.chmod(0o500)
+
+        def undo():
+            for retired in self.profiles.root.glob(".retired-*"):
+                (retired / "Default" / "stuck").chmod(0o700)
+        return undo
+
 
 class LinkTests(Base):
     def test_links_inside_the_folder_go_and_their_targets_stay(self):
@@ -189,33 +214,83 @@ class DeleteTests(Base):
         self.assertNotIn("unsupported_platform", Path(bp.__file__).read_text(encoding="utf-8"))
 
 
+class DeleteAllTests(Base):
+    """`cleanup`: everything under browser-profiles/ goes, whoever it belongs to; only the root and its lock stay."""
+
+    def test_every_folder_and_stray_entry_goes_and_link_targets_stay(self):
+        folder = self.profile_with_content()
+        self.profiles.prepare(bp.Owner("https://hub.example", "person_2", "device-1"))
+        for kind, make in DIR_LINKS.items():
+            make(folder / "Default" / f"deep-{kind}", self.outside / "deeper")
+            make(self.profiles.root / f"top-{kind}", self.outside)
+        os.symlink(self.outside / "canary", self.profiles.root / "file-link")
+        os.symlink(self.outside / "missing", self.profiles.root / "dangling")
+        (self.profiles.root / "stray").write_bytes(b"x")
+        (self.profiles.root / (".tmp-" + "b" * 32)).mkdir()
+        (self.profiles.root / "no-marker").mkdir()
+        folder.chmod(0o755)  # modes another operation would refuse never keep sign-ins on the disk
+        self.profiles.root.chmod(0o755)
+        self.assertEqual(self.profiles.delete_all(), [])
+        self.assertEqual(self.leftovers(), [])
+        self.assertTrue((self.profiles.root / ".lock").is_file())
+        self.assert_outside_untouched()
+        self.assertEqual(self.profiles.delete_all(), [])  # a second run changes nothing
+        self.assertEqual(self.leftovers(), [])
+
+    def test_nothing_there_creates_nothing(self):
+        self.assertEqual(self.profiles.delete_all(), [])
+        self.assertEqual(list(self.data.iterdir()), [])
+        self.assertEqual(bp.Profiles(self.base / "no-data").delete_all(), [])
+        self.assertFalse((self.base / "no-data").exists())
+
+    def test_a_linked_root_or_data_folder_is_reported_and_left_alone(self):
+        for kind, make in DIR_LINKS.items():
+            with self.subTest(kind=kind):
+                data = self.base / f"data-{kind}"
+                data.mkdir(mode=0o700)
+                make(data / "browser-profiles", self.outside)
+                make(self.base / f"linked-data-{kind}", data)
+                for profiles in (bp.Profiles(data), bp.Profiles(self.base / f"linked-data-{kind}")):
+                    self.assertEqual(profiles.delete_all(), [(str(profiles.root), "unsafe_link")])
+                self.assert_outside_untouched()
+
+    def test_what_cannot_be_deleted_is_reported_and_a_later_run_finishes(self):
+        folder = self.profile_with_content()
+        other = self.profiles.prepare(bp.Owner("https://hub.example", "person_2", "device-1"))
+        undo = self.block(folder)
+        (path, _), = self.profiles.delete_all()
+        retired, = self.profiles.root.glob(".retired-*")
+        self.assertEqual(path, str(retired))  # renamed first, so a half-deleted folder is never opened again
+        self.assertFalse(other.exists(), "one stuck folder does not keep the others")
+        undo()
+        self.assertEqual(self.profiles.delete_all(), [])
+        self.assertEqual(self.leftovers(), [])
+        self.assert_outside_untouched()
+
+    @unittest.skipUnless(WINDOWS, "the Windows read-only attribute on a link")
+    def test_a_read_only_link_never_changes_its_target(self):  # pragma: no cover - Windows runner
+        from swangz_client import winacl
+        folder = self.profile_with_content()
+        target = self.outside / "canary"
+        os.chmod(target, stat.S_IREAD)
+        self.addCleanup(os.chmod, target, stat.S_IWRITE)
+        self.before = self.canaries()
+        file_link, dir_link = folder / "Default" / "file-link", folder / "Default" / "junction"
+        os.symlink(target, file_link)
+        junction(dir_link, self.outside)
+        for link in (file_link, dir_link):
+            winacl.set_attributes(str(link), os.lstat(link).st_file_attributes | stat.FILE_ATTRIBUTE_READONLY)
+            self.assertTrue(os.lstat(link).st_file_attributes & stat.FILE_ATTRIBUTE_READONLY)
+        left = self.profiles.delete_all()
+        self.assert_outside_untouched()
+        if left:
+            self.assertEqual([reason for _, reason in left], ["readonly_link"])
+        else:
+            self.assertEqual(self.leftovers(), [])
+
+
 class PendingTests(Base):
     """A retired folder that cannot be deleted: reported, Open refused with a reason, deleted before the next launch."""
-
-    def block(self, folder):
-        """Make deleting fail after the rename, the way this system really does it. -> the undo."""
-        stuck = folder / "Default" / "stuck"
-        if WINDOWS:  # a read-only file that also lives elsewhere: its attribute is not ours to clear
-            shared = self.base / "shared"
-            shared.write_bytes(b"shared")
-            os.link(shared, stuck)
-            os.chmod(shared, stat.S_IREAD)
-
-            def undo():
-                self.assertEqual(shared.read_bytes(), b"shared")
-                self.assertFalse(shared.stat().st_mode & stat.S_IWRITE, "the other file kept its attribute")
-                os.chmod(shared, stat.S_IWRITE)
-            return undo
-        if os.geteuid() == 0:
-            self.skipTest("root ignores folder permissions")
-        stuck.mkdir()
-        (stuck / "file").write_text("x")
-        stuck.chmod(0o500)
-
-        def undo():
-            for retired in self.profiles.root.glob(".retired-*"):
-                (retired / "Default" / "stuck").chmod(0o700)
-        return undo
 
     def test_pending_refuses_open_for_everyone_and_clears_before_the_next_launch(self):
         folder = self.profile_with_content()

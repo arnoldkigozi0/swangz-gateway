@@ -7,8 +7,9 @@
 ;     into %LOCALAPPDATA%\Programs\Swangz;
 ;   - a Start-menu entry, and optional tasks: a desktop shortcut and starting Swangz when the person signs in to Windows
 ;     (the same HKCU Run value, "Swangz", that the app's own "Start with Windows" switch reads and writes);
-;   - uninstall: signs the device out (the Hub disconnects it and the app removes what it put on this computer, even when
-;     the Hub cannot be reached), then removes the program, the shortcuts and the Run value.
+;   - uninstall: runs `Swangz.exe cleanup` as the person (it signs the device out, so the Hub disconnects it, removes what
+;     the app put on this computer even when the Hub cannot be reached, and deletes the saved browser sign-ins), names
+;     whatever it could not delete, then removes the program, the shortcuts and the Run value.
 ; It carries no key or other secret; the app's sign-in starts with the Swangz Hub address. The installer installs no
 ; updater and schedules nothing; in-app updates stay off until signed releases exist (swangz_client/release_keys.py).
 ; The program and this installer are UNSIGNED until Swangz holds a code-signing certificate (packaging/README.md).
@@ -73,13 +74,6 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 [Run]
 Filename: "{app}\Swangz.exe"; Description: "Open Swangz"; Flags: postinstall nowait skipifsilent
 
-[UninstallRun]
-; Stop this person's running copy first (started at sign-in, it would hold Swangz.exe open and could rewrite its state
-; after the sign-out below). Only processes named Swangz.exe that belong to the person uninstalling; no-op when none run.
-Filename: "{sys}\taskkill.exe"; Parameters: "/F /T /IM Swangz.exe /FI ""USERNAME eq {username}"""; RunOnceId: "SwangzStop"; Flags: runhidden waituntilterminated
-; Disconnect this device and remove what Swangz put on this computer; never blocks the uninstall.
-Filename: "{app}\Swangz.exe"; Parameters: "logout"; RunOnceId: "SwangzSignOut"; Flags: runhidden waituntilterminated skipifdoesntexist
-
 [Code]
 const
   UninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{2027a02e-ebf5-41b9-8a7d-9e10a26e1770}_is1';
@@ -132,8 +126,41 @@ begin
 end;
 
 // The app's own "Start with Windows" switch writes the same Run value outside the installer's knowledge; remove it too.
+// Before any file goes. First stop this person's running copy (started at sign-in, it would hold Swangz.exe and the
+// browser folders open): only processes named Swangz.exe that belong to the person uninstalling. Then the program
+// removes Swangz from this account as that person: it disconnects the device, takes off what it installed and deletes
+// the saved browser sign-ins. What it could not delete is shown and logged; the uninstall carries on either way.
+procedure RemoveFromThisAccount;
+var
+  Report, Message: String;
+  Left: TArrayOfString;
+  ResultCode, I: Integer;
+  Ran: Boolean;
+begin
+  Exec(ExpandConstant('{sys}\taskkill.exe'), ExpandConstant('/F /T /IM Swangz.exe /FI "USERNAME eq {username}"'), '',
+       SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Report := ExpandConstant('{tmp}\swangz-cleanup.txt');
+  Ran := Exec(ExpandConstant('{app}\Swangz.exe'), 'cleanup --report "' + Report + '"', '', SW_HIDE,
+              ewWaitUntilTerminated, ResultCode);
+  if Ran and (ResultCode = 0) then
+    exit;
+  Message := 'Swangz could not remove everything from this account (code ' + IntToStr(ResultCode) + '). ' +
+    'Saved browser sign-ins may still be in ' + ExpandConstant('{localappdata}\Swangz\browser-profiles') + '.';
+  if LoadStringsFromFile(Report, Left) and (GetArrayLength(Left) > 0) then
+  begin
+    Message := Message + #13#10 + #13#10 + 'Not deleted:';
+    for I := 0 to GetArrayLength(Left) - 1 do
+      Message := Message + #13#10 + Left[I];
+  end;
+  Log(Message);
+  if not UninstallSilent then
+    MsgBox(Message, mbError, MB_OK);
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
+  if CurUninstallStep = usUninstall then
+    RemoveFromThisAccount;
   if CurUninstallStep = usPostUninstall then
     RegDeleteValue(HKEY_CURRENT_USER, 'Software\Microsoft\Windows\CurrentVersion\Run', 'Swangz');
 end;

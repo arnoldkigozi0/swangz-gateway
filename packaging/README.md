@@ -108,9 +108,11 @@ The installer:
 - installs no updater and schedules nothing. In-app updates stay off (`release_keys.ENABLED = False`) until signed
   releases exist;
 - uninstalls by first stopping the person's own running Swangz (started at sign-in, it would hold the program open),
-  then running `Swangz.exe logout`, which tells the Hub to disconnect the device and removes what Swangz
-  put on the computer, even offline. It then removes the program, the shortcuts, the `Run` value and the Apps & features
-  entry. Installing again over an existing install closes a running copy and keeps the person's device and settings.
+  then running `Swangz.exe cleanup` as that person, which tells the Hub to disconnect the device and removes what Swangz
+  put on the computer, saved browser sign-ins included, even offline. What it cannot delete is shown and logged. It
+  then removes the program, the shortcuts, the `Run` value and the Apps & features entry. An elevated uninstaller
+  deletes nothing in the account and says so (`docs/CLIENT.md`). Installing again over an existing install closes a
+  running copy and keeps the person's device and settings.
 
 The artifact is `Swangz-Setup-<version>-UNSIGNED.exe` plus a `.sha256` file, `RELEASE-LABEL.txt` and a CycloneDX SBOM
 (`Swangz-<version>.cdx.json`, `packaging/sbom.py`; the job fails if a third-party Python package is found in the program
@@ -120,8 +122,10 @@ runs the same secret scan over the app and its journey logs.
 `packaging/windows/installer_e2e.py` is the acceptance run on the runner. It does: silent install, launch (self-check
 window, `--background` start), enrol against the test suite's local Hub, restart, network interruption and recovery
 (through a local relay the script cuts and restores), an upgrade to this build while the program runs, then silent
-uninstall while it runs, checking the device key is gone from Windows Credential Manager. Steps 1-5 run on the previous
-build: the version in the tree (never below the server's minimum client version), built first as a test input and never
+uninstall while it runs. From an unelevated uninstaller it checks that the device key is gone from Windows Credential
+Manager and the workspace folders are deleted; from an elevated one (`uninstaller_elevated` in the report, the case on
+the hosted runner) it checks instead that `cleanup` refused, the log says so and the account was left alone. Steps 1-5 run
+on the previous build: the version in the tree (never below the server's minimum client version), built first as a test input and never
 uploaded. This build raises PATCH by the run number (0.1.100 -> 0.1.<100 + run>), the same scheme as the macOS journey. The
 upgrade must keep the device, its key and its Credential Manager entry, need no new sign-in, and show the new version in
 Apps & features and in the Hub's check-in record. The previous installer is then run over this build and must be refused (exit code 1, the reason in its log, nothing

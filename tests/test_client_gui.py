@@ -39,6 +39,8 @@ class FakeClient:
         self.cleanup_pending = False
         self.cleanup_error = None
         self.open_error = None
+        self.account_error = None
+        self.account_removal = {"told": True, "left": [], "problems": []}
 
     def signed_in(self):
         return self.signed
@@ -83,6 +85,13 @@ class FakeClient:
         if self.cleanup_error:
             raise self.cleanup_error
         self.cleanup_pending = False
+
+    def cleanup(self):
+        self.calls.append(("remove account",))
+        if self.account_error:
+            raise self.account_error
+        self.signed = False
+        return self.account_removal
 
     def open_app(self, tool_id):
         self.calls.append(("open", tool_id))
@@ -322,10 +331,54 @@ class WindowTests(unittest.TestCase):
         self.assertNotIn("remove Swangz from this device", question)
         self.assertIn("provider and Google sign-ins are not removed", question)
         self.assertIn(str(Path(self.client.paths.data) / "browser-profiles"), question)
+        self.assertIn(gui.REMOVE, question)  # where the person goes to delete them
         with mock.patch.object(gui.messagebox, "askyesno", return_value=True):
             buttons(app.content)["Sign out and disconnect this device"].invoke()
         self.assertIn(("logout",), self.client.calls)
         self.assertEqual(app.page, "signin")
+
+    def remove_account(self, app, answer=True):
+        with mock.patch.object(gui.messagebox, "askyesno", return_value=answer) as asked:
+            buttons(app.content)[gui.REMOVE].invoke()
+        app.root.update()
+        return asked.call_args.args[1]
+
+    def test_the_device_page_can_remove_swangz_from_this_account(self):
+        app = self.make()
+        buttons(app.dock)["This device"].invoke()
+        question = self.remove_account(app, answer=False)
+        self.assertNotIn(("remove account",), self.client.calls)
+        for said in ("signs you out", "deletes the browser sign-ins (provider and Google)", "app itself stays installed"):
+            self.assertIn(said, question)
+        self.remove_account(app)
+        self.assertEqual(self.client.calls.count(("remove account",)), 1)
+        self.assertEqual(app.page, "signin")
+        self.assertIn("removed from this account", app.statusbar.cget("text"))
+        self.assertNotIn(gui.REMOVE, buttons(app.content))
+
+    def test_an_incomplete_removal_names_what_is_left_and_can_be_tried_again(self):
+        app = self.make()
+        buttons(app.dock)["This device"].invoke()
+        self.client.account_removal = {"told": False, "left": [("/data/browser-profiles/stuck", "cleanup_failed")],
+                                       "problems": ["start at login (PermissionError)"]}
+        self.remove_account(app)
+        shown = " ".join(self.everything())
+        for said in ("not completely removed", "/data/browser-profiles/stuck", "start at login (PermissionError)"):
+            self.assertIn(said, shown)
+        self.assertNotIn("removed from this account.", app.statusbar.cget("text"))
+        self.assertIn("ask an admin to disconnect", app.statusbar.cget("text"))
+        self.client.account_removal = {"told": True, "left": [], "problems": []}
+        self.remove_account(app)
+        self.assertNotIn("not completely removed", " ".join(self.everything()))
+        self.assertNotIn(gui.REMOVE, buttons(app.content))
+
+    def test_a_refused_removal_says_why_and_stays_where_it_was(self):
+        app = self.make()
+        buttons(app.dock)["This device"].invoke()
+        self.client.account_error = core.CleanupRefused()
+        self.remove_account(app)
+        self.assertEqual(app.page, "device")
+        self.assertIn("elevated_refused", app.statusbar.cget("text"))
 
     def test_a_disconnected_device_goes_back_to_sign_in_with_the_reason(self):
         app = self.make()

@@ -7,6 +7,7 @@ purged. It holds ids, states and generations only; nothing from inside the brows
 
 Close: only the window this app started (`Launcher.close`). Purge: only `Profiles.retire(profile_id, owner)` for the
 enrolled owner's folders, never `retire_all`, and only on an authenticated `retired` or a higher generation.
+Separate from that: the person's own `cleanup` deletes every folder (`delete_folders`, D-026).
 """
 import json
 import threading
@@ -32,6 +33,11 @@ def locked(fn):
             return fn(*args, **kw)
     wrapper.__name__, wrapper.__doc__ = fn.__name__, fn.__doc__
     return wrapper
+
+
+def delete_folders(data):
+    """`cleanup` only: every workspace folder of this OS account. -> [(path, reason)] for those still there."""
+    return bp.Profiles(data).delete_all()
 
 
 class Malformed(Exception):

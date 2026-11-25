@@ -19,6 +19,17 @@ def app_command():
     return [sys.executable, "-m", "swangz_client"]
 
 
+def elevated():
+    """True when this process has administrator (Windows) or root rights. An unanswered question counts as yes."""
+    if sys.platform == "win32":
+        try:
+            from .winacl import token_elevated
+            return token_elevated()
+        except Exception:
+            return True
+    return os.geteuid() == 0
+
+
 # ---------------------------------------------------------------- start at login
 
 

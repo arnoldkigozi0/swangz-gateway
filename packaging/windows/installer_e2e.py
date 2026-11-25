@@ -10,6 +10,7 @@ this script can cut and restore, which is how a network interruption is made. Ev
 """
 
 import argparse
+import ctypes
 import hashlib
 import hmac
 import json
@@ -672,11 +673,15 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         app("autostart", "on")
         require(reg_value(RUN_KEY, "Swangz"), "autostart on did not write the Run value")
 
-        # 8. uninstall while the program runs (as it does when started at sign-in): it is stopped, the device is signed out
-        #    at the Hub, local data and the Credential Manager entry removed, program, shortcuts and Run value gone
+        # 8. uninstall while the program runs (as it does when started at sign-in): it is stopped, then `cleanup` runs as
+        #    the person (D-026): signed out at the Hub, local data, the Credential Manager entry and every workspace folder
+        #    removed; program, shortcuts and Run value gone. `cleanup` refuses an elevated token, so on an elevated runner
+        #    this proves the refusal instead: the person's account is left as it was and the uninstall log says so
         gui = subprocess.Popen([str(exe), "--background"], env=env, cwd=work)
         time.sleep(8)
         require(gui.poll() is None, "the program did not start before the uninstall")
+        elevated = bool(ctypes.windll.shell32.IsUserAnAdmin())
+        report["uninstaller_elevated"] = elevated
         quiet = reg_value(UNINSTALL_KEY, "UninstallString").strip('"')
         run([quiet, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", f"/LOG={evidence / 'uninstall.log'}"])
         deadline = time.monotonic() + 120  # the uninstaller finishes from a copy of itself in %TEMP%
@@ -688,16 +693,26 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         require(reg_value(UNINSTALL_KEY, "UninstallString") is None, "still listed in Apps & features")
         stopped(gui, "the uninstaller did not stop the running program")
         gui = None
-        require(not (data / "device.json").exists(), "local credentials left behind")
-        if in_os_store:
-            require(stored_secret() is None, "the device key is still in Windows Credential Manager")
+        log = (evidence / "uninstall.log").read_text(encoding="utf-8-sig", errors="replace")
         revoked = rig.gw.db.scalar("SELECT revoked FROM keys WHERE id = ?", (key_id,))  # the final enrolment's key
-        require(revoked is not None, "the Hub did not disconnect the device")
-        # the uninstall ran with the second person signed in: the first person's workspace folder is still theirs (R-12)
-        hub_journey.kept(check, data, folder, marker, "after the uninstall, with the second person signed in")
-        passed("silent uninstall while running: program stopped, device disconnected at the Hub, local credentials"
-               + (" and Credential Manager entry" if in_os_store else "") + " removed, program, shortcuts, Run value"
-               " and Apps & features entry gone")
+        said = "could not remove everything from this account" in log
+        if elevated:
+            require(said, "the uninstall log does not say that the account was not cleaned")
+            require((data / "device.json").exists() and revoked is None, "an elevated cleanup changed the account")
+            hub_journey.kept(check, data, folder, marker, "after the elevated uninstall")
+            passed("silent elevated uninstall while running: program stopped and removed, cleanup refused and logged,"
+                   " nothing in the account deleted")
+        else:
+            require(not said, "cleanup reported a failure in the uninstall log")
+            require(not (data / "device.json").exists(), "local credentials left behind")
+            if in_os_store:
+                require(stored_secret() is None, "the device key is still in Windows Credential Manager")
+            require(revoked is not None, "the Hub did not disconnect the device")
+            # both people's folders belong to this Windows account, so both go (D-026 C4)
+            hub_journey.removed(check, data, "after the uninstall")
+            passed("silent uninstall while running: program stopped, device disconnected at the Hub, local credentials"
+                   + (" and Credential Manager entry" if in_os_store else "") + " removed, workspace folders deleted,"
+                   " program, shortcuts, Run value and Apps & features entry gone")
         report["ok"] = True
     except Exception as exc:
         report["error"] = str(exc)

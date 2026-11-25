@@ -20,7 +20,7 @@ from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 
 from gateway import enroll
-from swangz_client import __version__, agents, bundles, cli, core, keystore, shell
+from swangz_client import __version__, agents, browser_profiles as bp, bundles, cli, core, keystore, shell
 
 from .test_devices import DeviceBase, make_zip
 
@@ -738,6 +738,25 @@ class ShellTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.paths = core.Paths(self.tmp / "home", self.tmp / "data")
 
+    def test_elevated_fails_closed(self):
+        from swangz_client import winacl
+        with patch.object(shell.sys, "platform", "win32"):
+            for token, expected in ((True, True), (False, False)):
+                with patch.object(winacl, "token_elevated", return_value=token):
+                    self.assertIs(shell.elevated(), expected)
+            with patch.object(winacl, "token_elevated", side_effect=OSError("no token")):
+                self.assertIs(shell.elevated(), True)
+        with patch.object(shell.sys, "platform", "linux"):
+            for uid, expected in ((0, True), (1000, False)):
+                with patch.object(shell.os, "geteuid", return_value=uid, create=True):
+                    self.assertIs(shell.elevated(), expected)
+
+    @unittest.skipUnless(os.name == "nt", "reads the real Windows token")
+    def test_the_real_token_can_be_read(self):  # pragma: no cover - Windows runner
+        import ctypes
+        from swangz_client import winacl
+        self.assertEqual(winacl.token_elevated(), bool(ctypes.windll.shell32.IsUserAnAdmin()))
+
     def test_hub_links_use_only_enrolled_origin_and_never_device_credentials(self):
         device = {"server": "https://hub.example:8443", "key": "never-in-url"}
         client = SimpleNamespace(signed_in=lambda: True, store=SimpleNamespace(device=lambda: device))
@@ -844,16 +863,116 @@ class CommandLineTests(ClientBase):
         self.assertIn(str(self.client.paths.data / "browser-profiles"), text)
         self.assertEqual(self.run_cli("sync")[0], 2)
 
-    def test_cleanup_says_the_browser_folders_stay(self):
-        self.sign_in()
-        profiles = self.client.paths.data / "browser-profiles"
-        profiles.mkdir(parents=True, exist_ok=True)
+    def signed_in_with_folders(self):
+        """A signed-in device with saved browser sign-ins; start at login is never the test runner's real one."""
+        not_elevated = patch.object(shell, "elevated", return_value=False)
+        not_elevated.start()
+        self.addCleanup(not_elevated.stop)
+        autostart = patch.object(shell, "set_autostart")
+        self.autostart = autostart.start()
+        self.addCleanup(autostart.stop)
+        info = self.sign_in()
+        self.profiles = self.data / "browser-profiles"
+        self.profiles.mkdir(mode=0o700, exist_ok=True)
+        for name in ("a" * 32, "b" * 32):
+            (self.profiles / name / "Default").mkdir(parents=True, mode=0o700)
+            (self.profiles / name / "Default" / "Cookies").write_bytes(b"session")
+        self.report = self.root / "report.txt"
+        return info
+
+    def revoked(self, info):
+        return self.gw.db.one("SELECT revoked FROM keys WHERE id = ?", (info["key_id"],))["revoked"] is not None
+
+    def left_in_profiles(self):
+        return sorted(p.name for p in self.profiles.iterdir() if p.name != ".lock")
+
+    def test_cleanup_signs_out_deletes_every_folder_and_stops_start_at_login(self):
+        info = self.signed_in_with_folders()
+        code, text = self.run_cli("cleanup", "--report", str(self.report))
+        self.assertEqual(code, 0, text)
+        self.assertIn("removed from this account, saved browser sign-ins included", text)
+        self.assertTrue(self.revoked(info))  # the Hub was told while the key still existed
+        self.assertFalse((self.data / "device.json").exists())
+        self.assertFalse((self.data / "device.key").exists())
+        self.assertEqual(self.left_in_profiles(), [])
+        self.autostart.assert_called_with(self.client.paths, False)
+        self.assertEqual(self.report.read_text(encoding="utf-8-sig"), "")
+        # a second run changes nothing
+        before = sorted(str(p) for p in self.root.rglob("*"))
+        self.assertEqual(self.run_cli("cleanup", "--report", str(self.report)), (0, text))
+        self.assertEqual(sorted(str(p) for p in self.root.rglob("*")), before)
+
+    def test_cleanup_refuses_with_administrator_rights_and_changes_nothing(self):
+        info = self.signed_in_with_folders()
+        before = {str(p): p.read_bytes() if p.is_file() else None for p in self.root.rglob("*")}
+        with patch.object(shell, "elevated", return_value=True):
+            code, text = self.run_cli("cleanup", "--report", str(self.report))
+            self.assertEqual(code, 1)
+            self.assertIn("elevated_refused", text)
+            self.assertNotIn("was removed from this account", text)
+            with self.assertRaises(core.CleanupRefused):
+                self.client.cleanup()
+            # the command refuses before it even builds the client, which writes in the person's folders
+            with patch.object(core, "Client") as made, patch.object(cli, "say"):
+                self.assertEqual(cli.main(["cleanup"]), 1)
+            made.assert_not_called()
+        self.assertEqual({str(p): p.read_bytes() if p.is_file() else None for p in self.root.rglob("*")}, before)
+        self.assertFalse(self.revoked(info))
+        self.autostart.assert_not_called()
+
+    def test_cleanup_names_what_it_could_not_delete_and_exits_non_zero(self):
+        info = self.signed_in_with_folders()
+        (self.profiles / ("a" * 32) / "stuck").write_bytes(b"in use")
+        real = bp._remove_tree
+
+        def stuck(path, entry):
+            if (path / "stuck").exists():
+                raise PermissionError(13, "in use")
+            return real(path, entry)
+        with patch.object(bp, "_remove_tree", stuck):
+            code, text = self.run_cli("cleanup", "--report", str(self.report))
+        self.assertEqual(code, 1, text)
+        left, = self.left_in_profiles()
+        path = str(self.profiles / left)
+        self.assertEqual(self.report.read_text(encoding="utf-8-sig").splitlines(), [path])
+        self.assertTrue(self.report.read_bytes().startswith(b"\xef\xbb\xbf"))
+        self.assertIn(f"Not deleted: {path}", text)
+        self.assertIn("not completely removed", text)
+        self.assertNotIn("saved browser sign-ins included", text)
+        self.assertTrue(self.revoked(info))  # the folder that stayed does not keep the key
+        self.assertFalse((self.data / "device.key").exists())
+        self.assertEqual(self.run_cli("cleanup")[0], 0)  # the next run finishes the job
+        self.assertEqual(self.left_in_profiles(), [])
+
+    def test_cleanup_still_deletes_when_the_server_cannot_be_reached(self):
+        info = self.signed_in_with_folders()
+        with patch.object(core.Api, "call", side_effect=core.ApiFailure(0, "unreachable", "offline")):
+            code, text = self.run_cli("cleanup")
+        self.assertEqual(code, 0, text)
+        self.assertIn("ask an admin to disconnect this device", text)
+        self.assertFalse((self.data / "device.key").exists())
+        self.assertEqual(self.left_in_profiles(), [])
+        self.assertFalse(self.revoked(info))
+
+    def test_cleanup_goes_on_when_taking_the_app_off_fails(self):
+        self.signed_in_with_folders()
+        with patch.object(self.client, "remove_everything", side_effect=OSError("disk says no")):
+            code, text = self.run_cli("cleanup")
+        self.assertEqual(code, 1, text)
+        self.assertIn("Not removed: Swangz's key, agents or packages: disk says no", text)
+        self.assertEqual(self.left_in_profiles(), [])
+        self.autostart.assert_called_with(self.client.paths, False)
+
+    def test_cleanup_after_sign_out_deletes_the_folders_that_stayed(self):
+        self.signed_in_with_folders()
+        code, text = self.run_cli("logout")
+        self.assertEqual(code, 0, text)
+        self.assertIn("To delete them, run: ", text)
+        self.assertIn(" cleanup", text)
+        self.assertEqual(self.left_in_profiles(), ["a" * 32, "b" * 32])  # sign out keeps them
         code, text = self.run_cli("cleanup")
-        self.assertEqual(code, 0)
-        self.assertNotIn("Local Swangz data removed", text)
-        self.assertIn("Not removed: browser folders that hold provider and Google sign-ins", text)
-        self.assertIn(str(profiles), text)
-        self.assertTrue(profiles.is_dir())  # the message matches what cleanup actually leaves
+        self.assertEqual(code, 0, text)
+        self.assertEqual(self.left_in_profiles(), [])
 
     def test_a_disconnected_device_gets_a_plain_message(self):
         info = self.sign_in()

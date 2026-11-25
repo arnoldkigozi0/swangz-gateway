@@ -230,6 +230,13 @@ def kept(check, data, folder, marker, when):
           f"{folder.name} in [{', '.join(now)}]")
 
 
+def removed(check, data, when):
+    """`cleanup` deleted every workspace folder: nothing but the lock is left under browser-profiles."""
+    root = data / "browser-profiles"
+    left = sorted(p.name for p in root.iterdir() if p.name != ".lock") if root.is_dir() else []
+    check(f"workspace: {when}, every workspace folder is deleted", not left, ", ".join(left))
+
+
 def second_person(check, enrol, run_app, data, owner, base, first, first_marker, tool=TOOL):
     """A second person signs this device in and opens the same tool: they get a workspace folder of their own,
     marked for them, and the first person's folder is left as it was. enrol(approve) signs the installed app in,

@@ -6,7 +6,9 @@
     swangz open TOOL            open a website tool through Swangz
     swangz run claude|codex …   run a coding agent through the company gateway, for this one run
     swangz autostart on|off     start the app when you sign in to this computer
-    swangz logout               take Swangz off this device
+    swangz logout               take Swangz off this device (saved browser sign-ins stay)
+    swangz cleanup [--report FILE]
+                                remove Swangz from this account, saved browser sign-ins included
 """
 
 import argparse
@@ -90,13 +92,17 @@ def main(argv=None, client=None):
     p = sub.add_parser("autostart")
     p.add_argument("state", choices=("on", "off"))
     sub.add_parser("logout")
-    sub.add_parser("cleanup")
+    p = sub.add_parser("cleanup", help="remove Swangz from this account, saved browser sign-ins included")
+    p.add_argument("--report", help="write every folder that could not be deleted to this file, one per line")
     p = sub.add_parser("key", help="credential helper for an installed coding agent (pipe only)")
     p.add_argument("--for", dest="tool", required=True, choices=("claude-code", "codex"))
     sub.add_parser("gui")
     p = sub.add_parser("update", help="check, stage or apply an authenticated app release")
     p.add_argument("action", choices=("status", "check", "apply"), nargs="?", default="status")
     args = parser.parse_args(command_argv)
+    if args.cmd == "cleanup" and shell.elevated():  # before the client: an elevated run reads and writes nothing
+        say(str(core.CleanupRefused()))
+        return 1
     client = client or core.Client()
     try:
         if args.cmd == "key":
@@ -164,10 +170,31 @@ def say_repair(fix):
 
 
 def browser_folders_stay(client):
-    """Until deletion is built (#333), logout and cleanup leave the company-browser folders on disk; say so. The
-    folder is named by browser_profiles alone, reached through the launcher (inventory and import guards)."""
+    """Signing out and revocation leave the company-browser folders on disk; say so. The folder is named by
+    browser_profiles alone, reached through the launcher (inventory and import guards)."""
+    import shlex
+
+    command = " ".join(shlex.quote(part) for part in [*shell.app_command(), "cleanup"])
     return ("Not removed: browser folders that hold provider and Google sign-ins stay on this device at "
-            f"{workspace_launcher.profiles_folder(client.paths.data)}. Delete that folder yourself if you need those sign-ins gone.")
+            f"{workspace_launcher.profiles_folder(client.paths.data)}. To delete them, run: {command}")
+
+
+def cleanup(client, report=None):
+    """-> 0 when nothing of Swangz is left on this account, else 1."""
+    out = client.cleanup()
+    if report:  # the Windows uninstaller shows this file; the byte order mark is how it knows the text is UTF-8
+        Path(report).write_text("".join(f"{path}\n" for path, _ in out["left"]), encoding="utf-8-sig")
+    if not out["told"]:
+        say("The server couldn't be reached, so ask an admin to disconnect this device.")
+    for problem in out["problems"]:
+        say(f"Not removed: {problem}")
+    for path, reason in out["left"]:
+        say(f"Not deleted: {path} ({reason})")
+    if out["left"] or out["problems"]:
+        say("Swangz was not completely removed from this account. Close any workspace window, then run cleanup again.")
+        return 1
+    say("Swangz was removed from this account, saved browser sign-ins included.")
+    return 0
 
 
 def run(args, client):
@@ -254,11 +281,7 @@ def run(args, client):
         say(browser_folders_stay(client))
         return 0
     if cmd == "cleanup":
-        client.remove_everything()
-        say("Swangz's installed agents, packages and key were removed. Disconnect this device in the Hub if it is "
-            "still enrolled.")
-        say(browser_folders_stay(client))
-        return 0
+        return cleanup(client, args.report)
     return 1
 
 
