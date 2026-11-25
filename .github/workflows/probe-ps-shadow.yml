@@ -1,0 +1,16 @@
+name: Probe experiment (PowerShell module path)
+on:
+  push:
+    branches: [feature/probe-351-psmodule]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python tests/probe_ps_shadow.py
