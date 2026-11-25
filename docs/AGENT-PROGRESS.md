@@ -1,5 +1,7 @@
 # Agent progress
 
+**25 Nov 20:00 shift.** Budget: Claude and ChatGPT both PAUSED, so lean shift, no new build tasks, Prism none. Merged: 0. Open drafts: 7. Assigned: Sentinel reviews #355 then #352 (both Probe VERIFIED, CI green; merge on APPROVED); Forge fixes #354 then #353; Anvil fixes #356 then #351; Probe clears own /tmp folders, verifies #357, then re-checks fixes. D-027 task 1 held.
+
 **25 Nov 18:00 shift end.** Merged since 16:00: 0. Open: 7, all drafts, mergeable, no failed or pending checks. Nobody was still working at 18:00. ChatGPT is available again (17:58 budget file).
 
 | PR | Owner | Verdicts at head | Next step at 20:00 |
