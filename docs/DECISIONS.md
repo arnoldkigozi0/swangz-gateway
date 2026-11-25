@@ -901,8 +901,11 @@ decision sets the rules for joining them. It changes nothing on the server, the 
      Check it through `WinVerifyTrust` or `Get-AuthenticodeSignature`, and check the subject, not a thumbprint,
      because Google rotates certificates.
    - macOS: `codesign --verify --deep --strict` passes on `Google Chrome.app` with the requirement
-     `anchor apple generic and identifier "com.google.Chrome" and certificate leaf[subject.OU] = "EQHXZ8M8AV"`
-     (Google LLC's Team ID, confirmed from Chromium source and the DMG/PKG signatures), and
+     `anchor apple generic and identifier "com.google.Chrome" and certificate 1[field.1.2.840.113635.100.6.2.6] and
+     certificate leaf[field.1.2.840.113635.100.6.1.13] and certificate leaf[subject.OU] = "EQHXZ8M8AV"`
+     (the two `field` clauses require a Developer ID intermediate and a Developer ID Application leaf, so a
+     development or other Apple certificate with Google's Team ID fails; the requirement is the one Chromium's own
+     source checks, docs/ACCEPTANCE-333.md; `EQHXZ8M8AV` is Google LLC's Team ID), and
      `spctl --assess --type execute` accepts it. The requirement applies to the **app only**, never to the DMG
      (whose identifier is `GoogleChrome-<version>-GGRO`); the DMG is just a carrier. Observed on 25 Nov
      (docs/ACCEPTANCE-333.md): the DMG is signed `Developer ID Application: Google LLC (EQHXZ8M8AV)` and the
@@ -1012,24 +1015,38 @@ or `sudo` (static test).
    by hand in the window, with the provider's own consent and MFA.
 4. A folder survives app restart, computer restart and **signing out of the computer** (so sessions persist). It is
    deleted on revocation (F), when the person changes (C2), and on **uninstall**: `Swangz.exe cleanup` (D-005,
-   "nothing is left") closes the window and deletes every folder under `browser-profiles/`; a folder it cannot
-   delete is named in the uninstaller's result, never silently left. **Signing out of the app** keeps the folder,
+   "nothing is left") closes the window and deletes every folder under **that OS account's** `browser-profiles/`
+   (it never reaches another account's folders); a folder it cannot delete is named in the uninstaller's result,
+   never silently left. `cleanup` always runs **as the person, unelevated** (it refuses an elevated token), and
+   deletes link-safely (a reparse point or symlink is removed itself, never followed; only paths that still resolve
+   inside the app's data folder are deleted). **No elevated or all-users uninstall ever deletes inside a
+   user-writable folder**: junctions and links could point that delete at system files (see the company-installer
+   amendment below). **Signing out of the app** keeps the folder,
    because the same person signs back in to their own sessions; a different person signing in retires it (C2).
    Today `remove_everything` on main keeps the folders in every case (R-12), and folder deletion raises
    `unsupported_platform` on Windows (`browser_profiles._purge`, `retire`); both are Forge's work.
-   - **Windows uninstaller:** `packaging/windows/swangz.iss` `[UninstallRun]` runs `Swangz.exe logout` only. It must
-     run `Swangz.exe cleanup` **after** `logout` (logout first, so the Hub hears the disconnect while the key
-     exists), with the same `runhidden waituntilterminated skipifdoesntexist` flags (Prism's, `packaging/`).
+   - **Windows per-user uninstaller** (`packaging/windows/swangz.iss`, `PrivilegesRequired=lowest`, so it runs as the
+     person): today `[UninstallRun]` runs `Swangz.exe logout` with `runhidden`, which ignores the exit code, and the
+     exe is built `--windowed`, so nothing it prints is seen. It must instead run cleanup from `[Code]`, in
+     `CurUninstallStepChanged(usUninstall)`, before any file is removed: stop the person's running copy (the
+     existing `taskkill` filter), then `Exec('{app}\Swangz.exe', 'cleanup --report "<{tmp} file>"', …, ResultCode)`.
+     `cleanup` runs `logout` itself first, while the key exists, so a separate `logout` entry is dropped. On a
+     non-zero `ResultCode` (or `Exec` failing) the uninstaller reads the report, one undeleted folder per line,
+     shows it in a message box (skipped when `UninstallSilent`), and always writes it to the uninstall log with
+     `Log`. The uninstall continues; it never claims everything was removed (Prism's, `packaging/`).
    - **macOS:** there is no uninstaller; removal is drag-to-Bin (`packaging/macos_dmg.py` README), which runs
-     nothing. The removal steps there and in docs/CLIENT.md become: Sign out, then run
-     `Swangz.app/Contents/MacOS/Swangz cleanup`, then drag Swangz to the Bin (Prism's). Dragging without these
+     nothing. The removal steps there and in docs/CLIENT.md become: in Swangz choose "Remove Swangz from this
+     account" (or run `Swangz.app/Contents/MacOS/Swangz cleanup`, which signs out first), then drag Swangz to the Bin
+     (Prism's). Each macOS account that used Swangz does this itself. Dragging without these
      steps leaves the folders (Limitations).
 5. Paths go into Chrome as one argv element each, never through a shell. Paths with spaces and non-ASCII characters
    are supported.
 
 *Tests:* two owners produce two folders, and each cannot open the other's. A person switch retires the earlier
 folder. A path with spaces and Unicode launches. The folder survives a restart and an app sign-out by the same
-person. `cleanup` (uninstall) deletes every folder, and reports one it cannot delete. No API returns or uploads folder
+person. `cleanup` (uninstall) deletes every folder, and reports one it cannot delete (non-zero exit, named in
+`--report`). Static: `swangz.iss` has no `runhidden` entry running `cleanup` or `logout`, and its `[Code]` checks
+`ResultCode`; the company `.iss` runs no verb other than `admin policy-remove`. No API returns or uploads folder
 content (static test).
 
 **D. Launch: explicit Chrome, fail closed, no default-browser fallback.**
@@ -1086,12 +1103,13 @@ device the existing message is kept.
      approves in System Settings, which macOS then exposes at `/Library/Managed Preferences/com.google.Chrome.plist`.
 
    The app never writes `/Library/Managed Preferences` directly on a real Mac; only the CI runner does that.
-   **Personal devices never get a policy** and keep the extension gate (D-024 point 4). One exception, below: an
-   administrator's own manual run of `policy-write`.
+   **Personal devices never get a policy** and keep the extension gate (D-024 point 4). The only exception, below, is
+   an administrator's own manual run of `policy-write` on a computer that is in fact company-owned.
    The `company` mark that matters is the admin's confirmation (D-025 point 2), which is **not built yet**. Until it
    is, the app never offers `policy-write`: the person's own `owner_kind` declaration is not enough to change every
-   user's Chrome on a computer. **Except:** an administrator may still run `Swangz.exe admin policy-write` by hand on a computer
-   they know is company-owned; the UAC consent is that administrator's decision. Once D-025 point 2 exists, the
+   user's Chrome on a computer. **Except:** an administrator may run `Swangz.exe admin policy-write` by hand only on a
+   company-owned computer, even one the Hub still lists as personal; never on a personal computer. The UAC consent
+   is that administrator's decision, and the elevated step still applies B3–B5 and E3. Once D-025 point 2 exists, the
    unelevated app offers the step only when the manifest says the admin confirmed `company`.
 2. **Setup states the cost plainly.** Machine policy applies to every Chrome window and every OS user on that
    computer, including personal browsing in Chrome, because the pack blocks everything not on the list. The admin
@@ -1200,7 +1218,15 @@ shown when a marker exists. The console text distinguishes local from provider r
 - macOS has no uninstaller: dragging Swangz to the Bin without running `cleanup` first leaves the folders (C4).
 - The per-user Windows install (`%LocalAppData%`, personal devices) cannot install Chrome: it never offers an elevated
   step (B5). The person installs Chrome themselves; A3 verifies it, and A4 accepts a per-user Chrome only there.
-- `policy-write` is not offered by the app until D-025 point 2 (admin-confirmed `company`) exists (E1).
+- `policy-write` is not offered by the app until D-025 point 2 (admin-confirmed `company`) exists (E1), except an
+  administrator's manual run on a company-owned computer, even one the Hub still lists as personal.
+- Uninstalling the company build removes no person's folders: it is machine-scope only, and `cleanup` reaches only
+  the account it runs in. Other OS accounts' folders, with their sessions, stay until F1 runs at that person's next
+  contact or the person runs "Remove Swangz from this account". The admin runbook: disconnect the device in the
+  console, or run `cleanup` in each account, **before** uninstalling.
+- On main, a second person signing in on the same OS account does **not** yet retire the first person's folder (C2):
+  `retire_owner` and `retire_all` exist in `browser_profiles.py` but nothing calls them. Until Forge wires it, the
+  first person's folder and sessions stay beside the second person's (each still opens only for its own owner).
 - Force-installing the extension on unmanaged Windows or macOS may need the Chrome Web Store listing. Publishing it
   needs Arnold's approval.
 
@@ -1270,8 +1296,9 @@ removal steps; E1 names the manual-run exception; D2/D4 marked done by #339.
   - names every folder it could not delete and exits non-zero;
   - is idempotent.
 
-  The app's This device page offers it as "Remove Swangz from this account". The per-user `swangz.iss` runs `logout`
-  then `cleanup` (C4, unchanged).
+  The app's This device page offers it as "Remove Swangz from this account". `cleanup` takes `--report <file>`
+  (one undeleted folder per line). The per-user `swangz.iss` runs it from `[Code]` and reports failures (C4); it
+  needs no separate `logout`, because `cleanup` runs `logout` first.
 
   *Tests:*
   - an elevated token is refused;
@@ -1287,7 +1314,16 @@ the launch, folder, verification, conflict-hash and revocation parts (A2–A4, C
 **D2 and D4 build: done** by #339 (merged as `7b95da0`): the shared-account refusal on company devices (message and
 repair panel) and the D tests (no `open_url` call for shared, denied, unknown and non-workspace tools; the static
 caller allow-list). No server change and no migration.
-**Next for C4 and F1:** `cleanup` and revocation delete the folders on every platform (Forge); the Windows
-uninstaller runs `cleanup` after `logout`, and the macOS removal steps include it (Prism).
+**Next for C2, C4 and F1:** `cleanup` and revocation delete the folders on every platform, and a person switch calls
+`retire_owner` before the new folder is made (Forge); the per-user Windows uninstaller runs `cleanup` from `[Code]`
+with its result reported, and the macOS removal steps include it (Prism).
 `enforce` stays off until D-025 point 2 and E5's acceptance check exist. R-12 changes: a folder is deleted on
 revocation, as well as on reassignment.
+
+**Amended 2026-11-25 (Probe's third pass on #338, final).** The per-user Windows uninstaller runs `cleanup` from
+`[Code]` with its exit code and `--report` checked, shown unless silent and always logged; `[UninstallRun]` no longer
+runs `logout` or `cleanup` hidden (this replaces "after `logout`" in the second pass). `cleanup` reaches only its own
+OS account, runs unelevated and deletes link-safely; no elevated uninstall deletes inside a user-writable folder. New
+Limitations: the company uninstall leaves other accounts' folders (runbook: disconnect or `cleanup` per account
+first), and C2's retirement is not wired on main. E1: the manual run only on a company-owned computer. A2: the two
+Developer ID clauses from Chromium's requirement.
