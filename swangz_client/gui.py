@@ -13,7 +13,13 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from . import __version__, core, repair, shell
-from .workspace_launcher import INSTALL_PAGE
+from .workspace_launcher import INSTALL_PAGE, profiles_folder
+
+def browser_folders_stay(data):
+    """Until deletion is built (#333), sign out leaves the company-browser folders on disk; say so rather than promise
+    more. The folder is named by browser_profiles alone, reached through the launcher (inventory and import guards)."""
+    return ("Browser folders that hold your provider and Google sign-ins are not removed yet. They stay on this "
+            f"device at {profiles_folder(data)}; delete that folder yourself if you need those sign-ins gone.")
 
 C = dict(bg="#0b0b0c", panel="#141416", raised="#1c1c1f", line="#2a2a2e", text="#ece9e2", muted="#9a978f",
          gold="#c8a96a", gold_hi="#e2c88d", bad="#e07a6b", ok="#7bd3a7")
@@ -373,7 +379,7 @@ class App:
         self.label(f, st.get("recording") or "", 10, color="muted", wrap=700).pack(anchor="w", pady=(4, 14))
         self.auto_var = tk.BooleanVar(value=st.get("autostart", False))
         ttk.Checkbutton(f, text="Start Swangz when I sign in to this computer", variable=self.auto_var, command=self.toggle_autostart).pack(anchor="w", pady=(0, 18))
-        self.button(f, "Sign out and remove Swangz from this device", self.sign_out, danger=True).pack(anchor="w")
+        self.button(f, "Sign out and disconnect this device", self.sign_out, danger=True).pack(anchor="w")
 
     # ------------------------------------------------------------ actions
 
@@ -474,8 +480,9 @@ class App:
             self.say(f"Couldn't change that: {exc}", bad=True)
 
     def sign_out(self):
-        if not messagebox.askyesno("Sign out", "Sign out and remove Swangz from this device?\n\nThe coding agents and packages Swangz "
-                                                "installed will be taken off, and the device disconnected."):
+        if not messagebox.askyesno("Sign out", "Sign out and disconnect this device?\n\nThe coding agents and packages Swangz "
+                                                "installed will be taken off, and the device disconnected.\n\n"
+                                                + browser_folders_stay(self.client.paths.data)):
             return
         self.work(self.client.logout, lambda ok, value: (setattr(self, "error", ""), self.show("signin")) if ok else self.failed(value))
 

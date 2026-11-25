@@ -4,6 +4,7 @@
 """
 
 import os
+from pathlib import Path
 import time
 import unittest
 from types import SimpleNamespace
@@ -333,11 +334,16 @@ class WindowTests(unittest.TestCase):
         text = " ".join(self.everything())
         self.assertIn("never reads your files", text)
         self.assertIn("Personal", text)
-        with mock.patch.object(gui.messagebox, "askyesno", return_value=False):
-            buttons(app.content)["Sign out and remove Swangz from this device"].invoke()
+        with mock.patch.object(gui.messagebox, "askyesno", return_value=False) as asked:
+            buttons(app.content)["Sign out and disconnect this device"].invoke()
         self.assertNotIn(("logout",), self.client.calls)
+        question = asked.call_args.args[1]
+        # Until deletion is built, the question must not promise the browser folders go too.
+        self.assertNotIn("remove Swangz from this device", question)
+        self.assertIn("provider and Google sign-ins are not removed", question)
+        self.assertIn(str(Path(self.client.paths.data) / "browser-profiles"), question)
         with mock.patch.object(gui.messagebox, "askyesno", return_value=True):
-            buttons(app.content)["Sign out and remove Swangz from this device"].invoke()
+            buttons(app.content)["Sign out and disconnect this device"].invoke()
         self.assertIn(("logout",), self.client.calls)
         self.assertEqual(app.page, "signin")
 

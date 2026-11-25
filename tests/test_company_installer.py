@@ -90,6 +90,18 @@ class CompanyInstallerScriptTests(unittest.TestCase):
         for name in e2e.SWITCHES.values():
             self.assertIn(f"TypedWhole(PinValue('{name.strip('/=')}'))", init)
         self.assertIn("PinsGiven() and not (", init)
+        self.assertIn("Result := (Length(Value) > 0)", CODE)
+
+    def test_a_switch_passed_empty_counts_as_passed(self):
+        # {param:HUBHOST|} is "" both for /HUBHOST= and for no switch at all: presence is read from the command line
+        given = CODE.split("function PinsGiven(): Boolean;", 1)[1].split("\nend;", 1)[0]
+        for name in e2e.SWITCHES.values():
+            self.assertIn(f"SwitchPassed('{name.strip('/=')}')", given)
+        self.assertNotIn("PinValue", given)
+        passed = CODE.split("function SwitchPassed(Name: String): Boolean;", 1)[1].split("function PinsGiven", 1)[0]
+        self.assertIn("for I := 1 to ParamCount do", passed)
+        self.assertIn("Arg := Uppercase(ParamStr(I));", passed)
+        self.assertIn("(Arg = '/' + Name) or (Pos('/' + Name + '=', Arg) = 1)", passed)
 
     def test_its_own_identity_and_the_same_downgrade_rule(self):
         self.assertNotEqual(app_id(ISS), app_id(PERSONAL))
@@ -103,6 +115,36 @@ class CompanyInstallerScriptTests(unittest.TestCase):
             return text.split("// One part of a MAJOR", 1)[1].split("function CompareVersions", 1)[1].split("\nend;", 1)[0]
 
         self.assertEqual(comparison(ISS), comparison(PERSONAL))
+
+    def test_an_upgrade_closes_the_installed_copies_only(self):
+        end = CODE.split("procedure EndCompanyCopies();", 1)[1].split("function FileIsFree", 1)[0]
+        self.assertIn("CompareText(Path, ExpandConstant('{app}\\Swangz.exe')) = 0", end)
+        self.assertIn("'SeDebugPrivilege'", end)  # other people's processes
+        self.assertEqual(end.count(".Terminate()"), 1)
+        self.assertLess(end.index("CompareText"), end.index(".Terminate()"))
+
+    def test_an_upgrade_changes_nothing_while_the_program_is_in_use(self):
+        free = CODE.split("function FileIsFree", 1)[1].split("function FolderIsFree", 1)[0]
+        self.assertIn("TFileStream.Create(Path, fmOpenReadWrite or fmShareExclusive)", free)
+        self.assertNotRegex(free, r"\.Write|RenameFile|DeleteFile")
+        stopped = CODE.split("function CompanyCopiesStopped", 1)[1].split("function PrepareToInstall", 1)[0]
+        self.assertIn("FolderIsFree(ExpandConstant('{app}\\_internal'))", stopped)
+        self.assertIn("FileIsFree(Exe)", stopped)
+        self.assertIn("for Attempt := 1 to 15 do", stopped)
+        prepare = CODE.split("function PrepareToInstall", 1)[1].split("procedure CurUninstallStepChanged", 1)[0]
+        # the folder check comes first: nothing is ended for an install that is going to be refused anyway
+        self.assertLess(prepare.index("CompareText("), prepare.index("not CompanyCopiesStopped()"))
+        self.assertIn("so nothing was changed", prepare)
+
+    def test_the_wording_does_not_pretend_signing_out_clears_browser_sign_ins(self):
+        docs = {name: " ".join((ROOT / name).read_text(encoding="utf-8").split())
+                for name in ("packaging/README.md", "docs/CLIENT.md")}
+        header = " ".join(l.lstrip("; ") for l in ISS.split("#ifndef AppVersion")[0].splitlines())
+        for name, text in {**docs, "swangz-company.iss": " ".join(header.split())}.items():
+            self.assertNotRegex(text.lower(), r"signs? out in the app first|sign out in the app first", name)
+            self.assertIn("disconnect", text.lower(), name)
+            self.assertRegex(text, r"browser folders[^.]*stay", name)
+        self.assertIn("closes every `Swangz.exe` on the computer", docs["packaging/README.md"])
 
     def test_nothing_of_a_person_runs_or_changes_with_administrator_rights(self):
         # no app code is started by the elevated installer or uninstaller: `logout` would act on files a person can edit
@@ -226,6 +268,31 @@ class CompanyJourneyTests(unittest.TestCase):
                        signed_generic_all_and_read):
             self.assertEqual(len(e2e.acl_problems([item(rights=rights)])), 1, hex(rights & 0xFFFFFFFF))
         self.assertEqual(len(e2e.acl_problems([item(owner="S-1-5-21-1-2-3-1001")])), 1)
+
+    def test_copies_are_told_apart_by_the_program_they_run_from(self):
+        exe = "C:\\Program Files\\Swangz\\Swangz.exe"
+        processes = [{"pid": 1, "path": exe.upper(), "user": "RunnerAdmin"},
+                     {"pid": 2, "path": exe, "user": e2e.OTHER_USER},
+                     {"pid": 3, "path": "C:\\Temp\\personal\\Swangz.exe", "user": "runneradmin"},
+                     {"pid": 4, "path": None, "user": None}]
+        self.assertEqual(e2e.users_running(processes, exe), sorted(["runneradmin", e2e.OTHER_USER]))
+        self.assertEqual(e2e.users_running(processes[2:], exe), [])
+
+    def test_the_temporary_password_fits_windows_and_is_never_repeated(self):
+        for _ in range(200):
+            password = e2e.new_password()
+            self.assertEqual(len(password), 14)
+            self.assertTrue(password[0].isalpha())
+            for check in (str.isupper, str.islower, str.isdigit, "-_.".__contains__):
+                self.assertTrue(any(check(c) for c in password))
+        secret = "Secret-1.example"
+        for outcome in (types.SimpleNamespace(returncode=2, stdout=secret.encode(), stderr=secret.encode()),
+                        e2e.subprocess.TimeoutExpired(["net", "user", "x", secret], 1)):
+            kind = {"side_effect": outcome} if isinstance(outcome, BaseException) else {"return_value": outcome}
+            with mock.patch.object(e2e.subprocess, "run", **kind), self.assertRaises(RuntimeError) as failed:
+                e2e.quiet(["net", "user", "x", secret], "create the temporary account")
+            self.assertNotIn(secret, str(failed.exception))
+            self.assertTrue(failed.exception.__suppress_context__ or failed.exception.__context__ is None)
 
     def test_windows_powershell_does_not_inherit_the_workflow_shells_module_path(self):
         env = e2e.windows_powershell_env({"PSModulePath": "a", "PSMODULEPATH": "b", "SystemRoot": "w"}, "root")

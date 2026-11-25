@@ -124,7 +124,11 @@ class NewestAppTests(unittest.TestCase):
             code, _, alert = self.run_cli()
         self.assertEqual(code, 0)
         logout.assert_called_once()
-        self.assertIn("removed", alert.call_args[0][0])
+        told = alert.call_args[0][0]
+        self.assertIn("taken off this computer", told)
+        self.assertNotIn("Swangz has been removed", told)  # the browser folders stay until deletion is built
+        self.assertIn("Not removed: browser folders that hold provider and Google sign-ins", told)
+        self.assertIn(str(self.data / "browser-profiles"), told)
 
 
 if __name__ == "__main__":
