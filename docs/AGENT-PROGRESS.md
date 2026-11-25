@@ -1,5 +1,7 @@
 # Agent progress
 
+**25 Nov 21:50.** Forge pushed Sentinel's ruling to #353 (a9276d5, draft; `browser` check still running at 21:48). Next at 00:00: confirm CI, Probe re-checks a9276d5 (note: an ordinary-file `SingletonLock` now counts as running; #354 test updated), then full Sentinel review. Then Forge: older-sign-in folder deletion (D-026 C4) and #355 google.com follow-up; #357 enforce conditions. Reviews not started now: rest period begins 22:00.
+
 **25 Nov 21:35 daily report** (docs/daily/2026-11-25.md). 21 merged today, open #353 only (head a9276d5; CI pending: browser, macos, python (3.10), python (3.12); failed: none). Main 801f37d CI: Hub checks in_progress. Next at 00:00: confirm main CI; #353 CI, Probe, Sentinel; Probe post-merge check of #339 (no verdict on the PR). hub.ictconnect.org runs 7c20711, 108 commits behind main (Arnold's deploy decision).
 
 **25 Nov 21:10.** Merged #351 (fdcfa81), #356 (b3864f4), #354 (801f37d): Probe VERIFIED + Sentinel APPROVED, CI green. Open: #353 only; Forge building Sentinel's ruling (then Probe, then full Sentinel review). Before release (Forge, unassigned): delete the same person's folders from an older device sign-in and amend D-026 C4. #356 Low note on the PR.
