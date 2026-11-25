@@ -1,0 +1,41 @@
+name: Chrome publisher check
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/chrome-verify.yml'
+      - 'swangz_client/chrome_verify.py'
+      - 'swangz_client/workspace_launcher.py'
+      - 'tests/test_chrome_verify.py'
+  pull_request:
+    paths:
+      - '.github/workflows/chrome-verify.yml'
+      - 'swangz_client/chrome_verify.py'
+      - 'swangz_client/workspace_launcher.py'
+      - 'tests/test_chrome_verify.py'
+  workflow_dispatch:
+concurrency:
+  group: chrome-verify-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  verify:
+    name: Chrome publisher (${{ matrix.os }}, Python ${{ matrix.python }})
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ['3.10', '3.12']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      # D-026 A2-A4. Stand-ins everywhere; on Windows and macOS the Native* tests also run the real
+      # Get-AuthenticodeSignature / codesign + spctl against the runner's installed Chrome. Nothing is installed,
+      # downloaded or elevated; skips stay visible with -v.
+      - name: Test the Chrome publisher and location checks
+        run: python -m unittest tests.test_chrome_verify -v
