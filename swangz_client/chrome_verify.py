@@ -32,7 +32,10 @@ SPCTL = "/usr/sbin/spctl"
 TIMEOUT = 60
 OID_O = "2.5.4.10"
 # The path travels in an environment variable, never in the script text, so no file name can become PowerShell.
+# The module path is reset to PowerShell's own folder first: otherwise Windows PowerShell puts the person's
+# Documents\WindowsPowerShell\Modules ahead of it, and a module there could answer Get-AuthenticodeSignature.
 _PS_SCRIPT = (
+    "$env:PSModulePath=\"$PSHOME\\Modules\";"
     "$ErrorActionPreference='Stop';"
     "$s=Get-AuthenticodeSignature -LiteralPath $env:SWANGZ_CHROME_PATH;"
     "$n='';if($s.SignerCertificate){$n=[Convert]::ToBase64String($s.SignerCertificate.SubjectName.RawData)};"

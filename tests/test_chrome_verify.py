@@ -155,6 +155,14 @@ class WindowsTests(unittest.TestCase):
             windows(Run(**{"powershell.exe": authenticode("NotSigned", None)}))(WIN_LOCAL, company=False)
 
 
+    def test_the_module_path_is_reset_before_the_signature_is_read(self):
+        # Probe's #351 finding: with no PSModulePath, Windows PowerShell searches Documents first.
+        run = Run(**{"powershell.exe": authenticode()})
+        windows(run)(WIN_LOCAL, company=False)
+        script = run.calls[0][0][-1]
+        self.assertTrue(script.startswith('$env:PSModulePath="$PSHOME\\Modules";'), script)
+        self.assertLess(script.index("PSModulePath"), script.index("Get-AuthenticodeSignature"))
+
 class MacTests(unittest.TestCase):
     def test_codesign_requirement_and_spctl_both_run(self):
         run = Run(codesign=b"", spctl=b"")
@@ -467,6 +475,32 @@ class NativeWindowsTests(unittest.TestCase):
                 cv.Verifier()(cut, company=False)
             print("\n  truncated:", caught.exception)
             self.assertIn("Authenticode status", str(caught.exception))
+
+
+    @unittest.skipUnless(os.environ.get("CI"), "plants a module in this user's Documents folder: CI runners only")
+    def test_a_module_in_documents_cannot_answer_the_signature_check(self):
+        # Probe's #351 finding: a Get-AuthenticodeSignature in Documents\WindowsPowerShell\Modules was loaded
+        # before Microsoft's and vouched for python.exe as Google. It must be ignored.
+        import base64
+        import ctypes
+        buf = ctypes.create_unicode_buffer(260)
+        self.assertEqual(ctypes.windll.shell32.SHGetFolderPathW(None, 5, None, 0, buf), 0)  # CSIDL_PERSONAL
+        mod = os.path.join(buf.value, "WindowsPowerShell", "Modules", "ZzSwangzShadow")
+        self.assertFalse(os.path.exists(mod))
+        os.makedirs(mod)
+        self.addCleanup(shutil.rmtree, mod, True)
+        google = base64.b64encode(GOOGLE).decode()
+        with open(os.path.join(mod, "ZzSwangzShadow.psm1"), "w", encoding="ascii") as f:
+            f.write("function Get-AuthenticodeSignature { param($LiteralPath) [pscustomobject]@{Status='Valid';"
+                    "SignerCertificate=[pscustomobject]@{SubjectName=[pscustomobject]@{RawData="
+                    "[Convert]::FromBase64String('%s')}}} }\n" % google)
+        with open(os.path.join(mod, "ZzSwangzShadow.psd1"), "w", encoding="ascii") as f:
+            f.write("@{ ModuleVersion='99.0'; RootModule='ZzSwangzShadow.psm1';"
+                    " FunctionsToExport=@('Get-AuthenticodeSignature') }\n")
+        with self.assertRaises(cv.Refused) as caught:
+            cv.check_windows(sys.executable)  # python.exe: signed, but not by Google
+        print("\n  python.exe with a module planted in Documents:", caught.exception)
+        self.assertIn("not Google", str(caught.exception))
 
 
 @unittest.skipUnless(sys.platform == "darwin", "real codesign and spctl checks run on macOS only")
