@@ -2,7 +2,7 @@
 
     python3 packaging/macos_journey.py --old OLD.dmg --new NEW.dmg --evidence DIR
 
-0. fresh install (the NEW build, in its own folder, before anything is signed in): no Hub address is saved or filled
+0. fresh install (the NEW build, in its own folder, before anything is signed in): nothing is saved, sign-in starts on the default Hub address
    in, and a plain-http address is refused before any sign-in code is asked for
 1. install the OLD (previous) build from its DMG into a fresh Applications folder; check its signature state
 2. launch the window, take a screenshot, quit
@@ -511,8 +511,9 @@ def fresh_install(j, dmg, env, data, db):
     j.step("fresh install: status says not signed in", code == 2 and "Not signed in" in out, f"exit {code}")
     code, _ = j.run([binary(app), "--self-check", j.evidence / "self-check-fresh.json"], env=env)
     check = json.loads((j.evidence / "self-check-fresh.json").read_text(encoding="utf-8")) if code == 0 else {}
-    j.step("fresh install: the window opens on sign-in with an empty Hub address (no address is built in)",
-           check.get("window") == "signin" and check.get("hub_address") == "",
+    j.step("fresh install: the window opens on sign-in with the default Hub address, and nothing is saved",
+           check.get("window") == "signin" and check.get("hub_address") == "https://hub.ictconnect.org"
+           and not (data / "device.json").exists(),
            f"window {check.get('window')!r}, address {check.get('hub_address')!r}")
     before = sign_in_codes(db)
     for address in ("http://hub.example.com", "http://192.0.2.10:8787"):

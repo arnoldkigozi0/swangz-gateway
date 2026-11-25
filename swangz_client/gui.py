@@ -177,7 +177,7 @@ class App:
             self.label(f, "Credential removal is incomplete. Retry while the keychain is available.", color="bad", wrap=560).pack(anchor="w")
             self.button(f, "Retry local removal", lambda: self.work(self.client.remove_everything,
                         lambda ok, value: self.show("signin") if ok else self.failed(value))).pack(anchor="w", pady=12)
-        self.server_var = tk.StringVar(value=os.environ.get("SWANGZ_SERVER", ""))
+        self.server_var = tk.StringVar(value=os.environ.get("SWANGZ_SERVER") or core.DEFAULT_SERVER)
         self.name_var = tk.StringVar(value=core.device_name())
         for text, var in (("Swangz AI Hub address", self.server_var), ("Name for this device", self.name_var)):
             self.label(f, text, 10, color="muted").pack(anchor="w")

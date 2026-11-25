@@ -155,9 +155,9 @@ class JourneyGapTests(unittest.TestCase):
         self.text = (ROOT / "packaging" / "macos_journey.py").read_text(encoding="utf-8")
         self.main = self.text.split("def main(", 1)[1]
 
-    def test_a_fresh_install_has_no_address_and_refuses_plain_http_before_any_code(self):
+    def test_a_fresh_install_starts_on_the_default_address_and_refuses_plain_http_before_any_code(self):
         fresh = self.text.split("def fresh_install(", 1)[1].split("def main(", 1)[0]
-        for needle in ('"status"', "code == 2", 'check.get("window") == "signin"', 'check.get("hub_address") == ""',
+        for needle in ('"status"', "code == 2", 'check.get("window") == "signin"', 'check.get("hub_address") == "https://hub.ictconnect.org"',
                        '"http://hub.example.com"', '"http://192.0.2.10:8787"', "only connects over https",
                        "sign_in_codes(db) == before", "shutil.rmtree(apps)"):
             self.assertIn(needle, fresh)

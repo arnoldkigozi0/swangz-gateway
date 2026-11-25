@@ -29,7 +29,7 @@ async function render() {
       el("button", { class: "ghost", onclick: async () => { await send({ type: "signout" }); render(); } }, "Sign out"));
     return;
   }
-  const base = el("input", { type: "url", placeholder: "https://ai.swangz.com", value: st && st.base ? st.base : "" });
+  const base = el("input", { type: "url", placeholder: "https://hub.ictconnect.org", value: st && st.base ? st.base : "https://hub.ictconnect.org" });
   const email = el("input", { type: "email", placeholder: "you@swangzavenue.com" });
   const pass = el("input", { type: "password" });
   const err = el("div", { class: "err" });
