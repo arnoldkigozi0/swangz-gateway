@@ -17,7 +17,7 @@ import subprocess
 import sys
 import time
 
-from . import __version__, agents, core, keystore, shell, workspace_launcher
+from . import __version__, agents, core, keystore, repair, shell, workspace_launcher
 
 AGENTS = {"claude": "claude-code", "codex": "codex"}
 
@@ -142,7 +142,7 @@ def main(argv=None, client=None):
         say(str(exc) + "  Run: swangz login")
         return 2
     except workspace_launcher.LaunchError as exc:
-        say(str(exc) + ("  " + workspace_launcher.INSTALL_PAGE if exc.install else ""))
+        say_repair(repair.for_code(exc.code))
         return 1
     except (core.ApiFailure, core.ClientTooOld, keystore.KeyStoreError, agents.AgentConfigError, ValueError, OSError) as exc:
         if args.cmd == "key":
@@ -152,6 +152,11 @@ def main(argv=None, client=None):
         return 1
     except KeyboardInterrupt:
         return 130
+
+
+def say_repair(fix):
+    for line in repair.lines(fix):
+        say(line)
 
 
 def run(args, client):
@@ -213,9 +218,16 @@ def run(args, client):
             say(f"{a['id']:<20} {a['name']:<24}{'  (company browser)' if a['company_browser'] else ''}")
         return 0
     if cmd == "open":
-        client.refresh()
-        how = client.open_app(args.tool)
-        say("Opened in the Swangz workspace window." if how == "workspace" else "Opening " + how)
+        try:
+            client.refresh()
+            client.open_app(args.tool)
+        except core.ApiFailure as exc:  # the Hub's refusal gets the same plain next steps as one made on this device
+            fix = repair.explain(exc)
+            if fix is None:
+                raise
+            say_repair(fix)
+            return 1
+        say("Opened in the Swangz workspace window.")
         return 0
     if cmd == "run":
         rest = args.args[1:] if args.args and args.args[0] == "--" else args.args

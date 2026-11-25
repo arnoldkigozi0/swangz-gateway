@@ -156,7 +156,8 @@ person has set as default. That stops for provider tools.
   browser on that address. Deep links and links in Hub pages carry a tool id only, never an address or a key. No
   key or token ever goes on the browser's command line (other processes can read it).
 - If neither browser is installed, the app says so in plain words with one button to the install page. It does
-  **not** fall back to the default browser.
+  **not** fall back to the default browser. Every other refusal shows its next steps the same way (#333,
+  `docs/CLIENT.md`, "When Open is refused in the app").
 - Links clicked inside the workspace stay inside it. A provider's own sign-in hop (Google, Microsoft, Apple) is
   allowed as part of official sign-in and stays in the same window.
 - `open_url` may still use the default browser for exactly three things: the Hub's device approval page

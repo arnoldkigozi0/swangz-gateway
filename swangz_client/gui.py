@@ -12,7 +12,8 @@ import time
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from . import __version__, core, shell
+from . import __version__, core, repair, shell
+from .workspace_launcher import INSTALL_PAGE
 
 C = dict(bg="#0b0b0c", panel="#141416", raised="#1c1c1f", line="#2a2a2e", text="#ece9e2", muted="#9a978f",
          gold="#c8a96a", gold_hi="#e2c88d", bad="#e07a6b", ok="#7bd3a7")
@@ -34,6 +35,7 @@ class App:
         self.cancel = False
         self.page = None
         self.error = ""
+        self.refusal = None  # (page, tool id, tool name, repair.Repair) while an Open stays refused
         self.root.title("Swangz")
         self.root.geometry("980x660")
         self.root.minsize(780, 540)
@@ -149,6 +151,8 @@ class App:
 
     def show(self, page):
         self.page = page
+        if self.refusal and self.refusal[0] != page:
+            self.refusal = None
         self.say("")
         self.clear(self.dock)
         self.clear(self.content)
@@ -240,6 +244,7 @@ class App:
             self.button(f, "Reconnect this device", self.sign_out).pack(anchor="w", pady=(0, 14))
         installed = st["installed"]
         agents = [(k, n) for k, n in (("claude-code", "Claude Code"), ("codex", "Codex")) if k in installed]
+        self.repair_panel(f)
         card = self.card(f)
         card.pack(fill="x", pady=(0, 14))
         self.label(card, "Coding agents", 13, bold=True, bg=C["panel"]).pack(anchor="w")
@@ -291,6 +296,7 @@ class App:
         self.label(f, "Apps", 22, bold=True).pack(anchor="w")
         self.label(f, "Website tools your company has turned on for you. They open through Swangz, which checks access and "
                       "records which tool and when.", color="muted", wrap=640).pack(anchor="w", pady=(6, 16))
+        self.repair_panel(f)
         apps = self.client.apps()
         if not apps:
             self.label(f, "Nothing here yet.", color="muted").pack(anchor="w")
@@ -384,17 +390,58 @@ class App:
         else:
             self.say(f"Opened {short} in a terminal.")
 
-    def open_app(self, tool_id):
-        from .workspace_launcher import INSTALL_PAGE, LaunchError
+    def open_app(self, tool_id, check_first=False):
+        """Open in the workspace window, or say why not and what to do. Never anywhere else. `check_first` (Try again)
+        asks the Hub for the current list and workspace state before opening."""
         try:
+            if check_first:
+                self.client.refresh()
             self.client.open_app(tool_id)
-            self.say("Opened in the Swangz workspace window.")
-        except LaunchError as exc:  # plain words; the only way out is the browser install page, never the default browser
-            self.say(str(exc), bad=True)
-            if exc.install and messagebox.askyesno("Google Chrome is needed", str(exc) + "\n\nOpen the Chrome install page?"):
-                shell.open_url(INSTALL_PAGE)
         except Exception as exc:  # noqa: BLE001
-            self.failed(exc)
+            fix = repair.explain(exc)
+            if fix is None:
+                self.refusal = None
+                return self.failed(exc)
+            name = next((a["name"] for a in self.client.apps() if a["id"] == tool_id), "This tool")
+            self.refusal = (self.page, tool_id, name, fix)
+            self.show(self.page)
+            return self.say(f"{name} wasn't opened.", bad=True)
+        if self.refusal:
+            self.refusal = None
+            self.show(self.page)
+        self.say("Opened in the Swangz workspace window.")
+
+    def repair_panel(self, parent):
+        """Why the last Open was refused, what to do about it, and the buttons that help."""
+        if not self.refusal:
+            return
+        _, tool_id, name, fix = self.refusal
+        card = self.card(parent)
+        card.configure(highlightbackground=C["bad"])
+        card.pack(fill="x", pady=(0, 14))
+        bg = C["panel"]
+        self.label(card, f"{name}: {fix.title}", 13, bold=True, bg=bg, wrap=640).pack(anchor="w")
+        self.label(card, fix.message, 10, bg=bg, wrap=640).pack(anchor="w", pady=(4, 6))
+        for n, step in enumerate(fix.steps, 1):
+            self.label(card, f"{n}. {step}", 10, color="muted", bg=bg, wrap=640).pack(anchor="w")
+        row = tk.Frame(card, bg=bg)
+        row.pack(anchor="w", pady=(10, 0))
+        for i, action in enumerate(fix.actions):
+            self.button(row, repair.LABELS[action], lambda a=action, t=tool_id: self.repair_action(a, t),
+                        primary=i == 0).pack(side="left", padx=(0, 10))
+        self.button(row, "Dismiss", self.dismiss_repair).pack(side="left")
+
+    def repair_action(self, action, tool_id):
+        if action == repair.RETRY:
+            self.open_app(tool_id, check_first=True)
+        elif action == repair.CHROME:  # Google's own download page: a fixed address, never a tool's
+            shell.open_url(INSTALL_PAGE)
+        elif action == repair.WEEKLY:
+            self.open_hub("weekly")
+
+    def dismiss_repair(self):
+        self.refusal = None
+        self.show(self.page)
 
     def open_hub(self, page):
         try:
