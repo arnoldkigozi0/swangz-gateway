@@ -131,8 +131,10 @@ def main(argv=None, client=None):
         say(f"{exc}  To sign out, run: {sign_out_command()}")
         if args.cmd in (None, "gui") and offer_sign_out(str(exc)):  # opened from Finder: nobody reads the terminal
             told = client.logout()
-            alert("Swangz has been removed from this computer. Open it again to sign in."
-                  + ("" if told else " (The server couldn't be reached, so ask an admin to disconnect this device too.)"))
+            alert("Signed out: the coding agents and packages Swangz installed were taken off this computer. Open it "
+                  "again to sign in."
+                  + ("" if told else " (The server couldn't be reached, so ask an admin to disconnect this device too.)")
+                  + "\n\n" + browser_folders_stay(client))
             return 0
         return 5
     except core.NeedsReconnect as exc:
@@ -160,9 +162,11 @@ def say_repair(fix):
 
 
 def browser_folders_stay(client):
-    """Until deletion is built (#333), logout and cleanup leave the company-browser folders on disk; say so."""
+    """Until deletion is built (#333), logout and cleanup leave the company-browser folders on disk; say so. The
+    folder is named by browser_profiles alone (tests/test_workspace_launcher inventory)."""
+    from .browser_profiles import Profiles
     return ("Not removed: browser folders that hold provider and Google sign-ins stay on this device at "
-            f"{client.paths.data / 'browser-profiles'}. Delete that folder yourself if you need those sign-ins gone.")
+            f"{Profiles(client.paths.data).root}. Delete that folder yourself if you need those sign-ins gone.")
 
 
 def run(args, client):

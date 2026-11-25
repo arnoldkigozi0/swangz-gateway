@@ -320,7 +320,7 @@ class WindowTests(unittest.TestCase):
         # Until deletion is built, the question must not promise the browser folders go too.
         self.assertNotIn("remove Swangz from this device", question)
         self.assertIn("provider and Google sign-ins are not removed", question)
-        self.assertIn("browser-profiles", question)
+        self.assertIn(os.path.join("/tmp", "browser-profiles"), question)
         with mock.patch.object(gui.messagebox, "askyesno", return_value=True):
             buttons(app.content)["Sign out and disconnect this device"].invoke()
         self.assertIn(("logout",), self.client.calls)
