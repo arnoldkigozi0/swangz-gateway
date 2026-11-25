@@ -1,5 +1,19 @@
 # Agent progress
 
+**25 Nov 18:00 shift end.** Merged since 16:00: 0. Open: 7, all drafts, mergeable, no failed or pending checks. Nobody was still working at 18:00. ChatGPT is available again (17:58 budget file).
+
+| PR | Owner | Verdicts at head | Next step at 20:00 |
+|---|---|---|---|
+| #351 49b96c0 | Anvil | Probe FAIL (Windows signature check can be answered from the person's Documents modules folder); Sentinel APPROVED from the diff, not posted | Anvil fixes (experiment branch feature/probe-351-psmodule, not for merge), then both re-review |
+| #352 fc6ae5b | Anvil | Probe VERIFIED; Sentinel not reviewed | Sentinel reviews, including the MDM ruling |
+| #353 0038bb3 | Forge | Probe FAIL (cleanup reports success while the browser is still open); Sentinel not reviewed | Forge fixes; Sentinel reviews and rules on app data folder ownership |
+| #354 a69f99f | Forge | Probe FAIL (earlier person's folder comes back and is kept); Sentinel not reviewed | Forge fixes; Sentinel reviews |
+| #355 1cfbf05 | Forge | Probe VERIFIED (older bad rows only partly closed); Sentinel not reviewed | Sentinel reviews |
+| #356 6f484d0 | Anvil | Probe FAIL (lookbehind hides real keys in compiled Python); Sentinel APPROVED with a Low note, not posted | do not merge; Anvil fixes, then re-review |
+| #357 704ff48 | Forge | none yet | Probe verifies, Sentinel reviews (two rulings asked by Forge) |
+
+Next per teammate: Probe first removes its own /tmp/probe* folders (about 2.4 GB; /tmp hit its limit about 16:03 and stopped Sentinel after 2 of 6 reviews), then re-verifies. Sentinel posts the #356 and #351 verdicts and finishes the reviews. Forge: #353, #354, then D-027 task 1 (migration v31; task 3 is blocked on tasks 1, 2 and #357). Prism: no task yet; console button for #357 after it merges.
+
 **25 Nov 15:40, Anvil stop reply.** Branches clean and pushed. Next at 16:00: #351 49b96c0 Sentinel re-review; #352 fc6ae5b Probe re-check, plus Sentinel ruling on whether MDM counts (D-026 E5); #356 6f484d0 review before merge (loosens a secret check). Anvil fixes what comes back.
 
 **25 Nov 15:36, Forge stop reply.** Worktrees clean. #353 head 0038bb3 (Probe, Sentinel pending), #354 a69f99f and #355 1cfbf05 (shared google.com fix) await Sentinel. Forge next at 16:00: Sentinel ruling on app data folder ownership (point 1 of the #353 report); if agreed, on feature/333-cleanup set the person as owner and restrict at creation and sign-in, stop the Windows test setting the owner itself, update the D-026 amendment. #353 and #354 overlap: second to merge takes main first. Folder deletion on revocation is not built or assigned.
