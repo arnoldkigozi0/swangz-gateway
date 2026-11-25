@@ -50,6 +50,29 @@ class SecretScanTests(unittest.TestCase):
         self.assertIn("CLEAN", out)
         self.assertIn("CLEAN", summary)
 
+    def test_an_aws_shape_inside_a_base64_run_is_not_a_hit(self):
+        # The macOS RC's DMG block table (run 45587200151): base64, so "AKIA" sat in the middle of a run of A's.
+        table = b"\t\t\t\tReAAAAAAAAAIAAAAAAAAAA" + b"KIA" + b"AAAAAAAQAACAAAAFAAAA\n\t\t\t\tHwAAAAAAAE3gAAAAAAAACAAAAAAAAB2j"
+        for prefix in (b"", b"+", b"/", b"7"):
+            with self.subTest(prefix=prefix):
+                f = self.dir / "blkx.plist"
+                f.write_bytes(prefix + table)
+                code, rep, _, _ = self.run_scan(f)
+                self.assertEqual((code, rep["hits"]), (0, []))
+
+    def test_a_real_shaped_aws_key_is_still_caught_after_any_separator(self):
+        key = (FAKE["AWS access key"]).encode()
+        for before in (b"", b"\n", b" ", b"=", b"\"", b"'", b":", b"\x00", b"-", b"_", b"\t"):
+            with self.subTest(before=before):
+                f = self.dir / "cfg.txt"
+                f.write_bytes(b"AWS_ACCESS_KEY_ID" + before + key + b"\n" if before else key + b"\n")
+                code, rep, _, _ = self.run_scan(f)
+                self.assertEqual(code, 1)
+                self.assertIn("AWS access key", [h["pattern"] for h in rep["hits"]])
+        f = self.dir / "sts.txt"
+        f.write_bytes(b'"' + b"ASIA" + b"ABCDEFGHIJKLMNOP" + b'"')
+        self.assertIn("AWS access key", [h["pattern"] for h in self.run_scan(f)[1]["hits"]])
+
     def test_each_pattern_is_found_and_masked(self):
         for name, value in FAKE.items():
             with self.subTest(name):
