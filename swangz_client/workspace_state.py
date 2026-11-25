@@ -263,8 +263,7 @@ class WorkspaceState:
         from . import workspace_launcher as wl
         data = self.latch()
         if data.get("purge_pending") and not self.resume():
-            unsupported = self.latch().get("purge_error") == "unsupported_platform"
-            raise wl.LaunchError("purge_unsupported" if unsupported else "purge_pending")
+            raise wl.LaunchError("purge_pending")
         data = self.latch()
         refused = data.get("refused")
         if refused:

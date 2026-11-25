@@ -39,6 +39,10 @@ class FakeClient:
         self.cleanup_pending = False
         self.cleanup_error = None
         self.open_error = None
+        self.company = False
+        self.browser = {"contract": 2, "workspace": {"state": "active", "generation": 1}}
+        self.store = SimpleNamespace(manifest=lambda: {"browser": self.browser}, device=lambda: {})
+        self.workspace = SimpleNamespace(latch=lambda: {})
 
     def signed_in(self):
         return self.signed
@@ -54,8 +58,14 @@ class FakeClient:
         return MANIFEST_PACKAGES
 
     def apps(self):
-        return [{"id": "canva", "name": "Canva", "category": "Design", "signin": "seat", "company_browser": False, "open": "https://x/go/canva"},
+        return [{"id": "canva", "name": "Canva", "category": "Design", "signin": "seat", "company_browser": False, "workspace": True, "open": "https://x/go/canva"},
                 {"id": "midjourney", "name": "Midjourney", "category": "Image", "signin": "shared", "company_browser": True, "open": "https://x/go/midjourney"}]
+
+    def workspace_app(self, app):
+        return app.get("workspace") is True
+
+    def company_device(self):
+        return self.company
 
     def login(self, server, name, on_code=None, cancelled=lambda: False, timeout=None):
         self.calls.append(("login", server, name))
@@ -287,10 +297,23 @@ class WindowTests(unittest.TestCase):
     def test_the_dock_moves_between_pages(self):
         app = self.make()
         self.assertEqual(sorted(buttons(app.dock)), ["Apps", "Home", "Packages", "Reports & Hub", "This device"])
-        for name, expect in (("Apps", "Opens in a company browser of your own"), ("Reports & Hub", "Open weekly reports"), ("Packages", "Update ready (1.0.0)"), ("This device", "What Swangz records")):
+        for name, expect in (("Apps", "Opens in your Swangz workspace window"), ("Reports & Hub", "Open weekly reports"), ("Packages", "Update ready (1.0.0)"), ("This device", "What Swangz records")):
             buttons(app.dock)[name].invoke()
             app.root.update()
             self.assertIn(expect, " ".join(self.everything()), name)
+
+    def test_the_apps_page_says_what_open_really_does_on_this_computer(self):
+        """#333 D-026 D4: a shared account opens in no browser of the app's; the row says so for each kind of computer."""
+        for company, expect in ((False, "Shared company account, one turn at a time. Open it from Swangz AI Hub"),
+                                (True, "Shared company account. Doesn't open on this company computer yet; ask your administrator")):
+            app = self.make()
+            app.client.company = company
+            buttons(app.dock)["Apps"].invoke()
+            app.root.update()
+            text = " ".join(self.everything())
+            self.assertIn(expect, text, company)
+            self.assertIn("Opens in your Swangz workspace window", text)
+            self.assertNotIn("company browser of your own", text)
 
     def test_packages_say_where_each_one_stands_and_what_you_can_do(self):
         app = self.make()

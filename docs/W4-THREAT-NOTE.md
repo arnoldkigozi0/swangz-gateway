@@ -147,11 +147,11 @@ through the Hub).
 - **R-12.** After a revoke, the folder and its sessions stay on disk, because nothing authenticated can retire it any
   more. Removing it is the person's action. A later, optional addition: after re-enrolment, offer "Remove the old
   workspace".
-- **Windows.** `Profiles._retire` raises `unsupported_platform` today. On Windows, W4 closes the window, refuses Open
-  and reports the purge as not done. It never reports it as done.
-- **Hand-rolled Windows delete.** Not in W4, unless a Windows CI test proves that a junction or symlink inside the
-  folder pointing outside is not followed and its target survives. §9.3 step 4 is proven on Linux only; Windows is
-  listed as not proven for 15 Nov.
+- **Windows.** Changed on 25 Nov 2026 (D-026): a purge now deletes on Windows too. A folder that cannot be deleted
+  stays pending, Open is refused, and it is never reported as done.
+- **Windows delete.** The condition set here is met by `tests/test_profile_delete.py` on the Windows runner: junctions
+  and symlinks inside the folder that point outside are removed themselves and their targets survive. A physical
+  Windows computer is still not proven. Behaviour: docs/CLIENT.md, browser profiles.
 
 ## Ruling 4: a purge while the browser is running
 

@@ -37,8 +37,6 @@ _DEVICE = {
                 ("Close any open workspace window.", ADMIN + " if you still need it here."), (RETRY,)),
     "purge_pending": ("Still cleaning up an old workspace",
                       ("Close any open workspace window.", "Wait a minute, then press Try again."), (RETRY,)),
-    "purge_unsupported": ("An old workspace folder is still here",
-                          (ADMIN + " to remove the old workspace folder from this computer.",), ()),
     "generation_rollback": ("This device is ahead of Swangz AI Hub",
                             (ADMIN + " to check this device in Swangz AI Hub.", AGAIN), (RETRY,)),
     "workspace_unknown": ("Swangz can't tell if your workspace is on",

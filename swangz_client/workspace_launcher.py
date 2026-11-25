@@ -53,7 +53,6 @@ MESSAGES = {
     # (R-11), so these ask the person to close any open workspace window themselves.
     "retired": "Your admin removed the Swangz workspace from this device, so nothing was opened. Close any open workspace window.",
     "purge_pending": "Swangz is still deleting this device's old workspace folder, so nothing was opened. Try again in a minute, or ask your admin.",
-    "purge_unsupported": "Swangz can't delete the old workspace folder on Windows yet, so nothing was opened. Ask your admin.",
     "generation_rollback": "Swangz AI Hub sent an older workspace setting than this device has, so nothing was opened. Ask your admin.",
     "workspace_unknown": "Swangz couldn't read this device's workspace setting from Swangz AI Hub, so nothing was opened. Try again later.",
     "refused_by_hub": "Swangz AI Hub didn't accept this device, so the workspace window is closed. Sign in to Swangz again, or ask your admin.",
