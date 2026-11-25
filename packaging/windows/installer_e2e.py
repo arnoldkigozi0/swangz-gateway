@@ -178,13 +178,17 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         relay.start()
         origin = f"http://127.0.0.1:{relay.port}"
         rig.gw.settings.public_url = origin
-        data, home = work / "data", work / "home"
+        from swangz_client import winacl
+        # the app's own fixed folder on this runner, not SWANGZ_HOME: only that one is claimed for the person, so only
+        # there can the uninstall at the end delete for real
+        data, home = Path(winacl.local_app_data()) / "Swangz", work / "home"
+        require(not (data / "device.json").exists(), f"this account is already signed in at {data}")
         home.mkdir()
-        env = {**os.environ, "SWANGZ_HOME": str(data), "SWANGZ_TEST_HOME": str(home),
+        env = {**os.environ, "SWANGZ_TEST_HOME": str(home),
                "BROWSER": f'"{sys.executable}" "{Path(__file__).resolve()}" --browser %s'}
         for name in ("PYTHONPATH", "PYTHONHOME"):
             env.pop(name, None)
-        for name in ("SWANGZ_SERVER", "SWANGZ_ALLOW_HTTP"):
+        for name in ("SWANGZ_HOME", "SWANGZ_SERVER", "SWANGZ_ALLOW_HTTP"):
             env.pop(name, None)  # fresh-install/address checks must not inherit a runner's configuration
         app_dir = Path(os.environ["LOCALAPPDATA"]) / "Programs" / "Swangz"
         exe = app_dir / "Swangz.exe"
@@ -611,7 +615,7 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         hub_journey.kept(check, data, folder, marker, "after revocation")
 
         # a second person enrols this PC (and switches start-at-sign-in back on, so the uninstall below is proven to
-        # remove both itself): they get a workspace folder of their own, and the first person's is left as it was
+        # remove both itself): the first person's workspace folder is deleted and they get one of their own (D-026 C2)
         approve_second = []  # the second person's own browser approves their codes; kept to sign them in again below
 
         def enrol_second(approve):
@@ -629,7 +633,7 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         # 7c. machine-policy tamper (D-024 W5, the Windows twin of the macOS steps): the second person signs out, the
         #     first signs this PC in as a COMPANY device with the Chrome policy pack pinned in enforce mode, and the five
         #     cases run through the installed program (packaging/windows/policy.py); then the SECOND person signs in again,
-        #     so the uninstall below runs with someone other than the first folder's owner signed in
+        #     so the uninstall below runs with the second person signed in
         import macos_policy  # packaging/ (on sys.path since 5a): the shared sign-out check, platform-neutral
         code, out = run_app("logout")
         require(macos_policy.signed_out(code, out), "the second person's sign-out did not reach the Hub: " + out[-160:])
@@ -671,11 +675,13 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
              "key": lambda: stored_key(data_b)})
         app("autostart", "on")
         require(reg_value(RUN_KEY, "Swangz"), "autostart on did not write the Run value")
+        held = data / "browser-profiles" / report["two_at_once"][0]  # the signed-in (second) person's folder
+        require(held.is_dir(), "the signed-in person has no workspace folder before the uninstall")
 
         # 8. uninstall while the program runs (as it does when started at sign-in): it is stopped, then `cleanup` runs as
         #    the person (D-026): signed out at the Hub, local data, the Credential Manager entry and every workspace folder
-        #    removed; program, shortcuts and Run value gone. Where `cleanup` refuses this token or folder owner (D-026,
-        #    "Amendment 25 Nov"), this proves the refusal instead: the account is left as it was and the log says so
+        #    removed; program, shortcuts and Run value gone. The runner is the built-in Administrator, so the app has had
+        #    to make that account the owner of its data folder (D-026, ruling on #353) for the deletion to happen at all
         gui = subprocess.Popen([str(exe), "--background"], env=env, cwd=work)
         time.sleep(8)
         require(gui.poll() is None, "the program did not start before the uninstall")
@@ -683,6 +689,8 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         report["uninstaller"] = {"refusal": refusal, "elevation_type": winacl.token_elevation_type(),
                                  "user": winacl.current_sid(), "data_owner": winacl.owner_sid(str(data))}
         print(f"uninstaller: {report['uninstaller']}", flush=True)
+        require(refusal is None and report["uninstaller"]["data_owner"] == report["uninstaller"]["user"],
+                f"cleanup would refuse this account, so nothing would be deleted: {report['uninstaller']}")
         quiet = reg_value(UNINSTALL_KEY, "UninstallString").strip('"')
         run([quiet, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", f"/LOG={evidence / 'uninstall.log'}"])
         deadline = time.monotonic() + 120  # the uninstaller finishes from a copy of itself in %TEMP%
@@ -696,24 +704,18 @@ def e2e(setup, evidence, previous=None, previous_version=None, new_version=None)
         gui = None
         log = (evidence / "uninstall.log").read_text(encoding="utf-8-sig", errors="replace")
         revoked = rig.gw.db.scalar("SELECT revoked FROM keys WHERE id = ?", (key_id,))  # the final enrolment's key
-        said = "could not remove everything from this account" in log
-        if refusal:
-            require(said, "the uninstall log does not say that the account was not cleaned")
-            require((data / "device.json").exists() and revoked is None, "a refused cleanup changed the account")
-            hub_journey.kept(check, data, folder, marker, "after the refused uninstall")
-            passed(f"silent uninstall while running: program stopped and removed, cleanup refused ({refusal}) and"
-                   " logged, nothing in the account deleted")
-        else:
-            require(not said, "cleanup reported a failure in the uninstall log")
-            require(not (data / "device.json").exists(), "local credentials left behind")
-            if in_os_store:
-                require(stored_secret() is None, "the device key is still in Windows Credential Manager")
-            require(revoked is not None, "the Hub did not disconnect the device")
-            # both people's folders belong to this Windows account, so both go (D-026 C4)
-            hub_journey.removed(check, data, "after the uninstall")
-            passed("silent uninstall while running: program stopped, device disconnected at the Hub, local credentials"
-                   + (" and Credential Manager entry" if in_os_store else "") + " removed, workspace folders deleted,"
-                   " program, shortcuts, Run value and Apps & features entry gone")
+        require("could not remove everything from this account" not in log, "cleanup reported a failure in the uninstall log")
+        require(not (data / "device.json").exists(), "local credentials left behind")
+        if in_os_store:
+            require(stored_secret() is None, "the device key is still in Windows Credential Manager")
+        require(revoked is not None, "the Hub did not disconnect the device")
+        require(not (data / "state.json").exists() and not (data / "manifest.json").exists(),
+                "what the app installed is still recorded here")
+        require(not held.exists(), "the signed-in person's saved browser sign-ins are still there")
+        hub_journey.removed(check, data, "after the uninstall")
+        passed("silent uninstall while running: program stopped, device disconnected at the Hub, local credentials"
+               + (" and Credential Manager entry" if in_os_store else "") + " removed, workspace folders deleted,"
+               " program, shortcuts, Run value and Apps & features entry gone")
         report["ok"] = True
     except Exception as exc:
         report["error"] = str(exc)

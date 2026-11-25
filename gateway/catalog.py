@@ -19,6 +19,7 @@ restored, but not deleted outright; tools an admin added can be deleted.
 
 import json
 import time
+from urllib.parse import unquote, urlsplit
 
 # id, name, category, kind, provider, url, hosts (for the access gate), pricing_url, entry_usd, plans
 SEED = [
@@ -297,6 +298,33 @@ def hosts_from_url(url):
     if host.startswith("www."):
         host = host[4:]
     return [host] if "." in host else []
+
+
+# No shared company account may live under these (D-027): the extension signs a shared tool out by clearing the site's
+# whole registrable domain, so a shared tool on google.com would sign staff out of their own Google account.
+NEVER_SIGN_OUT = ("google.com",)
+
+
+def never_signed_out(host):
+    """True for a NEVER_SIGN_OUT domain or any name under it, in whatever spelling a browser would accept."""
+    host = unquote(str(host or "")).strip().lower()
+    try:
+        host = host.encode("idna").decode("ascii")  # full-width letters and dots mean the plain ones
+    except UnicodeError:
+        pass
+    host = host.split(":")[0].rstrip(".")
+    return any(host == d or host.endswith("." + d) for d in NEVER_SIGN_OUT)
+
+
+def refused_shared_hosts(tool):
+    """The tool's own hosts, and the hosts Open can start at, that a shared account may not use."""
+    found = [h.strip().lower() for h in (tool.get("hosts") or "").split(",")]
+    for url in [tool.get("url"), tool.get("launch_url"), *(tool.get("workspace_url") or "").splitlines()]:
+        try:
+            found.append(urlsplit((url or "").strip().replace("\\", "/")).hostname or "")
+        except ValueError:
+            pass  # not an address a browser could open
+    return sorted({h.lower() for h in found if never_signed_out(h)})
 
 
 def host_index(db):

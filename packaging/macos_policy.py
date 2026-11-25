@@ -69,6 +69,17 @@ def install(policy, plist=PLIST):
     return st.st_uid, oct(st.st_mode & 0o777)
 
 
+CHROME_APP = Path("/Applications/Google Chrome.app")
+
+
+def chrome_root_owned(app=CHROME_APP):
+    """D-026 A4: a company Mac runs only a root-owned Chrome in /Applications, as an admin's or MDM's install leaves
+    it. The runner image's copy belongs to the runner account, so it is handed to root here. Returns the app's uid
+    and its main executable's."""
+    subprocess.run(["sudo", "chown", "-R", "root:wheel", str(app)], check=True, timeout=300)
+    return os.stat(app).st_uid, os.stat(app / "Contents" / "MacOS" / "Google Chrome").st_uid
+
+
 def remove(plist=PLIST):
     subprocess.run(["sudo", "rm", "-f", str(plist)], timeout=60)
 
@@ -139,6 +150,9 @@ def run(check, run_app, enrol_company, owner, db, person_id, data, evidence, too
     try:
         uid, mode = install(policy)
         check("policy: the pack is installed device-wide, owned by root", uid == 0 and mode == "0o644", f"uid {uid}, {mode}")
+        owners = chrome_root_owned()
+        check("policy: Chrome in /Applications is root-owned, as on a company Mac (D-026 A4)", owners == (0, 0),
+              f"app uid {owners[0]}, executable uid {owners[1]}")
         device_id = enrol_company()
         row = device_row(db, device_id)
         check("policy: the app is signed in as a company device", row.get("owner_kind") == "company", str(row.get("owner_kind")))

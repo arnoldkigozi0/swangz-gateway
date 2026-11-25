@@ -3,6 +3,7 @@ cannot be deleted yet stays reported and keeps Open off. Real files, links and (
 folder; no browser. The Windows cases run on the Windows runner."""
 
 import hashlib
+import errno
 import os
 import shutil
 import stat
@@ -326,7 +327,7 @@ class DeleteAllTests(Base):
         lock = folder / "SingletonLock"
         self.assertFalse(bp._in_use(folder))  # no lock
         lock.write_bytes(b"host-%d" % os.getpid())
-        self.assertFalse(bp._in_use(folder))  # a file is not Chrome's lock
+        self.assertTrue(bp._in_use(folder))  # a lock that cannot be read as a link: not known to be free
         for target, held in (("host-%d" % os.getpid(), True), ("my-host-name-%d" % os.getpid(), True),
                              ("host-0", False), ("host-", False), ("host", False), ("host-abc", False),
                              ("host-" + "9" * 30, False)):
@@ -336,8 +337,13 @@ class DeleteAllTests(Base):
                 self.assertEqual(bp._in_use(folder), held)
         lock.unlink()
         os.symlink("host-123", lock)
-        with mock.patch.object(bp.os, "kill", side_effect=PermissionError):
-            self.assertTrue(bp._in_use(folder))  # somebody else's process is still a process
+        with mock.patch.object(bp.os, "kill", side_effect=ProcessLookupError):
+            self.assertFalse(bp._in_use(folder))
+        # somebody else's process is still a process; any other error is not an answer, so the folder stays
+        for call in ("kill", "readlink"):
+            for error in (PermissionError(errno.EACCES, "denied"), OSError(errno.EIO, "io")):
+                with self.subTest(call=call, error=error), mock.patch.object(bp.os, call, side_effect=error):
+                    self.assertTrue(bp._in_use(folder))
 
     @unittest.skipUnless(WINDOWS, "the Windows read-only attribute on a link")
     def test_a_read_only_link_never_changes_its_target(self):  # pragma: no cover - Windows runner

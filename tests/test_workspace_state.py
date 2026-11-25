@@ -64,6 +64,8 @@ class MigrationTests(unittest.TestCase):
         old.x("ALTER TABLE launches DROP COLUMN device_id")  # v27 came later
         for col in ("info_url", "modes", "oauth_hosts", "last_verified"):  # and so did v29
             old.x(f"ALTER TABLE tools DROP COLUMN {col}")
+        for col in ("owner_confirmed", "owner_confirmed_at", "owner_confirmed_by"):  # and v30
+            old.x(f"ALTER TABLE devices DROP COLUMN {col}")
         old.x("UPDATE meta SET v = '25' WHERE k = 'schema'")
         before = old.q("SELECT * FROM devices")
         old.close()

@@ -11,6 +11,7 @@ on:
       - 'tests/test_w7_existing_contexts.py'
       - 'tests/test_workspace_launcher.py'
       - 'tests/test_machine_policy.py'
+      - 'tests/test_policy_report.py'
       - 'deploy/chrome-policy/**'
       - 'tests/__init__.py'
   pull_request:
@@ -23,6 +24,7 @@ on:
       - 'tests/test_w7_existing_contexts.py'
       - 'tests/test_workspace_launcher.py'
       - 'tests/test_machine_policy.py'
+      - 'tests/test_policy_report.py'
       - 'deploy/chrome-policy/**'
       - 'tests/__init__.py'
   workflow_dispatch:
@@ -55,4 +57,4 @@ jobs:
         run: python -m unittest tests.test_browser_profiles tests.test_profile_delete tests.test_workspace_launcher tests.test_w6_matrix tests.test_w7_existing_contexts -v
       # W5: the policy readers for all three systems, against stand-ins; the Windows job also reads the real registry.
       - name: Test the read-only machine policy check
-        run: python -m unittest tests.test_machine_policy -v
+        run: python -m unittest tests.test_machine_policy tests.test_policy_report -v

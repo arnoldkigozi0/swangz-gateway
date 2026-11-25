@@ -554,6 +554,15 @@ class PolicyTamperTests(unittest.TestCase):
         self.assertIn(self.p.AUDIT, (ROOT / "gateway" / "managed.py").read_text(encoding="utf-8"))
         self.assertIn(str(self.p.PLIST), (ROOT / "swangz_client" / "machine_policy.py").read_text(encoding="utf-8"))
 
+    def test_chrome_is_root_owned_before_the_company_device_opens_it(self):
+        """D-026 A4: a company Mac accepts only a root-owned Chrome in /Applications; the runner's copy is handed to
+        root first, as an admin's install leaves it, and the journey checks it."""
+        src = (ROOT / "packaging" / "macos_policy.py").read_text(encoding="utf-8")
+        body = src[src.index("def run("):]
+        self.assertLess(body.index("owners = chrome_root_owned()"), body.index("device_id = enrol_company()"))
+        self.assertIn('["sudo", "chown", "-R", "root:wheel", str(app)]', src)
+        self.assertEqual(self.p.CHROME_APP, Path("/Applications/Google Chrome.app"))
+
     def test_the_tampered_packs(self):
         policy = {"URLBlocklist": ["*", "file://*"], "URLAllowlist": ["hub.swangz-ci.com"]}
         self.assertEqual(self.p.without_default_deny(policy)["URLBlocklist"], ["file://*"])

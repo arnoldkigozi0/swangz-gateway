@@ -5,12 +5,19 @@ Standard library `ctypes` over advapi32. Every failure is reported as "not verif
 """
 import ctypes
 import os
+import uuid
 from ctypes import wintypes
+
+from .shell import SYSTEM_SIDS, USER_TOKENS
 
 SE_FILE_OBJECT = 1
 OWNER_SECURITY_INFORMATION = 0x1
 DACL_SECURITY_INFORMATION = 0x4
 PROTECTED_DACL_SECURITY_INFORMATION = 0x80000000
+ADMINISTRATORS_SID = "S-1-5-32-544"  # the group every administrator on the computer shares
+READ_CONTROL, WRITE_OWNER = 0x20000, 0x80000
+FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_REPARSE_POINT = 0x10, 0x400
+FOLDERID_LOCAL_APP_DATA = "f1b32785-6fba-4fcf-9d55-7b8e7f157091"
 TOKEN_QUERY = 0x8
 TOKEN_USER = 1
 TOKEN_ELEVATION_TYPE = 18  # TOKEN_INFORMATION_CLASS: 1 default, 2 full, 3 limited
@@ -135,6 +142,105 @@ def owner_sid(path):
             kernel.LocalFree(text)
     finally:
         kernel.LocalFree(sd)
+
+
+class GUID(ctypes.Structure):
+    _fields_ = [("Data", ctypes.c_ubyte * 16)]
+
+
+def local_app_data():
+    """-> this person's own AppData\\Local as Windows has it (SHGetKnownFolderPath), never an environment variable."""
+    shell32 = ctypes.WinDLL("shell32")
+    ole32 = ctypes.WinDLL("ole32")
+    shell32.SHGetKnownFolderPath.argtypes = [ctypes.POINTER(GUID), wintypes.DWORD, wintypes.HANDLE,
+                                             ctypes.POINTER(ctypes.c_void_p)]
+    shell32.SHGetKnownFolderPath.restype = ctypes.c_long
+    ole32.CoTaskMemFree.argtypes = [ctypes.c_void_p]
+    folder = GUID.from_buffer_copy(uuid.UUID(FOLDERID_LOCAL_APP_DATA).bytes_le)
+    found = ctypes.c_void_p()
+    try:
+        if shell32.SHGetKnownFolderPath(ctypes.byref(folder), 0, None, ctypes.byref(found)) or not found.value:
+            raise OSError("known folder")
+        return ctypes.wstring_at(found.value)
+    finally:
+        ole32.CoTaskMemFree(found)
+
+
+def _open_for_owner(path):
+    return _open_itself(path, READ_CONTROL | WRITE_OWNER | FILE_READ_ATTRIBUTES)
+
+
+def _attributes(fd):
+    return os.fstat(fd).st_file_attributes
+
+
+def _owner_of_open(fd):
+    """-> the owner SID, as text, of what `fd` is open on."""
+    import msvcrt
+    advapi, kernel = _libs()
+    advapi.GetSecurityInfo.argtypes = [wintypes.HANDLE, ctypes.c_int, wintypes.DWORD] + [ctypes.POINTER(ctypes.c_void_p)] * 5
+    advapi.GetSecurityInfo.restype = wintypes.DWORD
+    owner, sd, text = ctypes.c_void_p(), ctypes.c_void_p(), wintypes.LPWSTR()
+    err = advapi.GetSecurityInfo(msvcrt.get_osfhandle(fd), SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION,
+                                 ctypes.byref(owner), None, None, None, ctypes.byref(sd))
+    if err:
+        raise OSError(err, "owner")
+    try:
+        if not owner.value or not advapi.ConvertSidToStringSidW(owner, ctypes.byref(text)):
+            raise OSError("owner sid")
+        try:
+            return text.value
+        finally:
+            kernel.LocalFree(text)
+    finally:
+        kernel.LocalFree(sd)
+
+
+def _set_owner_of_open(fd):
+    """Make the current user the owner of what `fd` is open on. The DACL is not touched, no privilege is enabled."""
+    import msvcrt
+    advapi, kernel = _libs()
+    advapi.SetSecurityInfo.argtypes = [wintypes.HANDLE, ctypes.c_int, wintypes.DWORD] + [ctypes.c_void_p] * 4
+    advapi.SetSecurityInfo.restype = wintypes.DWORD
+    buf, sid = _user_sid(advapi, kernel)
+    err = advapi.SetSecurityInfo(msvcrt.get_osfhandle(fd), SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION, sid, None, None, None)
+    if err:
+        raise OSError(err, "set owner")
+
+
+def claim_data_folder(path):
+    """Make the person the owner of the app's data folder when it is owned by the Administrators group, as a folder
+    made with an administrator's token is (docs/DECISIONS.md D-026, 25 Nov ruling on #353). Only the app's fixed folder
+    under the person's own profile, a real folder, a token `cleanup` would accept, and that one owner: any other is
+    never taken. -> None when nothing was to be changed, else {"before", "after", "outcome": "claimed" or "failed"}.
+    Whatever this does not manage, `shell.cleanup_refusal` then refuses."""
+    try:
+        user = current_sid()
+        if token_elevation_type() not in USER_TOKENS or not user or user in SYSTEM_SIDS:
+            return None
+        fixed = os.path.join(local_app_data(), "Swangz")
+        if os.path.normcase(os.path.abspath(path)) != os.path.normcase(os.path.abspath(fixed)):
+            return None
+        fd = _open_for_owner(str(path))
+    except OSError:
+        return None
+    try:
+        attributes = _attributes(fd)
+        if not attributes & FILE_ATTRIBUTE_DIRECTORY or attributes & FILE_ATTRIBUTE_REPARSE_POINT:
+            return None
+        before = _owner_of_open(fd)
+        if before != ADMINISTRATORS_SID:
+            return None
+        try:
+            _set_owner_of_open(fd)  # on the checked handle: the path cannot be swapped between check and change
+            after = _owner_of_open(fd)
+        except OSError:
+            after = before
+        return {"before": before, "after": after, "outcome": "claimed" if after == user else "failed"}
+    except OSError:
+        return None
+    finally:
+        os.close(fd)
 
 
 def restrict(path):

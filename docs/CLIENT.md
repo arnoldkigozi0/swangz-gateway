@@ -359,10 +359,11 @@ one person's account. It:
      on macOS and Linux, or rights that can't be read. An account that always has full rights because that prompt is
      off, the built-in Administrator included, is not refused for it;
    - `wrong_account`: the account running it does not own the app's data folder, or the owner can't be read
-     (D-026, "Amendment 25 Nov (cleanup tokens)");
+     (D-026, "Amendment 25 Nov (cleanup tokens)"). Before this rule the app tries the one owner change below;
 2. closes the workspace window;
 3. signs out while the key still exists, which removes the key and what Swangz installed. If the server can't be
-   reached it says so and carries on, and an admin disconnects the device in the console;
+   reached it carries on and says **Have this device disconnected from the Hub: ask your Swangz administrator to do
+   it in the console.**;
 4. deletes every folder under `browser-profiles/` in the app's data folder, whoever it was made for. A link or
    junction is removed itself and what it points at is never touched. A folder that a running browser holds is left
    whole and named (`in_use`): `cleanup` closes only a window this running app started, so close the window and run
@@ -370,12 +371,24 @@ one person's account. It:
 5. turns off start at sign-in.
 
 A step that fails does not stop the later ones. Everything left is named and the exit code is then 1;
-`--report FILE` writes the folders that could not be deleted, one per line (UTF-8 with a byte order mark; empty
-when none are left). Running it again is safe. The app itself stays installed.
+`--report FILE` writes the folders that could not be deleted, one per line (UTF-8 with a byte order mark). Where the
+server could not be told, and where the run was refused, the first line is the one asking for the device to be
+disconnected. The file is empty when nothing is left to do. Running it again is safe. The app itself stays installed.
+
+**Windows: the owner of the app's data folder.** Windows can make `BUILTIN\Administrators` the owner of a folder an
+administrator's process creates (the built-in Administrator), and `cleanup` accepts only the person as owner. So the
+app makes the person the owner, at every start, after signing in and at the start of `cleanup`, only when all of
+these hold: the rights are not raised by Windows' prompt (Default or Limited token) and are not a service account's;
+the folder is `Swangz` under the local app data folder Windows itself names for the person (no environment variable
+is read); opened without following a link, it is a real folder; and its owner is exactly `BUILTIN\Administrators`
+(`S-1-5-32-544`). Only the owner is set, on that open folder; its permissions are not changed and no special
+privilege is used. Each attempt is noted in `ownership.log` in the folder (owner before, owner after, `claimed` or
+`failed`). Where it fails, or any condition does not hold, `cleanup` refuses with `wrong_account`.
 
 - **Windows, per-person install:** uninstalling closes the person's running copy and runs `cleanup` as that person
   before the program files go. If it fails, the uninstaller shows what was not deleted (not in a silent uninstall,
-  where it is only in the log) and carries on. An uninstaller started as administrator, or by an account that does not
+  where it is only in the log) and carries on. If everything was removed but the server could not be told, it shows
+  the line asking for the device to be disconnected (the same way). An uninstaller started as administrator, or by an account that does not
   own the data folder, gets the refusal: the program is removed and nothing in the account is cleaned. The message
   names the two ways to finish: install again and choose **Remove Swangz from this account** without administrator
   rights, or have the device disconnected in the console. The uninstaller never retries with more rights.
@@ -467,6 +480,9 @@ A revocation does not delete a folder yet; an authenticated `retired` answer or 
 
 **Deletion, on every system.** A folder that a running browser holds is not touched (Linux and macOS: Chrome's
 `SingletonLock` names a live process, and only that link's text is read; Windows refuses the rename itself).
+A folder is taken as free only when there is no `SingletonLock`, no process has the number it names, or its text
+holds no usable process number. A process this account may not signal, a lock that cannot be read as a link and any
+other error count as a running browser.
 Any other folder is first renamed to `.retired-<random>`, then deleted. A link
 (symbolic link, junction or other reparse point) is removed itself and never entered, so what it points at
 is untouched. A linked `browser-profiles/` root is refused (`unsafe_link`) and never retargeted. A folder
@@ -480,6 +496,14 @@ only by `cleanup`, removes every entry under the root except `.lock`, whatever i
 **When deleting fails** (an open file, a permission), the folder is reported as not deleted and stays. While
 a retired folder remains, preparing and opening any workspace on this account is refused with
 `purge_pending`; deletion is tried again before the next launch and at the next check-in.
+
+**A different person on the same account.** When someone else signs in, the earlier person's folders are deleted
+at the first check-in or sync, and again before a folder is prepared; until they are gone, Open is refused with
+`purge_pending`. A folder that a running browser holds is not touched: it stays whole until that window is closed
+(Linux and macOS: Chrome's `SingletonLock` names a live process, and only that link's text is read; Windows refuses
+the rename itself). The app closes only a window it started and still remembers, so the person may have to close it.
+"Someone else" means another Hub address or person ID in the folder's marker. The same person's
+folders are kept. A folder whose marker can't be read stays until Swangz is removed from the account.
 
 POSIX directories are 0700 and markers 0600, owned by the current uid. The supplied data directory must
 already exist, be owned by that uid and not be writable by group/others; it is never chmodded. Ancestors

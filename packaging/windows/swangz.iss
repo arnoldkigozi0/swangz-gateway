@@ -135,7 +135,7 @@ end;
 // nothing is ever retried with more rights.
 procedure RemoveFromThisAccount;
 var
-  Report, Message: String;
+  Report, Message, Disconnect, NotDeleted: String;
   Left: TArrayOfString;
   ResultCode, I: Integer;
   Ran: Boolean;
@@ -145,19 +145,34 @@ begin
   Report := ExpandConstant('{tmp}\swangz-cleanup.txt');
   Ran := Exec(ExpandConstant('{app}\Swangz.exe'), 'cleanup --report "' + Report + '"', '', SW_HIDE,
               ewWaitUntilTerminated, ResultCode);
+  Disconnect := '';
+  NotDeleted := '';
+  if LoadStringsFromFile(Report, Left) then
+    for I := 0 to GetArrayLength(Left) - 1 do
+      if Pos('Have this device disconnected from the Hub', Left[I]) > 0 then
+        Disconnect := Left[I]
+      else if Left[I] <> '' then
+        NotDeleted := NotDeleted + #13#10 + Left[I];
   if Ran and (ResultCode = 0) then
+  begin
+    // everything here is gone, but the Hub could not be told
+    if Disconnect <> '' then
+    begin
+      Log(Disconnect);
+      if not UninstallSilent then
+        MsgBox(Disconnect, mbInformation, MB_OK);
+    end;
     exit;
+  end;
   Message := 'Swangz could not remove everything from this account (code ' + IntToStr(ResultCode) + '). ' +
     'Saved browser sign-ins may still be in ' + ExpandConstant('{localappdata}\Swangz\browser-profiles') + '.' + #13#10 + #13#10 +
     'To finish: install Swangz again, open it as yourself without administrator rights and choose ' +
     '"Remove Swangz from this account" on This device, or ask your Swangz administrator to disconnect this device ' +
     'in the console.';
-  if LoadStringsFromFile(Report, Left) and (GetArrayLength(Left) > 0) then
-  begin
-    Message := Message + #13#10 + #13#10 + 'Not deleted:';
-    for I := 0 to GetArrayLength(Left) - 1 do
-      Message := Message + #13#10 + Left[I];
-  end;
+  if Disconnect <> '' then
+    Message := Message + #13#10 + #13#10 + Disconnect;
+  if NotDeleted <> '' then
+    Message := Message + #13#10 + #13#10 + 'Not deleted:' + NotDeleted;
   Log(Message);
   if not UninstallSilent then
     MsgBox(Message, mbError, MB_OK);

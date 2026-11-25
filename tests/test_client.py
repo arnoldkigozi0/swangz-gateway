@@ -954,6 +954,9 @@ class CommandLineTests(ClientBase):
                 code, text = self.run_cli("cleanup", "--report", str(self.report))
                 self.assertEqual(code, 1)
                 self.assertIn(f"({reason})", text)
+                # what the uninstaller shows for a refusal
+                self.assertEqual(self.report.read_text(encoding="utf-8-sig").splitlines(), [cli.DISCONNECT])
+                self.report.unlink()
                 self.assertNotIn("was removed from this account", text)
                 with self.assertRaises(core.CleanupRefused) as refused:
                     self.client.cleanup()
@@ -1020,9 +1023,10 @@ class CommandLineTests(ClientBase):
     def test_cleanup_still_deletes_when_the_server_cannot_be_reached(self):
         info = self.signed_in_with_folders()
         with patch.object(core.Api, "call", side_effect=core.ApiFailure(0, "unreachable", "offline")):
-            code, text = self.run_cli("cleanup")
+            code, text = self.run_cli("cleanup", "--report", str(self.report))
         self.assertEqual(code, 0, text)
-        self.assertIn("ask an admin to disconnect this device", text)
+        self.assertIn(cli.DISCONNECT, text)
+        self.assertEqual(self.report.read_text(encoding="utf-8-sig").splitlines(), [cli.DISCONNECT])
         self.assertFalse((self.data / "device.key").exists())
         self.assertEqual(self.left_in_profiles(), [])
         self.assertFalse(self.revoked(info))

@@ -7,6 +7,7 @@ import select
 import shutil
 import signal
 import stat
+import subprocess
 import tempfile
 import time
 import sys
@@ -446,6 +447,126 @@ class ProfileTests(unittest.TestCase):
                 if isinstance(node, ast.ImportFrom):
                     self.assertNotIn("browser_profiles", node.module or "", str(rel))
                     self.assertFalse(any(n.name == "browser_profiles" for n in node.names), str(rel))
+
+
+@unittest.skipUnless(os.name != "nt", "retirement is exercised on Windows by tests.test_profile_delete")
+class PersonSwitchTests(unittest.TestCase):
+    """D-026 C2: a different person on the same OS account; the earlier person's folders go before a new one is made."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.data = Path(self.tmp.name) / "data"
+        self.data.mkdir(mode=0o700)
+        self.profiles = bp.Profiles(self.data)
+        self.new = bp.Owner("https://hub.example", "person_2", "device-2")
+
+    def make(self, person, device="device-1", origin="https://hub.example", seat=None):
+        owner = bp.Owner(origin, person, device, *(seat or ()))
+        folder = self.profiles.prepare(owner)
+        (folder / "Default").mkdir(mode=0o700)
+        (folder / "Default" / "Cookies").write_bytes(b"signed in")
+        return folder
+
+    def test_every_folder_of_every_other_person_is_deleted_and_their_own_are_kept(self):
+        gone = [self.make("person_1"), self.make("person_1", "device-0"), self.make("person_1", seat=("seat-1", 1)),
+                self.make("person_3"), self.make("person_2", origin="https://other.example")]
+        kept = [self.make("person_2"), self.make("person_2", "device-2")]  # an earlier sign-in of theirs, and this one
+        self.assertTrue(self.profiles.retire_other_people(self.new))
+        self.assertEqual([p.exists() for p in gone], [False] * len(gone))
+        for folder in kept:
+            self.assertEqual((folder / "Default" / "Cookies").read_bytes(), b"signed in")
+        self.assertEqual(sorted(p.name for p in self.profiles.root.iterdir()),
+                         sorted([".lock", *(p.name for p in kept)]))
+
+    def test_a_folder_that_cannot_be_deleted_is_reported_until_it_is_gone(self):
+        old = self.make("person_1")
+        with patch.object(bp, "_purge", side_effect=OSError("in use")):
+            self.assertFalse(self.profiles.retire_other_people(self.new))
+            self.assertFalse(old.exists())  # renamed away, still on disk
+            self.assertEqual(len(list(self.profiles.root.glob(".retired-*"))), 1)
+            self.assertFalse(self.profiles.retire_other_people(self.new))
+        self.assertTrue(self.profiles.retire_other_people(self.new))
+        self.assertEqual([p.name for p in self.profiles.root.iterdir()], [".lock"])
+
+    def test_a_folder_that_cannot_even_be_renamed_is_reported(self):
+        old = self.make("person_1")
+        with patch.object(bp.Profiles, "_retire", side_effect=PermissionError("open files")):
+            self.assertFalse(self.profiles.retire_other_people(self.new))
+        self.assertTrue((old / "Default" / "Cookies").exists())
+
+    def window(self, folder):
+        """A stand-in for a browser still open on `folder`: it holds Chrome's SingletonLock and, like Chrome, keeps
+        writing to the folder's path, creating it again if it has gone."""
+        script = ("import os, sys, time\n"
+                  "folder = sys.argv[1]\n"
+                  "os.symlink('this-host-%d' % os.getpid(), os.path.join(folder, 'SingletonLock'))\n"
+                  "print('open', flush=True)\n"
+                  "while True:\n"
+                  "    os.makedirs(os.path.join(folder, 'Default'), mode=0o700, exist_ok=True)\n"
+                  "    with open(os.path.join(folder, 'Default', 'Preferences'), 'w') as f:\n"
+                  "        f.write('visited')\n"
+                  "    time.sleep(0.01)\n")
+        proc = subprocess.Popen([sys.executable, "-I", "-c", script, str(folder)], stdout=subprocess.PIPE, text=True)
+
+        def end():
+            proc.kill()
+            proc.wait(10)
+            proc.stdout.close()
+        self.addCleanup(end)
+        self.assertEqual(proc.stdout.readline().strip(), "open")
+        return end
+
+    def test_a_folder_an_open_window_holds_is_not_retired_and_never_comes_back_unmarked(self):
+        old = self.make("person_1")
+        close = self.window(old)
+        self.assertFalse(self.profiles.retire_other_people(self.new))
+        time.sleep(0.1)  # the window goes on writing
+        self.assertEqual((old / "Default" / "Cookies").read_bytes(), b"signed in")
+        self.assertTrue((old / bp.MARKER).is_file())
+        self.assertEqual(sorted(p.name for p in self.profiles.root.iterdir()), sorted([".lock", old.name]))
+        close()  # the window ends and leaves its lock behind, as a crashed browser does
+        self.assertTrue(os.path.islink(old / "SingletonLock"))
+        self.assertTrue(self.profiles.retire_other_people(self.new))
+        self.assertEqual([p.name for p in self.profiles.root.iterdir()], [".lock"])
+
+    def test_every_way_of_retiring_refuses_a_folder_an_open_window_holds(self):
+        owner = bp.Owner("https://hub.example", "person_1", "device-1")
+        folder = self.make("person_1")
+        close = self.window(folder)
+        with self.assertRaises(bp.ProfileError) as caught:
+            self.profiles.retire(folder.name, owner)
+        self.assertEqual(caught.exception.code, "in_use")
+        for result in (self.profiles.retire_owner(owner), self.profiles.retire_all()):
+            self.assertEqual(result["skipped"], [{"name": folder.name, "reason": "in_use"}])
+            self.assertFalse(result["complete"])
+        self.assertTrue((folder / "Default" / "Cookies").exists())
+        close()
+        self.profiles.retire(folder.name, owner)
+        self.assertFalse(folder.exists())
+
+    def test_what_counts_as_a_held_folder(self):
+        folder = self.make("person_1")
+        lock = folder / "SingletonLock"
+        self.assertFalse(bp._in_use(folder))  # no lock
+        lock.write_text("host-1")
+        self.assertTrue(bp._in_use(folder))  # not readable as a link: not known to be free (ruling on #353)
+        for target, held in (("my-host-name-%d" % os.getpid(), True), ("host-0", False),
+                             ("host-", False), ("host", False), ("host-abc", False), ("host-" + "9" * 30, False)):
+            lock.unlink()
+            lock.symlink_to(target)
+            self.assertEqual(bp._in_use(folder), held, target)
+        with patch.object(bp.os, "kill", side_effect=PermissionError):  # a process this account may not signal
+            lock.unlink()
+            lock.symlink_to("host-1")
+            self.assertTrue(bp._in_use(folder))
+
+    def test_a_folder_with_no_readable_marker_is_left_alone(self):
+        old = self.make("person_1")
+        (old / bp.MARKER).write_text("{")
+        self.assertTrue(self.profiles.retire_other_people(self.new))
+        self.assertTrue((old / "Default" / "Cookies").exists())
+        self.assertNotEqual(self.profiles.prepare(self.new), old)
 
 
 if __name__ == "__main__":

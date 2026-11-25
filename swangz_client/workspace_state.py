@@ -7,6 +7,9 @@ purged. It holds ids, states and generations only; nothing from inside the brows
 
 Close: only the window this app started (`Launcher.close`). Purge: only `Profiles.retire(profile_id, owner)` for the
 enrolled owner's folders, never `retire_all`, and only on an authenticated `retired` or a higher generation.
+Person switch (D-026 C2): the first such answer after a different person signs in deletes the earlier person's folders
+(`Profiles.retire_other_people`). Nothing is latched for it: `Launcher.ready` repeats it before every Open and refuses
+while one is left.
 Separate from that: the person's own `cleanup` deletes every folder (`delete_folders`, D-026).
 """
 import json
@@ -140,12 +143,13 @@ class WorkspaceState:
         if not isinstance(block, dict) or type(block.get("contract")) is not int or block.get("contract") != 2:
             return
         self.answered()
+        owner = self._owner()
+        self._person_switch(owner)  # who is signed in, whatever the workspace block says
         try:
             state, generation = parse(block.get("workspace"))
         except Malformed:
             self.refuse("workspace_unknown")
             return
-        owner = self._owner()
         folders = self._find(owner)
         have = max((g for _, g in folders), default=None)
         if have is not None and generation < have:
@@ -182,6 +186,16 @@ class WorkspaceState:
             return self._profiles().find(owner)
         except (bp.ProfileError, OSError):
             return []
+
+    def _person_switch(self, owner):
+        """Delete an earlier person's folders now, without waiting for the new person to open something. A failure
+        is not an error here: Open tries again and refuses until it works."""
+        if owner is None or not self._profiles().root.is_dir():
+            return
+        try:
+            self._profiles().retire_other_people(owner)
+        except (bp.ProfileError, OSError):
+            pass
 
     def _purge(self, owner, state, generation, select, keep_refused):
         """Ruling 4: latch first, refuse, close, retire, then clear. A failure keeps it pending."""

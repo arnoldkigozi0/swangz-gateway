@@ -900,7 +900,7 @@ decision sets the rules for joining them. It changes nothing on the server, the 
      `CN=Google LLC, O=Google LLC`; the name is backed by Google's Omaha updater source, not by Chrome product docs.
      Check it through `WinVerifyTrust` or `Get-AuthenticodeSignature`, and check the subject, not a thumbprint,
      because Google rotates certificates.
-   - macOS: `codesign --verify --deep --strict` passes on `Google Chrome.app` with the requirement
+   - macOS: `codesign --verify --deep` passes on `Google Chrome.app` with the requirement
      `anchor apple generic and identifier "com.google.Chrome" and certificate 1[field.1.2.840.113635.100.6.2.6] and
      certificate leaf[field.1.2.840.113635.100.6.1.13] and certificate leaf[subject.OU] = "EQHXZ8M8AV"`
      (the two `field` clauses require a Developer ID intermediate and a Developer ID Application leaf, so a
@@ -912,6 +912,13 @@ decision sets the rules for joining them. It changes nothing on the server, the 
      enterprise PKG `Developer ID Installer: Google LLC (EQHXZ8M8AV)` (that certificate expires 1 Feb 2027). If an
      admin checks either carrier, the check pins the Team ID, never a certificate; validity is unverified until
      `codesign` / `pkgutil --check-signature` pass on a Mac.
+     *Amendment 25 Nov (#351):* `--strict` is not used. It rejects extended attributes such as
+     `com.apple.FinderInfo` and resource forks, which the signature does not cover, and a genuine Chrome copied in
+     with them (seen on the GitHub macOS runner) would be refused. The sealed code and resources, nested code
+     (`--deep`), the requirement and `spctl` still have to pass. The app never strips attributes from the bundle.
+     UNVERIFIED until checked on a real Mac: that `spctl --assess` accepts the installed Chrome offline, and what it
+     answers when Gatekeeper assessments are disabled (a local admin can do that; D-024 tamper-evident). Probe checks
+     both before release.
 
    Anything else stops setup with a repair message. The SHA-256 of the checked file goes in the setup log as
    evidence, never as the check.
@@ -1032,7 +1039,8 @@ or `sudo` (static test).
      `[Code]`, in `CurUninstallStepChanged(usUninstall)`, before any file is removed: stop the person's running copy (the
      existing `taskkill` filter), then `Exec('{app}\Swangz.exe', 'cleanup --report "<{tmp} file>"', …, ResultCode)`.
      `cleanup` runs `logout` itself first, while the key exists, so a separate `logout` entry is dropped. On a
-     non-zero `ResultCode` (or `Exec` failing) the uninstaller reads the report, one undeleted folder per line,
+     non-zero `ResultCode` (or `Exec` failing) the uninstaller reads the report, one undeleted folder per line
+     (after the disconnect line of the 25 Nov ruling on #353, where there is one),
      shows it in a message box (skipped when `UninstallSilent`), and always writes it to the uninstall log with
      `Log`. The uninstall continues; it never claims everything was removed (Prism's, `packaging/`).
    - **macOS:** there is no uninstaller; removal is drag-to-Bin (`packaging/macos_dmg.py` README), which runs
@@ -1212,6 +1220,10 @@ shown when a marker exists. The console text distinguishes local from provider r
   not Edge or Safari. #333's "every authorised web tool" is not met for these two cases, and the acceptance report
   must say so.
 - A GPO refresh can land between E3's hash and the write or delete; the next check reports the mismatch.
+- A3 remembers a pass by the main executable's size and modification time, in memory. On macOS a framework
+  swapped in while the app runs is not rechecked until the app restarts; on a company Mac the bundle is root-owned,
+  so only an administrator can do that. On Windows only `chrome.exe` is checked, not `chrome.dll`; under
+  `%ProgramFiles%` the OS's permissions protect it, and on a personal device it is the person's own install (A4).
 - After revocation, machine policy stays until an administrator removes it (F1).
 - App sign-out keeps the browser folders, with their provider and Google sessions, on disk (C4). Disconnecting the
   device keeps them too (F1 is not built); only `cleanup` (which the per-user Windows uninstaller runs), an
@@ -1225,9 +1237,17 @@ shown when a marker exists. The console text distinguishes local from provider r
   the account it runs in. Other OS accounts' folders, with their sessions, stay until F1 runs at that person's next
   contact or the person runs "Remove Swangz from this account". The admin runbook: disconnect the device in the
   console, or run `cleanup` in each account, **before** uninstalling.
-- On main, a second person signing in on the same OS account does **not** yet retire the first person's folder (C2):
-  `retire_owner` and `retire_all` exist in `browser_profiles.py` but nothing calls them. Until Forge wires it, the
-  first person's folder and sessions stay beside the second person's (each still opens only for its own owner).
+- C2 deletes on a person switch when the second person's app next gets an authenticated answer, or opens the
+  workspace; approving the sign-in alone deletes nothing. A person is the Hub address plus person ID in a folder's
+  marker, so a changed Hub address counts as a different person. A folder whose marker can't be read is left (nothing
+  says whose it is, and no owner is given it) until `cleanup`. While an earlier folder can't be deleted (for example
+  while its browser is still open), the second person's Open is refused with `purge_pending`. The switch closes no
+  browser, and no folder is retired while one runs on it: on macOS and Linux the app reads Chrome's `SingletonLock`
+  and leaves the folder whole (deleting under a running Chrome kept its session alive and wrote the folder again with
+  no marker); Windows refuses the rename. Limits: a lock left by a crash whose process number another program now has
+  holds the folder until that program ends, and a browser started between the check and the rename is not seen.
+- A person who signs out and back in gets a new device ID, so a new folder is made. The older one is kept and never
+  reused: C4's "back to their own sessions" does not hold today.
 - Force-installing the extension on unmanaged Windows or macOS may need the Chrome Web Store listing. Publishing it
   needs Arnold's approval.
 
@@ -1298,7 +1318,7 @@ removal steps; E1 names the manual-run exception; D2/D4 marked done by #339.
   - is idempotent.
 
   The app's This device page offers it as "Remove Swangz from this account". `cleanup` takes `--report <file>`
-  (one undeleted folder per line). The per-user `swangz.iss` runs it from `[Code]` and reports failures (C4); it
+  (one undeleted folder per line, after the disconnect line where there is one). The per-user `swangz.iss` runs it from `[Code]` and reports failures (C4); it
   needs no separate `logout`, because `cleanup` runs `logout` first.
 
   *Tests:*
@@ -1329,7 +1349,9 @@ removal steps; E1 names the manual-run exception; D2/D4 marked done by #339.
   - **As built, a running browser:** no folder is renamed or deleted while a browser runs on it. On macOS and Linux
     the app reads Chrome's `SingletonLock` and lists the folder as `in_use`, so `cleanup` exits non-zero (deleting
     under a running Chrome kept its session alive and wrote the folder again, and `cleanup` reported success);
-    Windows refuses the rename. Limits: a lock left by a crash whose process number another program now has holds the
+    Windows refuses the rename. Not held, and nothing else: no lock, no process with that number, or link text with
+    no usable process number. A process the app may not signal, a lock that cannot be read as a link and any other
+    error count as running. Limits: a lock left by a crash whose process number another program now has holds the
     folder until that program ends, and a browser started between the check and the rename is not seen.
   - **As built, open for Sentinel:**
     - Inno Setup does not support `ExecAsOriginalUser` or `ShellExecAsOriginalUser` at uninstall time (its own
@@ -1337,10 +1359,19 @@ removal steps; E1 names the manual-run exception; D2/D4 marked done by #339.
       raised, `cleanup` refuses and the uninstaller reports it.
     - A data folder that is not there has no owner and is not refused, so a second run and an account that never
       signed in still pass.
-    - Nothing sets the owner of the data folder. Where Windows makes `BUILTIN\Administrators` the owner of what an
-      administrator's process creates, an allowed Default token is refused `wrong_account`.
     - The app restricts only the managed browser's folder to its owner, not the app data folder, so "owner-only" in
       the reason for allowing Default is not something the app itself establishes for the data folder.
+  - **Ruling 25 Nov on #353 (data folder owner), as built:** the check stays strict (`BUILTIN\Administrators` as owner
+    is not accepted). `winacl.claim_data_folder` runs at every start, after sign-in and at the start of `cleanup`,
+    before the refusal rule. It changes the owner only when all hold: elevation type Default or Limited and not a
+    service SID; the path is `Swangz` under `SHGetKnownFolderPath(LocalAppData)`, never an environment variable; the
+    folder, opened with `FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS`, is a real directory; its owner is
+    exactly `S-1-5-32-544`. `SetSecurityInfo` on that handle sets the owner alone to the token user; the DACL is not
+    changed and no privilege is enabled. Before, after and outcome go to `ownership.log` in the folder. A failed claim
+    leaves `wrong_account`. A refused run, and a run that could not tell the Hub, put "Have this device disconnected
+    from the Hub" in `--report`; the per-user uninstaller shows it unless silent and always logs it.
+    *Tests:* unit tests with fakes for each condition; the Windows installer journey deletes for real with the
+    runner's Default token (device disconnected, installed items and saved sign-ins gone).
 
 **Consequences.** Forge builds A–F behind these tests on feature branches. Sentinel reviews each PR before merge.
 The elevated Windows steps (`chrome-install`, `policy-write`, `policy-remove`) are not built until Prism has made the
@@ -1349,9 +1380,10 @@ the launch, folder, verification, conflict-hash and revocation parts (A2–A4, C
 **D2 and D4 build: done** by #339 (merged as `7b95da0`): the shared-account refusal on company devices (message and
 repair panel) and the D tests (no `open_url` call for shared, denied, unknown and non-workspace tools; the static
 caller allow-list). No server change and no migration.
-**Next for C2, C4 and F1:** `cleanup` and revocation delete the folders on every platform, and a person switch calls
-`retire_owner` before the new folder is made (Forge); the per-user Windows uninstaller runs `cleanup` from `[Code]`
-with its result reported, and the macOS removal steps include it (Prism).
+**C2 build:** `Profiles.retire_other_people` calls `retire_owner` for every other person's marker, on the first
+authenticated answer and again before a folder is prepared (`Launcher.ready`); the same person's folders are kept.
+**Next for C2, C4 and F1:** `cleanup` and revocation delete the folders on every platform (Forge); the per-user
+Windows uninstaller runs `cleanup` from `[Code]` with its result reported, and the macOS removal steps include it (Prism).
 `enforce` stays off until D-025 point 2 and E5's acceptance check exist. R-12 changes: a folder is deleted on
 revocation, as well as on reassignment.
 

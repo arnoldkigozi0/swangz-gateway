@@ -10,6 +10,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from swangz_client import cli
+
 ROOT = Path(__file__).resolve().parent.parent
 ISS = (ROOT / "packaging" / "windows" / "swangz.iss").read_text(encoding="utf-8")
 CODE = "\n".join(l for l in ISS.splitlines() if not l.lstrip().startswith((";", "//")))  # without comments
@@ -71,9 +73,16 @@ class InstallerScriptTests(unittest.TestCase):
         self.assertEqual(body.count("ewWaitUntilTerminated"), 2)
         checked = body.index("if Ran and (ResultCode = 0) then")
         self.assertLess(run, checked)
-        for needed in ("could not remove everything from this account", "LoadStringsFromFile(Report, Left)", "Log(Message);",
+        for needed in ("could not remove everything from this account", "Log(Message);",
                        '"Remove Swangz from this account" on This device', "disconnect this device "):
             self.assertGreater(body.index(needed), checked)
+        # the report is read first: the line about the Hub is shown whether or not cleanup succeeded
+        self.assertLess(body.index("LoadStringsFromFile(Report, Left)"), checked)
+        self.assertIn("Pos('Have this device disconnected from the Hub', Left[I])", body)
+        success = body[checked:body.index("exit;", checked)]
+        self.assertIn("MsgBox(Disconnect, mbInformation, MB_OK)", success)
+        self.assertIn("Message + #13#10 + #13#10 + Disconnect", body)
+        self.assertTrue(cli.DISCONNECT.startswith("Have this device disconnected from the Hub"))
         # a refusal is reported, never retried with other or more rights
         self.assertNotRegex(CODE, r"(?i)runas|ShellExec|AsOriginalUser")
         self.assertEqual(CODE.count("'cleanup "), 1)
@@ -307,7 +316,7 @@ class _Key:
 
 class WritableRegistry:
     """Just enough of `winreg` to write a policy pack and read it back with the app's own reader, on any OS."""
-    HKEY_LOCAL_MACHINE = "HKLM"
+    HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER = "HKLM", "HKCU"  # HKCU paths are kept under "HKCU\\..."
     KEY_READ, KEY_WOW64_64KEY, KEY_ALL_ACCESS = 0x20019, 0x0100, 0xF003F
     REG_SZ, REG_DWORD = 1, 4
 
@@ -316,6 +325,8 @@ class WritableRegistry:
         self.access = []
 
     def _path(self, parent, sub):
+        if parent == self.HKEY_CURRENT_USER:
+            return "HKCU\\" + sub
         return sub if parent == self.HKEY_LOCAL_MACHINE else parent.path + "\\" + sub
 
     def OpenKey(self, parent, sub, reserved=0, access=None):
@@ -444,19 +455,20 @@ class WindowsPolicyTamperTests(unittest.TestCase):
             self.assertIn(needle, block)
         self.assertLess(block.index("windows_policy.run("), block.index("device = enrol(approve_second[0])"))
 
-    def test_the_uninstall_deletes_both_peoples_folders_or_proves_the_refusal(self):
+    def test_the_uninstall_runs_as_the_second_person_and_really_deletes(self):
         self.assertIn("approve_second[:] = [approve]", self.e2e[self.e2e.index("def enrol_second"):])
+        self.assertIn('held = data / "browser-profiles" / report["two_at_once"][0]', self.e2e)
+        # the app's own fixed folder, which is the only one it makes the person the owner of
+        self.assertIn('data, home = Path(winacl.local_app_data()) / "Swangz", work / "home"', self.e2e)
+        self.assertNotIn('"SWANGZ_HOME": str(data),', self.e2e)
         after = self.e2e[self.e2e.index("# 8. uninstall"):self.e2e.index("report[\"ok\"] = True")]
-        refused, allowed = after.split("        if refusal:\n", 1)[1].split("        else:\n", 1)
-        for needed in ('require(said,', "a refused cleanup changed the account",
-                       'hub_journey.kept(check, data, folder, marker, "after the refused uninstall")'):
-            self.assertIn(needed, refused)
-        for needed in ('require(not said,', "the Hub did not disconnect the device",
-                       'hub_journey.removed(check, data, "after the uninstall")'):
-            self.assertIn(needed, allowed)
-        # the expectation is the app's own rule, asked with the token the uninstaller gets, before it runs
+        # the app's own rule is asked with the token the uninstaller gets, before it runs, and must allow it
         self.assertLess(after.index("refusal = shell.cleanup_refusal(data)"), after.index('"/VERYSILENT"'))
-        self.assertIn('report["uninstaller"] = {"refusal": refusal, "elevation_type": winacl.token_elevation_type()', after)
+        self.assertLess(after.index("require(refusal is None and"), after.index('"/VERYSILENT"'))
+        self.assertNotIn("if refusal:", after)
+        for needed in ('not in log,', "the Hub did not disconnect the device", "require(not held.exists(),",
+                       'hub_journey.removed(check, data, "after the uninstall")'):
+            self.assertGreater(after.index(needed), after.index('"/VERYSILENT"'))
 
     def test_a_refused_open_starts_no_chrome_and_each_sync_must_report_afresh(self):
         refused = self.src[self.src.index("def refused("):self.src.index("def synced(")]

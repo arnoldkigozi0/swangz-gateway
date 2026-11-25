@@ -289,6 +289,9 @@ class BrowserCallerTests(unittest.TestCase):
         # a terminal window for a coding agent: `cmd.exe /c start ... cmd.exe /k` on Windows, Terminal via osascript on
         # macOS. Both start a fixed terminal program on the agent's own command, never an address.
         ("shell.py", "terminal_command"): 2,
+        # D-026 A2: the system folder's Windows PowerShell, run on a fixed script that only reads Chrome's Authenticode
+        # signature; the file name travels in an environment variable and nothing it runs takes an address.
+        ("chrome_verify.py", "_powershell"): 1,
     }
 
     def sources(self):

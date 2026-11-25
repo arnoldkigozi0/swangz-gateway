@@ -66,7 +66,7 @@ class CleanupRefused(Exception):
                             "administrator\" or sudo.",
         "wrong_account": "Swangz did not remove anything: the account running it does not own the Swangz folder, or "
                          "its owner could not be checked. Run it signed in to this computer as the person who uses "
-                         "Swangz there, or ask your administrator to disconnect this device.",
+                         "Swangz there, or have this device disconnected from the Hub by your administrator.",
     }
 
     def __init__(self, code):
@@ -427,7 +427,7 @@ class Store:
                 keystore.erase_file(root / "device.key")
                 keystore.erase_file(root / "device.key.next")
                 for name in ("state.json", "manifest.json", "device.json", "credential-access.log", "workspace-open.log", "rotate.lock",
-                             NEWEST_APP):
+                             "ownership.log", NEWEST_APP):
                     (root / name).unlink(missing_ok=True)
 
 
@@ -574,6 +574,23 @@ class Api:
 # ---------------------------------------------------------------- the client
 
 
+def claim_data_folder(paths):
+    """Windows: make the person the owner of the app's data folder where `winacl.claim_data_folder` allows it, and note
+    any change in ownership.log. Never raises: what is not claimed, `cleanup` refuses."""
+    if sys.platform != "win32":
+        return
+    try:
+        from . import winacl
+        change = winacl.claim_data_folder(str(paths.data))
+        if change:
+            path = paths.data / "ownership.log"
+            lines = path.read_text(encoding="utf-8").splitlines()[-99:] if path.exists() else []
+            line = f"{int(time.time())} data folder owner {change['before']} -> {change['after']} {change['outcome']}"
+            write_private(path, "\n".join(lines + [line]) + "\n")
+    except Exception:  # noqa: BLE001 - starting, signing in and cleanup never fail on this
+        pass
+
+
 class Client:
     def __init__(self, paths=None, api_factory=None, sleep=time.sleep, open_url=None, run=subprocess.run, credentials=None):
         self.paths = paths or Paths()
@@ -593,6 +610,10 @@ class Client:
             self._arm_policy_check(self.store.device())
         except Exception:  # an unreadable device record: no check, the same as before
             pass
+        self.claim_data_folder()  # every start (D-026, ruling on #353)
+
+    def claim_data_folder(self):
+        claim_data_folder(self.paths)
 
     @property
     def policy_check(self):
@@ -742,6 +763,7 @@ class Client:
             self.store.save_device(info, out["key"])
             self.store.save_state({"installed": {}, "last_sync": None})
             self._arm_policy_check(info)
+            self.claim_data_folder()  # signing in may be what made the folder
             return info
         raise ApiFailure(0, "expired_token", "The sign-in code expired before it was approved. Try again.")
 
@@ -1138,6 +1160,7 @@ class Client:
         """"Remove Swangz from this account" (`swangz cleanup`, and the per-person Windows uninstaller; D-026): sign
         out while the key still exists, delete every workspace folder and drop start at login. A step that fails never
         stops the later ones. -> {"told": bool, "left": [(path, reason)], "problems": [str]}"""
+        self.claim_data_folder()  # an install removed before the app ran again
         refused = shell.cleanup_refusal(self.paths.data)
         if refused:
             raise CleanupRefused(refused)  # before anything: such a run may not touch a person's folders
@@ -1284,7 +1307,7 @@ class Client:
         except wl.LaunchError:
             raise wl.LaunchError("folder") from None
         if getattr(self, "launcher", None) is None:
-            self.launcher = wl.Launcher(self.paths.data)
+            self.launcher = wl.Launcher(self.paths.data, roots=self.store.roots())
         if not self.workspace_app(app):
             # Shared company accounts and tools the Hub hands out itself are not opened by the app this release:
             # the workspace never opens the Hub's own address, and there is no default-browser fallback.

@@ -62,6 +62,24 @@ seat is reassigned), `policy.sha256` and `policy.mode` (`warn` or `enforce`). Bu
 person and device rows, as contract 1 is. Contract 1 answers stay byte-identical. No schema change unless a column
 is truly needed; if one is, it is its own migration PR.
 
+**Whose computer a device is (D-025 point 2; server).** The person's choice at sign-in stays in `owner_kind`. An
+admin's mark sits beside it and wins; it belongs to that enrolment, so signing the computer in again starts unmarked.
+
+- `POST /admin/api/devices/<device_id>/kind` (area `govern`), body `{"kind": "company" | "personal"}` and optionally
+  `"reason"`. Answer: `{"ok": true, "changed": bool, "device": {"device_id", "owner_kind", "owner_confirmed",
+  "owner_confirmed_at", "owner_confirmed_by", "effective_kind"}}`. `400` for any other `kind`, `404` for an unknown
+  device, `403` outside `govern` (audited as denied). A change is audited with `before` and `after`
+  (`{"declared", "confirmed"}`) and `correlation=device:<device_id>`; repeating a mark changes and audits nothing.
+- `GET /admin/api/devices` and `/admin/api/devices/<key id>` carry the same five fields for devices enrolled by the
+  app. Label `owner_kind` "declared by the person" (D-025 point 1) and `owner_confirmed` as the admin's mark;
+  `effective_kind` is the one that applies. No console control exists yet.
+- `enforce` refusals follow `effective_kind`. In the device manifest, `device.owner_kind` is that effective kind, so the
+  app arms its policy check on a computer an admin marked company; `device.owner_confirmed` appears only once marked.
+- Coding agents are set to `managed` only when the person declared `company` and no admin marked it `personal`. An
+  admin's mark never makes the app edit the tool settings of a computer its person called personal.
+- Limit: an app that armed its check from a `company` declaration keeps it after an admin marks the computer `personal`,
+  so in `enforce` that app still holds its own windows to the baseline. The Hub no longer refuses it.
+
 **W3. The workspace on the device (client).** Turn on `Profiles` for exactly one `personal` profile per
 person + device + OS user. The launcher starts the installed Chrome or Chromium with that folder as its data
 directory, and only when all three hold: the manifest says `active`; the OS user matches the profile marker; the

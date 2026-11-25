@@ -99,16 +99,20 @@ def main(argv=None, client=None):
     p.add_argument("state", choices=("on", "off"))
     sub.add_parser("logout")
     p = sub.add_parser("cleanup", help="remove Swangz from this account, saved browser sign-ins included")
-    p.add_argument("--report", help="write every folder that could not be deleted to this file, one per line")
+    p.add_argument("--report", help="write every folder that could not be deleted to this file, one per line, after a "
+                                    "line asking for the device to be disconnected where the Hub could not be told")
     p = sub.add_parser("key", help="credential helper for an installed coding agent (pipe only)")
     p.add_argument("--for", dest="tool", required=True, choices=("claude-code", "codex"))
     sub.add_parser("gui")
     p = sub.add_parser("update", help="check, stage or apply an authenticated app release")
     p.add_argument("action", choices=("status", "check", "apply"), nargs="?", default="status")
     args = parser.parse_args(command_argv)
-    if args.cmd == "cleanup":  # before the client: a refused run reads and writes nothing of Swangz's
-        refused = shell.cleanup_refusal((client.paths if client else core.Paths()).data)
+    if args.cmd == "cleanup":  # before the client: a refused run changes nothing of Swangz's
+        paths = client.paths if client else core.Paths()
+        core.claim_data_folder(paths)  # an install removed before the app ran again (D-026, ruling on #353)
+        refused = shell.cleanup_refusal(paths.data)
         if refused:
+            write_report(args.report, [DISCONNECT])
             say(str(core.CleanupRefused(refused)))
             return 1
     client = client or core.Client()
@@ -184,13 +188,26 @@ def browser_folders_stay(client):
             f"{workspace_launcher.profiles_folder(client.paths.data)}. To delete them, run: {typed_command('cleanup')}")
 
 
+DISCONNECT = "Have this device disconnected from the Hub: ask your Swangz administrator to do it in the console."
+
+
+def write_report(report, lines):
+    """The file the Windows uninstaller shows; the byte order mark is how it knows the text is UTF-8."""
+    if report:
+        Path(report).write_text("".join(f"{line}\n" for line in lines), encoding="utf-8-sig")
+
+
 def cleanup(client, report=None):
     """-> 0 when nothing of Swangz is left on this account, else 1."""
-    out = client.cleanup()
-    if report:  # the Windows uninstaller shows this file; the byte order mark is how it knows the text is UTF-8
-        Path(report).write_text("".join(f"{path}\n" for path, _ in out["left"]), encoding="utf-8-sig")
+    try:
+        out = client.cleanup()
+    except core.CleanupRefused:
+        write_report(report, [DISCONNECT])
+        raise
+    # one line per folder not deleted, after the line that says the Hub still lists this device
+    write_report(report, ([] if out["told"] else [DISCONNECT]) + [str(path) for path, _ in out["left"]])
     if not out["told"]:
-        say("The server couldn't be reached, so ask an admin to disconnect this device.")
+        say(f"The server couldn't be reached. {DISCONNECT}")
     for problem in out["problems"]:
         say(f"Not removed: {problem}")
     for path, reason in out["left"]:

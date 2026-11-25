@@ -536,6 +536,13 @@ SCHEMA = [
     ALTER TABLE tools ADD COLUMN oauth_hosts TEXT NOT NULL DEFAULT '';
     ALTER TABLE tools ADD COLUMN last_verified TEXT NOT NULL DEFAULT '';
     """,
+    # v30: an admin's mark of whose computer a device is (D-025 point 2). It sits beside the person's own declaration
+    # (owner_kind), which is never overwritten. Empty on every existing row: nothing changes until an admin marks one.
+    """
+    ALTER TABLE devices ADD COLUMN owner_confirmed TEXT CHECK (owner_confirmed IN ('personal','company'));
+    ALTER TABLE devices ADD COLUMN owner_confirmed_at REAL;
+    ALTER TABLE devices ADD COLUMN owner_confirmed_by TEXT NOT NULL DEFAULT '';
+    """,
 ]
 
 

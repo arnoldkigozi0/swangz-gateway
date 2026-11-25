@@ -1405,6 +1405,22 @@ def _signin(value, kind):
     return "api" if kind == "dev" else "seat"
 
 
+def _no_shared_google(ctx, tool, tid=None):
+    """Refuses, and records, a save that would leave a shared company account on a google.com host."""
+    from . import catalog
+
+    if tool.get("signin") != "shared":
+        return
+    hosts = catalog.refused_shared_hosts(tool)
+    if not hosts:
+        return
+    ctx.audit("was refused a change", tool["name"], "shared_google_host: " + ", ".join(hosts), outcome="refused",
+              correlation=f"tool:{tid}" if tid else None)
+    raise ApiError(400, "A shared account can't use a google.com address: signing it out would also sign people out of "
+                        "their own Google account. Choose another sign-in method for this tool.",
+                   "shared_google_host", {"hosts": hosts})
+
+
 @route("POST", r"/tools", area="govern")
 def add_tool(ctx):
     from . import catalog, icons
@@ -1425,13 +1441,16 @@ def add_tool(ctx):
     ws_mode = _workspace_mode(ctx.body.get("workspace_mode")) if ctx.body.get("workspace_mode") else None
     share = _sharing(ctx.body)
     share.update(_tool_facts(ctx.body))
+    signin = _signin(ctx.body.get("signin"), kind)
+    launch_url = _web(ctx.body.get("launch_url"), "sign-in link")
+    _no_shared_google(ctx, {"name": name, "signin": signin, "hosts": ",".join(hosts), "url": url,
+                            "launch_url": launch_url, "workspace_url": browsers})
     ctx.db.x("INSERT INTO tools(id, name, category, kind, provider, url, hosts, pricing_url, entry_usd, plans,"
              " builtin, created, signin, launch_url, description, color) VALUES(?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?)",
              (tid, name, str(ctx.body.get("category") or "Other").strip()[:40] or "Other", kind,
               str(ctx.body.get("provider") or "")[:40], url, ",".join(hosts),
               _web(ctx.body.get("pricing_url"), "pricing page"), _money(ctx.body.get("entry_usd")) or 0,
-              json.dumps(plans), time.time(), _signin(ctx.body.get("signin"), kind),
-              _web(ctx.body.get("launch_url"), "sign-in link"), str(ctx.body.get("description") or "").strip()[:200],
+              json.dumps(plans), time.time(), signin, launch_url, str(ctx.body.get("description") or "").strip()[:200],
               _color(ctx.body.get("color"))))
     if browsers is not None:
         ctx.db.x("UPDATE tools SET workspace_url = ? WHERE id = ?", (browsers, tid))
@@ -1524,6 +1543,7 @@ def edit_tool(ctx, tid):
             raise ApiError(400, "classification must be public, internal, confidential or restricted")
         fields["classification"] = ctx.body["classification"]
     if fields:
+        _no_shared_google(ctx, {**tool, **fields}, tid)
         ctx.db.x(f"UPDATE tools SET {', '.join(f'{k}=?' for k in fields)} WHERE id = ?", [*fields.values(), tid])
         ctx.audit("edited a tool", tool["name"], ", ".join(sorted(fields)), before={k: tool.get(k) for k in fields},
                   after=fields, correlation=f"tool:{tid}")

@@ -14,7 +14,7 @@ import re
 import time
 import urllib.parse
 
-from . import admin, geo, proxy, turns
+from . import admin, geo, managed, proxy, turns
 from .admin import ApiError, licence_data, route
 
 DAY = 86400
@@ -489,7 +489,8 @@ def devices(ctx):
                 installed = json.loads(d["packages_json"] or "[]")
             except ValueError:
                 installed = []
-            item.update(app_version=d["app_version"] or None, owner_kind=d["owner_kind"], enrolled=d["enrolled"],
+            item.update(managed.kind_report(d))
+            item.update(app_version=d["app_version"] or None, enrolled=d["enrolled"],
                         last_seen=d["last_seen"], packages=installed, os=item["os"] or d["os"] or None,
                         key_rotations=d["rotations"], key_issued=d["key_issued"],
                         workspace_state=d["workspace_state"], workspace_generation=d["workspace_generation"],
@@ -547,7 +548,8 @@ def device(ctx, kid):
         if r["d"] in series:
             series[r["d"]].update(requests=r["n"], cost=r["cost"])
     last = apps[0] if apps else {}
-    return dict(k, state=_device_state(k, now), app=last.get("client") if last.get("client") not in (None, "", "unknown") else None,
+    enrolled = db.one("SELECT * FROM devices WHERE device_id = ?", (k["device_id"],)) if k.get("device_id") else None
+    return dict(k, **(managed.kind_report(enrolled) if enrolled else {}), state=_device_state(k, now), app=last.get("client") if last.get("client") not in (None, "", "unknown") else None,
                 platform=last.get("platform"), first_used=totals["first"], totals=totals, ips=ips, apps=apps, models=models,
                 sessions=sessions, flagged=flagged, series=[series[d] for d in sorted(series)])
 
