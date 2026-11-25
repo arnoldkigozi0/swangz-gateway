@@ -1,5 +1,17 @@
 # Agent progress
 
+**25 Nov 23:50 SPRINT (Arnold): no rest periods until 26 Nov 06:00 EAT.** The 02:00 and 04:00 routines do not stop or restart work. Goal: main working by morning so Arnold can update the server and run final tests. Feature merges stop 04:00; 04:00-05:30 final end-to-end run, installers from the frozen SHA, server update steps; 05:45 report. ChatGPT PAUSED (Prism idle). One local test/browser at a time.
+
+| Order | Item | Owner | State |
+|---|---|---|---|
+| 1 | #353 a9276d5: verify, review, merge | Probe, Sentinel, Chief | doing |
+| 2 | Server update rehearsal 7c20711 -> main, exact commands and rollback | Forge | todo |
+| 3 | #333 gaps: Chrome install if missing (D-026) | Anvil | todo |
+| 4 | End-to-end journey on main; refresh docs/ACCEPTANCE-333.md | Probe | todo |
+| 5 | D-026 C4 older sign-in folders; #355 google.com follow-up; website Open of shared accounts | Forge | todo |
+| 6 | Stretch: D-027 shared account, switched off until reviewed | Forge | todo |
+| 7 | Unsigned RC from the frozen SHA, owner test checklist | Forge, Chief | todo |
+
 **25 Nov 21:50.** Forge pushed Sentinel's ruling to #353 (a9276d5, draft; `browser` check still running at 21:48). Next at 00:00: confirm CI, Probe re-checks a9276d5 (note: an ordinary-file `SingletonLock` now counts as running; #354 test updated), then full Sentinel review. Then Forge: older-sign-in folder deletion (D-026 C4) and #355 google.com follow-up; #357 enforce conditions. Reviews not started now: rest period begins 22:00.
 
 **25 Nov 21:35 daily report** (docs/daily/2026-11-25.md). 21 merged today, open #353 only (head a9276d5; CI pending: browser, macos, python (3.10), python (3.12); failed: none). Main 801f37d CI: Hub checks in_progress. Next at 00:00: confirm main CI; #353 CI, Probe, Sentinel; Probe post-merge check of #339 (no verdict on the PR). hub.ictconnect.org runs 7c20711, 108 commits behind main (Arnold's deploy decision).
