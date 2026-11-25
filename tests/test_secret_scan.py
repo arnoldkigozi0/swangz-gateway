@@ -73,6 +73,30 @@ class SecretScanTests(unittest.TestCase):
         f.write_bytes(b'"' + b"ASIA" + b"ABCDEFGHIJKLMNOP" + b'"')
         self.assertIn("AWS access key", [h["pattern"] for h in self.run_scan(f)[1]["hits"]])
 
+    def test_a_key_starting_a_compiled_python_constant_is_caught_at_every_length(self):
+        # Compiled code stores a short string as type byte, length byte, text: the length byte
+        # can be a letter, digit, "+" or "/", so one character of context must not hide a key.
+        import marshal
+        key = FAKE["AWS access key"]
+        missed = []
+        for length in range(20, 256):
+            value = key + "x" * (length - len(key))
+            code_obj = compile("SECRET = " + repr(value) + "\n", "settings.py", "exec")
+            f = self.dir / "settings.pyc"
+            f.write_bytes(marshal.dumps(code_obj))
+            code, rep, _, _ = self.run_scan(f)
+            if code != 1 or "AWS access key" not in [h["pattern"] for h in rep["hits"]]:
+                missed.append(length)
+        self.assertEqual(missed, [])
+
+    def test_a_key_after_a_short_escape_or_encoding_is_caught(self):
+        key = FAKE["AWS access key"].encode()
+        for before in (b'{"id": "x\\n', b"id%3D", b"KEY=ab+/"):
+            with self.subTest(before=before):
+                f = self.dir / "cfg.json"
+                f.write_bytes(before + key + b'"')
+                self.assertIn("AWS access key", [h["pattern"] for h in self.run_scan(f)[1]["hits"]])
+
     def test_each_pattern_is_found_and_masked(self):
         for name, value in FAKE.items():
             with self.subTest(name):

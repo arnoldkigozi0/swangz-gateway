@@ -26,8 +26,9 @@ PATTERNS = {
     "OpenAI key": rb"sk-(?:proj-|svcacct-)?[A-Za-z0-9_\-]{40,}",
     "GitHub token": rb"(?:gh[pousr]_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{40,})",
     # Not inside a base64 run: a DMG's block table is base64 full of A's and once read "...AAKIAAAAAAAQAACAAAAF".
-    # A real key sits after a quote, "=", ":", a space or a line start, never straight after a letter or digit.
-    "AWS access key": rb"(?<![A-Za-z0-9+/])(?:AKIA|ASIA)[0-9A-Z]{16}",
+    # Only a run of 8+ base64 characters hides a match: one character is not enough, because compiled Python
+    # stores a short string's length as one byte that can be a letter, digit, "+" or "/" (and "\\n" or "%3D" end in one).
+    "AWS access key": rb"(?<![A-Za-z0-9+/]{8})(?:AKIA|ASIA)[0-9A-Z]{16}",
     "Google API key": rb"AIza[0-9A-Za-z_\-]{35}",
     "Google OAuth client secret": rb"GOCSPX-[A-Za-z0-9_\-]{20,}",
     "Slack token": rb"xox[abprs]-[A-Za-z0-9\-]{10,}",
