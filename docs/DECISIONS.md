@@ -902,9 +902,13 @@ they are. **#339's refusal stays on main until the build below is reviewed and m
 - The folder is **kept** between turns. Deleting it would mean Arnold signs in again for every turn.
 
 **4. Removal.** The shared folder is deleted (D-026 F, `cleanup`) when: the device is revoked; `shared_browser` is
-turned off; no shared tool is set to open in the app any more; the person on the enrolment changes (C2); Swangz is
-uninstalled (C4, with `cleanup` in both uninstall paths). A locked folder becomes `purge_pending` and is deleted
-before any launch. **Deleting the folder does not end a copied session.** That needs the procedure in 6.
+turned off; no shared tool is set to open in the app any more; the person on the enrolment changes (C2); the person
+runs "Remove Swangz from this account" (`cleanup`, unelevated, in their own OS account, D-026 C4). A locked folder
+becomes `purge_pending` and is deleted before any launch. Shared folders exist only on company devices, and **the
+company build's uninstaller deletes no person's folders** (D-026 C4, company-installer amendment: no elevated delete
+inside user-writable folders). So the shared folder must go **before** the uninstall: disconnect the device in the
+console and let F1 run at each account's next contact, or run `cleanup` in each account, then uninstall. An
+uninstall alone leaves every account's shared folder, and with it the shared Google session, on disk. **Deleting the folder does not end a copied session.** That needs the procedure in 6.
 
 **5. Containment Arnold sets on the accounts before the first computer is enabled.** The console shows this list on
 the `shared_browser` switch, and the switch's audit entry records that the admin confirmed it.
