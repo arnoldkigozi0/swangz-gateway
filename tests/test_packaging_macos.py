@@ -515,12 +515,18 @@ class SignOutCheckTests(unittest.TestCase):
 
     def test_every_packaged_sign_out_check_uses_it(self):
         texts = {name: (ROOT / "packaging" / name).read_text(encoding="utf-8")
-                 for name in ("macos_policy.py", "macos_journey.py", "windows/policy.py")}
+                 for name in ("macos_policy.py", "macos_journey.py", "windows/policy.py", "windows/installer_e2e.py")}
         for name, text in texts.items():
             self.assertNotIn('"removed" in out', text, name)
         self.assertEqual(texts["macos_journey.py"].count("macos_policy.signed_out(code, out)"), 2)
         self.assertIn("macos_policy.signed_out(code, out)", texts["windows/policy.py"])
         self.assertIn("signed_out(code, out), out.strip()", texts["macos_policy.py"])
+        # the Windows journey's sign-out before the company enrolment: exit 0 alone also passes an unreachable server
+        # (step 7's own sign-out checks the Hub revoked the device, so only 7c needed this)
+        e2e = texts["windows/installer_e2e.py"]
+        step = e2e[e2e.index("# 7c. machine-policy tamper"):e2e.index("windows_policy.run(")]
+        self.assertNotIn(' app("logout")', step)  # the bare helper, which checks the exit code only
+        self.assertIn("require(macos_policy.signed_out(code, out)", step)
 
 
 class PolicyTamperTests(unittest.TestCase):
