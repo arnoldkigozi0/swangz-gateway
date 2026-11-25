@@ -512,10 +512,10 @@ class NoReadingTests(Base):
 class InventoryTests(unittest.TestCase):
     """§9.1 and E1: every caller of open_url is listed; a new one fails here. I2: only two modules name the profiles root."""
 
-    # core.login and gui._show_code: the Hub's own /device approval page (not an AI tool); gui.open_app: only the
-    # Chrome install page (INSTALL_PAGE), after a no_browser refusal. core.open_app has none: tools never leave the workspace.
+    # core.login and gui._show_code: the Hub's own /device approval page (not an AI tool); gui.repair_action: only the
+    # Chrome install page (INSTALL_PAGE), the button after a no_browser refusal. core.open_app has none: tools never leave the workspace.
     # shell.open_hub: fixed Hub reporting/account pages only (Sentinel PR246 review).
-    ALLOWED = {("core.py", "login"), ("gui.py", "_show_code"), ("gui.py", "open_app"),
+    ALLOWED = {("core.py", "login"), ("gui.py", "_show_code"), ("gui.py", "repair_action"),
                ("shell.py", "open_hub")}
 
     def test_open_url_callers(self):
@@ -530,7 +530,7 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(found, self.ALLOWED)
 
     def test_gui_open_url_targets(self):
-        # gui.open_app may open only the Chrome install page; _show_code only the approval page.
+        # gui.repair_action may open only the Chrome install page; _show_code only the approval page.
         src = (ROOT / "swangz_client" / "gui.py").read_text(encoding="utf-8")
         self.assertIn("shell.open_url(INSTALL_PAGE)", src)
         self.assertEqual(src.count("open_url("), 2)

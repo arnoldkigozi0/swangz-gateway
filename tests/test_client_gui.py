@@ -20,6 +20,7 @@ except Exception:  # noqa: BLE001 — no tkinter, or no display
 
 if HAVE_DISPLAY:
     from swangz_client import core, gui
+    from swangz_client import workspace_launcher as wl
 
 MANIFEST_PACKAGES = [
     {"id": "claude-code", "name": "Claude Code", "kind": "agent", "description": "Anthropic's coding agent.", "version": "1", "state": "installed", "installed_version": "1", "detail": "", "mode": "scoped"},
@@ -36,6 +37,7 @@ class FakeClient:
         self.login_error = None
         self.cleanup_pending = False
         self.cleanup_error = None
+        self.open_error = None
 
     def signed_in(self):
         return self.signed
@@ -83,6 +85,11 @@ class FakeClient:
 
     def open_app(self, tool_id):
         self.calls.append(("open", tool_id))
+        if self.open_error:
+            raise self.open_error
+
+    def refresh(self):
+        self.calls.append(("refresh",))
 
 
 def texts(widget):
@@ -185,6 +192,73 @@ class WindowTests(unittest.TestCase):
         self.assertIn("A newer version of Swangz is available.", " ".join(self.everything()))
         found["Canva"].invoke()
         self.assertIn(("open", "canva"), self.client.calls)
+
+    def refuse(self, error, page="Apps"):
+        app = self.make()
+        if page != "Home":
+            buttons(app.dock)[page].invoke()
+        self.client.open_error = error
+        with mock.patch.object(gui.shell, "open_url") as opened:
+            buttons(app.content)["Open" if page == "Apps" else "Canva"].invoke()
+        opened.assert_not_called()  # a refusal opens nothing by itself
+        app.root.update()
+        return app
+
+    def test_a_refused_open_says_why_what_to_do_and_offers_the_way_out(self):
+        for page in ("Home", "Apps"):
+            app = self.refuse(wl.LaunchError("no_browser"), page)
+            text = " ".join(self.everything())
+            self.assertIn("Google Chrome is needed", text, page)
+            self.assertIn(wl.MESSAGES["no_browser"], text)
+            self.assertIn("1. Get Google Chrome", text)
+            self.assertIn("wasn't opened", app.statusbar.cget("text"))
+            found = buttons(app.content)
+            for name in ("Get Google Chrome", "Try again", "Dismiss"):
+                self.assertIn(name, found)
+            with mock.patch.object(gui.shell, "open_url") as opened:
+                found["Get Google Chrome"].invoke()
+            opened.assert_called_once_with("https://www.google.com/chrome/")
+
+    def test_try_again_asks_the_hub_first_and_clears_the_panel_when_it_opens(self):
+        app = self.refuse(wl.LaunchError("launch_failed"), "Home")
+        self.client.calls.clear()
+        buttons(app.content)["Try again"].invoke()  # still refused: the panel stays
+        self.assertEqual(self.client.calls, [("refresh",), ("open", "canva")])
+        self.assertIn("Try again", buttons(app.content))
+        self.client.open_error, self.client.calls = None, []
+        buttons(app.content)["Try again"].invoke()
+        self.assertEqual(self.client.calls, [("refresh",), ("open", "canva")])
+        self.assertNotIn("Try again", buttons(app.content))
+        self.assertEqual(app.statusbar.cget("text"), "Opened in the Swangz workspace window.")
+
+    def test_a_hub_refusal_shows_the_hubs_words_and_the_weekly_report_button(self):
+        app = self.refuse(core.ApiFailure(403, "weekly_report_required", "Send last week's report to open Canva."))
+        self.assertIn("Send last week's report to open Canva.", self.everything())
+        with mock.patch.object(gui.shell, "open_hub") as hub:
+            buttons(app.content)["Open weekly reports"].invoke()
+        hub.assert_called_once_with(self.client, "weekly")
+
+    def test_the_panel_survives_a_redraw_and_goes_on_dismiss_or_page_change(self):
+        app = self.refuse(core.ApiFailure(403, "not_assigned", "Canva isn't assigned to you."))
+        app.sync_now()
+        app.root.update()
+        self.assertIn("Dismiss", buttons(app.content))
+        buttons(app.content)["Dismiss"].invoke()
+        self.assertNotIn("Dismiss", buttons(app.content))
+        app = self.refuse(wl.LaunchError("folder"))
+        buttons(app.dock)["Home"].invoke()
+        buttons(app.dock)["Apps"].invoke()
+        self.assertNotIn("Dismiss", buttons(app.content))
+
+    def test_a_revoked_device_on_open_goes_to_sign_in_not_a_repair_panel(self):
+        app = self.make()
+        self.client.open_error = core.Revoked(401, "device_revoked", "x")
+        self.client.signed = False
+        buttons(app.content)["Canva"].invoke()
+        app.root.update()
+        self.assertEqual(app.page, "signin")
+        self.assertIsNone(app.refusal)
+        self.assertNotIn("Try again", buttons(app.content))
 
     def test_the_dock_moves_between_pages(self):
         app = self.make()

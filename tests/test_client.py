@@ -242,8 +242,10 @@ class PersonalDeviceTests(ClientBase):
             with self.assertRaises(wl.LaunchError):
                 self.client.open_app("canva")
         self.assertEqual(self.opened, before)
-        with self.assertRaises(KeyError):
+        with self.assertRaises(wl.LaunchError) as ctx:  # not in this person's list: refused in plain words
             self.client.open_app("chatgpt")
+        self.assertEqual(ctx.exception.code, "unavailable")
+        self.assertEqual(self.opened, before)
 
 
 class CompanyDeviceTests(ClientBase):
