@@ -23,7 +23,10 @@ def self_check(destination):
     try:
         app = gui.App(client, root=root, inline=True)
         root.update_idletasks()
+        bundle = getattr(sys, "_MEIPASS", None)  # where the frozen program's own files are loaded from
+        beside = Path(sys.executable).resolve().parent / "_internal"
         report = {"version": __version__, "frozen": bool(getattr(sys, "frozen", False)),
+                  "one_folder": bool(bundle) and Path(bundle).resolve() == beside,
                   "window": app.page, "hub_address": app.server_var.get() if app.page == "signin" else None, "tk": root.tk.call("info", "patchlevel"),
                   "updates_enabled": release_keys.ENABLED, "production_keys": len(release_keys.KEYS)}
     finally:

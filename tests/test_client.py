@@ -838,8 +838,22 @@ class CommandLineTests(ClientBase):
         self.assertIn("current", text)
         code, text = self.run_cli("logout")
         self.assertEqual(code, 0)
-        self.assertIn("removed from this device", text)
+        self.assertIn("taken off this device", text)
+        self.assertNotIn("Swangz has been removed", text)  # the browser folders are not removed (yet)
+        self.assertIn("Not removed: browser folders that hold provider and Google sign-ins", text)
+        self.assertIn(str(self.client.paths.data / "browser-profiles"), text)
         self.assertEqual(self.run_cli("sync")[0], 2)
+
+    def test_cleanup_says_the_browser_folders_stay(self):
+        self.sign_in()
+        profiles = self.client.paths.data / "browser-profiles"
+        profiles.mkdir(parents=True, exist_ok=True)
+        code, text = self.run_cli("cleanup")
+        self.assertEqual(code, 0)
+        self.assertNotIn("Local Swangz data removed", text)
+        self.assertIn("Not removed: browser folders that hold provider and Google sign-ins", text)
+        self.assertIn(str(profiles), text)
+        self.assertTrue(profiles.is_dir())  # the message matches what cleanup actually leaves
 
     def test_a_disconnected_device_gets_a_plain_message(self):
         info = self.sign_in()
@@ -847,6 +861,8 @@ class CommandLineTests(ClientBase):
         code, text = self.run_cli("sync")
         self.assertEqual(code, 3)
         self.assertIn("was disconnected", text)
+        self.assertNotIn("has been removed", text)  # the browser folders stay until deletion is built
+        self.assertIn("Not removed: browser folders that hold provider and Google sign-ins", text)
 
 
 if __name__ == "__main__":

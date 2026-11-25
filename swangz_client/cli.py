@@ -125,14 +125,18 @@ def main(argv=None, client=None):
             core.check_newest_app(client.paths)  # after recover(): a rolled-back update has recorded its failed_version
         return run(args, client)
     except core.Revoked:
-        say("This device was disconnected from Swangz AI Hub, so Swangz has been removed from it.")
+        say("This device was disconnected from Swangz AI Hub, so the coding agents and packages Swangz installed were "
+            "taken off it.")
+        say(browser_folders_stay(client))
         return 3
     except core.OlderBuild as exc:
         say(f"{exc}  To sign out, run: {sign_out_command()}")
         if args.cmd in (None, "gui") and offer_sign_out(str(exc)):  # opened from Finder: nobody reads the terminal
             told = client.logout()
-            alert("Swangz has been removed from this computer. Open it again to sign in."
-                  + ("" if told else " (The server couldn't be reached, so ask an admin to disconnect this device too.)"))
+            alert("Signed out: the coding agents and packages Swangz installed were taken off this computer. Open it "
+                  "again to sign in."
+                  + ("" if told else " (The server couldn't be reached, so ask an admin to disconnect this device too.)")
+                  + "\n\n" + browser_folders_stay(client))
             return 0
         return 5
     except core.NeedsReconnect as exc:
@@ -157,6 +161,13 @@ def main(argv=None, client=None):
 def say_repair(fix):
     for line in repair.lines(fix):
         say(line)
+
+
+def browser_folders_stay(client):
+    """Until deletion is built (#333), logout and cleanup leave the company-browser folders on disk; say so. The
+    folder is named by browser_profiles alone, reached through the launcher (inventory and import guards)."""
+    return ("Not removed: browser folders that hold provider and Google sign-ins stay on this device at "
+            f"{workspace_launcher.profiles_folder(client.paths.data)}. Delete that folder yourself if you need those sign-ins gone.")
 
 
 def run(args, client):
@@ -238,11 +249,15 @@ def run(args, client):
         return 0
     if cmd == "logout":
         told = client.logout()
-        say("Swangz has been removed from this device." + ("" if told else " (The server couldn't be reached, so ask an admin to disconnect this device too.)"))
+        say("Signed out: the coding agents and packages Swangz installed were taken off this device."
+            + ("" if told else " (The server couldn't be reached, so ask an admin to disconnect this device too.)"))
+        say(browser_folders_stay(client))
         return 0
     if cmd == "cleanup":
         client.remove_everything()
-        say("Local Swangz data removed. Disconnect this device in the Hub if it is still enrolled.")
+        say("Swangz's installed agents, packages and key were removed. Disconnect this device in the Hub if it is "
+            "still enrolled.")
+        say(browser_folders_stay(client))
         return 0
     return 1
 
