@@ -1,5 +1,7 @@
 # Agent progress
 
+**26 Nov 00:20.** Probe journey on main 8b025a5: 50/52, both failures one break (issuing a key for a tool returns 500, API and CLI). Assigned to Forge (fix/issue-key-tool-scope; Probe then Sentinel). Draft #360 (f1c9a1c, docs/ACCEPTANCE-333.md) CI pending. Main Hub checks still in progress. Linux follow-up, unassigned: unreachable keyring leaves device.key after revocation/cleanup.
+
 **26 Nov 00:05.** Merged #353 (8b025a5): Probe VERIFIED + Sentinel APPROVED at a9276d5, CI green. Open: #358 (Anvil, f745a91, draft; Windows `Chrome publisher` jobs failing, other checks pending; Anvil working). Forge working. Probe assigned sprint item 4 (end-to-end journey on 8b025a5, docs/ACCEPTANCE-333.md). Budget: Claude and ChatGPT PAUSED; no task for Prism or Sentinel.
 
 **25 Nov 23:50 SPRINT (Arnold): no rest periods until 26 Nov 06:00 EAT.** The 02:00 and 04:00 routines do not stop or restart work. Goal: main working by morning so Arnold can update the server and run final tests. Feature merges stop 04:00; 04:00-05:30 final end-to-end run, installers from the frozen SHA, server update steps; 05:45 report. ChatGPT PAUSED (Prism idle). One local test/browser at a time.
@@ -9,7 +11,7 @@
 | 1 | #353 a9276d5: verify, review, merge | Probe, Sentinel, Chief | merged 8b025a5 |
 | 2 | Server update rehearsal 7c20711 -> main, exact commands and rollback | Forge | todo |
 | 3 | #333 gaps: Chrome install if missing (D-026) | Anvil | draft #358 |
-| 4 | End-to-end journey on main; refresh docs/ACCEPTANCE-333.md | Probe | doing |
+| 4 | End-to-end journey on main; refresh docs/ACCEPTANCE-333.md | Probe | review #360 |
 | 5 | D-026 C4 older sign-in folders; #355 google.com follow-up; website Open of shared accounts | Forge | todo |
 | 6 | Stretch: D-027 shared account, switched off until reviewed | Forge | todo |
 | 7 | Unsigned RC from the frozen SHA, owner test checklist | Forge, Chief | todo |
