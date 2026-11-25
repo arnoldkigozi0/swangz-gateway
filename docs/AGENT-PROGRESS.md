@@ -1694,3 +1694,14 @@ Daily report in docs/daily/2026-11-23.md. #332 merged (9977c2a), main CI green, 
 
 ## 25 Nov 04:05 Chief
 Sprint on #333 to 09:00. Open: #334 (D-026, CI green, awaiting Probe check at cd7ffa0), #335 (draft, Probe). Assigned: Forge (feature/333-launch uncommitted work to draft PR, then hub.ictconnect.org default), Anvil (feature/333-company-installer, D-026 B4/B5/B7; Prism paused on budget), Probe (verify #334, finish #335). Sentinel reviews Forge and Anvil PRs. RC installers rebuild after #333 PRs merge.
+
+## 25 Nov 06:00 Chief (shift end)
+Merged 04:00-06:00: #335, #336, #337 (main c403d30). Open: #338 (draft, D-026, supersedes #334; python 3.10/3.12 and app-window pass, browser check pending at 725bffe).
+| Owner | State | Next step |
+|---|---|---|
+| Forge | stop message sent; reply pending. Worktree 333-no-fallback (feature/333-no-fallback) clean at c403d30, no commit yet | D4 refusal message/repair panel and D tests (#338), then Windows company installer (D-026 B4/B5/B7), then unsigned test installers |
+| Probe | idle | verify #338 at 725bffe; merge when green |
+| Sentinel | idle | review the D4 and installer PRs |
+| Anvil | idle; installer work moved to Forge | none assigned |
+| Prism | paused (ChatGPT budget) | none |
+Awaiting Arnold: shared accounts inside the app's managed Chrome? A keep refused (current) / B open them there. Before physical testing: update the server, confirm a static IP.
