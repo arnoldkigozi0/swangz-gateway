@@ -41,7 +41,7 @@ from .admin import ApiError
 from .admin import route as admin_route
 from .staff import COOKIE, Ctx, _cookie, current_person, paused_person, route
 
-CLIENT_LATEST = "0.1.0"
+CLIENT_LATEST = "0.1.100"
 CLIENT_MINIMUM = "0.1.0"
 CODE_SECONDS = 15 * 60
 POLL_SECONDS = 3

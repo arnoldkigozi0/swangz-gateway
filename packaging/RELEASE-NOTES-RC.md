@@ -13,8 +13,9 @@ production-ready. Arnold approves any distribution beyond internal testing.
 | `Swangz-<version>.cdx.json` | same artifact | CycloneDX 1.5 SBOM: program hash, Python runtime, client modules, every bundled native file with its SHA-256, the hash-pinned build tools; validated by `cyclonedx-cli` |
 | `Swangz-Windows-installer-evidence` | separate artifact | `report.json`, installer/uninstaller logs, `reproducible-program.json`, `reproducible-installer.json` |
 
-The version is the tree's version with PATCH raised by the run number (0.1.0 becomes 0.1.<run>).
-No Hub address, key or secret is embedded. In-app updates are off (`release_keys.ENABLED = False`) until signed builds exist.
+The version is the tree's version with PATCH raised by the run number (0.1.100 becomes 0.1.<100 + run>).
+Sign-in starts with `https://hub.ictconnect.org`, which the person can change. No key or secret is embedded.
+In-app updates are off (`release_keys.ENABLED = False`) until signed builds exist.
 
 ## Build tools (pinned)
 
@@ -42,7 +43,7 @@ Signing, when it comes, will change the bytes by design; compare unsigned builds
 
 ## Acceptance evidence on the runner
 
-`installer_e2e.py` installs the previous build (0.1.0), launches it, enrols against a local test Hub, restarts it,
+`installer_e2e.py` installs the previous build (the tree's version), launches it, enrols against a local test Hub, restarts it,
 cuts and restores the network, upgrades to this build while it runs (device, key and Credential Manager entry kept,
 no new sign-in, new version in Apps & features and in the Hub's check-in), then uninstalls while it runs and checks the
 device key is gone.

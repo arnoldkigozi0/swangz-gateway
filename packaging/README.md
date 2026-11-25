@@ -104,7 +104,7 @@ The installer:
   changed and no Windows security setting is touched;
 - adds a Start-menu entry. Two optional tasks are off by default: a desktop shortcut, and starting Swangz at sign-in
   (the HKCU `Run` value `Swangz`, the same one the app's own switch uses);
-- carries no Hub address, key or secret: the person types the Hub address at first run;
+- carries no key or secret. Sign-in starts with `https://hub.ictconnect.org`, which the person can change;
 - installs no updater and schedules nothing. In-app updates stay off (`release_keys.ENABLED = False`) until signed
   releases exist;
 - uninstalls by first stopping the person's own running Swangz (started at sign-in, it would hold the program open),
@@ -121,8 +121,8 @@ runs the same secret scan over the app and its journey logs.
 window, `--background` start), enrol against the test suite's local Hub, restart, network interruption and recovery
 (through a local relay the script cuts and restores), an upgrade to this build while the program runs, then silent
 uninstall while it runs, checking the device key is gone from Windows Credential Manager. Steps 1-5 run on the previous
-build: the version in the tree, which is also the server's minimum client version, built first as a test input and never
-uploaded. This build raises PATCH by the run number (0.1.0 -> 0.1.<run>), the same scheme as the macOS journey. The
+build: the version in the tree (never below the server's minimum client version), built first as a test input and never
+uploaded. This build raises PATCH by the run number (0.1.100 -> 0.1.<100 + run>), the same scheme as the macOS journey. The
 upgrade must keep the device, its key and its Credential Manager entry, need no new sign-in, and show the new version in
 Apps & features and in the Hub's check-in record. The previous installer is then run over this build and must be refused (exit code 1, the reason in its log, nothing
 changed): `swangz.iss` refuses to replace a newer installed version, while reinstalling the same version and upgrading still work. Without `--previous`, step 6 reinstalls the same version. Its `report.json`
