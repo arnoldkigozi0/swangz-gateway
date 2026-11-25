@@ -1327,3 +1327,278 @@ OS account, runs unelevated and deletes link-safely; no elevated uninstall delet
 Limitations: the company uninstall leaves other accounts' folders (runbook: disconnect or `cleanup` per account
 first), and C2's retirement is not wired on main. E1: the manual run only on a company-owned computer. A2: the two
 Developer ID clauses from Chromium's requirement.
+
+## D-027 | 2026-11-25 | Shared company account opened in the Swangz app's own Chrome, on staff computers (option B-local, #333)
+
+**Context.** D-026 D4 refused shared company accounts (`signin = 'shared'`) in the app, because #333 ("every authorised
+web tool in the dedicated Chrome") conflicted with MANAGED-WORKSPACE §2 point 2 ("no shared provider identity") and
+D-026 C3 (one folder per person, never shared). #339 built that refusal. On 25 Nov 2026 Arnold chose option B, through
+Chief: the shared account is the Google account that holds Swangz's AI subscriptions (the Claude and ChatGPT plans the
+team uses). **Only Arnold signs it in**; an admin can only issue the setup code (1). Before choosing he was told that a
+local administrator or malware on a staff computer can copy the session, and that the turn holder can reach the
+account's Gmail, Drive and Google settings and could take it over. This decision is his product choice.
+
+**What it supersedes, for this path only** (a shared tool opened in the app on an admin-confirmed company device):
+MANAGED-WORKSPACE §2 point 2; D-026 C3; D-022's refusal; D-026 D4's "a separate folder for each turn, created when the
+turn starts and deleted when the window closes" (replaced by one kept folder, 2 and 3); and the D-026 G item "one
+person's session used by another". Everywhere else those rules stand. The remote company browser (Neko, D-022) and the
+staff web app's `/go/` are unchanged. **Personal computers are excluded entirely**: no shared folder, no setup code,
+the 409 stays. **#339's refusal stays on main until the build below is reviewed and the activation PR (task 7) lands.**
+
+**Threat note (STRIDE, short).**
+- *Assets:* the shared Google session (refresh cookies) and the provider sessions in the shared folder; the account's
+  Gmail, Drive, Gemini and Google settings; the Claude and ChatGPT plans, their billing, history, memory and connectors;
+  the plans' usage limits, which the team's own tools also draw on; Arnold's password and 2-step while he types them.
+- *Entry points:* the setup code and the setup window; `/device/open` for a shared tool; the shared folder on disk; the
+  open window; accounts.google.com, gemini.google.com, claude.ai, chatgpt.com and openai.com, which the pack allows.
+- *Abuse cases:* (1) the folder is copied and the account used elsewhere with no turn and no record; (2) the turn
+  holder changes the account's password, 2-step or recovery settings and takes the account over; (3) the turn holder
+  reads Gmail or Drive, directly or through Gemini or a provider connector; (4) the turn holder reads others' chats,
+  cancels a plan, creates API keys, exports data or deletes a provider account; (5) the window outlives the turn
+  (app quit, crash, a Chrome already running on the folder); (6) someone signs a different Google account into the
+  folder; (7) the account is suspended for sharing and the team's plans stop with it; (8) a revoked person keeps a
+  session; (9) a turn for one tool is used to reach the other shared tool in the same folder; (10) a keylogger on the
+  computer captures Arnold's password during setup; (11) one turn used from two places (app and `/go/`).
+
+**Decision.**
+
+**1. Sign-in: by hand, by Arnold only, never by Swangz.**
+- Swangz never stores, shows, transmits or fills the account's password, 2-step codes or recovery details. The gateway
+  keeps no identifier, password or cookie of this account (CLAUDE.md, D-026 G).
+- Setup per computer: in the console (Devices, a company device, area `govern`), an admin issues a one-time setup code
+  (128 bits or more, valid 10 minutes, bound to that device, single use, stored as a hash, audited). Issuing a code is
+  all an admin does; the admin never signs the account in. On that computer the app's "Set up shared account" field
+  takes the code; `/device/shared-setup` checks it and the app opens the shared folder at
+  `https://accounts.google.com/` with no turn. Arnold types the password and approves 2-step on his own phone.
+  **Setup signs in to Google only.** He does not sign in to Claude or ChatGPT during setup: with no turn the extension
+  blocks those hosts in both states (3a, task 6). The first turn holder for each tool enters it with "Continue with
+  Google" on the Google session Arnold left (3a).
+- **The setup window has a deadline and a Done step.** It closes at 10 minutes after the code was accepted (a local
+  timer, also offline), when Arnold presses Done in the app, and when a check-in says the device was revoked or
+  `shared_browser` was turned off. While the setup window or a shared window is open the app checks in every minute
+  (3), so that close takes up to about a minute online; offline only the local timer applies. Done and timeout are
+  reported in the next check-in, and the server audits them as `shared setup ended` with the reason (task 2). Without
+  a valid code the app never opens the shared folder outside a turn.
+- Arnold does setup only on computers he trusts, and prefers a passkey or security key to typing the password (see
+  What cannot be enforced).
+
+**2. One shared folder per company device, separate from every person's folder.**
+- One folder per enrolled device, a `browser-profiles/` entry bound to (Hub origin, `shared`, device), used only for
+  tools with `signin = 'shared'` that the admin has set to open in the app. A person's own folder never opens a shared
+  tool, and the app never sends a non-shared tool to the shared folder. Same checks as D-026 C1 and C5 (owner-only
+  ACL or `0700`, checked before every launch). The Hub's own address never opens in it (existing rule).
+- **One folder holds every shared provider session** (Google, Claude, ChatGPT). The app opens only the turn's tool, but
+  a window on the folder can navigate to any host the pack allows. Containment between tools is the extension (3a);
+  what stays open is listed under What cannot be enforced.
+- **Company devices only, confirmed by an admin:** the device needs `owner_kind = company` confirmed by an admin
+  (D-025 point 2, not built yet) **and** a separate per-device switch, `shared_browser`, that an admin turns on
+  (area `govern`, audited with before/after). The switch refuses to turn on unless the request records the admin's
+  confirmation of the point 5 checklist.
+- **Machine policy must pass, in any mode.** `/device/open` for a shared tool and `/device/shared-setup` each carry the
+  app's policy report in the request body (`"policy": {"ok", "sha256"}`, as `/device/open` already does,
+  device_open.py). The app computes it fresh (`POLICY_MAX_AGE`, 60 seconds, core.py); the server refuses unless that
+  request's report is `ok` and its hash equals the Hub's baseline, whatever `managed_policy_mode` is (`warn` too). A
+  report from an earlier request is never used. The app also refuses on its own check before the window starts (no
+  baseline known = refused). Refusal: 409 `workspace_policy`.
+- On a company device each employee has their own OS account (D-026 C2), so the folder belongs to that OS account.
+  Arnold signs in once for each such enrolment.
+
+**3. Turns.**
+- `/device/open` for a shared tool runs the same checks as `/go/` (`launch_checks`, policy, `managed.launch_refusal`),
+  then takes the turn and records the device on the turn (nullable `device_id` on `tool_turns`, new migration). Busy:
+  refused with when the turn frees. The answer carries the tool's own start address (checked against its own hosts,
+  as today) and the turn's end time.
+- **One turn, one place.** Today `turns.take` returns a person's existing turn unchanged from any device or `/go/`
+  (turns.py, the `mine` branch). For shared tools that changes: `/device/open` reuses an existing turn only when its
+  `device_id` is this device (same end time, never extended); a turn held through `/go/` (`device_id` NULL) or on
+  another device is refused with 409 `turn_elsewhere` and its end time. `/go/` refuses a shared tool whose turn is
+  bound to a device the same way. The person releases the turn first.
+- The app closes the shared window at the turn's end **by a local timer**, also offline, and earlier when a check-in
+  says the turn was released, the person was refused, `shared_browser` was turned off or no shared tool is set to open
+  in the app (the last two also delete the folder, 4). The normal heartbeat is every 15 minutes (`HEARTBEAT_SECONDS`,
+  core.py); **while a shared or setup window is open the app checks in every 60 seconds**, so these closes take up to
+  about a minute online. A new window always needs a new `/device/open`.
+- **Tracking the window.** Chrome forwards a second launch on the same folder to the running window, so the app may not
+  own the process that holds the folder (workspace_launcher `_start` keeps only the PID it started). For the shared
+  folder the app records the PID and process start time of the Chrome it started, in its own state, and on every app
+  start and before every shared launch it checks the folder's Chrome lock. A recorded process whose PID and start
+  time both match is closed at the turn's end, also after an app restart. A Chrome on the folder that the app did not
+  start (or whose start time does not match) is never signalled: the app refuses to open (`shared_window_open`,
+  "close the shared Swangz window first") and reports it in the next check-in; the server records it as a device
+  event and audits it (task 2).
+- The folder is **kept** between turns. Deleting it would mean Arnold signs in again for every turn.
+
+**3a. The extension in the shared folder.** The force-installed extension is signed in by the person, with their own
+Hub account. What it does today (extension/background.js):
+- **Signed in:** a shared tool's host opens only while the person holds that tool's turn. Without one it clears that
+  host's site data (`signOutOf`) and shows the blocked page. It checks turns every minute and clears the sites of
+  turns that ended, and clears every held shared site when Chrome starts. So a Claude turn cannot open ChatGPT in the
+  same folder, and a window left open after the turn loses the provider session within about a minute while online.
+  The Google session (accounts.google.com is not a tool host) is kept, so each new turn re-enters the provider with
+  "Continue with Google", with no password. This works only if both provider accounts use Google sign-in.
+- **No shared tool may live under `google.com`.** Clearing a site's cookies through `chrome.browsingData` clears the
+  whole registrable domain, so clearing a `gemini.google.com` tool also clears `accounts.google.com` and ends the
+  Google session Arnold left; the next turn could not re-enter without his password. The Hub's `/api/gate/turns`
+  lists **every** `signin = 'shared'` tool the person does not hold, not only those that open in the app. So: **while
+  any `signin = 'shared'` tool has a host under `google.com` (Gemini included), nothing shared opens in the app**, and
+  task 2 refuses with 409 `shared_account`, with a test. Gemini is never a shared tool on this path.
+- **Signed out:** today it gates nothing; every allowed host opens. For the shared folder that is fail-open, so task 6
+  makes a signed-out extension block the shared providers' hosts on company devices. A never-signed-in extension has
+  no host list from the Hub, so the list comes from the pack (task 6), not from the Hub.
+- **Setup is Google only** (1): with no turn, both states block claude.ai and chatgpt.com, so no provider sign-in is
+  made during setup and no setup exemption is built.
+- Probe verifies both states on a test computer before the activation PR.
+
+**4. Removal.** The shared folder is deleted (D-026 F, `cleanup`) when: the device is revoked; `shared_browser` is
+turned off; no shared tool is set to open in the app any more; the person on the enrolment changes (C2); the person
+runs "Remove Swangz from this account" (`cleanup`, unelevated, in their own OS account, D-026 C4). A locked folder
+becomes `purge_pending` and is deleted before any launch. Shared folders exist only on company devices, and **the
+company build's uninstaller deletes no person's folders** (D-026 C4, company-installer amendment: no elevated delete
+inside user-writable folders). So the shared folder must go **before** the uninstall: disconnect the device in the
+console and let F1 run at each account's next contact, or run `cleanup` in each account, then uninstall. An
+uninstall alone leaves every account's shared folder, and with it the shared Google session, on disk. **Deleting the
+folder does not end a copied session.** That needs the procedure in 6.
+
+**5. Containment Arnold sets on the accounts before the first computer is enabled.** The console shows this list on
+the `shared_browser` switch, and the switch's audit entry records that the admin confirmed it.
+- *Google account:* 2-Step Verification with Google prompts on his own phone, a security key or a passkey, not SMS
+  alone; recovery phone and recovery email are his own and known to no staff member; no app passwords; sign-in alerts
+  to his own address; he reviews Security → Your devices weekly. Keep nothing in that Gmail or Drive that staff must
+  not read.
+- *Gemini:* `gemini.google.com` is on the pack's allowlist, and Gemini can read Gmail and Drive through its Google
+  Workspace apps. Gemini is never a shared tool on this path (3a). Turn those apps off for this account, or remove
+  `gemini.google.com` from the pack (machine-wide).
+- *Claude (claude.ai) and ChatGPT (chatgpt.com):* the turn holder sees **all** history on the account, including
+  Arnold's own and every earlier turn holder's, plus Projects, files and memory, and can reach the billing page
+  (change or cancel the plan), data export and account deletion. Arnold: disconnect Gmail, Drive and other connectors
+  on both; turn memory off; delete or move chats he does not want shared; keep the payment method one that a plan
+  cancellation cannot extend to other charges. The plans' usage limits are shared with the team's own tools, so a turn
+  holder's heavy use slows them.
+- *OpenAI platform:* the pack allows `openai.com` with subdomains, so `platform.openai.com` (API keys, organisation
+  billing) is reachable if this account has an API organisation. Arnold confirms it has none, or the pack narrows
+  `openai.com` to the hosts ChatGPT's sign-in needs (machine-wide; Probe confirms the list).
+- *What the pack already blocks:* everything not on the allowlist, so `mail.google.com`, `drive.google.com`,
+  `myaccount.google.com` (password, 2-step, recovery, devices), `pay.google.com` and the Play Store are blocked.
+  `accounts.google.com` stays allowed (exact host), because Google sign-in and "Continue with Google" need it. From
+  there the turn holder can sign the account out, start "add account" or open account recovery. **UNVERIFIED:** that
+  the password, 2-step and recovery settings cannot be changed from `accounts.google.com` alone (Google may serve
+  some of those steps there). Probe tests it on a separate test account with the pack applied before the activation
+  PR; until then, treat a turn holder as able to take the account over.
+- Path blocks on SPA sites (for example `claude.ai/settings/billing`) are **not** a control. They apply to every
+  Chrome profile on the computer, and in-page navigation bypasses them. They are not added.
+
+**6. "Sign out of all sessions" procedure** (Arnold, on his own device). Run it when a person with a shared folder
+leaves, a computer is lost or sold, a copy is suspected, and once a month:
+1. Google: change the password (this signs out other sessions), then check Security → Your devices and sign out any
+   that remain.
+2. claude.ai and chatgpt.com: use each one's "log out of all devices" where offered (ChatGPT: Settings → Security).
+   Provider sessions survive a Google sign-out, so this step is separate.
+3. Google: Security → third-party access, remove anything unknown.
+4. Console: turn `shared_browser` off on the affected devices, then sign in again on each remaining computer (1).
+   Every staff computer needs his sign-in again after step 1.
+
+**7. Hub sign-in: no change.** The account is not `@swangzavenue.com` and not one of the two approved owner
+exceptions (`config.OWNER_EXCEPTIONS`), so it cannot sign in to the Hub or the console. It must never be added.
+
+**What cannot be enforced (stated plainly).**
+- The person whose OS account holds the shared folder, anything running as them, and any local administrator can copy
+  its cookies **at any time, not only during a turn**, or start Chrome on the folder by hand, and use the account with
+  no turn and no record. Turns gate the Swangz window, not the session. Preventing this would need Chrome to run as a
+  separate OS account, which needs a standing elevated helper (forbidden by D-026 B2). Every person with a shared
+  folder effectively holds the account all the time.
+- **One folder holds every shared provider session.** A copy of the folder, a hand-started Chrome or a signed-out
+  extension (until task 6) exposes Google, Claude and ChatGPT together, not only the turn's tool.
+- **Arnold's password and 2-step approval can be captured** when he types them on a staff computer: a keylogger, a
+  malicious extension or screen capture running as that OS account or as an administrator sees them. A passkey or
+  security key avoids typing the password; a captured 2-step prompt approval still gives one session. Setup only on
+  computers he trusts.
+- **A window can outlive its turn.** Quitting the app, an app crash, or a Chrome already running on the folder leaves
+  Chrome open: the app closes a recorded window at its next start or at the turn's end, and a signed-in extension
+  clears the provider site within about a minute while online. Release, revoke and switch-off reach an open window
+  only at the next check-in (about a minute while it is open); offline only the local timers apply. Offline, with the
+  app not running, the window stays open until someone closes it.
+- Which Google account is signed in: anyone in the window can sign out and sign in a different one. Policy cannot
+  restrict web sign-in for a consumer Google account.
+- What the turn holder does on the provider sites: reading history, cancelling a plan, exporting data, deleting a
+  provider account. Recovery is through the provider's support.
+- Use of the account outside the window cannot be attributed to a person.
+- Vendor terms: one consumer account used by many people from many computers may breach Google's, Anthropic's and
+  OpenAI's terms. A suspension stops the team's Claude and ChatGPT plans too. Google may challenge or lock the account
+  for sign-ins from many places; recovery depends on Arnold's recovery settings.
+- D-024 holds: tamper-evident, not tamper-proof. The server's policy check (2) trusts the app's own report.
+
+**Alternatives rejected.** The remote company browser (Neko) inside the app's Chrome (B-remote) keeps the session on
+one server, and no staff computer holds it. Arnold chose B-local. B-remote stays available under D-022's conditions.
+A fresh folder per turn (D-026 D4's shape): Arnold would have to sign in for every turn. One folder per shared tool:
+each still holds the full Google session, so it separates nothing the extension does not, and doubles Arnold's
+sign-ins. One folder for the whole computer, shared by its OS accounts: needs a folder other OS users can read, which
+exposes it to every account on the machine.
+
+**Consequences and build (Forge for gateway/ and swangz_client/, Prism for extension/ and the pack; Sentinel
+reviews each; the #339 refusal stays until task 7).** Gated on D-025 point 2 (admin-confirmed company) and D-026
+C4/F1 folder deletion working on that platform, including Windows. Smallest tasks, each one PR with its tests:
+1. **Migration and switches:** in the next `SCHEMA` entry, a nullable `device_id` on `tool_turns`, `devices.shared_browser`
+   (default 0) and a per-tool "open in the app" flag (default off). Console routes with `area='govern'` and
+   `ctx.audit(before=, after=, correlation='device:<id>' / 'tool:<id>')`, refusing `shared_browser` unless the device's
+   company kind is admin-confirmed and the request carries the point 5 confirmation. *Tests:* permission sweep
+   (V2PermissionTests); refused for a personal or unconfirmed device; refused without the containment confirmation,
+   and the audit row records it when given; viewer cannot change either switch.
+2. **`/device/open` for shared tools, the manifest and the heartbeat:** **lands switched off**: a server constant
+   (`SHARED_IN_APP = False`) keeps the 409 for every client; its tests switch it on. With it on, both switches on, the
+   device confirmed company, the request's own passing policy report with the baseline hash (any mode) and the
+   `shared_folder` capability **in that request** (never stored from an earlier one), take the turn with the same
+   checks as `/go/`, record `device_id`, return the start address and the end time; otherwise the existing 409
+   `shared_account` (or `workspace_policy`, `turn_elsewhere`); also 409 `shared_account` for every shared tool while
+   any `signin = 'shared'` tool has a host under `google.com` (3a). The manifest (`GET
+   /device/manifest?browser_contract=2`, enroll.py, today `workspace: false` for every shared tool) gives a shared tool
+   `workspace: true` only when the switches, the company kind and the `google.com` rule allow it and that GET carries
+   the `shared_folder` capability; a GET has no policy report, so the report is checked at open and setup only. An old
+   client never calls `/device/open` for a shared tool. The heartbeat answer carries the shared state: the device's
+   turn (tool, end) or none, `shared_browser`, and whether any shared tool opens in the app; it accepts the one-minute check-in while a shared
+   window is open (rate-limited), and receives and audits setup Done or timeout (`shared setup ended`, with reason) and
+   `shared_window_open` (`correlation='device:<id>'`).
+   *Tests:* busy turn refused with its end time; a turn from `/go/` or another device refused `turn_elsewhere`, and
+   `/go/` refused for a device-bound turn; a same-device repeat returns the same turn, not extended; denied,
+   expired-grant, suspended and revoked refused before any turn; missing, failing, stale or wrong-hash policy report
+   refused in `warn` and `enforce`; the turn row carries the device; a personal device always 409; the address is the
+   tool's own host; any shared tool with a `google.com` host (set to open in the app or not) makes every shared open
+   409 and every manifest entry `workspace: false`; the heartbeat reports release, switch off and no shared tool;
+   with the constant off every client gets 409 and the manifest says `workspace: false`; a capability sent only on an earlier request is not honoured;
+   setup ended and `shared_window_open` produce their audit rows.
+3. **Setup code:** console issues a code (≥128 bits, 10 min, single use, device-bound, stored as a hash, audited);
+   `/device/shared-setup` accepts it once, under the same policy check (the report in its body), and returns only
+   `https://accounts.google.com/`.
+   *Tests:* reuse, expiry, wrong device, a code from another device, a missing switch and a failing policy report are
+   refused; no route returns or logs the code after issue.
+4. **Client:** declares the `shared_folder` capability; the shared folder (bound to (origin, `shared`, device)) used only
+   for shared tools; its own fresh policy check before any shared window; the PID and start-time record and the lock
+   check (3); the setup window's deadline, Done button and close on revoke or switch off (1); the 60-second check-in
+   while a shared or setup window is open; closes the window at the turn's end by a local timer and on the check-in
+   signals; reports setup Done or timeout and `shared_window_open`; never opens outside a turn except after a valid setup
+   code; deleted in every case in point 4. *Tests:* a person's folder never opens a shared tool and the reverse; the
+   window closes at the end time with the network down; a recorded window is closed after an app restart, a PID whose
+   start time differs is never signalled, and an untracked Chrome on the folder refuses the open; setup window closes
+   at 10 minutes, on Done, on revoke and on switch off; release, switch off and no shared tool close the window (the
+   last two delete the folder); no `open_url` call for shared tools (#339's static test stays); folder deleted on
+   revoke, switch off, person change and `cleanup`; nothing from the folder is read, uploaded or logged.
+5. **Console copy:** the point 5 checklist on the switch, the point 6 procedure in the admin runbook, and the text
+   "access ended in Swangz; the shared account's sessions end only with the sign-out procedure".
+6. **Extension and pack (Prism; Sentinel reviews it as a D-024 baseline change):** the extension's manifest gets a
+   managed-storage schema (`storage.managed_schema`) with `company` (boolean) and `shared_hosts` (list). The company
+   pack sets them through Chrome's per-extension policy for the Swangz extension's ID (Windows: the registry key
+   `...\Policies\Google\Chrome\3rdparty\extensions\<id>\policy`; macOS: the preference domain
+   `com.google.Chrome.extensions.<id>` in the configuration profile), written by the same
+   elevated setup from the pinned values (D-026 B3/B4), and the baseline hash covers it, so changing it is a policy
+   mismatch. `shared_hosts` is a fixed list in the company build: the own hosts of the shared tools (claude.ai,
+   chatgpt.com, chat.openai.com; never a `google.com` host, 3a). Adding a shared tool needs a new
+   pack and baseline; task 2 refuses a shared tool whose own hosts are not all in a server copy of the list. With
+   `company` true and no Hub sign-in (including never signed in), the extension blocks every `shared_hosts` host. A
+   person's own folder never opens a shared tool, so this costs nothing there. *Tests:* signed out (and never signed
+   in) with `company` blocks claude.ai and chatgpt.com; without managed config it is unchanged (personal devices);
+   signed in without a turn clears the site and blocks; a turn for one shared tool does not open the other; the pack
+   writes the per-extension values on both platforms and the baseline changes when they change; the server's list
+   equals the pack's.
+7. **Activation (last, after Sentinel's review of 1-6 and Probe's checks in 3a and 5):** a separate small PR that sets
+   `SHARED_IN_APP = True`. Until it lands, every client gets 409 `shared_account`. *Tests:* an old
+   client without the `shared_folder` capability gets 409 even with every switch on; before activation, a new client
+   gets 409 too.
