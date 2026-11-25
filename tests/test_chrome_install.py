@@ -231,9 +231,9 @@ class InstallTests(unittest.TestCase):
 class SddlTests(unittest.TestCase):
     def test_program_files_defaults_are_safe(self):
         self.assertTrue(ci.sddl_safe(SAFE))
-        self.assertTrue(ci.sddl_safe("O:S-1-5-80-956008885-3418522649-1831038044-1849834513-2271427685"
-                                     "G:S-1-5-80-956008885-3418522649-1831038044-1849834513-2271427685"
-                                     "D:PAI(A;;FA;;;S-1-5-80-956008885-3418522649-1831038044-1849834513-2271427685)"
+        self.assertTrue(ci.sddl_safe("O:S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464"
+                                     "G:S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464"
+                                     "D:PAI(A;;FA;;;S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464)"
                                      "(A;;0x1200a9;;;BU)(A;;0x1200a9;;;AC)(A;OICIIO;GA;;;CO)"))
         self.assertTrue(ci.sddl_safe(ci.STAGING_SDDL))
 
@@ -248,6 +248,14 @@ class SddlTests(unittest.TestCase):
                      "", "garbage", "O:BAD:P(A;;FA;;;SY", "O:BAD:P(XX;;FR;;;BU)"):
             with self.subTest(sddl=sddl):
                 self.assertFalse(ci.sddl_safe(sddl))
+
+    def test_the_real_program_files_descriptor_from_a_windows_runner_is_safe(self):
+        ti = "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464"
+        self.assertTrue(ci.sddl_safe(
+            "O:%sD:PAI(A;;FA;;;%s)(A;CIIO;GA;;;%s)(A;;0x1301bf;;;SY)(A;OICIIO;GA;;;SY)(A;;0x1301bf;;;BA)"
+            "(A;OICIIO;GA;;;BA)(A;;0x1200a9;;;BU)(A;OICIIO;GXGR;;;BU)(A;OICIIO;GA;;;CO)(A;;0x1200a9;;;AC)"
+            "(A;OICIIO;GXGR;;;AC)(A;;0x1200a9;;;S-1-15-2-2)(A;OICIIO;GXGR;;;S-1-15-2-2)" % (ti, ti, ti)))
+        self.assertFalse(ci.sddl_safe("O:S-1-5-80-956008885-3418522649-1831038044-1849834513-2271427685D:P(A;;FA;;;SY)"))
 
     def test_deny_and_inherit_only_entries_do_not_make_a_folder_unsafe(self):
         self.assertTrue(ci.sddl_safe(SAFE + "(D;;FA;;;BU)(A;OICIIO;FA;;;BU)"))
