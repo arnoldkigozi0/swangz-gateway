@@ -475,6 +475,37 @@ class Profiles:
     def retire_owner(self, expected_owner):
         return self._retire_many(self._owner(expected_owner))
 
+    def retire_other_people(self, owner):
+        """A different person signed in on this OS account (D-026 C2): `retire_owner` for every owner found whose
+        marker names another person. -> True when none of their folders is left, under its own name or retired.
+        The same person's folders from an earlier sign-in of this device are kept (C4). A folder whose marker can't
+        be read is left alone: nothing says whose it is, and no owner is ever given it."""
+        fields = self._owner(owner)
+        with self._locked():
+            others = self._other_people(fields)
+        for other in others:
+            self.retire_owner(other)
+        with self._locked():
+            return not self._still_retired(self._cleanup()) and not self._other_people(fields)
+
+    def _other_people(self, fields):
+        """-> the distinct owners, among valid markers, that are a different (Hub, person) from `fields`."""
+        found = []
+        for path in self.root.iterdir():
+            if not FOLDER.fullmatch(path.name):
+                continue
+            try:
+                m = self._marker(path)
+            except ProfileError:
+                continue
+            if (m["origin"], m["person_id"]) == (fields["origin"], fields["person_id"]):
+                continue
+            seat = m["seat"] or {"id": None, "generation": None}
+            other = Owner(m["origin"], m["person_id"], m["device_id"], seat["id"], seat["generation"])
+            if all(other.fields != seen.fields for seen in found):
+                found.append(other)
+        return found
+
     def retire_all(self):
         """Explicit app-root cleanup, including safe profile folders with invalid/absent markers."""
         return self._retire_many(None)

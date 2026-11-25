@@ -438,6 +438,11 @@ a file that also has a name elsewhere (`shared_file`).
 a retired folder remains, preparing and opening any workspace on this account is refused with
 `purge_pending`; deletion is tried again before the next launch and at the next check-in.
 
+**A different person on the same account.** When someone else signs in, the earlier person's folders are deleted
+at the first check-in or sync, and again before a folder is prepared; until they are gone, Open is refused with
+`purge_pending`. "Someone else" means another Hub address or person ID in the folder's marker. The same person's
+folders are kept. A folder whose marker can't be read stays until Swangz is removed from the account.
+
 POSIX directories are 0700 and markers 0600, owned by the current uid. The supplied data directory must
 already exist, be owned by that uid and not be writable by group/others; it is never chmodded. Ancestors
 above it are outside the module's checks. Windows rejects reparse points from data downward:

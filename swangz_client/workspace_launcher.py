@@ -245,10 +245,14 @@ class Launcher:
 
     def ready(self, owner, generation=1):
         """Everything the device can check before asking the Hub: a usable browser, and the folder prepared and verified.
-        -> (browser, folder), or LaunchError. Run before /device/open so a refusal here is never recorded as an open."""
+        -> (browser, folder), or LaunchError. Run before /device/open so a refusal here is never recorded as an open.
+        An earlier person's folder is deleted first; while one is still on disk, none is prepared (D-026 C2)."""
         binary = self.finder()
         try:
-            folder = bp.Profiles(self.data).prepare(owner, generation)
+            profiles = bp.Profiles(self.data)
+            if not profiles.retire_other_people(owner):
+                raise LaunchError("purge_pending")
+            folder = profiles.prepare(owner, generation)
         except bp.ProfileError as exc:
             raise LaunchError(exc.code if exc.code in ("purge_pending", "generation_rollback") else "folder") from None
         except OSError:

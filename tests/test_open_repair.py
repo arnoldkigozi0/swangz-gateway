@@ -166,6 +166,25 @@ class FolderUseTests(twl.Base):
         self.assertNotIn(str(theirs), " ".join(self.calls[-1][0]))
         marker = json.loads((mine / bp.MARKER).read_text(encoding="utf-8"))
         self.assertEqual(marker["person_id"], "8")
+        self.assertFalse(theirs.exists(), "the first person's folder is deleted on a person switch (D-026 C2)")
+
+    def test_nothing_opens_while_the_first_persons_folder_cannot_be_deleted(self):
+        first, _ = self.client("7")
+        first.open_app("chatgpt")
+        theirs = self.folder_of(self.calls[-1])
+        self.restart()
+        second, opened = self.client("8")
+        started = len(self.calls)
+        with mock.patch.object(bp.Profiles, "_retire", side_effect=PermissionError("open files")):
+            with self.assertRaises(wl.LaunchError) as ctx:
+                second.open_app("chatgpt")
+        self.assertEqual(ctx.exception.code, "purge_pending")
+        self.assertEqual(len(self.calls), started, "no browser started")
+        self.assertNotIn("/device/open", [c.args[1] for c in second.api().call.call_args_list])
+        self.assertEqual([p.name for p in theirs.parent.iterdir() if bp.FOLDER.fullmatch(p.name)], [theirs.name],
+                         "no folder for the second person yet")
+        second.open_app("chatgpt")  # the next try deletes it and opens
+        self.assertFalse(theirs.exists())
 
     def test_a_hub_denial_or_missing_browser_starts_no_process_and_no_browser(self):
         denied = core.ApiFailure(403, "not_assigned", "No.")

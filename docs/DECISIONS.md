@@ -1224,9 +1224,14 @@ shown when a marker exists. The console text distinguishes local from provider r
   the account it runs in. Other OS accounts' folders, with their sessions, stay until F1 runs at that person's next
   contact or the person runs "Remove Swangz from this account". The admin runbook: disconnect the device in the
   console, or run `cleanup` in each account, **before** uninstalling.
-- On main, a second person signing in on the same OS account does **not** yet retire the first person's folder (C2):
-  `retire_owner` and `retire_all` exist in `browser_profiles.py` but nothing calls them. Until Forge wires it, the
-  first person's folder and sessions stay beside the second person's (each still opens only for its own owner).
+- C2 deletes on a person switch when the second person's app next gets an authenticated answer, or opens the
+  workspace; approving the sign-in alone deletes nothing. A person is the Hub address plus person ID in a folder's
+  marker, so a changed Hub address counts as a different person. A folder whose marker can't be read is left (nothing
+  says whose it is, and no owner is given it) until `cleanup`. While an earlier folder can't be deleted (for example
+  on Windows while its browser is still open), the second person's Open is refused with `purge_pending`. The switch
+  closes no browser: on macOS and Linux the folder is deleted under one still running.
+- A person who signs out and back in gets a new device ID, so a new folder is made. The older one is kept and never
+  reused: C4's "back to their own sessions" does not hold today.
 - Force-installing the extension on unmanaged Windows or macOS may need the Chrome Web Store listing. Publishing it
   needs Arnold's approval.
 
@@ -1314,9 +1319,10 @@ the launch, folder, verification, conflict-hash and revocation parts (A2–A4, C
 **D2 and D4 build: done** by #339 (merged as `7b95da0`): the shared-account refusal on company devices (message and
 repair panel) and the D tests (no `open_url` call for shared, denied, unknown and non-workspace tools; the static
 caller allow-list). No server change and no migration.
-**Next for C2, C4 and F1:** `cleanup` and revocation delete the folders on every platform, and a person switch calls
-`retire_owner` before the new folder is made (Forge); the per-user Windows uninstaller runs `cleanup` from `[Code]`
-with its result reported, and the macOS removal steps include it (Prism).
+**C2 build:** `Profiles.retire_other_people` calls `retire_owner` for every other person's marker, on the first
+authenticated answer and again before a folder is prepared (`Launcher.ready`); the same person's folders are kept.
+**Next for C2, C4 and F1:** `cleanup` and revocation delete the folders on every platform (Forge); the per-user
+Windows uninstaller runs `cleanup` from `[Code]` with its result reported, and the macOS removal steps include it (Prism).
 `enforce` stays off until D-025 point 2 and E5's acceptance check exist. R-12 changes: a folder is deleted on
 revocation, as well as on reassignment.
 

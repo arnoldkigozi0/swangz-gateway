@@ -423,10 +423,11 @@ class WindowsPolicyTamperTests(unittest.TestCase):
             self.assertIn(needle, block)
         self.assertLess(block.index("windows_policy.run("), block.index("device = enrol(approve_second[0])"))
 
-    def test_the_uninstall_runs_as_the_second_person_and_keeps_the_first_persons_folder(self):
+    def test_the_uninstall_runs_as_the_second_person_and_keeps_their_folder(self):
         self.assertIn("approve_second[:] = [approve]", self.e2e[self.e2e.index("def enrol_second"):])
         after = self.e2e[self.e2e.index("# 8. uninstall"):self.e2e.index("report[\"ok\"] = True")]
-        self.assertIn('hub_journey.kept(check, data, folder, marker, "after the uninstall', after)
+        self.assertIn('held = data / "browser-profiles" / report["two_at_once"][0]', self.e2e)
+        self.assertIn('hub_journey.kept(check, data, held, held_marker, "after the uninstall', after)
         self.assertLess(after.index("the Hub did not disconnect the device"), after.index("hub_journey.kept("))
 
     def test_a_refused_open_starts_no_chrome_and_each_sync_must_report_afresh(self):
