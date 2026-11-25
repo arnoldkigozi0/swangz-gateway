@@ -1,5 +1,7 @@
 # Agent progress
 
+**25 Nov 21:10.** Merged #351 (fdcfa81), #356 (b3864f4), #354 (801f37d): Probe VERIFIED + Sentinel APPROVED, CI green. Open: #353 only; Forge building Sentinel's ruling (then Probe, then full Sentinel review). Before release (Forge, unassigned): delete the same person's folders from an older device sign-in and amend D-026 C4. #356 Low note on the PR.
+
 **25 Nov 21:02.** Probe posted: VERIFIED #356 e948a82, #351 68aea0f, #354 6698d4d (all await Sentinel); FAIL #353 608506d (Administrator account refused; awaits Sentinel ruling, then Forge; rebase after #354).
 
 **25 Nov 20:58.** #354 6698d4d, #353 608506d, #356 e948a82, #351 68aea0f pushed, CI green, drafts. Sentinel: #353 ruling, then reviews #354, #351, #356; merge needs Probe VERIFIED too. #353 still open after the ruling: Administrator `wrong_account` fix (Forge), no uninstaller message when Hub unreachable. #353 and #354 conflict in 4 files: second to merge takes main and is re-checked.
