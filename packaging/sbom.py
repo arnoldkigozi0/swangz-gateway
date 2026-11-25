@@ -57,8 +57,9 @@ def _modules(reader):
 
 
 def archive_contents(program):
-    """(native files {name: sha256}, python modules [name]) from a PyInstaller program: a one-file .exe, or a .app
-    folder whose native files sit beside the executable that carries the module archive."""
+    """(native files {name: sha256}, python modules [name]) from a PyInstaller program: a one-file .exe, or a folder
+    (a .app, or the Windows one-folder build) whose native files sit beside the executable that carries the module
+    archive."""
     from PyInstaller.archive.readers import CArchiveReader
     program = Path(program)
     if program.is_file():
@@ -71,7 +72,7 @@ def archive_contents(program):
         rel = f.relative_to(program).as_posix()
         if NATIVE.search(f.name) or data[:4] in MACHO:
             native[rel] = sha256(data)
-        if data[:4] in MACHO or f.suffix == ".pkg":
+        if data[:4] in MACHO or f.suffix.lower() in (".pkg", ".exe"):  # .exe: the Windows one-folder (company) build
             try:
                 found = _modules(CArchiveReader(str(f)))
             except Exception:  # an ordinary library, not a PyInstaller archive
