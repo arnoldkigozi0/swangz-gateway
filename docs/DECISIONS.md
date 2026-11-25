@@ -1233,6 +1233,53 @@ Second pass (Probe at 6e7120d): the Limitations line now matches main (disconnec
 unsupported on Windows); C4 requires the Windows uninstaller to run `cleanup` after `logout` and adds it to the macOS
 removal steps; E1 names the manual-run exception; D2/D4 marked done by #339.
 
+**Amended 2026-11-25 (Sentinel's review of #342, the company installer).**
+- **B7.** The company install is its own script, `packaging/windows/swangz-company.iss`, with its own AppId. It
+  installs only with `/ALLUSERS`, only into `%ProgramFiles%\Swangz`, and only as the one-folder build. `swangz.iss`
+  stays per-user and never elevates. This replaces "in `swangz.iss`" in B7: two installer identities cannot
+  overwrite or uninstall each other, and the personal installer gains no elevation path.
+- **B4 at install time.** The installer checks only that the three values were typed whole, and that all three or
+  none were passed. An upgrade with none keeps the recorded values. `prepare.py`'s validators stay the only rule set,
+  applied by `policy-write` (B4). The unelevated app's offer check (B4) names a pinned value that fails those
+  validators, so a mistyped install is visible before anyone elevates.
+- **C4 on the company build.** The company uninstaller is machine-scope only. It stops the program and removes the
+  program folder, the shortcuts, the Apps entry and `HKLM\Software\Swangz\Pinned`. It runs no Swangz code over a
+  person's profile: no `logout` or `cleanup`, and no elevated delete of anything under any user profile. An
+  elevated recursive delete of user-writable folders is an arbitrary-delete primitive (junctions), and it would see
+  only the administrator's own profile anyway.
+  - **Per-person removal happens as the person, unelevated.** The supported order for retiring a company computer is:
+    1. Disconnect the device in the console. At each person's next contact, F1 closes the window, deletes their
+       folders and removes their key and Run item. Alternatively, each person runs "Remove from this computer"
+       (`Swangz.exe cleanup`) in their own session.
+    2. Then the administrator uninstalls.
+
+    "Sign out in the app" alone is not enough, because app sign-out keeps the folders (C4).
+  - **Stale Run items are accepted.** A Run item left in a person's `HKCU` points into `%ProgramFiles%\Swangz`, which
+    only administrators can recreate, so it cannot be hijacked (Limitations).
+  - **Machine policy.** When `policy-write` ships, the company uninstaller's first step is
+    `{app}\Swangz.exe admin policy-remove`, run by the administrator from the admin-only folder, reading only `HKLM`,
+    under E3's hash rule. On `conflict` it leaves the policy, logs it and says so, and the uninstall continues. Without
+    this step no Swangz program would remain to remove the policy.
+- **What the cleanup PR builds (Forge).** `Swangz.exe cleanup`:
+  - refuses with `elevated_refused` when its token is elevated;
+  - closes the managed window, runs `logout` while the key exists, then deletes every folder under
+    `browser-profiles/` on every platform, Windows included;
+  - deletes a reparse point itself, never its target, and deletes only paths that still resolve inside the app's data
+    folder;
+  - removes the `HKCU` Run item;
+  - names every folder it could not delete and exits non-zero;
+  - is idempotent.
+
+  The app's This device page offers it as "Remove Swangz from this account". The per-user `swangz.iss` runs `logout`
+  then `cleanup` (C4, unchanged).
+
+  *Tests:*
+  - an elevated token is refused;
+  - a junction inside `browser-profiles/` pointing outside is removed, and its target is untouched;
+  - a locked folder is reported, with a non-zero exit;
+  - a second run changes nothing;
+  - static: the company `.iss` runs no `Swangz.exe` verb other than `admin policy-remove`.
+
 **Consequences.** Forge builds A–F behind these tests on feature branches. Sentinel reviews each PR before merge.
 The elevated Windows steps (`chrome-install`, `policy-write`, `policy-remove`) are not built until Prism has made the
 company build one-folder and `/ALLUSERS`-capable with the B4 pinned values (`packaging/`, `swangz.iss`); Forge may build
