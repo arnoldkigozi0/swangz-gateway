@@ -1210,7 +1210,8 @@ class Client:
         for app in self.apps():
             if app["id"] == tool_id:
                 return self._open_in_workspace(app)
-        raise KeyError(tool_id)
+        from . import workspace_launcher as wl
+        raise wl.LaunchError("unavailable")
 
     def _open_in_workspace(self, app):
         from . import workspace_launcher as wl  # imports browser_profiles, which imports this module
