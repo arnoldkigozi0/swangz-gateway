@@ -53,6 +53,134 @@ Provider sign-in inside the managed Chrome is **Sign in with Google only, signed
 never stores, shares or types a provider password (`CLAUDE.md`). Which Google hosts that sign-in needs is being
 checked by Probe from the providers' own documentation; the Chrome pack is extended after that (Forge).
 
+## Update the server
+
+For a server that already runs the Hub. **Not run on the server: it needs the server, so every command here is
+Arnold's.** What the team did (25 and 26 Nov, East Africa time), on a laptop with a throwaway data folder and sample
+people, tools and devices: ran `7c2071125a54` (the commit seen on the server on 25 Nov), backed it up, ran `801f37d`
+on the same data, then rolled back. **Not rehearsed:** the setup script itself, `sudo`, systemd, Caddy, a browser
+running the extension, and the Windows and macOS apps (the app was driven from its Python code on Linux, old version
+and new).
+
+**Which commit.** Chief names a merged `main` commit with green CI (`<new>` below). The rehearsal covers `801f37d`.
+Chief runs `git diff --stat 801f37d <new> -- gateway deploy .env.example`; if it lists anything, the rehearsal is
+repeated before the update.
+
+### What changes from `7c2071125a54` to `801f37d`
+
+| Area | Change |
+|---|---|
+| Database | Schema v29 becomes v30 (three new columns on devices) when the new code first starts. No rows were lost in the rehearsal. There is no way down: **the old code starts and answers on a v30 database without complaint, so nothing stops that mistake. Never do it**; roll back as below |
+| `.env`, systemd units, Caddyfile | No change between these commits. The same `.env` gave the same `preflight` result |
+| Sessions, app and extension tokens, staff keys | An admin session, a staff session, a connected extension's token and an issued key made before the update still worked |
+| Swangz app 0.1.0 | Synced, checked in, rotated its key and enrolled against the new Hub. The Hub now reports 0.1.100 as the latest version |
+| Shared accounts on `google.com` | The new Hub refuses to add or edit such a tool (even its description) until its sign-in method is changed, and leaves `google.com` out of its list of sites to sign out. Reading the extension's code (not run in a browser), it can still clear one for the person whose turn ends; a fix is open. **Before updating**, look in Tools for a shared account whose address, sign-in link or company browser is under `google.com`, and choose another method |
+| Marking a device company or personal | The new Hub has a request for it; the console has no control for it yet. Known gap seen in the rehearsal: after a company device is changed to personal, the app keeps checking the browser policy |
+
+### Update
+
+Pick a quiet time: the gateway restarts, which cuts any AI request in flight.
+
+1. **Write down what runs now.** This is the commit to roll back to:
+
+   ```bash
+   cat /opt/swangz-gateway/COMMIT
+   ```
+
+2. **Back up first, into its own folder.** The setup script also takes a backup, but only after the new code has
+   started and changed the database, so that one cannot be used with the old code. The separate folder keeps this copy
+   from being pruned with the nightly ones.
+
+   ```bash
+   cd /opt/swangz-gateway
+   sudo -u swangz python3 -m gateway backup --dir data/backups/pre-update
+   sudo -u swangz python3 -m gateway backup-verify data/backups/pre-update/<file>.db.gz
+   ```
+
+   Expected: `... integrity ok`, then `... checksum and integrity ok`. Write down the file name. If either fails, stop.
+
+3. **Install the new commit**, from the clone made at install (`SERVER-DAY.md` section 3):
+
+   ```bash
+   cd <the swangz-gateway clone>
+   git fetch origin && git checkout <new>
+   sudo bash deploy/setup-gateway-server.sh hub.ictconnect.org
+   ```
+
+   Expected: it ends with `The gateway is running. Next:`. It keeps `.env` and the database.
+
+4. **Check.**
+
+   ```bash
+   curl -s https://hub.ictconnect.org/healthz
+   cd /opt/swangz-gateway
+   sudo -u swangz python3 -m gateway health-check --url https://hub.ictconnect.org/healthz --expect-commit <new>
+   sudo -u swangz python3 -m gateway preflight
+   sudo -u swangz python3 -m gateway backup-verify --latest
+   ```
+
+   | Check | Expected |
+   |---|---|
+   | `healthz` | `"ok": true` and the first 12 characters of `<new>` |
+   | `health-check` | `up: version ..., commit ...` |
+   | `preflight` | `0 to fix` |
+   | `backup-verify --latest` | `restore check ok: ... schema v30` (the backup the script just took) |
+   | `/admin` | Sign in; People, Tools and Devices show what they showed before |
+   | One staff person | Opens an assigned tool from the Hub; an unassigned one stays refused; Activity shows the Open |
+   | Their browser extension and Swangz app | The extension still guards sites; `swangz sync` finishes without an error |
+
+   Any other result: stop, send Chief the output (never `.env`), and decide whether to roll back.
+
+### Roll back
+
+This is the restore in `SERVER-DAY.md` section 11, spelled out. It brings back the backup from step 2, so **everything recorded after it is undone. Access removed after that
+backup works again**: tools turned off, suspended people, revoked keys, disconnected devices, removed console users and
+emergency stops. Later password changes and sign-ins are lost too.
+
+```bash
+cd /opt/swangz-gateway
+sudo -u swangz python3 -m gateway backup --dir data/backups/after-update
+sudo systemctl stop swangz-gateway-health.timer swangz-gateway-backup.timer swangz-gateway-backup-verify.timer swangz-gateway
+sudo -u swangz mkdir -p data/after-update
+sudo -u swangz sh -c 'mv data/gateway.db* data/after-update/'
+sudo -u swangz sh -c 'umask 077; gunzip -c data/backups/pre-update/<file>.db.gz > data/gateway.db'
+```
+
+Run them one at a time; each must succeed before the next. The exception is the first one: if the new version cannot
+take a backup, carry on, because the newer database is moved aside, not deleted. If `gunzip` fails, do not start
+anything (the service would run on an empty or partial database); send Chief the output.
+
+**List what changed after the backup**, before starting the old code, and keep the output:
+
+```bash
+sudo -u swangz python3 - <<'EOF'
+import sqlite3
+new = sqlite3.connect("data/after-update/gateway.db")
+old = sqlite3.connect("data/gateway.db")
+last = old.execute("SELECT COALESCE(MAX(id),0) FROM audit").fetchone()[0]
+for row in new.execute("SELECT datetime(ts,'unixepoch'), actor, action, target, outcome FROM audit WHERE id > ? ORDER BY id", (last,)):
+    print(*row, sep=" | ")
+EOF
+```
+
+Times are UTC. Then start the old version (the script restarts the gateway and turns the timers back on):
+
+```bash
+cd <the swangz-gateway clone>
+git checkout <the commit written down in step 1>
+sudo bash deploy/setup-gateway-server.sh hub.ictconnect.org
+curl -s https://hub.ictconnect.org/healthz
+cd /opt/swangz-gateway
+sudo -u swangz python3 -m gateway backup-verify --latest
+```
+
+Expected: `healthz` shows the old commit; `restore check ok: ... schema v29` when that commit is `7c2071125a54`.
+
+**Immediately afterwards**, sign in at `/admin` and repeat every removal in the list. Until then that access is live.
+A device that was enrolled, or whose key was renewed, after the backup says `The Hub no longer recognises this device.
+Local data was kept. Retry, or sign out and reconnect.` On it, run `swangz logout`, then
+`swangz login --server https://hub.ictconnect.org`, and approve the code in the browser.
+
 ## If something fails
 
 `SERVER-DAY.md` "If something fails": certificate (`journalctl -u caddy -n 50`; ports 80 and 443 must be open at the
