@@ -40,6 +40,9 @@ class FakeClient:
         self.cleanup_error = None
         self.open_error = None
         self.company = False
+        self.browser = {"contract": 2, "workspace": {"state": "active", "generation": 1}}
+        self.store = SimpleNamespace(manifest=lambda: {"browser": self.browser}, device=lambda: {})
+        self.workspace = SimpleNamespace(latch=lambda: {})
 
     def signed_in(self):
         return self.signed

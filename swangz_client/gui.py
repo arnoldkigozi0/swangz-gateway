@@ -35,20 +35,27 @@ def clock(ts):
 
 
 def app_note(client, app):
-    """The Apps row's line: what pressing Open really does for `app` on this computer (core.Client.open_app). A tool
-    the Hub marks for the workspace opens in the Swangz workspace window; anything else opens nothing in this app
-    (D-026 D4): a company computer is told to ask the administrator, a personal one to use Swangz AI Hub."""
-    shared = app.get("signin") == "shared"
+    """The Apps row's line: what pressing Open does for `app` on this computer, checked in core.Client.open_app's own
+    order: the contract-2 workspace, its state, a refusal held by the workspace latch (read only: drawing a row never
+    retries a purge), then the workspace tool, then whose computer it is (D-026 D4)."""
+    manifest = client.store.manifest() or {}
+    browser = manifest.get("browser") or {}
+    if not isinstance(browser, dict) or browser.get("contract") != 2:
+        return "Doesn't open until this device has a Swangz workspace window. Update Swangz, or ask your admin"
+    state = (browser.get("workspace") or {}).get("state")
+    if state == "retired":
+        return "Doesn't open: your admin removed the Swangz workspace from this device"
+    if state != "active":
+        return "Doesn't open while this device's workspace is paused. Ask your admin"
+    held = client.workspace.latch()
+    if held.get("purge_pending") or held.get("refused"):
+        return "Doesn't open right now. Press Open to see why"
     if client.workspace_app(app):
         return "Opens in your Swangz workspace window"
-    if app.get("workspace") is True:
-        return "Opens in your Swangz workspace window once this device has one. Update Swangz, or ask your admin"
+    shared = "Shared company account. " if app.get("signin") == "shared" else ""
     if client.company_device():
-        return ("Shared company account. " if shared else "") + \
-            "Doesn't open on this company computer yet; ask your administrator"
-    if shared:
-        return "Shared company account, one turn at a time. Open it from Swangz AI Hub"
-    return "Open it from Swangz AI Hub"
+        return shared + "Doesn't open on this company computer yet; ask your administrator"
+    return ("Shared company account, one turn at a time. " if shared else "") + "Open it from Swangz AI Hub"
 
 class App:
     def __init__(self, client, root=None, inline=False, background=False):

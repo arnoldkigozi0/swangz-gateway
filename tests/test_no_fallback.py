@@ -33,7 +33,7 @@ class RefusalTests(twl.Base):
     """Company and personal computers alike: shared, Hub-denied, unknown and non-workspace tools."""
 
     def client(self, kind="personal", record=None, **kw):
-        client, opened, api = twl.OpenAppTests.client(self, apps=APPS, **kw)
+        client, opened, api = twl.OpenAppTests.client(self, **{"apps": APPS, **kw})
         manifest = client.store.manifest()
         if kind:
             manifest["device"] = {"owner_kind": kind}
@@ -105,8 +105,21 @@ class RefusalTests(twl.Base):
                 self.assertEqual((exc.code, exc.message), ("shared_account", words))
 
 
+# Only shapes gateway/enroll.py's manifest can produce: under contract 2 every app carries `hosts` and
+# `workspace = not shared`, so the only non-workspace tool is a shared account; without contract 2 neither key is sent.
+ROW_APPS = [
+    {"id": "chatgpt", "name": "ChatGPT", "signin": "own", "company_browser": False,
+     "open": "https://hub.example/go/chatgpt?d=dev-1", "hosts": twl.HOSTS, "workspace": True},
+    {"id": "midjourney", "name": "Midjourney", "signin": "shared", "company_browser": True,
+     "open": "https://hub.example/go/midjourney?d=dev-1", "hosts": twl.HOSTS, "workspace": False},
+]
+NO_CONTRACT_APPS = [{k: v for k, v in a.items() if k not in ("hosts", "workspace")} | {"open": a["open"].split("?")[0]}
+                    for a in ROW_APPS]
+
+
 class AppsRowTests(RefusalTests):
-    """The Apps page's line for each tool agrees with what Open really does, on a real Client (#333 D-026 D4)."""
+    """The Apps page's line for each tool agrees with what a real Client's open_app does (#333 D-026 D4), in
+    open_app's order: contract 2, workspace state, a refusal the latch holds, the workspace tool, then ownership."""
 
     def note(self, client, tool):
         try:
@@ -115,35 +128,56 @@ class AppsRowTests(RefusalTests):
             self.skipTest("needs tkinter")
         return gui.app_note(client, next(a for a in client.apps() if a["id"] == tool))
 
-    def test_each_row_says_what_open_does(self):
-        rows = {
-            "company": {"midjourney": "Shared company account. Doesn't open on this company computer yet; ask your administrator",
-                        "canva": "Doesn't open on this company computer yet; ask your administrator"},
-            "personal": {"midjourney": "Shared company account, one turn at a time. Open it from Swangz AI Hub",
-                         "canva": "Open it from Swangz AI Hub"},
-        }
-        for kind, expected in rows.items():
-            for tool, words in expected.items():
-                client, opened, _ = self.client(kind)
-                self.assertEqual(self.note(client, tool), words, (kind, tool))
-                exc = self.refused(client, opened, tool)  # and Open really opens nothing, saying the same
-                self.assertIn("ask your administrator" if kind == "company" else "Open it from Swangz AI Hub", str(exc))
-            client, _, _ = self.client(kind)
+    def check(self, words, code, kind="personal", tools=("chatgpt", "midjourney"), **kw):
+        kw = {"apps": ROW_APPS, **kw}
+        for tool in tools:
+            client, opened, _ = self.client(kind, **kw)
+            self.assertEqual(self.note(client, tool), words, (kind, tool))
+            self.assertEqual(self.refused(client, opened, tool).code, code, (kind, tool))
+
+    def test_without_a_contract_2_workspace_nothing_opens(self):
+        for kind in ("company", "personal"):
+            self.check("Doesn't open until this device has a Swangz workspace window. Update Swangz, or ask your admin",
+                       "no_workspace", kind, contract=None, apps=NO_CONTRACT_APPS)
+
+    def test_a_retired_workspace_says_so(self):
+        for kind in ("company", "personal"):
+            self.check("Doesn't open: your admin removed the Swangz workspace from this device", "retired", kind,
+                       state="retired")
+
+    def test_a_suspended_or_unknown_workspace_is_paused(self):
+        for kind in ("company", "personal"):
+            for state in ("suspended", "something-new"):
+                self.check("Doesn't open while this device's workspace is paused. Ask your admin", "not_active", kind,
+                           state=state)
+
+    def test_a_refusal_the_latch_holds_wins_over_an_active_manifest(self):
+        for code in ("revoked", "refused_by_hub", "generation_rollback"):
+            for tool in ("chatgpt", "midjourney"):
+                client, opened, _ = self.client("personal", apps=ROW_APPS)
+                client.workspace.refuse(code, close=False)
+                self.assertEqual(self.note(client, tool), "Doesn't open right now. Press Open to see why", code)
+                self.assertEqual(self.refused(client, opened, tool).code, code)
+
+    def test_the_workspace_tool_opens_in_the_workspace_window(self):
+        for kind in ("company", "personal"):
+            client, opened, _ = self.client(kind, apps=ROW_APPS)
             self.assertEqual(self.note(client, "chatgpt"), "Opens in your Swangz workspace window")
-            self.assertTrue(client.workspace_app(next(a for a in client.apps() if a["id"] == "chatgpt")))
+            self.assertEqual(client.open_app("chatgpt"), "workspace")
+            opened.assert_not_called()
+
+    def test_a_shared_account_row_depends_on_whose_computer_it_is(self):
+        self.check("Shared company account. Doesn't open on this company computer yet; ask your administrator",
+                   "shared_account_company", "company", tools=("midjourney",))
+        self.check("Shared company account, one turn at a time. Open it from Swangz AI Hub", "shared_account",
+                   "personal", tools=("midjourney",))
 
     def test_no_row_promises_a_company_browser_of_your_own(self):
         for kind in ("company", "personal"):
-            client, _, _ = self.client(kind)
-            for app in client.apps():
-                self.assertNotIn("company browser", self.note(client, app["id"]), (kind, app["id"]))
-
-    def test_a_workspace_tool_without_a_workspace_window_says_so(self):
-        client, _, _ = self.client("personal")
-        manifest = client.store.manifest()
-        manifest["browser"] = None
-        self.assertIn("once this device has one", self.note(client, "chatgpt"))
-        self.assertEqual(self.refused(client, mock.Mock(), "chatgpt").code, "no_workspace")
+            for kw in ({}, {"state": "retired"}, {"contract": None, "apps": NO_CONTRACT_APPS}):
+                client, _, _ = self.client(kind, **{"apps": ROW_APPS, **kw})
+                for app in client.apps():
+                    self.assertNotIn("company browser", self.note(client, app["id"]), (kind, kw, app["id"]))
 
 
 class RepairPanelTests(unittest.TestCase):
@@ -171,16 +205,31 @@ class RepairPanelTests(unittest.TestCase):
 
 # ------------------------------------------------------------------ the static allow-list
 
-OPENERS = ("open_url", "webbrowser", "startfile")
+OPENERS = ("open_url", "webbrowser", "startfile", "ShellExecute", "ShellExecuteW", "ShellExecuteA", "ShellExecuteExW",
+           "ShellExecuteExA")
 OPENER_TEXT = (*OPENERS, "xdg-open")
-# Programs that hand an address to the default browser: macOS `open`, Windows `cmd /c start` and `explorer`, and
-# `osascript` (AppleScript can `open location`). Caught as an argv's first item, or as the start of a shell string.
-LAUNCHERS = ("open", "cmd", "explorer", "osascript", "xdg-open")
-# `open` and `start` are ordinary words too, so as a shell string they count only lower-case, at the very start and
-# followed by an address, a quote, an option or nothing (`'open ' + url`).
-SHELL_LAUNCH = re.compile(r"(?:(?i:\s*(?:\S*[/\\])?(?:explorer|osascript|xdg-open)(?:\.exe)?(?:\s|$))"
+# Programs that can hand an address to the default browser. Caught as an argv's first item (a list or tuple literal,
+# or the program argument of os.exec*/os.spawn*/os.system/subprocess), or at the start of a shell string.
+LAUNCHERS = ("open", "cmd", "explorer", "osascript", "xdg-open", "rundll32", "powershell", "pwsh", "gio",
+             "x-www-browser", "sensible-browser", "gnome-open", "kde-open")
+RUNNERS = ("system", "popen", "Popen", "run", "call", "check_call", "check_output", "getoutput", "getstatusoutput",
+           "execv", "execve", "execvp", "execvpe", "execl", "execle", "execlp", "execlpe", "spawnv", "spawnve", "spawnvp",
+           "spawnvpe", "spawnl", "spawnle", "spawnlp", "spawnlpe", "posix_spawn", "posix_spawnp")
+# `open` and `start` are ordinary words too, so as a shell string they count only at the very start, followed by an
+# address, a quote or an option, or followed by nothing when written lower- or upper-case (`'open ' + url`,
+# `'START ' + url`; never `'Open ' + name`).
+SHELL_LAUNCH = re.compile(r"(?:(?i:\s*(?:\S*[/\\])?(?:explorer|osascript|xdg-open|rundll32|powershell|pwsh|x-www-browser"
+                          r"|sensible-browser|gnome-open|kde-open)(?:\.exe)?(?:\s|$))"
+                          r"|(?i:\s*(?:\S*[/\\])?gio\s+open\b)"
                           r"|(?i:\s*(?:\S*[/\\])?cmd(?:\.exe)?\s+/[ck]\s+start\b)"
-                          r"|(?:start|open)\s+(?:$|-|[\"'{]|https?:))")
+                          r"|(?:start|open|START|OPEN)\s+(?:$|-|[\"'{]|https?:)"
+                          r"|(?i:(?:start|open)\s+(?:-|[\"'{]|https?:)))")
+# Anywhere in a string: PowerShell's Start-Process, the Shell API by name, rundll32's URL handler, AppleScript's
+# `open location`.
+ANYWHERE = re.compile(r"(?i)\bstart-process\b|\bshellexecute|\bfileprotocolhandler\b|\bopen\s+location\b")
+# Known limits, stated rather than caught: a program name held in a variable or built at run time ('xdg-' + 'open',
+# a name from a file or the Hub), a getattr/__import__ whose name is computed, ctypes reaching the Shell API by a
+# computed name or ordinal, and native code. These would need a run-time check, not a source scan.
 
 
 def launcher(text):
@@ -195,6 +244,12 @@ def browser_references(source):
     found = Counter()
     tree = ast.parse(source)
     argv0 = {id(n.elts[0]) for n in ast.walk(tree) if isinstance(n, (ast.List, ast.Tuple)) and n.elts}
+    for n in ast.walk(tree):  # the program argument: os.spawn* take a mode first
+        name = getattr(n, "func", None) and getattr(n.func, "attr", getattr(n.func, "id", None))
+        if isinstance(n, ast.Call) and name in RUNNERS:
+            at = 1 if name.startswith("spawn") else 0
+            if len(n.args) > at:
+                argv0.add(id(n.args[at]))
 
     def visit(node, scope):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
@@ -205,7 +260,8 @@ def browser_references(source):
         elif isinstance(node, ast.Attribute):
             hits = [node.attr]
         elif isinstance(node, ast.Constant) and isinstance(node.value, str):
-            if node.value in OPENER_TEXT or SHELL_LAUNCH.match(node.value) or (id(node) in argv0 and launcher(node.value)):
+            if node.value in OPENER_TEXT or SHELL_LAUNCH.match(node.value) or ANYWHERE.search(node.value) \
+                    or (id(node) in argv0 and launcher(node.value)):
                 hits = ["xdg-open"]  # any launcher counts once, as a way to the default browser
         elif isinstance(node, ast.Import):
             hits = [a.name.split(".")[0] for a in node.names]
@@ -278,9 +334,55 @@ class BrowserCallerTests(unittest.TestCase):
             ("def a(u):\n    os.system('open ' + u)\n", "a"),
             ("def a(u):\n    os.system(f'open \"{u}\"')\n", "a"),
             ("def a(u):\n    subprocess.run(['osascript', '-e', 'open location \"' + u + '\"'])\n", "a"),
+            ("def a(u):\n    subprocess.run(['powershell', '-c', 'Start-Process ' + u])\n", "a"),
+            ("def a(u):\n    subprocess.run('pwsh -c \"Start-Process ' + u + '\"', shell=True)\n", "a"),
+            ("def a(u):\n    subprocess.run(['rundll32', 'url.dll,FileProtocolHandler', u])\n", "a"),
+            ("def a(u):\n    subprocess.run(['gio', 'open', u])\n", "a"),
+            ("def a(u):\n    os.system('gio open ' + u)\n", "a"),
+            ("def a(u):\n    os.execv('/usr/bin/open', ['open', u])\n", "a"),
+            ("def a(u):\n    os.execlp('xdg-open', 'xdg-open', u)\n", "a"),
+            ("def a(u):\n    os.spawnlp(os.P_NOWAIT, 'open', 'open', u)\n", "a"),
+            ("def a(u):\n    os.system('START ' + u)\n", "a"),
+            ("def a(u):\n    os.system('START \"\" ' + u)\n", "a"),
+            ("def a(u):\n    ctypes.windll.shell32.ShellExecuteW(None, 'open', u, None, None, 1)\n", "a"),
+            ("def a(u):\n    subprocess.run(['sensible-browser', u])\n", "a"),
         ):
             self.assertIn(where, browser_references(source), source)
 
+
+    def test_the_terminal_commands_are_exactly_these(self):
+        """shell.terminal_command is allowed above only because it starts a terminal on the agent's own command. Its
+        argument lists are pinned here, so a version that hands `start`, `open` or osascript an address fails."""
+        import subprocess
+        import sys
+        from swangz_client import shell
+        args = ["/Apps/Swangz", "run", "claude-code"]
+        with mock.patch.object(sys, "platform", "win32"):
+            self.assertEqual(shell.terminal_command(args, "C:\\Users\\g"),
+                             ["cmd.exe", "/c", "start", "Swangz", "/D", "C:\\Users\\g", "cmd.exe", "/k",
+                              subprocess.list2cmdline(args)])
+        with mock.patch.object(sys, "platform", "darwin"):
+            self.assertEqual(shell.terminal_command(args, "/Users/g"),
+                             ["osascript", "-e", 'tell application "Terminal" to do script '
+                              '"cd /Users/g && /Apps/Swangz run claude-code"', "-e", 'tell application "Terminal" to activate'])
+        with mock.patch.object(sys, "platform", "linux"), \
+                mock.patch("shutil.which", lambda t: "/usr/bin/xterm" if t == "xterm" else None):
+            self.assertEqual(shell.terminal_command(args, "/home/g"),
+                             ["xterm", "-e", "bash", "-lc", "cd /home/g && /Apps/Swangz run claude-code; exec bash"])
+
+    def test_the_only_terminal_is_the_app_running_a_coding_agent(self):
+        """Every open_terminal / terminal_command caller in the app, with its exact arguments: the app's own program
+        with `run <agent>`, never an address."""
+        calls = []
+        for name, source in self.sources().items():
+            for fn in ast.walk(ast.parse(source)):
+                if isinstance(fn, ast.FunctionDef):
+                    for node in ast.walk(fn):
+                        if isinstance(node, ast.Call) and getattr(node.func, "attr", getattr(node.func, "id", None)) \
+                                in ("open_terminal", "terminal_command"):
+                            calls.append((name, fn.name, [ast.unparse(a) for a in node.args]))
+        self.assertEqual(sorted(calls), [("gui.py", "open_agent", ["shell.app_command() + ['run', short]"]),
+                                         ("shell.py", "open_terminal", ["args", "cwd"])])
 
     def test_ordinary_words_are_not_launchers(self):
         """`open` is also a sub-command, a dict key and a word in help text; only a command shape counts."""
