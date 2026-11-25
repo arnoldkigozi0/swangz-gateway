@@ -114,9 +114,17 @@ def person_has_key(key):
     return True
 
 
+def windows_powershell_env(environ, folder):
+    """The environment for powershell.exe. The workflow step runs in PowerShell 7, whose PSModulePath makes Windows
+    PowerShell fail to load its own modules (Get-Acl); without the variable it builds its default path."""
+    env = {name: value for name, value in environ.items() if name.upper() != "PSMODULEPATH"}
+    env["SWANGZ_ACL_ROOT"] = str(folder)
+    return env
+
+
 def read_acls(folder):
     done = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", ACL_SCRIPT],
-                          env={**os.environ, "SWANGZ_ACL_ROOT": str(folder)}, capture_output=True, text=True, timeout=600)
+                          env=windows_powershell_env(os.environ, folder), capture_output=True, text=True, timeout=600)
     require(done.returncode == 0, "could not read the file permissions: " + done.stderr[-2000:])
     return json.loads(done.stdout)
 

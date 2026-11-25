@@ -227,6 +227,10 @@ class CompanyJourneyTests(unittest.TestCase):
             self.assertEqual(len(e2e.acl_problems([item(rights=rights)])), 1, hex(rights & 0xFFFFFFFF))
         self.assertEqual(len(e2e.acl_problems([item(owner="S-1-5-21-1-2-3-1001")])), 1)
 
+    def test_windows_powershell_does_not_inherit_the_workflow_shells_module_path(self):
+        env = e2e.windows_powershell_env({"PSModulePath": "a", "PSMODULEPATH": "b", "SystemRoot": "w"}, "root")
+        self.assertEqual(env, {"SystemRoot": "w", "SWANGZ_ACL_ROOT": "root"})
+
 
 class CompanyWorkflowTests(unittest.TestCase):
     def test_built_checked_scanned_and_uploaded(self):
