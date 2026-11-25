@@ -148,8 +148,8 @@ begin
   if Ran and (ResultCode = 0) then
     exit;
   Message := 'Swangz could not remove everything from this account (code ' + IntToStr(ResultCode) + '). ' +
-    'Saved browser sign-ins may still be in ' + ExpandConstant('{localappdata}\Swangz\browser-profiles') + '.' +
-    #13#10 + #13#10 + 'To finish: install Swangz again, open it as yourself without administrator rights and choose ' +
+    'Saved browser sign-ins may still be in ' + ExpandConstant('{localappdata}\Swangz\browser-profiles') + '.' + #13#10 + #13#10 +
+    'To finish: install Swangz again, open it as yourself without administrator rights and choose ' +
     '"Remove Swangz from this account" on This device, or ask your Swangz administrator to disconnect this device ' +
     'in the console.';
   if LoadStringsFromFile(Report, Left) and (GetArrayLength(Left) > 0) then

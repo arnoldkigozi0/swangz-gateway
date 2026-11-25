@@ -82,6 +82,11 @@ class InstallerScriptTests(unittest.TestCase):
         self.assertRegex(step, r"if CurUninstallStep = usUninstall then\s+RemoveFromThisAccount;")  # before files go
         self.assertIn("CloseApplications=force", ISS)  # a reinstall closes a running copy too
 
+    def test_no_code_line_starts_with_a_hash_the_preprocessor_would_read(self):
+        # "#13#10" at the start of a line is an unknown preprocessor directive to ISCC: the script does not compile
+        for line in CODE.splitlines():
+            self.assertNotRegex(line, r"^\s*#(?!define|ifn?def|if |else|endif|error|include)")
+
     def test_no_server_address_secret_or_updater_is_built_in(self):
         self.assertIsNone(re.search(r"https?://", ISS))
         self.assertNotRegex(CODE.lower(), r"token|password|secret|api[_-]?key|server")
