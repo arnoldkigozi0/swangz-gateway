@@ -440,7 +440,10 @@ a retired folder remains, preparing and opening any workspace on this account is
 
 **A different person on the same account.** When someone else signs in, the earlier person's folders are deleted
 at the first check-in or sync, and again before a folder is prepared; until they are gone, Open is refused with
-`purge_pending`. "Someone else" means another Hub address or person ID in the folder's marker. The same person's
+`purge_pending`. A folder that a running browser holds is not touched: it stays whole until that window is closed
+(Linux and macOS: Chrome's `SingletonLock` names a live process, and only that link's text is read; Windows refuses
+the rename itself). The app closes only a window it started and still remembers, so the person may have to close it.
+"Someone else" means another Hub address or person ID in the folder's marker. The same person's
 folders are kept. A folder whose marker can't be read stays until Swangz is removed from the account.
 
 POSIX directories are 0700 and markers 0600, owned by the current uid. The supplied data directory must

@@ -152,6 +152,19 @@ class PersonSwitchTests(Base):
         self.beat("active")
         self.assertNotIn(theirs, self.folders())
 
+    def test_open_is_refused_while_the_earlier_persons_window_holds_their_folder(self):
+        theirs, _ = self.earlier()
+        lock = self.data / "browser-profiles" / theirs / "SingletonLock"
+        lock.symlink_to("this-host-%d" % os.getpid())  # a window the app did not start, so it cannot close it
+        self.assertTrue(self.beat("active")["ok"])
+        self.assertIn(theirs, self.folders())
+        self.refused("purge_pending")
+        self.assertIn("Close any open workspace window", wl.MESSAGES["purge_pending"])
+        self.assertNotIn("start", self.log)
+        lock.unlink()  # the person closed it
+        self.client.open_app("chatgpt")
+        self.assertNotIn(theirs, self.folders())
+
     def test_an_answer_without_contract_2_deletes_nothing(self):
         before = sorted(self.earlier())
         self.client.workspace.apply(None)

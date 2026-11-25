@@ -1228,8 +1228,11 @@ shown when a marker exists. The console text distinguishes local from provider r
   workspace; approving the sign-in alone deletes nothing. A person is the Hub address plus person ID in a folder's
   marker, so a changed Hub address counts as a different person. A folder whose marker can't be read is left (nothing
   says whose it is, and no owner is given it) until `cleanup`. While an earlier folder can't be deleted (for example
-  on Windows while its browser is still open), the second person's Open is refused with `purge_pending`. The switch
-  closes no browser: on macOS and Linux the folder is deleted under one still running.
+  while its browser is still open), the second person's Open is refused with `purge_pending`. The switch closes no
+  browser, and no folder is retired while one runs on it: on macOS and Linux the app reads Chrome's `SingletonLock`
+  and leaves the folder whole (deleting under a running Chrome kept its session alive and wrote the folder again with
+  no marker); Windows refuses the rename. Limits: a lock left by a crash whose process number another program now has
+  holds the folder until that program ends, and a browser started between the check and the rename is not seen.
 - A person who signs out and back in gets a new device ID, so a new folder is made. The older one is kept and never
   reused: C4's "back to their own sessions" does not hold today.
 - Force-installing the extension on unmanaged Windows or macOS may need the Chrome Web Store listing. Publishing it
