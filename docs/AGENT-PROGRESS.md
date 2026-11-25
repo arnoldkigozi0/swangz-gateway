@@ -1,5 +1,7 @@
 # Agent progress
 
+**25 Nov 20:58.** #354 6698d4d, #353 608506d, #356 e948a82, #351 68aea0f pushed, CI green, drafts. Sentinel: #353 ruling, then reviews #354, #351, #356; merge needs Probe VERIFIED too. #353 still open after the ruling: Administrator `wrong_account` fix (Forge), no uninstaller message when Hub unreachable. #353 and #354 conflict in 4 files: second to merge takes main and is re-checked.
+
 **25 Nov 20:40.** Merged #357 (e975e42): Probe VERIFIED + Sentinel APPROVED at 704ff48. `enforce` stays off until Probe verifies: (a) app follows the admin mark both ways (`core.py`); (b) server: a new "personal" device of a company-marked person is pending review, company rules under enforce, one Needs attention item and audit entry (Forge; migration, Sentinel names v31, which D-027 task 1 also planned: first to merge takes it, the other renumbers); (c) console control for the mark. Small: save or drop the route's `reason`. Not yet assigned.
 
 **25 Nov 20:35.** #357 704ff48 Probe VERIFIED (283 targeted tests, CI green); sent to Sentinel for review and a ruling: app ignores a "personal" mark, and re-signing in as "personal" clears a company mark. `enforce` stays off; no console control yet. Fixes pushed: #356 e948a82, #351 68aea0f, #354 6698d4d, #353 608506d, sent to Probe. Decision awaiting Arnold: delete Probe's 2.4 GB of /tmp/probe* folders (/tmp 79% full).
