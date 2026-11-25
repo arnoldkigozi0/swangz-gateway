@@ -202,9 +202,11 @@ class WorkspaceTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "records the open"):
             self.h.workspace(Steps(), self.app(), self.data, FakeOwner(opened=False), 7)
 
-    def second(self, person="8", same_folder=False):
+    def second(self, person="8", same_folder=False, keep=False):
         def run_app(*args):
             folder = self.data / "browser-profiles" / (("a" if same_folder else "b") * 32)
+            if not same_folder and not keep:  # what the app does on a person switch (D-026 C2)
+                shutil.rmtree(self.data / "browser-profiles" / ("a" * 32), ignore_errors=True)
             folder.mkdir(parents=True, exist_ok=True)
             (folder / ".swangz-profile.json").write_text(json.dumps({"person_id": person, "device_id": "dev1", "state": "prepared"}))
             (folder / "Local State").write_text("{}")
@@ -229,20 +231,23 @@ class WorkspaceTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "kept unchanged"):
             self.h.kept(Steps(), self.data, folder, marker, "after sign out")
 
-    def test_a_second_person_gets_a_separate_folder_and_the_first_is_kept(self):
+    def test_a_second_person_gets_their_own_folder_and_the_firsts_is_deleted(self):
         folder, marker = self.first()
         steps = Steps()
         pid, theirs = self.second_person(steps, self.second(), folder, marker)
         self.assertEqual(pid, 8)
         self.assertNotEqual(theirs, folder)
         self.assertEqual(self.closed[-1], theirs)
-        self.assertTrue(steps.seen[-1][0].startswith("workspace: with a second person on this device"))
+        self.assertFalse(folder.exists())
 
-    def test_a_second_person_reusing_the_first_folder_or_marked_as_the_first_fails(self):
+    def test_a_kept_or_reused_first_folder_or_one_marked_as_the_first_fails(self):
         folder, marker = self.first()
-        with self.assertRaisesRegex(AssertionError, "separate workspace folder"):
+        with self.assertRaisesRegex(AssertionError, "folder is deleted from this account"):
+            self.second_person(Steps(), self.second(keep=True), folder, marker)
+        shutil.rmtree(self.data / "browser-profiles")
+        folder, marker = self.first()
+        with self.assertRaisesRegex(AssertionError, "folder is deleted from this account"):
             self.second_person(Steps(), self.second(same_folder=True), folder, marker)
-        folder, marker = folder, self.h.marker_of(folder)
         shutil.rmtree(self.data / "browser-profiles")
         folder, marker = self.first()
         with self.assertRaisesRegex(AssertionError, "marked for them"):

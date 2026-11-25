@@ -231,8 +231,8 @@ def kept(check, data, folder, marker, when):
 
 
 def second_person(check, enrol, run_app, data, owner, base, first, first_marker, tool=TOOL):
-    """A second person signs this device in and opens the same tool: they get a workspace folder of their own,
-    marked for them, and the first person's folder is left as it was. enrol(approve) signs the installed app in,
+    """A second person signs this device in and opens the same tool: the first person's folder is deleted (D-026 C2)
+    and they get a workspace folder of their own, marked for them. enrol(approve) signs the installed app in,
     with approve(code) approving the code as the second person; it returns the app's device id."""
     pid, staff = add_person(owner, base, "Okello Brian", "brian.okello@swangzavenue.com")
     check("second person: the admin adds them and they sign in to the staff app", bool(pid), f"person {pid}")
@@ -243,10 +243,11 @@ def second_person(check, enrol, run_app, data, owner, base, first, first_marker,
     code, out = run_app("open", tool)
     check("second person: the installed app opens the tool in its workspace window", code == 0, f"exit {code} {out[-300:]}")
     folders = workspace_folders(data)
-    theirs = [p for p in folders if p != first]
-    check("second person: a separate workspace folder of their own, beside the first person's",
-          len(folders) == 2 and first in folders and len(theirs) == 1, ", ".join(p.name for p in folders))
-    folder = theirs[0]
+    left = sorted(p.name for p in first.parent.iterdir() if p == first or p.name.startswith(".retired-"))
+    check("second person: the first person's folder is deleted from this account", not left, ", ".join(left))
+    check("second person: one workspace folder, new and their own", len(folders) == 1 and folders[0] != first,
+          ", ".join(p.name for p in folders))
+    folder = folders[0]
     try:
         marker = marker_of(folder)
         check("second person: their folder is marked for them on this device, not for the first person",
@@ -259,7 +260,6 @@ def second_person(check, enrol, run_app, data, owner, base, first, first_marker,
               f"{len(opened)} open(s)")
     finally:
         close_chrome(folder)
-    kept(check, data, first, first_marker, "with a second person on this device")
     return pid, folder
 
 

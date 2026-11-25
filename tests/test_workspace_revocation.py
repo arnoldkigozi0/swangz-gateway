@@ -121,6 +121,59 @@ class Base(unittest.TestCase):
         return json.loads((self.data / "browser-profiles" / name / bp.MARKER).read_text())
 
 
+@unittest.skipUnless(POSIX, "purging a folder is POSIX-only here (Windows: tests.test_profile_delete)")
+class PersonSwitchTests(Base):
+    """D-026 C2: the first authenticated answer after a different person signs in deletes the earlier person's folders."""
+
+    def earlier(self):
+        profiles = bp.Profiles(self.data)
+        return (profiles.prepare(bp.Owner(SERVER, "8", "dev-0")).name,
+                profiles.prepare(bp.Owner(SERVER, "7", "dev-0")).name)  # another person's, and this person's older one
+
+    def test_a_check_in_deletes_the_earlier_persons_folder_without_an_open(self):
+        theirs, mine = self.earlier()
+        self.beat("active")
+        self.assertEqual(self.folders(), [mine])
+        self.assertNotIn("start", self.log)
+
+    def test_it_runs_whatever_the_workspace_block_says(self):
+        for state in ("suspended", "retired", "nonsense"):
+            with self.subTest(state=state):
+                theirs, _ = self.earlier()
+                self.beat(state)
+                self.assertNotIn(theirs, self.folders())
+
+    def test_a_failed_deletion_breaks_no_check_in_and_the_next_one_retries(self):
+        theirs, _ = self.earlier()
+        with mock.patch.object(bp.Profiles, "_retire", side_effect=PermissionError("open files")):
+            self.assertTrue(self.beat("active")["ok"])
+            self.assertIn(theirs, self.folders())
+            self.refused("purge_pending")
+        self.beat("active")
+        self.assertNotIn(theirs, self.folders())
+
+    def test_open_is_refused_while_the_earlier_persons_window_holds_their_folder(self):
+        theirs, _ = self.earlier()
+        lock = self.data / "browser-profiles" / theirs / "SingletonLock"
+        lock.symlink_to("this-host-%d" % os.getpid())  # a window the app did not start, so it cannot close it
+        self.assertTrue(self.beat("active")["ok"])
+        self.assertIn(theirs, self.folders())
+        self.refused("purge_pending")
+        self.assertIn("Close any open workspace window", wl.MESSAGES["purge_pending"])
+        self.assertNotIn("start", self.log)
+        lock.unlink()  # the person closed it
+        self.client.open_app("chatgpt")
+        self.assertNotIn(theirs, self.folders())
+
+    def test_an_answer_without_contract_2_deletes_nothing(self):
+        before = sorted(self.earlier())
+        self.client.workspace.apply(None)
+        self.client.workspace.apply({"contract": 1, "workspace": {"state": "active", "generation": 1}})
+        self.manifest["browser"] = {"contract": 1, "person_id": "7", "device_id": "dev-1"}
+        self.client.workspace.apply({"contract": 2, "workspace": {"state": "active", "generation": 1}})
+        self.assertEqual(self.folders(), before)
+
+
 class SuspendTests(Base):
     def test_1_suspended_closes_once_refuses_and_keeps_the_folder(self):
         self.running()
@@ -210,10 +263,13 @@ class PurgeTests(Base):
         self.refused("generation_rollback")
 
     def test_9_another_owners_folder_survives_a_retired(self):
-        other = bp.Profiles(self.data).prepare(bp.Owner(SERVER, "8", "dev-1"))
-        other_device = bp.Profiles(self.data).prepare(bp.Owner(SERVER, "7", "dev-2"))
         self.running()
-        self.beat("retired")
+        other_device = bp.Profiles(self.data).prepare(bp.Owner(SERVER, "7", "dev-2"))
+        mine = [n for n in self.folders() if n != other_device.name]
+        with mock.patch.object(bp.Profiles, "retire_other_people"):  # the person switch (C2) is tested on its own
+            other = bp.Profiles(self.data).prepare(bp.Owner(SERVER, "8", "dev-1"))
+            self.beat("retired")
+        self.assertEqual(len(mine), 1)
         self.assertEqual(self.folders(), sorted([other.name, other_device.name]))
 
     def test_10_a_purge_failure_stays_pending_refuses_and_retries(self):

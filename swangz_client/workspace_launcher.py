@@ -52,7 +52,7 @@ MESSAGES = {
     # W4: what the Hub said, or couldn't say. After the app restarts it can't close a window it started earlier
     # (R-11), so these ask the person to close any open workspace window themselves.
     "retired": "Your admin removed the Swangz workspace from this device, so nothing was opened. Close any open workspace window.",
-    "purge_pending": "Swangz is still deleting this device's old workspace folder, so nothing was opened. Try again in a minute, or ask your admin.",
+    "purge_pending": "Swangz is still deleting this device's old workspace folder, so nothing was opened. Close any open workspace window, then try again, or ask your admin.",
     "generation_rollback": "Swangz AI Hub sent an older workspace setting than this device has, so nothing was opened. Ask your admin.",
     "workspace_unknown": "Swangz couldn't read this device's workspace setting from Swangz AI Hub, so nothing was opened. Try again later.",
     "refused_by_hub": "Swangz AI Hub didn't accept this device, so the workspace window is closed. Sign in to Swangz again, or ask your admin.",
@@ -292,10 +292,15 @@ class Launcher:
 
     def ready(self, owner, generation=1):
         """Everything the device can check before asking the Hub: a usable browser, and the folder prepared and verified.
-        -> (browser, folder), or LaunchError. Run before /device/open so a refusal here is never recorded as an open."""
+        -> (browser, folder), or LaunchError. Run before /device/open so a refusal here is never recorded as an open.
+        An earlier person's folder is deleted first; while one is still on disk, none is prepared (D-026 C2)."""
         binary = self.finder()
+        self.running()  # collects a window of ours that has ended, so the lock it left reads as stale
         try:
-            folder = bp.Profiles(self.data).prepare(owner, generation)
+            profiles = bp.Profiles(self.data)
+            if not profiles.retire_other_people(owner):
+                raise LaunchError("purge_pending")
+            folder = profiles.prepare(owner, generation)
         except bp.ProfileError as exc:
             raise LaunchError(exc.code if exc.code in ("purge_pending", "generation_rollback") else "folder") from None
         except OSError:
@@ -335,6 +340,10 @@ class Launcher:
             self.process.wait(timeout=10)
         except subprocess.TimeoutExpired:
             self.process.kill()
+            try:
+                self.process.wait(timeout=5)  # gone before its folder is retired
+            except subprocess.TimeoutExpired:
+                pass
         self.process = None
         return True
 
