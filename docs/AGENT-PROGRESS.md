@@ -1726,3 +1726,5 @@ Merged 08:00-10:00: 4 (#341 docs, #342, #345, #347). #339 and #340 merged just b
 | #348 D-026 wording in acceptance doc | a2c4ff1 | draft, checks pass | merge after #338 |
 | #349 sign-out checks and messages | b03f90e | draft, 4 checks pending | check CI, Probe verifies, then merge |
 Not run by Chief: any local test, build or physical-device check.
+
+**10:01 Probe parked** (nothing committed or merged). #346: FAIL at 0573daa (Probe and a second review: Apps rows ignore workspace state, swangz_client/gui.py:36-37); new head 28b9adc not verified. Next: confirm head and finished checks; review the PR's own changes since 0573daa; rerun rows-vs-Open comparison (active, suspended, retired, no contract 2; personal and company; include the workspace.check_open() refusal); check pinned terminal commands and scan limits; run the three targeted test files once; second opinion on the final verdict. Probe left /tmp/probe346.90UCHS and /tmp/probe346_probe.py. Forge reply still pending.
