@@ -1730,3 +1730,12 @@ Not run by Chief: any local test, build or physical-device check.
 **10:01 Probe parked** (nothing committed or merged). #346: FAIL at 0573daa (Probe and a second review: Apps rows ignore workspace state, swangz_client/gui.py:36-37); new head 28b9adc not verified. Next: confirm head and finished checks; review the PR's own changes since 0573daa; rerun rows-vs-Open comparison (active, suspended, retired, no contract 2; personal and company; include the workspace.check_open() refusal); check pinned terminal commands and scan limits; run the three targeted test files once; second opinion on the final verdict. Probe left /tmp/probe346.90UCHS and /tmp/probe346_probe.py. Forge reply still pending.
 
 **10:03 Forge parked** (no WIP commit needed; nothing pushed or merged). Safe deletion: .worktrees/333-delete (feature/333-safe-delete) clean, no commits beyond main aac71ac, not on GitHub. Next (12:00): its owner updates it if main moved, confirms with Sentinel that D-026 at 896d620 (#338) is final, then adds link-safe folder deletion on Windows with tests, as the base for `Swangz.exe cleanup`. Older uncommitted tracked-file edits remain, untouched (dates 8-13 Nov): devices-simple, exact-staff-phone, f8-cut-toast, shared-turns-pin. Forge found no test run, demo server or headless browser left running.
+
+## 25 Nov 12:00 Chief (shift start)
+Open: 3 (#343 e582325, #346 28b9adc, #350 2a07b49), all CI green, none verified at its head; nothing merged this start. ChatGPT PAUSED (no Prism task).
+| Owner | Task | Branch | Status | Next step |
+|---|---|---|---|---|
+| Probe | verify #350, then #346, #343 | read-only | assigned | PR comment verdicts; Chief merges those that pass |
+| Anvil | D-026 A2-A4 Chrome verification | feature/333-chrome-verify | assigned | draft PR; Probe + Sentinel |
+| Forge | D-026 cleanup verb (then C2 person switch) | feature/333-cleanup | assigned | local until #350 merges, then draft PR |
+| Sentinel | review Chrome verification PR when open | - | waiting | - |
