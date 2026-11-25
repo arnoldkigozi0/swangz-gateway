@@ -1015,7 +1015,15 @@ or `sudo` (static test).
    "nothing is left") closes the window and deletes every folder under `browser-profiles/`; a folder it cannot
    delete is named in the uninstaller's result, never silently left. **Signing out of the app** keeps the folder,
    because the same person signs back in to their own sessions; a different person signing in retires it (C2).
-   Today `remove_everything` on main keeps the folders in every case (R-12); changing uninstall is Forge's work.
+   Today `remove_everything` on main keeps the folders in every case (R-12), and folder deletion raises
+   `unsupported_platform` on Windows (`browser_profiles._purge`, `retire`); both are Forge's work.
+   - **Windows uninstaller:** `packaging/windows/swangz.iss` `[UninstallRun]` runs `Swangz.exe logout` only. It must
+     run `Swangz.exe cleanup` **after** `logout` (logout first, so the Hub hears the disconnect while the key
+     exists), with the same `runhidden waituntilterminated skipifdoesntexist` flags (Prism's, `packaging/`).
+   - **macOS:** there is no uninstaller; removal is drag-to-Bin (`packaging/macos_dmg.py` README), which runs
+     nothing. The removal steps there and in docs/CLIENT.md become: Sign out, then run
+     `Swangz.app/Contents/MacOS/Swangz cleanup`, then drag Swangz to the Bin (Prism's). Dragging without these
+     steps leaves the folders (Limitations).
 5. Paths go into Chrome as one argv element each, never through a shell. Paths with spaces and non-ASCII characters
    are supported.
 
@@ -1078,10 +1086,11 @@ device the existing message is kept.
      approves in System Settings, which macOS then exposes at `/Library/Managed Preferences/com.google.Chrome.plist`.
 
    The app never writes `/Library/Managed Preferences` directly on a real Mac; only the CI runner does that.
-   **Personal devices never get a policy** and keep the extension gate (D-024 point 4).
+   **Personal devices never get a policy** and keep the extension gate (D-024 point 4). One exception, below: an
+   administrator's own manual run of `policy-write`.
    The `company` mark that matters is the admin's confirmation (D-025 point 2), which is **not built yet**. Until it
    is, the app never offers `policy-write`: the person's own `owner_kind` declaration is not enough to change every
-   user's Chrome on a computer. An administrator may still run `Swangz.exe admin policy-write` by hand on a computer
+   user's Chrome on a computer. **Except:** an administrator may still run `Swangz.exe admin policy-write` by hand on a computer
    they know is company-owned; the UAC consent is that administrator's decision. Once D-025 point 2 exists, the
    unelevated app offers the step only when the manifest says the admin confirmed `company`.
 2. **Setup states the cost plainly.** Machine policy applies to every Chrome window and every OS user on that
@@ -1185,8 +1194,10 @@ shown when a marker exists. The console text distinguishes local from provider r
   must say so.
 - A GPO refresh can land between E3's hash and the write or delete; the next check reports the mismatch.
 - After revocation, machine policy stays until an administrator removes it (F1).
-- Until C4's uninstall change is built, **app sign-out and uninstall leave the browser folders, with their provider
-  and Google sessions, on disk** (main's `remove_everything` keeps them, R-12). Only revocation (F1) deletes them.
+- App sign-out keeps the browser folders, with their provider and Google sessions, on disk (C4). Until C4's
+  uninstall change is built, uninstall leaves them too. On main, disconnecting the device also keeps them (F1 is not
+  built); only an authenticated `retired` or a higher workspace generation deletes them, and not on Windows.
+- macOS has no uninstaller: dragging Swangz to the Bin without running `cleanup` first leaves the folders (C4).
 - The per-user Windows install (`%LocalAppData%`, personal devices) cannot install Chrome: it never offers an elevated
   step (B5). The person installs Chrome themselves; A3 verifies it, and A4 accepts a per-user Chrome only there.
 - `policy-write` is not offered by the app until D-025 point 2 (admin-confirmed `company`) exists (E1).
@@ -1218,13 +1229,18 @@ elevated step to the unelevated app before it offers the step (B3 reads nothing 
 into computer sign-out and app sign-out (both keep the folder); uninstall deletes the folders; the revocation reference
 is F. E1: `policy-write` waits for D-025 point 2. A2: the macOS carriers' Developer ID identities. Limitations: folders
 left by sign-out and uninstall until built, per-user Windows Chrome, the D-025 dependency. D4 is unchanged (option A).
+Second pass (Probe at 6e7120d): the Limitations line now matches main (disconnect keeps the folders; deletion is
+unsupported on Windows); C4 requires the Windows uninstaller to run `cleanup` after `logout` and adds it to the macOS
+removal steps; E1 names the manual-run exception; D2/D4 marked done by #339.
 
 **Consequences.** Forge builds A–F behind these tests on feature branches. Sentinel reviews each PR before merge.
 The elevated Windows steps (`chrome-install`, `policy-write`, `policy-remove`) are not built until Prism has made the
 company build one-folder and `/ALLUSERS`-capable with the B4 pinned values (`packaging/`, `swangz.iss`); Forge may build
 the launch, folder, verification, conflict-hash and revocation parts (A2–A4, C, D, E3–E5, F) first.
-**Forge's next build (D2, D4):** the shared-account refusal on company devices (message and repair panel), and the
-D tests (no `open_url` call for shared, denied, unknown and non-workspace tools; the static caller allow-list). No
-server change and no migration.
+**D2 and D4 build: done** by #339 (merged as `7b95da0`): the shared-account refusal on company devices (message and
+repair panel) and the D tests (no `open_url` call for shared, denied, unknown and non-workspace tools; the static
+caller allow-list). No server change and no migration.
+**Next for C4 and F1:** `cleanup` and revocation delete the folders on every platform (Forge); the Windows
+uninstaller runs `cleanup` after `logout`, and the macOS removal steps include it (Prism).
 `enforce` stays off until D-025 point 2 and E5's acceptance check exist. R-12 changes: a folder is deleted on
 revocation, as well as on reassignment.
