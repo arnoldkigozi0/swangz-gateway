@@ -1721,7 +1721,7 @@ Merged 08:00-10:00: 4 (#341 docs, #342, #345, #347). #339 and #340 merged just b
 | PR | Head | State at 10:00 | Next step |
 |---|---|---|---|
 | #338 D-026 | 896d620 | ready, checks pass, mergeable | merge at next shift start after rechecking gates |
-| #343 D-027 shared account, option B | d14eab7 | draft, checks pass | confirm Arnold's decision on A/B before merging |
+| #343 D-027 shared account, option B | d14eab7 | draft, checks pass; text records Arnold's option B choice of 25 Nov (company computers only) | merge at next shift start after rechecking gates |
 | #346 shared wording / no-fallback scan | 28b9adc | draft, 3 checks pending | check CI, Probe verifies this head, then merge |
 | #348 D-026 wording in acceptance doc | a2c4ff1 | draft, checks pass | merge after #338 |
 | #349 sign-out checks and messages | b03f90e | draft, 4 checks pending | check CI, Probe verifies, then merge |
