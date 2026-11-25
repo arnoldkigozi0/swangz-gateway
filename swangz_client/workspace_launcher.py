@@ -42,7 +42,10 @@ MESSAGES = {
     "launch_failed": "The Swangz workspace window didn't start. Try again.",
     "no_hosts": "Update the Swangz app's list of tools, then press Open again.",
     "unavailable": "This tool isn't in your list any more, so nothing was opened. Press Sync now, or ask your admin.",
+    # D-026 D4: a personal computer is told where turns are handed out; a company computer is never sent elsewhere.
     "shared_account": "This is a shared company account. Open it from Swangz AI Hub, where turns are handed out.",
+    "shared_account_company": "This is a shared company account. It does not open on this company computer yet; ask "
+                              "your administrator.",
     "no_workspace": "This device doesn't have a Swangz workspace window yet, so nothing was opened. Update Swangz, or ask your admin.",
     # W4: what the Hub said, or couldn't say. After the app restarts it can't close a window it started earlier
     # (R-11), so these ask the person to close any open workspace window themselves.
