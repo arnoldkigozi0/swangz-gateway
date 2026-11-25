@@ -457,7 +457,15 @@ def end_turn(ctx, tid):
     if n:
         ctx.gw.audit(ctx.person["name"], "handed back a shared account", tool["name"], "", ctx.ip, correlation=f"person:{ctx.person['id']}")
         ctx.gw.workspaces.soon()  # their workspace sign-in goes now, not at the next sweep
-    return {"ok": True, "ended": n, "sign_out_hosts": [h for h in (tool["hosts"] or "").split(",") if h]}
+    return {"ok": True, "ended": n, "sign_out_hosts": _sign_out_hosts(tool)}
+
+
+def _sign_out_hosts(tool):
+    """The hosts a browser may be told to clear for this tool. A google.com host is never one, even on a shared tool
+    saved before that was refused."""
+    from . import catalog
+
+    return [h for h in (tool["hosts"] or "").split(",") if h and not catalog.never_signed_out(h)]
 
 
 @route("POST", r"/workspace/hello", signed_in=False)
@@ -682,8 +690,8 @@ def gate_turns(ctx):
             continue
         if tool["id"] in mine:
             out.append({"tool_id": tool["id"], "hosts": hosts, "expires": mine[tool["id"]]["expires"]})
-        else:
-            drop.append({"tool_id": tool["id"], "hosts": hosts})
+        elif _sign_out_hosts(tool):
+            drop.append({"tool_id": tool["id"], "hosts": _sign_out_hosts(tool)})
     return {"holding": out, "sign_out": drop}
 
 

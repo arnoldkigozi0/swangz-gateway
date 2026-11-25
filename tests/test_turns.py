@@ -254,6 +254,80 @@ class AdminTurnTests(TurnBase):
         self.assertEqual((row["signin"], row["seats_at_once"], row["turn_minutes"]), ("shared", 3, 45))
 
 
+class SharedGoogleHostTests(TurnBase):
+    """D-027: clearing a shared tool's site clears its whole registrable domain, so google.com is never shared."""
+
+    ext_token, gate = GateAndSignOutTests.ext_token, GateAndSignOutTests.gate
+
+    def refusals(self):
+        return self.rig.gw.db.q("SELECT * FROM audit WHERE detail LIKE 'shared_google_host:%' ORDER BY id")
+
+    def tool(self, tool_id):
+        return self.rig.gw.db.one("SELECT * FROM tools WHERE id = ?", (tool_id,))
+
+    def assert_refused(self, answer, hosts):
+        status, body = answer
+        self.assertEqual((status, body.get("code"), body.get("details")), (400, "shared_google_host", {"hosts": hosts}))
+
+    def test_adding_a_shared_tool_on_google_is_refused_and_recorded(self):
+        count = self.rig.gw.db.scalar("SELECT COUNT(*) FROM tools")
+        cases = [
+            ({"hosts": "gemini.google.com"}, ["gemini.google.com"]),
+            ({"hosts": "example.org, google.com"}, ["google.com"]),
+            ({"url": "https://www.notebooklm.google.com/x"}, ["notebooklm.google.com", "www.notebooklm.google.com"]),
+            ({"hosts": "example.org", "url": "https://AI.Google.com./"}, ["ai.google.com."]),
+            ({"hosts": "example.org", "launch_url": "https://someone@accounts.google.com:443/o"}, ["accounts.google.com"]),
+            ({"hosts": "example.org", "launch_url": "https://gemini.google\u3002com/"}, ["gemini.google\u3002com"]),
+            ({"hosts": "example.org", "launch_url": "https://gemini.google%2Ecom/"}, ["gemini.google%2ecom"]),
+            ({"hosts": "example.org", "workspace_url": "https://browser.google.com/"}, ["browser.google.com"]),
+        ]
+        for body, hosts in cases:
+            with self.subTest(body=body):
+                self.assert_refused(self.rig.api("POST", "/tools", {"name": "Team G", "signin": "shared", **body}), hosts)
+        self.assertEqual(self.rig.gw.db.scalar("SELECT COUNT(*) FROM tools"), count)
+        rows = self.refusals()
+        self.assertEqual(len(rows), len(cases))
+        self.assertEqual((rows[0]["action"], rows[0]["target"], rows[0]["outcome"], rows[0]["area"]),
+                         ("was refused a change", "Team G", "refused", "govern"))
+        self.assertTrue(rows[0]["actor"])
+
+    def test_an_edit_that_would_share_a_google_tool_is_refused_and_changes_nothing(self):
+        before = self.tool("gemini")
+        self.assert_refused(self.rig.api("PATCH", "/tools/gemini", {"signin": "shared"}), ["gemini.google.com"])
+        self.assertEqual(self.tool("gemini"), before)
+        # ai.google.com belongs to no other tool, so only this rule refuses it
+        for body in ({"hosts": "midjourney.com,ai.google.com"}, {"url": "https://ai.google.com/"},
+                     {"launch_url": "https://ai.google.com/app"}):
+            with self.subTest(body=body):
+                before = self.tool("midjourney")
+                self.assert_refused(self.rig.api("PATCH", "/tools/midjourney", body), ["ai.google.com"])
+                self.assertEqual(self.tool("midjourney"), before)
+        self.assertEqual({r["correlation"] for r in self.refusals()}, {"tool:gemini", "tool:midjourney"})
+        self.assertEqual(len(self.refusals()), 4)
+
+    def test_other_sign_in_methods_and_look_alike_names_still_save(self):
+        self.assertEqual(self.rig.api("PATCH", "/tools/gemini", {"signin": "seat"})[0], 200)
+        status, _ = self.rig.api("POST", "/tools", {"name": "Look Alike", "signin": "shared",
+                                                    "hosts": "notgoogle.com, google.com.example.org",
+                                                    "url": "https://example.org/?next=https://google.com/"})
+        self.assertEqual(status, 200)
+        self.assertEqual(self.refusals(), [])
+
+    def test_an_old_shared_google_row_is_never_in_a_sign_out_list(self):
+        # saved before the refusal existed: written straight to the database
+        self.rig.gw.db.x("UPDATE tools SET signin = 'shared' WHERE id = 'gemini'")
+        self.rig.gw.db.x("UPDATE tools SET hosts = 'midjourney.com,gemini.google.com,google.com' WHERE id = 'midjourney'")
+        token = self.ext_token()
+        s, out = self.gate("/gate/turns", None, token, method="GET")
+        self.assertEqual(s, 200)
+        self.assertEqual({t["tool_id"]: t["hosts"] for t in out["sign_out"]}, {"midjourney": ["midjourney.com"]})
+        self.go("midjourney")
+        status, out = self.staff("POST", "/tools/midjourney/turn/end")
+        self.assertEqual((status, out["sign_out_hosts"]), (200, ["midjourney.com"]))
+        # such a row stays fixable
+        self.assertEqual(self.rig.api("PATCH", "/tools/gemini", {"signin": "own"})[0], 200)
+
+
 if __name__ == "__main__":
     unittest.main()
 
