@@ -1691,3 +1691,6 @@ Daily report in docs/daily/2026-11-22.md. GitHub unreachable, so PR and CI state
 
 ## 23 Nov 21:50 note (Chief)
 Daily report in docs/daily/2026-11-23.md. #332 merged (9977c2a), main CI green, 0 open PRs, no WIP parked. Next shift: queue RC acceptance gaps and the phone-test checklist for Arnold.
+
+## 25 Nov 04:05 Chief
+Sprint on #333 to 09:00. Open: #334 (D-026, CI green, awaiting Probe check at cd7ffa0), #335 (draft, Probe). Assigned: Forge (feature/333-launch uncommitted work to draft PR, then hub.ictconnect.org default), Anvil (feature/333-company-installer, D-026 B4/B5/B7; Prism paused on budget), Probe (verify #334, finish #335). Sentinel reviews Forge and Anvil PRs. RC installers rebuild after #333 PRs merge.
