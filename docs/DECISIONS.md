@@ -880,7 +880,11 @@ decision sets the rules for joining them. It changes nothing on the server, the 
    - macOS: `https://dl.google.com/chrome/mac/universal/stable/GGRO/googlechrome.dmg`.
 
    Both URLs are constants in the code. Redirects are followed only to `https://` URLs; the download has a size cap
-   (500 MB) and goes into the app's own data folder.
+   (500 MB). On Windows the download is made **by the elevated step itself**, into its own admin-only staging folder
+   (B5), never into the app's data folder: a file the person's account can write is never handed to an elevated
+   program. (A copy from the user folder was rejected: the "signed by Google LLC" check alone also admits an older
+   Google-signed Chrome MSI or another Google product, so a swap could still downgrade Chrome.) On macOS there is no
+   elevated download in this issue (B6).
 2. **The signature is the authority, not a hash** (Google does not publish one):
    - Windows: the Authenticode signature is valid, chains to a trusted root, and the signer's subject has
      `O=Google LLC`. Check it through `WinVerifyTrust` or `Get-AuthenticodeSignature`, and check the subject, not a
@@ -909,16 +913,56 @@ setup and run nothing. A redirect to `http://` is refused. A changed binary is c
 2. **Never:** store, cache or ask for an administrator password inside Swangz; add a service, scheduled task,
    LaunchDaemon or sudoers rule that runs as SYSTEM or root to avoid later prompts; turn off UAC, Gatekeeper or SIP;
    run `xattr -d com.apple.quarantine`.
-3. The elevated step does one fixed thing with **no input the person controls**: it installs the file it just
-   checked, or writes the pack built inside the signed app with two values. Those two values are the Hub host, which
-   must equal the enrolled server's host and match a strict hostname pattern, and the extension ID, which must be 32
-   characters `a-p`. It never reads a pack, script or path from a user-writable location.
-4. Installing Chrome or the policy is a separate step that never runs on its own. The Swangz installers stay
-   per-user (#243); company devices are installed with `/ALLUSERS` (M1).
+3. The elevated step does one fixed thing with **no input the person controls**. Its whole command line is
+   `Swangz.exe admin <action>`, where `<action>` is one of `chrome-install`, `policy-write`, `policy-remove`; any other
+   argument is refused. It reads no file, pack, script, path or value from a user-writable place, and no environment
+   variable: system programs are called by absolute path from `GetSystemDirectory` (`msiexec.exe`), and folders are
+   found with `SHGetKnownFolderPath`, never `%TEMP%`, `%ProgramData%` or `PATH`.
+4. **Pinned Hub host and extension ID (rules on Forge's gap 3).** The two values the pack needs are not taken from the
+   enrolled state (user-writable). They are pinned when the company build is installed with `/ALLUSERS`, by the
+   elevated installer, in `HKLM\Software\Swangz\Pinned` (64-bit view): `hub_host`, `extension_id`. The admin passes
+   them on the installer's command line, or the release build carries them as constants. `policy-write` reads only
+   these, validates them again (strict hostname pattern; 32 characters `a-p`), and also refuses unless the device's
+   enrolled Hub host equals the pinned one (a check that can only make it stricter). No pinned values: no policy.
+   An "admin confirmation dialog" in place of pinning was rejected: a prompt inside an elevated step proves only that
+   someone clicked, and the values would still come from the person's account.
+5. **Only admin-only code is ever elevated (rules on Forge's gaps 1 and 2).**
+   - **Windows.** The per-user install (`PrivilegesRequired=lowest`, `%LocalAppData%\Programs\Swangz`) never offers
+     an elevated step; it shows "ask your administrator to install the company build". The company build is installed
+     with `/ALLUSERS` into `%ProgramFiles%\Swangz` **and is a PyInstaller one-folder build**: today's one-file
+     `Swangz.exe` unpacks its Python into the person's `%TEMP%` on every start, where any program running as the
+     person can replace it before the elevated process loads it. At its start the elevated process checks, and refuses
+     with `admin_install_required` unless: it is frozen and not one-file (`sys._MEIPASS` is its own folder); its folder
+     is under the `ProgramFiles` known folder; the folder and every parent up to `ProgramFiles` is owned by
+     Administrators, SYSTEM or TrustedInstaller and grants no write, delete or change-permission right to any other SID
+     (including the person's own); the same holds for `Swangz.exe` and the one-folder's `_internal`.
+   - **Staging (`chrome-install`).** The elevated process creates `%ProgramData%\Swangz` if missing with a protected
+     DACL (SYSTEM and Administrators full control, no inheritance); if it already exists it must pass the same owner and
+     DACL check, or the step stops with `staging_unsafe` (ordinary users can create folders in `%ProgramData%`, so a
+     pre-made one is untrusted). Inside it, a new folder with a 128-bit random name, created with `CreateDirectory` and
+     the same protected DACL, failing if it exists. The MSI is downloaded there (A1), its signature checked there (A2),
+     installed with `msiexec.exe /i <that file> /qn /norestart`, and the folder deleted in a `finally`. The installed
+     `chrome.exe` under `%ProgramFiles%` is then checked again (A3) before first use.
+   - **macOS.** See 6.
+6. **macOS has no elevated Swangz step in this issue.** The DMG is drag-installed and owned by the person, so a root
+   step started from it would give root to whatever can write the bundle. When Chrome is missing, Swangz opens Google's
+   Chrome download page (allowed by D2) and says which install it will accept; then A2/A3 verify the result, and A4
+   requires `/Applications/Google Chrome.app` owned by root (Google's enterprise PKG, or Chrome's own "set up updates
+   for all users"). Policy is the admin-installed profile (E1). An elevated macOS install comes back only with a new
+   decision, after Swangz ships as a root-owned PKG.
+7. Installing Chrome or the policy is a separate step that never runs on its own. The Swangz installers stay
+   per-user for personal devices (#243). The company `/ALLUSERS` install (M1) needs
+   `PrivilegesRequiredOverridesAllowed=commandline` in `swangz.iss`, which it does not have today, and a one-folder
+   build; both are Prism's (`packaging/`).
 
-*Tests:* the elevated command line is built from constants plus the two validated values, and refuses a hostname
-or ID that doesn't match. Declining the prompt changes nothing. No code path writes a service, task or daemon
-(static test).
+*Tests:* the elevated entry point refuses any argv other than `admin <one of three actions>`. It refuses when: run
+one-file; run from a folder under `%LocalAppData%`; run from a folder whose DACL grants the person write (CI: create
+one, grant the runner's SID, expect `admin_install_required`); `%ProgramData%\Swangz` pre-exists with a user-writable
+DACL (`staging_unsafe`); pinned values are missing, malformed, or differ from the enrolled host. The staging folder is
+gone after success and after a failed signature. `chrome-install` reads nothing from the app data folder (static test:
+no path from `paths.data_dir` reaches it). Declining the prompt changes nothing. No code path writes a service, task or
+daemon (static test). The macOS client contains no `osascript … with administrator privileges`, `AuthorizationExecute`
+or `sudo` (static test).
 
 **C. One browser folder per employee.**
 1. Each person gets their own folder under the app's data folder, `browser-profiles/`, bound to (Hub origin, person,
@@ -965,8 +1009,19 @@ process.
    computer, including personal browsing in Chrome, because the pack blocks everything not on the list. The admin
    confirms this before the step runs. Swangz never changes, deletes or hides an existing Chrome profile. Its own
    folder is separate.
-3. **Conflicts fail closed.** Setup refuses to write if the Chrome policy key or plist already exists and Swangz did
-   not write it. Swangz's marker is `HKLM\Software\Swangz\ChromePolicy` (`sha256`, `written`), outside Chrome's key.
+3. **Conflicts fail closed; act only on what is still exactly ours (rules on Forge's gap 4).** Swangz's marker is
+   `HKLM\Software\Swangz\ChromePolicy` (`sha256`, `written`), outside Chrome's key. `sha256` is taken over the key
+   **as read back after writing**, never over the intended values: every subkey path and value under
+   `HKLM\Software\Policies\Google\Chrome` (64-bit view), each as (subkey path, value name lowercased, registry type,
+   data), sorted, serialised as JSON with `sort_keys`. The same function hashes the key before any change:
+   - key absent, marker absent: write, read back, write the marker;
+   - key present, marker present, current hash equals the marker: `policy-write` may rewrite, `policy-remove` may
+     delete the key tree and then the marker;
+   - key present and (no marker, or hash differs): refuse with `conflict`, change nothing, keep the marker. A value a
+     GPO, MDM or person added after Swangz wrote is never overwritten or deleted;
+   - key absent, marker present: delete the stale marker only.
+
+   A GPO refresh between the hash and the write or delete is a remaining race; it is listed under Limitations.
    It reports the conflict for the admin to resolve and never merges. The check gets stricter in three ways:
    - (a) any policy name in the machine source that is not in the pack fails as `unexpected:<name>`. Examples:
      `ProxySettings`, `CloudManagementEnrollmentToken`, `ExtensionInstallSources`;
@@ -984,22 +1039,30 @@ process.
    computer". "Enforced" is written only after the physical acceptance check of `chrome://policy` shows **OK** on that
    machine type.
 6. **Rollback.**
-   - Windows: an elevated `Swangz.exe policy-remove` deletes the Chrome policy key only when the marker exists, then
-     deletes the marker.
+   - Windows: an administrator runs the elevated `Swangz.exe admin policy-remove` (B5), which acts only under the
+     hash rule in 3: it deletes the key tree and then the marker when the key still matches, and otherwise refuses
+     with `conflict` and leaves both.
    - macOS: the admin removes the profile in System Settings.
    - The Hub setting `managed_policy_mode = warn` stops refusals at once.
    - Swangz never uninstalls Chrome.
 
 *Tests:* writing over a foreign key is refused. An extra value, an HKCU value or `Recommended` each fail the check.
-S1, S2 and S3 each have a regression test. Rollback removes only a key that carries the marker. Personal devices never
-call the writer.
+S1, S2 and S3 each have a regression test. Marker present but one value changed or added after the write: both
+`policy-write` and `policy-remove` refuse with `conflict` and the key, the added value and the marker are all unchanged.
+Matching key: remove deletes the tree, then the marker. Key absent, marker present: only the marker goes. The hash is
+order-independent and changes with any type, name or data change. Personal devices never call the writer.
 
 **F. Revocation: what is cleaned up, and what is not.**
 1. **Local, by Swangz.** When the device is revoked or the person's access ends:
    - the Hub refuses further launches at once (server side, already in place);
    - at the next contact the app closes the managed window (`launcher.close`), retires (deletes) the person's browser
-     folder (a locked folder becomes `purge_pending` and is deleted at the next start, before any launch), removes the
-     key and the Run, login or autostart item (#281, the macOS and Linux follow-up), and clears its policy marker;
+     folder (a locked folder becomes `purge_pending` and is deleted at the next start, before any launch), and removes
+     the key and the Run, login or autostart item (#281, the macOS and Linux follow-up);
+   - it **never touches machine policy or its marker**: the unelevated app cannot write `HKLM`, the policy covers
+     every OS user on the computer, and clearing only the marker would make Swangz's own key look foreign and block a
+     later setup (E3). The app shows, and reports at that contact, "Machine policy remains on this computer. An
+     administrator removes it with `Swangz.exe admin policy-remove` (Windows) or by removing the profile (macOS)."
+     The admin runbook lists this step;
    - offline, this waits for the next contact, within the D-021 grace period.
 2. **Not by Swangz.** Provider-side sessions and refresh tokens, seats and licences, the person's Google sessions on
    other devices, anything the person already downloaded or copied, sessions in any other browser or Chrome profile,
@@ -1009,7 +1072,9 @@ call the writer.
 
 *Tests:* after a revoke with the window open, the window closes, the folder is gone (or becomes `purge_pending`
 and is gone before the next launch), and `open` is refused. The revoked device has no Run, login or autostart item.
-The console text distinguishes local from provider revocation.
+Revocation never opens, writes or deletes anything under `HKLM` or `/Library` (a fake registry records every call; the
+list of writes outside the app's data folder and `HKCU\...\Run` is empty), and the "machine policy remains" message is
+shown when a marker exists. The console text distinguishes local from provider revocation.
 
 **G. Must NOT be built.**
 - Bundling, mirroring or hosting Chrome.
@@ -1028,6 +1093,14 @@ The console text distinguishes local from provider revocation.
 - The policy is machine-wide: on a shared or personal computer it blocks the person's own browsing in Chrome.
 - Two people on one OS account are separated by Swangz's rules, not by the OS.
 - Unsigned RC builds trigger SmartScreen and Gatekeeper warnings until the certificates (Arnold's purchase) exist.
+  Until then the UAC prompt for `Swangz.exe admin …` says "Unknown publisher", exactly as it would for any other
+  program: the person cannot tell Swangz's prompt from malware's. B5's admin-only install protects what runs after
+  "Yes", not the decision to click it. Signed company builds are required before this is called production-ready.
+- Anything already running as the person can ask for elevation itself; B5 stops it from *borrowing* Swangz's
+  elevated step, not from prompting on its own.
+- macOS: no in-app Chrome install in this issue (B6); the person or admin installs Chrome, and Swangz verifies it.
+- A GPO refresh can land between E3's hash and the write or delete; the next check reports the mismatch.
+- After revocation, machine policy stays until an administrator removes it (F1).
 - Force-installing the extension on unmanaged Windows or macOS may need the Chrome Web Store listing. Publishing it
   needs Arnold's approval.
 
@@ -1039,6 +1112,16 @@ The console text distinguishes local from provider revocation.
 - Keeping the folder after a revoke (the earlier R-12 reading): it leaves live sessions on a device the company has
   disconnected.
 
+**Amended 2026-11-25 (Forge's review of dc1a607).** Gap 1 (swapped MSI): accepted, stricter than proposed: the
+elevated step downloads into its own admin-only folder instead of copying (A1, B5). Gap 2 (elevating a user-writable
+exe): accepted, and extended to the one-file build's `%TEMP%` unpacking (B5); unsigned-RC limit stated. Gap 3 (Hub
+host): pin at `/ALLUSERS` install in `HKLM\Software\Swangz\Pinned` (B4); the confirmation dialog was rejected. Gap 4
+(revocation and marker): accepted as proposed, with the read-back hash rule (E3, E6, F1). macOS gets no elevated step
+in this issue (B6), replacing the proposed macOS copy-then-verify.
+
 **Consequences.** Forge builds A–F behind these tests on feature branches. Sentinel reviews each PR before merge.
+The elevated Windows steps (`chrome-install`, `policy-write`, `policy-remove`) are not built until Prism has made the
+company build one-folder and `/ALLUSERS`-capable with the B4 pinned values (`packaging/`, `swangz.iss`); Forge may build
+the launch, folder, verification, conflict-hash and revocation parts (A2–A4, C, D, E3–E5, F) first.
 `enforce` stays off until D-025 point 2 and E5's acceptance check exist. R-12 changes: a folder is deleted on
 revocation, as well as on reassignment.
