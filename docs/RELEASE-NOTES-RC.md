@@ -16,22 +16,24 @@ says NOT TESTED, PARTIAL or OWNER, so do these notes. Windows build details: `pa
 |---|---|---|
 | **Windows installer** | Per-person install with no administrator rights. It adds a Start-menu entry, plus two optional tasks that are off by default: a desktop shortcut and starting at sign-in. It also adds an uninstaller in Apps & features. An older installer run over a newer install is refused | #243, #250. Install, sign-in, restart, network cut and restore, upgrade over a running copy and uninstall all pass on `windows-latest` (RELEASE-EVIDENCE rows 1, 7 and 9) |
 | **macOS app and DMG** | `Swangz.app` in a DMG for Apple silicon. You drag it into Applications. An older copy put over a newer one refuses to run (exit 5) | #244, #253, #263, #271, #275, #277, #281, #286. The 114-step journey passes on `macos-latest` (run 44506182423, main `13e22b2`). Gatekeeper rejects the unsigned app as expected (row 2) |
-| **Device sign-in** | The device is approved with a code in the person's own browser (`/device`). The key is stored in the system keychain (Credential Manager on Windows, Keychain on macOS). No Hub address, key or secret is built in: the person enters the address at first run, and it must be https, except `localhost`, `127.0.0.1` and `::1` | Rows 3 and 4. The macOS app refuses `http://` addresses (#271) |
+| **Device sign-in** | The device is approved with a code in the person's own browser (`/device`). The key is stored in the system keychain (Credential Manager on Windows, Keychain on macOS). Sign-in starts with `https://hub.ictconnect.org` (#337); the person can change it, and it must be https, except `localhost`, `127.0.0.1` and `::1`. No key or secret is built in | Rows 3 and 4. The macOS app refuses `http://` addresses (#271) |
 | **Managed AI browser workspace** | A company-managed browser profile per person for approved AI sites, kept apart from personal browsing. Company devices check the machine policy before Open and report it if it has been tampered with (D-024, #248) | #204, #248, #270, #272. **PARTIAL (runner, row 5):** on `windows-latest` and `macos-latest` the installed app opens a granted tool in real Google Chrome on one per-person folder inside its data folder; the folder's marker matches the person and the device; the Hub records the open (runs 44455161915 and 44455029714, main `8013574`). #272 adds: the folder and marker are unchanged after an upgrade and after sign-out, and a second person on the same device gets their own folder. Not shown: two people signed in at the same time. Machine-policy tamper check: Linux Chrome CI only (`w6-step5`) |
 | **Prompt and reply privacy (F-18)** | `store_bodies` is **off by default**: no prompt or reply text is stored. If an admin turns it on, only console roles with the `trust` area (owner, security) can read the content. Every other role sees "withheld" | #249, D-023. Probe verified at `58da416`. Content already stored stays until retention removes it. The round trip through the packaged app passes on both runners (#270, #272; 11 steps, row 6), including a scan of the Hub's database, WAL, stored bodies and log for the prompt when storage is off. This was a fixture Hub on the runner, not the production Hub |
 | **Updates** | Off. The app reports "Updates unavailable: no pinned release key". A newer RC is installed by hand | `release_keys.ENABLED = False` |
 
 ## Version rules
 
-- **Test builds:** CI numbers RC builds as the tree's version with PATCH raised by the run number: `0.1.0` becomes
-  `0.1.<run>`, for example `0.1.400`. Two runs of the same commit therefore differ in name and hash.
+- **Test builds:** CI numbers RC builds as the tree's version with PATCH raised by the run number: `0.1.100` becomes
+  `0.1.<100 + run>`, for example `0.1.400`. The Windows and macOS workflows count runs separately, so one commit gets
+  two different numbers. Two runs of the same commit also differ in name and hash.
 - **No going back:** an older build never replaces a newer one. On Windows the installer refuses it. On macOS the
   app refuses to run (exit 5) while the device is signed in, and its dialog offers **Sign out** (#275; the button is unit-tested, not yet run in the packaged app). A version the
   updater rolled back from does not count.
 - **The first real release is `0.2.0`.** It raises MINOR so that it sorts above every `0.1.<run>` test build. Any
-  tester who ran an RC can then install it without being refused (`docs/CLIENT.md`). The tree is still `0.1.0`
-  (`swangz_client/__init__.py`): raising it to `0.2.0` is a manual step before the first real release, and CI has not
-  built or checked a 0.2.0 yet.
+  tester who ran an RC can then install it without being refused (`docs/CLIENT.md`). The tree is `0.1.100`
+  (`swangz_client/__init__.py`), above the earlier RC builds `0.1.75` (Windows) and `0.1.95` (macOS). Raising it to
+  `0.2.0` is a manual step before the first real release, and CI has not built or checked a 0.2.0 yet. The server's
+  minimum client version stays `0.1.0`.
 - **The server sets a minimum client version.** That is what controls agent use. The local "no going back" check
   deliberately does not apply to the credential helper.
 
@@ -76,7 +78,7 @@ says NOT TESTED, PARTIAL or OWNER, so do these notes. Windows build details: `pa
    match the `.sha256` file and the table below.
 3. Run the installer. No administrator rights are needed. SmartScreen's "unknown publisher" warning is expected:
    record it for O-1.
-4. Open Swangz, enter the Hub address you were given, and approve the code in your own browser.
+4. Open Swangz, keep the Hub address it shows (or enter the one you were given), and approve the code in your own browser.
 
 ### macOS (Apple silicon)
 
@@ -87,7 +89,7 @@ says NOT TESTED, PARTIAL or OWNER, so do these notes. Windows build details: `pa
 4. Open it. Gatekeeper blocking the unsigned app is the expected result: record it for O-2. Do not turn Gatekeeper
    off. Testing beyond this point on a real Mac waits for a signed build, or for Arnold's decision on how the owner
    test runs.
-5. Once it opens: enter the Hub address, approve the code in your browser, and allow the Keychain prompt.
+5. Once it opens: keep the Hub address it shows (or enter the one you were given), approve the code in your browser, and allow the Keychain prompt.
 
 ## Sign out and uninstall
 

@@ -9,7 +9,7 @@
 ;     (the same HKCU Run value, "Swangz", that the app's own "Start with Windows" switch reads and writes);
 ;   - uninstall: signs the device out (the Hub disconnects it and the app removes what it put on this computer, even when
 ;     the Hub cannot be reached), then removes the program, the shortcuts and the Run value.
-; It carries no server address, key or other secret: the person types the Hub address at first run. It installs no
+; It carries no key or other secret; the app's sign-in starts with the Swangz Hub address. The installer installs no
 ; updater and schedules nothing; in-app updates stay off until signed releases exist (swangz_client/release_keys.py).
 ; The program and this installer are UNSIGNED until Swangz holds a code-signing certificate (packaging/README.md).
 
