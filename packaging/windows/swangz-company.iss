@@ -12,11 +12,15 @@
 ;   - a Start-menu entry for everyone, and an optional desktop shortcut;
 ;   - when all three are passed, records the company's pinned values in HKLM\Software\Swangz\Pinned (64-bit view):
 ;     hub_host, extension_id, extension_update_url. With none, nothing is recorded and an upgrade keeps what is there.
-;     This installer only checks that they were typed whole; whether they are acceptable is decided by the later policy
-;     step, with the validators in deploy/chrome-policy/prepare.py;
-;   - uninstall: stops every running copy, removes the program, the shortcuts and the pinned values. It does NOT sign
-;     anyone out: that would run the app with administrator rights over a person's own files. Sign out in the app first,
-;     or disconnect the device in the console.
+;     A switch that is passed empty is refused like a missing one. This installer only checks that they were typed
+;     whole; whether they are acceptable is decided by the later policy step, with the validators in
+;     deploy/chrome-policy/prepare.py;
+;   - upgrade: first closes the running copies of this installed program, in every Windows session, and changes nothing
+;     if a program file is still in use after that (exit code 7);
+;   - uninstall: closes every running Swangz.exe on the computer, then removes the program, the shortcuts and the pinned
+;     values. It disconnects no device and deletes nothing in anyone's profile: that would run Swangz code with
+;     administrator rights over a person's own files. Disconnect each device in the console first. That does not clear
+;     provider or Google sign-ins: the Swangz browser folders that hold them stay on the computer.
 ; It installs no browser, writes no Chrome policy, opens nothing, schedules nothing and adds no service.
 ; It carries no key or other secret. UNSIGNED until Swangz holds a code-signing certificate (packaging/README.md).
 
@@ -86,7 +90,8 @@ Root: HKLM64; Subkey: "Software\Swangz\Pinned"; ValueType: string; ValueName: "e
 Root: HKLM64; Subkey: "Software\Swangz\Pinned"; ValueType: string; ValueName: "extension_update_url"; ValueData: "{param:EXTENSIONUPDATEURL|}"; Check: PinsGiven
 
 [UninstallRun]
-; Stop every running copy, whoever started it, so the program folder can be removed.
+; Every process named Swangz.exe, whoever started it and wherever it runs from (a person's own copy too), with the
+; programs it started, so the program folder can be removed.
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /T /IM Swangz.exe"; RunOnceId: "SwangzCompanyStop"; Flags: runhidden waituntilterminated
 
 [Code]
@@ -129,10 +134,25 @@ begin
   Result := ExpandConstant('{param:' + Name + '|}');
 end;
 
-// True when any of the three was passed. InitializeSetup has then already required all three.
+// True when the switch is on the command line at all, with or without a value: PinValue cannot tell an empty one from
+// an absent one.
+function SwitchPassed(Name: String): Boolean;
+var
+  I: Integer;
+  Arg: String;
+begin
+  Result := False;
+  for I := 1 to ParamCount do begin
+    Arg := Uppercase(ParamStr(I));
+    if (Arg = '/' + Name) or (Pos('/' + Name + '=', Arg) = 1) then
+      Result := True;
+  end;
+end;
+
+// True when any of the three was passed. InitializeSetup has then already required all three, each with a value.
 function PinsGiven(): Boolean;
 begin
-  Result := (PinValue('HUBHOST') <> '') or (PinValue('EXTENSIONID') <> '') or (PinValue('EXTENSIONUPDATEURL') <> '');
+  Result := SwitchPassed('HUBHOST') or SwitchPassed('EXTENSIONID') or SwitchPassed('EXTENSIONUPDATEURL');
 end;
 
 // Present, and printable ASCII without spaces, quotes or backslashes: catches a mistyped command line, nothing more.
@@ -167,15 +187,102 @@ begin
   end;
 end;
 
-// /DIR= (or a saved answer file) must not move the program somewhere other people can change it. Runs before any file
-// is deleted or written; a silent install ends with exit code 7.
+// Ends the processes whose program is exactly the installed Swangz.exe, in every Windows session. A person's own copy
+// elsewhere and the programs a copy started are left running. A failure here is only logged: CompanyCopiesStopped
+// decides by looking at the files.
+procedure EndCompanyCopies();
+var
+  Locator, Service, Found, Item: Variant;
+  I: Integer;
+  Path: String;
+begin
+  try
+    Locator := CreateOleObject('WbemScripting.SWbemLocator');
+    Service := Locator.ConnectServer('.', 'root\CIMV2');
+    // another person's process can only be ended with the debug privilege an administrator holds
+    Service.Security_.Privileges.AddAsString('SeDebugPrivilege', True);
+    Found := Service.ExecQuery('SELECT * FROM Win32_Process WHERE Name = ''Swangz.exe''');
+    for I := 0 to Found.Count - 1 do
+      try
+        Item := Found.ItemIndex(I);
+        if not VarIsNull(Item.ExecutablePath) then begin
+          Path := Item.ExecutablePath;
+          if CompareText(Path, ExpandConstant('{app}\Swangz.exe')) = 0 then
+            Item.Terminate();
+        end;
+      except
+        Log('Could not end a running copy: ' + GetExceptionMessage);
+      end;
+  except
+    Log('Could not look for running copies: ' + GetExceptionMessage);
+  end;
+end;
+
+// True when nothing holds the file: it opens for writing with no sharing. Nothing is written.
+function FileIsFree(Path: String): Boolean;
+var
+  Stream: TFileStream;
+begin
+  try
+    Stream := TFileStream.Create(Path, fmOpenReadWrite or fmShareExclusive);
+    Stream.Free;
+    Result := True;
+  except
+    Log('In use: ' + Path);
+    Result := False;
+  end;
+end;
+
+function FolderIsFree(Folder: String): Boolean;
+var
+  Found: TFindRec;
+begin
+  Result := True;
+  if FindFirst(Folder + '\*', Found) then
+    try
+      repeat
+        if (Found.Name <> '.') and (Found.Name <> '..') then begin
+          if (Found.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
+            Result := FolderIsFree(Folder + '\' + Found.Name)
+          else
+            Result := FileIsFree(Folder + '\' + Found.Name);
+        end;
+      until not Result or not FindNext(Found);
+    finally
+      FindClose(Found);
+    end;
+end;
+
+// Before an upgrade: close the installed copies, then wait (about 15 seconds at most) until no program file is in use.
+function CompanyCopiesStopped(): Boolean;
+var
+  Attempt: Integer;
+  Exe: String;
+begin
+  Exe := ExpandConstant('{app}\Swangz.exe');
+  Result := False;
+  for Attempt := 1 to 15 do begin
+    EndCompanyCopies();
+    Sleep(1000);
+    Result := (not FileExists(Exe) or FileIsFree(Exe)) and FolderIsFree(ExpandConstant('{app}\_internal'));
+    if Result then
+      Break;
+  end;
+end;
+
+// Runs before any file is deleted or written; a silent install that is refused here ends with exit code 7.
+//   - /DIR= (or a saved answer file) must not move the program somewhere other people can change it;
+//   - an upgrade over files that are in use would leave half of the old program and half of the new one.
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   Result := '';
-  if CompareText(RemoveBackslashUnlessRoot(ExpandConstant('{app}')), ExpandConstant('{commonpf64}\Swangz')) <> 0 then begin
-    Result := 'The company build installs only into ' + ExpandConstant('{commonpf64}\Swangz') + '.';
+  if CompareText(RemoveBackslashUnlessRoot(ExpandConstant('{app}')), ExpandConstant('{commonpf64}\Swangz')) <> 0 then
+    Result := 'The company build installs only into ' + ExpandConstant('{commonpf64}\Swangz') + '.'
+  else if DirExists(ExpandConstant('{app}')) and not CompanyCopiesStopped() then
+    Result := 'Swangz is still in use on this computer, so nothing was changed. Close it for every person signed in ' +
+      '(or restart the computer), then run this installer again.';
+  if Result <> '' then
     Log('Refused: ' + Result);
-  end;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);

@@ -93,8 +93,10 @@ server-controlled executable configuration.
 
 **Company build on Windows.** A company computer can have the app installed for all users into `%ProgramFiles%\Swangz`
 by an administrator, with the company's pinned values recorded in `HKLM` (`packaging/README.md`, "Company installer").
-The install does not make a device a company device: enrolment still decides that. Uninstalling the company build does
-not sign anyone out; sign out in the app first, or disconnect the device in the console.
+The install does not make a device a company device: enrolment still decides that. Before uninstalling the company
+build, disconnect the device in the console. The uninstaller closes every `Swangz.exe` on the computer and removes the
+program, but disconnects nothing itself. Neither signs anyone out of a provider or Google: the Swangz browser folders
+that hold those sign-ins stay on the computer.
 
 ## What is recorded — and what is not
 

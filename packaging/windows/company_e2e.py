@@ -5,20 +5,27 @@
         --evidence evidence/company
 
 Both installers hold the same one-folder program; the "previous" one only carries an older installer version, which is
-what the upgrade and the refused downgrade look at. Steps: refused without /ALLUSERS, refused with some of the pinned
+what the upgrade and the refused downgrade look at. Steps: refused without /ALLUSERS, refused with some or empty pinned
 values, refused into another folder; installed for all users with the three values; the folder is writable by
-administrators only; the installed program runs from `_internal` beside it; upgraded without values (they are kept);
-the older installer refused; uninstalled (program and values removed). The values are placeholders: nothing on the
-internet is contacted and no Chrome policy or browser is touched. Exit 0 only when every step passed.
+administrators only; upgrade refused while a program file is held open; upgraded without values (they are kept) while
+copies run under the runner's account and under a temporary account without administrator rights, which are closed,
+beside a copy in another folder, which is left running; the installed program runs from `_internal` beside it; the older
+installer refused without closing anything; uninstalled while copies run (every Swangz.exe closed, program and values
+removed). The values are placeholders: the copies are not signed in, nothing on the internet is contacted and no Chrome
+policy or browser is touched. Exit 0 only when every step passed.
 
 What this does NOT prove: the UAC prompt a person sees (the runner is already elevated), a standard user trying to
-change the files by hand (the file permissions are read, not attacked), or anything on a physical computer.
+change the files by hand (the file permissions are read, not attacked), a copy on a second signed-in desktop (the other
+account's copy runs as a scheduled task), or anything on a physical computer.
 """
 
 import argparse
 import json
 import os
 import platform
+import secrets
+import shutil
+import string
 import subprocess
 import sys
 import tempfile
@@ -63,6 +70,22 @@ $out = foreach ($item in $items) {
 }
 ConvertTo-Json -InputObject @($out) -Depth 5 -Compress
 """
+
+
+# A temporary local account for a copy run by somebody else, and the scheduled task that starts it. Both are removed.
+OTHER_USER = "swangz-ci-other"
+TASK = "swangz-company-e2e"
+# Every running Swangz.exe, with the program it runs from and the account that owns it.
+PROCESS_SCRIPT = r"""
+$ErrorActionPreference = 'Stop'
+$out = @(Get-CimInstance Win32_Process -Filter "Name='Swangz.exe'" | ForEach-Object {
+  $owner = Invoke-CimMethod -InputObject $_ -MethodName GetOwner -ErrorAction SilentlyContinue
+  [pscustomobject]@{ pid = [int]$_.ProcessId; path = $_.ExecutablePath; user = $owner.User }
+})
+ConvertTo-Json -InputObject $out -Compress
+"""
+# Holds one file open for reading, as a program that has it loaded would.
+HOLD = "import sys, time; f = open(sys.argv[1], 'rb'); print('held', flush=True); time.sleep(900)"
 
 
 def require(condition, message):
@@ -122,11 +145,72 @@ def windows_powershell_env(environ, folder):
     return env
 
 
-def read_acls(folder):
-    done = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", ACL_SCRIPT],
+def powershell(script, folder, what):
+    done = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
                           env=windows_powershell_env(os.environ, folder), capture_output=True, text=True, timeout=600)
-    require(done.returncode == 0, "could not read the file permissions: " + done.stderr[-2000:])
+    require(done.returncode == 0, f"could not read {what}: " + done.stderr[-2000:])
     return json.loads(done.stdout)
+
+
+def read_acls(folder):
+    return powershell(ACL_SCRIPT, folder, "the file permissions")
+
+
+def running_copies():
+    return [p for p in powershell(PROCESS_SCRIPT, "", "the running processes") if p]
+
+
+def users_running(processes, exe):
+    """The accounts (lower case) with a process running exactly this program file."""
+    wanted = str(exe).lower()
+    return sorted({str(p.get("user") or "?").lower() for p in processes if str(p.get("path") or "").lower() == wanted})
+
+
+def wait_for(condition, seconds=90):
+    """-> True as soon as `condition()` holds, False when it still does not after `seconds`."""
+    deadline = time.monotonic() + seconds
+    while not condition():
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(2)
+    return True
+
+
+def new_password():
+    """For the temporary account: every character class Windows may demand, 14 long (`net user` asks a question above
+    that), starting with a letter so it never reads as an option. It is never printed or written down."""
+    classes = (string.ascii_uppercase, string.ascii_lowercase, string.digits, "-_.")
+    rest = [secrets.choice(c) for c in classes[1:]] + [secrets.choice("".join(classes[:3])) for _ in range(10)]
+    secrets.SystemRandom().shuffle(rest)
+    return secrets.choice(classes[0]) + "".join(rest)
+
+
+def quiet(cmd, what):
+    """A command whose arguments hold the temporary password: neither they nor its output are repeated."""
+    try:
+        done = subprocess.run([str(c) for c in cmd], capture_output=True, timeout=120)
+    except subprocess.TimeoutExpired:  # its message would repeat the arguments
+        raise RuntimeError(f"could not {what} (timed out)") from None
+    require(done.returncode == 0, f"could not {what} (exit {done.returncode})")
+
+
+def create_other_user(password, exe):
+    quiet(["net", "user", OTHER_USER, password, "/add"], "create the temporary account")
+    # gives it the right to log on as a batch job, which a scheduled task needs; no administrator rights
+    quiet(["net", "localgroup", "Performance Log Users", OTHER_USER, "/add"], "let the temporary account run a task")
+    quiet(["schtasks", "/Create", "/F", "/TN", TASK, "/TR", f'"{exe}" --background', "/SC", "ONCE", "/ST", "00:00",
+           "/RU", OTHER_USER, "/RP", password], "create the task for the temporary account")
+
+
+def remove_other_user():
+    for cmd in (["schtasks", "/Delete", "/F", "/TN", TASK], ["net", "user", OTHER_USER, "/delete"]):
+        subprocess.run(cmd, capture_output=True, timeout=120)
+
+
+def snapshot(folder):
+    """-> {relative path: (size, modification time)} of every file in `folder`."""
+    return {p.relative_to(folder).as_posix(): (p.stat().st_size, p.stat().st_mtime_ns)
+            for p in folder.rglob("*") if p.is_file()}
 
 
 def e2e(setup, previous, previous_version, new_version, evidence):
@@ -138,8 +222,12 @@ def e2e(setup, previous, previous_version, new_version, evidence):
     exe, uninstaller = app_dir / "Swangz.exe", app_dir / "unins000.exe"
     shortcut = Path(os.environ["ProgramData"]) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Swangz.lnk"
     own_dir = Path(os.environ["LOCALAPPDATA"]) / "Programs" / "Swangz"
-    work = Path(tempfile.mkdtemp(prefix="swangz-company-e2e-"))
+    work = Path(tempfile.mkdtemp(prefix="swangz-company-e2e-")).resolve()  # long names: process paths are compared
     pins = [SWITCHES[name] + value for name, value in PINS.items()]
+    personal = work / "personal" / "Swangz.exe"  # a copy of the program elsewhere, as a person's own install would be
+    started = []  # processes this journey started itself
+    other_user = False
+    me = os.environ["USERNAME"].lower()
 
     def passed(message):
         report["steps"].append(message)
@@ -161,13 +249,35 @@ def e2e(setup, previous, previous_version, new_version, evidence):
         require(machine_values(PINNED_KEY) is None, "pinned values were written")
         require(machine_values(UNINSTALL_KEY) is None and not person_has_key(UNINSTALL_KEY), "an Apps entry was written")
 
-    def self_check(name):
-        out = work / name
-        env = {**os.environ, "SWANGZ_HOME": str(work / "data")}
+    def app_env(data):
+        env = {**os.environ, "SWANGZ_HOME": str(work / data)}
         for variable in ("PYTHONPATH", "PYTHONHOME", "SWANGZ_SERVER", "SWANGZ_ALLOW_HTTP"):
             env.pop(variable, None)
-        run([exe, "--self-check", out], env=env)
+        return env
+
+    def self_check(name):
+        out = work / name
+        run([exe, "--self-check", out], env=app_env("data"))
         return json.loads(out.read_text(encoding="utf-8"))
+
+    def start_copy(program, data):
+        started.append(subprocess.Popen([str(program), "--background"], env=app_env(data), cwd=work))
+        return started[-1]
+
+    def start_other_copy():
+        quiet(["schtasks", "/Run", "/TN", TASK], "start the temporary account's copy")
+
+    def all_running(company):
+        """Waits for the named accounts' copies of the installed program and the personal copy, then makes sure they
+        are still there a little later (a program that exits on start must not pass)."""
+        def there():
+            processes = running_copies()
+            return users_running(processes, exe) == sorted(company) and users_running(processes, personal) == [me]
+
+        require(wait_for(there), f"not running as expected {sorted(company)} and the other folder: {running_copies()}")
+        time.sleep(8)
+        require(there(), f"a copy did not stay running: {running_copies()}")
+        return [{"user": p.get("user"), "path": p.get("path")} for p in running_copies()]
 
     try:
         require(not (own_dir / "Swangz.exe").exists(), f"a person's own install is already at {own_dir}")
@@ -180,12 +290,15 @@ def e2e(setup, previous, previous_version, new_version, evidence):
             nothing_installed(own_dir)
         passed("without /ALLUSERS (and with /CURRENTUSER): refused, exit 1, nothing installed or recorded")
 
-        # 2. some of the pinned values
-        for number, args in enumerate((pins[:1], pins[1:], [*pins[:2], SWITCHES["extension_update_url"]])):
+        # 2. some of the pinned values, or switches passed empty
+        empty = list(SWITCHES.values())
+        for number, args in enumerate((pins[:1], pins[1:], [*pins[:2], empty[2]], empty[:1], empty,
+                                       [empty[0].rstrip("=")])):
             text = install(f"partial-{number}.log", "/ALLUSERS", *args, expected=1)
-            require("Refused: Pass all three of" in text, "partial values: the log does not say why it refused")
+            require("Refused: Pass all three of" in text, f"{args}: the log does not say why it refused")
             nothing_installed(app_dir)
-        passed("one, two or an empty pinned value: refused, exit 1, nothing installed or recorded")
+        passed("one, two or an empty pinned value, /HUBHOST= alone, all three empty: refused, exit 1, nothing installed"
+               " or recorded")
 
         # 3. into another folder
         elsewhere = work / "elsewhere"
@@ -223,29 +336,64 @@ def e2e(setup, previous, previous_version, new_version, evidence):
         passed(f"owner and write permissions of Program Files, the program folder and all {len(items) - 2} items in it:"
                " Administrators, SYSTEM and TrustedInstaller only")
 
-        # 6. upgrade without values, over a file an older version could have left behind
+        # 6. an upgrade while something holds a program file open
+        deepest = max((p for p in (app_dir / "_internal").rglob("*") if p.is_file()), key=lambda p: (len(p.parts), p))
+        before = snapshot(app_dir)
+        holder = subprocess.Popen([sys.executable, "-I", "-c", HOLD, str(deepest)], stdout=subprocess.PIPE, text=True,
+                                  cwd=work)
+        started.append(holder)
+        require(holder.stdout.readline().strip() == "held", f"could not hold {deepest} open")
+        text = install("in-use.log", "/ALLUSERS", expected=7)
+        require("Refused: Swangz is still in use" in text, "file in use: the log does not say why it refused")
+        require(holder.poll() is None, "the process holding the file was ended")
+        require(snapshot(app_dir) == before and machine_values(UNINSTALL_KEY).get("DisplayVersion") == previous_version
+                and machine_values(PINNED_KEY) == PINS, "the refused upgrade changed something")
+        holder.kill()
+        holder.wait(30)
+        passed(f"upgrade while a program file is held open ({deepest.relative_to(app_dir).as_posix()}): refused, exit 7,"
+               f" all {len(before)} files, the version and the values unchanged")
+
+        # 7. upgrade without values, over a file an older version could have left behind, while copies are running
+        shutil.copytree(app_dir, personal.parent)
+        password = new_password()
+        other_user = True
+        create_other_user(password, exe)
+        mine = start_copy(exe, "data-runner")
+        own = start_copy(personal, "data-personal")
+        start_other_copy()
+        report["running_before_upgrade"] = all_running([me, OTHER_USER])
         stale = app_dir / "_internal" / "left-behind.pyd"
         stale.write_bytes(b"old")
         install("upgrade.log", "/ALLUSERS")
         require(machine_values(UNINSTALL_KEY).get("DisplayVersion") == new_version, "the upgrade did not reach Windows")
         require(machine_values(PINNED_KEY) == PINS, "the upgrade changed the pinned values")
         require(not stale.exists(), "the upgrade left an old file in _internal")
+        after = running_copies()
+        require(not users_running(after, exe), f"installed copies still running: {after}")
+        require(mine.poll() is not None, "the runner's copy is still running")
+        require(own.poll() is None, "the upgrade ended the copy in another folder")
+        passed("upgrade while the installed program ran under two accounts: both copies closed, the copy in another"
+               " folder left running, values kept, no old file left")
         check = self_check("self-check.json")
         report["self_check"] = check
         require(check["frozen"] and check["one_folder"] and check["window"] == "signin", f"self-check: {check}")
         require(check["version"] == new_version and check["updates_enabled"] is False, f"self-check: {check}")
-        passed("upgrade without values: values kept, no old file left; the installed program runs its sign-in window from"
-               " _internal beside it, updates off")
+        passed("the upgraded program runs its sign-in window from _internal beside it, updates off")
 
-        # 7. the older installer is refused
+        # 8. the older installer is refused
+        mine = start_copy(exe, "data-runner")
+        all_running([me])
         before = exe.read_bytes()
         text = install("downgrade.log", "/ALLUSERS", *pins, installer=previous, expected=1)
         require(f"Refused: Swangz {new_version} is installed" in text, "downgrade: the log does not say why it refused")
         require(exe.read_bytes() == before and machine_values(UNINSTALL_KEY).get("DisplayVersion") == new_version
                 and machine_values(PINNED_KEY) == PINS, "the refused downgrade changed something")
-        passed("the older installer is refused and changes nothing")
+        require(mine.poll() is None and own.poll() is None, "the refused downgrade ended a running copy")
+        passed("the older installer is refused, changes nothing and closes nothing")
 
-        # 8. uninstall
+        # 9. uninstall while copies are running
+        start_other_copy()
+        report["running_before_uninstall"] = all_running([me, OTHER_USER])
         run([uninstaller, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART",
              f"/LOG={(evidence / 'uninstall.log').resolve()}"])
         deadline = time.monotonic() + 120  # the uninstaller carries on from a copy of itself
@@ -255,12 +403,21 @@ def e2e(setup, previous, previous_version, new_version, evidence):
         require(not app_dir.exists(), f"left behind: {sorted(str(p) for p in app_dir.rglob('*'))[:20]}")
         require(machine_values(PINNED_KEY) is None and machine_values(r"Software\Swangz") is None, "pinned values left")
         require(machine_values(UNINSTALL_KEY) is None and not shortcut.exists(), "Apps entry or shortcut left")
-        passed("uninstall: program folder, shortcut, Apps entry and pinned values removed")
+        require(wait_for(lambda: not running_copies(), 30), f"still running after the uninstall: {running_copies()}")
+        require(personal.is_file(), "the uninstall removed the copy in another folder")
+        passed("uninstall while copies ran under two accounts and from another folder: every Swangz.exe closed; program"
+               " folder, shortcut, Apps entry and pinned values removed; the other folder's files kept")
         report["ok"] = True
     except Exception as exc:  # noqa: BLE001  recorded, then reported as a failure
         report["failure"] = f"{type(exc).__name__}: {exc}"
         print("FAIL " + report["failure"], file=sys.stderr)
     finally:
+        for proc in started:
+            if proc.poll() is None:
+                proc.kill()
+        if other_user:
+            subprocess.run(["taskkill", "/F", "/T", "/IM", "Swangz.exe"], capture_output=True, timeout=120)
+            remove_other_user()
         if uninstaller.is_file():
             subprocess.run([str(uninstaller), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"], timeout=180)
         (evidence / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
