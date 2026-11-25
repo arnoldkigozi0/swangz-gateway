@@ -519,11 +519,15 @@ class StaticTests(unittest.TestCase):
                 self.assertNotRegex(source, pattern)
 
     def test_the_macos_client_never_asks_for_root_itself(self):
-        pattern = re.compile(r"(?i)with administrator privileges|AuthorizationExecute|\bsudo\b|xattr\s+-d|"
-                             r"com\.apple\.quarantine")
+        pattern = re.compile(r"(?i)with administrator privileges|AuthorizationExecute|xattr\s+-d|com\.apple\.quarantine")
         for file, source in self.client_sources().items():
             with self.subTest(file=file):
                 self.assertNotRegex(source, pattern)
+                # sudo as a program: an argv item or the start of a command string (prose may name it, as
+                # core.py's "run it as yourself, without ... sudo" does)
+                commands = [n.value for n in ast.walk(ast.parse(source)) if isinstance(n, ast.Constant)
+                            and isinstance(n.value, str) and re.match(r"\s*(\S*/)?sudo(\s|$)", n.value)]
+                self.assertEqual(commands, [])
 
     def test_the_only_download_address_is_googles_and_nothing_is_bundled(self):
         source = (ROOT / "swangz_client" / "chrome_install.py").read_text(encoding="utf-8")
