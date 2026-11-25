@@ -904,7 +904,11 @@ decision sets the rules for joining them. It changes nothing on the server, the 
      `anchor apple generic and identifier "com.google.Chrome" and certificate leaf[subject.OU] = "EQHXZ8M8AV"`
      (Google LLC's Team ID, confirmed from Chromium source and the DMG/PKG signatures), and
      `spctl --assess --type execute` accepts it. The requirement applies to the **app only**, never to the DMG
-     (whose identifier is `GoogleChrome-<version>-GGRO`); the DMG is just a carrier.
+     (whose identifier is `GoogleChrome-<version>-GGRO`); the DMG is just a carrier. Observed on 25 Nov
+     (docs/ACCEPTANCE-333.md): the DMG is signed `Developer ID Application: Google LLC (EQHXZ8M8AV)` and the
+     enterprise PKG `Developer ID Installer: Google LLC (EQHXZ8M8AV)` (that certificate expires 1 Feb 2027). If an
+     admin checks either carrier, the check pins the Team ID, never a certificate; validity is unverified until
+     `codesign` / `pkgutil --check-signature` pass on a Mac.
 
    Anything else stops setup with a repair message. The SHA-256 of the checked file goes in the setup log as
    evidence, never as the check.
@@ -946,8 +950,12 @@ setup and run nothing. A redirect to `http://` is refused. A changed binary is c
      self-hosted address on the pinned `hub_host`. Any other host is refused, because the update URL decides where
      every company Chrome fetches the force-installed extension's code.
 
-   `policy-write` also refuses unless the device's enrolled Hub host equals the pinned one (a check that can only
-   make it stricter). If any of the three is missing or invalid, no policy is written.
+   If any of the three is missing or invalid, no policy is written. The elevated step never compares the pinned host
+   with the enrolled one: the enrolled state lives in the person's account, which B3 forbids it to read, and an
+   admin elevating with their own account would see a different (or no) enrolment. That comparison happens in the
+   **unelevated app, before it offers the step**: the app reads `HKLM\Software\Swangz\Pinned` (readable by every
+   user) and offers `policy-write` only when the pinned `hub_host` equals the enrolled Hub host. This is a
+   usability gate, not a security control; the security control is that the elevated step reads only HKLM.
    An "admin confirmation dialog" in place of pinning was rejected: a prompt inside an elevated step proves only that
    someone clicked, and the values would still come from the person's account.
 5. **Only admin-only code is ever elevated (rules on Forge's gaps 1 and 2).**
@@ -983,8 +991,10 @@ setup and run nothing. A redirect to `http://` is refused. A changed binary is c
 *Tests:* the elevated entry point refuses any argv other than `admin <one of three actions>`. It refuses when: run
 one-file (`sys._MEIPASS` under `%TEMP%`, not `<exe folder>\_internal`); it accepts a correct one-folder layout; run from a folder under `%LocalAppData%`; run from a folder whose DACL grants the person write (CI: create
 one, grant the runner's SID, expect `admin_install_required`); `%ProgramData%\Swangz` pre-exists with a user-writable
-DACL (`staging_unsafe`); any of the three pinned values is missing or malformed; the pinned host differs from the
-enrolled host; the update URL is on any host other than `clients2.google.com` or the pinned Hub host. The staging folder is
+DACL (`staging_unsafe`); any of the three pinned values is missing or malformed; the update URL is on any host other
+than `clients2.google.com` or the pinned Hub host. The elevated step opens nothing under the person's profile or the
+app data folder (fake filesystem records every read). The unelevated app does not offer `policy-write` when the
+pinned host differs from the enrolled one. The staging folder is
 gone after success and after a failed signature. `chrome-install` reads nothing from the app data folder (static test:
 no path from `paths.data_dir` reaches it). Declining the prompt changes nothing. No code path writes a service, task or
 daemon (static test). The macOS client contains no `osascript … with administrator privileges`, `AuthorizationExecute`
@@ -1000,13 +1010,18 @@ or `sudo` (static test).
 3. Nothing copies, exports, backs up or uploads a folder, its cookies or its tokens, not even between devices of
    the same person. Chrome sync stays off (`SyncDisabled`) and is not required. Provider and Google sign-in happen
    by hand in the window, with the provider's own consent and MFA.
-4. A folder survives app restart, computer restart and sign-out (so sessions persist). It is deleted on revocation
-   (E) and when the person changes (C2).
+4. A folder survives app restart, computer restart and **signing out of the computer** (so sessions persist). It is
+   deleted on revocation (F), when the person changes (C2), and on **uninstall**: `Swangz.exe cleanup` (D-005,
+   "nothing is left") closes the window and deletes every folder under `browser-profiles/`; a folder it cannot
+   delete is named in the uninstaller's result, never silently left. **Signing out of the app** keeps the folder,
+   because the same person signs back in to their own sessions; a different person signing in retires it (C2).
+   Today `remove_everything` on main keeps the folders in every case (R-12); changing uninstall is Forge's work.
 5. Paths go into Chrome as one argv element each, never through a shell. Paths with spaces and non-ASCII characters
    are supported.
 
 *Tests:* two owners produce two folders, and each cannot open the other's. A person switch retires the earlier
-folder. A path with spaces and Unicode launches. The folder survives a restart. No API returns or uploads folder
+folder. A path with spaces and Unicode launches. The folder survives a restart and an app sign-out by the same
+person. `cleanup` (uninstall) deletes every folder, and reports one it cannot delete. No API returns or uploads folder
 content (static test).
 
 **D. Launch: explicit Chrome, fail closed, no default-browser fallback.**
@@ -1064,6 +1079,11 @@ device the existing message is kept.
 
    The app never writes `/Library/Managed Preferences` directly on a real Mac; only the CI runner does that.
    **Personal devices never get a policy** and keep the extension gate (D-024 point 4).
+   The `company` mark that matters is the admin's confirmation (D-025 point 2), which is **not built yet**. Until it
+   is, the app never offers `policy-write`: the person's own `owner_kind` declaration is not enough to change every
+   user's Chrome on a computer. An administrator may still run `Swangz.exe admin policy-write` by hand on a computer
+   they know is company-owned; the UAC consent is that administrator's decision. Once D-025 point 2 exists, the
+   unelevated app offers the step only when the manifest says the admin confirmed `company`.
 2. **Setup states the cost plainly.** Machine policy applies to every Chrome window and every OS user on that
    computer, including personal browsing in Chrome, because the pack blocks everything not on the list. The admin
    confirms this before the step runs. Swangz never changes, deletes or hides an existing Chrome profile. Its own
@@ -1165,6 +1185,11 @@ shown when a marker exists. The console text distinguishes local from provider r
   must say so.
 - A GPO refresh can land between E3's hash and the write or delete; the next check reports the mismatch.
 - After revocation, machine policy stays until an administrator removes it (F1).
+- Until C4's uninstall change is built, **app sign-out and uninstall leave the browser folders, with their provider
+  and Google sessions, on disk** (main's `remove_everything` keeps them, R-12). Only revocation (F1) deletes them.
+- The per-user Windows install (`%LocalAppData%`, personal devices) cannot install Chrome: it never offers an elevated
+  step (B5). The person installs Chrome themselves; A3 verifies it, and A4 accepts a per-user Chrome only there.
+- `policy-write` is not offered by the app until D-025 point 2 (admin-confirmed `company`) exists (E1).
 - Force-installing the extension on unmanaged Windows or macOS may need the Chrome Web Store listing. Publishing it
   needs Arnold's approval.
 
@@ -1187,6 +1212,12 @@ in this issue (B6), replacing the proposed macOS copy-then-verify.
 with the update URL limited to the Web Store endpoint or the pinned Hub host. A1 and B1 now agree with B6: on macOS,
 Swangz downloads, installs and elevates nothing. D1 no longer claims more than the code does: it is scoped to the app,
 D4 rules on shared accounts and D5 on the staff web app's `/go/`, and both gaps are listed under Limitations.
+
+**Amended 2026-11-25 (Probe's review of #338).** B4: the pinned-versus-enrolled host comparison moved from the
+elevated step to the unelevated app before it offers the step (B3 reads nothing user-writable). C4: "sign-out" split
+into computer sign-out and app sign-out (both keep the folder); uninstall deletes the folders; the revocation reference
+is F. E1: `policy-write` waits for D-025 point 2. A2: the macOS carriers' Developer ID identities. Limitations: folders
+left by sign-out and uninstall until built, per-user Windows Chrome, the D-025 dependency. D4 is unchanged (option A).
 
 **Consequences.** Forge builds A–F behind these tests on feature branches. Sentinel reviews each PR before merge.
 The elevated Windows steps (`chrome-install`, `policy-write`, `policy-remove`) are not built until Prism has made the
