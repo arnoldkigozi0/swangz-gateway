@@ -1,5 +1,5 @@
-"""Windows only: the current user's SID, an owner-only ACL on the workspace folder (W3 threat note, T1), and the two
-file calls that deleting a profile folder safely needs.
+"""Windows only: the current user's SID, an owner-only ACL on the workspace folder (W3 threat note, T1), and the file
+calls that deleting a profile folder safely needs.
 
 Standard library `ctypes` over advapi32. Every failure is reported as "not verified", and the launcher refuses.
 """
@@ -23,6 +23,11 @@ FILE_LIST_DIRECTORY, FILE_READ_ATTRIBUTES = 0x1, 0x80
 FILE_SHARE_READ, FILE_SHARE_WRITE = 0x1, 0x2  # no FILE_SHARE_DELETE: a held folder cannot be renamed or replaced
 OPEN_EXISTING = 3
 FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT = 0x02000000, 0x00200000
+DELETE, FILE_WRITE_ATTRIBUTES = 0x10000, 0x100
+# FILE_INFO_BY_HANDLE_CLASS
+FILE_BASIC_INFO_CLASS, FILE_DISPOSITION_INFO_CLASS, FILE_DISPOSITION_INFO_EX_CLASS = 0, 4, 21
+FILE_DISPOSITION_DELETE, FILE_DISPOSITION_POSIX_SEMANTICS = 0x1, 0x2
+SETTABLE_ATTRIBUTES = 0x1 | 0x2 | 0x4 | 0x20 | 0x100 | 0x1000 | 0x2000  # read-only … not content indexed
 
 
 class ACL_SIZE(ctypes.Structure):
@@ -31,6 +36,10 @@ class ACL_SIZE(ctypes.Structure):
 
 class ACE_HEADER(ctypes.Structure):
     _fields_ = [("AceType", ctypes.c_ubyte), ("AceFlags", ctypes.c_ubyte), ("AceSize", wintypes.WORD)]
+
+
+class FILE_BASIC_INFO(ctypes.Structure):
+    _fields_ = [("Times", ctypes.c_longlong * 4), ("FileAttributes", wintypes.DWORD)]  # a time of 0 stays as it is
 
 
 class ACCESS_ACE(ctypes.Structure):
@@ -180,17 +189,17 @@ def owner_only(path):
         return False
 
 
-def hold_folder(path):
-    """-> a file descriptor on the folder itself (a junction or link is opened, not followed). While it is open nobody
-    can rename or delete that folder. Raises OSError, also when someone else holds it for deletion."""
+def _open_itself(path, access):
+    """-> a file descriptor on the entry `path` names: a junction or link is opened, not followed. While it is open
+    nobody else can rename or delete that entry. Raises OSError, also when someone else holds it against this."""
     import msvcrt
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
     kernel.CreateFileW.restype = wintypes.HANDLE
     kernel.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD,
                                    wintypes.DWORD, wintypes.HANDLE]
     kernel.CloseHandle.argtypes = [wintypes.HANDLE]
-    handle = kernel.CreateFileW(path, FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                None, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, None)
+    handle = kernel.CreateFileW(path, access, FILE_SHARE_READ | FILE_SHARE_WRITE, None, OPEN_EXISTING,
+                                FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, None)
     if handle == wintypes.HANDLE(-1).value:
         raise ctypes.WinError(ctypes.get_last_error())
     try:
@@ -200,9 +209,38 @@ def hold_folder(path):
         raise
 
 
-def set_attributes(path, attributes):
-    """Set a file's attributes on that name itself; a link is not followed."""
+def hold_folder(path):
+    """-> a file descriptor that holds the folder while its entries are listed and removed."""
+    return _open_itself(path, FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES)
+
+
+def open_entry(path):
+    """-> a file descriptor through which one entry is checked, changed and deleted."""
+    return _open_itself(path, DELETE | FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES)
+
+
+def _set_information(fd, kind, info):
+    import msvcrt
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel.SetFileAttributesW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD]
-    if not kernel.SetFileAttributesW(path, attributes or 0x80):  # 0x80 = FILE_ATTRIBUTE_NORMAL
+    kernel.SetFileInformationByHandle.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
+    if not kernel.SetFileInformationByHandle(msvcrt.get_osfhandle(fd), kind, ctypes.byref(info), ctypes.sizeof(info)):
         raise ctypes.WinError(ctypes.get_last_error())
+
+
+def delete_open(fd):
+    """Delete what `fd` (from open_entry) is open on. A folder must be empty; a read-only entry raises
+    PermissionError. The name goes when the descriptor is closed."""
+    try:  # POSIX semantics, as os.unlink has: the name goes even while someone else still has the file open
+        _set_information(fd, FILE_DISPOSITION_INFO_EX_CLASS,
+                         wintypes.DWORD(FILE_DISPOSITION_DELETE | FILE_DISPOSITION_POSIX_SEMANTICS))
+    except OSError as exc:
+        if exc.winerror not in (1, 50, 87):  # a file system that has no such call
+            raise
+        _set_information(fd, FILE_DISPOSITION_INFO_CLASS, ctypes.c_ubyte(1))
+
+
+def set_open_attributes(fd, attributes):
+    """Set the attributes of what `fd` (from open_entry) is open on."""
+    info = FILE_BASIC_INFO()
+    info.FileAttributes = attributes & SETTABLE_ATTRIBUTES or 0x80  # 0x80 = FILE_ATTRIBUTE_NORMAL; 0 means "keep"
+    _set_information(fd, FILE_BASIC_INFO_CLASS, info)

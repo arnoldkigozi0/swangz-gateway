@@ -118,6 +118,10 @@ def _before_open(path):
     """Does nothing. Tests replace it to change a checked folder before it is opened."""
 
 
+def _before_delete(path):
+    """Does nothing. Tests replace it to change a listed entry before Windows opens it for deletion."""
+
+
 def _inside(path, root):
     """True when the path, with every link resolved, is still below the resolved root."""
     real = os.path.normcase(os.path.realpath(path))
@@ -156,24 +160,31 @@ def _extended(path):
 
 
 def _remove_windows(path, info):
-    """Remove one entry by its own name. A link or junction goes itself; what it points at is never touched."""
-    attributes = getattr(info, "st_file_attributes", 0)
-    directory = bool(attributes & stat.FILE_ATTRIBUTE_DIRECTORY) or stat.S_ISDIR(info.st_mode)
-    remove = os.rmdir if directory else os.unlink
+    """Remove one entry, last seen as `info`. It is opened as itself (a link or junction is never followed), then
+    checked and deleted through that one handle, so nothing swapped under the name afterwards is acted on."""
+    from .winacl import delete_open, open_entry, set_open_attributes
+    _before_delete(path)
+    fd = open_entry(path)
     try:
-        remove(path)
-    except PermissionError:
-        if not attributes & stat.FILE_ATTRIBUTE_READONLY:
-            raise
-        if _reparse(info) or stat.S_ISLNK(info.st_mode):
-            # Never change attributes through a link: it stays, is reported, and its target is not at risk.
-            raise ProfileError("readonly_link") from None
-        # The read-only bit belongs to the file, not to this name: leave a file that also lives somewhere else alone.
-        if not directory and info.st_nlink > 1:
-            raise ProfileError("shared_file") from None
-        from .winacl import set_attributes
-        set_attributes(path, attributes & ~stat.FILE_ATTRIBUTE_READONLY)
-        remove(path)
+        held = os.fstat(fd)
+        if stat.S_ISDIR(held.st_mode) and not _reparse(held) and not _same(info, held):
+            raise ProfileError("path_changed")  # a real folder goes only if it is the one that was seen
+        try:
+            delete_open(fd)
+        except PermissionError:
+            attributes = getattr(held, "st_file_attributes", 0)
+            if not attributes & stat.FILE_ATTRIBUTE_READONLY:
+                raise
+            if _reparse(held):
+                # Never change a link's attributes: it stays and is reported.
+                raise ProfileError("readonly_link") from None
+            # The read-only bit belongs to the file, not to this name: leave a file that also lives somewhere else alone.
+            if not stat.S_ISDIR(held.st_mode) and held.st_nlink > 1:
+                raise ProfileError("shared_file") from None
+            set_open_attributes(fd, attributes & ~stat.FILE_ATTRIBUTE_READONLY)
+            delete_open(fd)
+    finally:
+        os.close(fd)
 
 
 def _purge_windows(path, info, root):

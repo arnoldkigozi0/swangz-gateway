@@ -1314,8 +1314,12 @@ removal steps; E1 names the manual-run exception; D2/D4 marked done by #339.
     `S-1-5-19` and `S-1-5-20`; euid 0 on macOS and Linux; a token user (or euid) that is not the owner of the app data
     folder (`wrong_account`); an elevation type, token user or owner that cannot be read. (As built, an unreadable
     owner is `wrong_account`; every other refusal is `elevated_refused`.)
-  - **Allowed:** a Default full token (UAC off, or the built-in Administrator) and a Limited token.
-  - Deletion is link-safe, always.
+  - **Allowed:** a Default full token (UAC off, or the built-in Administrator) and a Limited token. Default is
+    allowed because the owner-only folder is writable only by processes already holding that token.
+  - Deletion is link-safe, always: a reparse point is opened without being followed, with no check-then-delete. On
+    Windows every folder is held open as itself while its entries go, and each entry is opened as itself
+    (`FILE_FLAG_OPEN_REPARSE_POINT`), then checked and deleted through that handle. On macOS and Linux names are
+    removed relative to open folder descriptors; removing a name never follows a link.
   - The uninstaller runs `cleanup` unelevated (`ExecAsOriginalUser` if it was started elevated). On refusal it reports
     it, points to "Remove Swangz from this account" or to disconnecting the device in the console, and never retries
     elevated.
@@ -1330,6 +1334,8 @@ removal steps; E1 names the manual-run exception; D2/D4 marked done by #339.
       signed in still pass.
     - Nothing sets the owner of the data folder. Where Windows makes `BUILTIN\Administrators` the owner of what an
       administrator's process creates, an allowed Default token is refused `wrong_account`.
+    - The app restricts only the managed browser's folder to its owner, not the app data folder, so "owner-only" in
+      the reason for allowing Default is not something the app itself establishes for the data folder.
 
 **Consequences.** Forge builds A–F behind these tests on feature branches. Sentinel reviews each PR before merge.
 The elevated Windows steps (`chrome-install`, `policy-write`, `policy-remove`) are not built until Prism has made the

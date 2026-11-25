@@ -279,7 +279,11 @@ class DeleteAllTests(Base):
         os.symlink(target, file_link)
         junction(dir_link, self.outside)
         for link in (file_link, dir_link):
-            winacl.set_attributes(str(link), os.lstat(link).st_file_attributes | stat.FILE_ATTRIBUTE_READONLY)
+            fd = winacl.open_entry(str(link))
+            try:
+                winacl.set_open_attributes(fd, os.lstat(link).st_file_attributes | stat.FILE_ATTRIBUTE_READONLY)
+            finally:
+                os.close(fd)
             self.assertTrue(os.lstat(link).st_file_attributes & stat.FILE_ATTRIBUTE_READONLY)
         left = self.profiles.delete_all()
         self.assert_outside_untouched()
@@ -287,6 +291,45 @@ class DeleteAllTests(Base):
             self.assertEqual([reason for _, reason in left], ["readonly_link"])
         else:
             self.assertEqual(self.leftovers(), [])
+
+
+class EntrySwapTests(Base):
+    """Windows deletes a file or link through a handle on the entry itself: what the handle holds is what is checked."""
+
+    def swapped_cookies(self, make):
+        """delete_all while `Cookies` turns into something else after it was listed as an ordinary file."""
+        self.profile_with_content()
+        done = []
+
+        def swap(path):
+            if os.path.basename(path) == "Cookies" and not done:
+                done.append(path)
+                os.remove(path)
+                make(path)
+        with mock.patch.object(bp, "_before_delete", swap):
+            left = self.profiles.delete_all()
+        self.assertEqual(len(done), 1, "the hook ran before the entry was opened")
+        return left
+
+    @unittest.skipUnless(WINDOWS, "Windows handle deletion")
+    def test_a_file_swapped_for_a_shared_read_only_file_keeps_its_attribute(self):  # pragma: no cover - Windows runner
+        shared = self.outside / "canary"
+        os.chmod(shared, stat.S_IREAD)
+        self.addCleanup(os.chmod, shared, stat.S_IWRITE)
+        self.before = self.canaries()
+        left = self.swapped_cookies(lambda path: os.link(shared, path))
+        self.assertEqual([reason for _, reason in left], ["shared_file"])
+        self.assertFalse(shared.stat().st_mode & stat.S_IWRITE, "the file elsewhere kept its attribute")
+        self.assert_outside_untouched()
+
+    @unittest.skipUnless(WINDOWS, "Windows handle deletion")
+    def test_a_file_swapped_for_a_link_loses_the_link_only(self):  # pragma: no cover - Windows runner
+        for kind, make in (("junction", junction), ("symlink", lambda link, target: os.symlink(
+                plain(target), plain(link), target_is_directory=True))):
+            with self.subTest(kind=kind):
+                self.assertEqual(self.swapped_cookies(lambda path: make(path, self.outside)), [])
+                self.assertEqual(self.leftovers(), [])
+                self.assert_outside_untouched()
 
 
 class NativeCleanupTests(Base):
