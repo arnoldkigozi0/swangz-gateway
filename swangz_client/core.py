@@ -1202,11 +1202,22 @@ class Client:
         browser = (self.store.manifest() or {}).get("browser") or {}
         return isinstance(browser, dict) and browser.get("contract") == 2 and app.get("workspace") is True
 
+    def company_device(self):
+        """True when the Hub's tool list or this device's own record says the computer is company-owned."""
+        records = ((self.store.manifest() or {}).get("device"), self.store.device())
+        return any(isinstance(r, dict) and r.get("owner_kind") == "company" for r in records)
+
+    def _shared_refusal(self):
+        """D-026 D4: what a refused shared company account says depends on whose computer this is."""
+        from . import workspace_launcher as wl
+        return wl.LaunchError("shared_account_company" if self.company_device() else "shared_account")
+
     def open_app(self, tool_id):
         """Open a website tool in the Swangz workspace window (W3, section 9.1). A tool marked
         `workspace` opens at the provider address the Hub gives this device (POST /api/device/open). Any other (shared
-        company accounts, tools the Hub hands out itself) opens nothing this release: the person is told to open it
-        from Swangz AI Hub. The workspace never opens the Hub's own address. Never the default browser: without a
+        company accounts, tools the Hub hands out itself) opens nothing this release: on a personal device the person
+        is told to open it from Swangz AI Hub, on a company device to ask their administrator (D-026 D4). The
+        workspace never opens the Hub's own address. Never the default browser: without a
         contract-2 workspace on this device nothing opens and the person is told why."""
         for app in self.apps():
             if app["id"] == tool_id:
@@ -1235,7 +1246,7 @@ class Client:
         if not self.workspace_app(app):
             # Shared company accounts and tools the Hub hands out itself are not opened by the app this release:
             # the workspace never opens the Hub's own address, and there is no default-browser fallback.
-            raise wl.LaunchError("shared_account")
+            raise self._shared_refusal()
         def gen(block):
             g = (block or {}).get("generation")
             return g if type(g) is int and g >= 1 else 1
@@ -1246,7 +1257,13 @@ class Client:
         # The Hub decides (same checks and launch record as /go/); the address is checked again here. The fresh policy
         # result goes with it, so the Hub never decides on an older heartbeat's report (a pack put back opens at once).
         body = {"tool": app["id"], **({"policy": report} if report is not None else {})}
-        out = self._guard(lambda: self.api().call("POST", "/device/open", body))
+        try:
+            out = self._guard(lambda: self.api().call("POST", "/device/open", body))
+        except ApiFailure as exc:
+            # A tool that became shared since the last sync: the Hub's words point to the Hub's web page.
+            if exc.code == "shared_account" and self.company_device():
+                raise self._shared_refusal() from None
+            raise
         try:
             self.workspace.apply({"contract": 2, "workspace": out["workspace"]} if "workspace" in out else None)
             self.workspace.check_open()

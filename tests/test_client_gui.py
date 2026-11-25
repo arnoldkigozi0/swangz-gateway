@@ -251,6 +251,16 @@ class WindowTests(unittest.TestCase):
             buttons(app.content)["Open weekly reports"].invoke()
         hub.assert_called_once_with(self.client, "weekly")
 
+    def test_a_shared_account_on_a_company_computer_offers_no_way_to_open_it(self):
+        with mock.patch.object(gui.shell, "open_hub") as hub:
+            app = self.refuse(wl.LaunchError("shared_account_company"))
+        hub.assert_not_called()
+        self.assertIn(wl.MESSAGES["shared_account_company"], self.everything())
+        found = buttons(app.content)
+        self.assertIn("Dismiss", found)
+        # the only buttons left are the list's own Open buttons, which refuse again, and Dismiss
+        self.assertEqual(set(found), {"Open", "Dismiss"})
+
     def test_the_panel_survives_a_redraw_and_goes_on_dismiss_or_page_change(self):
         app = self.refuse(core.ApiFailure(403, "not_assigned", "Canva isn't assigned to you."))
         app.sync_now()

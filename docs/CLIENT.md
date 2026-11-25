@@ -286,8 +286,9 @@ Authorization: Bearer <device key>      X-Swangz-App: 1      Content-Type: appli
   field named like a credential (`token`, `access_token`, `api_key`, `password`, ...), at most 2048 characters, and on one of the tool's
   `hosts` (exact or a subdomain). A tool with no hosts is refused (`host_not_allowed`): the admin sets them.
 - **The app must still** check `url` against `allowed_hosts` itself before starting the browser, pass `url` and nothing else on the
-  command line (never the key), and treat any non-200 as "do not open". `shared_account` tools are opened from the Hub (turns are not
-  wired into the workspace).
+  command line (never the key), and treat any non-200 as "do not open". `shared_account` tools do not open in the app (turns are not
+  wired into the workspace): on a personal device the app points the person to the Hub; on a company device it says the account does
+  not open on this computer yet and to ask the administrator, and offers no button that opens anything (D-026 D4).
 - Not `GET`: the call records a launch. The answer is `Cache-Control: no-store` and carries no key, token or Hub session.
 
 #### When Open is refused in the app (#333)

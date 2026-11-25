@@ -54,6 +54,8 @@ _DEVICE = {
                          (ADMIN + " to install or repair the company Chrome settings on this computer.", AGAIN), (RETRY,)),
     "shared_account": ("This one opens from Swangz AI Hub",
                        ("Open Swangz AI Hub and press Open there. That is where turns are handed out.",), ()),
+    "shared_account_company": ("This shared account doesn't open here yet",
+                               (ADMIN + " if you need this tool.",), ()),
     "unavailable": ("This tool isn't in your list any more",
                     ("Press Sync now to see your current tools.", ADMIN + " if you still need it."), ()),
 }
