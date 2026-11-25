@@ -1750,3 +1750,4 @@ D-027 build follow-ups (Probe): task 3 Forge, no setup on staff computers before
 
 - 25 Nov 13:20: #352 FAIL at 36c1bef (Probe, comment 7159468650: MDM false positive, hash misses empty subkey, unreadable HKCU key passes) -> Anvil after #351; Sentinel review queued, MDM assumption (D-026 E5) to recheck. D-027 task 6 must update the policy check and hash for its 3rdparty key.
 - 25 Nov 13:20: draft #353 cleanup open (Forge); elevation ruling sent to Forge; Probe + Sentinel review the head that includes it, not 290fd46. packaging/macos_dmg.py fix pushed (e260f3b).
+- 25 Nov 13:25: #352 BLOCKED by Sentinel too (comment 7159523150, one Medium: same MDM check). Fix chosen: MDM alone never removes a "not guaranteed" line on Windows + stale-key test; posted on the PR for Anvil (delegation queue full). Re-verify and re-review after the fix.
