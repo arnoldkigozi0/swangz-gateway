@@ -1436,6 +1436,12 @@ Hub account. What it does today (extension/background.js):
   same folder, and a window left open after the turn loses the provider session within about a minute while online.
   The Google session (accounts.google.com is not a tool host) is kept, so each new turn re-enters the provider with
   "Continue with Google", with no password. This works only if both provider accounts use Google sign-in.
+- **No shared tool may live under `google.com`.** Clearing a site's cookies through `chrome.browsingData` clears the
+  whole registrable domain, so clearing a `gemini.google.com` tool also clears `accounts.google.com` and ends the
+  Google session Arnold left; the next turn could not re-enter without his password. The Hub's `/api/gate/turns`
+  lists **every** `signin = 'shared'` tool the person does not hold, not only those that open in the app. So: **while
+  any `signin = 'shared'` tool has a host under `google.com` (Gemini included), nothing shared opens in the app**, and
+  task 2 refuses with 409 `shared_account`, with a test. Gemini is never a shared tool on this path.
 - **Signed out:** today it gates nothing; every allowed host opens. For the shared folder that is fail-open, so task 6
   makes a signed-out extension block the shared providers' hosts on company devices. A never-signed-in extension has
   no host list from the Hub, so the list comes from the pack (task 6), not from the Hub.
@@ -1460,8 +1466,8 @@ the `shared_browser` switch, and the switch's audit entry records that the admin
   to his own address; he reviews Security → Your devices weekly. Keep nothing in that Gmail or Drive that staff must
   not read.
 - *Gemini:* `gemini.google.com` is on the pack's allowlist, and Gemini can read Gmail and Drive through its Google
-  Workspace apps. Turn those apps off for this account, or remove `gemini.google.com` from the pack (machine-wide)
-  if Gemini is not a shared tool.
+  Workspace apps. Gemini is never a shared tool on this path (3a). Turn those apps off for this account, or remove
+  `gemini.google.com` from the pack (machine-wide).
 - *Claude (claude.ai) and ChatGPT (chatgpt.com):* the turn holder sees **all** history on the account, including
   Arnold's own and every earlier turn holder's, plus Projects, files and memory, and can reach the billing page
   (change or cancel the plan), data export and account deletion. Arnold: disconnect Gmail, Drive and other connectors
@@ -1542,18 +1548,22 @@ C4/F1 folder deletion working on that platform, including Windows. Smallest task
    device confirmed company, the request's own passing policy report with the baseline hash (any mode) and the
    `shared_folder` capability **in that request** (never stored from an earlier one), take the turn with the same
    checks as `/go/`, record `device_id`, return the start address and the end time; otherwise the existing 409
-   `shared_account` (or `workspace_policy`, `turn_elsewhere`). The manifest (enroll.py, today `workspace: false` for
-   every shared tool) gives a shared tool `workspace: true` only under those same conditions, so an old client never
-   calls `/device/open` for it. The heartbeat answer carries the shared state: the device's turn (tool, end) or none,
-   `shared_browser`, and whether any shared tool opens in the app; it accepts the one-minute check-in while a shared
+   `shared_account` (or `workspace_policy`, `turn_elsewhere`); also 409 `shared_account` for every shared tool while
+   any `signin = 'shared'` tool has a host under `google.com` (3a). The manifest (`GET
+   /device/manifest?browser_contract=2`, enroll.py, today `workspace: false` for every shared tool) gives a shared tool
+   `workspace: true` only when the switches, the company kind and the `google.com` rule allow it and that GET carries
+   the `shared_folder` capability; a GET has no policy report, so the report is checked at open and setup only. An old
+   client never calls `/device/open` for a shared tool. The heartbeat answer carries the shared state: the device's
+   turn (tool, end) or none, `shared_browser`, and whether any shared tool opens in the app; it accepts the one-minute check-in while a shared
    window is open (rate-limited), and receives and audits setup Done or timeout (`shared setup ended`, with reason) and
    `shared_window_open` (`correlation='device:<id>'`).
    *Tests:* busy turn refused with its end time; a turn from `/go/` or another device refused `turn_elsewhere`, and
    `/go/` refused for a device-bound turn; a same-device repeat returns the same turn, not extended; denied,
    expired-grant, suspended and revoked refused before any turn; missing, failing, stale or wrong-hash policy report
    refused in `warn` and `enforce`; the turn row carries the device; a personal device always 409; the address is the
-   tool's own host; the heartbeat reports release, switch off and no shared tool; with the constant off every client
-   gets 409 and the manifest says `workspace: false`; a capability sent only on an earlier request is not honoured;
+   tool's own host; any shared tool with a `google.com` host (set to open in the app or not) makes every shared open
+   409 and every manifest entry `workspace: false`; the heartbeat reports release, switch off and no shared tool;
+   with the constant off every client gets 409 and the manifest says `workspace: false`; a capability sent only on an earlier request is not honoured;
    setup ended and `shared_window_open` produce their audit rows.
 3. **Setup code:** console issues a code (≥128 bits, 10 min, single use, device-bound, stored as a hash, audited);
    `/device/shared-setup` accepts it once, under the same policy check (the report in its body), and returns only
@@ -1575,16 +1585,19 @@ C4/F1 folder deletion working on that platform, including Windows. Smallest task
    "access ended in Swangz; the shared account's sessions end only with the sign-out procedure".
 6. **Extension and pack (Prism; Sentinel reviews it as a D-024 baseline change):** the extension's manifest gets a
    managed-storage schema (`storage.managed_schema`) with `company` (boolean) and `shared_hosts` (list). The company
-   pack sets them through Chrome's per-extension policy for the Swangz extension's ID (`3rdparty`), written by the same
+   pack sets them through Chrome's per-extension policy for the Swangz extension's ID (Windows: the registry key
+   `...\Policies\Google\Chrome\3rdparty\extensions\<id>\policy`; macOS: the preference domain
+   `com.google.Chrome.extensions.<id>` in the configuration profile), written by the same
    elevated setup from the pinned values (D-026 B3/B4), and the baseline hash covers it, so changing it is a policy
    mismatch. `shared_hosts` is a fixed list in the company build: the own hosts of the shared tools (claude.ai,
-   chatgpt.com, chat.openai.com; gemini.google.com only if Gemini is a shared tool). Adding a shared tool needs a new
+   chatgpt.com, chat.openai.com; never a `google.com` host, 3a). Adding a shared tool needs a new
    pack and baseline; task 2 refuses a shared tool whose own hosts are not all in a server copy of the list. With
    `company` true and no Hub sign-in (including never signed in), the extension blocks every `shared_hosts` host. A
    person's own folder never opens a shared tool, so this costs nothing there. *Tests:* signed out (and never signed
    in) with `company` blocks claude.ai and chatgpt.com; without managed config it is unchanged (personal devices);
    signed in without a turn clears the site and blocks; a turn for one shared tool does not open the other; the pack
-   writes the `3rdparty` values and the baseline changes when they change; the server's list equals the pack's.
+   writes the per-extension values on both platforms and the baseline changes when they change; the server's list
+   equals the pack's.
 7. **Activation (last, after Sentinel's review of 1-6 and Probe's checks in 3a and 5):** a separate small PR that sets
    `SHARED_IN_APP = True`. Until it lands, every client gets 409 `shared_account`. *Tests:* an old
    client without the `shared_folder` capability gets 409 even with every switch on; before activation, a new client
