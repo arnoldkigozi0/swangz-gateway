@@ -1,5 +1,7 @@
 # Agent progress
 
+**25 Nov 15:36, Forge stop reply.** Worktrees clean. #353 head 0038bb3 (Probe, Sentinel pending), #354 a69f99f and #355 1cfbf05 (shared google.com fix) await Sentinel. Forge next at 16:00: Sentinel ruling on app data folder ownership (point 1 of the #353 report); if agreed, on feature/333-cleanup set the person as owner and restrict at creation and sign-in, stop the Windows test setting the owner itself, update the D-026 amendment. #353 and #354 overlap: second to merge takes main first. Folder deletion on revocation is not built or assigned.
+
 **25 Nov 14:00 shift end.** Merged since 12:00: 3 (#350, #346, #343 docs). Open: 4, all drafts.
 
 | PR | Owner | State at 14:00 | Next step at 16:00 |
