@@ -364,7 +364,9 @@ one person's account. It:
 3. signs out while the key still exists, which removes the key and what Swangz installed. If the server can't be
    reached it says so and carries on, and an admin disconnects the device in the console;
 4. deletes every folder under `browser-profiles/` in the app's data folder, whoever it was made for. A link or
-   junction is removed itself and what it points at is never touched;
+   junction is removed itself and what it points at is never touched. A folder that a running browser holds is left
+   whole and named (`in_use`): `cleanup` closes only a window this running app started, so close the window and run
+   it again;
 5. turns off start at sign-in.
 
 A step that fails does not stop the later ones. Everything left is named and the exit code is then 1;
@@ -463,7 +465,9 @@ Explicit `retire_all()` removes structurally safe profile folders even if their 
 missing; unsafe and unknown entries remain and are reported in `skipped`, with `complete=False`.
 A revocation does not delete a folder yet; an authenticated `retired` answer or a newer generation does.
 
-**Deletion, on every system.** A folder is first renamed to `.retired-<random>`, then deleted. A link
+**Deletion, on every system.** A folder that a running browser holds is not touched (Linux and macOS: Chrome's
+`SingletonLock` names a live process, and only that link's text is read; Windows refuses the rename itself).
+Any other folder is first renamed to `.retired-<random>`, then deleted. A link
 (symbolic link, junction or other reparse point) is removed itself and never entered, so what it points at
 is untouched. A linked `browser-profiles/` root is refused (`unsafe_link`) and never retargeted. A folder
 is compared by file ID before and after it is opened; a swap in between is `path_changed` and the folder is

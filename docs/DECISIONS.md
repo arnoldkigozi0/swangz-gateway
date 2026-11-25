@@ -1326,6 +1326,11 @@ removal steps; E1 names the manual-run exception; D2/D4 marked done by #339.
   - *Tests:* Full refused; Default and Limited allowed; the three service SIDs refused; another owner's folder refused
     `wrong_account`; unreadable refused; euid 0 refused; on a native Windows runner with the Default token, `cleanup`
     really deletes, a junction is removed with its target untouched, and the real elevation type is printed.
+  - **As built, a running browser:** no folder is renamed or deleted while a browser runs on it. On macOS and Linux
+    the app reads Chrome's `SingletonLock` and lists the folder as `in_use`, so `cleanup` exits non-zero (deleting
+    under a running Chrome kept its session alive and wrote the folder again, and `cleanup` reported success);
+    Windows refuses the rename. Limits: a lock left by a crash whose process number another program now has holds the
+    folder until that program ends, and a browser started between the check and the rename is not seen.
   - **As built, open for Sentinel:**
     - Inno Setup does not support `ExecAsOriginalUser` or `ShellExecAsOriginalUser` at uninstall time (its own
       scripting reference). The per-user uninstaller therefore starts `cleanup` with its own rights; if those are

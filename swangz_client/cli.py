@@ -58,11 +58,17 @@ def offer_sign_out(text):
         return False
 
 
-def sign_out_command():
-    """The full command that signs out, for a terminal where `swangz` is not on PATH (the Mac app bundle)."""
+def typed_command(verb):
+    """The full command for `verb`, for a terminal where `swangz` is not on PATH (the Mac app bundle), quoted the way
+    this system's command line reads it."""
     import shlex
 
-    return " ".join(shlex.quote(part) for part in [*shell.app_command(), "logout"])
+    parts = [*shell.app_command(), verb]
+    return subprocess.list2cmdline(parts) if sys.platform == "win32" else " ".join(shlex.quote(part) for part in parts)
+
+
+def sign_out_command():
+    return typed_command("logout")
 
 
 def when(ts):
@@ -174,11 +180,8 @@ def say_repair(fix):
 def browser_folders_stay(client):
     """Signing out and revocation leave the company-browser folders on disk; say so. The folder is named by
     browser_profiles alone, reached through the launcher (inventory and import guards)."""
-    import shlex
-
-    command = " ".join(shlex.quote(part) for part in [*shell.app_command(), "cleanup"])
     return ("Not removed: browser folders that hold provider and Google sign-ins stay on this device at "
-            f"{workspace_launcher.profiles_folder(client.paths.data)}. To delete them, run: {command}")
+            f"{workspace_launcher.profiles_folder(client.paths.data)}. To delete them, run: {typed_command('cleanup')}")
 
 
 def cleanup(client, report=None):

@@ -250,6 +250,25 @@ def _remove_tree(path, info):
     path.rmdir()
 
 
+def _in_use(folder):
+    """True while a running browser holds the folder. On Linux and macOS Chrome keeps the link `SingletonLock` ->
+    "<host>-<pid>" in a user-data folder while it runs; only that link's own text is read, and the host is ignored
+    (a computer's name can change under a running browser). A process we may not signal counts as running. Windows
+    needs no check: it refuses to rename a folder with open files."""
+    if _WINDOWS:
+        return False
+    try:
+        pid = int(os.readlink(os.path.join(folder, "SingletonLock")).rpartition("-")[2])
+        if pid <= 0:
+            return False
+        os.kill(pid, 0)
+    except PermissionError:
+        return True
+    except (OSError, ValueError, OverflowError):
+        return False
+    return True
+
+
 def _lock_os(fd, acquire):
     """The OS owns lock lifetime; the persistent file's contents and age are irrelevant."""
     try:
@@ -475,6 +494,8 @@ class Profiles:
 
     def _retire(self, path):
         _check(path)
+        if _in_use(path):  # deleted under a running browser, it would be written again with no marker, and then kept
+            raise ProfileError("in_use")
         retired = self.root / (".retired-" + secrets.token_hex(16))
         os.rename(path, retired)
         _purge(retired)
@@ -502,7 +523,8 @@ class Profiles:
 
     def delete_all(self):
         """`cleanup` (D-026): delete everything under browser-profiles/, whoever it belongs to and whatever state it is
-        in. A link or junction is removed itself and its target is never touched. Only the root and its lock stay.
+        in. A link or junction is removed itself and its target is never touched. Only the root and its lock stay,
+        and a folder a running browser holds, which is listed as `in_use`.
         Creates nothing when there is nothing. -> [(path, reason)] for whatever is still there."""
         try:
             for folder in (self.data, self.root):
@@ -530,6 +552,8 @@ class Profiles:
         try:
             info = path.lstat()
             if stat.S_ISDIR(info.st_mode) and not _reparse(info):
+                if _in_use(path):  # a browser left open would stay signed in and write the folder again
+                    return [(str(path), "in_use")]
                 if not SPECIAL.fullmatch(path.name):
                     # Renamed first, as every other deletion does: a half-deleted folder is never opened again.
                     retired = self.root / (".retired-" + secrets.token_hex(16))

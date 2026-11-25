@@ -9,6 +9,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -266,6 +267,77 @@ class DeleteAllTests(Base):
         self.assertEqual(self.profiles.delete_all(), [])
         self.assertEqual(self.leftovers(), [])
         self.assert_outside_untouched()
+
+    def window(self, folder):
+        """A stand-in for a browser still open on `folder`: it holds Chrome's SingletonLock and, like Chrome, keeps
+        writing to the folder's path, creating it again if it has gone. -> the function that closes it."""
+        script = ("import os, sys, time\n"
+                  "folder = sys.argv[1]\n"
+                  "os.symlink('this-host-%d' % os.getpid(), os.path.join(folder, 'SingletonLock'))\n"
+                  "print('open', flush=True)\n"
+                  "while True:\n"
+                  "    os.makedirs(os.path.join(folder, 'Default'), mode=0o700, exist_ok=True)\n"
+                  "    with open(os.path.join(folder, 'Default', 'Preferences'), 'w') as f:\n"
+                  "        f.write('visited')\n"
+                  "    time.sleep(0.01)\n")
+        proc = subprocess.Popen([sys.executable, "-I", "-c", script, str(folder)], stdout=subprocess.PIPE, text=True)
+
+        def close():
+            proc.kill()
+            proc.wait(10)
+            proc.stdout.close()
+        self.addCleanup(close)
+        self.assertEqual(proc.stdout.readline().strip(), "open")
+        return close
+
+    @unittest.skipIf(WINDOWS, "SingletonLock is the Linux and macOS lock; Windows refuses the rename itself")
+    def test_a_folder_an_open_browser_holds_is_reported_left_whole_and_deleted_once_it_closes(self):
+        folder = self.profile_with_content()
+        other = self.profiles.prepare(bp.Owner("https://hub.example", "person_2", "device-1"))
+        close = self.window(folder)
+        self.assertEqual(self.profiles.delete_all(), [(str(folder), "in_use")])
+        time.sleep(0.1)  # the browser goes on writing
+        self.assertEqual((folder / "Default" / "Cookies").read_bytes(), b"session")
+        self.assertTrue((folder / bp.MARKER).is_file())
+        self.assertFalse(other.exists(), "one held folder does not keep the others")
+        self.assertEqual(list(self.profiles.root.glob(".retired-*")), [])
+        close()
+        self.assertEqual(self.profiles.delete_all(), [])
+        self.assertEqual(self.leftovers(), [])
+
+    @unittest.skipIf(WINDOWS, "SingletonLock is the Linux and macOS lock; Windows refuses the rename itself")
+    def test_retiring_refuses_a_folder_an_open_browser_holds(self):
+        folder = self.profile_with_content()
+        close = self.window(folder)
+        with self.assertRaises(bp.ProfileError) as refused:
+            self.profiles.retire(folder.name, self.owner)
+        self.assertEqual(refused.exception.code, "in_use")
+        for out in (self.profiles.retire_owner(self.owner), self.profiles.retire_all()):
+            self.assertEqual(out, {"retired": [], "skipped": [{"name": folder.name, "reason": "in_use"}],
+                                   "complete": False})
+        self.assertTrue((folder / bp.MARKER).is_file())
+        close()
+        self.profiles.retire(folder.name, self.owner)
+        self.assertEqual(self.leftovers(), [])
+
+    @unittest.skipIf(WINDOWS, "SingletonLock is the Linux and macOS lock")
+    def test_only_a_lock_naming_a_live_process_counts_as_held(self):
+        folder = self.profile_with_content()
+        lock = folder / "SingletonLock"
+        self.assertFalse(bp._in_use(folder))  # no lock
+        lock.write_bytes(b"host-%d" % os.getpid())
+        self.assertFalse(bp._in_use(folder))  # a file is not Chrome's lock
+        for target, held in (("host-%d" % os.getpid(), True), ("my-host-name-%d" % os.getpid(), True),
+                             ("host-0", False), ("host-", False), ("host", False), ("host-abc", False),
+                             ("host-" + "9" * 30, False)):
+            with self.subTest(target=target):
+                lock.unlink()
+                os.symlink(target, lock)
+                self.assertEqual(bp._in_use(folder), held)
+        lock.unlink()
+        os.symlink("host-123", lock)
+        with mock.patch.object(bp.os, "kill", side_effect=PermissionError):
+            self.assertTrue(bp._in_use(folder))  # somebody else's process is still a process
 
     @unittest.skipUnless(WINDOWS, "the Windows read-only attribute on a link")
     def test_a_read_only_link_never_changes_its_target(self):  # pragma: no cover - Windows runner

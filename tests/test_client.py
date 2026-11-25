@@ -990,6 +990,33 @@ class CommandLineTests(ClientBase):
         self.assertEqual(self.run_cli("cleanup")[0], 0)  # the next run finishes the job
         self.assertEqual(self.left_in_profiles(), [])
 
+    @unittest.skipIf(os.name == "nt", "SingletonLock is the Linux and macOS lock")
+    def test_cleanup_never_reports_success_while_a_browser_holds_a_folder(self):
+        info = self.signed_in_with_folders()
+        held = self.profiles / ("a" * 32)
+        os.symlink("host-%d" % os.getpid(), held / "SingletonLock")  # this process stands for the open browser
+        code, text = self.run_cli("cleanup", "--report", str(self.report))
+        self.assertEqual(code, 1, text)
+        self.assertIn(f"Not deleted: {held} (in_use)", text)
+        self.assertIn("Close any workspace window, then run cleanup again", text)
+        self.assertNotIn("saved browser sign-ins included", text)
+        self.assertEqual(self.report.read_text(encoding="utf-8-sig").splitlines(), [str(held)])
+        self.assertEqual(self.left_in_profiles(), [held.name])
+        self.assertEqual((held / "Default" / "Cookies").read_bytes(), b"session")
+        self.assertTrue(self.revoked(info))
+        (held / "SingletonLock").unlink()  # the browser closed
+        self.assertEqual(self.run_cli("cleanup")[0], 0)
+        self.assertEqual(self.left_in_profiles(), [])
+
+    def test_printed_commands_are_quoted_for_this_systems_terminal(self):
+        program = ["C:\\Program Files\\Swangz\\Swangz.exe"]
+        with patch.object(shell, "app_command", return_value=program):
+            with patch.object(cli.sys, "platform", "win32"):
+                self.assertEqual(cli.sign_out_command(), '"C:\\Program Files\\Swangz\\Swangz.exe" logout')
+                self.assertEqual(cli.typed_command("cleanup"), '"C:\\Program Files\\Swangz\\Swangz.exe" cleanup')
+            with patch.object(cli.sys, "platform", "darwin"):
+                self.assertEqual(cli.sign_out_command(), "'C:\\Program Files\\Swangz\\Swangz.exe' logout")
+
     def test_cleanup_still_deletes_when_the_server_cannot_be_reached(self):
         info = self.signed_in_with_folders()
         with patch.object(core.Api, "call", side_effect=core.ApiFailure(0, "unreachable", "offline")):
