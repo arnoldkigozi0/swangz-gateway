@@ -1024,21 +1024,23 @@ or `sudo` (static test).
    deleted on revocation (F), when the person changes (C2), and on **uninstall**: `Swangz.exe cleanup` (D-005,
    "nothing is left") closes the window and deletes every folder under **that OS account's** `browser-profiles/`
    (it never reaches another account's folders); a folder it cannot delete is named in the uninstaller's result,
-   never silently left. `cleanup` always runs **as the person, unelevated** (it refuses an elevated token), and
+   never silently left. `cleanup` always runs **as the person, unelevated** (it refuses an elevated token; see
+   "Amendment 25 Nov (cleanup tokens)"), and
    deletes link-safely (a reparse point or symlink is removed itself, never followed; only paths that still resolve
    inside the app's data folder are deleted). **No elevated or all-users uninstall ever deletes inside a
    user-writable folder**: junctions and links could point that delete at system files (see the company-installer
    amendment below). **Signing out of the app** keeps the folder,
    because the same person signs back in to their own sessions; a different person signing in retires it (C2).
-   Today `remove_everything` on main keeps the folders in every case (R-12), and folder deletion raises
-   `unsupported_platform` on Windows (`browser_profiles._purge`, `retire`); both are Forge's work.
+   `remove_everything` (sign-out and disconnection) keeps the folders (R-12). `cleanup` deletes them, on Windows
+   too. Deletion on revocation (F1) and on a person switch (C2) is not built yet (Forge).
    - **Windows per-user uninstaller** (`packaging/windows/swangz.iss`, `PrivilegesRequired=lowest`, so it runs as the
-     person): today `[UninstallRun]` runs `Swangz.exe logout` with `runhidden`, which ignores the exit code, and the
-     exe is built `--windowed`, so nothing it prints is seen. It must instead run cleanup from `[Code]`, in
-     `CurUninstallStepChanged(usUninstall)`, before any file is removed: stop the person's running copy (the
+     person): an earlier `[UninstallRun]` entry ran `Swangz.exe logout` with `runhidden`, which ignores the exit
+     code, and the exe is built `--windowed`, so nothing it printed was seen. It must instead run cleanup from
+     `[Code]`, in `CurUninstallStepChanged(usUninstall)`, before any file is removed: stop the person's running copy (the
      existing `taskkill` filter), then `Exec('{app}\Swangz.exe', 'cleanup --report "<{tmp} file>"', …, ResultCode)`.
      `cleanup` runs `logout` itself first, while the key exists, so a separate `logout` entry is dropped. On a
-     non-zero `ResultCode` (or `Exec` failing) the uninstaller reads the report, one undeleted folder per line,
+     non-zero `ResultCode` (or `Exec` failing) the uninstaller reads the report, one undeleted folder per line
+     (after the disconnect line of the 25 Nov ruling on #353, where there is one),
      shows it in a message box (skipped when `UninstallSilent`), and always writes it to the uninstall log with
      `Log`. The uninstall continues; it never claims everything was removed (Prism's, `packaging/`).
    - **macOS:** there is no uninstaller; removal is drag-to-Bin (`packaging/macos_dmg.py` README), which runs
@@ -1223,9 +1225,9 @@ shown when a marker exists. The console text distinguishes local from provider r
   so only an administrator can do that. On Windows only `chrome.exe` is checked, not `chrome.dll`; under
   `%ProgramFiles%` the OS's permissions protect it, and on a personal device it is the person's own install (A4).
 - After revocation, machine policy stays until an administrator removes it (F1).
-- App sign-out keeps the browser folders, with their provider and Google sessions, on disk (C4). Until C4's
-  uninstall change is built, uninstall leaves them too. On main, disconnecting the device also keeps them (F1 is not
-  built); only an authenticated `retired` or a higher workspace generation deletes them, and not on Windows.
+- App sign-out keeps the browser folders, with their provider and Google sessions, on disk (C4). Disconnecting the
+  device keeps them too (F1 is not built); only `cleanup` (which the per-user Windows uninstaller runs), an
+  authenticated `retired` or a higher workspace generation deletes them.
 - macOS has no uninstaller: dragging Swangz to the Bin without running `cleanup` first leaves the folders (C4).
 - The per-user Windows install (`%LocalAppData%`, personal devices) cannot install Chrome: it never offers an elevated
   step (B5). The person installs Chrome themselves; A3 verifies it, and A4 accepts a per-user Chrome only there.
@@ -1316,7 +1318,7 @@ removal steps; E1 names the manual-run exception; D2/D4 marked done by #339.
   - is idempotent.
 
   The app's This device page offers it as "Remove Swangz from this account". `cleanup` takes `--report <file>`
-  (one undeleted folder per line). The per-user `swangz.iss` runs it from `[Code]` and reports failures (C4); it
+  (one undeleted folder per line, after the disconnect line where there is one). The per-user `swangz.iss` runs it from `[Code]` and reports failures (C4); it
   needs no separate `logout`, because `cleanup` runs `logout` first.
 
   *Tests:*
@@ -1325,6 +1327,51 @@ removal steps; E1 names the manual-run exception; D2/D4 marked done by #339.
   - a locked folder is reported, with a non-zero exit;
   - a second run changes nothing;
   - static: the company `.iss` runs no `Swangz.exe` verb other than `admin policy-remove`.
+
+- **Amendment 25 Nov (cleanup tokens).** This replaces "refuses an elevated token" above (C4, and the first bullet and
+  first test of "What the cleanup PR builds").
+  - **Refused**, nothing changed: a UAC-raised token (`TokenElevationType` Full); the service SIDs `S-1-5-18`,
+    `S-1-5-19` and `S-1-5-20`; euid 0 on macOS and Linux; a token user (or euid) that is not the owner of the app data
+    folder (`wrong_account`); an elevation type, token user or owner that cannot be read. (As built, an unreadable
+    owner is `wrong_account`; every other refusal is `elevated_refused`.)
+  - **Allowed:** a Default full token (UAC off, or the built-in Administrator) and a Limited token. Default is
+    allowed because the owner-only folder is writable only by processes already holding that token.
+  - Deletion is link-safe, always: a reparse point is opened without being followed, with no check-then-delete. On
+    Windows every folder is held open as itself while its entries go, and each entry is opened as itself
+    (`FILE_FLAG_OPEN_REPARSE_POINT`), then checked and deleted through that handle. On macOS and Linux names are
+    removed relative to open folder descriptors; removing a name never follows a link.
+  - The uninstaller runs `cleanup` unelevated (`ExecAsOriginalUser` if it was started elevated). On refusal it reports
+    it, points to "Remove Swangz from this account" or to disconnecting the device in the console, and never retries
+    elevated.
+  - *Tests:* Full refused; Default and Limited allowed; the three service SIDs refused; another owner's folder refused
+    `wrong_account`; unreadable refused; euid 0 refused; on a native Windows runner with the Default token, `cleanup`
+    really deletes, a junction is removed with its target untouched, and the real elevation type is printed.
+  - **As built, a running browser:** no folder is renamed or deleted while a browser runs on it. On macOS and Linux
+    the app reads Chrome's `SingletonLock` and lists the folder as `in_use`, so `cleanup` exits non-zero (deleting
+    under a running Chrome kept its session alive and wrote the folder again, and `cleanup` reported success);
+    Windows refuses the rename. Not held, and nothing else: no lock, no process with that number, or link text with
+    no usable process number. A process the app may not signal, a lock that cannot be read as a link and any other
+    error count as running. Limits: a lock left by a crash whose process number another program now has holds the
+    folder until that program ends, and a browser started between the check and the rename is not seen.
+  - **As built, open for Sentinel:**
+    - Inno Setup does not support `ExecAsOriginalUser` or `ShellExecAsOriginalUser` at uninstall time (its own
+      scripting reference). The per-user uninstaller therefore starts `cleanup` with its own rights; if those are
+      raised, `cleanup` refuses and the uninstaller reports it.
+    - A data folder that is not there has no owner and is not refused, so a second run and an account that never
+      signed in still pass.
+    - The app restricts only the managed browser's folder to its owner, not the app data folder, so "owner-only" in
+      the reason for allowing Default is not something the app itself establishes for the data folder.
+  - **Ruling 25 Nov on #353 (data folder owner), as built:** the check stays strict (`BUILTIN\Administrators` as owner
+    is not accepted). `winacl.claim_data_folder` runs at every start, after sign-in and at the start of `cleanup`,
+    before the refusal rule. It changes the owner only when all hold: elevation type Default or Limited and not a
+    service SID; the path is `Swangz` under `SHGetKnownFolderPath(LocalAppData)`, never an environment variable; the
+    folder, opened with `FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS`, is a real directory; its owner is
+    exactly `S-1-5-32-544`. `SetSecurityInfo` on that handle sets the owner alone to the token user; the DACL is not
+    changed and no privilege is enabled. Before, after and outcome go to `ownership.log` in the folder. A failed claim
+    leaves `wrong_account`. A refused run, and a run that could not tell the Hub, put "Have this device disconnected
+    from the Hub" in `--report`; the per-user uninstaller shows it unless silent and always logs it.
+    *Tests:* unit tests with fakes for each condition; the Windows installer journey deletes for real with the
+    runner's Default token (device disconnected, installed items and saved sign-ins gone).
 
 **Consequences.** Forge builds A–F behind these tests on feature branches. Sentinel reviews each PR before merge.
 The elevated Windows steps (`chrome-install`, `policy-write`, `policy-remove`) are not built until Prism has made the

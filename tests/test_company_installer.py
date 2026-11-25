@@ -156,6 +156,14 @@ class CompanyInstallerScriptTests(unittest.TestCase):
         self.assertEqual([re.search(r'Name: "(\w+)"', l).group(1) for l in lines("Tasks")], ["desktopicon"])
         self.assertNotIn("Exec(", CODE)
 
+    def test_it_runs_no_app_verb_other_than_removing_the_policy(self):
+        # D-026: `cleanup` deletes inside a person's folders, so the elevated company installer never runs it
+        for entry in lines("Run") + lines("UninstallRun"):
+            if re.search(r'Filename: "[^"]*Swangz\.exe"', entry):
+                self.assertIn('Parameters: "admin policy-remove', entry)
+        self.assertNotRegex(CODE, r"\b(cleanup|logout)\b")
+        self.assertNotRegex(CODE, r"\b(Exec|ExecAsOriginalUser|ShellExec|ShellExecAsOriginalUser)\(")
+
     def test_no_address_secret_browser_policy_service_or_signing(self):
         self.assertIsNone(re.search(r"https?://", ISS))
         self.assertNotRegex(CODE.lower(), r"token|password|secret|api[_-]?key|schtasks|taskscheduler|sc\.exe|"

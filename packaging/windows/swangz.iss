@@ -7,8 +7,9 @@
 ;     into %LOCALAPPDATA%\Programs\Swangz;
 ;   - a Start-menu entry, and optional tasks: a desktop shortcut and starting Swangz when the person signs in to Windows
 ;     (the same HKCU Run value, "Swangz", that the app's own "Start with Windows" switch reads and writes);
-;   - uninstall: signs the device out (the Hub disconnects it and the app removes what it put on this computer, even when
-;     the Hub cannot be reached), then removes the program, the shortcuts and the Run value.
+;   - uninstall: runs `Swangz.exe cleanup` as the person (it signs the device out, so the Hub disconnects it, removes what
+;     the app put on this computer even when the Hub cannot be reached, and deletes the saved browser sign-ins), names
+;     whatever it could not delete, then removes the program, the shortcuts and the Run value.
 ; It carries no key or other secret; the app's sign-in starts with the Swangz Hub address. The installer installs no
 ; updater and schedules nothing; in-app updates stay off until signed releases exist (swangz_client/release_keys.py).
 ; The program and this installer are UNSIGNED until Swangz holds a code-signing certificate (packaging/README.md).
@@ -73,13 +74,6 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 [Run]
 Filename: "{app}\Swangz.exe"; Description: "Open Swangz"; Flags: postinstall nowait skipifsilent
 
-[UninstallRun]
-; Stop this person's running copy first (started at sign-in, it would hold Swangz.exe open and could rewrite its state
-; after the sign-out below). Only processes named Swangz.exe that belong to the person uninstalling; no-op when none run.
-Filename: "{sys}\taskkill.exe"; Parameters: "/F /T /IM Swangz.exe /FI ""USERNAME eq {username}"""; RunOnceId: "SwangzStop"; Flags: runhidden waituntilterminated
-; Disconnect this device and remove what Swangz put on this computer; never blocks the uninstall.
-Filename: "{app}\Swangz.exe"; Parameters: "logout"; RunOnceId: "SwangzSignOut"; Flags: runhidden waituntilterminated skipifdoesntexist
-
 [Code]
 const
   UninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{2027a02e-ebf5-41b9-8a7d-9e10a26e1770}_is1';
@@ -132,8 +126,62 @@ begin
 end;
 
 // The app's own "Start with Windows" switch writes the same Run value outside the installer's knowledge; remove it too.
+// Before any file goes. First stop this person's running copy (started at sign-in, it would hold Swangz.exe and the
+// browser folders open): only processes named Swangz.exe that belong to the person uninstalling. Then the program
+// removes Swangz from this account as that person: it disconnects the device, takes off what it installed and deletes
+// the saved browser sign-ins. What it could not delete is shown and logged; the uninstall carries on either way.
+// The program is started with the uninstaller's own rights (Inno Setup cannot start one as the original user during
+// uninstall). It refuses raised rights or a folder it does not own; that is reported with the two ways to finish, and
+// nothing is ever retried with more rights.
+procedure RemoveFromThisAccount;
+var
+  Report, Message, Disconnect, NotDeleted: String;
+  Left: TArrayOfString;
+  ResultCode, I: Integer;
+  Ran: Boolean;
+begin
+  Exec(ExpandConstant('{sys}\taskkill.exe'), ExpandConstant('/F /T /IM Swangz.exe /FI "USERNAME eq {username}"'), '',
+       SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Report := ExpandConstant('{tmp}\swangz-cleanup.txt');
+  Ran := Exec(ExpandConstant('{app}\Swangz.exe'), 'cleanup --report "' + Report + '"', '', SW_HIDE,
+              ewWaitUntilTerminated, ResultCode);
+  Disconnect := '';
+  NotDeleted := '';
+  if LoadStringsFromFile(Report, Left) then
+    for I := 0 to GetArrayLength(Left) - 1 do
+      if Pos('Have this device disconnected from the Hub', Left[I]) > 0 then
+        Disconnect := Left[I]
+      else if Left[I] <> '' then
+        NotDeleted := NotDeleted + #13#10 + Left[I];
+  if Ran and (ResultCode = 0) then
+  begin
+    // everything here is gone, but the Hub could not be told
+    if Disconnect <> '' then
+    begin
+      Log(Disconnect);
+      if not UninstallSilent then
+        MsgBox(Disconnect, mbInformation, MB_OK);
+    end;
+    exit;
+  end;
+  Message := 'Swangz could not remove everything from this account (code ' + IntToStr(ResultCode) + '). ' +
+    'Saved browser sign-ins may still be in ' + ExpandConstant('{localappdata}\Swangz\browser-profiles') + '.' + #13#10 + #13#10 +
+    'To finish: install Swangz again, open it as yourself without administrator rights and choose ' +
+    '"Remove Swangz from this account" on This device, or ask your Swangz administrator to disconnect this device ' +
+    'in the console.';
+  if Disconnect <> '' then
+    Message := Message + #13#10 + #13#10 + Disconnect;
+  if NotDeleted <> '' then
+    Message := Message + #13#10 + #13#10 + 'Not deleted:' + NotDeleted;
+  Log(Message);
+  if not UninstallSilent then
+    MsgBox(Message, mbError, MB_OK);
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
+  if CurUninstallStep = usUninstall then
+    RemoveFromThisAccount;
   if CurUninstallStep = usPostUninstall then
     RegDeleteValue(HKEY_CURRENT_USER, 'Software\Microsoft\Windows\CurrentVersion\Run', 'Swangz');
 end;

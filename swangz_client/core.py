@@ -57,6 +57,23 @@ class NeedsReconnect(Exception):
     reconnects the device."""
 
 
+class CleanupRefused(Exception):
+    """`cleanup` was started with raised or system rights, or by an account that does not own the app data folder."""
+
+    REASONS = {
+        "elevated_refused": "Swangz did not remove anything: it is running with administrator or system rights, or "
+                            "that could not be checked. Close it, then run it as yourself, without \"Run as "
+                            "administrator\" or sudo.",
+        "wrong_account": "Swangz did not remove anything: the account running it does not own the Swangz folder, or "
+                         "its owner could not be checked. Run it signed in to this computer as the person who uses "
+                         "Swangz there, or have this device disconnected from the Hub by your administrator.",
+    }
+
+    def __init__(self, code):
+        super().__init__(f"{self.REASONS[code]} ({code})")
+        self.code = code
+
+
 class NotSignedIn(Exception):
     pass
 
@@ -410,7 +427,7 @@ class Store:
                 keystore.erase_file(root / "device.key")
                 keystore.erase_file(root / "device.key.next")
                 for name in ("state.json", "manifest.json", "device.json", "credential-access.log", "workspace-open.log", "rotate.lock",
-                             NEWEST_APP):
+                             "ownership.log", NEWEST_APP):
                     (root / name).unlink(missing_ok=True)
 
 
@@ -557,6 +574,23 @@ class Api:
 # ---------------------------------------------------------------- the client
 
 
+def claim_data_folder(paths):
+    """Windows: make the person the owner of the app's data folder where `winacl.claim_data_folder` allows it, and note
+    any change in ownership.log. Never raises: what is not claimed, `cleanup` refuses."""
+    if sys.platform != "win32":
+        return
+    try:
+        from . import winacl
+        change = winacl.claim_data_folder(str(paths.data))
+        if change:
+            path = paths.data / "ownership.log"
+            lines = path.read_text(encoding="utf-8").splitlines()[-99:] if path.exists() else []
+            line = f"{int(time.time())} data folder owner {change['before']} -> {change['after']} {change['outcome']}"
+            write_private(path, "\n".join(lines + [line]) + "\n")
+    except Exception:  # noqa: BLE001 - starting, signing in and cleanup never fail on this
+        pass
+
+
 class Client:
     def __init__(self, paths=None, api_factory=None, sleep=time.sleep, open_url=None, run=subprocess.run, credentials=None):
         self.paths = paths or Paths()
@@ -576,6 +610,10 @@ class Client:
             self._arm_policy_check(self.store.device())
         except Exception:  # an unreadable device record: no check, the same as before
             pass
+        self.claim_data_folder()  # every start (D-026, ruling on #353)
+
+    def claim_data_folder(self):
+        claim_data_folder(self.paths)
 
     @property
     def policy_check(self):
@@ -725,6 +763,7 @@ class Client:
             self.store.save_device(info, out["key"])
             self.store.save_state({"installed": {}, "last_sync": None})
             self._arm_policy_check(info)
+            self.claim_data_folder()  # signing in may be what made the folder
             return info
         raise ApiFailure(0, "expired_token", "The sign-in code expired before it was approved. Try again.")
 
@@ -1116,6 +1155,32 @@ class Client:
             except OSError:
                 pass  # never block sign out; `swangz autostart off` remains available and reports the error
         return told
+
+    def cleanup(self):
+        """"Remove Swangz from this account" (`swangz cleanup`, and the per-person Windows uninstaller; D-026): sign
+        out while the key still exists, delete every workspace folder and drop start at login. A step that fails never
+        stops the later ones. -> {"told": bool, "left": [(path, reason)], "problems": [str]}"""
+        self.claim_data_folder()  # an install removed before the app ran again
+        refused = shell.cleanup_refusal(self.paths.data)
+        if refused:
+            raise CleanupRefused(refused)  # before anything: such a run may not touch a person's folders
+        told, problems = True, []
+        failures = (ApiFailure, NotSignedIn, keystore.KeyStoreError, agents.AgentConfigError, OSError, ValueError)
+        try:
+            self.workspace.close()
+            if self.store.device():
+                told = self.logout()
+            else:
+                self.remove_everything()  # already signed out or revoked: take away whatever is left
+        except failures as exc:
+            problems.append("Swangz's key, agents or packages: " + (getattr(exc, "message", None) or str(exc)))
+        from . import workspace_state  # imports browser_profiles, which imports this module
+        left = workspace_state.delete_folders(self.paths.data)
+        try:
+            shell.set_autostart(self.paths, False)
+        except OSError as exc:
+            problems.append(f"start at login ({type(exc).__name__})")
+        return {"told": told, "left": left, "problems": problems}
 
     # ------------------------------------------------------------ what the window shows
 

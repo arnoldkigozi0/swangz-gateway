@@ -10,6 +10,7 @@ enrolled owner's folders, never `retire_all`, and only on an authenticated `reti
 Person switch (D-026 C2): the first such answer after a different person signs in deletes the earlier person's folders
 (`Profiles.retire_other_people`). Nothing is latched for it: `Launcher.ready` repeats it before every Open and refuses
 while one is left.
+Separate from that: the person's own `cleanup` deletes every folder (`delete_folders`, D-026).
 """
 import json
 import threading
@@ -35,6 +36,11 @@ def locked(fn):
             return fn(*args, **kw)
     wrapper.__name__, wrapper.__doc__ = fn.__name__, fn.__doc__
     return wrapper
+
+
+def delete_folders(data):
+    """`cleanup` only: every workspace folder of this OS account. -> [(path, reason)] for those still there."""
+    return bp.Profiles(data).delete_all()
 
 
 class Malformed(Exception):

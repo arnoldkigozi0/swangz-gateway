@@ -42,8 +42,10 @@ This is a release candidate for testing inside Swangz Avenue. It is NOT signed w
 NOT notarized by Apple, so macOS will refuse to open it when it was downloaded. Do not work around that on
 staff computers. The signed build will open normally; see docs/MACOS-SIGNING.md in the project.
 
-To install a signed build: drag Swangz onto Applications. To remove it: in Swangz choose Sign out (or run
-`Swangz.app/Contents/MacOS/Swangz logout`), then drag Swangz from Applications to the Bin.
+To install a signed build: drag Swangz onto Applications. To remove it: in Swangz choose "Remove Swangz from
+this account" (or run `Swangz.app/Contents/MacOS/Swangz cleanup`, which signs out first), then drag Swangz from
+Applications to the Bin. Each account on this Mac that used Swangz does this itself. Dragging it to the Bin alone
+leaves the sign-in key and the saved browser sign-ins on the Mac.
 """
 
 
