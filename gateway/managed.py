@@ -23,6 +23,7 @@ DEFAULT_MODE = "warn"  # until docs/RELEASE-ACCEPTANCE-GATE.md has the evidence 
 POLICY_STALE_SECONDS = 600  # ten missed heartbeats: the report is old, not current
 SHA256 = re.compile(r"[0-9a-f]{64}")
 ACTIONS = ("suspend", "reactivate", "retire", "reset")
+KINDS = ("personal", "company")
 DEVICE_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 PLAIN = {"suspended": "Your Swangz workspace on this device is paused by an administrator. Talk to your admin to have it restored.",
          "retired": "Your Swangz workspace on this device was closed by an administrator. Talk to your admin."}
@@ -44,6 +45,28 @@ def effective_state(gw, person, device):
     if not gw.settings.email_allowed(person["email"]):
         return "suspended"
     return device["workspace_state"] if device.get("workspace_state") in STATES else "suspended"  # unreadable fails closed
+
+
+def effective_kind(device):
+    """Whose computer the server treats this as (D-025 point 2): an admin's mark always wins over the person's own
+    declaration. Only a plain `personal` is personal; anything unreadable is held to the company rules."""
+    mark = device.get("owner_confirmed")
+    kind = device.get("owner_kind") if mark is None else mark
+    return "personal" if kind == "personal" else "company"
+
+
+def configures_agents(device):
+    """May the app point this computer's own coding-agent settings at the gateway? Only when the person said it is the
+    company's and no admin has said otherwise: an admin's mark can stop that, never start it on a computer its person
+    called personal."""
+    return device.get("owner_kind") == "company" and effective_kind(device) == "company"
+
+
+def kind_report(device):
+    """For the console: the person's declaration, the admin's mark if there is one, and which of them applies."""
+    return {"owner_kind": device.get("owner_kind"), "owner_confirmed": device.get("owner_confirmed"),
+            "owner_confirmed_at": device.get("owner_confirmed_at"),
+            "owner_confirmed_by": device.get("owner_confirmed_by") or None, "effective_kind": effective_kind(device)}
 
 
 def block(gw, person, device, base):
@@ -87,7 +110,7 @@ def record_policy_report(ctx, person, device, now):
 def policy_problem(db, device, now):
     """Why `enforce` would refuse this device, or None. Missing, stale, failing, or not the baseline the company expects.
     A personal device never gets the pack and keeps the extension gate, so it has no policy problem (D-024 point 4)."""
-    if device.get("owner_kind") == "personal":
+    if effective_kind(device) == "personal":
         return None
     if device.get("policy_ok") is None or not device.get("policy_reported"):
         return "has not reported its browser policy"
@@ -115,7 +138,7 @@ def launch_refusal(gw, person, query):
     state = effective_state(gw, person, device)
     if state != "active":
         return PLAIN[state], f"workspace_{state}"
-    if mode(gw.db) == "enforce" and device.get("owner_kind") != "personal":
+    if mode(gw.db) == "enforce" and effective_kind(device) != "personal":
         problem = policy_problem(gw.db, device, time.time())
         if problem:
             return (f"This device {problem}, so your Swangz workspace cannot open a provider. Check that the company browser "
@@ -162,3 +185,27 @@ def set_workspace(ctx, device_id):
                  " WHERE device_id = ?", (state, generation, time.time(), ctx.admin["username"], device_id))
         ctx.audit(f"{action} the workspace on a device", row["person"], row["name"], before=before, after=after, correlation=f"device:{device_id}")
     return {"ok": True, "workspace": after, "changed": after != before}
+
+
+@admin_route("POST", r"/devices/(?P<device_id>[A-Za-z0-9_-]{1,64})/kind", area="govern")
+def set_kind(ctx, device_id):
+    """Body `{"kind": "company"|"personal"}` (+ optional `reason`). An admin confirms or changes whose computer an
+    enrolled device is (D-025 point 2). The person's declaration is kept beside the mark, and the mark belongs to this
+    enrolment: signing the computer in again starts unmarked."""
+    kind = ctx.body.get("kind")
+    if kind not in KINDS:
+        raise ApiError(400, "kind must be one of: " + ", ".join(KINDS))
+    find = "SELECT d.*, p.name AS person FROM devices d JOIN people p ON p.id = d.person_id WHERE d.device_id = ?"
+    with ctx.db.tx():  # the audit entry's `before` is the row this change replaced
+        row = ctx.db.one(find, (device_id,))
+        if not row:
+            raise ApiError(404, "no such device")
+        changed = row["owner_confirmed"] != kind
+        if changed:
+            ctx.db.x("UPDATE devices SET owner_confirmed = ?, owner_confirmed_at = ?, owner_confirmed_by = ? WHERE device_id = ?",
+                     (kind, time.time(), ctx.admin["username"], device_id))
+            ctx.audit(f"marked a device as {kind}", row["person"], row["name"],
+                      before={"declared": row["owner_kind"], "confirmed": row["owner_confirmed"]},
+                      after={"declared": row["owner_kind"], "confirmed": kind}, correlation=f"device:{device_id}")
+            row = ctx.db.one(find, (device_id,))
+    return {"ok": True, "device": dict(kind_report(row), device_id=device_id), "changed": changed}
