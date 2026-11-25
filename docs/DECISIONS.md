@@ -879,19 +879,29 @@ decision sets the rules for joining them. It changes nothing on the server, the 
    - Windows: the Google Chrome enterprise MSI, `https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi`;
    - macOS: `https://dl.google.com/chrome/mac/universal/stable/GGRO/googlechrome.dmg`.
 
+   Both URLs are **observed, not documented**: each returned 200 on 25 Nov 2026, but neither is printed on the Google
+   help pages checked (docs/ACCEPTANCE-333.md). Google's Mac deployment page recommends the universal PKG; the DMG is
+   kept because a PKG needs an admin install and macOS has no elevated step in this issue (B6). If Google moves either
+   URL, setup stops with a repair message (the signature check below still decides), and the constant is updated.
    Both URLs are constants in the code. Redirects are followed only to `https://` URLs; the download has a size cap
    (500 MB). On Windows the download is made **by the elevated step itself**, into its own admin-only staging folder
    (B5), never into the app's data folder: a file the person's account can write is never handed to an elevated
    program. (A copy from the user folder was rejected: the "signed by Google LLC" check alone also admits an older
    Google-signed Chrome MSI or another Google product, so a swap could still downgrade Chrome.) On macOS there is no
    elevated download in this issue (B6).
-2. **The signature is the authority, not a hash** (Google does not publish one):
-   - Windows: the Authenticode signature is valid, chains to a trusted root, and the signer's subject has
-     `O=Google LLC`. Check it through `WinVerifyTrust` or `Get-AuthenticodeSignature`, and check the subject, not a
-     thumbprint, because Google rotates certificates.
+2. **The signature is the authority, not a hash** (no Google-published hash was found; that is unverified, not a
+   confirmed absence, and the design does not depend on it):
+   - Windows: the Authenticode signature is valid, chains to a trusted root, and the signer certificate's parsed
+     `O` (organisation) attribute equals `Google LLC` exactly: compare the attribute value, never search the subject
+     string (so `O=Google LLC Ltd` or a `CN` containing `O=Google LLC` fails). Observed on the MSI on 25 Nov:
+     `CN=Google LLC, O=Google LLC`; the name is backed by Google's Omaha updater source, not by Chrome product docs.
+     Check it through `WinVerifyTrust` or `Get-AuthenticodeSignature`, and check the subject, not a thumbprint,
+     because Google rotates certificates.
    - macOS: `codesign --verify --deep --strict` passes on `Google Chrome.app` with the requirement
      `anchor apple generic and identifier "com.google.Chrome" and certificate leaf[subject.OU] = "EQHXZ8M8AV"`
-     (Google LLC's Team ID), and `spctl --assess --type execute` accepts it.
+     (Google LLC's Team ID, confirmed from Chromium source and the DMG/PKG signatures), and
+     `spctl --assess --type execute` accepts it. The requirement applies to the **app only**, never to the DMG
+     (whose identifier is `GoogleChrome-<version>-GGRO`); the DMG is just a carrier.
 
    Anything else stops setup with a repair message. The SHA-256 of the checked file goes in the setup log as
    evidence, never as the check.
