@@ -1747,3 +1747,6 @@ Merged #350 (5749b9c, Probe VERIFIED 2a07b49 + Sentinel APPROVED) and #346 (e9f4
 ## 25 Nov 13:05 Chief
 #343 56ff3ae: Probe VERIFIED (Probe only); merge when browser and python checks are green. #351 e8f351f BLOCKED (Sentinel, CI red), Anvil fixing. #352 36c1bef: Probe + Sentinel assigned. #353 290fd46 draft, awaiting owner's report. Forge queue: cleanup, fix/shared-google-host, retire_owner.
 D-027 build follow-ups (Probe): task 3 Forge, no setup on staff computers before task 7; task 4 Forge, delete shared folder at app sign-out, suspended device must be disconnected; task 5 Forge, invite-link step in runbook; task 6 Prism, fix Hub address in company policy or list as unenforceable.
+
+- 25 Nov 13:20: #352 FAIL at 36c1bef (Probe, comment 7159468650: MDM false positive, hash misses empty subkey, unreadable HKCU key passes) -> Anvil after #351; Sentinel review queued, MDM assumption (D-026 E5) to recheck. D-027 task 6 must update the policy check and hash for its 3rdparty key.
+- 25 Nov 13:20: draft #353 cleanup open (Forge); elevation ruling sent to Forge; Probe + Sentinel review the head that includes it, not 290fd46. packaging/macos_dmg.py fix pushed (e260f3b).
