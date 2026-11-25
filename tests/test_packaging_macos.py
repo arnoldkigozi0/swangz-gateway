@@ -28,6 +28,12 @@ class MacBuildTests(unittest.TestCase):
         self.assertIn(self.m.LABEL, self.m.README)
         self.assertIn(self.m.LABEL, self.m.plist_values("0.1.0")["NSHumanReadableCopyright"])
 
+    def test_removal_uses_cleanup_not_sign_out(self):
+        readme = " ".join(self.m.README.split())
+        self.assertIn('choose "Remove Swangz from this account"', readme)
+        self.assertIn("Swangz.app/Contents/MacOS/Swangz cleanup", readme)
+        self.assertNotIn("logout", readme)
+
     def test_the_bundle_carries_the_app_version_and_identifier(self):
         v = self.m.plist_values("1.2.3")
         self.assertEqual((v["CFBundleShortVersionString"], v["CFBundleVersion"], v["CFBundleIdentifier"]),
