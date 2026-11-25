@@ -115,6 +115,12 @@ def organisation_is_google(der):
 
 # ------------------------------------------------------------------ the platform checks
 
+def _said(done):
+    """The tool's own error text, short, for the log (it names the file, never anything secret)."""
+    text = (getattr(done, "stderr", b"") or b"").decode("utf-8", "replace").strip()
+    return (": " + " ".join(text.split())[:300]) if text else ""
+
+
 def _powershell(env):
     root = env.get("SystemRoot") or env.get("SYSTEMROOT") or r"C:\Windows"
     return os.path.join(root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
@@ -122,15 +128,19 @@ def _powershell(env):
 
 def check_windows(binary, run=subprocess.run, env=None):
     env = dict(os.environ if env is None else env)
+    env.pop("PSModulePath", None)  # PowerShell 7's module path breaks Windows PowerShell's own Security module
     env["SWANGZ_CHROME_PATH"] = binary
     try:
-        done = run([_powershell(env), "-NoProfile", "-NonInteractive", "-Command", _PS_SCRIPT], capture_output=True, timeout=TIMEOUT, env=env, shell=False,
-                   stdin=subprocess.DEVNULL)
-        answer = json.loads(done.stdout.decode("utf-8", "replace") or "null")
-    except (OSError, subprocess.SubprocessError, ValueError):
+        done = run([_powershell(env), "-NoProfile", "-NonInteractive", "-Command", _PS_SCRIPT], capture_output=True,
+                   timeout=TIMEOUT, env=env, shell=False, stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError):
         raise Refused("the signature could not be read") from None
+    try:
+        answer = json.loads(done.stdout.decode("utf-8", "replace") or "null")
+    except ValueError:
+        raise Refused("the signature could not be read" + _said(done)) from None
     if done.returncode != 0 or not isinstance(answer, dict):
-        raise Refused("the signature could not be read")
+        raise Refused("the signature could not be read" + _said(done))
     if answer.get("status") != "Valid":
         raise Refused("Authenticode status %r" % answer.get("status"))
     try:
@@ -158,7 +168,7 @@ def check_mac(binary, run=subprocess.run):
         except (OSError, subprocess.SubprocessError):
             raise Refused(os.path.basename(argv[0]) + " could not run") from None
         if done.returncode != 0:
-            raise Refused(os.path.basename(argv[0]) + " refused it")
+            raise Refused(os.path.basename(argv[0]) + " refused it" + _said(done))
 
 
 # ------------------------------------------------------------------ A4: where it may be installed
