@@ -15,13 +15,13 @@ cryptographically verifying the signature. "Unverified" means we could not confi
 |---|---|---|---|
 | Google's enterprise download page offers a Windows MSI bundle (64-bit, ARM64, 32-bit) and Mac PKG and DMG universal installers. Downloading accepts the Chrome terms. | https://chromeenterprise.google/download/ | Documented (the page prints no file addresses) | Google is the only source; the person or admin accepts the terms. |
 | The Windows enterprise bundle is linked from Google's help page as `dl.google.com/tag/s/...` ZIP files that contain the MSI and policy templates. | https://support.google.com/chrome/a/answer/7650032 | Documented | The ZIP links are the documented ones, not the direct MSI address below. |
-| For Mac, Google recommends the universal PKG; Chrome installs into the system Applications folder. | https://support.google.com/chrome/a/answer/9020580 | Documented | The proposed D-026 (open pull request #338) has Swangz download nothing on macOS: an administrator installs the PKG; on a personal Mac the person may use Google's DMG. |
+| For Mac, Google recommends the universal PKG; Chrome installs into the system Applications folder. | https://support.google.com/chrome/a/answer/9020580 | Documented | D-026 (#338) has Swangz download nothing on macOS: an administrator installs the PKG; on a personal Mac the person may use Google's DMG. |
 | The consumer download is https://www.google.com/chrome ; Windows asks "Do you want to allow this app to make changes to your device?"; a Mac may ask for an administrator password. | https://support.google.com/chrome/answer/95346 | Documented | A safe manual repair page. Consent comes from the operating system. |
-| `https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi` returns 200, 175,624,192 bytes, last modified 23 Nov 2026. | Request to Google's server | Observed; **unverified** in documentation | Used by the proposed D-026 (#338). It can change without notice, so a failure needs the manual page as repair. It is the x64 build; the ARM64 address is unverified. |
+| `https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi` returns 200, 175,624,192 bytes, last modified 23 Nov 2026. | Request to Google's server | Observed; **unverified** in documentation | Used by D-026 (#338). It can change without notice, so a failure needs the manual page as repair. It is the x64 build; the ARM64 address is unverified. |
 | `https://dl.google.com/chrome/mac/universal/stable/GGRO/googlechrome.dmg` returns 200, 289,260,301 bytes. | Request to Google's server | Observed; **unverified** in documentation | As above. |
 | `https://dl.google.com/chrome/mac/universal/stable/gcem/GoogleChrome.pkg` returns 200. | Request to Google's server | Observed; **unverified** in documentation | Alternative for admins. |
 | `https://dl.google.com/chrome/install/latest/chrome_installer.exe` redirects to the small online installer `ChromeSetup.exe`. | Request to Google's server | Observed; **unverified** in documentation | Not the offline MSI. |
-| Size of the download: both full installers are under 300 MB. | As above | Observed | The proposed D-026's 500 MB cap holds today. |
+| Size of the download: both full installers are under 300 MB. | As above | Observed | D-026's 500 MB cap holds today. |
 
 ### Publisher and signature
 
@@ -48,7 +48,7 @@ cryptographically verifying the signature. "Unverified" means we could not confi
 Read from the code at `main` `3c2844c` on 25 Nov (app version 0.1.100, #340; repair steps #336, default Hub
 address #337 and the shared-account refusal #339 are merged). **Done** = code and a named test on `main`. **Partial** = part of
 the criterion is built or proven. **Missing** = not on `main`. Test files are under `tests/`. Nothing below was run on
-a physical Windows computer or Mac. D-026, the proposed design, is in open pull request #338 and is not on `main`.
+a physical Windows computer or Mac. D-026 (`docs/DECISIONS.md`, #338) records the design; a decision there is not evidence that its code is built.
 
 ### Known gaps to read first
 
@@ -111,7 +111,7 @@ a physical Windows computer or Mac. D-026, the proposed design, is in open pull 
 | Company/personal decided by an admin | Missing | Gap 4. `test_chrome_policy.py` checks only the pack's shape. |
 | Revocation: the Hub refuses launches | Done | `test_device_open.py`, `test_workspace_revocation.py`, `test_managed_workspace.py`. |
 | Revocation: the open workspace closes | Partial | `test_5_revoked_closes_before_the_wipe_and_keeps_the_folder`. Waits for the next sync (up to 15 minutes) or for the computer to be online. A window left from an earlier app run cannot be closed. |
-| Revocation: local data removed | Partial | Disconnecting keeps the folder on `main` (gap 3; the proposed D-026 would delete it). Retiring a workspace deletes it, except on Windows (`test_15_retired_on_windows_closes_refuses_and_reports_the_purge_not_done`, `test_mock_windows_retirement_refuses_without_mutation`). The Windows installer test requires that only `browser-profiles` may remain after revocation and that the folder is still there after uninstall (`packaging/windows/installer_e2e.py`). |
+| Revocation: local data removed | Partial | Disconnecting keeps the folder on `main` (gap 3; D-026 requires deleting it, not built yet). Retiring a workspace deletes it, except on Windows (`test_15_retired_on_windows_closes_refuses_and_reports_the_purge_not_done`, `test_mock_windows_retirement_refuses_without_mutation`). The Windows installer test requires that only `browser-profiles` may remain after revocation and that the folder is still there after uninstall (`packaging/windows/installer_e2e.py`). |
 | Suspend or retire from the console | Partial | API only (`POST /admin/api/devices/<id>/workspace`); no console button. |
 | Local cleanup told apart from provider revocation | Partial | Said in documents only. The console does not say that the provider seat or session stays. |
 
@@ -132,7 +132,7 @@ a physical Windows computer or Mac. D-026, the proposed design, is in open pull 
 | Part | State | Evidence or gap |
 |---|---|---|
 | Same server and domain, no cloud browser needed | Done | Nothing in this work changes them. |
-| Limitations and rollback written down | Partial | Limits are listed above; the proposed design D-026 is in open pull request #338. No step removes an installed Chrome policy. Personal computers get no site allow list. |
+| Limitations and rollback written down | Partial | Limits are listed above; the design and its limitations are in D-026. No step removes an installed Chrome policy. Personal computers get no site allow list. |
 
 ## 3. Physical checklist for Arnold
 

@@ -39,6 +39,12 @@ AUDIT = "device reported its browser policy is not in force"  # gateway/managed.
 EXTRA_BLOCK = "example.org"
 
 
+def signed_out(code, out):
+    """A sign-out worked: exit 0, the app's own success line, and the server was told. Matching "removed" alone also
+    matched the "Not removed: browser folders ..." warning every sign-out prints, so a failed one could pass."""
+    return code == 0 and "taken off this" in out and "couldn't" not in out
+
+
 def prepare(work):
     """-> (policy dict, baseline SHA-256 prepare.py printed)."""
     out = Path(work) / "prepared.json"
@@ -193,7 +199,7 @@ def run(check, run_app, enrol_company, owner, db, person_id, data, evidence, too
         synced("removed", False, False)
 
         code, out = run_app("logout")
-        check("policy: the company device signs out", code == 0 and "removed" in out, out.strip()[-160:])
+        check("policy: the company device signs out", signed_out(code, out), out.strip()[-160:])
     finally:
         remove()
         owner.call("PUT", "/settings", {"managed_policy_sha256": "", "managed_policy_mode": "warn"})

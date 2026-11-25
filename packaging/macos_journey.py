@@ -681,7 +681,7 @@ def main(argv=None):
 
         j.step("start at login still on before sign out", login_item.exists(), str(login_item))
         code, out = j.run([binary(app), "logout"], env=env)  # sign out alone must remove the login item
-        j.step("sign out tells the server and removes Swangz", code == 0 and "removed" in out and "couldn't" not in out, out)
+        j.step("sign out tells the server and removes Swangz", macos_policy.signed_out(code, out), out)
         devices = browser.my_devices() or []
         j.step("server shows the device disconnected", bool(devices) and all(k.get("revoked") for k in devices))
         leftovers = [p.name for p in data.iterdir()] if data.exists() else []
@@ -720,7 +720,7 @@ def main(argv=None):
             {"name": PERSON, "person_id": fixture["person"], "data": data_b,
              "run": lambda *a: j.run([binary(app), *a], env=env_b), "key": lambda: stored_key(data_b)})
         code, out = j.run([binary(app), "logout"], env=env)
-        j.step("second person signs out", code == 0 and "removed" in out and "couldn't" not in out, out)
+        j.step("second person signs out", macos_policy.signed_out(code, out), out)
         leftovers = [p.name for p in data.iterdir()] if data.exists() else []
         j.step("after the second sign out only the company-browser folder is kept", set(leftovers) <= KEPT_AFTER_SIGNOUT,
                ", ".join(leftovers) or "folder empty or gone")
