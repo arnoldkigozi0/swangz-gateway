@@ -286,7 +286,7 @@ class _Key:
 
 class WritableRegistry:
     """Just enough of `winreg` to write a policy pack and read it back with the app's own reader, on any OS."""
-    HKEY_LOCAL_MACHINE = "HKLM"
+    HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER = "HKLM", "HKCU"  # HKCU paths are kept under "HKCU\\..."
     KEY_READ, KEY_WOW64_64KEY, KEY_ALL_ACCESS = 0x20019, 0x0100, 0xF003F
     REG_SZ, REG_DWORD = 1, 4
 
@@ -295,6 +295,8 @@ class WritableRegistry:
         self.access = []
 
     def _path(self, parent, sub):
+        if parent == self.HKEY_CURRENT_USER:
+            return "HKCU\\" + sub
         return sub if parent == self.HKEY_LOCAL_MACHINE else parent.path + "\\" + sub
 
     def OpenKey(self, parent, sub, reserved=0, access=None):
