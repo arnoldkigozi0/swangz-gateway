@@ -35,6 +35,30 @@ def clock(ts):
     return time.strftime("%H:%M", time.localtime(ts)) if ts else "never"
 
 
+
+def app_note(client, app):
+    """The Apps row's line: what pressing Open does for `app` on this computer, checked in core.Client.open_app's own
+    order: the contract-2 workspace, its state, a refusal held by the workspace latch (read only: drawing a row never
+    retries a purge), then the workspace tool, then whose computer it is (D-026 D4)."""
+    manifest = client.store.manifest() or {}
+    browser = manifest.get("browser") or {}
+    if not isinstance(browser, dict) or browser.get("contract") != 2:
+        return "Doesn't open until this device has a Swangz workspace window. Update Swangz, or ask your admin"
+    state = (browser.get("workspace") or {}).get("state")
+    if state == "retired":
+        return "Doesn't open: your admin removed the Swangz workspace from this device"
+    if state != "active":
+        return "Doesn't open while this device's workspace is paused. Ask your admin"
+    held = client.workspace.latch()
+    if held.get("purge_pending") or held.get("refused"):
+        return "Doesn't open right now. Press Open to see why"
+    if client.workspace_app(app):
+        return "Opens in your Swangz workspace window"
+    shared = "Shared company account. " if app.get("signin") == "shared" else ""
+    if client.company_device():
+        return shared + "Doesn't open on this company computer yet; ask your administrator"
+    return ("Shared company account, one turn at a time. " if shared else "") + "Open it from Swangz AI Hub"
+
 class App:
     def __init__(self, client, root=None, inline=False, background=False):
         self.client, self.inline = client, inline
@@ -318,7 +342,7 @@ class App:
             text = tk.Frame(row, bg=C["panel"])
             text.pack(side="left", fill="x", expand=True)
             self.label(text, a["name"], 12, bold=True, bg=C["panel"]).pack(anchor="w")
-            note = "Opens in a company browser of your own" if a.get("company_browser") else ("Shared company account, one turn at a time" if a.get("signin") == "shared" else a.get("category", ""))
+            note = app_note(self.client, a)
             self.label(text, note, 9, color="muted", bg=C["panel"]).pack(anchor="w")
             self.button(row, "Open", lambda t=a["id"]: self.open_app(t)).pack(side="right")
 
