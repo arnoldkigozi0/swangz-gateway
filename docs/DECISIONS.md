@@ -843,3 +843,202 @@ pack.
 
 **Tests (with point 2).** The person declares personal and an admin marks it company: refused in `enforce` with no
 report. The admin's change is audited. A viewer or billing role gets 403.
+
+## D-026 | 2026-11-25 | Managed Chrome on Windows and macOS: setup, launch, policy and revocation (issue #333)
+
+**Context.** Issue #333 asks the Windows EXE and macOS DMG to set up genuine Google Chrome, a dedicated browser folder
+per employee, and the managed policy and extension, and to open every authorised web tool only in that Chrome. The
+pieces exist but are separate: `workspace_launcher.find_browser` (fixed paths, never PATH), `build_argv` (fixed
+switches, forbidden switches), `browser_profiles.Profiles` (owner-bound folders), `machine_policy.check` (machine scope,
+D-024), `deploy/chrome-policy/` (the pack, never installed by the tool), and the CI tamper tests (#293, #296). This
+decision sets the rules for joining them. It changes nothing on the server, the domain or the database.
+
+**Threat note (STRIDE, short).**
+- *Assets:* the person's provider sessions in their Chrome folder; the device key; the integrity of the Chrome binary
+  and of the machine policy; the person's own browser settings and data on a personal computer.
+- *Entry points:* the Chrome download; the elevated install and policy steps; the browser folder on disk; the policy
+  key or file; `/device/open` and the launcher; revocation.
+- *Abuse cases:*
+  1. A fake or modified Chrome, downloaded or already on the disk, reads the sessions (spoofing, tampering).
+  2. The elevated step is fed a file or argument the person or malware controls, giving privilege escalation.
+  3. A second person on the same OS account, or another program, reads or copies the first person's cookies
+     (information disclosure).
+  4. A provider link opens in the default browser, outside policy and outside the dedicated folder (control bypass).
+  5. An existing GPO or MDM policy, or a user-level policy, quietly overrides the pack while the check says `ok`.
+  6. The person's own Chrome settings are changed without their knowledge.
+  7. After revocation the folder still holds live provider sessions (lingering access).
+  8. Setup reports controls as enforced when Chrome ignores them (false assurance).
+- *Controls and tests:* the numbered rules below. Each rule names its proving test.
+
+**Decision.**
+
+**A. Chrome: official source, verified publisher, never redistributed.**
+1. Swangz never bundles, mirrors or hosts a Chrome installer: not in the EXE or DMG, not on the Hub, not on Netlify,
+   not in GitHub releases. When Chrome is missing, setup downloads it at that moment from Google, over HTTPS with
+   certificate checks:
+   - Windows: the Google Chrome enterprise MSI, `https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi`;
+   - macOS: `https://dl.google.com/chrome/mac/universal/stable/GGRO/googlechrome.dmg`.
+
+   Both URLs are constants in the code. Redirects are followed only to `https://` URLs; the download has a size cap
+   (500 MB) and goes into the app's own data folder.
+2. **The signature is the authority, not a hash** (Google does not publish one):
+   - Windows: the Authenticode signature is valid, chains to a trusted root, and the signer's subject has
+     `O=Google LLC`. Check it through `WinVerifyTrust` or `Get-AuthenticodeSignature`, and check the subject, not a
+     thumbprint, because Google rotates certificates.
+   - macOS: `codesign --verify --deep --strict` passes on `Google Chrome.app` with the requirement
+     `anchor apple generic and identifier "com.google.Chrome" and certificate leaf[subject.OU] = "EQHXZ8M8AV"`
+     (Google LLC's Team ID), and `spctl --assess --type execute` accepts it.
+
+   Anything else stops setup with a repair message. The SHA-256 of the checked file goes in the setup log as
+   evidence, never as the check.
+3. The same publisher check applies to an **already installed** Chrome before its first use, and again whenever the
+   binary's size or modification time changes (cache the result keyed on those). An unsigned or foreign `chrome.exe`
+   or `Google Chrome.app` at a fixed path is refused with `no_browser`.
+4. On a company device, only a per-machine Chrome is used: `%ProgramFiles%` on Windows, or `/Applications` owned by
+   root on macOS. A per-user `%LocalAppData%` Chrome, which any program running as the person can replace, is
+   accepted only on a personal device, and still has to pass point 3.
+
+*Tests:* missing Chrome leads to a repair state. A wrong signer, an unsigned file and a truncated download each stop
+setup and run nothing. A redirect to `http://` is refused. A changed binary is checked again. On a company device a
+`%LocalAppData%` Chrome is refused.
+
+**B. Elevation and consent.**
+1. Elevation happens only through the operating system's own consent: the UAC prompt on Windows, and on macOS the
+   system authorisation dialog or the System Settings approval of a configuration profile. The person clicks a
+   setup step that says exactly what will change; declining leaves everything as it was and shows the repair state.
+2. **Never:** store, cache or ask for an administrator password inside Swangz; add a service, scheduled task,
+   LaunchDaemon or sudoers rule that runs as SYSTEM or root to avoid later prompts; turn off UAC, Gatekeeper or SIP;
+   run `xattr -d com.apple.quarantine`.
+3. The elevated step does one fixed thing with **no input the person controls**: it installs the file it just
+   checked, or writes the pack built inside the signed app with two values. Those two values are the Hub host, which
+   must equal the enrolled server's host and match a strict hostname pattern, and the extension ID, which must be 32
+   characters `a-p`. It never reads a pack, script or path from a user-writable location.
+4. Installing Chrome or the policy is a separate step that never runs on its own. The Swangz installers stay
+   per-user (#243); company devices are installed with `/ALLUSERS` (M1).
+
+*Tests:* the elevated command line is built from constants plus the two validated values, and refuses a hostname
+or ID that doesn't match. Declining the prompt changes nothing. No code path writes a service, task or daemon
+(static test).
+
+**C. One browser folder per employee.**
+1. Each person gets their own folder under the app's data folder, `browser-profiles/`, bound to (Hub origin, person,
+   device, seat) by `browser_profiles.Owner`. On Windows its ACL grants the current OS user only (`verify_folder`). On
+   macOS it is mode `0700`. It is checked before every launch.
+2. On company devices, each employee has their own OS account. Two people on one OS account are not isolated from
+   each other. When a different person signs in on the same OS account, the earlier person's folder is retired
+   (deleted) before the new one is made, as R-12 already does for reassignment.
+3. Nothing copies, exports, backs up or uploads a folder, its cookies or its tokens, not even between devices of
+   the same person. Chrome sync stays off (`SyncDisabled`) and is not required. Provider and Google sign-in happen
+   by hand in the window, with the provider's own consent and MFA.
+4. A folder survives app restart, computer restart and sign-out (so sessions persist). It is deleted on revocation
+   (E) and when the person changes (C2).
+5. Paths go into Chrome as one argv element each, never through a shell. Paths with spaces and non-ASCII characters
+   are supported.
+
+*Tests:* two owners produce two folders, and each cannot open the other's. A person switch retires the earlier
+folder. A path with spaces and Unicode launches. The folder survives a restart. No API returns or uploads folder
+content (static test).
+
+**D. Launch: explicit Chrome, fail closed, no default-browser fallback.**
+1. Every authorised web tool opens only as `[verified chrome, --user-data-dir=<the person's folder>, fixed switches,
+   url]` (`build_argv`). Every failure stops with a repair message. Failures include: no verified Chrome, a folder
+   check failing, the policy failing in `enforce`, and the Hub refusing.
+2. **No fallback.** `shell.open_url` / `webbrowser` is never used for a provider or tool address. It stays only for
+   the Hub's own pages (the device code page, Hub pages) and Google's Chrome download page as a manual repair. No
+   other browser (Edge, Safari, Firefox, a Chromium fork) is ever started for a tool.
+3. Native and CLI tools (Claude Code, Codex) are unchanged and never go through the browser launcher.
+
+*Tests:* with no Chrome present, `open_app` raises `no_browser` and `open_url` and `webbrowser.open` are never called.
+A static test checks that `open_app` and the launcher never reach `webbrowser`. A tool the Hub denies starts no
+process.
+
+**E. Machine policy: scope and conflicts (closes #194).**
+1. **Scope.** Policy is written only on devices an admin has marked `company` (D-025):
+   - Windows: `HKLM\Software\Policies\Google\Chrome`, 64-bit view, in the encoding of `packaging/windows/policy.py`
+     `registry_values`;
+   - macOS: a configuration profile (`.mobileconfig`, payload `com.google.Chrome`) that the admin installs and
+     approves in System Settings, which macOS then exposes at `/Library/Managed Preferences/com.google.Chrome.plist`.
+
+   The app never writes `/Library/Managed Preferences` directly on a real Mac; only the CI runner does that.
+   **Personal devices never get a policy** and keep the extension gate (D-024 point 4).
+2. **Setup states the cost plainly.** Machine policy applies to every Chrome window and every OS user on that
+   computer, including personal browsing in Chrome, because the pack blocks everything not on the list. The admin
+   confirms this before the step runs. Swangz never changes, deletes or hides an existing Chrome profile. Its own
+   folder is separate.
+3. **Conflicts fail closed.** Setup refuses to write if the Chrome policy key or plist already exists and Swangz did
+   not write it. Swangz's marker is `HKLM\Software\Swangz\ChromePolicy` (`sha256`, `written`), outside Chrome's key.
+   It reports the conflict for the admin to resolve and never merges. The check gets stricter in three ways:
+   - (a) any policy name in the machine source that is not in the pack fails as `unexpected:<name>`. Examples:
+     `ProxySettings`, `CloudManagementEnrollmentToken`, `ExtensionInstallSources`;
+   - (b) on Windows, `HKCU\Software\Policies\Google\Chrome` is read too, and any value there fails as
+     `user_policy:<name>`, since a user-level value fills gaps the machine key leaves;
+   - (c) a non-empty `Recommended` subkey fails.
+4. **#194 S1** is done: `ExtensionSettings` is in `FORBIDDEN`, D-024. A regression test should confirm it stays.
+   Still to do:
+   - **S2:** `check()` catches only `Unreadable` and `OSError`, so a `TypeError` or `RecursionError` from `merge` or
+     `problems_in` escapes direct callers. Add a final `except Exception` that returns `unreadable`.
+   - **S3:** `read_linux` parses a hidden `.x.json`. Any name starting with `.` should be `Unreadable`.
+5. **Unenforced controls are reported, never assumed.** Setup reads whether the machine is domain-joined or
+   MDM-managed and lists the pack policies Chrome may ignore on an unmanaged machine. In particular, Chrome may ignore
+   force-installing an extension that is not on the Chrome Web Store. The list appears as "not guaranteed on this
+   computer". "Enforced" is written only after the physical acceptance check of `chrome://policy` shows **OK** on that
+   machine type.
+6. **Rollback.**
+   - Windows: an elevated `Swangz.exe policy-remove` deletes the Chrome policy key only when the marker exists, then
+     deletes the marker.
+   - macOS: the admin removes the profile in System Settings.
+   - The Hub setting `managed_policy_mode = warn` stops refusals at once.
+   - Swangz never uninstalls Chrome.
+
+*Tests:* writing over a foreign key is refused. An extra value, an HKCU value or `Recommended` each fail the check.
+S1, S2 and S3 each have a regression test. Rollback removes only a key that carries the marker. Personal devices never
+call the writer.
+
+**F. Revocation: what is cleaned up, and what is not.**
+1. **Local, by Swangz.** When the device is revoked or the person's access ends:
+   - the Hub refuses further launches at once (server side, already in place);
+   - at the next contact the app closes the managed window (`launcher.close`), retires (deletes) the person's browser
+     folder (a locked folder becomes `purge_pending` and is deleted at the next start, before any launch), removes the
+     key and the Run, login or autostart item (#281, the macOS and Linux follow-up), and clears its policy marker;
+   - offline, this waits for the next contact, within the D-021 grace period.
+2. **Not by Swangz.** Provider-side sessions and refresh tokens, seats and licences, the person's Google sessions on
+   other devices, anything the person already downloaded or copied, sessions in any other browser or Chrome profile,
+   and a copy an OS administrator made earlier. The admin's runbook says to remove the seat and sign the person out in
+   each provider's admin console, and Google Workspace's "sign out of all sessions". The console must say "access
+   ended in Swangz; provider sessions must be ended in the provider", never "revoked everywhere".
+
+*Tests:* after a revoke with the window open, the window closes, the folder is gone (or becomes `purge_pending`
+and is gone before the next launch), and `open` is refused. The revoked device has no Run, login or autostart item.
+The console text distinguishes local from provider revocation.
+
+**G. Must NOT be built.**
+- Bundling, mirroring or hosting Chrome.
+- Typing, storing or auto-filling provider or Google passwords; copying, exporting, backing up or uploading cookies,
+  sessions or profiles; one person's session used by another (CLAUDE.md, D-022).
+- Remote debugging, CDP or automation flags to drive or read the window; any content capture (CLIENT.md).
+- Silent elevation, standing SYSTEM or root helpers, stored admin credentials, or disabling UAC, Gatekeeper, SIP or
+  quarantine.
+- A default-browser or other-browser fallback for any tool address.
+- Policy on personal devices; changing or deleting the person's existing Chrome profiles or settings.
+- Chrome Browser Cloud Management enrolment, a cloud or remote browser, or new server infrastructure.
+- "Production-ready" or "enforced" claims without the physical acceptance evidence in #333.
+
+**Limitations.**
+- Tamper-evident, not tamper-proof (D-024): a local administrator can remove the policy or copy a folder.
+- The policy is machine-wide: on a shared or personal computer it blocks the person's own browsing in Chrome.
+- Two people on one OS account are separated by Swangz's rules, not by the OS.
+- Unsigned RC builds trigger SmartScreen and Gatekeeper warnings until the certificates (Arnold's purchase) exist.
+- Force-installing the extension on unmanaged Windows or macOS may need the Chrome Web Store listing. Publishing it
+  needs Arnold's approval.
+
+**Alternatives rejected.**
+- Bundling Chrome: needs Google's permission, and the copy goes stale.
+- Accepting any `chrome.exe` on a fixed path: an unsigned binary would get the sessions.
+- Writing `/Library/Managed Preferences` directly: Apple doesn't support it, and the system can remove it.
+- Merging with an existing GPO or MDM pack: the app cannot tell which source wins.
+- Keeping the folder after a revoke (the earlier R-12 reading): it leaves live sessions on a device the company has
+  disconnected.
+
+**Consequences.** Forge builds A–F behind these tests on feature branches. Sentinel reviews each PR before merge.
+`enforce` stays off until D-025 point 2 and E5's acceptance check exist. R-12 changes: a folder is deleted on
+revocation, as well as on reassignment.
