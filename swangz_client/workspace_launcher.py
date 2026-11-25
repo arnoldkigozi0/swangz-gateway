@@ -62,6 +62,11 @@ MESSAGES = {
 }
 
 
+def profiles_folder(data):
+    """Where the company-browser folders live, for messages that must name it (sign out, cleanup)."""
+    return bp.Profiles(data).root
+
+
 class LaunchError(Exception):
     """A refusal with a plain message. `install` says the one button is the browser install page."""
 
