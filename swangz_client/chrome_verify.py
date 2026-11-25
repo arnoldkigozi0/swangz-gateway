@@ -4,10 +4,13 @@ The publisher's signature is the authority, never a hash:
 - Windows: Authenticode is Valid (WinVerifyTrust, chained to a trusted root, via Get-AuthenticodeSignature) and the
   signer certificate's parsed O attribute is exactly "Google LLC". The subject is read as DER and its attributes
   compared one by one, so "O=Google LLC Ltd" or a CN that merely contains "O=Google LLC" fails.
-- macOS: codesign --verify --deep --strict against Google's designated requirement, and spctl accepts it to execute.
+- macOS: codesign --verify --deep against Google's designated requirement, and spctl accepts it to execute. No --strict:
+  it refuses extended attributes the signature does not cover (D-026 A2 amendment, 25 Nov).
 The SHA-256 is recorded as evidence only. A binary that passed is not rechecked until its size or mtime changes (A3).
 A company device accepts only a per-machine Chrome (A4): under %ProgramFiles% on Windows, a root-owned app in
 /Applications on macOS. Every refusal is LaunchError("no_browser"). Nothing is installed, downloaded or elevated.
+On Windows, %ProgramFiles% and the system folder come from HKLM and GetSystemDirectoryW, never from environment
+variables, which whoever starts the app controls.
 Linux is unchanged: workspace_launcher's fixed-path ELF and ownership checks stay the rule there.
 """
 
@@ -121,17 +124,56 @@ def _said(done):
     return (": " + " ".join(text.split())[:300]) if text else ""
 
 
-def _powershell(env):
-    root = env.get("SystemRoot") or env.get("SYSTEMROOT") or r"C:\Windows"
-    return os.path.join(root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+FOLDERS_KEY = r"SOFTWARE\Microsoft\Windows\CurrentVersion"
+FOLDER_VALUES = (("ProgramFiles", "ProgramFilesDir"), ("ProgramFiles(x86)", "ProgramFilesDir (x86)"))
 
 
-def check_windows(binary, run=subprocess.run, env=None):
+def _system_directory():
+    import ctypes
+    buf = ctypes.create_unicode_buffer(520)
+    n = ctypes.windll.kernel32.GetSystemDirectoryW(buf, len(buf))
+    return buf.value if 0 < n < len(buf) else None
+
+
+def windows_folders(registry=None, system_directory=None):
+    """{"ProgramFiles", "ProgramFiles(x86)", "System"} from places the person cannot write: HKLM (64-bit view) and
+    GetSystemDirectoryW. Never the environment. Anything unreadable is None, so the checks that need it refuse."""
+    out = {"ProgramFiles": None, "ProgramFiles(x86)": None, "System": None}
+    try:
+        if registry is None:
+            import winreg as registry
+        with registry.OpenKey(registry.HKEY_LOCAL_MACHINE, FOLDERS_KEY, 0,
+                              registry.KEY_READ | registry.KEY_WOW64_64KEY) as key:
+            for name, value in FOLDER_VALUES:
+                try:
+                    data, kind = registry.QueryValueEx(key, value)
+                except OSError:
+                    continue
+                if kind == registry.REG_SZ and isinstance(data, str) and data:  # never expanded from the environment
+                    out[name] = data
+    except (OSError, ImportError):
+        pass
+    try:
+        out["System"] = (system_directory or _system_directory)() or None
+    except (OSError, AttributeError, ImportError, ValueError):
+        out["System"] = None
+    return out
+
+
+def _powershell(folders):
+    system = (folders or {}).get("System")
+    if not system or not _absolute(system):
+        raise Refused("the system folder could not be read")
+    return os.path.join(system, "WindowsPowerShell", "v1.0", "powershell.exe")
+
+
+def check_windows(binary, run=subprocess.run, env=None, folders=None):
     # PowerShell 7's module path breaks Windows PowerShell's own Security module; Windows keys are case-insensitive.
     env = {k: v for k, v in (os.environ if env is None else env).items() if k.upper() != "PSMODULEPATH"}
     env["SWANGZ_CHROME_PATH"] = binary
+    shell = _powershell(windows_folders() if folders is None else folders)
     try:
-        done = run([_powershell(env), "-NoProfile", "-NonInteractive", "-Command", _PS_SCRIPT], capture_output=True,
+        done = run([shell, "-NoProfile", "-NonInteractive", "-Command", _PS_SCRIPT], capture_output=True,
                    timeout=TIMEOUT, env=env, shell=False, stdin=subprocess.DEVNULL)
     except (OSError, subprocess.SubprocessError):
         raise Refused("the signature could not be read") from None
@@ -161,7 +203,7 @@ def mac_app(binary):
 
 def check_mac(binary, run=subprocess.run):
     app = mac_app(binary)
-    for argv in ([CODESIGN, "--verify", "--deep", "--strict", "-R=" + MAC_REQUIREMENT, app],
+    for argv in ([CODESIGN, "--verify", "--deep", "-R=" + MAC_REQUIREMENT, app],
                  [SPCTL, "--assess", "--type", "execute", app]):
         try:
             done = run(argv, capture_output=True, timeout=TIMEOUT, shell=False, stdin=subprocess.DEVNULL)
@@ -187,13 +229,13 @@ def _absolute(root):
         os.name != "nt" and posixpath.isabs(root))
 
 
-def check_location(binary, platform, company, env=None, stat=os.stat, realpath=os.path.realpath):
+def check_location(binary, platform, company, folders=None, stat=os.stat, realpath=os.path.realpath):
     if not company:
         return
     if platform in ("win32", "cygwin"):
-        env = os.environ if env is None else env
+        folders = windows_folders() if folders is None else folders
         real = realpath(binary)
-        roots = [env.get(n) for n in ("ProgramFiles", "ProgramFiles(x86)")]
+        roots = [folders.get(n) for n in ("ProgramFiles", "ProgramFiles(x86)")]
         if not any(r and _absolute(r) and _under(real, realpath(r)) for r in roots):
             raise Refused("a company device uses only a per-machine Chrome")
     elif platform == "darwin":
@@ -219,9 +261,12 @@ class Verifier:
     remembered; a refusal is checked afresh next time. `last` holds the evidence of the most recent full check."""
 
     def __init__(self, platform=None, run=subprocess.run, env=None, stat=os.stat, realpath=os.path.realpath,
-                 digest=sha256):
+                 digest=sha256, folders=windows_folders):
+        """`env` is only PowerShell's environment; `folders()` gives %ProgramFiles% and the system folder (a test
+        seam: in use it is always windows_folders, never the environment)."""
         self.platform = platform or sys.platform
         self.run, self.env, self.stat, self.realpath, self.digest = run, env, stat, realpath, digest
+        self.folders = folders
         self.passed = {}
         self.last = None
 
@@ -232,7 +277,8 @@ class Verifier:
         """-> None when the binary may start; raises Refused otherwise."""
         if not self.applies():
             return
-        check_location(binary, self.platform, company, self.env, self.stat, self.realpath)
+        folders = self.folders() if self.platform in ("win32", "cygwin") else None
+        check_location(binary, self.platform, company, folders, self.stat, self.realpath)
         try:
             info = self.stat(binary)
         except OSError:
@@ -250,6 +296,6 @@ class Verifier:
         if self.platform == "darwin":
             check_mac(binary, self.run)
         else:
-            check_windows(binary, self.run, self.env)
+            check_windows(binary, self.run, self.env, folders)
         evidence["ok"] = True
         self.passed[binary] = key

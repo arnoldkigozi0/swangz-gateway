@@ -12,6 +12,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 from swangz_client import chrome_verify as cv
 from swangz_client import workspace_launcher as wl
@@ -42,6 +43,9 @@ WIN_PF = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
 WIN_LOCAL = r"C:\Users\amy\AppData\Local\Google\Chrome\Application\chrome.exe"
 WIN_ENV = {"ProgramFiles": r"C:\Program Files", "ProgramFiles(x86)": r"C:\Program Files (x86)",
            "LocalAppData": r"C:\Users\amy\AppData\Local", "SystemRoot": r"C:\Windows"}
+WIN_FOLDERS = {"ProgramFiles": r"C:\Program Files", "ProgramFiles(x86)": r"C:\Program Files (x86)",
+               "System": r"C:\Windows\System32"}
+WIN_POWERSHELL = os.path.join(r"C:\Windows\System32", "WindowsPowerShell", "v1.0", "powershell.exe")
 MAC = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
 
@@ -73,7 +77,8 @@ class Stat:
 
 
 def windows(run, stat=None):
-    return cv.Verifier("win32", run=run, env=dict(WIN_ENV, PSModulePath=r"C:\pwsh\Modules"), stat=stat or Stat(), realpath=lambda p: p, digest=lambda p: "ab")
+    return cv.Verifier("win32", run=run, env=dict(WIN_ENV, PSModulePath=r"C:\pwsh\Modules"), stat=stat or Stat(), realpath=lambda p: p, digest=lambda p: "ab",
+                       folders=lambda: WIN_FOLDERS)
 
 
 def mac(run, stat=None):
@@ -107,7 +112,7 @@ class WindowsTests(unittest.TestCase):
         run = Run(**{"powershell.exe": authenticode()})
         windows(run)(WIN_PF, company=True)
         argv, kw = run.calls[0]
-        self.assertEqual(argv[0], os.path.join(r"C:\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe"))
+        self.assertEqual(argv[0], WIN_POWERSHELL)
         self.assertEqual(kw["env"]["SWANGZ_CHROME_PATH"], WIN_PF)
         self.assertNotIn("PSMODULEPATH", {k.upper() for k in kw["env"]})
         self.assertNotIn(WIN_PF, " ".join(argv))  # the path never becomes script text
@@ -137,7 +142,8 @@ class WindowsTests(unittest.TestCase):
 
     def test_company_refuses_a_link_out_of_program_files(self):
         v = cv.Verifier("win32", run=Run(**{"powershell.exe": authenticode()}), env=WIN_ENV, stat=Stat(),
-                        realpath=lambda p: WIN_LOCAL if p == WIN_PF else p, digest=lambda p: "ab")
+                        realpath=lambda p: WIN_LOCAL if p == WIN_PF else p, digest=lambda p: "ab",
+                        folders=lambda: WIN_FOLDERS)
         with self.assertRaises(cv.Refused):
             v(WIN_PF, company=True)
 
@@ -155,7 +161,8 @@ class MacTests(unittest.TestCase):
         mac(run)(MAC, company=True)
         (cs, _), (sp, _) = run.calls
         app = "/Applications/Google Chrome.app"
-        self.assertEqual(cs, ["/usr/bin/codesign", "--verify", "--deep", "--strict", "-R=" + cv.MAC_REQUIREMENT, app])
+        self.assertEqual(cs, ["/usr/bin/codesign", "--verify", "--deep", "-R=" + cv.MAC_REQUIREMENT, app])
+        self.assertNotIn("--strict", cs)  # D-026 A2 amendment: extended attributes are not code
         self.assertEqual(sp, ["/usr/sbin/spctl", "--assess", "--type", "execute", app])
         self.assertIn('leaf[subject.OU] = "EQHXZ8M8AV"', cv.MAC_REQUIREMENT)
         self.assertIn('identifier "com.google.Chrome"', cv.MAC_REQUIREMENT)
@@ -241,8 +248,8 @@ class LauncherHookTests(unittest.TestCase):
         (self.tmp / "device.json").write_text(json.dumps({"owner_kind": "company"}))
         pf, local = str(self.tmp / "pf"), str(self.tmp / "local")
         run = Run(**{"powershell.exe": authenticode()})
-        verifier = cv.Verifier("win32", run=run, env={"ProgramFiles": pf}, stat=Stat(), realpath=lambda p: p,
-                               digest=lambda p: "ab")
+        verifier = cv.Verifier("win32", run=run, stat=Stat(), realpath=lambda p: p, digest=lambda p: "ab",
+                               folders=lambda: {"ProgramFiles": pf, "System": r"C:\Windows\System32"})
         launcher = wl.Launcher(self.tmp, verifier=verifier)
         env = {"LocalAppData": local}
         company = wl.company_device(self.tmp)
@@ -275,6 +282,140 @@ class LauncherHookTests(unittest.TestCase):
         self.assertTrue(wl.company_device(self.tmp))
 
 
+class FakeWinreg:
+    """winreg stand-in: one HKLM key of (data, type) values; records the access flags it was opened with."""
+    HKEY_LOCAL_MACHINE, KEY_READ, KEY_WOW64_64KEY, REG_SZ, REG_EXPAND_SZ = "HKLM", 0x20019, 0x100, 1, 2
+
+    def __init__(self, values=None, fail=False):
+        self.values, self.fail, self.opened = values or {}, fail, []
+
+    def OpenKey(self, root, path, reserved, access):
+        self.opened.append((root, path, access))
+        if self.fail:
+            raise PermissionError("denied")
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def QueryValueEx(self, key, name):
+        if name not in self.values:
+            raise FileNotFoundError(name)
+        return self.values[name]
+
+
+SPOOF = {"ProgramFiles": r"C:\Users\amy\AppData\Local\x", "ProgramFiles(x86)": r"C:\Users\amy\AppData\Local\x",
+         "PROGRAMFILES": r"C:\Users\amy\AppData\Local\x", "SystemRoot": r"C:\Users\amy\AppData\Local\x",
+         "SYSTEMROOT": r"C:\Users\amy\AppData\Local\x"}
+SPOOFED_CHROME = r"C:\Users\amy\AppData\Local\x\Google\Chrome\Application\chrome.exe"
+
+
+class FixedFoldersTests(unittest.TestCase):
+    """Sentinel on #351: %ProgramFiles% and the system folder come from HKLM and GetSystemDirectoryW, never from
+    environment variables, which whoever starts the app controls."""
+
+    def test_the_folders_come_from_hklm_64_bit_and_the_system_call(self):
+        reg = FakeWinreg({"ProgramFilesDir": (r"C:\Program Files", 1), "ProgramFilesDir (x86)": (r"C:\Program Files (x86)", 1)})
+        with mock.patch.dict(os.environ, SPOOF):
+            got = cv.windows_folders(reg, lambda: r"C:\Windows\System32")
+        self.assertEqual(got, WIN_FOLDERS)
+        (root, path, access), = reg.opened
+        self.assertEqual((root, path), ("HKLM", r"SOFTWARE\Microsoft\Windows\CurrentVersion"))
+        self.assertTrue(access & FakeWinreg.KEY_WOW64_64KEY)
+
+    def test_unreadable_or_expandable_values_are_none_never_the_environment(self):
+        with mock.patch.dict(os.environ, SPOOF):
+            self.assertEqual(cv.windows_folders(FakeWinreg(fail=True), lambda: None),
+                             {"ProgramFiles": None, "ProgramFiles(x86)": None, "System": None})
+            got = cv.windows_folders(FakeWinreg({"ProgramFilesDir": ("%ProgramFiles%", 2)}), lambda: r"C:\Windows\System32")
+        self.assertEqual((got["ProgramFiles"], got["ProgramFiles(x86)"]), (None, None))
+
+        def broken():
+            raise OSError("no")
+        self.assertIsNone(cv.windows_folders(FakeWinreg(), broken)["System"])
+
+    def test_the_verifier_reads_the_fixed_folders_by_default(self):
+        self.assertIs(cv.Verifier("win32").folders, cv.windows_folders)
+
+    def test_a_spoofed_program_files_does_not_make_a_per_user_chrome_company_grade(self):
+        run = Run(**{"powershell.exe": authenticode()})
+        v = cv.Verifier("win32", run=run, env=dict(SPOOF), stat=Stat(), realpath=lambda p: p, digest=lambda p: "ab",
+                        folders=lambda: WIN_FOLDERS)
+        with mock.patch.dict(os.environ, SPOOF):
+            with self.assertRaises(cv.Refused):
+                v(SPOOFED_CHROME, company=True)
+            self.assertEqual(run.calls, [])
+            with self.assertRaises(cv.Refused):
+                cv.check_location(SPOOFED_CHROME, "win32", True, WIN_FOLDERS, realpath=lambda p: p)
+
+    def test_a_spoofed_system_root_does_not_choose_powershell(self):
+        run = Run(**{"powershell.exe": authenticode()})
+        v = cv.Verifier("win32", run=run, env=dict(SPOOF), stat=Stat(), realpath=lambda p: p, digest=lambda p: "ab",
+                        folders=lambda: WIN_FOLDERS)
+        with mock.patch.dict(os.environ, SPOOF):
+            v(WIN_PF, company=True)
+        self.assertEqual(run.calls[0][0][0], WIN_POWERSHELL)
+
+    def test_no_readable_folders_refuses_without_running_anything(self):
+        run = Run(**{"powershell.exe": authenticode()})
+        none = {"ProgramFiles": None, "ProgramFiles(x86)": None, "System": None}
+        v = cv.Verifier("win32", run=run, stat=Stat(), realpath=lambda p: p, digest=lambda p: "ab", folders=lambda: none)
+        for company in (True, False):
+            with self.subTest(company=company), self.assertRaises(cv.Refused):
+                v(WIN_PF, company=company)
+        self.assertEqual(run.calls, [])
+
+    def test_the_launcher_candidates_ignore_a_spoofed_program_files(self):
+        # Host-absolute stand-ins, so the same test runs on every system.
+        fixed, spoof, local = os.path.abspath("/pf"), os.path.abspath("/spoof"), os.path.abspath("/local")
+        with mock.patch.dict(os.environ, {"ProgramFiles": spoof, "ProgramFiles(x86)": spoof, "LocalAppData": local}):
+            found = wl.candidates("win32", folders=lambda: {"ProgramFiles": fixed, "ProgramFiles(x86)": None})
+        self.assertEqual(found, [os.path.join(fixed, *wl.WINDOWS_TAIL), os.path.join(local, *wl.WINDOWS_TAIL)])
+
+
+class LegacyRootTests(unittest.TestCase):
+    """Sentinel on #351: a Windows device whose records are still in the old %APPDATA%\\Swangz folder is a company
+    device to the launcher too (core.Store.roots())."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.data, self.legacy = self.tmp / "data", self.tmp / "legacy"
+        self.data.mkdir()
+        self.legacy.mkdir()
+
+    def test_only_the_legacy_root_says_company(self):
+        (self.legacy / "device.json").write_text(json.dumps({"owner_kind": "company"}))
+        self.assertFalse(wl.company_device(self.data))
+        self.assertTrue(wl.company_device([self.data, self.legacy]))
+        (self.legacy / "device.json").unlink()
+        (self.legacy / "manifest.json").write_text("{broken")
+        self.assertTrue(wl.company_device([self.data, self.legacy]))
+
+    def test_the_launcher_refuses_a_local_app_data_chrome_through_the_legacy_root(self):
+        (self.legacy / "manifest.json").write_text(json.dumps({"device": {"owner_kind": "company"}}))
+        run = Run(**{"powershell.exe": authenticode()})
+        verifier = cv.Verifier("win32", run=run, stat=Stat(), realpath=lambda p: p, digest=lambda p: "ab",
+                               folders=lambda: WIN_FOLDERS)
+        launcher = wl.Launcher(self.data, verifier=verifier, roots=[self.data, self.legacy])
+        original = wl.find_browser
+        local = r"C:\Users\amy\AppData\Local"
+        with mock.patch.object(wl, "find_browser", lambda verify: original(
+                "win32", env={"LocalAppData": local}, exists=lambda p: True, verify=verify)):
+            with self.assertRaises(wl.LaunchError) as caught:
+                launcher.verified_browser()
+        self.assertEqual(caught.exception.code, "no_browser")
+        self.assertEqual(run.calls, [])
+        self.assertEqual(wl.Launcher(self.data).roots, [self.data])
+
+    def test_core_hands_the_launcher_every_root(self):
+        source = (Path(__file__).resolve().parent.parent / "swangz_client" / "core.py").read_text(encoding="utf-8")
+        self.assertIn("wl.Launcher(self.paths.data, roots=self.store.roots())", source)
+
+
 def _program_files_chrome():
     for root in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)")):
         if root and os.path.isfile(os.path.join(root, *wl.WINDOWS_TAIL)):
@@ -285,6 +426,12 @@ def _program_files_chrome():
 @unittest.skipUnless(sys.platform == "win32", "real Authenticode checks run on Windows only")
 class NativeWindowsTests(unittest.TestCase):
     """The real Get-AuthenticodeSignature against real files on the CI runner."""
+
+    def test_the_fixed_folders_are_read_from_this_machine(self):
+        folders = cv.windows_folders()
+        self.assertTrue(folders["ProgramFiles"] and os.path.isdir(folders["ProgramFiles"]), folders)
+        self.assertTrue(folders["System"] and os.path.isfile(os.path.join(folders["System"], "kernel32.dll")), folders)
+        print("\n  fixed folders:", folders)
 
     def test_installed_chrome_passes_as_a_company_device(self):
         chrome = _program_files_chrome()
@@ -343,7 +490,7 @@ class NativeMacTests(unittest.TestCase):
 
     def test_report_how_codesign_sees_the_runner_chrome(self):
         """Evidence only, never fails: which codesign variants accept this machine's Chrome, and its extended
-        attributes. The runner's copy has been refused by --strict for Finder detritus in a helper app."""
+        attributes. --strict refused the runner's copy for Finder detritus, which is why the check no longer uses it."""
         app = "/Applications/Google Chrome.app"
         if not os.path.isdir(app):
             self.skipTest("no Google Chrome in /Applications on this machine")

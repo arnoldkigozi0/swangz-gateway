@@ -900,7 +900,7 @@ decision sets the rules for joining them. It changes nothing on the server, the 
      `CN=Google LLC, O=Google LLC`; the name is backed by Google's Omaha updater source, not by Chrome product docs.
      Check it through `WinVerifyTrust` or `Get-AuthenticodeSignature`, and check the subject, not a thumbprint,
      because Google rotates certificates.
-   - macOS: `codesign --verify --deep --strict` passes on `Google Chrome.app` with the requirement
+   - macOS: `codesign --verify --deep` passes on `Google Chrome.app` with the requirement
      `anchor apple generic and identifier "com.google.Chrome" and certificate 1[field.1.2.840.113635.100.6.2.6] and
      certificate leaf[field.1.2.840.113635.100.6.1.13] and certificate leaf[subject.OU] = "EQHXZ8M8AV"`
      (the two `field` clauses require a Developer ID intermediate and a Developer ID Application leaf, so a
@@ -912,6 +912,13 @@ decision sets the rules for joining them. It changes nothing on the server, the 
      enterprise PKG `Developer ID Installer: Google LLC (EQHXZ8M8AV)` (that certificate expires 1 Feb 2027). If an
      admin checks either carrier, the check pins the Team ID, never a certificate; validity is unverified until
      `codesign` / `pkgutil --check-signature` pass on a Mac.
+     *Amendment 25 Nov (#351):* `--strict` is not used. It rejects extended attributes such as
+     `com.apple.FinderInfo` and resource forks, which the signature does not cover, and a genuine Chrome copied in
+     with them (seen on the GitHub macOS runner) would be refused. The sealed code and resources, nested code
+     (`--deep`), the requirement and `spctl` still have to pass. The app never strips attributes from the bundle.
+     UNVERIFIED until checked on a real Mac: that `spctl --assess` accepts the installed Chrome offline, and what it
+     answers when Gatekeeper assessments are disabled (a local admin can do that; D-024 tamper-evident). Probe checks
+     both before release.
 
    Anything else stops setup with a repair message. The SHA-256 of the checked file goes in the setup log as
    evidence, never as the check.
@@ -1211,6 +1218,10 @@ shown when a marker exists. The console text distinguishes local from provider r
   not Edge or Safari. #333's "every authorised web tool" is not met for these two cases, and the acceptance report
   must say so.
 - A GPO refresh can land between E3's hash and the write or delete; the next check reports the mismatch.
+- A3 remembers a pass by the main executable's size and modification time, in memory. On macOS a framework
+  swapped in while the app runs is not rechecked until the app restarts; on a company Mac the bundle is root-owned,
+  so only an administrator can do that. On Windows only `chrome.exe` is checked, not `chrome.dll`; under
+  `%ProgramFiles%` the OS's permissions protect it, and on a personal device it is the person's own install (A4).
 - After revocation, machine policy stays until an administrator removes it (F1).
 - App sign-out keeps the browser folders, with their provider and Google sessions, on disk (C4). Until C4's
   uninstall change is built, uninstall leaves them too. On main, disconnecting the device also keeps them (F1 is not

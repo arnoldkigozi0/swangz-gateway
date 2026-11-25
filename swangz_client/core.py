@@ -1242,7 +1242,7 @@ class Client:
         except wl.LaunchError:
             raise wl.LaunchError("folder") from None
         if getattr(self, "launcher", None) is None:
-            self.launcher = wl.Launcher(self.paths.data)
+            self.launcher = wl.Launcher(self.paths.data, roots=self.store.roots())
         if not self.workspace_app(app):
             # Shared company accounts and tools the Hub hands out itself are not opened by the app this release:
             # the workspace never opens the Hub's own address, and there is no default-browser fallback.
