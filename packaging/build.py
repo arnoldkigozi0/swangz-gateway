@@ -25,6 +25,7 @@ ROOT = Path(__file__).resolve().parent.parent
 def command(dist, work, onedir=False):
     cmd = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--windowed", "--name", "Swangz",
            "--paths", str(ROOT), "--hidden-import", "swangz_client.gui", "--hidden-import", "swangz_client.cli",
+           "--hidden-import", "swangz_client.chrome_install",
            "--distpath", str(dist), "--workpath", str(work), "--specpath", str(work)]
     if sys.platform == "darwin":
         cmd += ["--osx-bundle-identifier", "com.swangzavenue.swangz"]

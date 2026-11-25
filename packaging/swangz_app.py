@@ -4,8 +4,6 @@ import os
 from pathlib import Path
 import sys
 
-from swangz_client.cli import main
-
 
 def self_check(destination):
     """Bounded, offline check of the frozen imports, state and actual Tk window.
@@ -41,6 +39,12 @@ if __name__ == "__main__":
     for stream in ("stdout", "stderr"):
         if getattr(sys, stream) is None:
             setattr(sys, stream, open(os.devnull, "w", encoding="utf-8"))
+    if len(sys.argv) > 1 and sys.argv[1] == "admin":
+        # D-026 B3: the elevated step, `Swangz.exe admin <action>` and nothing else. Dispatched before the app's own
+        # code (its state, settings and the person's folders) is loaded.
+        from swangz_client.chrome_install import admin_main
+        sys.exit(admin_main(sys.argv[1:]))
     if len(sys.argv) == 3 and sys.argv[1] == "--self-check":
         sys.exit(self_check(sys.argv[2]))
+    from swangz_client.cli import main
     sys.exit(main())
