@@ -56,17 +56,19 @@ checked by Probe from the providers' own documentation; the Chrome pack is exten
 ## Update the server
 
 For a server that already runs the Hub. **Not run on the server: it needs the server, so every command here is
-Arnold's.** What the team did (25 and 26 Nov, East Africa time), on a laptop with a throwaway data folder and sample
-people, tools and devices: ran `7c2071125a54` (the commit seen on the server on 25 Nov), backed it up, ran `801f37d`
-on the same data, then rolled back. **Not rehearsed:** the setup script itself, `sudo`, systemd, Caddy, a browser
-running the extension, and the Windows and macOS apps (the app was driven from its Python code on Linux, old version
-and new).
+Arnold's.** What the team did (26 Nov, East Africa time), on a laptop with a throwaway data folder, a stand-in
+provider and sample people, tools and devices: ran `7c2071125a54` (the commit seen on the server on 25 Nov), backed it
+up, ran `409b6e3` on the same data, then rolled back (109 checks passed, none failed). **Not rehearsed:** the setup
+script itself, `sudo`, systemd, Caddy, a browser running the extension, and the Windows and macOS apps (the app was
+driven from its Python code on Linux, old version and new).
 
-**Which commit.** Chief names a merged `main` commit with green CI (`<new>` below). The rehearsal covers `801f37d`.
-Chief runs `git diff --stat 801f37d <new> -- gateway deploy .env.example`; if it lists anything, the rehearsal is
-repeated before the update.
+**Which commit.** Chief names a merged `main` commit with green CI (`<new>` below). The rehearsal covers `409b6e3`.
+Chief runs `git diff --stat 409b6e3 <new> -- gateway deploy .env.example`; if it lists anything, the rehearsal is
+repeated before the update. One exception: the same rehearsal also passed on `e4f0c5c950`, the fix in pull request
+#361 (112 checks, none failed), so nothing needs repeating when
+`git diff --stat e4f0c5c950 <new> -- gateway deploy .env.example` lists nothing.
 
-### What changes from `7c2071125a54` to `801f37d`
+### What changes from `7c2071125a54` to `409b6e3`
 
 | Area | Change |
 |---|---|
@@ -74,8 +76,9 @@ repeated before the update.
 | `.env`, systemd units, Caddyfile | No change between these commits. The same `.env` gave the same `preflight` result |
 | Sessions, app and extension tokens, staff keys | An admin session, a staff session, a connected extension's token and an issued key made before the update still worked |
 | Swangz app 0.1.0 | Synced, checked in, rotated its key and enrolled against the new Hub. The Hub now reports 0.1.100 as the latest version |
-| Shared accounts on `google.com` | The new Hub refuses to add or edit such a tool (even its description) until its sign-in method is changed, and leaves `google.com` out of its list of sites to sign out. Reading the extension's code (not run in a browser), it can still clear one for the person whose turn ends; a fix is open. **Before updating**, look in Tools for a shared account whose address, sign-in link or company browser is under `google.com`, and choose another method |
+| Shared accounts on `google.com` | The new Hub refuses to add or edit such a tool (even its description) until its sign-in method is changed, and leaves `google.com` out of its list of sites to sign out. Reading the extension's code (not run in a browser), it can still clear one for the person whose turn ends; the follow-up that would close this is not built. **Before updating**, look in Tools for a shared account whose address, sign-in link or company browser is under `google.com`, and choose another method |
 | Marking a device company or personal | The new Hub has a request for it; the console has no control for it yet. Known gap seen in the rehearsal: after a company device is changed to personal, the app keeps checking the browser policy |
+| Issuing a key limited to one tool | Fails on `409b6e3` without #361: the console request answers 500 and `issue-key --tool` stops with a Python error. `7c2071125a54` has the same code (read, not run), so the update does not introduce it. With `e4f0c5c950` both worked and the key reached the stand-in provider |
 
 ### Update
 
