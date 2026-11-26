@@ -682,7 +682,7 @@ def issue_key(ctx, pid):
     if not ctx.gw.settings.email_allowed(person["email"]):
         raise ApiError(400, ctx.gw.settings.email_rule())
     from . import reporting
-    tool_id = reporting.key_scope(ctx.db, person, ctx.body.get("tool_id"))
+    tool_id = reporting.key_scope(ctx.db, person, ctx.body["tool_id"]) if "tool_id" in ctx.body else None
     label = str(ctx.body.get("label") or "").strip()[:80] or "key"
     key_id, full, secret_hash, hint = security.new_key()
     ctx.db.x("INSERT INTO keys(id, person_id, label, secret_hash, hint, created, created_by) VALUES(?,?,?,?,?,?,?)",

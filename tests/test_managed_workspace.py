@@ -264,7 +264,7 @@ class RevocationTests(Base):
 
     def test_the_workspace_state_never_touches_keys_or_api_automation(self):
         """W7: revoking the workspace alone must not revoke the device key or a gateway API key."""
-        status, out = self.rig.api("POST", f"/people/{self.rig.person_id}/keys", {"label": "n8n automation", "tool_id": ""})
+        status, out = self.rig.api("POST", f"/people/{self.rig.person_id}/keys", {"label": "n8n automation"})
         self.assertEqual(status, 200, out)
         for action in ("suspend", "retire", "reactivate", "reset"):
             self.workspace(action)

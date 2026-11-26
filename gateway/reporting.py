@@ -468,10 +468,12 @@ def csv_bytes(rows, fields):
 
 
 def key_scope(db, person, tool_id):
-    if not tool_id:
-        return None  # backwards-compatible legacy key, conservative reporting gate
+    """The tool a new key is scoped to. Callers ask only when a tool was named: leaving tool_id out is the one way
+    to get an unscoped key (the conservative reporting gate), so every value that arrives here must name a tool."""
+    if not isinstance(tool_id, str) or not tool_id.strip():
+        raise ApiError(400, "Choose an API or developer tool for this key.")
     from . import entitle
-    tool = db.one("SELECT * FROM tools WHERE id=? AND archived=0", (str(tool_id),))
+    tool = db.one("SELECT * FROM tools WHERE id=? AND archived=0", (tool_id,))
     if not tool or tool["kind"] not in ("api", "dev") or not tool["provider"]:
         raise ApiError(400, "Choose an API or developer tool for this key.")
     if not entitle.is_enabled(db, person, tool)[0]:

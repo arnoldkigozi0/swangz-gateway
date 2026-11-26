@@ -54,6 +54,28 @@ def endpoint_kind(dialect, path, method="POST"):
     return "other"
 
 
+# What a key scoped to one tool may ask for besides model and media requests (kind 'other'): exactly these, per
+# dialect, because the connected tools need them. "{id}" is one plain path segment (no "..", no %-encoding) and
+# "…" is any number of whole segments. Nothing is matched by prefix, and a dialect not listed here allows none.
+SCOPED_KEY_OTHER = {
+    "anthropic": ("GET /v1/models", "GET /v1/models/{id}", "POST /v1/messages/count_tokens"),
+    "openai": ("GET /v1/models", "GET /v1/models/{id}", "POST /v1/responses/compact"),
+    "elevenlabs": ("GET /v1/voices", "GET /v1/voices/{id}", "GET /v1/models"),
+    "higgsfield": ("POST …/requests/{id}/cancel",),
+}
+_SEGMENT = r"[A-Za-z0-9][A-Za-z0-9._:-]*"
+
+
+def scoped_key_may(dialect, method, path):
+    p = path.split("?", 1)[0].rstrip("/")
+    for rule in SCOPED_KEY_OTHER.get(dialect, ()):
+        allowed, _, pattern = rule.partition(" ")
+        regex = re.escape(pattern).replace(re.escape("{id}"), _SEGMENT).replace(re.escape("…"), f"(?:/{_SEGMENT})*")
+        if method == allowed and re.fullmatch(regex, p):
+            return True
+    return False
+
+
 def list_field(kind, body):
     """Which top-level field holds the growing conversation (stored message by message)."""
     if kind in ("messages", "chat") and isinstance(body.get("messages"), list):

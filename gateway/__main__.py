@@ -156,7 +156,7 @@ def main(argv=None):
             sys.exit(settings.email_rule())
         from . import reporting
         try:
-            tool_id = reporting.key_scope(db, person, args.tool)
+            tool_id = reporting.key_scope(db, person, args.tool) if args.tool is not None else None
         except Exception as exc:
             from .admin import ApiError
             if not isinstance(exc, ApiError):
