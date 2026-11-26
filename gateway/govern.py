@@ -681,13 +681,21 @@ def _step(steps, check, result, detail):
     steps.append({"check": check, "result": result, "detail": detail})
 
 
-def explain_access(gw, person, tool, model, channel, provider_name):
+def _holds_key_for(db, person_id, tool_id, now):
+    return bool(db.scalar("SELECT 1 FROM keys WHERE person_id = ? AND hub_tool_id = ? AND revoked IS NULL"
+                          " AND (retire_at IS NULL OR retire_at > ?) LIMIT 1", (person_id, tool_id, now)))
+
+
+def explain_access(gw, person, tool, model, channel, provider_name, chosen=False):
     """Every check, in the order the gateway makes it (server.gate, then dev_tool_gate, then policy_gate, then the
-    company key for requests; the portal's own order for opens and visits). The first failure is what decides."""
+    company key for requests; the portal's own order for opens and visits). The first failure is what decides.
+    `chosen`: the tool was named by whoever is asking. If the person holds a live key scoped to it, a request is
+    judged as the gateway judges that key: the key's tool must be available, and the rules follow it."""
     db, now = gw.db, time.time()
     steps = []
     registry, _ = gw.governance()
     paused = db.get_setting("paused", "0") == "1"
+    key_tool = None
     _step(steps, "Everyone's AI access", "fail" if paused else "pass",
           "Paused for everyone by an administrator (the kill switch)." if paused else "Not paused.")
 
@@ -734,6 +742,12 @@ def explain_access(gw, person, tool, model, channel, provider_name):
             granted = tool["id"] in entitle.person_grants(db, person)
             _step(steps, "Developer tool", "pass" if granted else "fail",
                   f"{tool['name']} is assigned to them." if granted else f"{tool['name']} isn't assigned to them.")
+        if chosen and tool and tool["provider"] == provider_name and _holds_key_for(db, person["id"], tool["id"], now):
+            key_tool = tool
+            ok, _, reason = entitle.is_enabled(db, person, tool)
+            if tool["archived"]:
+                ok, reason = False, f"{tool['name']} has been removed."
+            _step(steps, "Their key's tool", "pass" if ok else "fail", reason)
         if provider and provider.is_chat and model:
             reg = policy.find_model(registry, model)
             blocked = policy.model_gate(registry, model, person.get("department"))
@@ -742,7 +756,7 @@ def explain_access(gw, person, tool, model, channel, provider_name):
                   f"{reg['id']} is {reg['status']} ({reg['classification']})." if reg else
                   "Not in the registry, so allowed as before.")
         what = policy.request_scope(db, registry, {"claude-code": "Claude Code", "codex": "Codex"}.get((tool or {}).get("id")),
-                                    provider_name, model)
+                                    provider_name, model, key_tool["id"] if key_tool else None)
     else:
         account()
         ok, state, reason = entitle.is_enabled(db, person, tool)
@@ -766,11 +780,15 @@ def explain_access(gw, person, tool, model, channel, provider_name):
               "They hold a turn now." if mine else "A seat is free: Open gives them a turn." if free else
               "Every seat is taken right now: " + ", ".join(t["person"] for t in holders) + ".")
     failed = next((s for s in steps if s["result"] == "fail"), None)
+    notes = ["The rules as they stand now. The per-minute rate limit depends on the moment and isn't checked here."]
+    if key_tool:
+        notes.append(f"Answered for a request on their key for {key_tool['name']}: the company rules follow that tool, "
+                     "whatever program sends it. A key without a tool is placed by the program that sends the request, "
+                     "so it can be answered differently.")
     return {"person": {"id": person["id"], "name": person["name"], "department": person.get("department") or ""},
             "tool": {"id": tool["id"], "name": tool["name"]} if tool else None, "model": model, "channel": channel,
             "provider": provider_name, "allowed": failed is None, "decided_by": failed["check"] if failed else None,
-            "steps": steps, "policy_trace": decision.trace, "as_of": now,
-            "notes": ["The rules as they stand now. The per-minute rate limit depends on the moment and isn't checked here."]}
+            "steps": steps, "policy_trace": decision.trace, "as_of": now, "notes": notes}
 
 
 @route("GET", r"/policies/explain")
@@ -795,4 +813,4 @@ def explain(ctx):
             tool = ctx.db.one("SELECT * FROM tools WHERE kind = 'api' AND provider = ? ORDER BY rowid LIMIT 1", (provider,))
     elif not tool:
         raise ApiError(400, "name the tool: ?tool=<id>")
-    return explain_access(ctx.gw, person, tool, model, channel, provider)
+    return explain_access(ctx.gw, person, tool, model, channel, provider, chosen=bool(tool_id))
