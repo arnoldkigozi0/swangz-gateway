@@ -149,14 +149,14 @@ def main(argv=None):
         audit("added a person", args.name)
         print(f"person #{cur.lastrowid} {args.name}")
     elif args.cmd == "issue-key":
-        person = db.one("SELECT name,email FROM people WHERE id = ?", (args.person_id,))
+        person = db.one("SELECT * FROM people WHERE id = ?", (args.person_id,))  # key_scope reads grants and status
         if not person:
             sys.exit("no such person")
         if not settings.email_allowed(person["email"]):
             sys.exit(settings.email_rule())
         from . import reporting
         try:
-            tool_id = reporting.key_scope(db, args.person_id, args.tool)
+            tool_id = reporting.key_scope(db, person, args.tool)
         except Exception as exc:
             from .admin import ApiError
             if not isinstance(exc, ApiError):
