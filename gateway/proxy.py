@@ -195,17 +195,20 @@ class Call:
         if gate:
             status, etype, message, why = gate
             return self.refuse(status, etype, message, "blocked", why)
-        if row.get("hub_tool_id") and self.kind == "other":
-            # The tool check below knows model and media requests only, so anything else would reach a provider
-            # unchecked, one the key's tool doesn't use included. A key scoped to one tool may not make it.
+        scoped = bool(row.get("hub_tool_id"))
+        if scoped and self.kind == "other" and not parse.scoped_key_may(self.provider.dialect, self.h.command, self.rest):
             return self.refuse(403, "permission_error", "This device key is scoped to one tool and can't make this request.",
                                "blocked", "key tool scope")
         from . import reporting, policy
-        if self.kind not in ("other", "media-status"):
+        # A scoped key gets the tool checks on every request, listed housekeeping and job polling included.
+        if scoped or self.kind not in ("other", "media-status"):
             tool = self.gw.db.one("SELECT * FROM tools WHERE id=?", (row.get("hub_tool_id"),)) if row.get("hub_tool_id") else policy.request_tool(self.gw.db, self.rec["client"], self.provider.name)
             if row.get("hub_tool_id") and (not tool or tool.get("provider") != self.provider.name):
                 return self.refuse(403, "permission_error", "This device key is scoped to a different tool/provider.", "blocked", "key tool scope")
             if row.get("hub_tool_id"):
+                if tool["archived"]:
+                    return self.refuse(403, "permission_error", "The tool this device key is for has been removed.",
+                                       "blocked", "key tool scope")
                 from . import entitle
                 person = self.gw.db.one("SELECT * FROM people WHERE id=?", (row["person_id"],))
                 if not entitle.is_enabled(self.gw.db, person, tool)[0]:
@@ -221,7 +224,8 @@ class Call:
                 if denial:
                     self.rec["rule"] = "weekly_report_required"
                     return self.refuse(403, "weekly_report_required", denial["message"], "blocked", "weekly_report_required", extra=denial)
-        ruled = self.gw.policy_gate(row, self.rec["model"], self.kind, self.provider, self.rec["client"])
+        ruled = self.gw.policy_gate(row, self.rec["model"], self.kind, self.provider, self.rec["client"],
+                                    scoped_other=scoped and self.kind == "other")
         if ruled:
             status, etype, message, why, self.rec["rule"] = ruled
             return self.refuse(status, etype, message, "blocked", why)

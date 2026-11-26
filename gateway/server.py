@@ -95,11 +95,12 @@ class Gateway:
         with self._gov_lock:
             self._gov = None
 
-    def policy_gate(self, key, model, kind, provider, client):
+    def policy_gate(self, key, model, kind, provider, client, scoped_other=False):
         """The model registry and the company's policies, checked after the person's own rules.
         -> None, or (status, error type, message, short reason, rule). Following a job already started
-        (media-status) and housekeeping calls (other) are not new use, so they are not refused here."""
-        if kind in ("other", "media-status"):
+        (media-status) and housekeeping calls (other) are not new use, so they are not refused here. The exception
+        is the housekeeping a tool-scoped key is allowed (scoped_other), which is checked like any other use."""
+        if kind == "media-status" or (kind == "other" and not scoped_other):
             return None
         registry, policies = self.governance()
         if provider.is_chat and registry:
