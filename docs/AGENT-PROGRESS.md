@@ -1,5 +1,7 @@
 # Agent progress
 
+**26 Nov 21:30 daily report** (docs/daily/2026-11-26.md). Merged today 9; open 0; main 9ccf858 Hub checks passed (1871 tests, skipped=48, 3.10 and 3.12). Live Hub reports 5a3f67e: lacks #363-#365. Netlify production builds skipped (credits). Next at 00:00: Forge media job ownership, then server rehearsal 5a3f67e -> main; Probe post-merge check of #339; no Prism task while ChatGPT is paused. Decisions awaiting Arnold: server update, Netlify credits, physical checklist and signing.
+
 **26 Nov 20:58.** Merged #365 as 9ccf858 (Sentinel APPROVED and Probe VERIFIED at 429f7cf; CI green, Netlify "Pages changed" skipped; main checks after merge not yet checked). Open PRs: 0. Follow-ups: report attribution by user agent (insight.tool_requests_where); media status/cancel job ownership; Explain "Weekly report" step (Sentinel); Explain says nothing about a revoked key, and its new note omits the Codex/Claude Code assignment check (Probe). Not started: Claude and ChatGPT budgets paused. Release stays 596bf3c, without #363-#365.
 
 **26 Nov 20:09 shift.** Claude and ChatGPT both PAUSED (20:05): lean shift. Open PRs: 0; Hub checks passed on 67de3ac. Forge assigned fix/explain-key-tool (one draft PR, then Probe; report attribution second if time). Prism, Anvil, Sentinel: no task; Probe waits for the PR.
