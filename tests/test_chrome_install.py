@@ -356,6 +356,77 @@ class AdminEntryTests(unittest.TestCase):
         self.assertIn("swangz_client.chrome_install", (ROOT / "packaging" / "build.py").read_text(encoding="utf-8"))
 
 
+LOG_ROOT = PD + r"\Swangz"
+LOG = LOG_ROOT + r"\chrome-install.log"
+
+
+class LogTests(unittest.TestCase):
+    """The elevated process writes its log only into the admin-only folder (B5). A person can make
+    ``%ProgramData%\\Swangz`` before it does. These run the real ``_write_log``; only the file opening is stood in."""
+
+    def run_admin(self, win, action="chrome-install", chrome_before=False):
+        m = Machine(win, chrome_before=chrome_before)
+        with mock.patch.object(ci, "open", mock.mock_open(), create=True) as opened:
+            code = ci.admin_main(["admin", action], win=win, frozen=True, executable=EXE, meipass=INTERNAL,
+                                 install=lambda _: m.install())
+        return code, opened
+
+    def unsafe_folders(self):
+        writable = SAFE + "(A;OICI;0x1301bf;;;%s)" % USER
+        unreadable = FakeWindows(existing=[LOG_ROOT])
+        unreadable.read_sddl = lambda p: SAFE if p != LOG_ROOT else (_ for _ in ()).throw(OSError(5, "denied"))
+        not_made = FakeWindows()
+        not_made.make_folder = mock.Mock(side_effect=OSError(5, "denied"))
+        return {"a link": FakeWindows(existing=[LOG_ROOT], links=[LOG_ROOT]),
+                "person-writable": FakeWindows(existing=[LOG_ROOT], sddl={LOG_ROOT: writable}),
+                "owned by the person": FakeWindows(existing=[LOG_ROOT],
+                                                   sddl={LOG_ROOT: "O:%sD:P(A;;FA;;;BA)" % USER}),
+                "unreadable": unreadable,
+                "cannot be made": not_made}
+
+    def test_nothing_is_written_into_an_unsafe_folder_whatever_the_result(self):
+        paths = {"staging_unsafe": ({}, 11), "Chrome already there": ({"chrome_before": True}, 0),
+                 "not built": ({"action": "policy-write"}, 15)}
+        for path, (kw, expected) in paths.items():
+            for folder, win in self.unsafe_folders().items():
+                with self.subTest(path=path, folder=folder):
+                    code, opened = self.run_admin(win, **kw)
+                    self.assertEqual(code, expected)
+                    opened.assert_not_called()
+
+    def test_nothing_is_written_into_an_unsafe_folder_after_an_early_failure(self):
+        win = FakeWindows(existing=[LOG_ROOT], links=[LOG_ROOT])
+        win.folders = {}
+        code, opened = self.run_admin(win)
+        self.assertEqual(code, ci.EXIT["failed"])
+        opened.assert_not_called()
+        with mock.patch.object(ci, "self_check", side_effect=OSError(5, "denied")):
+            code, opened = self.run_admin(FakeWindows(existing=[LOG_ROOT], links=[LOG_ROOT]))
+        self.assertEqual(code, ci.EXIT["failed"])
+        opened.assert_not_called()
+
+    def test_an_admin_only_folder_gets_the_log_and_a_missing_one_is_made_first(self):
+        for existing in ([LOG_ROOT], []):
+            for kw, result in (({}, "installed"), ({"chrome_before": True}, "installed"),
+                               ({"action": "policy-remove"}, "not_built")):
+                with self.subTest(existing=existing, result=result, kw=kw):
+                    win = FakeWindows(existing=existing)
+                    code, opened = self.run_admin(win, **kw)
+                    self.assertEqual(code, ci.EXIT[result])
+                    opened.assert_called_once_with(LOG, "a", encoding="utf-8")
+                    self.assertEqual(json.loads(opened().write.call_args[0][0])["code"], result)
+                    self.assertIn(LOG_ROOT, win.present)
+
+    def test_a_log_that_cannot_be_written_does_not_change_the_result(self):
+        no_folder = FakeWindows()
+        no_folder.known_folder = mock.Mock(side_effect=OSError("unavailable"))
+        with mock.patch.object(ci, "open", mock.mock_open(), create=True) as opened:
+            ci._write_log(no_folder, {"code": "installed"})
+        opened.assert_not_called()
+        with mock.patch.object(ci, "open", mock.Mock(side_effect=OSError(28, "full")), create=True):
+            ci._write_log(FakeWindows(), {"code": "installed"})
+
+
 class ConsentTests(unittest.TestCase):
     def ask(self, win=None, agree=True, platform="win32", **kw):
         shown = []

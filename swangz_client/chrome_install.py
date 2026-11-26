@@ -446,11 +446,14 @@ def _remove_tree(path):
 
 
 def _write_log(win, line):
+    """Append one line to the log, only inside the admin-only folder (B5). A person can make that folder under
+    ProgramData first, as a link that would take an elevated write anywhere, so it is checked (and made admin-only
+    when missing) here too, whichever way the action ended. Unsafe or unreadable: nothing is written."""
     try:
-        root = ntpath.join(win.known_folder(FOLDERID_PROGRAM_DATA), "Swangz")
+        root = _staging_root(win, win.known_folder(FOLDERID_PROGRAM_DATA))
         with open(ntpath.join(root, "chrome-install.log"), "a", encoding="utf-8") as out:
             out.write(json.dumps(line, sort_keys=True) + "\n")
-    except OSError:
+    except (Failed, OSError):
         pass  # the log is evidence, never a reason to fail
 
 
