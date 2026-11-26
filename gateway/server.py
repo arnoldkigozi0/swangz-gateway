@@ -111,7 +111,8 @@ class Gateway:
             return None
         try:
             decision = policy.evaluate(self.db, self.settings, {"person_id": key["person_id"], "department": key.get("department")},
-                                       policy.request_scope(self.db, registry, client, provider.name, model), policies=policies)
+                                       policy.request_scope(self.db, registry, client, provider.name, model, key.get("hub_tool_id")),
+                                       policies=policies)
         except Exception as exc:  # noqa: BLE001 — policies only take access away, so an unreadable one refuses
             self.log(f"policy check failed: {exc!r}")
             return 503, "api_error", "the company's rules couldn't be checked just now. Try again in a moment.", "policy check failed", "policy:error"
