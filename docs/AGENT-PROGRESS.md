@@ -1,5 +1,7 @@
 # Agent progress
 
+**26 Nov 20:58.** Merged #365 as 9ccf858 (Sentinel APPROVED and Probe VERIFIED at 429f7cf; CI green, Netlify "Pages changed" skipped; main checks after merge not yet checked). Open PRs: 0. Follow-ups: report attribution by user agent (insight.tool_requests_where); media status/cancel job ownership; Explain "Weekly report" step (Sentinel); Explain says nothing about a revoked key, and its new note omits the Codex/Claude Code assignment check (Probe). Not started: Claude and ChatGPT budgets paused. Release stays 596bf3c, without #363-#365.
+
 **26 Nov 20:09 shift.** Claude and ChatGPT both PAUSED (20:05): lean shift. Open PRs: 0; Hub checks passed on 67de3ac. Forge assigned fix/explain-key-tool (one draft PR, then Probe; report attribution second if time). Prism, Anvil, Sentinel: no task; Probe waits for the PR.
 
 **26 Nov 18:00 shift end.** Merged since 16:00: 1 (#364, 67de3ac). Open PRs: 0. Hub checks passed on 67de3ac. No teammate seen working; no stop messages. Next steps at 20:00: Forge, if budget allows: (1) report attribution in insight.tool_requests_where by the key's tool; (2) 'Explain a decision' in gateway/govern.py to use the key's tool. Later, own PR: media-status/cancel job ownership. Prism, Anvil: no task (budget: Claude and ChatGPT PAUSED at 17:52). Probe, Sentinel: nothing pending. Release stays 596bf3c, which includes neither #363 nor #364.
