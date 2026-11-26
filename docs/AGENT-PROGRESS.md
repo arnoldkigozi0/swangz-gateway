@@ -1,5 +1,7 @@
 # Agent progress
 
+**26 Nov 16:55.** Merged #364 as 67de3ac (Probe VERIFIED + Sentinel APPROVED at aa4440e; CI green, Netlify "Pages changed" skipping); main checks after merge not yet checked. Follow-ups for Forge: (1) report attribution in insight.tool_requests_where by the key's tool; (2) "Explain a decision" in gateway/govern.py ignores the key's tool. No new work 18:00-20:00.
+
 **26 Nov 16:00 shift.** Claude and ChatGPT both PAUSED (15:51): lean shift. Main 630ffab: Hub checks and browser profile checks passed. Open PRs: 0. Forge assigned fix/scoped-key-policy-tool (one draft PR; then Probe + Sentinel). Prism, Anvil: no task. Media-status/cancel job ownership waits.
 
 **26 Nov 14:00 shift end.** Merged since 12:00: 2 (#358 1addd52, #363 630ffab). Open PRs: 0. Main 630ffab workflows passed. No teammate thread of Chief's seen running; no stop messages; the four recent build worktrees checked (chrome-install, key-scope-followups, issue-key-scope, server-update) are clean and pushed. Next steps: Forge, 16:00: scoped keys judged by the key's tool, one small PR (see 13:17 below). Anvil: none assigned (#358 install step still has no caller). Prism: none (ChatGPT PAUSED at 14:00). Probe, Sentinel: nothing pending. Release stays 596bf3c.
