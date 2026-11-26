@@ -1,5 +1,7 @@
 # Agent progress
 
+**26 Nov 12:22.** Crashes (out of memory) at 12:06 and 12:15. Merged #358 (1addd52): Probe VERIFIED + Sentinel APPROVED at 1204cd6, CI green; install step has no caller in the app yet; not in RC 596bf3c; server files unchanged from 596bf3c. Open PRs: 0. Forge resuming fix/key-scope-followups (Sentinel ruling: both gaps fail closed), alone, targeted tests; then Probe + Sentinel. Arnold: server update to 596bf3c.
+
 **26 Nov 12:00 shift.** Claude and ChatGPT both PAUSED: lean shift, Prism and Anvil no task. Main 5a3f67e Hub checks passed. #358 1204cd6 (CI green): Probe re-check and Sentinel delta review assigned, merge on both. Forge: fix/key-scope-followups (key scope on kind `other`, empty tool_id), one draft PR; Sentinel ruling requested. The /tmp question is closed (/tmp 4% used).
 
 **26 Nov 11:15, handed to Arnold.** Server commit for the update: 596bf3c (Hub checks passed; server files = rehearsed e4f0c5c). UNSIGNED RC: release rc-unsigned-20261126-596bf3c (13 assets; owner checklist in the notes). #362 merged (5a3f67e, docs; its Hub checks running at 11:12). Live Hub still 7c20711; update and physical tests are Arnold's. Next at 12:00: Sentinel re-review (_write_log and tests only) and Probe re-check of #358 1204cd6, merge on both. Also open: docs/ACCEPTANCE-333.md predates #361.
