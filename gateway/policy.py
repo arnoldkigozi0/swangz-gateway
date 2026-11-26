@@ -225,8 +225,10 @@ def spend_filter(db, p):
             tool = db.one("SELECT id, name, kind, provider FROM tools WHERE id = ?", (tid,))
             where = insight.tool_requests_where(tool) if tool else None
             if where:
-                parts.append("(" + where[0] + ")")
-                args += where[1]
+                # a request belongs to its key's tool; only one without such a key is placed by its user agent
+                scoped = "(SELECT NULLIF(k.hub_tool_id, '') FROM keys k WHERE k.id = r.key_id)"
+                parts.append(f"({scoped} = ? OR ({scoped} IS NULL AND {where[0]}))")
+                args += [tool["id"], *where[1]]
         clauses.append("(" + (" OR ".join(parts) or "0") + ")")
     return " AND ".join(clauses) or "1", args
 
@@ -248,9 +250,13 @@ def request_tool(db, client, provider):
     return db.one("SELECT id, classification FROM tools WHERE kind = 'api' AND provider = ? ORDER BY rowid LIMIT 1", (provider,))
 
 
-def request_scope(db, registry, client, provider, model):
-    """`what` for a gateway request: its tool, provider, model and the classifications of both."""
-    tool = request_tool(db, client, provider)
+def request_scope(db, registry, client, provider, model, key_tool=None):
+    """`what` for a gateway request: its tool, provider, model and the classifications of both. A tool-scoped key's
+    tool is `key_tool`; the user agent (`client`) only says which tool for a key without one."""
+    if key_tool:
+        tool = db.one("SELECT id, classification FROM tools WHERE id = ?", (key_tool,))
+    else:
+        tool = request_tool(db, client, provider)
     row = find_model(registry, model)
     classes = sorted({c for c in ((tool or {}).get("classification"), (row or {}).get("classification")) if c})
     return {"channel": "request", "tool_id": tool["id"] if tool else None, "provider": provider, "model": model,

@@ -429,12 +429,13 @@ def simulate(db, settings, draft, days=30, replacing=None, now=None):
     channels = p["scope"].get("channels") or list(policy.CHANNELS)
     events, truncated = [], False
     if "request" in channels:
-        rows = db.q("SELECT r.id, r.ts, r.person_id, r.key_id, r.client, r.provider, r.model, r.cost, p.name AS person, p.department"
-                    " FROM requests r JOIN people p ON p.id = r.person_id WHERE r.ts >= ? AND r.ts < ? AND r.outcome = 'ok'"
+        rows = db.q("SELECT r.id, r.ts, r.person_id, r.key_id, r.client, r.provider, r.model, r.cost, p.name AS person, p.department,"
+                    " k.hub_tool_id AS key_tool FROM requests r JOIN people p ON p.id = r.person_id"
+                    " LEFT JOIN keys k ON k.id = r.key_id WHERE r.ts >= ? AND r.ts < ? AND r.outcome = 'ok'"
                     " AND r.kind NOT IN ('other', 'media-status') ORDER BY r.ts DESC LIMIT ?", (since, now, REPLAY_LIMIT + 1))
         truncated |= len(rows) > REPLAY_LIMIT
         for r in rows[:REPLAY_LIMIT]:
-            tool = tools.for_request(r["client"], r["provider"])
+            tool = tools.by_id.get(r["key_tool"]) if r["key_tool"] else tools.for_request(r["client"], r["provider"])
             reg = policy.find_model(registry, r["model"])
             classes = sorted({c for c in ((tool or {}).get("classification"), (reg or {}).get("classification")) if c})
             events.append(("request", r, tool, {"channel": "request", "tool_id": tool["id"] if tool else None, "provider": r["provider"],
