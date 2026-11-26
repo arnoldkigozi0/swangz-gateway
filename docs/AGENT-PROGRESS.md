@@ -1,5 +1,16 @@
 # Agent progress
 
+**26 Nov 10:10 shift end.** Merged since 08:00: 0 (since 25 Nov 22:00: #353). Open: 4, all drafts, mergeable, no failed or pending checks. Main 8b025a5 workflows passed. Nobody seen working; no stop messages. Worktrees of the four PRs are clean and pushed. Network failure (EAI_AGAIN) stopped Chief's runs from about 00:46 to at least 06:03; no frozen-SHA release candidate or 05:45 report was seen from the sprint.
+
+| PR | Owner | Next step at 12:00 |
+|---|---|---|
+| #361 e4f0c5c, tool-scoped key 500 | Forge | Probe verifies, Sentinel reviews (keys), merge on both |
+| #358 1667069, Chrome install (D-026) | Anvil | Probe verifies, Sentinel reviews (elevation), merge on both |
+| #359 6d8f987, server update runbook | Forge | merge (docs); rehearsal covered 801f37d, not 8b025a5 |
+| #360 f1c9a1c, acceptance map and journey | Probe | merge (docs); after #361, re-check the two failed items |
+
+Prism: no task assigned. Unassigned: Linux unreachable keyring leaves device.key after revocation/cleanup.
+
 **26 Nov 00:20.** Probe journey on main 8b025a5: 50/52, both failures one break (issuing a key for a tool returns 500, API and CLI). Assigned to Forge (fix/issue-key-tool-scope; Probe then Sentinel). Draft #360 (f1c9a1c, docs/ACCEPTANCE-333.md) CI pending. Main Hub checks still in progress. Linux follow-up, unassigned: unreachable keyring leaves device.key after revocation/cleanup.
 
 **26 Nov 00:05.** Merged #353 (8b025a5): Probe VERIFIED + Sentinel APPROVED at a9276d5, CI green. Open: #358 (Anvil, f745a91, draft; Windows `Chrome publisher` jobs failing, other checks pending; Anvil working). Forge working. Probe assigned sprint item 4 (end-to-end journey on 8b025a5, docs/ACCEPTANCE-333.md). Budget: Claude and ChatGPT PAUSED; no task for Prism or Sentinel.
