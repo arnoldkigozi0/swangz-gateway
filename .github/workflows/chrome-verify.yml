@@ -7,12 +7,18 @@ on:
       - 'swangz_client/chrome_verify.py'
       - 'swangz_client/workspace_launcher.py'
       - 'tests/test_chrome_verify.py'
+      - 'swangz_client/chrome_install.py'
+      - 'tests/test_chrome_install.py'
+      - 'packaging/swangz_app.py'
   pull_request:
     paths:
       - '.github/workflows/chrome-verify.yml'
       - 'swangz_client/chrome_verify.py'
       - 'swangz_client/workspace_launcher.py'
       - 'tests/test_chrome_verify.py'
+      - 'swangz_client/chrome_install.py'
+      - 'tests/test_chrome_install.py'
+      - 'packaging/swangz_app.py'
   workflow_dispatch:
 concurrency:
   group: chrome-verify-${{ github.ref }}
@@ -39,3 +45,8 @@ jobs:
       # downloaded or elevated; skips stay visible with -v.
       - name: Test the Chrome publisher and location checks
         run: python -m unittest tests.test_chrome_verify -v
+      # D-026 A1, B1-B6: the Chrome install. Stand-ins everywhere; on Windows the Native test also calls the real
+      # SHGetKnownFolderPath, GetNamedSecurityInfo and CreateDirectory (protected DACL) in a temporary folder.
+      # Nothing is downloaded, installed or elevated (no UAC prompt can be answered on a runner).
+      - name: Test the Chrome install step
+        run: python -m unittest tests.test_chrome_install -v

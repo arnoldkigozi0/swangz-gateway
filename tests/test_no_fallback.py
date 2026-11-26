@@ -292,6 +292,9 @@ class BrowserCallerTests(unittest.TestCase):
         # D-026 A2: the system folder's Windows PowerShell, run on a fixed script that only reads Chrome's Authenticode
         # signature; the file name travels in an environment variable and nothing it runs takes an address.
         ("chrome_verify.py", "_powershell"): 1,
+        # D-026 B1/B5: the UAC prompt. ShellExecuteExW with the "runas" verb starts this program's own file with the
+        # fixed arguments "admin chrome-install"; it is never given an address.
+        ("chrome_install.py", "Windows.elevate"): 1,
     }
 
     def sources(self):
