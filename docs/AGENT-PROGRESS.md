@@ -1,5 +1,7 @@
 # Agent progress
 
+**26 Nov 12:33.** #358 merged. #363 BLOCKED by Sentinel at 3bb5ef6 (per-provider allow-list, cross-provider media-status, archived-tool keys); sent back to Forge. Probe verifies after the fix. Follow-up PR needed: media-status/cancel job ownership. Server update stays at 596bf3c.
+
 **26 Nov 12:32.** Draft #363 (3bb5ef6, Forge): tool-scoped keys fail closed; CI pending. Risk: scoped staff keys would get 403 on token counting, Codex compaction, model lists and more; client behaviour untested. Sentinel ruling/review first, then Probe; do not merge before both. Server update stays at 596bf3c (#363 changes gateway/).
 
 **26 Nov 12:22.** Crashes (out of memory) at 12:06 and 12:15. Merged #358 (1addd52): Probe VERIFIED + Sentinel APPROVED at 1204cd6, CI green; install step has no caller in the app yet; not in RC 596bf3c; server files unchanged from 596bf3c. Open PRs: 0. Forge resuming fix/key-scope-followups (Sentinel ruling: both gaps fail closed), alone, targeted tests; then Probe + Sentinel. Arnold: server update to 596bf3c.
