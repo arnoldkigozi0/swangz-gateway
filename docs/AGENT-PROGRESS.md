@@ -1,5 +1,7 @@
 # Agent progress
 
+**26 Nov 13:17.** #363 merged as 630ffab (Sentinel APPROVED and Probe VERIFIED at eacaf7c, CI green); main checks running; no open PRs. Next for Forge (16:00 shift), one small PR: scoped keys judged by the key's tool, not the user agent (deny-policy test with another user agent, expect 403), and correct the docs/HUB-OPERATIONS.md line for custom media-dialect providers (any GET allowed, no allow-list or policy check). Later, own PR: job ownership on media-status/cancel. Release stays 596bf3c, which does not include #363; moving it needs a new rehearsal and release candidate and Arnold's choice.
+
 **26 Nov 12:33.** #358 merged. #363 BLOCKED by Sentinel at 3bb5ef6 (per-provider allow-list, cross-provider media-status, archived-tool keys); sent back to Forge. Probe verifies after the fix. Follow-up PR needed: media-status/cancel job ownership. Server update stays at 596bf3c.
 
 **26 Nov 12:32.** Draft #363 (3bb5ef6, Forge): tool-scoped keys fail closed; CI pending. Risk: scoped staff keys would get 403 on token counting, Codex compaction, model lists and more; client behaviour untested. Sentinel ruling/review first, then Probe; do not merge before both. Server update stays at 596bf3c (#363 changes gateway/).
