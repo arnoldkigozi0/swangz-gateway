@@ -1,5 +1,7 @@
 # Agent progress
 
+**26 Nov 10:40.** Merged #361 (596bf3c): Probe VERIFIED + Sentinel APPROVED at e4f0c5c. Server files identical to the rehearsed e4f0c5c (112/0); 409b6e3 rehearsal 109/0. #358 1667069: Probe FAIL, Sentinel BLOCKED (elevated _write_log writes into an unchecked ProgramData folder); not in this release. Forge: merge #362 (runbook), unsigned RC from 596bf3c, owner checklist, then #358 fix. Follow-ups, unassigned: key scope not applied to request kind `other`; archiving a tool leaves its scoped keys; empty tool_id issues an unscoped key; key insert and scope update not one transaction; docs/CLIENT.md disconnect wording uncommitted in .worktrees/333-delete; D-026 C4; #355 follow-up.
+
 **26 Nov 10:20, Arnold: continue.** Merged #359 (ea9de3f) and #360 (409b6e3), docs. Open drafts: #361 e4f0c5c, #358 1667069 (CI green): Probe verifying, Sentinel reviewing; merge on both. Forge re-running the server update rehearsal 7c20711 -> 409b6e3. Then: unsigned RC from the final main SHA, owner server steps and test checklist. Still unbuilt: D-026 C4, #355 follow-up, website Open of shared accounts, D-027. ChatGPT PAUSED: no task for Prism.
 
 **26 Nov 10:10 shift end.** Merged since 08:00: 0 (since 25 Nov 22:00: #353). Open: 4, all drafts, mergeable, no failed or pending checks. Main 8b025a5 workflows passed. Nobody seen working; no stop messages. Worktrees of the four PRs are clean and pushed. Network failure (EAI_AGAIN) stopped Chief's runs from about 00:46 to at least 06:03; no frozen-SHA release candidate or 05:45 report was seen from the sprint.
