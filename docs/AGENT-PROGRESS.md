@@ -1,5 +1,7 @@
 # Agent progress
 
+**26 Nov 16:00 shift.** Claude and ChatGPT both PAUSED (15:51): lean shift. Main 630ffab: Hub checks and browser profile checks passed. Open PRs: 0. Forge assigned fix/scoped-key-policy-tool (one draft PR; then Probe + Sentinel). Prism, Anvil: no task. Media-status/cancel job ownership waits.
+
 **26 Nov 14:00 shift end.** Merged since 12:00: 2 (#358 1addd52, #363 630ffab). Open PRs: 0. Main 630ffab workflows passed. No teammate thread of Chief's seen running; no stop messages; the four recent build worktrees checked (chrome-install, key-scope-followups, issue-key-scope, server-update) are clean and pushed. Next steps: Forge, 16:00: scoped keys judged by the key's tool, one small PR (see 13:17 below). Anvil: none assigned (#358 install step still has no caller). Prism: none (ChatGPT PAUSED at 14:00). Probe, Sentinel: nothing pending. Release stays 596bf3c.
 
 **26 Nov 13:17.** #363 merged as 630ffab (Sentinel APPROVED and Probe VERIFIED at eacaf7c, CI green); main checks running; no open PRs. Next for Forge (16:00 shift), one small PR: scoped keys judged by the key's tool, not the user agent (deny-policy test with another user agent, expect 403), and correct the docs/HUB-OPERATIONS.md line for custom media-dialect providers (any GET allowed, no allow-list or policy check). Later, own PR: job ownership on media-status/cancel. Release stays 596bf3c, which does not include #363; moving it needs a new rehearsal and release candidate and Arnold's choice.
