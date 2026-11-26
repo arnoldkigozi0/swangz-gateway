@@ -1,5 +1,7 @@
 # Agent progress
 
+**26 Nov 18:00 shift end.** Merged since 16:00: 1 (#364, 67de3ac). Open PRs: 0. Hub checks passed on 67de3ac. No teammate seen working; no stop messages. Next steps at 20:00: Forge, if budget allows: (1) report attribution in insight.tool_requests_where by the key's tool; (2) 'Explain a decision' in gateway/govern.py to use the key's tool. Later, own PR: media-status/cancel job ownership. Prism, Anvil: no task (budget: Claude and ChatGPT PAUSED at 17:52). Probe, Sentinel: nothing pending. Release stays 596bf3c, which includes neither #363 nor #364.
+
 **26 Nov 16:55.** Merged #364 as 67de3ac (Probe VERIFIED + Sentinel APPROVED at aa4440e; CI green, Netlify "Pages changed" skipping); main checks after merge not yet checked. Follow-ups for Forge: (1) report attribution in insight.tool_requests_where by the key's tool; (2) "Explain a decision" in gateway/govern.py ignores the key's tool. No new work 18:00-20:00.
 
 **26 Nov 16:00 shift.** Claude and ChatGPT both PAUSED (15:51): lean shift. Main 630ffab: Hub checks and browser profile checks passed. Open PRs: 0. Forge assigned fix/scoped-key-policy-tool (one draft PR; then Probe + Sentinel). Prism, Anvil: no task. Media-status/cancel job ownership waits.
