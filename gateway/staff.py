@@ -764,7 +764,7 @@ def add_key(ctx):
     if credentials.active_device_count(ctx.db, p["id"]) >= 10:
         raise ApiError(400, "You have ten devices connected. Disconnect one you no longer use first.")
     from . import reporting
-    scope = reporting.key_scope(ctx.db, p, ctx.body.get("tool_id"))
+    scope = reporting.key_scope(ctx.db, p, ctx.body["tool_id"]) if "tool_id" in ctx.body else None
     label = str(ctx.body.get("label") or "").strip()[:80] or "My device"
     key_id, full, secret_hash, hint = security.new_key()
     ctx.db.x("INSERT INTO keys(id, person_id, label, secret_hash, hint, created, created_by) VALUES(?,?,?,?,?,?,?)",

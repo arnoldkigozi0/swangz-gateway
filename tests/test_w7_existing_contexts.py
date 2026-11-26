@@ -41,7 +41,7 @@ def _gateway_timezone_available():
 class ServerKeysAndAutomationsTests(Base):
     def setUp(self):
         super().setUp()
-        status, out = self.rig.api("POST", f"/people/{self.rig.person_id}/keys", {"label": "n8n automation", "tool_id": ""})
+        status, out = self.rig.api("POST", f"/people/{self.rig.person_id}/keys", {"label": "n8n automation"})
         self.assertEqual(status, 200, out)
         self.automation_key, self.automation_id = out["key"], out["id"]
 

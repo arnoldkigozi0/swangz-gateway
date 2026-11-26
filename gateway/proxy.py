@@ -195,6 +195,11 @@ class Call:
         if gate:
             status, etype, message, why = gate
             return self.refuse(status, etype, message, "blocked", why)
+        if row.get("hub_tool_id") and self.kind == "other":
+            # The tool check below knows model and media requests only, so anything else would reach a provider
+            # unchecked, one the key's tool doesn't use included. A key scoped to one tool may not make it.
+            return self.refuse(403, "permission_error", "This device key is scoped to one tool and can't make this request.",
+                               "blocked", "key tool scope")
         from . import reporting, policy
         if self.kind not in ("other", "media-status"):
             tool = self.gw.db.one("SELECT * FROM tools WHERE id=?", (row.get("hub_tool_id"),)) if row.get("hub_tool_id") else policy.request_tool(self.gw.db, self.rec["client"], self.provider.name)

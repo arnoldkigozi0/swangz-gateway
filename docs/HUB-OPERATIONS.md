@@ -36,6 +36,8 @@ Launches, extension decisions, provider API calls with existing keys and Studio 
 
 New staff connection keys are scoped to the selected catalogue tool. Administrators may pass `tool_id` when issuing a key; CLI supports `issue-key PERSON_ID --tool TOOL_ID`. Scope checks require an available assigned API/developer tool. Provider mismatch and entitlement failures remain denied. Scope determines the audited API tool; a supplied user-agent cannot change it.
 
+Only leaving `tool_id` out (CLI: no `--tool`) issues an unscoped key. A `tool_id` that is empty, blank, `null` or not a tool answers 400 (the CLI exits with the reason) and no key is made. A tool-scoped key may make model requests and start media jobs only. Everything else answers 403 and is recorded as `key tool scope`: model and voice lists, token counting (`/v1/messages/count_tokens`), `/v1/responses/compact`, `/v1/completions`, `/v1/embeddings` and cancelling a media job. Polling a media job is not covered by this rule.
+
 Existing unscoped keys are preserved. Their caller-controlled user-agent is insufficient to prove which of several tools sharing a provider is being used. Accordingly, any outstanding report on that provider conservatively gates a legacy unscoped key. This can affect another client on that same provider; use separate tool-scoped keys for exact per-tool API isolation. Website tools are always gated independently. This limitation must remain visible in rollout review; do not claim every legacy key has trustworthy tool attribution.
 
 ## Review, reconciliation and management
