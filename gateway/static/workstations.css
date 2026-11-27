@@ -5,6 +5,8 @@
 .ws-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; margin-bottom: 24px; }
 .route-workstations .page > #ws-devices { display: block; margin-bottom: 24px; }
 .route-workstations .panel { border-radius: 22px; }
+/* the layout wrappers hold panels that carry their own surface, so they need no plane behind them (as on Devices) */
+.shell.route-workstations .page > :is(.ws-simple, .ws-grid, #ws-devices) { background: none; box-shadow: none; }
 
 .ws-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ws-who strong { font-weight: 600; color: var(--tx-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -13,6 +15,7 @@
 .ws-apps-sum { color: var(--tx-1); font-size: 13px; white-space: nowrap; }
 .ws-apps-sum:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-chip); }
 .ws-tool { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.ws-tool > span:last-child { white-space: nowrap; }
 .ws-over { color: var(--warn-hi); font-weight: 600; }
 .ws-big { margin: 0; color: var(--tx-2); font-size: 14px; }
 .ws-big strong { color: var(--tx-1); font-size: 24px; line-height: 32px; font-weight: 600; }
