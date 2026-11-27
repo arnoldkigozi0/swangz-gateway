@@ -1722,3 +1722,30 @@ all), `tests/test_device_open.py`, `tests/test_managed_workspace.py`, `tests/tes
 
 **Verified on data:** the 26 Nov pre-update copy of the hub.ictconnect.org database (schema 29) migrated to 31 on a
 scratch copy: integrity ok, no foreign-key violations, row counts unchanged except tools +3, audit +3, settings +1.
+
+## D-029 | 2026-11-27 | Each person's own Swangz Google account in their own Swangz Chrome
+
+**Context.** Arnold, 27 Nov 2026: the Hub Chrome should already have the Swangz account the person logs into the Hub
+with, and tools should use it or "Sign in with Google". Earlier the same evening he asked for one Swangz account
+signed into everyone's Chrome; that was declined (D-028 point 3, the owner's directive: no credential sharing, no
+getting round account-sharing limits).
+
+**Decision.**
+1. The app offers, once on Home and always on Workspace, **"Sign in to Google in Swangz Chrome"**. It opens Google's
+   own page, `https://accounts.google.com/AccountChooser?Email=<the person's Swangz address>`, in **that person's own
+   Swangz Chrome folder**, with the same device checks as opening a tool (active workspace, owner-bound folder,
+   company policy gate). The address is a constant in the app plus the e-mail from the authenticated manifest,
+   validated and URL-encoded; nothing comes from the Hub as an address.
+2. The person types their own password and second step on Google's page. Swangz never sees, types, stores or copies
+   a password, code or cookie, and never reads the folder to learn whether sign-in happened: the app only records
+   that it opened the page (`google_signin_opened`, local state, cleared on sign-out).
+3. With that Google session in their folder, every tool's "Continue with Google" signs the person in as themselves,
+   in one click, and it persists across restarts. Paid features still need the person's own seat on the tool's
+   company plan (invited by their work address).
+4. **Follow-up, not in this change:** on company computers, a policy that lets only `@swangzavenue.com` accounts sign
+   in to Google in the Hub Chrome (`AllowedDomainsForApps`). It changes the pack, its baseline and the Windows and macOS
+   policy readers, so it needs a real-device check first.
+
+**Tests:** `tests/test_workspace_launcher.py::GoogleSignInTests` (the address, bad addresses, own folder, no Hub call,
+never the default browser, the same refusals), `tests/test_client_gui.py` (Home asks once, Workspace shows the account,
+a refusal says why).

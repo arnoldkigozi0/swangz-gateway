@@ -1346,6 +1346,43 @@ class Client:
         from . import workspace_launcher as wl
         raise wl.LaunchError("unavailable")
 
+    def google_signin_opened(self):
+        """When this app last opened Google's sign-in for this person, or None. It says the page was opened, not that the
+        person signed in: Swangz never reads the folder's cookies to find out."""
+        value = self.store.state().get("google_signin_opened")
+        return value if isinstance(value, (int, float)) else None
+
+    def sign_in_google(self):
+        """Open Google's sign-in page in this person's Swangz Chrome folder, their Swangz email filled in (D-029). The same
+        device-side checks as opening a tool (an active workspace, the person's own folder, the company policy on a company
+        computer); nothing is sent to the Hub and nothing about the account is read or kept here."""
+        from . import workspace_launcher as wl
+        manifest = self.store.manifest() or {}
+        browser = manifest.get("browser") or {}
+        if not isinstance(browser, dict) or browser.get("contract") != 2:
+            raise wl.LaunchError("no_workspace")
+        state = (browser.get("workspace") or {}).get("state")
+        if state != "active":
+            raise wl.LaunchError("retired" if state == "retired" else "not_active")
+        self.workspace.check_open()
+        device = self.store.device() or {}
+        try:
+            owner = wl.owner(device.get("server"), browser.get("person_id"), browser.get("device_id"))
+        except wl.LaunchError:
+            raise wl.LaunchError("folder") from None
+        if getattr(self, "launcher", None) is None:
+            self.launcher = wl.Launcher(self.paths.data, roots=self.store.roots())
+        generation = (browser.get("workspace") or {}).get("generation")
+        generation = generation if type(generation) is int and generation >= 1 else 1
+        self.launcher.ready(owner, generation)
+        self.policy_gate()
+        email = (manifest.get("person") or {}).get("email")
+        self.launcher.open_google_signin(email, owner, generation)
+        st = self.store.state()
+        st["google_signin_opened"] = time.time()
+        self.store.save_state(st)
+        return "workspace"
+
     def _open_in_workspace(self, app):
         from . import workspace_launcher as wl  # imports browser_profiles, which imports this module
         manifest = self.store.manifest() or {}

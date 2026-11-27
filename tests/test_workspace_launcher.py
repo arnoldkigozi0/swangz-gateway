@@ -547,3 +547,50 @@ class InventoryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GoogleSignInTests(OpenAppTests):
+    """D-029: Google's own sign-in page opens in the person's own Swangz Chrome folder, their Swangz address filled in."""
+
+    def signed(self, email="grace@swangzavenue.com", **kw):
+        c, opened, api = self.client(**kw)
+        manifest = c.store.manifest()
+        manifest["person"] = {"name": "Nansubuga Grace", "email": email}
+        c.store.manifest = lambda: manifest
+        c.policy_check = None
+        return c, opened, api
+
+    def test_the_address_is_googles_page_with_the_work_address_and_nothing_else(self):
+        self.assertEqual(wl.google_signin_url("grace@swangzavenue.com"),
+                         "https://accounts.google.com/AccountChooser?Email=grace@swangzavenue.com")
+        self.assertEqual(wl.google_signin_url("o.brian+ai@swangzavenue.com"),
+                         "https://accounts.google.com/AccountChooser?Email=o.brian%2Bai@swangzavenue.com")
+        for bad in ("", None, "grace", "grace@", "a@b", "x@evil.com&continue=https://evil.example", "a b@swangzavenue.com",
+                    "grace@swangzavenue.com\nHost: x", 7):
+            with self.assertRaises(wl.LaunchError, msg=repr(bad)):
+                wl.google_signin_url(bad)
+
+    def test_it_opens_in_the_persons_own_folder_and_asks_the_hub_nothing(self):
+        c, opened, api = self.signed()
+        self.assertIsNone(c.google_signin_opened())
+        self.assertEqual(c.sign_in_google(), "workspace")
+        api.call.assert_not_called()  # not a tool open: nothing is recorded at the Hub
+        opened.assert_not_called()  # never the default browser
+        argv = self.calls[0][0]
+        self.assertEqual(argv[-1], "https://accounts.google.com/AccountChooser?Email=grace@swangzavenue.com")
+        self.assertTrue(any(a.startswith("--user-data-dir=") for a in argv))
+        self.assertIsNotNone(c.google_signin_opened())
+
+    def test_the_same_refusals_as_opening_a_tool(self):
+        for kw, code in ((dict(state="suspended"), "not_active"), (dict(state="retired"), "retired"),
+                         (dict(contract=None), "no_workspace")):
+            c, opened, api = self.signed(**kw)
+            with self.assertRaises(wl.LaunchError) as ctx:
+                c.sign_in_google()
+            self.assertEqual(ctx.exception.code, code, kw)
+            opened.assert_not_called()
+        c, opened, api = self.signed(email="not an address")
+        with self.assertRaises(wl.LaunchError):
+            c.sign_in_google()
+        self.assertEqual(self.calls, [])
+        self.assertIsNone(c.google_signin_opened())

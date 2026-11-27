@@ -453,6 +453,12 @@ class App:
             self.label(f, core.RECONNECT, 10, color="bad", wrap=700).pack(anchor="w", pady=(0, 10))
             self.button(f, "Reconnect this device", self.sign_out).pack(anchor="w", pady=(0, GAP))
         self.repair_panel(f)
+        email = (st.get("person") or {}).get("email") or ""
+        if email and not self.google_signin_opened():
+            card = self.section(f, "Sign in to Google once", f"Sign in with your Swangz account ({email}) in your Swangz "
+                                "Chrome. Then every AI tool's \"Continue with Google\" signs you in with one click.")
+            self.button(card, "Sign in to Google in Swangz Chrome", self.sign_in_google, primary=True,
+                        bg=C["panel"]).pack(anchor="w", pady=(8, 0))
         tiles = tk.Frame(f, bg=C["bg"])
         tiles.pack(fill="x", pady=(0, GAP))
         chrome = self.chrome_line()
@@ -647,7 +653,20 @@ class App:
             r = self.row(card)
             self.button(r, "Install Google Chrome", self.install_chrome, primary=True).pack(side="left", padx=(0, 8))
             self.button(r, "Re-check", self.check_chrome, bg=C["panel"]).pack(side="left")
-        card = self.section(f, "Your profile folder", "Provider and Google sign-ins you make in Swangz Chrome are kept here, "
+        email = (self.client.status().get("person") or {}).get("email") or ""
+        card = self.section(f, "Your Swangz Google account", "Sign in to Google once in your Swangz Chrome with the same "
+                            "Swangz account you use for the Hub. Every AI tool's \"Continue with Google\" then uses it, "
+                            "and it stays signed in after a restart. Type your password only on Google's page; Swangz "
+                            "never sees it.")
+        if email:
+            self.label(card, email, 11, bold=True, bg=C["panel"]).pack(anchor="w", pady=(6, 0))
+            done = self.google_signin_opened()
+            self.button(card, "Sign in again" if done else "Sign in to Google in Swangz Chrome", self.sign_in_google,
+                        primary=not done, bg=C["panel"]).pack(anchor="w", pady=(8, 0))
+            if done:
+                self.label(card, f"Google's sign-in was opened here on {clock(done)}.", 9, color="muted",
+                           bg=C["panel"]).pack(anchor="w", pady=(4, 0))
+                card = self.section(f, "Your profile folder", "Provider and Google sign-ins you make in Swangz Chrome are kept here, "
                                                       "only for you. Swangz never copies or uploads them.")
         self.label(card, str(profiles_folder(self.client.paths.data)), 10, bg=C["panel"], wrap=640).pack(anchor="w")
         card = self.section(f, "Open windows")
@@ -943,6 +962,26 @@ class App:
             self.refusal = None
             self.show(self.page)
         self.say("Opened in your Swangz Chrome.")
+
+    def google_signin_opened(self):
+        reader = getattr(self.client, "google_signin_opened", None)
+        return reader() if callable(reader) else None
+
+    def sign_in_google(self):
+        """Google's own sign-in page in the person's Swangz Chrome, their Swangz address filled in (D-029)."""
+        try:
+            self.client.sign_in_google()
+        except Exception as exc:  # noqa: BLE001
+            fix = repair.explain(exc)
+            if fix is None:
+                self.refusal = None
+                return self.failed(exc)
+            self.refusal = (self.page, "google-signin", "Google sign-in", fix)
+            self.show(self.page)
+            return self.say("Google's sign-in wasn't opened.", bad=True)
+        self.refusal = None
+        self.show(self.page)
+        self.say("Google's sign-in is open in your Swangz Chrome. Sign in there with your Swangz account.")
 
     def repair_panel(self, parent):
         """Why the last Open was refused, what to do about it, and the buttons that help."""

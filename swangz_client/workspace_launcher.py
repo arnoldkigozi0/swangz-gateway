@@ -27,6 +27,20 @@ MAC_BROWSERS = ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",)
 WINDOWS_ROOTS = ("ProgramFiles", "ProgramFiles(x86)", "LocalAppData")
 WINDOWS_TAIL = ("Google", "Chrome", "Application", "chrome.exe")
 INSTALL_PAGE = "https://www.google.com/chrome/"
+# D-029: the person signs their own Swangz Google account into their own Swangz Chrome folder, once, on Google's own
+# page, so every tool's "Continue with Google" is one click. Swangz only opens the page with their work address filled
+# in; it never sees, types or stores the password, and never reads the folder's cookies.
+GOOGLE_SIGNIN_HOST = "accounts.google.com"
+GOOGLE_SIGNIN = "https://accounts.google.com/AccountChooser"
+EMAIL = re.compile(r"[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,24}")
+
+
+def google_signin_url(email):
+    """Google's account page with this person's work address filled in. -> the address, or LaunchError("unsafe_address")."""
+    from urllib.parse import quote
+    if not isinstance(email, str) or not EMAIL.fullmatch(email):
+        raise LaunchError("unsafe_address")
+    return check_url(GOOGLE_SIGNIN + "?Email=" + quote(email, safe="@"), [GOOGLE_SIGNIN_HOST])
 FIXED_SWITCHES = ("--no-first-run", "--no-default-browser-check")
 FORBIDDEN_SWITCHES = ("--remote-debugging-port", "--remote-debugging-pipe", "--load-extension", "--disable-web-security",
                       "--proxy-server", "--proxy-pac-url", "--enable-automation", "--disable-extensions", "--incognito",
@@ -289,6 +303,10 @@ class Launcher:
         if not isinstance(tool_id, str) or not bp.ID.fullmatch(tool_id):
             raise LaunchError("unsafe_address")
         return self._start(tool_id, check_url(url, hosts), owner, generation)
+
+    def open_google_signin(self, email, owner, generation=1):
+        """Google's sign-in page, in this person's own workspace folder (D-029)."""
+        return self._start("google-signin", google_signin_url(email), owner, generation)
 
     def ready(self, owner, generation=1):
         """Everything the device can check before asking the Hub: a usable browser, and the folder prepared and verified.

@@ -90,6 +90,18 @@ class FakeClient:
     def signed_in(self):
         return self.signed
 
+    google_opened = None
+
+    def google_signin_opened(self):
+        return self.google_opened
+
+    def sign_in_google(self):
+        self.calls.append(("google",))
+        if self.open_error:
+            raise self.open_error
+        self.google_opened = time.time()
+        return "workspace"
+
     def status(self):
         return {"signed_in": self.signed, "server": "https://ai.swangzavenue.com", "person": {"name": "Nansubuga Grace", "email": "grace@swangzavenue.com"},
                 "device": {"name": "Grace's laptop", "owner_kind": "personal"}, "installed": {"claude-code": {"version": "1"}, "codex": {"version": "1"}},
@@ -302,6 +314,36 @@ class WindowTests(unittest.TestCase):
             before = list(self.client.calls)
             b.invoke()
             self.assertEqual(self.client.calls, before)  # a disabled button does nothing
+
+    def test_home_asks_once_to_sign_in_to_google_with_the_persons_own_swangz_account(self):
+        app = self.make()
+        text = " ".join(self.everything())
+        self.assertIn("Sign in to Google once", text)
+        self.assertIn("grace@swangzavenue.com", text)
+        buttons(app.content)["Sign in to Google in Swangz Chrome"].invoke()
+        app.root.update()
+        self.assertIn(("google",), self.client.calls)
+        self.assertNotIn("Sign in to Google once", " ".join(self.everything()))  # asked once, then it stays on Workspace
+
+    def test_workspace_shows_the_account_and_signs_in_again(self):
+        app = self.make()
+        buttons(app.dock)["Workspace"].invoke()
+        app.root.update()
+        text = " ".join(self.everything())
+        self.assertIn("Your Swangz Google account", text)
+        self.assertIn("Swangz never sees it", text)
+        buttons(app.content)["Sign in to Google in Swangz Chrome"].invoke()
+        app.root.update()
+        self.assertIn("Sign in again", buttons(app.content))
+        self.assertIn("Google's sign-in was opened here", " ".join(self.everything()))
+
+    def test_a_refused_google_sign_in_says_why(self):
+        app = self.make()
+        self.client.open_error = wl.LaunchError("no_browser")
+        buttons(app.content)["Sign in to Google in Swangz Chrome"].invoke()
+        app.root.update()
+        self.assertIn("Google's sign-in wasn't opened.", self.everything())
+        self.assertIsNone(self.client.google_opened)
 
     def refuse(self, error, page="Apps"):
         app = self.make()
