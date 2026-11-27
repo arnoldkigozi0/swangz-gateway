@@ -178,7 +178,7 @@ def texts(widget):
 def buttons(widget):
     found = {}
     for w in widget.winfo_children():
-        if isinstance(w, tk.Button):
+        if isinstance(w, (tk.Button, gui.LabelButton)):
             found[str(w.cget("text"))] = w
         found.update(buttons(w))
     return found
@@ -278,6 +278,30 @@ class WindowTests(unittest.TestCase):
         self.assertIn("A newer version of Swangz is available.", " ".join(self.everything()))
         found["Canva"].invoke()
         self.assertIn(("open", "canva"), self.client.calls)
+
+    def test_on_macos_every_button_is_a_label_that_keeps_its_colours_and_still_works(self):
+        # Aqua ignores tk.Button colours (white boxes, pale text in the 27 Nov CI screenshot), so macOS gets LabelButtons
+        with mock.patch.object(gui, "LABEL_BUTTONS", True):
+            app = self.make()
+            dock, found = buttons(app.dock), buttons(app.content)
+            self.assertTrue(dock and all(isinstance(b, gui.LabelButton) for b in dock.values()))
+            self.assertTrue(found and all(isinstance(b, gui.LabelButton) for b in found.values()))
+            home = dock["Home"]
+            self.assertEqual((str(home.cget("bg")), str(home.cget("fg"))), (gui.C["raised"], gui.C["gold_hi"]))
+            self.assertEqual(str(dock["Apps"].cget("fg")), gui.C["text"])  # readable on the dark sidebar
+            found["Canva"].invoke()
+            self.assertIn(("open", "canva"), self.client.calls)
+            dock["Apps"].event_generate("<Enter>")
+            dock["Apps"].event_generate("<Leave>")
+            self.assertEqual(str(dock["Apps"].cget("fg")), gui.C["text"])  # hover returns to its own colours
+            dock["Apps"].invoke()
+            app.root.update()
+            self.assertEqual(app.page, "apps")
+            b = buttons(app.content)["Open in Swangz Chrome"]
+            b.configure(state="disabled")
+            before = list(self.client.calls)
+            b.invoke()
+            self.assertEqual(self.client.calls, before)  # a disabled button does nothing
 
     def refuse(self, error, page="Apps"):
         app = self.make()

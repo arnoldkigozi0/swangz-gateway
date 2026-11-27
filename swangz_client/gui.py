@@ -33,6 +33,55 @@ def browser_folders_stay(data):
 C = dict(bg="#0f0f11", side="#0a0a0b", panel="#17171a", raised="#202024", line="#2b2b30", text="#ece9e2",
          muted="#9a978f", gold="#c8a96a", gold_hi="#e2c88d", bad="#e07a6b", ok="#7bd3a7")
 FONT = ("Segoe UI" if os.name == "nt" else "Helvetica", 11)
+
+# macOS draws tk.Button with Aqua, which ignores bg/fg: the CI screenshot of 27 Nov 2026 showed white boxes with pale,
+# unreadable text in the sidebar and on every button. A Label paints its colours everywhere, so on macOS each button is
+# a LabelButton: same options, same command, keyboard and hover behaviour. Windows and Linux keep tk.Button.
+LABEL_BUTTONS = sys.platform == "darwin"
+
+
+class LabelButton(tk.Label):
+    """A tk.Label that behaves like the buttons this file makes: command, invoke(), state, hover, Return and space."""
+
+    def __init__(self, parent, command=None, **kw):
+        for unused in ("relief", "overrelief", "default", "repeatdelay", "repeatinterval"):
+            kw.pop(unused, None)
+        self._command = command
+        self._rest = (kw.get("bg"), kw.get("fg"))
+        self._hover = (kw.get("activebackground") or kw.get("bg"), kw.get("activeforeground") or kw.get("fg"))
+        kw.setdefault("disabledforeground", C["muted"])
+        super().__init__(parent, takefocus=1, **kw)
+        self.bind("<Button-1>", lambda e: self.invoke())
+        self.bind("<Return>", lambda e: self.invoke())
+        self.bind("<space>", lambda e: self.invoke())
+        self.bind("<Enter>", lambda e: self._paint(True))
+        self.bind("<Leave>", lambda e: self._paint(False))
+
+    def _paint(self, hover):
+        if str(self.cget("state")) == "disabled":
+            return
+        bg, fg = self._hover if hover else self._rest
+        super().configure(bg=bg, fg=fg)
+
+    def invoke(self):
+        if str(self.cget("state")) != "disabled" and self._command:
+            return self._command()
+        return None
+
+    def configure(self, cnf=None, **kw):
+        if "command" in kw:
+            self._command = kw.pop("command")
+        if "bg" in kw or "fg" in kw:
+            self._rest = (kw.get("bg", self._rest[0]), kw.get("fg", self._rest[1]))
+        for unused in ("relief", "overrelief", "default"):
+            kw.pop(unused, None)
+        return super().configure(cnf, **kw)
+
+    config = configure
+
+
+def make_button(parent, **kw):
+    return LabelButton(parent, **kw) if LABEL_BUTTONS else tk.Button(parent, **kw)
 SYNC_EVERY_MS = 15 * 60 * 1000
 PAGES = (("home", "Home"), ("apps", "Apps"), ("workspace", "Workspace"), ("automations", "Automations"),
          ("usage", "Usage"), ("settings", "Settings"))
@@ -253,7 +302,7 @@ class App:
         fg = C["bg"] if primary else (C["bad"] if danger else C["text"])
         surface = kw.pop("bg", C["bg"])  # what the button sits on; a primary button is always gold
         bg = C["gold"] if primary else surface
-        b = tk.Button(parent, text=text, command=command, font=(FONT[0], 10), bg=bg, fg=fg,
+        b = make_button(parent, text=text, command=command, font=(FONT[0], 10), bg=bg, fg=fg,
                       activebackground=C["gold_hi"] if primary else C["raised"],
                       activeforeground=C["bg"] if primary else fg, relief="flat", bd=0, padx=14, pady=6, cursor="hand2",
                       highlightthickness=1, highlightbackground=C["bad"] if danger else (C["gold"] if primary else C["line"]), **kw)
@@ -314,7 +363,7 @@ class App:
                 item = tk.Frame(self.dock, bg=C["raised"] if here else C["side"])
                 item.pack(fill="x")
                 tk.Frame(item, bg=C["gold"] if here else C["side"], width=3).pack(side="left", fill="y")
-                b = tk.Button(item, text=name, anchor="w", command=lambda k=key: self.show(k), relief="flat", bd=0, padx=19,
+                b = make_button(item, text=name, anchor="w", command=lambda k=key: self.show(k), relief="flat", bd=0, padx=19,
                               pady=10, font=FONT, bg=C["raised"] if here else C["side"], fg=C["gold_hi"] if here else C["text"],
                               activebackground=C["raised"], activeforeground=C["gold_hi"], cursor="hand2", highlightthickness=0)
                 b.pack(side="left", fill="x", expand=True)
