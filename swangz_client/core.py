@@ -411,21 +411,29 @@ class Store:
                 # A tombstone survives failure, so a second logout retries the exact item.
                 info["cleanup_pending"] = True
                 self._save_info(info)
-                if info.get("key_storage") == "keychain" or info.get("keychain_pending"):
-                    self.credentials.delete(info["server"], info["key_id"])
-                    if self.credentials.get(info["server"], info["key_id"]) is not None:
-                        raise keystore.KeyStoreError("Keychain removal is incomplete. Retry signing out.")
-                # a staged (not yet current) key and any old item that could not be deleted at rotation
-                extra = list(info.get("stale_key_ids") or [])
-                if info.get("next_key_id") and info.get("next_key_storage") == "keychain":
-                    extra.append(info["next_key_id"])
-                for key_id in extra:
-                    self.credentials.delete(info["server"], key_id)
-                    if self.credentials.get(info["server"], key_id) is not None:
-                        raise keystore.KeyStoreError("Keychain removal is incomplete. Retry signing out.")
+            # The key files go first: an unreachable keychain (a locked or absent Secret Service) must not leave a
+            # usable key on disk. The tombstone above keeps the keychain items for a retry.
             for root in reversed(self.roots()):
                 keystore.erase_file(root / "device.key")
                 keystore.erase_file(root / "device.key.next")
+            if info:
+                ids = []
+                if info.get("key_storage") == "keychain" or info.get("keychain_pending"):
+                    ids.append(info["key_id"])
+                # a staged (not yet current) key and any old item that could not be deleted at rotation
+                ids += list(info.get("stale_key_ids") or [])
+                if info.get("next_key_id") and info.get("next_key_storage") == "keychain":
+                    ids.append(info["next_key_id"])
+                for key_id in ids:
+                    try:
+                        self.credentials.delete(info["server"], key_id)
+                        gone = self.credentials.get(info["server"], key_id) is None
+                    except keystore.KeyStoreError:
+                        gone = False
+                    if not gone:
+                        raise keystore.KeyStoreError("The key file on this device was removed, but its keychain entry "
+                                                     "could not be confirmed removed. Retry signing out.")
+            for root in reversed(self.roots()):
                 for name in ("state.json", "manifest.json", "device.json", "credential-access.log", "workspace-open.log", "rotate.lock",
                              "ownership.log", NEWEST_APP):
                     (root / name).unlink(missing_ok=True)

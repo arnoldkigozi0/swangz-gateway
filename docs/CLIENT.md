@@ -35,6 +35,14 @@ When the native service cannot store and retrieve the key, the app keeps a prote
 files receive a protected owner/SYSTEM DACL before content is written. Windows defaults to `%LOCALAPPDATA%`,
 not roaming `%APPDATA%`. No service is installed or unlocked automatically. A locked existing native item
 produces a retryable error; it does not silently create another file or discard the device identity.
+Sign out, revocation and `swangz cleanup` erase `device.key` and `device.key.next` before they touch the
+keychain, so an unreachable one (for example a locked or stopped Secret Service) never leaves a usable key on disk.
+If a keychain entry then can't be confirmed removed, the app says so ("The key file on this device was removed, but
+its keychain entry could not be confirmed removed. Retry signing out.") and keeps the identity so a retry finishes it.
+On Linux, `secret-tool lookup` answers a locked keyring exactly as it answers a missing item, so the app counts an
+entry as gone only when `secret-tool search` also finds nothing; a search that lists it or fails keeps the cleanup
+pending. Limit: this relies on the Secret Service provider listing locked items to `search` (gnome-keyring does);
+a provider that hides them could still report a locked entry as removed.
 
 On upgrade, `device.key` is imported and compared with a retrieved copy. Only after an atomic metadata
 commit does the app overwrite and unlink the old file. A restart can recover either the original file or
