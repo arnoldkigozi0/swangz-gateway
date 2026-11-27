@@ -328,6 +328,29 @@ class HeartbeatTests(DeviceBase):
         self.assertEqual(mine["label"], "Grace's laptop")
 
 
+    def test_the_app_reports_which_ai_apps_and_chrome_are_installed(self):
+        device = self.enrol()
+        apps = [{"id": "chrome", "state": "installed", "version": "142.0.7444.60"},
+                {"id": "chatgpt", "state": "missing", "version": ""},
+                {"id": "claude-code", "state": "installed", "version": "2.1.286\x07"},
+                {"id": "gemini", "state": "web"},
+                {"id": "Bad Id", "state": "installed"}, {"id": "canva", "state": "hacked"}, {"id": "chrome", "state": "missing"}, "junk"]
+        status, _, _ = self.api("POST", "/device/heartbeat", {"os": "Windows 11", "apps": apps}, key=device["key"])
+        self.assertEqual(status, 200)
+        row = self.rig.gw.db.one("SELECT apps_json, apps_reported FROM devices WHERE key_id = ?", (device["key_id"],))
+        self.assertEqual(json.loads(row["apps_json"]), [
+            {"id": "chrome", "state": "installed", "version": "142.0.7444.60"},
+            {"id": "chatgpt", "state": "missing", "version": ""},
+            {"id": "claude-code", "state": "installed", "version": "2.1.286"},  # control characters cleaned
+            {"id": "gemini", "state": "web", "version": ""}])  # bad ids, unknown states, repeats and junk dropped
+        self.assertIsNotNone(row["apps_reported"])
+        # an older app sends no report: the last one stays
+        self.api("POST", "/device/heartbeat", {"os": "Windows 11"}, key=device["key"])
+        self.assertEqual(len(json.loads(self.rig.gw.db.scalar("SELECT apps_json FROM devices WHERE key_id = ?", (device["key_id"],)))), 4)
+        self.api("POST", "/device/heartbeat", {"apps": [{"id": f"t{i}", "state": "web"} for i in range(80)]}, key=device["key"])
+        self.assertEqual(len(json.loads(self.rig.gw.db.scalar("SELECT apps_json FROM devices WHERE key_id = ?", (device["key_id"],)))), 60)
+
+
 class PackageTests(DeviceBase):
     def setUp(self):
         super().setUp()
