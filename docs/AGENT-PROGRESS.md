@@ -1,5 +1,7 @@
 # Agent progress
 
+**27 Nov 08:14.** Probe VERIFIED merged #339 on 9ccf858 (comment on the PR). Follow-up for Forge, after current tasks: tests/test_devices.py and tests/test_workspace_state.py leave temp folders. Sentinel ruled on media job ownership (no migration); queued to Forge as fix/media-job-ownership. Later ruling needed: unscoped keys can GET ElevenLabs /v1/history on the company key.
+
 **27 Nov 08:00 shift.** Main 9ccf858 (Hub checks passed); open PRs: 0; ChatGPT PAUSED (Prism none). Assigned: Forge fix/report-key-tool, then media job ownership after Sentinel's note; Sentinel threat note on media job ownership; Anvil fix/linux-keyring-cleanup (then Probe + Sentinel); Probe post-merge check of #339.
 
 **26 Nov 22:00 shift end.** Merged since 20:00: 1 (#365, 9ccf858; Hub checks on main passed). Open PRs: 0. No teammate seen working; no stop messages. Next at 00:00, if budget allows (Claude and ChatGPT PAUSED at 21:56): Forge, media status/cancel job ownership; Probe, post-merge check of #339; Prism, none while ChatGPT is paused; Anvil, Sentinel, none.
