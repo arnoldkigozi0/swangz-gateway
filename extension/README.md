@@ -18,28 +18,23 @@ successful config fetch to know the governed hosts. Checks time out after ten se
 including reading the response body. This uses Chrome's tab navigation redirect; it does
 not intercept every network request before a page can start loading.
 
-## Shared company accounts
+## Your sign-ins to the AI sites stay yours
 
-Some tools are one account the whole team uses. The portal hands those out **a turn at a time**. This
-extension enforces the other half: it lets only the person holding the turn onto the site, and it
-**signs the browser out** of a shared tool when their turn ends, when an admin takes it back, and
-again every time Chrome starts. It does that by clearing that site's cookies and stored data
-(`chrome.browsingData.remove` for the tool's own domains — nothing else is touched).
+Since 1.2.0 (27 November 2026) there are no turns on shared company accounts: everyone authorised
+works at the same time. The extension **never signs the browser out of a site**. Sign-ins to the AI
+tools persist across Chrome restarts, and nothing is ever closed because a turn expired. The extension
+no longer has the `browsingData` permission, so it cannot clear any site's cookies or stored data.
 
-On sign-out or any gate endpoint's `401`/`403`, the worker invalidates its token and
-clears the cached held tools' site data **before** discarding their holding state. Holding
-state is loaded after worker restarts. If Chrome refuses cleanup, it is retained so the
-next check/startup can retry; governed navigation remains blocked while signed out.
+On sign-out or any gate endpoint's `401`/`403`, the worker drops its own Hub token and nothing
+else. Governed sites are blocked until the person signs in to the extension again; their sign-ins
+to the sites themselves are untouched. The first time a 1.2.0 worker starts after an update, it
+deletes the `holding` list and the per-minute `turns` alarm that 1.1.x kept; it uses neither.
 
 Sign-out also tells the Hub: after the local token is removed, the worker sends one
 `POST /api/logout` with the old token, and the Hub deletes that one extension session
 (nothing else: not the person's web sessions, other browsers' extensions or devices).
 This is best effort. Nothing waits for it, it gives up after 5 seconds, and if the Hub is
-unreachable the browser is signed out all the same and the session ends at its own expiry.
-
-So re-opening the tool always means going back through Swangz AI Hub, and the next person never inherits
-someone else's session. It also means the vendor's credit history lines up with the turn log: whoever
-held the account at the time spent what was spent.
+unreachable the extension is signed out all the same and the session ends at its own expiry.
 
 ## What it records, and what it doesn't
 
@@ -83,7 +78,6 @@ staff get it automatically and can't remove it.
 - `POST /api/extension/login` — sign in, returns the token and the policy text.
 - `GET /api/gate/config` — the governed host list and policy (needs the token).
 - `POST /api/gate/open` — decide allow/block for a host, start a usage record.
-- `GET /api/gate/turns` — which shared tools this person holds, and which to sign out of.
 - `POST /api/gate/close` — end a usage record with the duration.
 - `POST /api/logout` — with the token: end this extension session at the Hub.
 - `POST /api/tools/<id>/request` — the "Request access" button.
@@ -95,7 +89,7 @@ Admins see the log under **Tools → Website access** in the control room.
 | File | Job |
 |---|---|
 | `manifest.json` | MV3 manifest, permissions |
-| `background.js` | the service worker: host matching, the gate decision, open/close logging, shared-account sign-out |
+| `background.js` | the service worker: host matching, the gate decision, open/close logging |
 | `popup.html` / `popup.js` | sign in, show status and the policy |
 | `blocked.html` / `blocked.js` | sign-in/unavailable blocking, or the entitlement/report refusal and actions |
 
@@ -111,27 +105,31 @@ python3 tests/browser/syntax.py
 The JavaScript tests execute the shipped worker and page scripts with mocked Chrome APIs
 and a minimal DOM; they do not use accounts, provider calls, ports or a browser installation.
 `tests/test_extension.py` includes them in the standard Python CI suite when Node is available.
-The coverage includes `401`/`403` on open/config/turns/startup, offline and timed-out
-responses, preserved caches, ungoverned hosts/domain lookalikes, cleanup order and retry,
-cold-worker navigation, late replies after sign-out, the sign-in action and existing report
-actions. Request assertions limit recorded fields to host, access ID and duration.
-Full Python suite and manual Chrome/Edge checks are not run under Codex; Probe verifies
-the exact pushed commit independently.
+The coverage includes `401`/`403` on open/config/the popup status check, offline and timed-out
+responses, preserved caches, ungoverned hosts/domain lookalikes, cold-worker navigation, late
+replies after sign-out, the sign-in action and existing report actions. It also proves that
+no site data is ever cleared: not at Chrome start (signed in, signed out or offline), not on
+extension sign-out or a `401`/`403`, and not on any blocked answer (including an old
+`no_turn`); that no `turns` alarm is scheduled and an old one is cleared; that a leftover
+`holding` key is removed once and nothing else is; and that the manifest asks for no
+`browsingData` permission. Request assertions limit recorded fields to host, access ID and duration.
 
-Local verification, 4 November 2026 (Node v22.22.1):
+`tests/browser/extension-chrome.cjs` runs the real unpacked extension in Chromium under
+`xvfb-run` in CI: a `401` signs the extension out while the shared site's cookie and
+localStorage survive, and closing and reopening Chrome on the same profile keeps the
+shared site's sign-in cookie.
+
+Local verification, 27 November 2026 (Node v22.22.1):
 
 ```text
-1..33
-# tests 33
-# pass 33
+1..51
+# tests 51
+# pass 51
 # fail 0
 # cancelled 0
 # skipped 0
-# duration_ms 580.493701
-Checked 24 JavaScript files
-Python test wrapper syntax OK
+Checked 56 JavaScript files
 ```
 
-Both JavaScript commands exited 0; `git diff --check` was clean. The tests mock Chrome
-APIs and DOM rendering; actual Chrome/Edge navigation and site-data removal still need
-independent browser verification.
+The tests mock Chrome APIs and DOM rendering; real Chrome navigation runs in CI
+(`extension-chrome.cjs`), and Edge still needs independent browser verification.
