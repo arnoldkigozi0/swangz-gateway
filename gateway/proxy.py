@@ -237,10 +237,18 @@ class Call:
         if ruled:
             status, etype, message, why, self.rec["rule"] = ruled
             return self.refuse(status, etype, message, "blocked", why)
+        custom = self.provider.dialect == "media"
+        if custom and self.h.command not in ("GET", "POST"):
+            return self.refuse(403, "permission_error", "Only GET and POST are available on this provider.",
+                               "blocked", "job ownership")
         jobs = parse.job_ids(self.provider.dialect, self.kind, self.rest)
-        if jobs is not None:
+        checks = [] if jobs is None else [(jobs, True)]  # (ids, whether they have to name a job at all)
+        if custom and self.h.command == "POST":  # a cancel too: no segment of any POST may be someone else's job
+            segments, plain = parse.path_segments(self.rest)
+            checks.append((segments, False) if plain else ([], True))
+        if checks:
             try:
-                theirs = self._own_job(row, jobs)
+                theirs = all(self._own_job(row, ids, must_own) for ids, must_own in checks)
             except Exception as exc:  # noqa: BLE001 — as for policies: what can't be checked is refused
                 self.gw.log(f"job ownership check failed: {exc!r}")
                 return self.refuse(503, "api_error", "who started this job couldn't be checked just now. Try again in a moment.",
@@ -258,10 +266,10 @@ class Call:
                                "blocked", "provider not configured")
         self.forward()
 
-    def _own_job(self, key, jobs):
-        """True when the ids name at least one job, and every job they name was started by this person and,
-        on a tool-scoped key, under the key's tool."""
-        if not jobs or len(jobs) > MAX_JOB_IDS:
+    def _own_job(self, key, jobs, must_own=True):
+        """True when every job the ids name was started by this person and, on a tool-scoped key, under the
+        key's tool; with must_own, they have to name at least one."""
+        if (must_own and not jobs) or len(jobs) > MAX_JOB_IDS:
             return False
         person, scope = key["person_id"], key.get("hub_tool_id")
         deadline = time.time() + JOB_RECORD_WAIT
@@ -269,10 +277,11 @@ class Call:
             # asked before the records are read: a request that has finished has already written its own
             starting = self.gw.live.starting_job(person, self.provider.name)
             owners = [o for o in (media_owner(self.gw.db, self.provider.name, j) for j in jobs) if o]
-            if owners or not starting or time.time() >= deadline:
+            if owners or not must_own or not starting or time.time() >= deadline:
                 break
             time.sleep(0.05)
-        return bool(owners) and all(o["person_id"] == person and (not scope or o["hub_tool_id"] == scope) for o in owners)
+        return (bool(owners) or not must_own) and all(
+            o["person_id"] == person and (not scope or o["hub_tool_id"] == scope) for o in owners)
 
     def _read_body(self):
         ctype = (self.h.headers.get("content-type") or "").lower()
