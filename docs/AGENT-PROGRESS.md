@@ -1,5 +1,7 @@
 # Agent progress
 
+**09:53, 27 Nov.** #368: Probe FAIL at ea85d0c ('#' gets past job ownership on custom media providers if the provider drops the fragment; PR comment 7211927636). Sent to Forge (fix/media-job-ownership, gateway/parse.py job_ids). Next: Probe re-checks only that change, Sentinel delta re-review of the new head, green CI, then ready and merge. For Sentinel to rule: another person's DELETE /jobs/{id} with an unscoped key is still forwarded on custom providers.
+
 **09:46, 27 Nov.** Merged #366 (locked Linux keyring) as e4ef2ef: Probe VERIFIED + Sentinel APPROVED at 45a9eda, CI green. Follow-up (not blocking): Store.promote() leaves the old key behind if the keyring is locked during a key change. #368: Sentinel blocked dc338db (job-sets had no ownership check for unscoped keys), Forge fixed it, Sentinel APPROVED ea85d0c; next: Probe verdict + green CI, then ready and merge. Budget 09:44: Claude and ChatGPT both PAUSED: no new delegations.
 
 **27 Nov 09:23.** Forge opened draft #368 (dc338db, media job ownership, CI green per Forge); Probe + Sentinel assigned, merge on both. #366 now 45a9eda: Sentinel APPROVED, Probe re-verifying. Forge's approval card is no longer blocking.
