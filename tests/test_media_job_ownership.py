@@ -260,13 +260,19 @@ class MediaJobOwnershipTests(unittest.TestCase):
         before = self.record(rid)
         for path in (f"/jobs/{job}/stop", f"/jobs/{job}", f"/jobs/{job}/stop/", f"/requests/{job}/status",
                      f"/jobs/{mine}/{job}", f"/jobs/{job}/{mine}", f"/jobs/%6A{job[1:]}/stop", f"/jobs//{job}/stop",
-                     f"/jobs/{job};x/stop", f"/jobs/{job}#/stop", "/jobs/" + "x/" * 32 + "stop"):
+                     f"/jobs/{job};x/stop", f"/jobs/{job}#/stop", "/jobs/" + "x/" * 32 + "stop",
+                     # a cancel of the sender's own job does not carry someone else's in with it
+                     f"/jobs/{job}/requests/{mine}/cancel", f"/{job}/requests/{mine}/cancel",
+                     f"/v1/jobs/{job}/requests/{mine}/cancel"):
             with self.subTest(path=path):
                 self.refused("POST", f"/custom{path}", self.b_key)
         self.assertEqual(self.record(rid), before)
         for key in (self.a_key, self.key_for(self.a)):
             self.passed("POST", f"/custom/jobs/{job}/stop", key)
         self.passed("POST", f"/custom/jobs/{mine}/stop", self.b_key)
+        for owned, key in ((job, self.a_key), (mine, self.b_key)):
+            self.passed("GET", f"/custom/requests/{owned}/status", key)
+            self.passed("POST", f"/custom/requests/{owned}/cancel", key)
         self.start(self.b_key, provider="custom")  # a POST that names no job still starts one
 
     def test_a_hash_never_gets_round_the_check(self):

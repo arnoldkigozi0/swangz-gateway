@@ -241,13 +241,14 @@ class Call:
         if custom and self.h.command not in ("GET", "POST"):
             return self.refuse(403, "permission_error", "Only GET and POST are available on this provider.",
                                "blocked", "job ownership")
-        jobs, must_own = parse.job_ids(self.provider.dialect, self.kind, self.rest), True
-        if jobs is None and custom:  # any other POST may start a job, naming none, but not touch someone else's
+        jobs = parse.job_ids(self.provider.dialect, self.kind, self.rest)
+        checks = [] if jobs is None else [(jobs, True)]  # (ids, whether they have to name a job at all)
+        if custom and self.h.command == "POST":  # a cancel too: no segment of any POST may be someone else's job
             segments, plain = parse.path_segments(self.rest)
-            jobs, must_own = (segments, False) if plain else ([], True)
-        if jobs is not None:
+            checks.append((segments, False) if plain else ([], True))
+        if checks:
             try:
-                theirs = self._own_job(row, jobs, must_own)
+                theirs = all(self._own_job(row, ids, must_own) for ids, must_own in checks)
             except Exception as exc:  # noqa: BLE001 — as for policies: what can't be checked is refused
                 self.gw.log(f"job ownership check failed: {exc!r}")
                 return self.refuse(503, "api_error", "who started this job couldn't be checked just now. Try again in a moment.",
