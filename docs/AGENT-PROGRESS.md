@@ -1888,3 +1888,5 @@ D-027 build follow-ups (Probe): task 3 Forge, no setup on staff computers before
 
 **25 Nov 22:00 shift end.** Merged this shift (20:00-22:00): 6 (#355, #352, #357, #351, #356, #354). Open PRs: 1 (#353 draft, a9276d5: 15 checks pass, "Pages changed" neutral; mergeable). Main 801f37d: all four workflows succeeded. No teammate was seen working, so no stop messages sent. #353 worktree clean and pushed; nothing parked as WIP.
 Next at 00:00: Probe re-checks a9276d5, then Sentinel's full review (merge only through the normal gates). Forge: D-026 C4 folder deletion, #355 google.com follow-up, then #357 enforce conditions. Anvil, Prism: nothing in hand (Claude and ChatGPT both marked PAUSED by the governor at 22:00).
+
+- 27 Nov 12:08 Chief: OpenMausBot crashed (out of memory), relaunched 12:06. #368 (bc62205): CI passed, Sentinel APPROVED 12:01, Probe re-check of the # fix interrupted and re-sent. Forge key-attribution task re-sent. Worktrees .worktrees/368-qa and .worktrees/key-attribution-followups were left half checked out (stale index.lock); their owners repair them. No local tests or servers left running besides the gateway service.
