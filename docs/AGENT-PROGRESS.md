@@ -1,5 +1,7 @@
 # Agent progress
 
+**27 Nov 08:00 shift.** Main 9ccf858 (Hub checks passed); open PRs: 0; ChatGPT PAUSED (Prism none). Assigned: Forge fix/report-key-tool, then media job ownership after Sentinel's note; Sentinel threat note on media job ownership; Anvil fix/linux-keyring-cleanup (then Probe + Sentinel); Probe post-merge check of #339.
+
 **26 Nov 22:00 shift end.** Merged since 20:00: 1 (#365, 9ccf858; Hub checks on main passed). Open PRs: 0. No teammate seen working; no stop messages. Next at 00:00, if budget allows (Claude and ChatGPT PAUSED at 21:56): Forge, media status/cancel job ownership; Probe, post-merge check of #339; Prism, none while ChatGPT is paused; Anvil, Sentinel, none.
 
 **26 Nov 21:30 daily report** (docs/daily/2026-11-26.md). Merged today 9; open 0; main 9ccf858 Hub checks passed (1871 tests, skipped=48, 3.10 and 3.12). Live Hub reports 5a3f67e: lacks #363-#365. Netlify production builds skipped (credits). Next at 00:00: Forge media job ownership, then server rehearsal 5a3f67e -> main; Probe post-merge check of #339; no Prism task while ChatGPT is paused. Decisions awaiting Arnold: server update, Netlify credits, physical checklist and signing.
