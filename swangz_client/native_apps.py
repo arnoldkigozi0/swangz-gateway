@@ -410,6 +410,7 @@ class Manager:
         self._busy = {}      # tool id -> "installing" while an install or repair runs
         self._failed = {}    # tool id -> plain message of the last failed install or repair
         self._winget = None  # (time, {lower-case id: version}) from the last `winget export`
+        self._export_lock = threading.Lock()  # one `winget export` at a time (check-in and Re-check share the file)
 
     # ------------------------------------------------------------ where things are
 
@@ -537,6 +538,14 @@ class Manager:
         exe, _ = self.winget()
         if not exe:
             return None
+        if not self._export_lock.acquire(blocking=False):  # another thread is exporting: use what there is
+            return self.winget_listed()
+        try:
+            return self._export(exe, now)
+        finally:
+            self._export_lock.release()
+
+    def _export(self, exe, now):
         out = self.data / ".winget-export.json"
         argv = [exe, "export", "-o", str(out), "--include-versions", "--accept-source-agreements",
                 "--disable-interactivity"]
