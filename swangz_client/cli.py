@@ -274,8 +274,14 @@ def run(args, client):
         return 0
     if cmd == "apps":
         client.refresh()
-        for a in client.apps():
-            say(f"{a['id']:<20} {a['name']:<24}{'  (company browser)' if a['company_browser'] else ''}")
+        web = {a["id"] for a in client.apps()}
+        from . import native_apps
+        system = native_apps.os_key()
+        for t in client.tools():
+            kinds = "/".join(native_apps.badges(t["id"], system, t["id"] in web)) or "-"
+            found = client.native.detect(t["id"])
+            state = "" if found["state"] == "web" else found["state"].replace("unknown", "can't check")
+            say(f"{t['id']:<20} {t['name']:<24} {kinds:<12} {state}".rstrip())
         return 0
     if cmd == "open":
         try:
