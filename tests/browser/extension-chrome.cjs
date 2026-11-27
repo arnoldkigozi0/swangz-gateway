@@ -81,33 +81,40 @@ async function blocked(page, extensionId, name) {
   const staffLogin = await api('POST', '/api/login', { email: 'grace@swangzavenue.com', password: 'demo-password' });
   assert.equal(staffLogin.status, 200);
   const staff = staffLogin.headers.get('set-cookie').split(';')[0];
-  const turn = await api('GET', '/go/midjourney', undefined, staff);
-  assert.equal(turn.status, 302, 'real local gateway grants shared-account turn');
+  const opened = await api('GET', '/go/midjourney', undefined, staff);
+  assert.equal(opened.status, 302, 'the person opens the shared tool through the real local Hub');
 
   profile = fs.mkdtempSync(path.join(os.tmpdir(), 'swangz-extension-chrome-'));
   const extension = path.join(root, 'extension');
-  context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: false,
-    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`] });
-  context.setDefaultTimeout(15000);
-  // Fulfil synthetic site pages without DNS/vendor access. The worker's own gateway
-  // requests use real loopback HTTP and are neither mocked nor fulfilled here.
-  await context.route('**/*', async route => {
-    const url = new URL(route.request().url());
-    if (url.hostname === '127.0.0.1' || url.protocol === 'chrome-extension:') return route.continue();
-    if (Object.hasOwn(origins, url.hostname)) return route.fulfill({ status: 200, contentType: 'text/html',
-      body: '<!doctype html><html><title>Synthetic site</title><h1>Synthetic site ' + url.hostname + '</h1></html>' });
-    return route.abort();
-  });
-  context.on('response', async res => {
-    if (!res.url().startsWith(base + '/api/gate/')) return;
-    const record = { endpoint: new URL(res.url()).pathname, status: res.status() };
-    // Observe status immediately. Chrome may defer retrieving an unconsumed
-    // error-response body until teardown; the worker intentionally never reads it.
-    results.gateResponses.push(record);
-    if (res.ok() && record.endpoint.endsWith('/open')) {
-      try { const data = await res.json(); record.known = data.known; record.allowed = data.allowed; } catch (_) {}
-    }
-  });
+  // Started twice on the same profile: once, then again after closing Chrome, to prove sessions survive a restart.
+  async function launch() {
+    context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: false,
+      args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`] });
+    context.setDefaultTimeout(15000);
+    // Fulfil synthetic site pages without DNS/vendor access. The worker's own gateway
+    // requests use real loopback HTTP and are neither mocked nor fulfilled here.
+    await context.route('**/*', async route => {
+      const url = new URL(route.request().url());
+      if (url.hostname === '127.0.0.1' || url.protocol === 'chrome-extension:') return route.continue();
+      if (Object.hasOwn(origins, url.hostname)) return route.fulfill({ status: 200, contentType: 'text/html',
+        body: '<!doctype html><html><title>Synthetic site</title><h1>Synthetic site ' + url.hostname + '</h1></html>' });
+      return route.abort();
+    });
+    context.on('response', async res => {
+      if (!res.url().startsWith(base + '/api/gate/')) return;
+      const record = { endpoint: new URL(res.url()).pathname, status: res.status() };
+      // Observe status immediately. Chrome may defer retrieving an unconsumed
+      // error-response body until teardown; the worker intentionally never reads it.
+      results.gateResponses.push(record);
+      if (res.ok() && record.endpoint.endsWith('/open')) {
+        try { const data = await res.json(); record.known = data.known; record.allowed = data.allowed; } catch (_) {}
+      }
+    });
+  }
+  // Persistent cookies (with an expiry), like a real provider sign-in, so a restart alone would not drop them.
+  const sessionCookie = (name, host) => ({ name, value: 'synthetic-session', url: origins[host], secure: true,
+    expires: Math.floor(Date.now() / 1000) + 3600 });
+  await launch();
   const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
   const extensionId = new URL(worker.url()).hostname;
   assert.ok(extensionId);
@@ -125,10 +132,11 @@ async function blocked(page, extensionId, name) {
   await signIn();
   const state = await worker.evaluate(async () => {
     const data = await chrome.storage.local.get(['hosts', 'holding', 'token']);
-    return { hosts: data.hosts, holding: data.holding, signedIn: !!data.token };
+    return { hosts: data.hosts, hasHolding: 'holding' in data, signedIn: !!data.token };
   });
-  assert.ok(state.signedIn && state.hosts[governedHost] === 'chatgpt' && state.holding.midjourney);
-  pass('real extension sign-in fetched governed hosts and the held shared-account turn');
+  assert.ok(state.signedIn && state.hosts[governedHost] === 'chatgpt' && state.hosts[sharedHost] === 'midjourney');
+  assert.equal(state.hasHolding, false, 'the extension keeps no turn list');
+  pass('real extension sign-in fetched governed hosts, including the shared tool, and keeps no turn list');
 
   const ordinary = await context.newPage();
   await ordinary.goto(origins[ordinaryHost]);
@@ -146,11 +154,11 @@ async function blocked(page, extensionId, name) {
   await navigate(shared, origins[sharedHost]);
   await until(() => results.gateResponses.slice(beforeShared).some(r => r.endpoint.endsWith('/open') && r.allowed === true), 'shared-site allow decision');
   assert.equal(new URL(shared.url()).hostname, sharedHost);
-  await shared.evaluate(() => localStorage.setItem('held-fixture', 'synthetic-session'));
-  await context.addCookies([{ name: 'held-fixture', value: 'synthetic-session', url: origins[sharedHost], secure: true }]);
-  assert.ok((await context.cookies(origins[sharedHost])).some(c => c.name === 'held-fixture'));
-  assert.equal(await shared.evaluate(() => localStorage.getItem('held-fixture')), 'synthetic-session');
-  pass('held shared site has real Chromium cookie and localStorage fixtures before suspension');
+  await shared.evaluate(() => localStorage.setItem('session-fixture', 'synthetic-session'));
+  await context.addCookies([sessionCookie('session-fixture', sharedHost)]);
+  assert.ok((await context.cookies(origins[sharedHost])).some(c => c.name === 'session-fixture'));
+  assert.equal(await shared.evaluate(() => localStorage.getItem('session-fixture')), 'synthetic-session');
+  pass('shared site has real Chromium cookie and localStorage fixtures before suspension');
 
   const suspended = await api('POST', `/admin/api/people/${rig.person}/suspend`, {}, owner);
   assert.equal(suspended.status, 200);
@@ -159,18 +167,20 @@ async function blocked(page, extensionId, name) {
   await blocked(allowed, extensionId, 'suspended-governed');
   await until(() => results.gateResponses.slice(beforeSuspend).some(r => r.status === 401), 'real gate 401 after admin suspension');
   pass('admin suspend produces a real gate 401 and the governed tab shows Sign in to Swangz AI Hub');
-  await until(async () => !(await context.cookies(origins[sharedHost])).some(c => c.name === 'held-fixture'), 'shared-site cookie removal');
-  await until(async () => await shared.evaluate(() => localStorage.getItem('held-fixture')) === null, 'shared-site localStorage removal');
+  await until(async () => !(await worker.evaluate(async () => !!(await chrome.storage.local.get(['token'])).token)), 'extension signed out after the 401');
+  await new Promise(resolve => setTimeout(resolve, 1000));  // room for any clean-up that must not happen
   const signedOut = await worker.evaluate(async () => {
     const data = await chrome.storage.local.get(['token', 'holding', 'hosts']);
-    return { signedIn: !!data.token, holding: data.holding || {}, hosts: data.hosts };
+    return { signedIn: !!data.token, hasHolding: 'holding' in data, hosts: data.hosts };
   });
   assert.equal(signedOut.signedIn, false);
-  assert.deepEqual(signedOut.holding, {});
+  assert.equal(signedOut.hasHolding, false);
   assert.equal(signedOut.hosts[governedHost], 'chatgpt');
+  assert.ok((await context.cookies(origins[sharedHost])).some(c => c.name === 'session-fixture'), 'shared-site cookie kept');
+  assert.equal(await shared.evaluate(() => localStorage.getItem('session-fixture')), 'synthetic-session', 'shared-site localStorage kept');
   assert.equal(await ordinary.evaluate(() => localStorage.getItem('unrelated-fixture')), 'keep');
   assert.ok((await context.cookies(origins[ordinaryHost])).some(c => c.name === 'unrelated-fixture'));
-  pass('real browsingData.remove cleared the held-site cookie and localStorage on 401; unrelated site data survived');
+  pass('the 401 signed the extension out of the Hub only: the shared site\'s cookie and localStorage, and unrelated site data, all survived');
   await ordinary.goto(origins[ordinaryHost] + '/after-suspend');
   await ordinary.locator('h1').waitFor();
   assert.equal(new URL(ordinary.url()).hostname, ordinaryHost);
@@ -179,14 +189,27 @@ async function blocked(page, extensionId, name) {
   assert.equal((await api('POST', `/admin/api/people/${rig.person}/resume`, {}, owner)).status, 200);
   await popup.reload();
   await signIn();
+
+  // Close Chrome and open it again on the same profile. The extension's startup work runs; nothing is signed out.
+  const beforeRestart = results.gateResponses.length;
+  await context.close();
+  await launch();
+  await until(() => results.gateResponses.slice(beforeRestart).some(r => r.endpoint.endsWith('/config')),
+    'startup refresh', 5000).catch(() => {});  // the startup refresh is expected; the check below does not depend on it
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  assert.ok((await context.cookies(origins[sharedHost])).some(c => c.name === 'session-fixture'),
+    'the shared site\'s sign-in cookie survives a Chrome restart');
+  pass('closing and reopening Chrome kept the shared site\'s sign-in cookie: the extension clears nothing at startup');
+
   await stopFixture();
   const offline = await context.newPage();
   await navigate(offline, origins[governedHost] + '/gateway-unreachable');
   await blocked(offline, extensionId, 'offline-governed');
-  pass('governed site shows Sign in to Swangz AI Hub with the actual local gateway stopped');
-  await ordinary.goto(origins[ordinaryHost] + '/gateway-unreachable');
-  await ordinary.locator('h1').waitFor();
-  assert.equal(new URL(ordinary.url()).hostname, ordinaryHost);
+  pass('after the restart, a governed site shows Sign in to Swangz AI Hub with the actual local gateway stopped');
+  const ordinaryAgain = await context.newPage();
+  await ordinaryAgain.goto(origins[ordinaryHost] + '/gateway-unreachable');
+  await ordinaryAgain.locator('h1').waitFor();
+  assert.equal(new URL(ordinaryAgain.url()).hostname, ordinaryHost);
   pass('ungoverned site still loads while the gateway is unreachable');
   results.ok = true;
 })().catch(error => {

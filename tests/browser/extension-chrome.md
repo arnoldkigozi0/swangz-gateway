@@ -8,14 +8,15 @@ specified in https://playwright.dev/docs/chrome-extensions.
 The shipped `extension/` directory is loaded unpacked. Its Chrome APIs, service worker,
 network requests and tab redirects are real. `tests/browser/demo.py` runs the isolated
 Gateway plus fake upstream. Admin API calls configure synthetic `.test` hostnames and suspend/resume the fixture
-person; the staff portal grants the shared-account turn. The extension signs in
+person; the person opens the shared tool through the staff portal. The extension signs in
 through its own form and the real local `/api/extension/login` route. Site HTML is fulfilled
 by Playwright at synthetic origins, so there is no vendor traffic or real account data.
 
 The check proves an authenticated allow, a governed tab blocked after suspension/401,
-real held-site cookie/localStorage removal, retained unrelated-site data, ungoverned
-navigation while signed out, and governed blocking plus ungoverned navigation after
-actually stopping the gateway. It reads safe extension state for assertions, but does
+that the 401 leaves the shared site's cookie and localStorage (and unrelated-site data)
+in place, ungoverned navigation while signed out, that closing and reopening Chromium on
+the same profile keeps the shared site's sign-in cookie, and governed blocking plus
+ungoverned navigation after actually stopping the gateway. It reads safe extension state for assertions, but does
 not replace Chrome APIs or call the worker's navigation/gate functions directly.
 
 The browser job first runs `python -m unittest tests.test_extension -v` with Node required,
