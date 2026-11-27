@@ -620,7 +620,9 @@ class App:
         def done(ok, value):
             self.chrome_seen = value if ok and isinstance(value, dict) else {"ok": False, "path": "", "why": ""}
             if self.page in ("workspace", "home"):
-                self.show(self.page)
+                said, color = self.statusbar.cget("text"), self.statusbar.cget("fg")
+                self.show(self.page)  # the redraw clears the status line: keep what it said (an install's outcome)
+                self.statusbar.configure(text=said, fg=color)
 
         self.work(self.client.chrome_status, done)
 
