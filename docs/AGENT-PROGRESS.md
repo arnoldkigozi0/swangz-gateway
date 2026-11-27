@@ -1,5 +1,7 @@
 # Agent progress
 
+**09:59, 27 Nov.** #368: Forge pushed the '#' fix, head bc622052590e745eb0043cc0582215422eb82c0b (Forge: 116 targeted tests passed; CI still pending). Shift is ending, so no review started. Next, 12:00 shift: (1) gh pr checks 368; (2) Probe re-checks only the '#' change at bc62205; (3) Sentinel delta re-review of job_ids, job-sets rule and tests, plus a ruling on unscoped DELETE /jobs/{id} on custom providers; (4) if both pass and CI is green: gh pr ready 368, merge with --match-head-commit.
+
 **09:53, 27 Nov.** #368: Probe FAIL at ea85d0c ('#' gets past job ownership on custom media providers if the provider drops the fragment; PR comment 7211927636). Sent to Forge (fix/media-job-ownership, gateway/parse.py job_ids). Next: Probe re-checks only that change, Sentinel delta re-review of the new head, green CI, then ready and merge. For Sentinel to rule: another person's DELETE /jobs/{id} with an unscoped key is still forwarded on custom providers.
 
 **09:46, 27 Nov.** Merged #366 (locked Linux keyring) as e4ef2ef: Probe VERIFIED + Sentinel APPROVED at 45a9eda, CI green. Follow-up (not blocking): Store.promote() leaves the old key behind if the keyring is locked during a key change. #368: Sentinel blocked dc338db (job-sets had no ownership check for unscoped keys), Forge fixed it, Sentinel APPROVED ea85d0c; next: Probe verdict + green CI, then ready and merge. Budget 09:44: Claude and ChatGPT both PAUSED: no new delegations.
