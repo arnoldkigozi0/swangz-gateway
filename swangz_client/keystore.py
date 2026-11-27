@@ -69,7 +69,13 @@ class SecretService:
     def get(self, server, key_id):
         out = self._call("lookup", server, key_id)
         if out.returncode == 1 and not out.stdout and not out.stderr:
-            return None
+            # A locked collection whose unlock prompt cannot appear answers lookup exactly like a missing item.
+            # search still lists a locked item (without its secret), so only an empty search confirms absence.
+            # Its output can hold the secret when unlocked: it is inspected, never logged or surfaced.
+            found = self._call("search", server, key_id)
+            if found.returncode in (0, 1) and not found.stdout and not found.stderr:
+                return None
+            raise KeyStoreError("Secret Service still lists the device credential (the keyring may be locked).")
         if out.returncode:
             raise KeyStoreError("Secret Service could not read the device credential.")
         return check_secret(out.stdout.rstrip("\r\n"))

@@ -153,6 +153,43 @@ class CredentialTests(unittest.TestCase):
         self.assertIsNone(self.store.device())
         self.assertEqual(self.credentials.items, {})
 
+    def test_a_locked_secret_service_keeps_sign_out_pending(self):
+        # Probe, #366: a locked gnome-keyring with no unlock prompt answers lookup and clear with an empty exit 1,
+        # exactly like a missing item, while search still lists the locked item.
+        ring = {"items": {}, "locked": False}
+        def run(argv, input=None, **kw):
+            action, account = argv[1], argv[-1]
+            ok, missing = SimpleNamespace(returncode=0, stdout="", stderr=""), SimpleNamespace(returncode=1, stdout="", stderr="")
+            if action == "store":
+                ring["items"][account] = input
+                return ok
+            if ring["locked"]:
+                if action == "search" and account in ring["items"]:
+                    return SimpleNamespace(returncode=1, stdout="[/1]\nlabel = Swangz AI Hub\n",
+                                           stderr="secret-tool: Cannot get secret of a locked object\n")
+                return missing
+            if action == "lookup" and account in ring["items"]:
+                return SimpleNamespace(returncode=0, stdout=ring["items"][account] + "\n", stderr="")
+            if action == "search" and account in ring["items"]:
+                return SimpleNamespace(returncode=0, stdout="[/1]\nsecret = " + ring["items"][account] + "\n", stderr="")
+            if action == "clear":
+                ring["items"].pop(account, None)
+            return missing
+        store = core.Store(self.paths, keystore.SecretService(run))
+        store.save_device(INFO, SECRET)
+        self.assertEqual(store.device()["key_storage"], "keychain")
+        ring["locked"] = True
+        with self.assertRaises(keystore.KeyStoreError) as caught:
+            store.wipe()
+        self.assertIn("could not be confirmed removed", str(caught.exception))
+        self.assertNotIn(SECRET, str(caught.exception))
+        self.assertTrue(store.device()["cleanup_pending"])
+        self.assertTrue(ring["items"])
+        ring["locked"] = False
+        store.wipe()
+        self.assertIsNone(store.device())
+        self.assertFalse(ring["items"])
+
     def test_an_unreachable_keyring_never_leaves_the_key_file_behind(self):
         # Linux: secret-tool is installed but the Secret Service is locked or gone, so every call fails. The key is
         # kept in device.key with keychain_pending set; revocation, sign out and cleanup must still erase it.
@@ -384,6 +421,27 @@ class AdapterTests(unittest.TestCase):
                 run.side_effect = FileNotFoundError
                 with self.assertRaises(keystore.Unavailable):
                     adapter.put(SERVER, "id", SECRET)
+
+    def test_secret_service_absence_needs_an_empty_search(self):
+        empty = SimpleNamespace(returncode=1, stdout="", stderr="")
+        def adapter(search):
+            def run(argv, **kw):
+                return search if argv[1] == "search" else empty
+            return keystore.SecretService(run)
+        self.assertIsNone(adapter(empty).get(SERVER, "id"))
+        self.assertIsNone(adapter(SimpleNamespace(returncode=0, stdout="", stderr="")).get(SERVER, "id"))
+        locked = SimpleNamespace(returncode=1, stdout="[/org/freedesktop/secrets/collection/login/7]\nlabel = Swangz AI Hub\n"
+                                 "secret = " + SECRET + "\n", stderr="secret-tool: Cannot get secret of a locked object\n")
+        failed = SimpleNamespace(returncode=2, stdout="", stderr="")
+        for name, search in (("locked item listed", locked), ("search fails", failed)):
+            with self.subTest(name):
+                with self.assertRaises(keystore.KeyStoreError) as caught:
+                    adapter(search).get(SERVER, "id")
+                self.assertNotIn(SECRET, str(caught.exception))
+        with patch.object(keystore, "_run", side_effect=lambda argv, *a: empty if argv[1] == "lookup" else
+                          (_ for _ in ()).throw(keystore.KeyStoreError("x"))):
+            with self.assertRaises(keystore.KeyStoreError):
+                keystore.SecretService().get(SERVER, "id")
 
     def test_windows_ctypes_write_read_free_delete_and_local_persistence(self):
         lib = SimpleNamespace(**{name: Mock() for name in ("CredWriteW", "CredReadW", "CredDeleteW", "CredFree")})
