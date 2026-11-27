@@ -984,3 +984,9 @@ file's end. All remain pending their final pushed-head CI and merge.
   - **Older build:** an older build dragged over a newer one refuses to run (exit 5) and changes nothing.
 - The product change for row 9 is `core.check_newest_app` (docs/CLIENT.md).
 - Local: `tests.test_packaging_macos tests.test_client_newest_app`: 28 OK. The client and Windows installer modules pass. The macOS run is this PR's CI.
+
+## 2026-11-28 — Prism: fixed browsers marked dormant
+
+- Branch `fix/fixed-browsers-dormant`, own worktree from origin/main `4b229eb`. The Account limitation panel labels Fixed browsers as dormant, says they are unused since D-028 and Open never sends anyone there, and asks owners to leave the field empty or clear saved addresses. Removed the obsolete fixed-browser sign-in promise and example addresses. Retained the textarea value, owner edit permissions, visibility rule and save payload. Help is associated through aria-describedby.
+- Added a matching historical/dormant notice at the top of deploy/WORKSPACE.md. No backend change; gateway/catalog.py and tests/test_workspace.py untouched. **Do not merge before #373 lands**: the stated routing behavior depends on it. No merge authorized for this task.
+- Static validation: `node --check gateway/static/admin-govern.js` and `git diff --check` passed. Syntax parsing only; no local runtime test, demo server or browser started before Probe releases the slot at 01:20 EAT. Screenshot/runtime verification is pending. Required captures: 390x844 and 1440x900, light/dark, under docs/screenshots/fixed-browsers-dormant/. Next step: obtain those synthetic-demo captures plus owner-edit/clear and help-text checks, record actual results, and update the draft PR.

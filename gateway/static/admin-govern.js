@@ -1191,16 +1191,14 @@
        login), and the read-only history of the turns that were retired that day. Nothing here is timed. */
     async function accountTab() {
       const f = {
-        workspace_url: el("textarea", { rows: "3", spellcheck: "false", disabled: !owner, placeholder: "https://workspace.swangzavenue.com/chatgpt-1/\nhttps://workspace.swangzavenue.com/chatgpt-2/" }, t.workspace_url || ""),
+        workspace_url: el("textarea", { rows: "3", spellcheck: "false", disabled: !owner, "aria-describedby": "fixed-browsers-help", placeholder: "Leave empty" }, t.workspace_url || ""),
         workspace_mode: el("select", { disabled: !owner },
           el("option", { value: "agent" }, "Swangz's company browsers — started when needed"),
           el("option", { value: "" }, "The browsers listed below, or none")),
       };
       f.workspace_mode.value = t.workspace_mode === "agent" ? "agent" : "";
-      const listField = el("label", { class: "field" }, "Fixed browsers", f.workspace_url,
-        el("span", { class: "hint" }, "One address per line — each a browser on Swangz's own server that an admin has signed in to this tool once. Empty: Open goes to the tool's own site. See deploy/WORKSPACE.md."),
-        el("span", { class: "hint" }, S.workspaceManaged ? "The gateway makes each person a sign-in to the browser it gives them."
-          : "The gateway isn't managing these browsers' sign-ins (GATEWAY_WORKSPACE_TOKEN is not set), so each browser's own login decides who gets in."));
+      const listField = el("label", { class: "field" }, "Fixed browsers (dormant)", f.workspace_url,
+        el("span", { class: "hint", id: "fixed-browsers-help" }, "These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."));
       const agentHint = el("span", { class: "hint" }, S.workspaceAgent
         ? "People get a company browser that is already signed in, on the rented server or one of Swangz's computers (Settings → Company browsers)."
         : "The company browsers aren't connected yet: Settings → Company browsers (the rented server, the Windows PC or the Mac). Until they are, Open can't give anyone a browser for this tool.");
