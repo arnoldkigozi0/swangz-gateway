@@ -302,20 +302,10 @@ def settle_urls(db):
 
 
 def launch_target(tool):
-    """Where the portal sends someone who opens this tool, best first:
-
-      1. the shared workspace — a remote browser on the company's own server that an admin has
-         already signed in to this tool (only for `shared` tools, and only to whoever holds the turn);
-      2. the company sign-in link (SSO);
-      3. the tool's own website.
-
-    Only http(s) addresses — anything else (javascript:, data:) is refused. A workspace is a pool of
-    browsers; the launch hands each turn one of its own (gateway/workspace.py), this is the first."""
-    from . import workspace
-
-    candidates = workspace.browsers(tool)[:1]
-    candidates += [tool.get("launch_url"), tool.get("url")]
-    for candidate in candidates:
+    """Where the portal sends someone who opens this tool: the company sign-in link (SSO) if there is one,
+    otherwise the tool's own website. Only http(s) addresses — anything else (javascript:, data:) is refused.
+    A company browser address (`workspace_url`) is never a destination: those browsers are retired (D-028)."""
+    for candidate in (tool.get("launch_url"), tool.get("url")):
         candidate = (candidate or "").strip()
         if candidate.lower().startswith(("https://", "http://")):
             return candidate

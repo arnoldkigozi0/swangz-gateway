@@ -11,7 +11,7 @@ import unittest
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from gateway import security, turns, workspace
+from gateway import catalog, security, turns, workspace
 
 from workspace_agent.agent import container_name
 
@@ -47,6 +47,28 @@ class ThreePeople(TurnBase):
 
     def turn_of(self, person_id):
         return self.rig.gw.db.one("SELECT * FROM tool_turns WHERE person_id = ? ORDER BY id DESC LIMIT 1", (person_id,))
+
+
+class OpenSkipsFixedBrowsersTests(ThreePeople):
+    """D-028: a shared tool that still has fixed browsers filled in opens the tool's own site, for everyone."""
+
+    def test_every_assigned_person_reaches_the_tools_site(self):
+        browsers = ["https://ws.example/mj-1/", "https://ws.example/mj-2/"]
+        self.assertEqual(self.rig.api("PATCH", "/tools/midjourney", {"workspace_url": "\n".join(browsers)})[0], 200)
+        tool = self.rig.gw.db.one("SELECT * FROM tools WHERE id = 'midjourney'")
+        self.assertEqual(workspace.browsers(tool), browsers)  # still filled in, only never used by Open
+        people = (("first", lambda: self.go("midjourney")), ("second", lambda: self.go_as_other("midjourney")),
+                  ("third", self.go_as_third))
+        for sso in ("", "https://sso.example/midjourney"):
+            self.assertEqual(self.rig.api("PATCH", "/tools/midjourney", {"launch_url": sso})[0], 200)
+            for who, go in people:
+                with self.subTest(sso=sso, who=who):
+                    status, headers, _ = go()
+                    self.assertEqual((status, headers.get("location")), (302, sso or tool["url"]))
+
+    def test_a_browser_address_alone_is_not_a_place_to_open(self):
+        self.assertIsNone(catalog.launch_target(
+            {"signin": "shared", "workspace_url": "https://ws.example/mj-1/", "launch_url": "", "url": ""}))
 
 
 class PoolBase(ThreePeople):
