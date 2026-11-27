@@ -19,7 +19,8 @@ from .test_v2 import add_admin
 # D-023 is SCHEMA[D023] (meta 'schema' = D023 means it has not run yet); later migrations are undone by _upgrade.
 D023 = next(i for i, s in enumerate(SCHEMA) if isinstance(s, str) and "INSERT OR IGNORE" in s and "store_bodies" in s)
 LATER_TOOL_COLUMNS = ("info_url", "modes", "oauth_hosts", "last_verified")  # v29
-LATER_DEVICE_COLUMNS = ("owner_confirmed", "owner_confirmed_at", "owner_confirmed_by")  # v30
+LATER_DEVICE_COLUMNS = ("owner_confirmed", "owner_confirmed_at", "owner_confirmed_by",  # v30
+                        "apps_json", "apps_reported")  # v31
 
 MARK = "okapi-lantern-content-9353"
 CONTENT_COLUMNS = ("prompt", "reply", "actions", "req_head", "req_items", "resp_blob")
@@ -42,7 +43,7 @@ class DefaultTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, tmp, True)
         path = os.path.join(tmp, "old.db")
         before = DB(path)  # at the newest schema; rewind it to just before the D-023 migration
-        self.assertEqual(len(SCHEMA), D023 + 3, "a migration was added after v30: undo it here as well")
+        self.assertEqual(len(SCHEMA), D023 + 4, "a migration was added after v31: undo it here as well")
         before.x("UPDATE meta SET v = ? WHERE k = 'schema'", (str(D023),))
         for column in LATER_TOOL_COLUMNS:
             before.x(f"ALTER TABLE tools DROP COLUMN {column}")

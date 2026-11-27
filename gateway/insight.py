@@ -1027,12 +1027,16 @@ def attention(ctx):
             add(f"renew-{t['id']}", "low", "Licences", f"{t['name']} renews {time.strftime('%d %b', time.gmtime(t['renews_on']))}",
                 f"{'$%s a month' % format(t['monthly_cost'], ',.2f') if t['monthly_cost'] else 'Cost not set'} — check it's still needed.",
                 f"#/tools?open={t['id']}&tab=billing")
+    # turns were retired on 27 Nov 2026: a single company login used by several people is a licence limit to fix with
+    # seats or single sign-on, so it is raised here instead of being enforced with timers
     for t in db.q("SELECT * FROM tools WHERE signin = 'shared' AND archived = 0"):
-        held = turns.holders(db, t["id"])
-        if held and len(held) >= turns.seats(t):
-            add(f"full-{t['id']}", "info", "Workspace", f"{t['name']}'s shared account is fully in use",
-                f"{len(held)} of {turns.seats(t)} at once — others are turned away until a turn ends.",
-                f"#/tools?open={t['id']}&tab=access")
+        assigned = db.scalar("SELECT COUNT(DISTINCT p.id) FROM people p WHERE p.status = 'active' AND ("
+                             " EXISTS (SELECT 1 FROM entitlements e WHERE e.tool_id = ? AND e.person_id = p.id) OR"
+                             " (p.department != '' AND EXISTS (SELECT 1 FROM entitlements e WHERE e.tool_id = ? AND e.department = p.department)))",
+                             (t["id"], t["id"])) or 0
+        if assigned > 1:
+            add(f"single-login-{t['id']}", "medium", "Licences", f"{t['name']} is one company login for {assigned} people",
+                turns.admin_note(t, assigned), f"#/tools?open={t['id']}&tab=access")
     # company browsers on one of Swangz's own computers: while it is offline, nobody on a shared tool gets one
     if db.scalar("SELECT COUNT(*) FROM tools WHERE signin = 'shared' AND workspace_mode = 'agent' AND archived = 0"):
         for h in ctx.gw.workspaces.hosts():

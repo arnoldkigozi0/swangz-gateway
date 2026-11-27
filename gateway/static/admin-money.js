@@ -183,7 +183,7 @@
             el("div", null, SUI.status("ok", "Estimated", { plain: true }), el("p", null, "Each request through the gateway is priced from the model price table (Settings → Model prices) the moment it runs, using the tokens the provider reports. Changing a price later doesn't change past requests.")),
             el("div", null, SUI.status("waiting", "Unpriced", { plain: true }), el("p", null, "A model missing from the price table has no cost, so spend is understated until it's priced. Voice, image and video are metered in the service's own units.")),
             el("div", null, SUI.status("info", "Plans", { plain: true }), el("p", null, "Company plans are the fixed monthly cost set on each subscription — not metered here, and not split by person.")),
-            el("div", null, SUI.status("none", "Not here", { plain: true }), el("p", null, "Vendor invoices aren't imported, and a shared account's own credit use is matched by turn, not priced."))) });
+            el("div", null, SUI.status("none", "Not here", { plain: true }), el("p", null, "Vendor invoices aren't imported, and a company login's own credit use isn't priced here: no provider reports it to Swangz."))) });
     function draw() {
       const by = st.by || "person";
       const total = d.total || 0;
@@ -567,7 +567,7 @@
       el("nav", { class: "em-more", "aria-label": "Smaller stops elsewhere" }, el("span", { class: "em-k" }, "One at a time, elsewhere"),
         el("a", { href: "#/live" }, "Stop a single request", el("span", null, "Live")),
         el("a", { href: "#/people" }, "Suspend a person or revoke a device", el("span", null, "People")),
-        el("a", { href: "#/tools" }, "Take back a shared turn", el("span", null, "Tools")),
+        el("a", { href: "#/workstations" }, "Suspend or revoke a computer", el("span", null, "Workstations")),
         el("a", { href: "#/models" }, "Switch a model off", el("span", null, "Models"))),
     ];
   }
@@ -790,7 +790,7 @@
       detail, buttons.length ? buttons : null);
     };
     const places = A.panel("Where the company browsers run", "one place at a time — Open uses the one marked In use", ws.hosts.map(card),
-      el("div", { class: "body hint" }, "Each place has browsers of its own, and each browser keeps its own sign-in to its tool — so sign a place's browsers in (below) before switching to it. Switching moves anyone in a company browser off the old place: their turn ends, and Open gives them a browser at the new one."));
+      el("div", { class: "body hint" }, "Each place has browsers of its own, and each browser keeps its own sign-in to its tool — so sign a place's browsers in (below) before switching to it. Switching moves anyone in a company browser off the old place: that browser closes, and Open gives them a browser at the new one."));
     const RELAY = { cloudflare: "Cloudflare's video relay", own: "Swangz's own video relay (coturn)" };
     const relay = A.panel("Video from Swangz's own computers", null, A.settingRow(
       el("span", { class: "row" }, "Video relay", ws.relay ? SUI.status("ok", "On", { plain: true }) : SUI.status("waiting", "Not set up", { plain: true })),
@@ -828,7 +828,7 @@
 
   async function useHost(h) {
     const ok = await A.confirmAction(`Use ${h.label} for the company browsers?`,
-      `From now on Open gives people browsers on ${h.label}. Anyone in a company browser somewhere else is moved off: their turn ends, and Open gives them one here. Sign this place's browsers in to their tools first.`, "Switch", false);
+      `From now on Open gives people browsers on ${h.label}. Anyone in a company browser somewhere else is moved off: that browser closes, and Open gives them one here. Sign this place's browsers in to their tools first.`, "Switch", false);
     if (!ok) return;
     try {
       const out = await api("POST", "/workspace/use", { host: h.id });

@@ -95,7 +95,7 @@
       licences: "The biggest licence savings and what renews soon. Everything else is under Licences & spend.",
     },
     "#/activity": {
-      timeline: "Everything in order of time: AI requests, tools opened, website visits, shared-account turns, sign-ins and access changes.",
+      timeline: "Everything in order of time: AI requests, tools opened, website visits, sign-ins and access changes, and past shared-account turns (retired 27 Nov 2026).",
       usage: "Totals per person and tool for the period — for comparing, not for reading individual requests.",
       ai: "One row per AI request through Swangz AI Hub; open one for its full record.",
       opens: "Tools opened from the Swangz AI Hub portal, with the browser and address they were opened from.",
@@ -447,7 +447,7 @@
   /* One event in two quiet lines: who used what, how it ended and what it cost; then why (the prompt)
      and where from (device, address). The full story is one click away in the record. */
   const EVENT_KIND = { request: ["AI request", "spark"], launch: ["Opened from the portal", "open"], site: ["AI website visit", "globe"],
-    turn: ["Shared account turn", "users"], access: ["Sign-in or access change", "key"] };
+    turn: ["Shared account turn (history)", "users"], access: ["Sign-in or access change", "key"] };
   function eventItem(e, opts) {
     opts = opts || {};
     if (e.type === "access") return accessItem(e, opts);
@@ -495,7 +495,7 @@
           e.credential ? el("span", { class: "u-badge bad" }, icon("key"), "Credential") : null),
         !opts.compact && (lead || detail.length) ? el("div", { class: "ev-sub" }, lead, detail) : null),
       el("div", { class: "ev-end" }, money ? el("span", { class: "ev-cost u-num" }, money) : null,
-        e.type === "turn" ? SUI.status(e.ended ? "idle" : "ok", e.ended ? "Ended" : "Holding", { plain: true }) : outcomeStatus(e.type, e.outcome, true)),
+        e.type === "turn" ? SUI.status("idle", e.ended ? "Ended" : "Not closed", { plain: true, title: "History: turns were retired on 27 Nov 2026" }) : outcomeStatus(e.type, e.outcome, true)),
       href ? el("a", { class: "ev-open", href, "aria-label": "Open the full record of request " + e.id }, icon("chevronRight")) : el("span", { class: "ev-open none" }));
   }
 
@@ -698,7 +698,7 @@
   // ------------------------------------------------------------------ the frame
 
   const NAV = [
-    ["Monitor", [["#/", "Overview", "overview"], ["#/live", "Live", "live"], ["#/attention", "Needs attention", "attention"], ["#/activity", "Activity", "activity"],
+    ["Monitor", [["#/workstations", "Workstations", "monitor"], ["#/", "Overview", "overview"], ["#/live", "Live", "live"], ["#/attention", "Needs attention", "attention"], ["#/activity", "Activity", "activity"],
       ["#/health", "Health", "pulse"]], "What's happening"],
     ["Govern", [["#/people", "People", "people"], ["#/requests", "Access requests", "requests"], ["#/tools", "Tools", "tools"], ["#/models", "Models", "chip"],
       ["#/policies", "Policies", "rule"]], "Access and rules"],
@@ -797,10 +797,11 @@
   function foldedGroups() {
     try { return new Set(JSON.parse(localStorage.getItem(NAV_KEY) || JSON.stringify(NAV.map(g => g[0])))); } catch (e) { return new Set(NAV.map(g => g[0])); }
   }
-  /* The floating rail (BRIEF 10.3, 10.7): the brand, nine page icons and All pages; Help and Settings at the foot.
+  /* The floating rail (BRIEF 10.3, 10.7): the brand, ten page icons and All pages; Help and Settings at the foot.
      Icons only, each named by its label and tooltip. Everything else the console has (the other pages, the
-     emergency stop, theme, sign-out) is in the All pages drawer and the command menu, never removed. */
-  const RAIL = ["#/", "#/live", "#/attention", "#/activity", "#/people", "#/requests", "#/tools", "#/licences", "#/security"];
+     emergency stop, theme, sign-out) is in the All pages drawer and the command menu, never removed.
+     Workstations leads (owner directive, 27 Nov 2026): it is the Control Room's first page and its landing. */
+  const RAIL = ["#/workstations", "#/", "#/live", "#/attention", "#/activity", "#/people", "#/requests", "#/tools", "#/licences", "#/security"];
   function rail(active) {
     const pages = NAV.flatMap(([group, links]) => links.map(([href, label, ic]) => ({ href, label, ic, group })));
     const link = ({ href, label, ic, group }) => {
@@ -960,7 +961,7 @@
   }
 
   function mobileNav(active) {
-    const links = [["#/", "Overview", "home"], ["#/live", "Live", "live"],
+    const links = [["#/workstations", "Workstations", "monitor"], ["#/", "Overview", "home"],
       ["#/attention", "Needs attention", "bell"], ["#/people", "People", "people"]];
     const bar = el("div", { class: "stb-bar" }, links.map(([href, label, ic]) => el("a", {
       href, class: active === href ? "on" : null, "aria-current": active === href ? "page" : null,
@@ -1188,7 +1189,14 @@
     location.hash = "#/";
   }
 
+  /* Signing in, or opening /admin with no page in the address, lands on Workstations (owner directive, 27 Nov 2026).
+     An address that names a page, Overview's "#/" included, is kept, so a link or a refresh lands where it pointed. */
+  function landing() {
+    if (!location.hash || location.hash === "#") history.replaceState(null, "", location.pathname + location.search + "#/workstations");
+  }
+
   function start() {
+    landing();
     SUI.setGatewayOffset(S.me ? S.me.tz_offset_minutes : 180);
     setupCommand();
     purposeIndex();

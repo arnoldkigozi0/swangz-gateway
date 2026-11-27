@@ -110,8 +110,11 @@ in the app, before the uninstall.
 ## What is recorded — and what is not
 
 The device's name, operating system, app version, which packages are installed, when it last checked in; and
-every AI request that goes through the gateway (who, which tool, model, tokens, cost), as for any key. **Never
-files, screens, keystrokes or other programs on the device.** The app shows this text on its *This device*
+every AI request that goes through the gateway (who, which tool, model, tokens, cost), as for any key. Since 27 Nov
+2026 the check-in also says, for **the person's own assigned AI tools only** and Google Chrome, whether each is
+installed here (and its version), from the fixed list in `native_apps.py` (see *Desktop and command-line apps*). It
+never lists, opens or reads anything else on the computer. **Never files, screens, keystrokes or other programs on the
+device.** The app shows this text on its *This device*
 page and in the sign-in approval. This is the same access-level-only rule as the browser extension (Uganda's
 Data Protection and Privacy Act). Do not add device-content capture. Note that the gateway sees what the coding
 agents send to the AI; it cannot see what they do to files on the device, and this app deliberately doesn't try.
@@ -443,9 +446,93 @@ fetch the key again or a new shell is started; the app does not wait for or inte
 
 ## The app
 
-`swangz` opens the window: a dock down the left (Home, Apps, Packages, This device), sign-in, sync every 15
-minutes while open, "start when I sign in" (a LaunchAgent on macOS, `~/.config/autostart` on Linux, the `Run`
-key on Windows; signing out turns it off). From a terminal: `swangz login|status|sync|packages|apps|open TOOL|run claude|codex|autostart on|off|logout|cleanup [--report FILE]`.
+`swangz` opens the window, an **AI workstation** (owner directive, 27 Nov 2026: one installed app where every
+authorised employee works at the same time, with their own seat or account; no turns). A sidebar down the left:
+
+- **Home**: a greeting with the person's whole name as the Hub stores it (Ugandan names are often surname-first, so the
+  app never picks a "first name"); Google Chrome, sync and device status; quick launch of pinned and recent tools
+  (pins live in `workstation.json` in the data folder); what is open (the Swangz Chrome window, and what was opened from
+  Swangz since it started; Swangz does not look at other running programs).
+- **Apps**: every tool assigned to the person (the manifest's `tools`, falling back to `apps` and agent packages on an
+  older Hub) as a card with **Web / Desktop / CLI** badges and *Open in Swangz Chrome*, *Open desktop app*, *Install*,
+  *Repair*, *Pin*. A manifest app's `account_note` (single-login company accounts) shows as a quiet line; it never
+  blocks anything.
+- **Workspace**: the person's Swangz Chrome profile. Chrome found and publisher-checked (`Client.chrome_status`, off
+  the window's thread), or the guided step: *Install Google Chrome* (Windows company build: the elevated Google-only
+  install of D-026 B5, after a yes on the window's own dialog; everywhere else Google's page `INSTALL_PAGE`), then a
+  re-check when the window gets focus again or on *Re-check*. The profile folder, whether the window is open, and
+  *Open Swangz AI Hub* (the Hub's devices page through `shell.open_hub`; the Hub's tool pages are deliberately not
+  offered, because they would open tools outside Swangz Chrome).
+- **Automations**: coding agents (Claude Code, Codex through `swangz run`) and published packages.
+- **Usage**: what was opened from Swangz on this computer (`workspace-open.log` and `apps-open.log`, both
+  `<time> <open|desktop> <tool id>`, 100 lines each, local only) and the weekly report button.
+- **Settings**: start at login, sync, device facts, company browser settings (company computers only), what Swangz
+  records, Hub account pages, sign out, *Remove Swangz from this account*.
+
+**Several tools at once.** Each Open starts Chrome on the same per-person folder with the same fixed switches; a
+running Chrome takes the address into its window and the new process exits. The launcher remembers only the window it
+started and never closes it for a later Open (`tests/test_native_apps.py` `SeveralToolsAtOnceTests`). Chrome
+`--app=<url>` windows were considered and **not** adopted in this change: D-026 D1 fixes the argument list as
+`[chrome, --user-data-dir, fixed switches, url]`, pinned by `test_workspace_launcher`, `test_open_repair` and
+`test_w6_matrix`; changing it needs a D-026 amendment first.
+
+Sync every 15 minutes while open, "start when I sign in" (a LaunchAgent on macOS, `~/.config/autostart` on Linux, the
+`Run` key on Windows; signing out turns it off). From a terminal: `swangz login|status|sync|packages|apps|open TOOL|run claude|codex|autostart on|off|logout|cleanup [--report FILE]`
+(`swangz apps` lists every assigned tool with its badges and whether it is installed here).
+
+## Desktop and command-line apps (`swangz_client/native_apps.py`)
+
+A **fixed, code-reviewed table** keyed by the Hub's tool id. The Hub only names tools; it never sends a command, path,
+package id or address for the app to run, so a compromised Hub cannot make a device run anything. Every id, path and
+page has its source URL and the date it was read (27 Nov 2026) in the table; anything not verified is left out, and
+the entry's note says so. Linux is source-only and frozen: every tool is web there.
+
+| Tool | Windows | macOS |
+|---|---|---|
+| chatgpt | winget `OpenAI.ChatGPT` (MSIX family `OpenAI.Codex_2p2nqsd0c76g0`: the app now includes Codex) | page; `ChatGPT.app`, `com.openai.codex` |
+| claude | winget `Anthropic.Claude` (MSIX family `Claude_pzs8sxrjxfjjc`) | page; `Claude.app`, `com.anthropic.claudefordesktop` |
+| gemini | winget `Google.GeminiDesktop` | page; `Gemini.app`, `com.google.GeminiMacOS` (cask `google-gemini`, not `gemini`) |
+| perplexity | Store `9P9XG917PWCJ` (no winget-community id) | found only (`ai.perplexity.macv3`); download page unverified |
+| copilot | Store `9NHT9RB2F4HD` (family `Microsoft.Copilot_8wekyb3d8bbwe`) | page only; app name/bundle unpublished, not checkable |
+| cursor / notion-ai / figma-ai / deepl / grammarly / capcut / descript / loom-ai | winget `Anysphere.Cursor`, `Notion.Notion`, `Figma.Figma`, `DeepL.DeepL`, `Grammarly.Grammarly`, `ByteDance.CapCut`, `Descript.Descript`, `Loom.Loom` | page; bundle ids from Homebrew casks (DeepL and Grammarly by app name only) |
+| canva | winget `Canva.Canva`, `%LocalAppData%\Programs\Canva\Canva.exe` (from the manifest) | page; `com.canva.CanvaDesktop` |
+| antigravity | winget `Google.Antigravity` (Google also ships `Google.AntigravityIDE`: confirm which the catalogue means) | page; `com.google.antigravity` |
+| claude-code | winget `Anthropic.ClaudeCode` in a visible window | Anthropic's `install.sh` in Terminal |
+| codex | winget `OpenAI.Codex` in a visible window | OpenAI's `chatgpt.com/codex/install.sh` in Terminal |
+| adobe-premiere, photoshop | winget `Adobe.CreativeCloud` (machine-wide, so Windows asks), then the app from Creative Cloud; not checkable | Creative Cloud page; not checkable |
+| davinci-resolve, topaz-video-ai, airtable-ai (Windows) | vendor page only, not checkable | page (Airtable checkable: `com.FormaGrid.Airtable`) |
+| grok, google-flow, adobe-firefly, elevenlabs, higgsfield-ai, everything else | web | web |
+
+- **Finding an app**: fixed install paths only (Program Files from HKLM, never the environment; `%LocalAppData%`;
+  /Applications and ~/Applications, where the app's `Info.plist` must name the table's bundle id); a Store/MSIX app by its
+  `%LocalAppData%\Packages\<family>` folder; on Windows `winget export` (a read: what winget knows is installed, with
+  versions), run at most every five minutes from the check-in thread or *Re-check*, written to a private file and
+  deleted; a CLI's PATH entry only as a labelled fallback. A tool with no honest way to look is **unknown**: the window
+  says "Swangz can't check", and the check-in leaves it out rather than calling it missing.
+- **Installing**: only after the person presses Install and says yes to a dialog naming the app, publisher and source.
+  Windows: `winget install --id <exact id> --exact --source <winget|msstore> --accept-source-agreements
+  --accept-package-agreements` (hidden, 30-minute timeout, no Swangz or provider keys in its environment); a CLI the
+  same, in a terminal window; no winget: the vendor's page. macOS: the vendor's page in the default browser (the person
+  runs the installer) or, for a CLI, the vendor's install script in Terminal. Swangz never elevates; an installer that
+  needs administrator rights asks Windows itself.
+- **Repair**: re-detect, then `winget upgrade` (installed) or `winget install` (missing) with consent; elsewhere the
+  vendor's page. *Update check* (`Manager.check_update`): a dry `winget list --id <id> --exact --upgrade-available`,
+  otherwise what the table says ("updates itself" from the Homebrew cask's `auto_updates`).
+- **Opening**: Windows `os.startfile` on the detected program file; a Store app through `explorer.exe
+  shell:AppsFolder\<AUMID>` only when the table has a published AUMID (none do yet, so those say "Open it from the Start
+  menu"); macOS `/usr/bin/open -a <detected app>`. Claude Code and Codex open through `swangz run` in a terminal, still
+  pointed at the gateway. Each open adds `<time> desktop <tool>` to `apps-open.log`.
+- **Check-in** (`core._heartbeat_body`): `"apps": [{"id": "chrome"|<tool id>, "state":
+  "installed"|"missing"|"installing"|"failed"|"web", "version": "<= 40 chars or ''"}]`, Chrome first, at most 60.
+  An older Hub ignores the key.
+- **Static allow-list**: `tests/test_no_fallback.py` lists the three new places that can start something
+  (`_startfile`, `Manager.launch`, `_open_page`) and the two terminal callers; `tests/test_native_apps.py` pins their
+  exact arguments. Vendor download pages extend D-026 D2's list of what may open in the default browser: they are
+  installer pages from the fixed table, never a tool address or anything from the manifest. **Needs Sentinel's review.**
+
+**Verified where.** Unit-tested on Linux with fake runners and filesystems (`python3 -m unittest tests.test_native_apps`).
+Not yet run on a real Windows or Mac: winget's behaviour and exit codes, the Store family folders, the version reader,
+`explorer.exe`/`open -a`, the terminal windows and the Chrome install step all need a check on each system.
 
 Build a standalone program for the computer you are on (it carries its own Python):
 
@@ -533,8 +620,9 @@ are inapplicable to this inert slice; cross-platform behavior still needs indepe
 
 - **Signed installers** for Windows (`.msi`/`.exe`, Authenticode) and macOS (`.dmg`, Developer ID + notarization),
   and a Linux `.deb`/AppImage, built by CI from tags. The TEST-key updater below is not enabled in shipped builds.
-- **Installing Claude Code and Codex themselves.** The app configures and runs them; when one isn't installed it
-  says how (`npm install -g …`). Installing third-party programs should be an allow-listed, pinned, checked step.
+- **Desktop apps on real Windows and Mac computers.** The allow-listed install step exists (`native_apps.py`, above) but
+  has only run against fakes. Published AUMIDs for Store apps, and install paths for most winget apps, are still missing,
+  so those are found through winget and opened from the Start menu.
 - **A sign-in link that lands the person in the web app already signed in**, so "Open" on an app doesn't ask again.
 - **Chrome Enterprise force-install** of the access gate for company devices (needs the extension hosted with an
   update manifest). Today the app unpacks it and says how to load it.

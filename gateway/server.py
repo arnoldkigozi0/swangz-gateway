@@ -14,6 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from . import admin, build, catalog, geo, google, icons, notify, policy, pricing, proxy, purpose, security, staff, store
 from . import hub_api, reporting, hub_delivery, hub_export
 from . import business, credentials, departments, device_open, enroll, managed, registry, releases
+from . import workstations  # noqa: F401  the Control Room's Workstations page registers its route
 from .db import DB
 from .live import Live
 from .workspace import Workspaces
@@ -48,6 +49,7 @@ class Gateway:
         catalog.settle_hosts(self.db)
         catalog.settle_app_urls(self.db)
         catalog.settle_urls(self.db)
+        catalog.add_workstation_tools(self.db)
         self.live = Live()
         self.workspaces = Workspaces(self)
         self.pool = proxy.Pool(settings.upstream_timeout)

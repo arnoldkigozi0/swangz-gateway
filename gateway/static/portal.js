@@ -131,10 +131,12 @@
     seat: ["Company seat", "Your own seat on the company plan. Sign in with your work email; Swangz pays one bill."],
     own: ["Your own login", "You use your own account for this one. Swangz still controls access to it."],
     api: ["Company key", "Runs on the company's key through Swangz AI Hub — nothing to sign in to."],
-    shared: ["Shared account", "One company account the team takes turns on, so the credits it spends can be traced to whoever held it."],
-    workspace: ["Company browser", "Opens a Swangz browser that's already signed in to this tool — your turn, nobody else's. You never see the password."],
+    // one login the company pays for: no timer and no queue (27 Nov 2026), just the plain limitation and who to ask
+    shared: ["Company account", "One login the company pays for. The provider may not let several people use it at once; if it's busy or asks you to sign in, ask your admin for a seat of your own."],
   };
-  const howOf = (t) => HOW[t.workspace ? "workspace" : t.kind === "dev" ? "api" : (t.signin || "seat")] || HOW.seat;
+  const howOf = (t) => HOW[t.kind === "dev" ? "api" : (t.signin || "seat")] || HOW.seat;
+  // the server's quiet note on a single company login (staff catalog `account_note`), when there is one
+  const accountNote = (t) => (t.account_note ? el("p", { class: "account-note" }, icon("users"), el("span", null, t.account_note)) : null);
 
   // ------------------------------------------------------------------ Google sign-in
 
@@ -303,8 +305,6 @@
     else if (me.paused) out.push({ tone: "warn", icon: "stop", title: "AI access is paused for everyone", text: "An admin has paused Swangz AI Hub for now. Tools will open again when it's resumed.", state: true });
     if (me.access_until && me.access_until - now < 14 * 86400) out.push({ tone: "warn", icon: "calendar", title: "Your access ends " + fmt.date(me.access_until - 1),
       text: "Every tool and key stops working after that day. Ask your admin if you need longer." });
-    me.catalog.filter((t) => t.turn && t.turn.mine).forEach((t) => out.push({ tone: "ok", icon: "hand", title: `You have ${t.name} until ${fmt.clock(t.turn.mine.expires)}`,
-      text: "Hand it back when you're done so the next person can use the shared account.", tool: t }));
     me.catalog.filter((t) => t.state === "enabled" && t.ends && t.ends - now < 7 * 86400).forEach((t) => out.push({ tone: "warn", icon: "clock",
       title: `${t.name} ends ${fmt.date(t.ends - 1)}`, text: "Your access to this tool was given for a limited time.", tool: t }));
     (me.access_requests || []).filter((r) => r.decided && now - r.decided < 14 * 86400).forEach((r) => out.push(r.state === "granted"
@@ -558,11 +558,6 @@
     if (!me.active || t.state === "suspended") return SUI.status("suspended", "Paused", { plain: true });
     if (t.state === "enabled") {
       if (t.report_gate) return SUI.status("waiting", "Report required", { plain: true });
-      if (t.turn && t.turn.mine) return SUI.status("live", "Yours until " + fmt.clock(t.turn.mine.expires), { plain: true, breathe: true });
-      if (t.turn && !t.turn.free) {
-        const soonest = t.turn.others.slice().sort((a, b) => a.expires - b.expires)[0];
-        return SUI.status("waiting", `In use — free at ${fmt.clock(soonest.expires)}`, { plain: true });
-      }
       return SUI.status("ready", "Ready", { plain: true });
     }
     if (t.pending) return SUI.status("pending", "Requested", { plain: true });
@@ -573,8 +568,6 @@
   function tileNote(t) {
     if (t.state === "enabled") {
       if (t.report_gate) return "Complete the report for " + t.report_gate.week_start + " to use this tool again.";
-      if (t.turn && t.turn.mine) return "Hand it back when you're done.";
-      if (t.turn && !t.turn.free) return `${t.turn.others[0].person} has the shared account.`;
       if (t.ends) return "Yours until " + fmt.date(t.ends - 1);
       if (t.kind === "dev") return t.connected ? "Connected on " + SUI.plural(t.connected, "device") : "Set up once on each device";
       return t.last_opened ? "Opened " + fmt.ago(t.last_opened) : "Not opened yet";
@@ -607,11 +600,6 @@
     const guide = guideFor(t);
     if (t.id in STUDIO_TOOLS && S.studio && S.studio[STUDIO_TOOLS[t.id]]) return [el("a", { class: "btn btn--small" + emphasis, href: "#/studio" }, icon("spark"), "Open Studio")];
     if (t.kind === "dev") return guide && me.can_add_keys ? [el("button", { class: "btn btn--small" + emphasis, type: "button", onclick: () => connect(guide) }, icon("link"), "Connect")] : [];
-    if (t.turn) {
-      if (t.turn.mine) return [el("button", { class: "btn btn--small btn--quiet", type: "button", onclick: () => handBack(t) }, "Hand back"), openLink(t, "Open", primary)];
-      if (!t.turn.free) return [el("button", { class: "btn btn--small", disabled: true }, "In use")];
-      return [openLink(t, "Take your turn", primary)];
-    }
     return t.launchable ? [openLink(t, "Open", primary)] : guide && me.can_add_keys ? [el("button", { class: "btn btn--small" + emphasis, type: "button", onclick: () => connect(guide) }, "Connect")] : [];
   }
 
@@ -627,14 +615,14 @@
   function tile(t) {
     const how = howOf(t);
     const ready = t.state === "enabled";
-    const cls = "tile s-" + t.state + (t.turn && t.turn.mine ? " holding" : t.turn && !t.turn.free ? " busy" : "");
-    return el("article", { class: cls },
+    return el("article", { class: "tile s-" + t.state },
       el("button", { class: "tile-main", type: "button", onclick: () => details(t), "aria-label": `${t.name} — details` },
         el("div", { class: "tile-top" }, SUI.logo(t), el("div", { class: "grow" }, el("h3", null, t.name), el("div", { class: "cat" }, t.category))),
         el("div", { class: "tile-status" }, tileStatus(t)),
         ready ? el("p", { class: "tile-desc" }, t.description || "Ready for you to use at work.") : el("p", { class: "tile-desc" }, tileNote(t))),
       el("div", { class: "tile-foot" },
         ready ? el("div", { class: "tile-meta" }, el("span", { class: "how", "data-tip": how[1], tabindex: "0" }, icon("shield"), how[0]),
+          t.account_note ? el("span", { class: "account-note", "data-tip": t.account_note, tabindex: "0" }, icon("users"), "One company login") : null,
           el("span", { class: "when" }, tileNote(t))) : el("span", { class: "tile-meta" }),
         el("div", { class: "tile-actions" }, tileActions(t))));
   }
@@ -642,11 +630,6 @@
   function opened(t) {
     t.last_opened = Date.now() / 1000;
     setTimeout(() => { if (!document.querySelector("dialog, .drawer")) load(); }, 900);
-  }
-
-  async function handBack(t) {
-    try { await api("POST", `/tools/${t.id}/turn/end`); toast("Handed back. Your browser is being signed out of it."); load(); }
-    catch (e) { toast(e.message, true); }
   }
 
   async function requestAccess(t) {
@@ -686,8 +669,7 @@
       el("div", { class: "body" },
         section("What it does", el("p", null, t.description || "An AI tool in the Swangz catalog.")),
         section(t.state === "enabled" ? "Why you have it" : "Why you don't have it yet", el("p", null, why), el("p", { class: "muted" }, manages)),
-        section("How you sign in", el("p", null, el("strong", null, how[0] + ". "), how[1]),
-          t.turn ? el("p", { class: "muted" }, `One person at a time${t.turn.seats > 1 ? ` (up to ${t.turn.seats})` : ""}, for up to ${t.turn.minutes} minutes a turn. When your turn ends, the Swangz extension signs your browser out of it.`) : null),
+        section("How you sign in", el("p", null, el("strong", null, how[0] + ". "), how[1]), accountNote(t)),
         t.state === "enabled" ? section("Your use", el("dl", { class: "facts" },
           t.kind === "dev" ? [el("dt", null, "Connected on"), el("dd", null, SUI.plural(t.connected || 0, "device"))]
             : [el("dt", null, "Last opened"), el("dd", null, t.last_opened ? fmt.ago(t.last_opened) : "never"),
@@ -729,7 +711,7 @@
     } else if (lead) {
       headline = lead.last_opened ? "Pick up where you left off." : "Your AI workspace is ready.";
       const how = howOf(lead);
-      action = el("div", { class: "resume" + (lead.turn && lead.turn.mine ? " holding" : "") },
+      action = el("div", { class: "resume" },
         el("button", { class: "resume-id", type: "button", onclick: () => details(lead), "aria-label": `${lead.name} — details` }, SUI.logo(lead, "lg"),
           el("span", { class: "resume-text" },
             el("span", { class: "resume-k" }, lead.last_opened ? "Opened " + fmt.ago(lead.last_opened) : enabled.length === 1 ? "Your approved tool" : "Ready for you"),
@@ -809,7 +791,7 @@
   /* One of your tools, compact: who it is, where it stands, and its one action. Select it for the details. */
   function toolCard(t) {
     const act = tileActions(t);
-    return el("article", { class: "tcard s-" + t.state + (t.turn && t.turn.mine ? " holding" : "") },
+    return el("article", { class: "tcard s-" + t.state },
       el("button", { class: "tcard-main", type: "button", onclick: () => details(t), "aria-label": `${t.name} — details` },
         SUI.logo(t), el("span", { class: "tcard-text" }, el("strong", null, t.name), el("span", null, t.category))),
       el("p", { class: "tcard-desc" }, t.description || tileNote(t)),
@@ -817,18 +799,17 @@
         act.length ? el("div", { class: "tcard-act" }, act) : null));
   }
 
-  /* An update on Home: short, with its own action when it has one (hand a shared account back). */
+  /* An update on Home: short, with when it happened. */
   function updateItem(n) {
     return el("li", { class: "home-update n-" + n.tone }, el("span", { class: "n-ic", "aria-hidden": "true" }, icon(n.icon)),
-      el("div", { class: "grow" }, el("strong", null, n.title), el("p", null, n.text),
-        n.tool && n.tool.turn && n.tool.turn.mine ? el("button", { class: "btn btn--small", type: "button", onclick: () => handBack(n.tool) }, "Hand back") : null),
+      el("div", { class: "grow" }, el("strong", null, n.title), el("p", null, n.text)),
       n.when ? el("span", { class: "faint small nowrap" }, fmt.ago(n.when)) : null);
   }
 
   function noticeItem(n) {
     return el("li", { class: "notice-item n-" + n.tone }, el("span", { class: "n-ic" }, icon(n.icon)),
       el("div", { class: "grow" }, el("strong", null, n.title), el("p", null, n.text)),
-      n.tool && n.tool.turn && n.tool.turn.mine ? el("button", { class: "btn btn--small", onclick: () => handBack(n.tool) }, "Hand back") : n.when ? el("span", { class: "faint small" }, fmt.ago(n.when)) : null);
+      n.when ? el("span", { class: "faint small" }, fmt.ago(n.when)) : null);
   }
 
   function meter(value, limit) {
@@ -1268,7 +1249,8 @@
             pv.gate_log_full ? "Your company has also turned on fuller logging for AI websites — ask your admin what it covers." : null),
           item("terminal", "AI requests through the gateway", "Who, which device and app, the model, what you typed, what the AI did and replied, and what it cost.",
             "This covers coding tools, Studio and apps connected with a Swangz key — they run on the company's key, so each request passes through Swangz AI Hub."),
-          item("hand", "Shared company accounts", "Who held the turn and when, so the account's use can be matched to a person."),
+          item("users", "Company accounts", "Which company login you opened, and when — like any tool you open here.",
+            "Before 27 Nov 2026 a single company login was handed out in turns. Those past turns are kept as history; nothing is timed now."),
           item("wallet", "Subscriptions you tell us about", "If you record an AI subscription you hold, Swangz AI Hub keeps what you enter: the tool, whether it's personal or a seat on the company plan, who pays, an optional label, and any plan, quota, period end date, price or credit you add. It's your own declaration: nobody checks it with the provider, and it doesn't change which tools you can use.",
             "You can end a record but not delete it. Values can't be edited; adding a new one keeps the earlier one in the record's history."))]],
       ["not-recorded", "What is not recorded", icon("lock"), [

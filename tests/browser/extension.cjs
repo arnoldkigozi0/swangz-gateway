@@ -10,14 +10,17 @@ const blockedSource = fs.readFileSync(path.join(root, 'extension/blocked.js'), '
 const clone = value => JSON.parse(JSON.stringify(value));
 const hosts = { 'chatgpt.com': 'chatgpt', 'openai.com': 'chatgpt', 'canva.com': 'canva' };
 const storedSession = () => ({ base: 'https://hub.example.test', token: 'fixture-token', hosts: clone(hosts),
-  policy: 'Access-level only', holding: { chatgpt: 2000000000 } });
+  policy: 'Access-level only' });
+// What a 1.1.x worker left in storage: the list of shared-account turns it believed it held.
+const olderSession = () => ({ ...storedSession(), holding: { chatgpt: 2000000000 } });
 const response = (status = 200, data = {}) => ({ status, ok: status >= 200 && status < 300,
   json: async () => clone(data) });
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
 async function worker(initial = storedSession(), options = {}) {
   const stored = clone(initial), requests = [], updates = [], clears = [], trace = [], listeners = {};
-  let removeData = async () => {}, fetcher, getBarrier = options.getBarrier;
+  const alarms = new Map((options.alarms || []).map(name => [name, { name }]));
+  let fetcher, getBarrier = options.getBarrier;
   const event = name => ({ addListener: fn => { listeners[name] = fn; } });
   const chrome = {
     storage: {
@@ -29,33 +32,31 @@ async function worker(initial = storedSession(), options = {}) {
       session: { set: async values => trace.push(['session', clone(values)]),
         remove: async keys => trace.push(['session-remove', [].concat(keys)]) },
     },
-    browsingData: { remove: async (filter, data) => {
-      clears.push({ filter: clone(filter), data: clone(data) });
-      trace.push(['clear-start', clone(stored.holding || {})]);
-      await removeData();
-      trace.push(['clear-end']);
-    } },
+    // The worker no longer has this permission. The spy stays so any attempt to clear site data is caught.
+    browsingData: { remove: async (filter, data) => { clears.push({ filter: clone(filter), data: clone(data) }); } },
     tabs: { update: async (tab, change) => updates.push({ tab, ...change }),
       onUpdated: event('navigate'), onRemoved: event('removed') },
     runtime: { getURL: name => 'chrome-extension://fixture/' + name,
       onInstalled: event('installed'), onStartup: event('startup'), onMessage: event('message') },
-    alarms: { create() {}, onAlarm: event('alarm') },
+    alarms: { create: (name, info) => { alarms.set(name, { name, ...info }); trace.push(['alarm-create', name]); },
+      clear: async name => { trace.push(['alarm-clear', name]); return alarms.delete(name); },
+      onAlarm: event('alarm') },
     action: { setBadgeText() {}, setBadgeBackgroundColor() {}, setTitle() {} },
   };
-  fetcher = async url => url.endsWith('/turns') ? response(200, {
-    holding: Object.entries(stored.holding || {}).map(([tool_id, expires]) => ({ tool_id, expires,
-      hosts: Object.keys(stored.hosts || {}).filter(h => stored.hosts[h] === tool_id) })), sign_out: [],
-  }) : response(200, { hosts, policy: 'Access-level only' });
+  fetcher = async () => response(200, { hosts, policy: 'Access-level only' });
   const context = vm.createContext({ chrome, URL, URLSearchParams, console, AbortController,
     setTimeout: options.setTimeout || setTimeout, clearTimeout,
     fetch: async (url, init) => { requests.push({ url, init }); return fetcher(url, init); } });
   vm.runInContext(workerSource, context, { filename: 'extension/background.js' });
   const run = code => vm.runInContext(code, context);
   if (!options.deferReady) { await run('ready'); await settle(); }
-  return { stored, requests, updates, clears, trace, listeners, run,
+  return { stored, requests, updates, clears, trace, listeners, alarms, run,
     state: () => JSON.parse(run('JSON.stringify(S)')),
-    fetchWith: fn => { fetcher = fn; }, clearWith: fn => { removeData = fn; } };
+    fetchWith: fn => { fetcher = fn; } };
 }
+
+const message = (w, msg) => new Promise(resolve => w.listeners.message(msg, {}, reply => resolve(clone(reply))));
+const noTurnCalls = w => assert.ok(!w.requests.some(r => /\/turns(\?|$)/.test(r.url)), 'the worker never asks about turns');
 
 function blocked(w, tab = 7) {
   const update = w.updates.find(u => u.tab === tab);
@@ -111,39 +112,29 @@ test('a sign-out message during cold start cannot be undone by initial storage l
 });
 
 for (const status of [401, 403]) {
-  test(`${status} on navigation blocks and clears held sites before dropping their state`, async () => {
-    const w = await worker();
+  test(`${status} on navigation blocks and removes authentication without clearing any site data`, async () => {
+    const w = await worker(olderSession());
     w.fetchWith(async () => response(status, { code: status === 403 ? 'person_paused' : 'unauthorized' }));
-    w.clearWith(async () => {
-      assert.deepEqual(w.state().holding, { chatgpt: 2000000000 });
-      assert.deepEqual(w.stored.holding, { chatgpt: 2000000000 });
-      assert.equal(w.state().token, null);
-    });
     await w.run("onNavigate(7, 'https://chatgpt.com/')");
     blocked(w);
-    assert.equal(w.clears.length, 1);
-    assert.deepEqual(w.clears[0].filter.origins, ['https://chatgpt.com', 'https://www.chatgpt.com',
-      'https://openai.com', 'https://www.openai.com']);
-    assert.deepEqual(w.clears[0].data, { cookies: true, localStorage: true, indexedDB: true,
-      cacheStorage: true, serviceWorkers: true });
-    const cleared = w.trace.findIndex(e => e[0] === 'clear-end');
-    const dropped = w.trace.findIndex(e => e[0] === 'remove' && e[1].includes('holding'));
-    assert.ok(cleared >= 0 && dropped > cleared);
+    assert.equal(w.clears.length, 0, 'a dead Hub session never signs the browser out of a site');
     assert.equal(w.stored.token, undefined);
-    assert.deepEqual(w.state().holding, {});
+    assert.equal(w.state().token, null);
     assert.deepEqual(w.stored.hosts, hosts);
     const restarted = await worker(w.stored);
     await restarted.run("onNavigate(7, 'https://chatgpt.com/')");
     blocked(restarted);
+    assert.equal(restarted.clears.length, 0);
   });
-  for (const operation of ['refreshHosts()', 'syncTurns()', 'clearSharedOnStartup()']) {
-    test(`${status} from ${operation} also removes authentication and retains governed sites`, async () => {
-      const w = await worker();
+  for (const [operation, call] of [['a config refresh', w => w.run('refreshHosts()')],
+    ['the popup status check', w => message(w, { type: 'status' })]]) {
+    test(`${status} from ${operation} also removes authentication, retains governed sites and clears no site data`, async () => {
+      const w = await worker(olderSession());
       w.fetchWith(async () => response(status, { code: 'person_paused' }));
-      await w.run(operation);
+      await call(w);
       assert.equal(w.state().token, null);
       assert.deepEqual(w.stored.hosts, hosts);
-      assert.ok(w.clears.length);
+      assert.equal(w.clears.length, 0);
       await w.run("onNavigate(7, 'https://canva.com/')"); blocked(w);
     });
   }
@@ -326,33 +317,102 @@ test('explicit allow records only host and access duration; sign-out retains bas
   assert.deepEqual(w.state().open, {});
 });
 
-test('failed shared-site cleanup keeps held state for a signed-out retry', async () => {
-  const w = await worker();
-  w.fetchWith(async () => response(401));
-  w.clearWith(async () => { throw new Error('browser refused'); });
-  await w.run("onNavigate(7, 'https://chatgpt.com/')"); blocked(w);
-  assert.equal(w.state().token, null);
-  assert.deepEqual(w.stored.holding, { chatgpt: 2000000000 });
-  w.clearWith(async () => {});
-  await w.run('syncTurns()');
-  assert.equal(w.stored.holding, undefined);
+for (const [name, initial] of [['signed in', olderSession()], ['signed out', (() => { const s = olderSession(); delete s.token; return s; })()]]) {
+  test(`Chrome start does not clear any site data (${name}, with an older version's turn list)`, async () => {
+    const w = await worker(initial); w.requests.length = 0;
+    w.listeners.startup(); await settle(); await settle();
+    assert.equal(w.clears.length, 0, 'sessions on the AI sites survive a Chrome restart');
+    assert.deepEqual(w.requests.map(r => r.url.split('/').pop()), name === 'signed in' ? ['config'] : []);
+    assert.equal(w.state().token, initial.token ?? null, 'starting Chrome does not sign the extension out either');
+    assert.deepEqual(w.stored.hosts, hosts);
+    noTurnCalls(w);
+  });
+}
+
+test('Chrome start while the Hub is offline clears nothing and keeps the session', async () => {
+  const w = await worker(olderSession());
+  w.fetchWith(async () => { throw new TypeError('offline'); });
+  w.listeners.startup(); await settle(); await settle();
+  assert.equal(w.clears.length, 0);
+  assert.equal(w.state().token, 'fixture-token');
+  assert.deepEqual(w.stored.hosts, hosts);
 });
 
-test('normal turn loss clears held sites before persisting the new holding list', async () => {
-  const w = await worker();
-  w.fetchWith(async () => response(200, { holding: [], sign_out: [] }));
-  w.clearWith(async () => assert.deepEqual(w.state().holding, { chatgpt: 2000000000 }));
-  await w.run('syncTurns()');
-  assert.equal(w.clears.length, 1);
-  assert.deepEqual(w.stored.holding, {});
+test('no turns alarm exists: only the 30-minute refresh is scheduled, and an older one is cleared', async () => {
+  const w = await worker(olderSession(), { alarms: ['turns'] });  // left behind by a 1.1.x worker
+  assert.deepEqual([...w.alarms.keys()], ['refresh']);
+  assert.equal(w.alarms.get('refresh').periodInMinutes, 30);
+  assert.ok(!w.trace.some(t => t[0] === 'alarm-create' && t[1] === 'turns'));
+  w.requests.length = 0;
+  w.listeners.alarm({ name: 'turns' }); await settle(); await settle();  // a stray firing does nothing at all
+  assert.equal(w.requests.length, 0);
+  assert.equal(w.clears.length, 0);
+  assert.equal(w.state().token, 'fixture-token');
+  w.listeners.alarm({ name: 'refresh' }); await settle(); await settle();
+  assert.deepEqual(w.requests.map(r => r.url.split('/').pop()), ['config']);
+  assert.equal(w.clears.length, 0);
 });
 
-test('signed-out startup clears cached held-site data', async () => {
-  const initial = storedSession(); delete initial.token;
-  const w = await worker(initial);
-  await w.run('clearSharedOnStartup()');
-  assert.equal(w.clears.length, 1);
+test("a leftover holding key from an older version is removed once, and nothing else is", async () => {
+  const w = await worker(olderSession());
   assert.equal(w.stored.holding, undefined);
+  assert.deepEqual(w.trace.filter(t => t[0] === 'remove'), [['remove', ['holding']]]);
+  assert.deepEqual(w.stored, storedSession(), 'token, address, hosts and policy are untouched');
+  assert.ok(!('holding' in w.state()));
+  assert.equal(w.clears.length, 0, 'forgetting the list never clears the sites it named');
+  const again = await worker(w.stored);  // the next worker start finds nothing to remove
+  assert.deepEqual(again.trace.filter(t => t[0] === 'remove'), []);
+  noTurnCalls(w); noTurnCalls(again);
+});
+
+test('signing out of the extension clears no site data and keeps what guards the sites', async () => {
+  for (const how of ['popup', 'direct']) {
+    const w = await worker(olderSession());
+    w.fetchWith(async () => response(200, { ok: true }));
+    if (how === 'popup') assert.deepEqual(await message(w, { type: 'signout' }), { ok: true });
+    else await w.run('signOut()');
+    await settle();
+    assert.equal(w.clears.length, 0, how);
+    assert.equal(w.stored.token, undefined, how);
+    assert.deepEqual(w.stored.hosts, hosts, how);
+    assert.equal(w.stored.base, 'https://hub.example.test', how);
+    assert.deepEqual(w.requests.map(r => r.url), ['https://hub.example.test/api/logout'], how);
+  }
+});
+
+for (const answer of [{ known: true, allowed: false, state: 'no_turn', tool: 'ChatGPT', tool_id: 'chatgpt', reason: 'Someone else has it.' },
+  { known: true, allowed: false, tool: 'ChatGPT', tool_id: 'chatgpt', reason: 'Not assigned to you.' }]) {
+  test(`a blocked answer never triggers a data clear (${answer.state || 'ordinary refusal'})`, async () => {
+    const w = await worker(olderSession());
+    w.fetchWith(async url => response(200, url.endsWith('/open') ? answer : {}));
+    await w.run("onNavigate(7, 'https://chatgpt.com/')");
+    const page = new URL(w.updates[0].url);
+    assert.equal(page.href.split('#')[0], 'chrome-extension://fixture/blocked.html');
+    assert.equal(new URLSearchParams(page.hash.slice(1)).get('tool'), 'ChatGPT');
+    assert.equal(w.clears.length, 0);
+    assert.deepEqual(w.state().open, {});
+    assert.equal(w.state().token, 'fixture-token');
+  });
+}
+
+test('the popup status reports the connection and guarded sites, with no turn count', async () => {
+  const w = await worker(olderSession());
+  const st = await message(w, { type: 'status' });
+  assert.deepEqual(st, { signedIn: true, base: 'https://hub.example.test', policy: 'Access-level only', count: 3 });
+  assert.equal(w.clears.length, 0);
+  noTurnCalls(w);
+});
+
+test('the manifest drops browsingData (least privilege) and the worker never needs it', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'extension/manifest.json'), 'utf8'));
+  assert.equal(manifest.version, '1.2.0');
+  assert.deepEqual(manifest.permissions, ['storage', 'tabs', 'alarms']);
+  assert.ok(!/sign(s|ing)? you out/i.test(manifest.description));
+  for (const file of ['background.js', 'popup.js', 'blocked.js']) {
+    const source = fs.readFileSync(path.join(root, 'extension', file), 'utf8');
+    assert.ok(!source.includes('browsingData'), file);
+    assert.ok(!/syncTurns|signOutOf|clearHeldSites|clearSharedOnStartup|no_turn/.test(source), file);
+  }
 });
 
 test('a late allow cannot reopen access after sign-out', async () => {
@@ -388,12 +448,12 @@ test('sign-out ends the extension session at the Hub with the old bearer, after 
 for (const [name, hub] of [['unreachable', async () => { throw new Error('offline'); }], ['hung', () => new Promise(() => {})],
   ['refusing', async () => response(500)]]) {
   test(`sign-out stays signed out and blocked when the Hub is ${name}`, async () => {
-    const w = await worker();
+    const w = await worker(olderSession());
     w.fetchWith(hub);
     await w.run('signOut()'); await settle();
     assert.equal(w.state().token, null);
     assert.equal(w.stored.token, undefined);
-    assert.equal(w.clears.length, 1, 'held shared sites are still cleared');
+    assert.equal(w.clears.length, 0, 'signing out of the extension never clears a site');
     w.fetchWith(async () => response(200, { known: true, allowed: true, id: 5 }));
     await w.run("onNavigate(7, 'https://chatgpt.com/')"); blocked(w);
     assert.deepEqual(w.state().open, {});

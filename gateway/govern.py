@@ -582,7 +582,6 @@ def simulate_revoke(ctx):
     devices = ctx.db.q("SELECT k.id, k.label, MAX(r.ts) AS last FROM requests r JOIN keys k ON k.id = r.key_id"
                        f" WHERE r.person_id = ? AND r.ts >= ? AND {where[0]} GROUP BY k.id ORDER BY last DESC",
                        [person["id"], now - 30 * DAY, *where[1]]) if where else []
-    turn = turns.held_by(ctx.db, person["id"]).get(tool["id"])
     open_ask = ctx.db.one("SELECT id, created FROM access_requests WHERE tool_id = ? AND person_id = ? AND state = 'open'",
                           (tool["id"], person["id"]))
     effects = []
@@ -600,9 +599,6 @@ def simulate_revoke(ctx):
         effects.append(f"In the last 30 days they used it: {use['requests']} requests, {use['opens']} opens, {use['visits']} website visits.")
     if lost and devices:
         effects.append(f"{len(devices)} of their keys used it; requests from those keys to {tool['name']} would be refused.")
-    if lost and turn:
-        effects.append(f"They hold the shared account until {_clock(ctx.gw.settings, turn['expires'])}; revoking doesn't end that turn — "
-                       "end it from the tool's page.")
     if open_ask:
         effects.append("They have an open request for this tool, which stays open.")
     return {"person": {"id": person["id"], "name": person["name"], "department": person["department"] or ""},
@@ -611,7 +607,7 @@ def simulate_revoke(ctx):
             "grants": {"direct": bool(direct), "direct_expires": (direct or {}).get("expires"),
                        "department": team["department"] if team else None},
             "after": {"enabled": ok and not lost}, "usage_30d": use, "devices": devices,
-            "turn": {"expires": turn["expires"]} if turn else None, "open_request": bool(open_ask), "effects": effects,
+            "turn": None, "open_request": bool(open_ask), "effects": effects,
             "notes": ["Read-only: nothing was changed."]}
 
 
@@ -658,19 +654,9 @@ def simulate_seats(ctx):
     else:
         out["cost"] = None
         out["notes"].append("No plan cost and seat count are set for this tool, so the cost is unpriced.")
-    if shared:
-        intervals = ctx.db.q("SELECT started, COALESCE(ended, expires) AS ended FROM tool_turns WHERE tool_id = ? AND started >= ?",
-                             (tool["id"], now - 30 * DAY))
-        edges = sorted([(r["started"], 1) for r in intervals] + [(min(r["ended"], now), -1) for r in intervals], key=lambda e: (e[0], e[1]))
-        peak = level = 0
-        for _, step in edges:
-            level += step
-            peak = max(peak, level)
-        waits = ctx.db.scalar("SELECT COUNT(*) FROM launches WHERE tool_id = ? AND ts >= ? AND outcome = 'refused'"
-                              " AND (reason LIKE '%is using the shared%' OR reason LIKE '%are using the shared%')",
-                              (tool["id"], now - 30 * DAY)) or 0
-        out["shared"] = {"seats_at_once": turns.seats(tool), "peak_at_once_30d": peak, "turns_30d": len(intervals), "waits_30d": waits}
-        out["notes"].append("For a shared account, seats are how many people can hold it at once; everyone assigned can take turns.")
+    if shared:  # turns were retired on 27 Nov 2026: say what the single login can't do, never plan turns around it
+        out["shared"] = {"single_login": True, "note": turns.admin_note(tool, len(assigned))}
+        out["notes"].append("This tool is one company login. Plan a seat for each person who uses it, or single sign-on.")
     return out
 
 
@@ -773,12 +759,7 @@ def explain_access(gw, person, tool, model, channel, provider_name, chosen=False
         _step(steps, "Company key for the service", "pass" if provider.api_key() else "fail",
               "Set on the server." if provider.api_key() else f"{provider.label} has no API key on the gateway yet.")
     if tool and turns.is_shared(tool) and channel != "request":
-        holders = turns.holders(db, tool["id"])
-        mine = any(t["person_id"] == person["id"] for t in holders)
-        free = len(holders) < turns.seats(tool)
-        _step(steps, "Shared account", "info",
-              "They hold a turn now." if mine else "A seat is free: Open gives them a turn." if free else
-              "Every seat is taken right now: " + ", ".join(t["person"] for t in holders) + ".")
+        _step(steps, "Account limitation", "info", turns.admin_note(tool))
     failed = next((s for s in steps if s["result"] == "fail"), None)
     notes = ["The rules as they stand now. The per-minute rate limit depends on the moment and isn't checked here."]
     if key_tool:

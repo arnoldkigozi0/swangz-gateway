@@ -975,6 +975,10 @@ class Client:
         if report is not None:
             body["browser_contract"] = 2
             body["policy"] = report
+        try:  # which of the person's tools are on this computer (fixed paths, cached); never a reason to miss a check-in
+            body["apps"] = self.native.report([t["id"] for t in self.tools()])
+        except Exception:  # noqa: BLE001
+            pass
         return body
 
     def heartbeat(self):
@@ -1230,6 +1234,37 @@ class Client:
     def apps(self):
         return (self.store.manifest() or {}).get("apps", [])
 
+    def tools(self):
+        """Every tool enabled for this person: the manifest's `tools` ({"id", "name", "kind", "category"}; websites, API
+        and dev tools), plus any website app or coding-agent package an older Hub lists without it. Never raises."""
+        manifest = self.store.manifest() or {}
+        out, seen = [], set()
+
+        def add(tool_id, name, kind, category=""):
+            if isinstance(tool_id, str) and tool_id and tool_id not in seen and len(tool_id) <= 64:
+                seen.add(tool_id)
+                out.append({"id": tool_id, "name": str(name or tool_id), "kind": str(kind or ""),
+                            "category": str(category or "")})
+
+        for t in manifest.get("tools") or []:
+            if isinstance(t, dict):
+                add(t.get("id"), t.get("name"), t.get("kind"), t.get("category"))
+        for a in manifest.get("apps") or []:
+            if isinstance(a, dict):
+                add(a.get("id"), a.get("name"), "site", a.get("category"))
+        for p in manifest.get("packages") or []:
+            if isinstance(p, dict) and (p.get("install") or {}).get("type") == "agent":
+                add(p.get("id"), p.get("name"), "dev", "Coding")
+        return out
+
+    @property
+    def native(self):
+        """The desktop and command-line app manager (native_apps.Manager) for this device, made on first use."""
+        if getattr(self, "_native", None) is None:
+            from . import native_apps
+            self._native = native_apps.Manager(self.paths.data)
+        return self._native
+
     # ------------------------------------------------------------ running things
 
     def agent_command(self, tool, args=()):
@@ -1253,8 +1288,9 @@ class Client:
     def run_agent(self, tool, args=()):
         argv, env = self.agent_command(tool, args)
         if not shutil.which(argv[0]):
-            hint = {"claude": "npm install -g @anthropic-ai/claude-code", "codex": "npm install -g @openai/codex"}[argv[0]]
-            raise FileNotFoundError(f"{argv[0]} isn't installed on this device. Install it first ({hint}), then run this again.")
+            name = "Claude Code" if tool == "claude-code" else "Codex"
+            raise FileNotFoundError(f"{argv[0]} isn't installed on this device. Install it from the Swangz window (Apps, "
+                                    f"then Install on {name}), open a new terminal, then run this again.")
         with self._session():
             return self.run(argv, env=env).returncode
 
@@ -1269,6 +1305,18 @@ class Client:
         lines = path.read_text(encoding="utf-8").splitlines()[-99:] if path.exists() else []
         write_private(path, "\n".join(lines + [f"{int(time.time())} key {tool}"]) + "\n")
         return key
+
+    def chrome_status(self):
+        """-> {"ok", "path", "why"}: Google Chrome at its fixed place, checked for its publisher and place exactly as
+        before an Open (D-026 A2-A4). It can take seconds on Windows and macOS: call it off the window's thread."""
+        from . import workspace_launcher as wl
+        if getattr(self, "launcher", None) is None:
+            self.launcher = wl.Launcher(self.paths.data, roots=self.store.roots())
+        try:
+            path = self.launcher.finder()
+        except wl.LaunchError as exc:
+            return {"ok": False, "path": "", "why": exc.detail or ""}
+        return {"ok": True, "path": path, "why": ""}
 
     def workspace_app(self, app):
         """True when this tool opens with a provider address from /api/device/open: contract 2 and the app is marked."""
@@ -1297,6 +1345,43 @@ class Client:
                 return self._open_in_workspace(app)
         from . import workspace_launcher as wl
         raise wl.LaunchError("unavailable")
+
+    def google_signin_opened(self):
+        """When this app last opened Google's sign-in for this person, or None. It says the page was opened, not that the
+        person signed in: Swangz never reads the folder's cookies to find out."""
+        value = self.store.state().get("google_signin_opened")
+        return value if isinstance(value, (int, float)) else None
+
+    def sign_in_google(self):
+        """Open Google's sign-in page in this person's Swangz Chrome folder, their Swangz email filled in (D-029). The same
+        device-side checks as opening a tool (an active workspace, the person's own folder, the company policy on a company
+        computer); nothing is sent to the Hub and nothing about the account is read or kept here."""
+        from . import workspace_launcher as wl
+        manifest = self.store.manifest() or {}
+        browser = manifest.get("browser") or {}
+        if not isinstance(browser, dict) or browser.get("contract") != 2:
+            raise wl.LaunchError("no_workspace")
+        state = (browser.get("workspace") or {}).get("state")
+        if state != "active":
+            raise wl.LaunchError("retired" if state == "retired" else "not_active")
+        self.workspace.check_open()
+        device = self.store.device() or {}
+        try:
+            owner = wl.owner(device.get("server"), browser.get("person_id"), browser.get("device_id"))
+        except wl.LaunchError:
+            raise wl.LaunchError("folder") from None
+        if getattr(self, "launcher", None) is None:
+            self.launcher = wl.Launcher(self.paths.data, roots=self.store.roots())
+        generation = (browser.get("workspace") or {}).get("generation")
+        generation = generation if type(generation) is int and generation >= 1 else 1
+        self.launcher.ready(owner, generation)
+        self.policy_gate()
+        email = (manifest.get("person") or {}).get("email")
+        self.launcher.open_google_signin(email, owner, generation)
+        st = self.store.state()
+        st["google_signin_opened"] = time.time()
+        self.store.save_state(st)
+        return "workspace"
 
     def _open_in_workspace(self, app):
         from . import workspace_launcher as wl  # imports browser_profiles, which imports this module

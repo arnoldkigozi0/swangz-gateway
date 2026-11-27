@@ -275,9 +275,14 @@ class AnInviteIsNotUsedUpByAPausedPerson(Continuity):
 
 
 class AHolderWhoseAccountEndedHoldsNothing(TurnBase):
-    def hold(self):
-        self.assertEqual(self.go("midjourney")[0], 302)
-        return self.rig.gw.db.one("SELECT * FROM tool_turns WHERE ended IS NULL")
+    """Turns were retired on 27 Nov 2026, so no new turn is ever taken. A row left open by an older server is still
+    closed, recorded once, when its holder's account ends."""
+
+    def hold(self, pid=None):
+        now = time.time()
+        rid = self.rig.gw.db.x("INSERT INTO tool_turns(tool_id, person_id, started, expires) VALUES('midjourney', ?, ?, ?)",
+                               (pid or self.rig.person_id, now - 60, now + 3600)).lastrowid
+        return self.rig.gw.db.one("SELECT * FROM tool_turns WHERE id = ?", (rid,))
 
     def end_account(self, pid=None):
         self.rig.gw.db.x("UPDATE people SET access_until = ? WHERE id = ?", (time.time() - 5, pid or self.rig.person_id))
@@ -311,12 +316,13 @@ class AHolderWhoseAccountEndedHoldsNothing(TurnBase):
         self.assertIn(turn["id"], [t["id"] for t in out["recent"]])
         self.check_released(turn)
 
-    def test_the_next_person_can_claim_the_seat_straight_away(self):
+    def test_the_next_person_opens_it_straight_away_and_takes_no_turn(self):
         turn = self.hold()
         self.end_account()
-        self.assertEqual(self.go_as_other("midjourney")[0], 302)
+        self.assertEqual(self.go_as_other("midjourney")[0], 302)  # a leftover row never blocks anyone
+        self.assertEqual(turns.holders(self.rig.gw.db, "midjourney"), [])  # the next read closes it
         self.check_released(turn)
-        self.assertEqual(self.rig.gw.db.one("SELECT person_id FROM tool_turns WHERE ended IS NULL")["person_id"], self.other)
+        self.assertIsNone(self.rig.gw.db.one("SELECT person_id FROM tool_turns WHERE ended IS NULL"))
 
     def test_the_workspace_sweep_releases_it_too(self):
         turn = self.hold()
@@ -333,9 +339,8 @@ class AHolderWhoseAccountEndedHoldsNothing(TurnBase):
         self.assertEqual(self.rig.gw.db.scalar("SELECT COUNT(*) FROM audit WHERE action LIKE ?", ("ended a person's turns%",)), 0)
 
     def test_only_the_person_whose_account_ended_loses_theirs(self):
-        self.rig.api("PATCH", "/tools/midjourney", {"seats_at_once": 2})
         mine = self.hold()
-        self.assertEqual(self.go_as_other("midjourney")[0], 302)
+        self.hold(self.other)
         self.end_account()
         left = turns.holders(self.rig.gw.db, "midjourney")
         self.assertEqual([t["person_id"] for t in left], [self.other])

@@ -1,18 +1,20 @@
-"""Turns on a shared company account.
+"""Shared company accounts: turns are RETIRED (owner directive, 27 Nov 2026).
 
-Swangz pays for one account on some tools and the whole team uses it. Nobody can tell who spent the
-credits, because everyone looks like the same account to the vendor.
+Until 27 Nov 2026 a tool marked `signin = 'shared'` was handed out one person at a time for `turn_minutes`, and
+the browser extension signed people out when a turn ended. The owner removed that from the product: every
+authorised employee works at the same time, in their own Swangz Chrome profile, with their own seat or account.
+Nobody waits, is timed out or is signed out by Swangz.
 
-A turn fixes that from this side. A tool marked `signin = 'shared'` is handed out to one person at a
-time (or `seats_at_once` people), for `turn_minutes`. While Grace holds the turn:
+What stays:
+  * `signin = 'shared'` still marks a tool set up as ONE company login. That is an *account limitation*, stated
+    plainly (`account_note`) to the person and the admin, never enforced with timers. Most providers allow one
+    person per login; the fix is a seat per person or single sign-on, which only the admin can buy or set up.
+  * The `tool_turns` table and its history: past turns stay readable (who held which account, when). No new turn
+    is ever taken; migration v31 closed every turn that was still open.
+  * `end` / `end_all_for` / `expire` close leftover rows (suspension, account end), so nothing is left dangling.
 
-  * the portal opens the tool for her and for nobody else;
-  * the browser extension lets her onto the site and blocks everyone else;
-  * when the turn ends — she hands it back, it runs out, an admin takes it, or she closes Chrome —
-    the extension signs that browser out of the tool, so the next person starts clean.
-
-So any credits the vendor shows burned between 14:00 and 15:00 belong to whoever held the turn then.
-That is the attribution a shared login otherwise throws away.
+Removing turns must not be used to get around a provider's licence: Swangz never shares a password, a session or
+a cookie between people (CLAUDE.md, D-026 G). It only says where an account can't serve several people at once.
 """
 
 import json
@@ -80,25 +82,6 @@ def held_by(db, person_id):
         "SELECT * FROM tool_turns WHERE person_id = ? AND ended IS NULL", (person_id,))}
 
 
-def take(db, tool, person, week_ends=None):
-    """Give this person a turn on the tool.
-
-    -> (turn, None) when they have it (an existing turn is returned as-is, not extended), or
-       (None, [the people holding it]) when every seat is taken.
-    """
-    current = holders(db, tool["id"])
-    mine = [t for t in current if t["person_id"] == person["id"]]
-    if mine:
-        return mine[0], None
-    if len(current) >= seats(tool):
-        return None, current
-    now = time.time()
-    expires = min(now + minutes(tool) * 60, week_ends) if week_ends is not None else now + minutes(tool) * 60
-    rid = db.x("INSERT INTO tool_turns(tool_id, person_id, started, expires) VALUES(?,?,?,?)",
-               (tool["id"], person["id"], now, expires)).lastrowid
-    return db.one("SELECT * FROM tool_turns WHERE id = ?", (rid,)), None
-
-
 def end(db, tool_id, person_id, by="", reason=""):
     """Hand a turn back. Returns how many were closed."""
     return db.x("UPDATE tool_turns SET ended = ?, ended_by = ?, reason = ? WHERE tool_id = ? AND person_id = ?"
@@ -111,31 +94,20 @@ def end_all_for(db, person_id, by="", reason=""):
                 (time.time(), by, reason, person_id)).rowcount
 
 
-def state_for(db, tool, person):
-    """What the staff app shows on a shared tool's tile."""
+def account_note(tool):
+    """Plain words for a tool set up as one company login, or None. Shown to the person and the admin; never a gate."""
     if not is_shared(tool):
         return None
-    current = holders(db, tool["id"])
-    mine = next((t for t in current if t["person_id"] == person["id"]), None)
-    others = [t for t in current if t["person_id"] != person["id"]]
-    return {
-        "shared": True,
-        "mine": {"expires": mine["expires"], "started": mine["started"]} if mine else None,
-        "others": [{"person": t["person"], "expires": t["expires"]} for t in others],
-        "free": len(current) < seats(tool),
-        "seats": seats(tool),
-        "minutes": minutes(tool),
-    }
+    return (f"{tool.get('name') or 'This tool'} is set up as one company login. The provider may not let several people "
+            "use one login at the same time. If it asks you to sign in or says the account is busy, ask your admin for "
+            "a seat of your own.")
 
 
-def may_open(db, tool, person):
-    """Can this person be let onto a shared tool's site right now? -> (ok, reason)."""
+def admin_note(tool, assigned=None):
+    """The same limitation in an admin's words, with what to do about it."""
     if not is_shared(tool):
-        return True, ""
-    current = holders(db, tool["id"])
-    if any(t["person_id"] == person["id"] for t in current):
-        return True, ""
-    if len(current) < seats(tool):
-        return False, "Open it from Swangz AI Hub to take your turn on the shared account."
-    who = ", ".join(t["person"] for t in current)
-    return False, f"{who} has the shared account right now. Swangz AI Hub will tell you when it is free."
+        return None
+    who = f"{assigned} people are assigned it. " if assigned and assigned > 1 else ""
+    return (f"{tool.get('name') or 'This tool'} is one company login. {who}Most providers' terms allow one person per "
+            "login, so several people can't rely on it at once. Give each person a seat of their own on the company "
+            "plan, or set up single sign-on. Swangz does not share passwords or sessions, and no longer hands out turns.")

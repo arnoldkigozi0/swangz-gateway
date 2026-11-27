@@ -193,7 +193,7 @@ class MigrationTests(unittest.TestCase):
         path = os.path.join(tempfile.mkdtemp(prefix="sgw-v30-"), "g.db")
         old = DB(path)
         stored_device(old)
-        for column in COLUMNS:
+        for column in COLUMNS + ("apps_json", "apps_reported"):  # v31 came later
             old.x(f"ALTER TABLE devices DROP COLUMN {column}")
         old.x("UPDATE meta SET v = '29' WHERE k = 'schema'")
         before = old.q("SELECT * FROM devices")

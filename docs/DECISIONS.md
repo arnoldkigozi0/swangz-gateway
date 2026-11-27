@@ -1669,3 +1669,83 @@ C4/F1 folder deletion working on that platform, including Windows. Smallest task
    `SHARED_IN_APP = True`. Until it lands, every client gets 409 `shared_account`. *Tests:* an old
    client without the `shared_folder` capability gets 409 even with every switch on; before activation, a new client
    gets 409 too.
+
+## D-028 | 2026-11-27 | One workstation: timed turns retired, account limits stated instead (owner directive)
+
+**Context.** The owner's directive of 27 Nov 2026 ("Final product correction and delivery") says Swangz AI Hub is not
+a booking, reservation or timed-turn system. It is one installed AI workstation per employee (Windows and macOS)
+plus the Control Room. Every authorised employee must be able to work at the same time, continuously, with their
+assigned provider accounts or licensed seats. The directive also says: do not use the removal of turns to get around
+provider licensing or account-sharing limits; where an account cannot legitimately serve several employees, identify
+that limitation instead of imposing timers; no hosted browser fleet, VPS or new paid infrastructure.
+
+**Decision.**
+1. **No turns anywhere in the access path.** `/go/`, the browser gate (`/api/gate/open`) and the app
+   (`/api/device/open`) never take, check or wait for a turn. Nothing counts down, expires or signs anyone out.
+   `turns.take`, `turns.may_open` and `turns.state_for` are removed. `/api/gate/turns` answers
+   `{"holding": [], "sign_out": []}` so extensions older than 1.2.0 sign nothing out; extension 1.2.0 drops the
+   sign-out code and the `browsingData` permission. Sessions in the person's own Swangz Chrome folder persist across
+   restarts.
+2. **`signin = 'shared'` stays as a label: "one company login".** It opens like any other tool, in the person's own
+   folder (app) or browser (web). The limitation is stated, never enforced: `turns.account_note` on the staff tile,
+   the app's library card and the manifest; `turns.admin_note` in Explain, seat planning and a Needs-attention item
+   "X is one company login for N people". The admin's fix is a seat per person or single sign-on.
+3. **What this does not do.** Swangz still never stores, types, shares or copies a password, session or cookie
+   (CLAUDE.md, D-026 G). The person signs in to each provider with the account they are authorised to use. Several
+   people using one individual plan at the same time breaks most providers' terms; Swangz says so and does not hide
+   it or help with it.
+4. **History is kept.** Migration v31 closes every turn still open (`ended_by = 'system'`, reason "turns retired")
+   and deletes nothing. `/admin/api/turns` and the timeline still show past turns; leftover rows are still closed on
+   suspension, account end and the weekly boundary.
+5. **The remote company browsers (Neko, D-022, the Workspace Agent) are dormant.** `catalog.uses_workspace` is always
+   False, so Open never routes to them. Their settings stay readable; the code and its skipped tests are removed in
+   a separate change.
+
+6. **Native and command-line apps** (the app's manager, `swangz_client/native_apps.py`). The install, detect and launch
+   facts are a fixed table inside the app, each with its official source and the day it was checked; the Hub only
+   names which tools a person has (manifest `tools`) and never sends a device a command. Windows installs go through
+   `winget` with the exact package id and source, only after the person confirms a dialog naming the app, publisher
+   and source; command-line tools (Claude Code, Codex) install in a visible terminal window. macOS installs, and any
+   app without a verified package, open the **vendor's own download page in the default browser**; the person runs
+   the vendor's installer. That extends D-026 D2 (Google's Chrome page) to vendor download pages only: an AI tool
+   itself still never opens in the default browser. Nothing is elevated, downloaded or run silently by Swangz. The app
+   reports `{id, state, version}` per app at check-in (`devices.apps_json`), shown to admins as the app's report.
+
+**Supersedes:** the turn model in CLAUDE.md "How people get into website tools"; D-022's refusal of shared accounts in
+the app; D-026 D4's `shared_account` refusal; D-027 (the shared folder and Arnold's one-time sign-in were never
+activated: `SHARED_IN_APP` stayed off, and the turn-bound window it depended on no longer exists).
+
+**Tests:** `tests/test_turns.py` (two people open the same shared tool at once, one person opens several tools, the
+gate admits everyone assigned, nothing is signed out, history readable, v31 migration closes open rows and keeps
+all), `tests/test_device_open.py`, `tests/test_managed_workspace.py`, `tests/test_continuity.py`,
+`tests/browser/extension.cjs`, `tests/browser/extension-chrome.cjs` (site data survives a 401 and a restart).
+
+**Verified on data:** the 26 Nov pre-update copy of the hub.ictconnect.org database (schema 29) migrated to 31 on a
+scratch copy: integrity ok, no foreign-key violations, row counts unchanged except tools +3, audit +3, settings +1.
+
+## D-029 | 2026-11-27 | Each person's own Swangz Google account in their own Swangz Chrome
+
+**Context.** Arnold, 27 Nov 2026: the Hub Chrome should already have the Swangz account the person logs into the Hub
+with, and tools should use it or "Sign in with Google". Earlier the same evening he asked for one Swangz account
+signed into everyone's Chrome; that was declined (D-028 point 3, the owner's directive: no credential sharing, no
+getting round account-sharing limits).
+
+**Decision.**
+1. The app offers, once on Home and always on Workspace, **"Sign in to Google in Swangz Chrome"**. It opens Google's
+   own page, `https://accounts.google.com/AccountChooser?Email=<the person's Swangz address>`, in **that person's own
+   Swangz Chrome folder**, with the same device checks as opening a tool (active workspace, owner-bound folder,
+   company policy gate). The address is a constant in the app plus the e-mail from the authenticated manifest,
+   validated and URL-encoded; nothing comes from the Hub as an address.
+2. The person types their own password and second step on Google's page. Swangz never sees, types, stores or copies
+   a password, code or cookie, and never reads the folder to learn whether sign-in happened: the app only records
+   that it opened the page (`google_signin_opened`, local state, cleared on sign-out).
+3. With that Google session in their folder, every tool's "Continue with Google" signs the person in as themselves,
+   in one click, and it persists across restarts. Paid features still need the person's own seat on the tool's
+   company plan (invited by their work address).
+4. **Follow-up, not in this change:** on company computers, a policy that lets only `@swangzavenue.com` accounts sign
+   in to Google in the Hub Chrome (`AllowedDomainsForApps`). It changes the pack, its baseline and the Windows and macOS
+   policy readers, so it needs a real-device check first.
+
+**Tests:** `tests/test_workspace_launcher.py::GoogleSignInTests` (the address, bad addresses, own folder, no Hub call,
+never the default browser, the same refusals), `tests/test_client_gui.py` (Home asks once, Workspace shows the account,
+a refusal says why).

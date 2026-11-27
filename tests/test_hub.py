@@ -244,13 +244,11 @@ class HubServiceTests(unittest.TestCase):
         self.assertEqual((p['traditional'],p['ai_way'],p['benefit']),('Manual drafts','AI outlines','Faster iteration'))
 
 
-    def test_shared_browser_turns_cannot_roll_over_into_unreported_week(self):
-        from gateway import turns
+    def test_a_leftover_turn_cannot_roll_over_into_unreported_week(self):
+        # turns were retired on 27 Nov 2026; a row left open by an older server is still closed at the week's end
         sunday_end=self.period['ends']
-        tool=self.db.one("SELECT * FROM tools WHERE id='midjourney'");person=self.db.one('SELECT * FROM people WHERE id=?',(self.pid,))
-        with mock.patch('gateway.turns.time.time',return_value=sunday_end-30):
-            turn,_=turns.take(self.db,tool,person,week_ends=sunday_end)
-        self.assertEqual(turn['expires'],sunday_end)
+        tid=self.db.x("INSERT INTO tool_turns(tool_id, person_id, started, expires) VALUES('midjourney',?,?,?)",(self.pid,sunday_end-30,sunday_end)).lastrowid
+        turn={'id':tid}
         self.assertEqual(reporting.close_week_turns(self.gw,sunday_end+1),1)
         self.assertEqual(self.db.one('SELECT ended,reason FROM tool_turns WHERE id=?',(turn['id'],)),{'ended':sunday_end,'reason':'weekly reporting boundary'})
         self.assertEqual(reporting.close_week_turns(self.gw,sunday_end+1),0)

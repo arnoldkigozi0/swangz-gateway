@@ -370,7 +370,8 @@ def me(ctx):
         t["grant"] = "direct" if t["id"] in direct else ("team" if t["assigned"] else None)
         t["opens_30d"] = opens_30d.get(t["id"], 0)
         t["pending"] = t["id"] in pending
-        t["turn"] = turns.state_for(ctx.db, rows[t["id"]], p) if t["id"] in rows else None
+        # turns were retired on 27 Nov 2026: a single-login company account is a stated limitation, never a wait
+        t["account_note"] = turns.account_note(rows[t["id"]]) if t["id"] in rows else None
         t["icon"] = f"/icons/{t['id']}?v={int(logos[t['id']])}" if t["id"] in logos else None
         t["workspace"] = catalog_mod.uses_workspace(rows[t["id"]]) if t["id"] in rows else False
         t["last_opened"] = opened.get(t["id"])
@@ -447,7 +448,8 @@ def request_access(ctx, tid):
 
 @route("POST", r"/tools/(?P<tid>[a-z0-9-]+)/turn/end")
 def end_turn(ctx, tid):
-    """Hand the shared account back so the next person can have it."""
+    """Close a leftover turn row (kept for older staff pages). Turns were retired on 27 Nov 2026, so after migration
+    v31 there is nothing open to close; the answer never asks the browser to sign out of anything."""
     from . import turns
 
     tool = ctx.db.one("SELECT * FROM tools WHERE id = ?", (tid,))
@@ -457,7 +459,7 @@ def end_turn(ctx, tid):
     if n:
         ctx.gw.audit(ctx.person["name"], "handed back a shared account", tool["name"], "", ctx.ip, correlation=f"person:{ctx.person['id']}")
         ctx.gw.workspaces.soon()  # their workspace sign-in goes now, not at the next sweep
-    return {"ok": True, "ended": n, "sign_out_hosts": _sign_out_hosts(tool)}
+    return {"ok": True, "ended": n, "sign_out_hosts": []}
 
 
 def _sign_out_hosts(tool):
@@ -516,9 +518,10 @@ def launch_checks(gw, person, tool):
 
 def launch(h, gw, tool_id):
     """/go/<tool>: the portal's Open button. Checks that this person may use the tool right now, logs
-    the launch (who, which tool, when), and sends the browser on to the tool's sign-in link — or, for a
-    shared account in the company workspace, into a browser of their own, signed in for this turn."""
-    from . import catalog, entitle, turns, workspace
+    the launch (who, which tool, when), and sends the browser on to the tool's sign-in link or website.
+    A single-login company account (`signin = 'shared'`) opens like any other tool: turns, waits and the remote
+    company browsers were retired on 27 Nov 2026 (owner directive); the limitation is stated, not enforced."""
+    from . import catalog
 
     ctx = Ctx(h, gw, "")
     person = current_person(ctx)
@@ -530,8 +533,6 @@ def launch(h, gw, tool_id):
         if re.fullmatch(r"[a-z0-9-]{1,80}", tool_id) else None
     if not tool:
         return _launch_page(h, 404, "That tool isn't in the catalog any more.", "Your admin may have removed it.")
-    from . import reporting
-
     ok, state, reason, rule, report_denial = launch_checks(gw, person, tool)
     if ok:  # a paused or closed managed workspace, or `enforce` with a failing policy report: second check on the way in
         from . import managed
@@ -542,45 +543,6 @@ def launch(h, gw, tool_id):
     target = catalog.launch_target(tool)
     if ok and not target:
         ok, reason = False, "This tool has no web address yet. Ask your admin."
-    # a shared company account is handed out one turn at a time
-    if ok and turns.is_shared(tool):
-        where = workspace.mode(tool)
-        pool = workspace.browsers(tool)
-        asked = time.time()
-        with gw.db.tx():  # so two people opening at once can't both get the last seat or the same browser
-            turn, busy = turns.take(gw.db, tool, person, week_ends=reporting.week(gw)["ends"])
-            browser = gw.workspaces.assign(tool, turn) if turn and pool else None
-        fresh = bool(turn) and turn["started"] >= asked
-        full = f"All of Swangz's browsers for {tool['name']} are in use. Try again shortly."
-        if not turn:
-            who = ", ".join(t["person"] for t in busy)
-            until = min(t["expires"] for t in busy)
-            ok, reason = False, (f"{who} {'are' if len(busy) > 1 else 'is'} using the shared {tool['name']} account until "
-                                 f"{_clock(gw, until)}. You'll get it next — try again then.")
-        elif pool and not browser:
-            ok, reason = False, full
-        elif where and gw.db.get_setting("workspace_paused", "0") == "1":
-            ok, reason = False, (f"Swangz's company browsers are paused by an administrator, so {tool['name']} can't be "
-                                 "opened in one right now. Try again later.")
-        elif where:
-            try:
-                target = gw.workspaces.open(tool, {**turn, "workspace": browser or turn["workspace"]}, person)
-            except workspace.Starting:
-                return _starting_page(h, tool)  # the turn is theirs; this page asks again until it's ready
-            except workspace.Full as exc:
-                ok, reason = False, ("Every one of Swangz's company browsers is in use right now. Try again "
-                                     "shortly." if exc.server else full)
-            except workspace.Unavailable as exc:
-                gw.log(f"workspace: {tool['name']} for {person['name']}: {exc}")
-                ok, reason = False, (f"Swangz's shared browser for {tool['name']} isn't answering right now. "
-                                     "Try again in a minute, or tell your admin.")
-        if ok and turn:
-            gw.audit(person["name"], "took a turn on a shared account", tool["name"],
-                     f"until {_clock(gw, turn['expires'])}", ctx.ip)
-        elif turn and (fresh or (where == "agent" and not gw.workspaces.has_browser(turn["id"]))):
-            # nobody got in on this turn: don't hold the seat (or a browser) for them
-            turns.end(gw.db, tool["id"], person["id"], "system", reason[:200])
-            gw.workspaces.soon()
     gw.db.x("INSERT INTO launches(tool_id, person_id, ts, outcome, ip, user_agent, reason, rule) VALUES(?,?,?,?,?,?,?,?)",
             (tool["id"], person["id"], time.time(), "opened" if ok else "refused", ctx.ip,
              (h.headers.get("user-agent") or "")[:200], "" if ok else (reason or "")[:300], rule))
@@ -590,29 +552,6 @@ def launch(h, gw, tool_id):
         return _launch_page(h, 403, f"{tool['name']} isn't open to you right now", reason)
     return h.send_bytes(302, b"", "text/plain", {"Location": target, "Cache-Control": "no-store",
                                                   "Referrer-Policy": "no-referrer"})
-
-
-def _clock(gw, ts):
-    return time.strftime("%H:%M", time.gmtime(ts + gw.settings.tz_offset_minutes * 60))
-
-
-def _starting_page(h, tool):
-    """The person's browser on the workspace server is starting. This page asks /go again every few
-    seconds — a plain refresh, no script — and lands in the browser as soon as it's ready. (Waiting here
-    instead of holding the request open keeps under Netlify's 26-second proxy limit.)"""
-    from .server import CONSOLE_HEADERS
-
-    body = ("<!doctype html><html lang=en><head><meta charset=utf-8>"
-            "<meta name=viewport content='width=device-width, initial-scale=1'>"
-            "<meta http-equiv=refresh content=3><title>Starting your browser · Swangz AI Hub</title>"
-            "<link rel=stylesheet href=/static/tokens.css><link rel=stylesheet href=/static/controls.css><link rel=stylesheet href=/static/portal.css></head>"
-            "<body><main class=launch-msg><div class=launch-card>"
-            "<img src=/static/icon.svg alt='' width=40 height=40>"
-            f"<h1>Starting your {html.escape(tool['name'])} browser…</h1>"
-            "<p>It's starting on Swangz's own server and opens here by itself as soon as it's ready — "
-            "usually within half a minute.</p>"
-            "<a class='btn btn--solid' href=/>Back to Swangz AI Hub</a></div></main></body></html>")
-    h.send_bytes(200, body.encode(), "text/html; charset=utf-8", {"Cache-Control": "no-store", **CONSOLE_HEADERS})
 
 
 def _launch_page(h, status, title, text):
@@ -678,21 +617,10 @@ def gate_config(ctx):
 
 @route("GET", r"/gate/turns")
 def gate_turns(ctx):
-    """Which shared tools this person still holds. The extension signs the browser out of any
-    shared tool they are NOT holding, so the next person never inherits the session."""
-    from . import turns
-
-    mine = turns.held_by(ctx.db, ctx.person["id"])
-    out, drop = [], []
-    for tool in ctx.db.q("SELECT * FROM tools WHERE signin = 'shared' AND archived = 0"):
-        hosts = [h for h in (tool["hosts"] or "").split(",") if h]
-        if not hosts:
-            continue
-        if tool["id"] in mine:
-            out.append({"tool_id": tool["id"], "hosts": hosts, "expires": mine[tool["id"]]["expires"]})
-        elif _sign_out_hosts(tool):
-            drop.append({"tool_id": tool["id"], "hosts": _sign_out_hosts(tool)})
-    return {"holding": out, "sign_out": drop}
+    """Kept for extensions older than 1.4.0, which ask every minute and at every Chrome start which shared tools to
+    sign the browser out of. Turns were retired on 27 Nov 2026 (owner directive): sessions persist across restarts, so
+    the answer is always empty and no browser is ever signed out by Swangz."""
+    return {"holding": [], "sign_out": []}
 
 
 @route("POST", r"/gate/open")
@@ -710,8 +638,6 @@ def gate_open(ctx):
     elif not tool:
         return {"known": False, "allowed": True}  # not an AI tool we govern; the extension does nothing
     else:
-        from . import turns
-
         ok, state, reason = entitle.is_enabled(ctx.db, ctx.person, tool)
         if ok:
             from . import reporting
@@ -723,11 +649,6 @@ def gate_open(ctx):
             if ruled:
                 ok, state, (reason, rule) = False, "policy", ruled
                 reason = reason[:1].upper() + reason[1:]
-        if ok and turns.is_shared(tool):
-            ok, why = turns.may_open(ctx.db, tool, ctx.person)
-            if not why:
-                why = reason
-            state, reason = ("no_turn" if not ok else state), (why if not ok else reason)
         allowed = ok
     outcome = "allowed" if allowed else "blocked"
     rid = ctx.db.x("INSERT INTO site_usage(tool_id, person_id, host, outcome, started, reason, rule) VALUES(?,?,?,?,?,?,?)",

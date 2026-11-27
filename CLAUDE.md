@@ -14,8 +14,8 @@ Two apps on one address, plus a browser extension:
 | Where | What |
 |---|---|
 | `/` | **Swangz AI Hub** — the staff app: Home (a launchpad: a state-aware hero whose one action goes back to the tool you opened last, three compact recent tool rows, and beside them Updates and allowance when visible), Tools (the whole catalogue: search, categories, sort, a details drawer per tool saying why you have it, how sign-in works and what's recorded), Studio (Create · Your creations), Devices (Connected · Connect a tool · Disconnected; the key is shown once), Requests (Updates · Access requests · Procurement · Department reports — the bell opens Updates), Weekly reports (mandatory per-tool accountability), Adoption & impact (declarations, scoped department views, analytics, projects and history), Projects (focused deliverable detail), Privacy (*How Swangz AI Hub works* — six sections with an index). A page's views live in `?view=` (`viewTabs()` in `portal.js`). **Open** goes through `/go/<tool>`, which checks access, logs the launch and sends the person to the tool's company sign-in link (SSO) or website |
-| `/admin` | **Control room** — MONITOR: Overview, Live (in-flight requests; *Inspect* follows one into its record), Needs attention, Activity (Timeline = who did what, when, where — requests, opens, visits, shared turns, sign-ins and access changes · Who used what · AI requests · Tools opened · Websites visited), Health. GOVERN: People, Access requests, Tools, **Models** (the registry), **Policies** (rules + Simulate + Explain a decision). MONEY: Licences & spend (incl. *What cost us money?*), **Reports**. TRUST: Security, **Incidents**, Devices, Audit log (before/after, reason, outcome), Settings (a grouped rail — Gateway: Access & privacy · Purpose & location · Providers & pricing · Company browsers; Emergency; Console access: Console users · Your account — each category opening with a header that holds its sections; Access & privacy is Records · Safeguards · Staff controls). A tool's profile is a side sheet (Overview · Usage · Access · Subscription · Configuration · Workspace for shared accounts); a person's is Overview · Access · Activity · Devices · Security · Account. A **notifications bell** sits by the search. Ctrl+K opens a command menu that searches everything. Dense pages are split with `pageTabs(base, params, tabs, opts)`: each tab builds on demand, the choice lives in `?tab=` (or `opts.param`, e.g. Settings' `?section=`, with `opts.clears` so a parent resets its child), every switch is a history entry, Back/Forward switch in place, and a form with unsaved changes calls `A.setDirty(fn)` so leaving asks first. Time ranges and filters live in the address too (`A.keepParams`). Where each kind of information lives, and why, is `docs/UI.md` — one home per kind, summaries elsewhere link to it. Arnold asked for fewer tiles (Oct 7, 2026): lists put their counts in the filter tabs, headline numbers sit in one `.kpis` strip or a slim `.statline`, and long catalogues are tables, not cards. Settings-style pages use `A.settingRow()` / `A.switchInput()` and `pageTabs(…, { vertical: true })`; a panel's save actions go in `A.panelFoot()`. |
-| `swangz_client/` | **The Swangz app** — what people install on their own devices (Windows, macOS, Linux; phones use the installable staff web app): a desktop window (Home · Apps · Packages · This device) over a shared core that signs the device in with a code approved in the person's own browser (`/device`), installs exactly what the server says it is offered (coding agents pointed at the gateway, the browser access gate, published packages, website tools opened through `/go/`), checks in, and removes everything when the device is disconnected. Personal devices: nothing outside the app's folder is touched (`swangz run claude`); company devices: Claude Code/Codex are pointed at the gateway for good. Server side `gateway/enroll.py`, schema v23. `docs/CLIENT.md` |
+| `/admin` | **Control room** — the landing page is **Workstations** (D-028: employees, computers online/offline with their AI apps and Chrome, assigned apps, single-login account limits, observed activity, weekly reports, suspend/revoke). MONITOR: Overview, Live (in-flight requests; *Inspect* follows one into its record), Needs attention, Activity (Timeline = who did what, when, where — requests, opens, visits, shared turns, sign-ins and access changes · Who used what · AI requests · Tools opened · Websites visited), Health. GOVERN: People, Access requests, Tools, **Models** (the registry), **Policies** (rules + Simulate + Explain a decision). MONEY: Licences & spend (incl. *What cost us money?*), **Reports**. TRUST: Security, **Incidents**, Devices, Audit log (before/after, reason, outcome), Settings (a grouped rail — Gateway: Access & privacy · Purpose & location · Providers & pricing · Company browsers; Emergency; Console access: Console users · Your account — each category opening with a header that holds its sections; Access & privacy is Records · Safeguards · Staff controls). A tool's profile is a side sheet (Overview · Usage · Access · Subscription · Configuration · Workspace for shared accounts); a person's is Overview · Access · Activity · Devices · Security · Account. A **notifications bell** sits by the search. Ctrl+K opens a command menu that searches everything. Dense pages are split with `pageTabs(base, params, tabs, opts)`: each tab builds on demand, the choice lives in `?tab=` (or `opts.param`, e.g. Settings' `?section=`, with `opts.clears` so a parent resets its child), every switch is a history entry, Back/Forward switch in place, and a form with unsaved changes calls `A.setDirty(fn)` so leaving asks first. Time ranges and filters live in the address too (`A.keepParams`). Where each kind of information lives, and why, is `docs/UI.md` — one home per kind, summaries elsewhere link to it. Arnold asked for fewer tiles (Oct 7, 2026): lists put their counts in the filter tabs, headline numbers sit in one `.kpis` strip or a slim `.statline`, and long catalogues are tables, not cards. Settings-style pages use `A.settingRow()` / `A.switchInput()` and `pageTabs(…, { vertical: true })`; a panel's save actions go in `A.panelFoot()`. |
+| `swangz_client/` | **The Swangz app — the AI workstation** (owner directive 27 Nov 2026, D-028) — what people install on their own devices (Windows, macOS; Linux from source; phones use the installable staff web app): a workstation window with a sidebar (Home · Apps · Workspace · Automations · Usage · Settings). Apps is the AI library: each tool opens in the person's own Swangz Chrome, and where an official desktop or command-line app exists `native_apps.py` (a fixed, sourced table in the app) detects it, installs it through winget or the vendor's page with consent, opens and repairs it. Under it a shared core that signs the device in with a code approved in the person's own browser (`/device`), installs exactly what the server says it is offered (coding agents pointed at the gateway, the browser access gate, published packages, website tools opened through `/go/`), checks in, and removes everything when the device is disconnected. Personal devices: nothing outside the app's folder is touched (`swangz run claude`); company devices: Claude Code/Codex are pointed at the gateway for good. Server side `gateway/enroll.py`, schema v23. `docs/CLIENT.md` |
 | `extension/` | **Swangz AI Hub Access** — a browser extension that governs AI *websites* (ChatGPT, Midjourney, …): opens the ones a person is entitled to, blocks the rest, logs access-level use only |
 
 The core rule everywhere: **a tool is enabled for a person only when the company subscription is
@@ -27,22 +27,12 @@ A grant can carry an end date, and a person's whole account can (`access_until`)
 
 - `sso` — the tool's single sign-on, with their Swangz Google account (`launch_url` = the SSO link);
 - `seat` — their own seat on the company plan, invited to their work email (Swangz pays one bill);
-- `shared` — **one company account the team takes turns on** (`gateway/turns.py`): the portal hands it
-  to one person at a time for `turn_minutes`, blocks everyone else at the gate, and the extension
-  signs the browser out when the turn ends or Chrome restarts, so vendor credit history can be
-  matched to a person. With a workspace, Open gives each turn-holder a **company browser of their own**
-  (Neko on a Swangz server, signed in once by an admin) instead of the tool's site, so several people
-  can work at once and nobody sees the password. Production: `workspace_mode = 'agent'` — the **Swangz
-  Workspace Agent** (`workspace_agent/agent.py`, on the workspace server, next to Docker) starts the
-  browser, makes a Neko sign-in for the turn, and on release deletes it and recycles the container; the
-  gateway holds only the agent's URL + token. **Where the agent runs is the admin's choice, one place at a
-  time** (Settings → Company browsers; `workspace.HOSTS`): the rented server (env) or one of Swangz's own
-  computers, the Windows PC or the Mac (`workspace_agent/computer.py`: Docker Desktop + a Cloudflare quick
-  tunnel + a TURN relay the gateway hands out; it checks in at `/api/workspace/hello` with its key and gets
-  its browser list from the shared tools). Switching ends turns at the old place; each turn's `ws_host`
-  says where to release it. Arnold asked for this on Oct 6, 2026 ("one at a time, not both").
-  Fallback: fixed browsers listed in `workspace_url` (with
-  `GATEWAY_WORKSPACE_TOKEN`, the gateway manages their sign-ins itself) — `deploy/WORKSPACE.md`;
+- `shared` — **one company login** (since 27 Nov 2026, D-028). It opens like any other tool, for everyone assigned
+  it, at the same time: **turns were retired** by the owner's directive (no waits, countdowns, expiry or sign-outs;
+  `tool_turns` keeps the history). The limitation is stated, never enforced — `turns.account_note` for staff,
+  `turns.admin_note` for admins: most providers allow one person per login, so the fix is a seat per person or SSO.
+  The remote company browsers (Neko / Workspace Agent, `workspace_url`, `workspace_mode`) are **dormant**: Open
+  never routes to them (`catalog.uses_workspace` is False) and no hosted browser fleet is authorised;
 - `own` — their own account, access still gated and logged;
 - `api` — nothing to sign in to; it runs on the company key through the gateway.
 
@@ -61,8 +51,8 @@ the password and typing it for people. Reasons, in order: the
 password would have to sit in every staff browser where anyone can read it; it breaks on 2FA, captcha
 and bot checks, so it is unreliable the moment a vendor changes a form; vendors' terms forbid one
 account being used by many people and they suspend accounts for it; and it does not actually solve
-the problem he has, which is *attribution*. Turns solve attribution. If asked again, explain turns
-rather than reopening this.
+the problem he has, which is *attribution*. Turns solved attribution until the owner retired them (D-028); a seat per person solves it now, because each provider
+account is then one person. If asked again, explain seats and SSO rather than reopening this.
 
 ## Stack and layout
 
@@ -115,7 +105,7 @@ gateway/
   proxy.py      the core: one request from arrival through forward/stream to the record
   parse.py      reads each provider's dialect (Anthropic / OpenAI / ElevenLabs / Higgsfield)
   catalog.py    the 49-tool catalog, descriptions/colours, sign-in methods, launch targets, host matching
-  turns.py      shared company accounts handed out one turn at a time, so their spend has a name on it
+  turns.py      single-login company accounts: turns RETIRED 27 Nov 2026 (D-028); history, leftover clean-up, account_note/admin_note
   workspace.py  company browsers for shared accounts: the Workspace Agent's client, and fixed-list mode
   icons.py      tool logos: fetched once server-side (public hosts only, sniffed, size-capped) or uploaded
   entitle.py    who may use which tool, and why (enabled / locked / not_assigned / past_due / suspended)
@@ -124,7 +114,7 @@ gateway/
   backup.py     verified, compressed database copies (SQLite backup API, never migrates), optional rsync off-server
   pricing.py    model price table and cost per request
   live.py       requests in flight, and cutting them
-  db.py         SQLite + append-only numbered migrations (currently schema v30: v29 adds catalogue facts to tools — info_url, modes, oauth_hosts, last_verified; v30 an admin's company/personal mark on a device)
+  db.py         SQLite + append-only numbered migrations (currently schema v31: v29 adds catalogue facts to tools — info_url, modes, oauth_hosts, last_verified; v30 an admin's company/personal mark on a device; v31 closes open turns and adds devices.apps_json/apps_reported)
   registry.py   Amendment 01 task 1: the manual provider-account registry (people declare the AI subscriptions they hold; v24 + the v25 NULL-safe guard repair in registry_schema.py)
   security.py   key/password hashing, sign-in throttle, per-person rate limiter
   admin.py      control-room API: the route decorator (role + area), people, keys, tools, settings, audit

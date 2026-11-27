@@ -190,8 +190,10 @@ h1, h2, h3 { text-wrap: balance; }
 .tile.s-locked .logo { filter: grayscale(1); opacity: .5; }
 .tile:not(.s-enabled) .tile-foot .how { color: var(--tx-3); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .tile:not(.s-enabled) .tile-foot .how svg { display: none; }
-.tile.holding { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); background: color-mix(in srgb, var(--ok) 4%, var(--ink-1)); }
-.tile.busy { opacity: .78; }
+/* a single company login, said quietly (27 Nov 2026: no turns, no timers — the limitation and who to ask) */
+.account-note { display: inline-flex; align-items: flex-start; gap: 6px; margin: 0; font-size: 12px; line-height: 1.5; color: var(--tx-3); width: fit-content; }
+.account-note svg { flex: none; width: 13px; height: 13px; margin-top: 2px; color: var(--tx-3); }
+.d-sec .account-note { font-size: var(--t-small); color: var(--tx-2); margin-top: var(--s2); }
 .requested { display: inline-flex; align-items: center; gap: 5px; color: var(--ok-hi); font-weight: 650; font-size: var(--t-small); white-space: nowrap; }
 .requested svg { width: 15px; height: 15px; }
 
@@ -534,7 +536,6 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
 /* going back to the tool you used last: the page's one primary action */
 .resume { display: flex; align-items: center; gap: var(--s4); width: min(580px, 100%); padding: 14px 14px 14px 16px; border: 1px solid var(--line-hi); border-radius: var(--r-lg);
   background: var(--ink-1); box-shadow: var(--shadow-sm); }
-.resume.holding { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
 .resume-id { all: unset; box-sizing: border-box; flex: 1; min-width: 0; display: flex; align-items: center; gap: 14px; cursor: pointer; border-radius: var(--r-md); }
 .resume-id:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
 .resume-id:hover strong { text-decoration: underline; text-underline-offset: 3px; }
@@ -558,7 +559,6 @@ dialog .d-actions { display: flex; justify-content: flex-end; gap: var(--s3); pa
 .tcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--s3); }
 .tcard { min-width: 0; display: flex; flex-direction: column; background: var(--ink-1); border: 1px solid var(--line); border-radius: var(--r-lg); transition: border-color var(--d-fast); }
 .tcard:hover { border-color: var(--line-hi); }
-.tcard.holding { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
 .tcard-main { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 12px; min-width: 0; padding: 16px 16px 0; cursor: pointer; border-radius: var(--r-lg) var(--r-lg) 0 0; }
 .tcard-main:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .tcard-main:hover strong { text-decoration: underline; text-underline-offset: 3px; }

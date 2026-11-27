@@ -25,6 +25,13 @@ def signin_in(location):
     return q.get("usr"), q.get("pwd")
 
 
+
+# 27 Nov 2026 (owner directive): turns are retired and no hosted browser fleet is authorised, so Open no longer hands
+# a person one of the company's remote browsers (catalog.uses_workspace is always False; /go/ opens the tool's own site).
+# These tests drove that path through turns. They are kept, skipped with this reason, until the dormant remote-browser
+# code (gateway/workspace.py, workspace_agent/) is removed in its own change; the settings, places and relay tests run.
+RETIRED = unittest.skip("remote company browsers were handed out per turn; turns retired 27 Nov 2026 (owner directive)")
+
 class ThreePeople(TurnBase):
     def go_as_third(self):
         db = self.rig.gw.db
@@ -56,6 +63,7 @@ class PoolBase(ThreePeople):
         self.grace = workspace.username(self.rig.person_id)
 
 
+@RETIRED
 class OpeningTests(PoolBase):
     def test_open_signs_you_into_a_browser_of_your_own(self):
         status, h, _ = self.go("midjourney")
@@ -122,6 +130,7 @@ class OpeningTests(PoolBase):
         self.assertEqual(now, {"Nansubuga Grace": self.a.url + "/", "Okello Brian": self.b.url + "/"})
 
 
+@RETIRED
 class EndingTests(PoolBase):
     def test_handing_back_removes_the_sign_in_at_once(self):
         usr, pwd = signin_in(self.go("midjourney")[1]["location"])
@@ -174,6 +183,7 @@ class EndingTests(PoolBase):
         self.assertTrue(self.a.sign_in(*signin_in(h["location"])))  # the new turn's sign-in survived
 
 
+@RETIRED
 class TroubleTests(PoolBase):
     def test_a_browser_that_does_not_answer_frees_the_seat(self):
         self.a.broken = True
@@ -244,6 +254,7 @@ class AgentModeTests(ThreePeople):
             self.assertIn('http-equiv=refresh content=3', body)
         raise AssertionError("the browser never became ready")
 
+    @RETIRED
     def test_open_waits_for_the_browser_then_signs_you_in(self):
         status, _, body = self.go("midjourney")
         self.assertEqual(status, 200)  # the starting page, which asks again by itself
@@ -261,6 +272,7 @@ class AgentModeTests(ThreePeople):
         me = self.staff("GET", "/me")[1]
         self.assertTrue(next(t for t in me["catalog"] if t["id"] == "midjourney")["workspace"])
 
+    @RETIRED
     def test_handing_back_releases_and_recycles_the_browser(self):
         self.open_until_in(self.go)
         self.staff("POST", "/tools/midjourney/turn/end")
@@ -269,6 +281,7 @@ class AgentModeTests(ThreePeople):
         self.rig.wait_for(lambda: self.turn_of(self.rig.person_id)["ws_closed"])
         self.assertIsNone(next(b for b in self.ws.call("GET", "/status")[1]["browsers"] if b["slot"] == "midjourney-1")["holder"])
 
+    @RETIRED
     def test_a_turn_that_runs_out_releases_its_browser(self):
         self.open_until_in(self.go)
         self.rig.gw.db.x("UPDATE tool_turns SET expires = ? WHERE ended IS NULL", (time.time() - 1,))
@@ -276,6 +289,7 @@ class AgentModeTests(ThreePeople):
         self.assertTrue(self.turn_of(self.rig.person_id)["ws_closed"])
         self.assertTrue(all(b["holder"] is None for b in self.ws.call("GET", "/status")[1]["browsers"]))
 
+    @RETIRED
     def test_when_every_browser_is_busy_the_next_person_is_told_and_keeps_no_seat(self):
         self.open_until_in(self.go)
         self.assertEqual(self.open_until_in(lambda tool: self.go_as_other(tool))[0], 302)
@@ -284,6 +298,7 @@ class AgentModeTests(ThreePeople):
         self.assertIn("All of Swangz&#x27;s browsers for Midjourney are in use", body)
         self.assertEqual(self.turn_of(self.third)["ended_by"], "system")
 
+    @RETIRED
     def test_when_the_whole_workspace_server_is_full_people_are_told_so(self):
         self.ws.agent.cfg["max_running"] = 1
         self.open_until_in(self.go)
@@ -291,6 +306,7 @@ class AgentModeTests(ThreePeople):
         self.assertEqual(status, 403)
         self.assertIn("Every one of Swangz&#x27;s company browsers is in use right now", body)
 
+    @RETIRED
     def test_a_workspace_server_that_does_not_answer_frees_the_seat(self):
         self.rig.gw.settings.workspace_agent_url = "http://127.0.0.1:9"
         status, _, body = self.go("midjourney")
@@ -298,6 +314,7 @@ class AgentModeTests(ThreePeople):
         self.assertIn("isn&#x27;t answering right now", body)
         self.assertEqual(self.rig.gw.db.scalar("SELECT COUNT(*) FROM tool_turns WHERE ended IS NULL"), 0)
 
+    @RETIRED
     def test_without_a_workspace_server_nobody_is_sent_anywhere(self):
         self.rig.gw.settings.workspace_agent_url = ""
         self.assertEqual(self.go("midjourney")[0], 403)
@@ -331,6 +348,7 @@ class AgentModeTests(ThreePeople):
         self.assertEqual(self.rig.api("GET", "/catalog")[1]["workspace_agent"], True)
 
 
+@RETIRED
 class TwoAtOnceAgentTests(ThreePeople):
     """Deliverable 5 level A (docs/TWO-PEOPLE-AT-ONCE-PLAN.md, A3): two people hold turns together on the Workspace Agent."""
 
@@ -458,6 +476,7 @@ class PlacesTests(ThreePeople):
         self.assertEqual(self.hello()[0], 401)
         self.assertFalse(next(h for h in rig.api("GET", "/workspace")[1]["hosts"] if h["id"] == "windows")["connected"])
 
+    @RETIRED
     def test_switching_to_the_computer_moves_people_off_the_server(self):
         rig = self.rig
         self.connect_pc()
@@ -481,6 +500,7 @@ class PlacesTests(ThreePeople):
         self.assertEqual(rig.api("POST", "/workspace/use", {"host": "server"})[1]["moved"], 1)
         rig.wait_for(lambda: self.holder(self.pc) is None)
 
+    @RETIRED
     def test_a_browser_is_let_go_where_it_is_even_while_that_place_is_down(self):
         rig = self.rig
         self.connect_pc()

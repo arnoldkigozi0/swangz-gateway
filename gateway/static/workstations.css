@@ -1,0 +1,47 @@
+/* Workstations (#/workstations): the Control Room's first page. Spacing from the 4 / 8 / 12 / 16 / 24 scale; colours,
+   radii and type from tokens.css. Simple is the computers beside the six answers; Detailed is six blocks in pairs. */
+.ws-simple { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.ws-main, .ws-side { display: grid; gap: 24px; min-width: 0; }
+.ws-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; margin-bottom: 24px; }
+.route-workstations .page > #ws-devices { display: block; margin-bottom: 24px; }
+.route-workstations .panel { border-radius: 22px; }
+/* the layout wrappers hold panels that carry their own surface, so they need no plane behind them (as on Devices) */
+.shell.route-workstations .page > :is(.ws-simple, .ws-grid, #ws-devices) { background: none; box-shadow: none; }
+
+.ws-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ws-who strong { font-weight: 600; color: var(--tx-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-who .hint { font-size: 12px; }
+.ws-apps { display: flex; flex-wrap: wrap; gap: 4px; }
+.ws-apps-sum { color: var(--tx-1); font-size: 13px; white-space: nowrap; }
+.ws-apps-sum:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-chip); }
+.ws-tool { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.ws-tool > span:last-child { white-space: nowrap; }
+.ws-over { color: var(--warn-hi); font-weight: 600; }
+.ws-big { margin: 0; color: var(--tx-2); font-size: 14px; }
+.ws-big strong { color: var(--tx-1); font-size: 24px; line-height: 32px; font-weight: 600; }
+.ws-chips { gap: 8px; }
+.ws-limit { align-items: flex-start; }
+.ws-limit span { font-weight: 500; }
+
+.ws-limits { margin: 0; padding: 4px 16px 12px; list-style: none; display: grid; gap: 8px; }
+.ws-limits li { color: var(--tx-1); font-size: 13px; line-height: 20px; }
+.ws-limits a { color: var(--tx-1); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+
+/* a single company login's Account tab (admin-govern.js limitationPanel) */
+.account-limit { gap: 8px; }
+.account-limit p { margin: 0; }
+.account-limit .row { margin-top: 8px; }
+
+.ws-activity { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 24px; }
+.ws-activity .ov-nums { padding: 0; }
+.ws-provider { padding-left: 24px; border-left: 1px solid var(--line); }
+
+@media (max-width: 1100px) {
+  .ws-simple, .ws-grid, .ws-activity { grid-template-columns: minmax(0, 1fr); }
+  .ws-side { order: -1; }
+  .ws-provider { padding-left: 0; border-left: 0; padding-top: 16px; border-top: 1px solid var(--line); }
+}
+@media (max-width: 640px) {
+  .ws-apps-sum { white-space: normal; }
+  .ws-limits li, .ws-limits a { min-height: 44px; }
+}

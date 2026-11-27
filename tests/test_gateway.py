@@ -989,7 +989,7 @@ class CatalogTests(unittest.TestCase):
         self.assertNotIn("DROP", v29.upper())
         for column in ("info_url", "modes", "oauth_hosts", "last_verified"):
             db.x(f"ALTER TABLE tools DROP COLUMN {column}")
-        for column in ("owner_confirmed", "owner_confirmed_at", "owner_confirmed_by"):  # v30 came later
+        for column in ("owner_confirmed", "owner_confirmed_at", "owner_confirmed_by", "apps_json", "apps_reported"):  # v30, v31 came later
             db.x(f"ALTER TABLE devices DROP COLUMN {column}")
         db.x("UPDATE meta SET v = '28' WHERE k = 'schema'")
         db._migrate()
