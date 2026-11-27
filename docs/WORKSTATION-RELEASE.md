@@ -44,18 +44,43 @@ Windows PC or Mac here.
 | No provider credentials exposed | `test_workstations.py` no-leak checks; `test_content_privacy.py`; the manifest and app report carry ids and states only | — |
 | No regression | Full suite on GitHub CI (Python 3.10 and 3.12, browser, app window) — see CI below | — |
 
-CI on the release commit: _filled in below when the runs finish._
+CI on the release code (PR #370 merged with main `643947f`, build ref `9cd08a3`, file tree identical to
+`c06f0b1f67800fd55e4bcdf8878a64dcd3406e5f`), all green on 27 Nov 2026:
+
+| Workflow | Run | Result |
+|---|---|---|
+| Hub checks — Python 3.10 and 3.12 | 46015853704 | 1,977 tests OK each (85 skipped: OS-specific tests and the 26 retired remote-browser tests) |
+| Hub checks — app window (xvfb) | 46015853704 | 37 tests OK, including the macOS label-button test |
+| Hub checks — browser suites | 46015853704 | pass |
+| Windows installer (RC, unsigned), Windows Server 2025 | 46015853735 | 84 steps pass (incl. two people at once, revocation, upgrade 0.1.100 → 0.1.227, uninstall); company installer 10 steps pass |
+| macOS app (RC, unsigned), macOS 26 arm64 | 46015853745 | 169 journey steps pass; Gatekeeper refuses the unsigned app, as expected |
+| Chrome policy pack checks / W6 step 5 / Inert browser profiles | 46015853833 / 46015853693 / 46015853698 | pass |
+
+The first macOS run (before `7711769`) showed the workstation's buttons drawn white with unreadable text by Aqua;
+fixed and re-run. The macOS screenshot also shows a "Allow "Python" to find devices on local networks" prompt: CI's
+Hub runs on the runner's local network; the name "Python" in it should become "Swangz" in the bundle (open item).
 
 ## Installers
 
-_Filled in below: GitHub pre-release with the Windows EXE (personal and company) and the macOS DMG, all labelled
-"RC — UNSIGNED — INTERNAL TEST ONLY"._ No signing certificates exist yet (Windows Authenticode, Apple Developer ID),
+GitHub pre-release **`rc-unsigned-20261127-c06f0b1`**:
+https://github.com/arnoldkigozi0/swangz-gateway/releases/tag/rc-unsigned-20261127-c06f0b1 (private repository:
+sign in to GitHub to download). Labelled "RC — UNSIGNED — INTERNAL TEST ONLY".
+
+| File | SHA-256 |
+|---|---|
+| `Swangz-Setup-0.1.227-UNSIGNED.exe` (Windows, one person) | `a05a67a506ac54dfd42b4a1f1146f68601d74fe0f95a3726d813d88b7d696838` |
+| `Swangz-Company-Setup-0.1.227-UNSIGNED.exe` (Windows, company computers) | `e4bdca30d0db5c9763baf8a33a4989881c4481781bcd37a4ee818fbdd90f233f` |
+| `Swangz-0.1.270-RC-UNSIGNED-macos-arm64.dmg` (macOS, Apple Silicon) | `c644bc2c6321783e67bd571786070fe2aba280477541933826cc0072242e51ae` |
+
+Also attached: `SHA256SUMS`, the CycloneDX SBOMs, and the evidence zips from both install runs. No signing certificates exist yet (Windows Authenticode, Apple Developer ID),
 so Windows SmartScreen and macOS Gatekeeper will warn. The macOS build is Apple Silicon (arm64) only.
 
 ## Updating the server (owner's go-ahead needed)
 
-Follow `OWNER-RUNBOOK.md` "Update the server" exactly, with `<new>` = the release commit named in the PR. Differences
-for this release:
+Follow `OWNER-RUNBOOK.md` "Update the server" exactly, with **`<new>` = `c06f0b1f67800fd55e4bcdf8878a64dcd3406e5f`**
+(the tested code; later commits on the branch change only `docs/`), or the `main` commit PR #370 becomes when merged —
+then check `git diff --stat c06f0b1 <main commit> -- gateway deploy swangz_client extension .env.example` lists nothing.
+Differences for this release:
 
 - The backup-verify check after the update expects **`schema v31`**.
 - Migration v31 closes any open turn and adds two device columns; nothing is deleted.
@@ -64,6 +89,11 @@ for this release:
 - Company computers with the Chrome pack in `enforce`: the pack changed (4 hosts added), so its baseline hash changed.
   Install the new pack and set the new baseline in Settings before turning `enforce` on (D-024).
 - Roll back: the runbook's "Roll back" section, to the commit written down in step 1, with the pre-update backup.
+
+**Backup and migration, verified 27 Nov 2026** on a scratch copy of the server's 26 Nov pre-update backup (schema 29;
+kept on the laptop only, never published): migrated to v31 with integrity ok and 0 foreign-key problems; every table
+kept its rows except tools +3 (Grok, Google Flow, Antigravity), audit +3 (their "added a built-in tool" rows) and
+settings +1; then `python3 -m gateway backup` and `backup-verify` on the migrated copy: `checksum and integrity ok`.
 
 ## Owner decisions and outstanding limitations
 
