@@ -224,11 +224,9 @@ def spend_filter(db, p):
         for tid in sc["tools"]:
             tool = db.one("SELECT id, name, kind, provider FROM tools WHERE id = ?", (tid,))
             where = insight.tool_requests_where(tool) if tool else None
-            if where:
-                # a request belongs to its key's tool; only one without such a key is placed by its user agent
-                scoped = "(SELECT NULLIF(k.hub_tool_id, '') FROM keys k WHERE k.id = r.key_id)"
-                parts.append(f"({scoped} = ? OR ({scoped} IS NULL AND {where[0]}))")
-                args += [tool["id"], *where[1]]
+            if where:  # a scoped key's requests under its tool, others by user agent
+                parts.append(where[0])
+                args += where[1]
         clauses.append("(" + (" OR ".join(parts) or "0") + ")")
     return " AND ".join(clauses) or "1", args
 

@@ -105,6 +105,42 @@ class ReportKeyToolTests(unittest.TestCase):
         self.assertIn(record["id"], [d.get("id") for d in self.get(f"/tools/{SECOND}/usage")["denials"]])
         self.assertNotIn(record["id"], [d.get("id") for d in self.get("/tools/codex/usage")["denials"]])
 
+    def record_tool(self, record):
+        out = self.get(f"/requests/{record['id']}")
+        self.assertNotIn("key_tool", out)
+        return out["tool"]["id"]
+
+    def seats(self, tool_id):
+        """(active holders, idle holders' ids) on the Licences page."""
+        tool = next(t for t in self.get("/licences")["tools"] if t["id"] == tool_id)
+        return tool["active"], [p["id"] for p in tool["idle"]]
+
+    def test_a_record_names_the_keys_tool(self):
+        _, key = self.scoped_key(SECOND)
+        for agent in (CODEX, PLAIN):
+            with self.subTest(agent=agent):
+                self.assertEqual(self.record_tool(self.send(key, agent)), SECOND)
+        self.assertEqual(self.record_tool(self.send(self.rig.key, CODEX)), "codex")
+        self.assertEqual(self.record_tool(self.send(self.rig.key, PLAIN)), "chatgpt")
+
+    def test_a_scoped_keys_use_fills_only_its_own_seat(self):
+        self.db.x("INSERT OR IGNORE INTO entitlements(tool_id, person_id, granted) VALUES('codex', ?, 1)", (self.pid,))
+        _, key = self.scoped_key(SECOND)
+        self.send(key, CODEX)
+        self.send(key, PLAIN)
+        self.assertEqual(self.seats(SECOND), (1, []))
+        for other in ("codex", "chatgpt"):
+            with self.subTest(other=other):
+                self.assertEqual(self.seats(other), (0, [self.pid]))
+
+    def test_seats_without_a_scoped_key_are_filled_as_before(self):
+        self.db.x("INSERT OR IGNORE INTO entitlements(tool_id, person_id, granted) VALUES('codex', ?, 1)", (self.pid,))
+        self.send(self.rig.key, CODEX)
+        # as before, an unscoped request fills the developer tool it names and the API seats of its provider
+        for tool_id in ("codex", "chatgpt", SECOND):
+            with self.subTest(tool=tool_id):
+                self.assertEqual(self.seats(tool_id), (1, []))
+
     def test_the_revoke_simulator_counts_the_same_requests(self):
         key_id, key = self.scoped_key(SECOND)
         self.send(key, CODEX)
