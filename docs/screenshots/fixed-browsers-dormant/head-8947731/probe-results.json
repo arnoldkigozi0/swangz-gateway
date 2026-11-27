@@ -1,0 +1,768 @@
+{
+ "cells": {
+  "dark 1440x900": {
+   "copy": {
+    "title": "Company browsers (dormant)",
+    "intro": "These settings are kept for reference. Open does not use company browsers.",
+    "selectLabel": "Saved browser configuration",
+    "options": [
+     "agent=Company browser agent (saved setting)",
+     "=Fixed browser list (saved setting)"
+    ],
+    "text": "Company browsers (dormant)\n\nThese settings are kept for reference. Open does not use company browsers.\n\nSaved browser configuration\nCompany browser agent (saved setting)\nFixed browser list (saved setting)\nFixed browsers (dormant)\nThese browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses.\nSave"
+   },
+   "axList": {
+    "role": "textbox",
+    "name": "Fixed browsers (dormant)",
+    "description": "These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."
+   },
+   "labelStyle": {
+    "own": "12px | 620 | none | normal | rgb(206, 198, 189)",
+    "sibling": "12px | 620 | none | normal | rgb(206, 198, 189)",
+    "text": "Fixed browsers (dormant)",
+    "firstChildIsText": true,
+    "labelledby": null,
+    "ariaLabel": "Fixed browsers (dormant)"
+   },
+   "axSelect": {
+    "role": "combobox",
+    "name": "Saved browser configuration"
+   },
+   "oldList": [],
+   "focus": {
+    "visible": true,
+    "border": "rgb(229, 190, 120)",
+    "shadow": "color(srgb 0.898039 0.745098 0.470588 / 0.18) 0px 0px 0px 3px"
+   },
+   "geoList": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 633
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 633
+     }
+    ]
+   },
+   "axeList": [],
+   "geoEmpty": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 633
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 633
+     }
+    ]
+   },
+   "keyboardSelect": "agent",
+   "agentTab": "Save",
+   "geoAgent": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 633
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 633
+     }
+    ]
+   },
+   "axeAgent": [],
+   "serverPanel": {
+    "not-configured": {
+     "title": "Saved company browsers on the rented server (dormant)",
+     "text": "Saved company browsers on the rented server (dormant)\nNo company browser connection is configured for the rented server —\nSettings → Company browsers\n.\n\nHistorical configuration only. These company browsers are unused since D-028; Open never sends anyone to them.",
+     "notice": "No company browser connection is configured for the rented server — Settings → Company browsers.",
+     "buttons": [],
+     "docOver": 0,
+     "bodyOver": 0,
+     "over": [],
+     "outside": [],
+     "oldPhrases": [],
+     "tabAfterSave": {
+      "text": "Settings → Company browsers",
+      "ring": true,
+      "inPanel": true
+     },
+     "axe": []
+    },
+    "empty": {
+     "title": "Saved company browsers on the rented server (dormant)",
+     "text": "Saved company browsers on the rented server (dormant)\nNo saved browsers for this tool.\n\nHistorical configuration only. These company browsers are unused since D-028; Open never sends anyone to them.",
+     "notice": "No saved browsers for this tool.",
+     "buttons": [],
+     "docOver": 0,
+     "bodyOver": 0,
+     "over": [],
+     "outside": [],
+     "oldPhrases": [],
+     "tabAfterSave": {
+      "text": "See past turns in Activity",
+      "ring": true,
+      "inPanel": false
+     },
+     "axe": []
+    },
+    "error": {
+     "title": "Saved company browsers on the rented server (dormant)",
+     "text": "Saved company browsers on the rented server (dormant)\nThe saved host could not be read: synthetic read failure\n\nHistorical configuration only. These company browsers are unused since D-028; Open never sends anyone to them.",
+     "notice": "The saved host could not be read: synthetic read failure",
+     "buttons": [],
+     "docOver": 0,
+     "bodyOver": 0,
+     "over": [],
+     "outside": [],
+     "oldPhrases": [],
+     "tabAfterSave": {
+      "text": "See past turns in Activity",
+      "ring": true,
+      "inPanel": false
+     },
+     "axe": []
+    },
+    "listed": {
+     "title": "Saved company browsers on the rented server (dormant)",
+     "text": "Saved company browsers on the rented server (dormant)\n1\nBrowser 1 \nStopped\nFree\nSign in to the tool\n2\nBrowser 2 \nRunning\nowner@swangzavenue.com is signing it in\nOpen again\nDone\n\nHistorical configuration only. These company browsers are unused since D-028; Open never sends anyone to them.",
+     "notice": null,
+     "buttons": [
+      "Sign in to the tool",
+      "Open again",
+      "Done"
+     ],
+     "docOver": 0,
+     "bodyOver": 0,
+     "over": [],
+     "outside": [],
+     "oldPhrases": [],
+     "tabAfterSave": {
+      "text": "Sign in to the tool",
+      "ring": true,
+      "inPanel": true
+     },
+     "axe": []
+    }
+   }
+  },
+  "dark 390x844": {
+   "copy": {
+    "title": "Company browsers (dormant)",
+    "intro": "These settings are kept for reference. Open does not use company browsers.",
+    "selectLabel": "Saved browser configuration",
+    "options": [
+     "agent=Company browser agent (saved setting)",
+     "=Fixed browser list (saved setting)"
+    ],
+    "text": "Company browsers (dormant)\n\nThese settings are kept for reference. Open does not use company browsers.\n\nSaved browser configuration\nCompany browser agent (saved setting)\nFixed browser list (saved setting)\nFixed browsers (dormant)\nThese browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses.\nSave"
+   },
+   "axList": {
+    "role": "textbox",
+    "name": "Fixed browsers (dormant)",
+    "description": "These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."
+   },
+   "labelStyle": {
+    "own": "12px | 620 | none | normal | rgb(206, 198, 189)",
+    "sibling": "12px | 620 | none | normal | rgb(206, 198, 189)",
+    "text": "Fixed browsers (dormant)",
+    "firstChildIsText": true,
+    "labelledby": null,
+    "ariaLabel": "Fixed browsers (dormant)"
+   },
+   "axSelect": {
+    "role": "combobox",
+    "name": "Saved browser configuration"
+   },
+   "oldList": [],
+   "focus": {
+    "visible": true,
+    "border": "rgb(229, 190, 120)",
+    "shadow": "color(srgb 0.898039 0.745098 0.470588 / 0.18) 0px 0px 0px 3px"
+   },
+   "geoList": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 275
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 275
+     }
+    ]
+   },
+   "axeList": [],
+   "geoEmpty": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 275
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 275
+     }
+    ]
+   },
+   "keyboardSelect": "agent",
+   "agentTab": "Save",
+   "geoAgent": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 275
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 275
+     }
+    ]
+   },
+   "axeAgent": [],
+   "serverPanel": {
+    "not-configured": {
+     "title": "Saved company browsers on the rented server (dormant)",
+     "text": "Saved company browsers on the rented server (dormant)\nNo company browser connection is configured for the rented server —\nSettings → Company browsers\n.\n\nHistorical configuration only. These company browsers are unused since D-028; Open never sends anyone to them.",
+     "notice": "No company browser connection is configured for the rented server — Settings → Company browsers.",
+     "buttons": [],
+     "docOver": 0,
+     "bodyOver": 0,
+     "over": [],
+     "outside": [],
+     "oldPhrases": [],
+     "tabAfterSave": {
+      "text": "Settings → Company browsers",
+      "ring": true,
+      "inPanel": true
+     },
+     "axe": []
+    },
+    "empty": {
+     "title": "Saved company browsers on the rented server (dormant)",
+     "text": "Saved company browsers on the rented server (dormant)\nNo saved browsers for this tool.\n\nHistorical configuration only. These company browsers are unused since D-028; Open never sends anyone to them.",
+     "notice": "No saved browsers for this tool.",
+     "buttons": [],
+     "docOver": 0,
+     "bodyOver": 0,
+     "over": [],
+     "outside": [],
+     "oldPhrases": [],
+     "tabAfterSave": {
+      "text": "See past turns in Activity",
+      "ring": true,
+      "inPanel": false
+     },
+     "axe": []
+    },
+    "error": {
+     "title": "Saved company browsers on the rented server (dormant)",
+     "text": "Saved company browsers on the rented server (dormant)\nThe saved host could not be read: synthetic read failure\n\nHistorical configuration only. These company browsers are unused since D-028; Open never sends anyone to them.",
+     "notice": "The saved host could not be read: synthetic read failure",
+     "buttons": [],
+     "docOver": 0,
+     "bodyOver": 0,
+     "over": [],
+     "outside": [],
+     "oldPhrases": [],
+     "tabAfterSave": {
+      "text": "See past turns in Activity",
+      "ring": true,
+      "inPanel": false
+     },
+     "axe": []
+    },
+    "listed": {
+     "title": "Saved company browsers on the rented server (dormant)",
+     "text": "Saved company browsers on the rented server (dormant)\nBrowser 1 \nStopped\nFree\nSign in to the tool\nBrowser 2 \nRunning\nowner@swangzavenue.com is signing it in\nOpen again\nDone\n\nHistorical configuration only. These company browsers are unused since D-028; Open never sends anyone to them.",
+     "notice": null,
+     "buttons": [
+      "Sign in to the tool",
+      "Open again",
+      "Done"
+     ],
+     "docOver": 0,
+     "bodyOver": 0,
+     "over": [
+      "DIV owner@swangzavenue.com is sign"
+     ],
+     "outside": [],
+     "oldPhrases": [],
+     "tabAfterSave": {
+      "text": "Sign in to the tool",
+      "ring": true,
+      "inPanel": true
+     },
+     "axe": []
+    }
+   }
+  },
+  "light 1440x900": {
+   "copy": {
+    "title": "Company browsers (dormant)",
+    "intro": "These settings are kept for reference. Open does not use company browsers.",
+    "selectLabel": "Saved browser configuration",
+    "options": [
+     "agent=Company browser agent (saved setting)",
+     "=Fixed browser list (saved setting)"
+    ],
+    "text": "Company browsers (dormant)\n\nThese settings are kept for reference. Open does not use company browsers.\n\nSaved browser configuration\nCompany browser agent (saved setting)\nFixed browser list (saved setting)\nFixed browsers (dormant)\nThese browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses.\nSave"
+   },
+   "axList": {
+    "role": "textbox",
+    "name": "Fixed browsers (dormant)",
+    "description": "These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."
+   },
+   "labelStyle": {
+    "own": "12px | 620 | none | normal | rgb(77, 77, 85)",
+    "sibling": "12px | 620 | none | normal | rgb(77, 77, 85)",
+    "text": "Fixed browsers (dormant)",
+    "firstChildIsText": true,
+    "labelledby": null,
+    "ariaLabel": "Fixed browsers (dormant)"
+   },
+   "axSelect": {
+    "role": "combobox",
+    "name": "Saved browser configuration"
+   },
+   "oldList": [],
+   "focus": {
+    "visible": true,
+    "border": "rgb(120, 86, 15)",
+    "shadow": "color(srgb 0.470588 0.337255 0.0588235 / 0.18) 0px 0px 0px 3px"
+   },
+   "geoList": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 633
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 633
+     }
+    ]
+   },
+   "axeList": [],
+   "geoEmpty": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 633
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 633
+     }
+    ]
+   },
+   "keyboardSelect": "agent",
+   "agentTab": "Save",
+   "geoAgent": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 633
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 633
+     }
+    ]
+   },
+   "axeAgent": [],
+   "serverPanel": {
+    "not-configured": {
+     "title": "Saved company browsers on the rented server (dormant)",
+     "text": "Saved company browsers on the rented server (dormant)\nNo company browser connection is configured for the rented server —\nSettings → Company browsers\n.\n\nHistorical configuration only. These company browsers are unused since D-028; Open never sends anyone to them.",
+     "notice": "No company browser connection is configured for the rented server — Settings → Company browsers.",
+     "buttons": [],
+     "docOver": 0,
+     "bodyOver": 0,
+     "over": [],
+     "outside": [],
+     "oldPhrases": [],
+     "tabAfterSave": {
+      "text": "Settings → Company browsers",
+      "ring": true,
+      "inPanel": true
+     },
+     "axe": []
+    },
+    "empty": {
+     "title": "Saved company browsers on the rented server (dormant)",
+     "text": "Saved company browsers on the rented server (dormant)\nNo saved browsers for this tool.\n\nHistorical configuration only. These company browsers are unused since D-028; Open never sends anyone to them.",
+     "notice": "No saved browsers for this tool.",
+     "buttons": [],
+     "docOver": 0,
+     "bodyOver": 0,
+     "over": [],
+     "outside": [],
+     "oldPhrases": [],
+     "tabAfterSave": {
+      "text": "See past turns in Activity",
+      "ring": true,
+      "inPanel": false
+     },
+     "axe": []
+    },
+    "error": {
+     "title": "Saved company browsers on the rented server (dormant)",
+     "text": "Saved company browsers on the rented server (dormant)\nThe saved host could not be read: synthetic read failure\n\nHistorical configuration only. These company browsers are unused since D-028; Open never sends anyone to them.",
+     "notice": "The saved host could not be read: synthetic read failure",
+     "buttons": [],
+     "docOver": 0,
+     "bodyOver": 0,
+     "over": [],
+     "outside": [],
+     "oldPhrases": [],
+     "tabAfterSave": {
+      "text": "See past turns in Activity",
+      "ring": true,
+      "inPanel": false
+     },
+     "axe": []
+    },
+    "listed": {
+     "title": "Saved company browsers on the rented server (dormant)",
+     "text": "Saved company browsers on the rented server (dormant)\n1\nBrowser 1 \nStopped\nFree\nSign in to the tool\n2\nBrowser 2 \nRunning\nowner@swangzavenue.com is signing it in\nOpen again\nDone\n\nHistorical configuration only. These company browsers are unused since D-028; Open never sends anyone to them.",
+     "notice": null,
+     "buttons": [
+      "Sign in to the tool",
+      "Open again",
+      "Done"
+     ],
+     "docOver": 0,
+     "bodyOver": 0,
+     "over": [],
+     "outside": [],
+     "oldPhrases": [],
+     "tabAfterSave": {
+      "text": "Sign in to the tool",
+      "ring": true,
+      "inPanel": true
+     },
+     "axe": []
+    }
+   }
+  },
+  "light 390x844": {
+   "copy": {
+    "title": "Company browsers (dormant)",
+    "intro": "These settings are kept for reference. Open does not use company browsers.",
+    "selectLabel": "Saved browser configuration",
+    "options": [
+     "agent=Company browser agent (saved setting)",
+     "=Fixed browser list (saved setting)"
+    ],
+    "text": "Company browsers (dormant)\n\nThese settings are kept for reference. Open does not use company browsers.\n\nSaved browser configuration\nCompany browser agent (saved setting)\nFixed browser list (saved setting)\nFixed browsers (dormant)\nThese browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses.\nSave"
+   },
+   "axList": {
+    "role": "textbox",
+    "name": "Fixed browsers (dormant)",
+    "description": "These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."
+   },
+   "labelStyle": {
+    "own": "12px | 620 | none | normal | rgb(77, 77, 85)",
+    "sibling": "12px | 620 | none | normal | rgb(77, 77, 85)",
+    "text": "Fixed browsers (dormant)",
+    "firstChildIsText": true,
+    "labelledby": null,
+    "ariaLabel": "Fixed browsers (dormant)"
+   },
+   "axSelect": {
+    "role": "combobox",
+    "name": "Saved browser configuration"
+   },
+   "oldList": [],
+   "focus": {
+    "visible": true,
+    "border": "rgb(120, 86, 15)",
+    "shadow": "color(srgb 0.470588 0.337255 0.0588235 / 0.18) 0px 0px 0px 3px"
+   },
+   "geoList": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 275
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 275
+     }
+    ]
+   },
+   "axeList": [],
+   "geoEmpty": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 275
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 275
+     }
+    ]
+   },
+   "keyboardSelect": "agent",
+   "agentTab": "Save",
+   "geoAgent": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 275
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 275
+     }
+    ]
+   },
+   "axeAgent": [],
+   "serverPanel": {
+    "not-configured": {
+     "title": "Saved company browsers on the rented server (dormant)",
+     "text": "Saved company browsers on the rented server (dormant)\nNo company browser connection is configured for the rented server —\nSettings → Company browsers\n.\n\nHistorical configuration only. These company browsers are unused since D-028; Open never sends anyone to them.",
+     "notice": "No company browser connection is configured for the rented server — Settings → Company browsers.",
+     "buttons": [],
+     "docOver": 0,
+     "bodyOver": 0,
+     "over": [],
+     "outside": [],
+     "oldPhrases": [],
+     "tabAfterSave": {
+      "text": "Settings → Company browsers",
+      "ring": true,
+      "inPanel": true
+     },
+     "axe": []
+    },
+    "empty": {
+     "title": "Saved company browsers on the rented server (dormant)",
+     "text": "Saved company browsers on the rented server (dormant)\nNo saved browsers for this tool.\n\nHistorical configuration only. These company browsers are unused since D-028; Open never sends anyone to them.",
+     "notice": "No saved browsers for this tool.",
+     "buttons": [],
+     "docOver": 0,
+     "bodyOver": 0,
+     "over": [],
+     "outside": [],
+     "oldPhrases": [],
+     "tabAfterSave": {
+      "text": "See past turns in Activity",
+      "ring": true,
+      "inPanel": false
+     },
+     "axe": []
+    },
+    "error": {
+     "title": "Saved company browsers on the rented server (dormant)",
+     "text": "Saved company browsers on the rented server (dormant)\nThe saved host could not be read: synthetic read failure\n\nHistorical configuration only. These company browsers are unused since D-028; Open never sends anyone to them.",
+     "notice": "The saved host could not be read: synthetic read failure",
+     "buttons": [],
+     "docOver": 0,
+     "bodyOver": 0,
+     "over": [],
+     "outside": [],
+     "oldPhrases": [],
+     "tabAfterSave": {
+      "text": "See past turns in Activity",
+      "ring": true,
+      "inPanel": false
+     },
+     "axe": []
+    },
+    "listed": {
+     "title": "Saved company browsers on the rented server (dormant)",
+     "text": "Saved company browsers on the rented server (dormant)\nBrowser 1 \nStopped\nFree\nSign in to the tool\nBrowser 2 \nRunning\nowner@swangzavenue.com is signing it in\nOpen again\nDone\n\nHistorical configuration only. These company browsers are unused since D-028; Open never sends anyone to them.",
+     "notice": null,
+     "buttons": [
+      "Sign in to the tool",
+      "Open again",
+      "Done"
+     ],
+     "docOver": 0,
+     "bodyOver": 0,
+     "over": [
+      "DIV owner@swangzavenue.com is sign"
+     ],
+     "outside": [],
+     "oldPhrases": [],
+     "tabAfterSave": {
+      "text": "Sign in to the tool",
+      "ring": true,
+      "inPanel": true
+     },
+     "axe": []
+    }
+   }
+  }
+ },
+ "requests": [
+  {
+   "cell": "dark 1440x900",
+   "method": "PATCH",
+   "path": "/admin/api/tools/midjourney",
+   "body": {
+    "workspace_mode": "",
+    "workspace_url": ""
+   },
+   "status": 200,
+   "response": {
+    "ok": true
+   },
+   "savedAfter": {
+    "workspace_url": "",
+    "workspace_mode": ""
+   }
+  },
+  {
+   "cell": "dark 390x844",
+   "method": "PATCH",
+   "path": "/admin/api/tools/midjourney",
+   "body": {
+    "workspace_mode": "",
+    "workspace_url": ""
+   },
+   "status": 200,
+   "response": {
+    "ok": true
+   },
+   "savedAfter": {
+    "workspace_url": "",
+    "workspace_mode": ""
+   }
+  },
+  {
+   "cell": "light 1440x900",
+   "method": "PATCH",
+   "path": "/admin/api/tools/midjourney",
+   "body": {
+    "workspace_mode": "",
+    "workspace_url": ""
+   },
+   "status": 200,
+   "response": {
+    "ok": true
+   },
+   "savedAfter": {
+    "workspace_url": "",
+    "workspace_mode": ""
+   }
+  },
+  {
+   "cell": "light 390x844",
+   "method": "PATCH",
+   "path": "/admin/api/tools/midjourney",
+   "body": {
+    "workspace_mode": "",
+    "workspace_url": ""
+   },
+   "status": 200,
+   "response": {
+    "ok": true
+   },
+   "savedAfter": {
+    "workspace_url": "",
+    "workspace_mode": ""
+   }
+  }
+ ],
+ "toolWasShared": false,
+ "tool": "midjourney",
+ "modeBeforeSeed": "",
+ "route": "/admin#/tools?open=midjourney&tab=account",
+ "offsiteRequestsBlocked": [],
+ "passed": 251,
+ "failures": [
+  "dark 390x844: saved agent / listed: no clipping or sideways overflow {\"title\":\"Saved company browsers on the rented server (dormant)\",\"text\":\"Saved company browsers on the rented server (dormant)\\nBrowser 1 \\nStopped\\nFree\\nSign in to the tool\\nBrowser 2 \\nRunning\\nowner@swangzavenue.com is signing it in\\nOpen again\\nDone\\n\\nHistorical configuration only. These company browsers are unused since D-028; Open never sends anyone to them.\",\"notice\":null,\"buttons\":[\"Sign in to the tool\",\"Open again\",\"Done\"],\"docOver\":0,\"bodyOver\":0,\"over\":[\"DIV owner@swangzavenue.com is sign\"],\"outside\":[],\"oldPhrases\":[]}",
+  "light 390x844: saved agent / listed: no clipping or sideways overflow {\"title\":\"Saved company browsers on the rented server (dormant)\",\"text\":\"Saved company browsers on the rented server (dormant)\\nBrowser 1 \\nStopped\\nFree\\nSign in to the tool\\nBrowser 2 \\nRunning\\nowner@swangzavenue.com is signing it in\\nOpen again\\nDone\\n\\nHistorical configuration only. These company browsers are unused since D-028; Open never sends anyone to them.\",\"notice\":null,\"buttons\":[\"Sign in to the tool\",\"Open again\",\"Done\"],\"docOver\":0,\"bodyOver\":0,\"over\":[\"DIV owner@swangzavenue.com is sign\"],\"outside\":[],\"oldPhrases\":[]}"
+ ]
+}

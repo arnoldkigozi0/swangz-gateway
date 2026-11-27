@@ -1,0 +1,513 @@
+{
+ "cells": {
+  "dark 1440x900": {
+   "oldCopy": [],
+   "ax": {
+    "role": "textbox",
+    "name": "Fixed browsers (dormant) These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses.",
+    "description": "These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."
+   },
+   "focus": {
+    "visible": true,
+    "outline": "3px none rgb(246, 246, 244) offset 2px",
+    "shadow": "oklab(0 0 0 / 0) 0px 0px 0px 0px",
+    "border": "rgb(43, 43, 49)"
+   },
+   "geometry": {
+    "vw": 1440,
+    "vh": 900,
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "taOver": 0,
+    "helpOver": 0,
+    "sheet": {
+     "l": 680,
+     "r": 1440,
+     "t": 0,
+     "b": 900,
+     "w": 760,
+     "h": 900
+    },
+    "label": {
+     "l": 722,
+     "r": 1399,
+     "t": 470.7,
+     "b": 614.9,
+     "w": 677,
+     "h": 144.3
+    },
+    "textarea": {
+     "l": 722,
+     "r": 1399,
+     "t": 494.7,
+     "b": 571.4,
+     "w": 677,
+     "h": 76.8
+    },
+    "help": {
+     "l": 722,
+     "r": 1399,
+     "t": 577.4,
+     "b": 614.9,
+     "w": 677,
+     "h": 37.5
+    },
+    "textareaUncovered": true,
+    "helpUncovered": true
+   },
+   "axe": [],
+   "afterField": "BUTTON Save",
+   "geometryEmpty": {
+    "vw": 1440,
+    "vh": 900,
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "taOver": 0,
+    "helpOver": 0,
+    "sheet": {
+     "l": 680,
+     "r": 1440,
+     "t": 0,
+     "b": 900,
+     "w": 760,
+     "h": 900
+    },
+    "label": {
+     "l": 722,
+     "r": 1399,
+     "t": 470.7,
+     "b": 614.9,
+     "w": 677,
+     "h": 144.3
+    },
+    "textarea": {
+     "l": 722,
+     "r": 1399,
+     "t": 494.7,
+     "b": 571.4,
+     "w": 677,
+     "h": 76.8
+    },
+    "help": {
+     "l": 722,
+     "r": 1399,
+     "t": 577.4,
+     "b": 614.9,
+     "w": 677,
+     "h": 37.5
+    },
+    "textareaUncovered": true,
+    "helpUncovered": true
+   }
+  },
+  "dark 390x844": {
+   "oldCopy": [],
+   "ax": {
+    "role": "textbox",
+    "name": "Fixed browsers (dormant) These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses.",
+    "description": "These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."
+   },
+   "focus": {
+    "visible": true,
+    "outline": "3px none rgb(246, 246, 244) offset 2px",
+    "shadow": "color(srgb 0.898039 0.745098 0.470588 / 0.18) 0px 0px 0px 3px",
+    "border": "rgb(229, 190, 120)"
+   },
+   "geometry": {
+    "vw": 390,
+    "vh": 844,
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "taOver": 0,
+    "helpOver": 0,
+    "sheet": {
+     "l": 0,
+     "r": 390,
+     "t": 0,
+     "b": 844,
+     "w": 390,
+     "h": 844
+    },
+    "label": {
+     "l": 36,
+     "r": 355,
+     "t": 474.9,
+     "b": 637.9,
+     "w": 319,
+     "h": 163
+    },
+    "textarea": {
+     "l": 36,
+     "r": 355,
+     "t": 498.9,
+     "b": 575.7,
+     "w": 319,
+     "h": 76.8
+    },
+    "help": {
+     "l": 36,
+     "r": 355,
+     "t": 581.7,
+     "b": 637.9,
+     "w": 319,
+     "h": 56.3
+    },
+    "textareaUncovered": true,
+    "helpUncovered": true
+   },
+   "axe": [],
+   "afterField": "BUTTON Save",
+   "geometryEmpty": {
+    "vw": 390,
+    "vh": 844,
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "taOver": 0,
+    "helpOver": 0,
+    "sheet": {
+     "l": 0,
+     "r": 390,
+     "t": 0,
+     "b": 844,
+     "w": 390,
+     "h": 844
+    },
+    "label": {
+     "l": 36,
+     "r": 355,
+     "t": 474.9,
+     "b": 637.9,
+     "w": 319,
+     "h": 163
+    },
+    "textarea": {
+     "l": 36,
+     "r": 355,
+     "t": 498.9,
+     "b": 575.7,
+     "w": 319,
+     "h": 76.8
+    },
+    "help": {
+     "l": 36,
+     "r": 355,
+     "t": 581.7,
+     "b": 637.9,
+     "w": 319,
+     "h": 56.3
+    },
+    "textareaUncovered": true,
+    "helpUncovered": true
+   }
+  },
+  "light 1440x900": {
+   "oldCopy": [],
+   "ax": {
+    "role": "textbox",
+    "name": "Fixed browsers (dormant) These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses.",
+    "description": "These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."
+   },
+   "focus": {
+    "visible": true,
+    "outline": "3px none rgb(21, 21, 26) offset 2px",
+    "shadow": "color(srgb 0.470588 0.337255 0.0588235 / 0.18) 0px 0px 0px 3px",
+    "border": "rgb(120, 86, 15)"
+   },
+   "geometry": {
+    "vw": 1440,
+    "vh": 900,
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "taOver": 0,
+    "helpOver": 0,
+    "sheet": {
+     "l": 680,
+     "r": 1440,
+     "t": 0,
+     "b": 900,
+     "w": 760,
+     "h": 900
+    },
+    "label": {
+     "l": 722,
+     "r": 1399,
+     "t": 470.7,
+     "b": 614.9,
+     "w": 677,
+     "h": 144.3
+    },
+    "textarea": {
+     "l": 722,
+     "r": 1399,
+     "t": 494.7,
+     "b": 571.4,
+     "w": 677,
+     "h": 76.8
+    },
+    "help": {
+     "l": 722,
+     "r": 1399,
+     "t": 577.4,
+     "b": 614.9,
+     "w": 677,
+     "h": 37.5
+    },
+    "textareaUncovered": true,
+    "helpUncovered": true
+   },
+   "axe": [],
+   "afterField": "BUTTON Save",
+   "geometryEmpty": {
+    "vw": 1440,
+    "vh": 900,
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "taOver": 0,
+    "helpOver": 0,
+    "sheet": {
+     "l": 680,
+     "r": 1440,
+     "t": 0,
+     "b": 900,
+     "w": 760,
+     "h": 900
+    },
+    "label": {
+     "l": 722,
+     "r": 1399,
+     "t": 470.7,
+     "b": 614.9,
+     "w": 677,
+     "h": 144.3
+    },
+    "textarea": {
+     "l": 722,
+     "r": 1399,
+     "t": 494.7,
+     "b": 571.4,
+     "w": 677,
+     "h": 76.8
+    },
+    "help": {
+     "l": 722,
+     "r": 1399,
+     "t": 577.4,
+     "b": 614.9,
+     "w": 677,
+     "h": 37.5
+    },
+    "textareaUncovered": true,
+    "helpUncovered": true
+   }
+  },
+  "light 390x844": {
+   "oldCopy": [],
+   "ax": {
+    "role": "textbox",
+    "name": "Fixed browsers (dormant) These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses.",
+    "description": "These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."
+   },
+   "focus": {
+    "visible": true,
+    "outline": "3px none rgb(21, 21, 26) offset 2px",
+    "shadow": "color(srgb 0.470588 0.337255 0.0588235 / 0.18) 0px 0px 0px 3px",
+    "border": "rgb(120, 86, 15)"
+   },
+   "geometry": {
+    "vw": 390,
+    "vh": 844,
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "taOver": 0,
+    "helpOver": 0,
+    "sheet": {
+     "l": 0,
+     "r": 390,
+     "t": 0,
+     "b": 844,
+     "w": 390,
+     "h": 844
+    },
+    "label": {
+     "l": 36,
+     "r": 355,
+     "t": 474.9,
+     "b": 637.9,
+     "w": 319,
+     "h": 163
+    },
+    "textarea": {
+     "l": 36,
+     "r": 355,
+     "t": 498.9,
+     "b": 575.7,
+     "w": 319,
+     "h": 76.8
+    },
+    "help": {
+     "l": 36,
+     "r": 355,
+     "t": 581.7,
+     "b": 637.9,
+     "w": 319,
+     "h": 56.3
+    },
+    "textareaUncovered": true,
+    "helpUncovered": true
+   },
+   "axe": [],
+   "afterField": "BUTTON Save",
+   "geometryEmpty": {
+    "vw": 390,
+    "vh": 844,
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "taOver": 0,
+    "helpOver": 0,
+    "sheet": {
+     "l": 0,
+     "r": 390,
+     "t": 0,
+     "b": 844,
+     "w": 390,
+     "h": 844
+    },
+    "label": {
+     "l": 36,
+     "r": 355,
+     "t": 474.9,
+     "b": 637.9,
+     "w": 319,
+     "h": 163
+    },
+    "textarea": {
+     "l": 36,
+     "r": 355,
+     "t": 498.9,
+     "b": 575.7,
+     "w": 319,
+     "h": 76.8
+    },
+    "help": {
+     "l": 36,
+     "r": 355,
+     "t": 581.7,
+     "b": 637.9,
+     "w": 319,
+     "h": 56.3
+    },
+    "textareaUncovered": true,
+    "helpUncovered": true
+   }
+  }
+ },
+ "requests": [
+  {
+   "cell": "dark 1440x900",
+   "method": "PATCH",
+   "path": "/admin/api/tools/midjourney",
+   "body": {
+    "workspace_mode": "",
+    "workspace_url": ""
+   },
+   "status": 200,
+   "response": {
+    "ok": true
+   },
+   "savedAfter": {
+    "workspace_url": "",
+    "workspace_mode": ""
+   }
+  },
+  {
+   "cell": "dark 390x844",
+   "method": "PATCH",
+   "path": "/admin/api/tools/midjourney",
+   "body": {
+    "workspace_mode": "",
+    "workspace_url": ""
+   },
+   "status": 200,
+   "response": {
+    "ok": true
+   },
+   "savedAfter": {
+    "workspace_url": "",
+    "workspace_mode": ""
+   }
+  },
+  {
+   "cell": "light 1440x900",
+   "method": "PATCH",
+   "path": "/admin/api/tools/midjourney",
+   "body": {
+    "workspace_mode": "",
+    "workspace_url": ""
+   },
+   "status": 200,
+   "response": {
+    "ok": true
+   },
+   "savedAfter": {
+    "workspace_url": "",
+    "workspace_mode": ""
+   }
+  },
+  {
+   "cell": "light 390x844",
+   "method": "PATCH",
+   "path": "/admin/api/tools/midjourney",
+   "body": {
+    "workspace_mode": "",
+    "workspace_url": ""
+   },
+   "status": 200,
+   "response": {
+    "ok": true
+   },
+   "savedAfter": {
+    "workspace_url": "",
+    "workspace_mode": ""
+   }
+  }
+ ],
+ "toolWasShared": false,
+ "tool": "midjourney",
+ "modeBeforeSeed": "",
+ "route": "/admin#/tools?open=midjourney&tab=account",
+ "roles": {
+  "billing": {
+   "value": true,
+   "disabled": true,
+   "saveButtons": 0,
+   "patch": 403
+  },
+  "security": {
+   "value": true,
+   "disabled": true,
+   "saveButtons": 0,
+   "patch": 403
+  },
+  "operations": {
+   "value": true,
+   "disabled": false,
+   "saveButtons": 1,
+   "patch": 200
+  }
+ },
+ "agentSaved": {
+  "hidden": true,
+  "value": true
+ },
+ "offsiteRequestsBlocked": [],
+ "passed": 117,
+ "failures": []
+}

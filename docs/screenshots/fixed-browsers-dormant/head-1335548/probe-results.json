@@ -1,0 +1,450 @@
+{
+ "cells": {
+  "dark 1440x900": {
+   "copy": {
+    "title": "Company browsers (dormant)",
+    "intro": "These settings are kept for reference. Open does not use company browsers.",
+    "selectLabel": "Saved browser configuration",
+    "options": [
+     "agent=Company browser agent (saved setting)",
+     "=Fixed browser list (saved setting)"
+    ],
+    "text": "Company browsers (dormant)\n\nThese settings are kept for reference. Open does not use company browsers.\n\nSaved browser configuration\nCompany browser agent (saved setting)\nFixed browser list (saved setting)\nFIXED BROWSERS (DORMANT)\nThese browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses.\nSave"
+   },
+   "axList": {
+    "role": "textbox",
+    "name": "FIXED BROWSERS (DORMANT)",
+    "description": "These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."
+   },
+   "axSelect": {
+    "role": "combobox",
+    "name": "Saved browser configuration"
+   },
+   "oldList": [],
+   "focus": {
+    "visible": true,
+    "border": "rgb(229, 190, 120)",
+    "shadow": "color(srgb 0.898039 0.745098 0.470588 / 0.18) 0px 0px 0px 3px"
+   },
+   "geoList": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 633
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 633
+     }
+    ]
+   },
+   "axeList": [],
+   "geoEmpty": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 633
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 633
+     }
+    ]
+   },
+   "keyboardSelect": "agent",
+   "agentTab": "Save",
+   "geoAgent": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 633
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 633
+     }
+    ]
+   },
+   "axeAgent": [],
+   "savedAgentExtra": [
+    "Company browsers on the rented server\nThe rented server isn't connected yet —\nSettings → Company browsers\n.\n\nEach browser keeps its own sign-in to the tool, so sign each one in once: press Sign in to the tool, open it, sign in to the tool inside it with the company account, then press Done. Nobody can be given that browser meanwhile."
+   ]
+  },
+  "dark 390x844": {
+   "copy": {
+    "title": "Company browsers (dormant)",
+    "intro": "These settings are kept for reference. Open does not use company browsers.",
+    "selectLabel": "Saved browser configuration",
+    "options": [
+     "agent=Company browser agent (saved setting)",
+     "=Fixed browser list (saved setting)"
+    ],
+    "text": "Company browsers (dormant)\n\nThese settings are kept for reference. Open does not use company browsers.\n\nSaved browser configuration\nCompany browser agent (saved setting)\nFixed browser list (saved setting)\nFIXED BROWSERS (DORMANT)\nThese browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses.\nSave"
+   },
+   "axList": {
+    "role": "textbox",
+    "name": "FIXED BROWSERS (DORMANT)",
+    "description": "These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."
+   },
+   "axSelect": {
+    "role": "combobox",
+    "name": "Saved browser configuration"
+   },
+   "oldList": [],
+   "focus": {
+    "visible": true,
+    "border": "rgb(229, 190, 120)",
+    "shadow": "color(srgb 0.898039 0.745098 0.470588 / 0.18) 0px 0px 0px 3px"
+   },
+   "geoList": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 275
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 275
+     }
+    ]
+   },
+   "axeList": [],
+   "geoEmpty": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 275
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 275
+     }
+    ]
+   },
+   "keyboardSelect": "agent",
+   "agentTab": "Save",
+   "geoAgent": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 275
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 275
+     }
+    ]
+   },
+   "axeAgent": [],
+   "savedAgentExtra": [
+    "Company browsers on the rented server\nThe rented server isn't connected yet —\nSettings → Company browsers\n.\n\nEach browser keeps its own sign-in to the tool, so sign each one in once: press Sign in to the tool, open it, sign in to the tool inside it with the company account, then press Done. Nobody can be given that browser meanwhile."
+   ]
+  },
+  "light 1440x900": {
+   "copy": {
+    "title": "Company browsers (dormant)",
+    "intro": "These settings are kept for reference. Open does not use company browsers.",
+    "selectLabel": "Saved browser configuration",
+    "options": [
+     "agent=Company browser agent (saved setting)",
+     "=Fixed browser list (saved setting)"
+    ],
+    "text": "Company browsers (dormant)\n\nThese settings are kept for reference. Open does not use company browsers.\n\nSaved browser configuration\nCompany browser agent (saved setting)\nFixed browser list (saved setting)\nFIXED BROWSERS (DORMANT)\nThese browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses.\nSave"
+   },
+   "axList": {
+    "role": "textbox",
+    "name": "FIXED BROWSERS (DORMANT)",
+    "description": "These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."
+   },
+   "axSelect": {
+    "role": "combobox",
+    "name": "Saved browser configuration"
+   },
+   "oldList": [],
+   "focus": {
+    "visible": true,
+    "border": "rgb(120, 86, 15)",
+    "shadow": "color(srgb 0.470588 0.337255 0.0588235 / 0.18) 0px 0px 0px 3px"
+   },
+   "geoList": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 633
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 633
+     }
+    ]
+   },
+   "axeList": [],
+   "geoEmpty": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 633
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 633
+     }
+    ]
+   },
+   "keyboardSelect": "agent",
+   "agentTab": "Save",
+   "geoAgent": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 633
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 633
+     }
+    ]
+   },
+   "axeAgent": [],
+   "savedAgentExtra": [
+    "Company browsers on the rented server\nThe rented server isn't connected yet —\nSettings → Company browsers\n.\n\nEach browser keeps its own sign-in to the tool, so sign each one in once: press Sign in to the tool, open it, sign in to the tool inside it with the company account, then press Done. Nobody can be given that browser meanwhile."
+   ]
+  },
+  "light 390x844": {
+   "copy": {
+    "title": "Company browsers (dormant)",
+    "intro": "These settings are kept for reference. Open does not use company browsers.",
+    "selectLabel": "Saved browser configuration",
+    "options": [
+     "agent=Company browser agent (saved setting)",
+     "=Fixed browser list (saved setting)"
+    ],
+    "text": "Company browsers (dormant)\n\nThese settings are kept for reference. Open does not use company browsers.\n\nSaved browser configuration\nCompany browser agent (saved setting)\nFixed browser list (saved setting)\nFIXED BROWSERS (DORMANT)\nThese browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses.\nSave"
+   },
+   "axList": {
+    "role": "textbox",
+    "name": "FIXED BROWSERS (DORMANT)",
+    "description": "These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."
+   },
+   "axSelect": {
+    "role": "combobox",
+    "name": "Saved browser configuration"
+   },
+   "oldList": [],
+   "focus": {
+    "visible": true,
+    "border": "rgb(120, 86, 15)",
+    "shadow": "color(srgb 0.470588 0.337255 0.0588235 / 0.18) 0px 0px 0px 3px"
+   },
+   "geoList": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 275
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 275
+     }
+    ]
+   },
+   "axeList": [],
+   "geoEmpty": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 275
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 275
+     }
+    ]
+   },
+   "keyboardSelect": "agent",
+   "agentTab": "Save",
+   "geoAgent": {
+    "docOver": 0,
+    "bodyOver": 0,
+    "sheetOver": 0,
+    "over": [],
+    "outside": [],
+    "options": [
+     {
+      "text": "Company browser agent (saved setting)",
+      "textWidth": 257.9,
+      "room": 275
+     },
+     {
+      "text": "Fixed browser list (saved setting)",
+      "textWidth": 210,
+      "room": 275
+     }
+    ]
+   },
+   "axeAgent": [],
+   "savedAgentExtra": [
+    "Company browsers on the rented server\nThe rented server isn't connected yet —\nSettings → Company browsers\n.\n\nEach browser keeps its own sign-in to the tool, so sign each one in once: press Sign in to the tool, open it, sign in to the tool inside it with the company account, then press Done. Nobody can be given that browser meanwhile."
+   ]
+  }
+ },
+ "requests": [
+  {
+   "cell": "dark 1440x900",
+   "method": "PATCH",
+   "path": "/admin/api/tools/midjourney",
+   "body": {
+    "workspace_mode": "",
+    "workspace_url": ""
+   },
+   "status": 200,
+   "response": {
+    "ok": true
+   },
+   "savedAfter": {
+    "workspace_url": "",
+    "workspace_mode": ""
+   }
+  },
+  {
+   "cell": "dark 390x844",
+   "method": "PATCH",
+   "path": "/admin/api/tools/midjourney",
+   "body": {
+    "workspace_mode": "",
+    "workspace_url": ""
+   },
+   "status": 200,
+   "response": {
+    "ok": true
+   },
+   "savedAfter": {
+    "workspace_url": "",
+    "workspace_mode": ""
+   }
+  },
+  {
+   "cell": "light 1440x900",
+   "method": "PATCH",
+   "path": "/admin/api/tools/midjourney",
+   "body": {
+    "workspace_mode": "",
+    "workspace_url": ""
+   },
+   "status": 200,
+   "response": {
+    "ok": true
+   },
+   "savedAfter": {
+    "workspace_url": "",
+    "workspace_mode": ""
+   }
+  },
+  {
+   "cell": "light 390x844",
+   "method": "PATCH",
+   "path": "/admin/api/tools/midjourney",
+   "body": {
+    "workspace_mode": "",
+    "workspace_url": ""
+   },
+   "status": 200,
+   "response": {
+    "ok": true
+   },
+   "savedAfter": {
+    "workspace_url": "",
+    "workspace_mode": ""
+   }
+  }
+ ],
+ "toolWasShared": false,
+ "tool": "midjourney",
+ "modeBeforeSeed": "",
+ "route": "/admin#/tools?open=midjourney&tab=account",
+ "offsiteRequestsBlocked": [],
+ "passed": 125,
+ "failures": [
+  "dark 1440x900: accessible name is exactly the label {\"role\":\"textbox\",\"name\":\"FIXED BROWSERS (DORMANT)\",\"description\":\"These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses.\"}",
+  "dark 390x844: accessible name is exactly the label {\"role\":\"textbox\",\"name\":\"FIXED BROWSERS (DORMANT)\",\"description\":\"These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses.\"}",
+  "light 1440x900: accessible name is exactly the label {\"role\":\"textbox\",\"name\":\"FIXED BROWSERS (DORMANT)\",\"description\":\"These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses.\"}",
+  "light 390x844: accessible name is exactly the label {\"role\":\"textbox\",\"name\":\"FIXED BROWSERS (DORMANT)\",\"description\":\"These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses.\"}"
+ ]
+}
