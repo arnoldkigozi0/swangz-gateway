@@ -23,6 +23,8 @@ DAY = 86400
 COUNTED = "(r.kind NOT IN ('other', 'media-status') OR r.outcome != 'ok')"
 USED = "r.kind NOT IN ('other', 'media-status')"
 TOKENS = "(r.in_tok + r.out_tok + r.cache_write_tok + r.cache_read_tok)"
+# the tool the key of a request (on requests r) is scoped to; NULL for a key without one
+KEY_TOOL = "(SELECT NULLIF(k.hub_tool_id, '') FROM keys k WHERE k.id = r.key_id)"
 
 
 # ---------------------------------------------------------------- shared helpers
@@ -74,7 +76,8 @@ def ip_kind(ip):
 
 
 class Tools:
-    """Catalog tools by id, and which one a proxied request belongs to (as catalog.provider_tool does)."""
+    """Catalog tools by id, and which one a proxied request belongs to: its key's tool if the key is scoped to one,
+    otherwise by user agent and provider (as catalog.provider_tool does)."""
 
     def __init__(self, db):
         rows = db.q("SELECT id, name, kind, provider, category, color, signin FROM tools ORDER BY rowid")
@@ -84,7 +87,9 @@ class Tools:
             if r["kind"] == "api" and r["provider"]:
                 self.by_provider.setdefault(r["provider"], r)
 
-    def for_request(self, client, provider):
+    def for_request(self, client, provider, key_tool=None):
+        if key_tool:
+            return self.by_id.get(key_tool)
         if client == "Claude Code" and "claude-code" in self.by_id:
             return self.by_id["claude-code"]
         if client == "Codex" and "codex" in self.by_id:
@@ -93,13 +98,17 @@ class Tools:
 
 
 def tool_requests_where(tool):
-    """SQL (on requests r) for the gateway traffic that belongs to a catalog tool, or None for a website."""
+    """SQL (on requests r) for the gateway traffic that belongs to a catalog tool, or None for a website. A request
+    on a tool-scoped key belongs to that key's tool; only one without such a key is placed by its user agent."""
     if tool["kind"] == "dev":
-        client = {"claude-code": "Claude Code", "codex": "Codex"}.get(tool["id"], tool["name"])
-        return "r.client = ?", [client]
-    if tool["kind"] == "api" and tool["provider"]:
-        return "r.provider = ? AND r.client NOT IN ('Claude Code', 'Codex')", [tool["provider"]]
-    return None
+        agent = "r.client = ?"
+        value = {"claude-code": "Claude Code", "codex": "Codex"}.get(tool["id"], tool["name"])
+    elif tool["kind"] == "api" and tool["provider"]:
+        agent = "r.provider = ? AND r.client NOT IN ('Claude Code', 'Codex')"
+        value = tool["provider"]
+    else:
+        return None
+    return f"({KEY_TOOL} = ? OR ({KEY_TOOL} IS NULL AND {agent}))", [tool["id"], value]
 
 
 def _in(values):
@@ -136,12 +145,13 @@ def usage_rows(db, since, until, person=None, tool_id=None):
     who = " AND {col} = ?" if person else ""
     extra = [person] if person else []
     for r in db.q(
-            f"SELECT r.person_id, p.name, p.department, r.client, r.provider, COUNT(*) AS n, COALESCE(SUM(r.cost), 0) AS cost,"
+            f"SELECT r.person_id, p.name, p.department, r.client, r.provider, {KEY_TOOL} AS key_tool, COUNT(*) AS n,"
+            " COALESCE(SUM(r.cost), 0) AS cost,"
             f" COALESCE(SUM({TOKENS}), 0) AS tokens, SUM(r.kind = 'media') AS media, SUM(r.outcome != 'ok') AS refused,"
             " MAX(r.ts) AS last FROM requests r JOIN people p ON p.id = r.person_id"
             f" WHERE r.ts >= ? AND r.ts < ? AND {COUNTED}" + who.format(col="r.person_id")
-            + " GROUP BY r.person_id, r.client, r.provider", [since, until] + extra):
-        x = row(r, tools.for_request(r["client"], r["provider"]), r["client"] or r["provider"])
+            + " GROUP BY r.person_id, r.client, r.provider, key_tool", [since, until] + extra):
+        x = row(r, tools.for_request(r["client"], r["provider"], r["key_tool"]), r["client"] or r["provider"])
         x["requests"] += r["n"] - (r["refused"] or 0)
         x["refused"] += r["refused"] or 0
         x["cost"] += r["cost"] or 0
@@ -317,7 +327,8 @@ def timeline(ctx):
         args = [since, until]
         sql = (f"SELECT r.id, r.ts, r.person_id, p.name AS person, p.department, r.client, r.provider, r.model, r.kind,"
                f" r.media_type, r.outcome, r.reason, r.cost, {TOKENS} AS tokens, r.duration_ms, r.session, r.prompt,"
-               " r.actions, r.flags, r.client_ip, r.key_id, k.label AS device, r.user_agent, r.agent, r.purpose, r.purpose_source,"
+               " r.actions, r.flags, r.client_ip, r.key_id, k.label AS device, k.hub_tool_id AS key_tool, r.user_agent,"
+               " r.agent, r.purpose, r.purpose_source,"
                " r.purpose_confidence, r.project, r.rule"
                " FROM requests r LEFT JOIN people p ON p.id = r.person_id LEFT JOIN keys k ON k.id = r.key_id"
                f" WHERE r.ts >= ? AND r.ts < ? AND {COUNTED}") + scope("r.person_id", args)
@@ -336,7 +347,7 @@ def timeline(ctx):
                 args += [like] * 3
         if sql:
             for r in db.q(sql + " ORDER BY r.ts DESC LIMIT ?", args + [limit + 1]):
-                t = tools.for_request(r["client"], r["provider"])
+                t = tools.for_request(r["client"], r["provider"], r["key_tool"])
                 try:
                     n_actions = len(json.loads(r.pop("actions") or "[]"))
                 except ValueError:
@@ -651,10 +662,10 @@ def spend(ctx):
                      lambda k, r: k or "No model")
     by_app = {}
     for a, b, which in ((since, until, "now"), (prev[0], prev[1], "then")):
-        for r in db.q(f"SELECT r.client, r.provider, COUNT(*) AS requests, COALESCE(SUM(r.cost), 0) AS cost,"
-                      f" SUM(r.cost IS NULL AND r.outcome = 'ok') AS unpriced FROM requests r"
-                      f" WHERE r.ts >= ? AND r.ts < ? AND {USED} GROUP BY r.client, r.provider", (a, b)):
-            t = tools.for_request(r["client"], r["provider"])
+        for r in db.q(f"SELECT r.client, r.provider, {KEY_TOOL} AS key_tool, COUNT(*) AS requests,"
+                      " COALESCE(SUM(r.cost), 0) AS cost, SUM(r.cost IS NULL AND r.outcome = 'ok') AS unpriced FROM requests r"
+                      f" WHERE r.ts >= ? AND r.ts < ? AND {USED} GROUP BY r.client, r.provider, key_tool", (a, b)):
+            t = tools.for_request(r["client"], r["provider"], r["key_tool"])
             key = t["id"] if t else (r["client"] or r["provider"])
             slot = by_app.setdefault(key, {"now": {"cost": 0.0, "requests": 0, "unpriced": 0}, "then": {"cost": 0.0, "requests": 0, "unpriced": 0},
                                            "label": t["name"] if t else (r["client"] or r["provider"]), "tool_id": t["id"] if t else None})
