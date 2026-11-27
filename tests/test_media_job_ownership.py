@@ -136,6 +136,38 @@ class MediaJobOwnershipTests(unittest.TestCase):
         job, _ = self.start()
         self.refused("GET", f"/custom/requests/{job}/status", self.a_key)
 
+    # ------------------------------------------------------------ Higgsfield job sets
+
+    def start_set(self, key=None):
+        status, payload, row = self.send("POST", "/higgsfield/v1/text2image/soul", key or self.a_key, {"prompt": "a poster"})
+        self.assertEqual(status, 200, payload)
+        job = json.loads(payload)["id"]
+        self.assertEqual((row["turn_id"], row["kind"], row["outcome"]), (job, "media", "ok"))
+        return job, row["id"]
+
+    def test_a_job_set_is_read_only_by_whoever_started_it(self):
+        job, rid = self.start_set()
+        before = self.record(rid)
+        row = self.refused("GET", f"/higgsfield/v1/job-sets/{job}", self.b_key)
+        self.assertEqual((row["person_id"], row["kind"]), (self.b, "other"))
+        self.assertEqual(self.record(rid), before)
+        for key in (self.a_key, self.key_for(self.a)):
+            self.passed("GET", f"/higgsfield/v1/job-sets/{job}", key)
+        self.refused("GET", "/higgsfield/v1/job-sets/set9999-unknown", self.a_key)
+        self.db.x("DELETE FROM requests WHERE id = ?", (rid,))
+        self.refused("GET", f"/higgsfield/v1/job-sets/{job}", self.a_key)
+
+    def test_no_other_way_of_writing_a_job_set_path_gets_round_it(self):
+        job, _ = self.start_set()
+        mine, _ = self.start_set(self.b_key)
+        for method, path in (("GET", f"/higgsfield/v1/job-sets/{job}/"), ("GET", f"/higgsfield/v1/job-sets//{job}"),
+                             ("GET", f"/higgsfield/v1/job-sets/{job}/{mine}"), ("GET", f"/higgsfield/v1/job-sets/{mine}/{job}"),
+                             ("GET", f"/higgsfield/v1/job-sets/{mine};/{job}"), ("GET", f"/higgsfield/requests/{job}"),
+                             ("GET", f"/higgsfield/v1/job-sets/%73{job[1:]}"), ("POST", f"/higgsfield/v1/job-sets/{job}"),
+                             ("POST", f"/higgsfield/v1/%6Aob-sets/{job}"), ("POST", f"/higgsfield/v1/Job-Sets/{job}")):
+            with self.subTest(method=method, path=path):
+                self.refused(method, path, self.b_key)
+
     # ------------------------------------------------------------ nobody can claim a job
 
     def test_a_tool_cannot_name_the_job_of_its_own_request(self):
