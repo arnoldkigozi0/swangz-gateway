@@ -3,12 +3,18 @@ employees, devices and their apps, who has what, seats against single company lo
 weekly reports — with metadata only. Suspend and revoke on the page use the existing device and key routes."""
 
 import json
+import pathlib
+import re
+import shutil
+import subprocess
 import time
 import unittest
 
 from gateway import workstations
 
 from .test_devices import DeviceBase
+
+STATIC = pathlib.Path(__file__).resolve().parent.parent / "gateway" / "static"
 
 
 def ensure_apps_columns(db):
@@ -199,6 +205,64 @@ class ActivityAndReportsTests(WorkstationsBase):
         self.assertEqual(workstations._apps('[{"id": " x ", "state": "web"}]', {}), [{"id": "x", "name": "x", "state": "web", "version": ""}])
         self.assertEqual(workstations._apps(None, {}), [])
         self.assertEqual(workstations._apps("[1, 2]", {}), [])
+
+
+def lead(cases):
+    source = (STATIC / "admin-workstations.js").read_text(encoding="utf-8")
+    many = re.search(r"\n  (const many = .*?;)\n", source).group(1)
+    fn = re.search(r"\n  (function workstationsLead\(n\) \{\n.*?\n  \})\n", source, re.S).group(1)
+    script = many + fn + "\nconsole.log(JSON.stringify(" + json.dumps(cases) + ".map(workstationsLead)));"
+    out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30, check=True)
+    return json.loads(out.stdout)
+
+
+@unittest.skipUnless(shutil.which("node"), "Node is not installed")
+class PageLeadTests(unittest.TestCase):
+    """BRIEF 10.10.7: one plain sentence with the real number, then one next step that is never a dead end."""
+    BASE = {"loaded": True, "people": 8, "connected": 5, "online": 5, "offline": 0, "withoutDevice": 0, "singleLogins": 0, "missing": 0}
+
+    def one(self, **n):
+        return lead([{**self.BASE, **n}])[0]
+
+    def test_a_single_company_login_is_named_first_and_opens_the_accounts(self):
+        out = self.one(singleLogins=2, offline=3, missing=4)
+        self.assertEqual(out["sentence"], "2 tools use one company login.")
+        self.assertEqual(out["action"]["href"], "#/workstations?view=detailed&focus=accounts")
+
+    def test_then_people_without_a_workstation_then_missing_reports_then_offline(self):
+        self.assertEqual(self.one(withoutDevice=1, missing=2)["sentence"], "1 person has no workstation yet.")
+        self.assertEqual(self.one(missing=2, offline=1)["sentence"], "2 weekly reports are missing.")
+        self.assertEqual(self.one(offline=2)["sentence"], "2 of 5 computers are offline.")
+        self.assertEqual(self.one()["sentence"], "All 5 computers are online.")
+
+    def test_empty_and_failed_are_never_a_dead_end(self):
+        self.assertEqual(self.one(people=0)["action"]["href"], "#/people?add=1")
+        self.assertEqual(self.one(connected=0)["sentence"], "No computer has the Swangz app yet.")
+        self.assertTrue(lead([{"loaded": False}])[0]["action"]["retry"])
+
+    def test_no_sentence_speaks_of_turns_or_waiting(self):
+        cases = [{**self.BASE, **x} for x in ({"singleLogins": 1}, {"withoutDevice": 3}, {"missing": 1}, {"offline": 1}, {}, {"connected": 1, "online": 1})]
+        for out in lead(cases):
+            self.assertNotRegex(out["sentence"].lower(), r"\bturns?\b|queue|wait|hand back")
+            self.assertLessEqual(len(out["sentence"].split()), 12)
+
+
+class ConsoleWiringTests(unittest.TestCase):
+    def test_workstations_is_first_in_the_rail_the_menu_and_the_landing(self):
+        admin = (STATIC / "admin.js").read_text(encoding="utf-8")
+        self.assertIn('const RAIL = ["#/workstations", "#/",', admin)
+        self.assertIn('["Monitor", [["#/workstations", "Workstations", "monitor"], ["#/", "Overview", "overview"]', admin)
+        self.assertIn('"#/workstations");', admin[admin.index("function landing()"):])
+        html = (STATIC / "admin.html").read_text(encoding="utf-8")
+        self.assertLess(html.index("/static/admin.js"), html.index("/static/admin-workstations.js"))
+        self.assertIn('href="/static/workstations.css"', html)
+
+    def test_suspend_and_revoke_ask_why_in_a_dialog_never_a_browser_alert(self):
+        page = (STATIC / "admin-workstations.js").read_text(encoding="utf-8")
+        self.assertNotRegex(page, r"\b(alert|confirm|prompt)\(")
+        self.assertIn('`/devices/${encodeURIComponent(d.device_id)}/workspace`, { action: "suspend", reason }', page)
+        self.assertIn('`/keys/${encodeURIComponent(d.key_id)}/revoke`, { reason }', page)
+        self.assertIn('"Observed in Swangz"', page)
 
 
 if __name__ == "__main__":
