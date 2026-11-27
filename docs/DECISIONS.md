@@ -1701,6 +1701,16 @@ that limitation instead of imposing timers; no hosted browser fleet, VPS or new 
    False, so Open never routes to them. Their settings stay readable; the code and its skipped tests are removed in
    a separate change.
 
+6. **Native and command-line apps** (the app's manager, `swangz_client/native_apps.py`). The install, detect and launch
+   facts are a fixed table inside the app, each with its official source and the day it was checked; the Hub only
+   names which tools a person has (manifest `tools`) and never sends a device a command. Windows installs go through
+   `winget` with the exact package id and source, only after the person confirms a dialog naming the app, publisher
+   and source; command-line tools (Claude Code, Codex) install in a visible terminal window. macOS installs, and any
+   app without a verified package, open the **vendor's own download page in the default browser**; the person runs
+   the vendor's installer. That extends D-026 D2 (Google's Chrome page) to vendor download pages only: an AI tool
+   itself still never opens in the default browser. Nothing is elevated, downloaded or run silently by Swangz. The app
+   reports `{id, state, version}` per app at check-in (`devices.apps_json`), shown to admins as the app's report.
+
 **Supersedes:** the turn model in CLAUDE.md "How people get into website tools"; D-022's refusal of shared accounts in
 the app; D-026 D4's `shared_account` refusal; D-027 (the shared folder and Arnold's one-time sign-in were never
 activated: `SHARED_IN_APP` stayed off, and the turn-bound window it depended on no longer exists).
