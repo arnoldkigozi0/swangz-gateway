@@ -24,6 +24,11 @@
 .ws-limits li { color: var(--tx-1); font-size: 13px; line-height: 20px; }
 .ws-limits a { color: var(--tx-1); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 
+/* a single company login's Account tab (admin-govern.js limitationPanel) */
+.account-limit { gap: 8px; }
+.account-limit p { margin: 0; }
+.account-limit .row { margin-top: 8px; }
+
 .ws-activity { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 24px; }
 .ws-activity .ov-nums { padding: 0; }
 .ws-provider { padding-left: 24px; border-left: 1px solid var(--line); }

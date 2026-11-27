@@ -103,7 +103,7 @@
   function deviceMenu(d) {
     const stop = A.can("govern") || A.can("emergency");
     return SUI.menuButton({ label: "More for " + d.name, small: true, align: "end", items: () => [
-      { id: "person", label: `See ${d.person || "their"} record`, icon: "user", href: `#/people/${d.person_id}?tab=devices` },
+      { id: "person", label: d.person ? `See ${d.person}'s record` : "See their record", icon: "user", href: `#/people/${d.person_id}?tab=devices` },
       d.connected && d.workspace === "active" && stop ? { id: "suspend", label: "Suspend", icon: "stop", onSelect: () => suspend(d) } : null,
       d.connected && d.workspace === "suspended" && A.can("govern") ? { id: "reactivate", label: "Turn back on", icon: "play", onSelect: () => reactivate(d) } : null,
       d.connected && d.key_id && stop ? { id: "revoke", label: "Revoke", icon: "x", danger: true, onSelect: () => revoke(d) } : null,

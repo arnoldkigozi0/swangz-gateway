@@ -163,16 +163,16 @@
     const kpis = el("div", { class: "kpis four" });
     const stream = el("div", { class: "lv-stream", "aria-live": "off" });
     const finished = el("ol", { class: "events flat" });
-    const shared = el("div"), opens = el("div"), sites = el("div");
-    const sharedPanel = A.panel("Shared company accounts", "who holds a turn now", shared);
+    const opens = el("div"), sites = el("div");
     const cards = new Map();
-    function drawKpis(live, turnsNow) {
+    // the fourth card counts tools opened from the portal today (shared-account turns were retired on 27 Nov 2026)
+    function drawKpis(live, opensToday) {
       const streaming = live.filter((t) => t.streaming).length;
       kpis.replaceChildren(
         A.kpi({ label: "Working right now", icon: "live", value: String(live.length), foot: live.length ? SUI.status("live", "Live", { breathe: true, plain: true }) : SUI.status("idle", "Quiet", { plain: true }) }),
         A.kpi({ label: "Streaming", icon: "activity", value: String(streaming), note: "replies arriving" }),
         A.kpi({ label: "Waiting", icon: "clock", value: String(live.length - streaming), note: "for the model's first word" }),
-        A.kpi({ label: "Shared accounts in use", icon: "hand", value: turnsNow === null ? "—" : String(turnsNow), note: "turns held now" }));
+        A.kpi({ label: "Tools opened · today", icon: "open", value: opensToday === null ? "—" : String(opensToday), note: "from the portal", href: "#/activity?tab=opens&range=today" }));
     }
     function liveCard(t) {
       const stop = A.can("emergency") ? el("button", { class: "btn small danger", onclick: () => cut(t) }, icon("stop"), "Stop") : null;
@@ -221,32 +221,26 @@
       while (finished.children.length > 40) finished.lastChild.remove();
     }
     async function loadSide() {
-      const [turns, launches, visits] = await Promise.all([
-        api("GET", "/turns"), api("GET", "/launches?since=" + (S.overview ? S.overview.day_start : 0)),
+      const [launches, visits] = await Promise.all([
+        api("GET", "/launches?since=" + (S.overview ? S.overview.day_start : 0)),
         api("GET", `/timeline?type=site&since=${Date.now() / 1000 - 3600}&limit=12`)]);
-      sharedPanel.hidden = !turns.tools.length;
-      shared.replaceChildren(turns.now.length ? el("ul", { class: "mini-list" }, turns.now.map((x) => el("li", null,
-        A.toolLogo(x.tool_id, x.tool, "sm"),
-        el("div", { class: "grow" }, A.personLink(x.person_id, x.person, { avatar: false }), el("span", { class: "muted" }, " holds "), el("strong", null, x.tool)),
-        el("span", { class: "u-badge warn" }, "until " + fmt.clock(x.expires)))))
-        : A.empty(`Nobody is on a shared account. ${SUI.plural(turns.tools.length, "tool")} work this way.`));
       opens.replaceChildren(launches.items.length ? A.launchList(launches.items.slice(0, 10)) : A.empty("Nobody has opened a tool from the portal today."));
       sites.replaceChildren(visits.items.length ? el("ul", { class: "mini-list" }, visits.items.map((v) => el("li", null, A.toolLogo(v.tool_id, v.tool, "sm"),
         el("div", { class: "grow" }, A.personLink(v.person_id, v.person, { avatar: false }), el("span", { class: "muted" }, v.outcome === "blocked" ? " was blocked from " : " on "), el("strong", null, v.tool)),
         v.outcome === "blocked" ? SUI.status("blocked", "Blocked", { plain: true }) : el("span", { class: "hint nowrap" }, v.seconds ? fmt.dur(v.seconds) : fmt.ago(v.ts)))))
         : A.empty("No approved AI websites opened in the last hour (needs the browser extension)."));
-      return turns.now.length;
+      return launches.items.filter((x) => x.outcome === "opened").length;
     }
 
-    let n = 0, turnsNow = null, failures = 0, lastOk = 0;
+    let n = 0, opensToday = null, failures = 0, lastOk = 0;
     async function tick() {
       try {
         await A.refreshOverview();
         if (!S.overview) throw new Error("no data");
         drawStream(S.overview.live);
         await loadFinished();
-        if (n++ % 5 === 0) turnsNow = await loadSide();
-        drawKpis(S.overview.live, turnsNow);
+        if (n++ % 5 === 0) opensToday = await loadSide();
+        drawKpis(S.overview.live, opensToday);
         failures = 0; lastOk = Date.now();
         document.querySelector(".page")?.classList.remove("stale");
         conn.replaceChildren(SUI.status("live", "Live", { breathe: true, plain: true }), el("span", { class: "hint" }, " · updated just now"));
@@ -268,7 +262,6 @@
           A.panel("In flight", "requests waiting on a model or streaming back", stream),
           A.panel("Just finished", el("a", { class: "btn small quiet", href: "#/activity?tab=ai" }, "Search everything", icon("chevronRight")), finished)),
         el("div", { class: "grid" },
-          sharedPanel,
           A.panel("Opened from the portal", "today", opens),
           A.panel("AI websites", "last hour · browser extension", sites))),
     ]);
@@ -343,7 +336,7 @@
   async function pageActivity(params) {
     await A.toolIndex().catch(() => null);
     const exportLink = el("a", { class: "btn", href: A.gadmin("/export.csv") }, icon("download"), "Export CSV");
-    A.frame({ title: "Activity", trail: [["Overview", "#/"], ["Activity"]], lede: ["What staff did through Swangz AI Hub — AI requests, tools opened, AI websites visited, shared-account turns, and each person's sign-ins and access changes. Signals worth investigating are under ",
+    A.frame({ title: "Activity", trail: [["Overview", "#/"], ["Activity"]], lede: ["What staff did through Swangz AI Hub — AI requests, tools opened, AI websites visited, each person's sign-ins and access changes, and past shared-account turns (history; retired 27 Nov 2026). Signals worth investigating are under ",
       el("a", { href: "#/security" }, "Security"), "; what admins changed is in the ", el("a", { href: "#/audit" }, "Audit log"), "."],
       actions: exportLink },
     A.pageTabs("#/activity", params, [
@@ -428,7 +421,7 @@
     const st = { range: A.rangeFrom(params, "7d"), person: params.get("person") || "", tool: params.get("tool") || "", type: params.get("type") || "", q: params.get("q") || "", dept: params.get("dept") || "" };
     const ctl = { person: personSelect(list, st.person), dept: deptSelect(list, st.dept), tool: toolSelect(st.tool),
       type: el("select", { "aria-label": "Kind of event" }, [["", "Everything"], ["request", "AI requests"], ["launch", "Tools opened"], ["site", "AI websites"],
-        ["turn", "Shared account turns"], ["access", "Sign-ins and access changes"]].map(([v, t]) => el("option", { value: v }, t))) };
+        ["turn", "Past shared-account turns (history)"], ["access", "Sign-ins and access changes"]].map(([v, t]) => el("option", { value: v }, t))) };
     ctl.type.value = st.type;
     const q = el("input", { type: "search", placeholder: "Search prompts, people, tools…", value: st.q });
     const results = el("div", { class: "results" });

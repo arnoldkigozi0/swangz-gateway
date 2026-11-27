@@ -265,5 +265,31 @@ class ConsoleWiringTests(unittest.TestCase):
         self.assertIn('"Observed in Swangz"', page)
 
 
+class TurnsRetiredInTheUiTests(unittest.TestCase):
+    """27 Nov 2026: no turns, queues, countdowns or hand-backs on any screen; a single company login names its limitation;
+    past turns stay readable as history."""
+
+    def read(self, name):
+        return (STATIC / name).read_text(encoding="utf-8")
+
+    def test_the_staff_app_has_no_turn_controls_and_names_the_company_login(self):
+        portal = self.read("portal.js")
+        # "Yours until <date>" stays: that is a grant's end date, not a turn's clock time
+        for gone in ("Take your turn", "Hand back", "takes turns", "your turn", ".turn", "turn/end", "In use — free at", '"Yours until " + fmt.clock'):
+            self.assertFalse(gone in portal, gone)
+        self.assertIn("One login the company pays for. The provider may not let several people use it at once", portal)
+        self.assertIn("t.account_note", portal)
+
+    def test_the_console_edits_no_turn_settings_and_keeps_history_read_only(self):
+        govern = self.read("admin-govern.js")
+        for gone in ("seats_at_once", "turn_minutes", '"/turns"', "Take it back", "How long a turn lasts", "workspaceTab"):
+            self.assertFalse(gone in govern, gone)
+        self.assertIn('A.panel("Account limitation"', govern)
+        self.assertIn("History — turns were retired on 27 Nov 2026", govern)
+        self.assertIn('if (params.get("tab") === "workspace") params.set("tab", "account");', govern)
+        self.assertNotIn('"/turns"', self.read("admin-monitor.js"))
+        self.assertNotIn("Take back a shared turn", self.read("admin-money.js"))
+
+
 if __name__ == "__main__":
     unittest.main()
