@@ -83,6 +83,25 @@ def path_segments(path):
     return segments, all(s not in ("", ".", "..") and not re.search(r"[%\\;#]", s) for s in segments)
 
 
+class _Pairs(list):
+    """A JSON object as every (name, value) written in it, repeated names included."""
+
+
+def body_strings(raw, media_types=""):
+    """-> (the strings at the top level of a JSON body, whether the body can be checked at all). A body that
+    isn't JSON and doesn't look or claim to be has none; one that does and can't be read can't be checked."""
+    try:
+        body = json.loads(raw, object_pairs_hook=_Pairs)
+    except (ValueError, RecursionError):
+        start = raw.lstrip(b"\xef\xbb\xbf \t\r\n")[:1]
+        return [], not start or not ("json" in media_types.lower() or start in (b"{", b"[", b'"'))
+    if isinstance(body, _Pairs):
+        values = [value for _, value in body]
+    else:
+        values = body if isinstance(body, list) else [body]
+    return list(dict.fromkeys(v for v in values if isinstance(v, str))), True
+
+
 def job_ids(dialect, kind, path):
     """The ids by which a request names an existing media job: None when it is not about one; otherwise the
     ids to check against the person asking, empty when the path can't be trusted to name one (so it is refused).

@@ -29,6 +29,7 @@ STRIP_RESPONSE = {
 }
 MAX_PARSED_BYTES = 32 * 1024 * 1024
 MAX_JOB_IDS = 32  # a path with more segments than this is not looked up at all
+MAX_BODY_STRINGS = 1000  # top-level strings of a custom provider's POST, each looked up as a possible job id
 JOB_RECORD_WAIT = 10.0  # the longest a poll waits for the request that started the job to be written down
 
 # Everyone's traffic leaves on the company's one provider key, so anything that key can read, every
@@ -241,14 +242,26 @@ class Call:
         if custom and self.h.command not in ("GET", "POST"):
             return self.refuse(403, "permission_error", "Only GET and POST are available on this provider.",
                                "blocked", "job ownership")
+        if custom and self.query:  # a provider can take a job id from here too
+            return self.refuse(403, "permission_error", "Query strings are not available on this provider.",
+                               "blocked", "job ownership")
         jobs = parse.job_ids(self.provider.dialect, self.kind, self.rest)
         checks = [] if jobs is None else [(jobs, True)]  # (ids, whether they have to name a job at all)
         if custom and self.h.command == "POST":  # a cancel too: no segment of any POST may be someone else's job
             segments, plain = parse.path_segments(self.rest)
             checks.append((segments, False) if plain else ([], True))
+            # every header of a name, not just the first: they are all forwarded
+            encodings = ",".join(self.h.headers.get_all("content-encoding") or []).lower().split(",")
+            types = ",".join(v.split(";")[0] for v in self.h.headers.get_all("content-type") or [])
+            strings, readable = parse.body_strings(self.raw, types)
+            encoded = any(e.strip() not in ("", "identity") for e in encodings)
+            if self.raw and (encoded or not readable or len(strings) > MAX_BODY_STRINGS):
+                return self.refuse(403, "permission_error", "This request body can't be checked for other people's "
+                                   "jobs. Send it uncompressed, as valid JSON if it is JSON.", "blocked", "job ownership")
+            checks.append((strings, False, MAX_BODY_STRINGS))
         if checks:
             try:
-                theirs = all(self._own_job(row, ids, must_own) for ids, must_own in checks)
+                theirs = all(self._own_job(row, *check) for check in checks)
             except Exception as exc:  # noqa: BLE001 — as for policies: what can't be checked is refused
                 self.gw.log(f"job ownership check failed: {exc!r}")
                 return self.refuse(503, "api_error", "who started this job couldn't be checked just now. Try again in a moment.",
@@ -266,10 +279,10 @@ class Call:
                                "blocked", "provider not configured")
         self.forward()
 
-    def _own_job(self, key, jobs, must_own=True):
+    def _own_job(self, key, jobs, must_own=True, limit=MAX_JOB_IDS):
         """True when every job the ids name was started by this person and, on a tool-scoped key, under the
         key's tool; with must_own, they have to name at least one."""
-        if (must_own and not jobs) or len(jobs) > MAX_JOB_IDS:
+        if (must_own and not jobs) or len(jobs) > limit:
             return False
         person, scope = key["person_id"], key.get("hub_tool_id")
         deadline = time.time() + JOB_RECORD_WAIT
