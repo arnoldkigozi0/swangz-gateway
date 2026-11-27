@@ -14,7 +14,7 @@ KNOWN = {"URLBlocklist", "URLAllowlist", "BrowserSignin", "SyncDisabled", "Brows
          "BrowserGuestModeEnabled", "IncognitoModeAvailability", "DeveloperToolsAvailability", "RemoteDebuggingAllowed",
          "PasswordManagerEnabled", "AutoLaunchProtocolsFromOrigins", "ExternalProtocolDialogShowAlwaysOpenCheckbox",
          "ExtensionInstallBlocklist", "ExtensionInstallAllowlist", "ExtensionInstallForcelist"}
-SIGN_IN = {".accounts.google.com", ".accounts.youtube.com", "login.microsoftonline.com", "login.live.com",
+SIGN_IN = {".accounts.google.com", ".accounts.x.ai", ".accounts.youtube.com", "login.microsoftonline.com", "login.live.com",
            "appleid.apple.com", "github.com/login", "github.com/session", "github.com/sessions",
            "www.google.com/recaptcha", "challenges.cloudflare.com", "hcaptcha.com",
            ".ims-na1.adobelogin.com"}  # Adobe ID (Photoshop, Firefly): exact host only
@@ -46,7 +46,7 @@ class ChromePolicyPackTests(unittest.TestCase):
 
     def test_every_catalogue_provider_host_is_allowed_and_nothing_else(self):
         hosts = set()
-        for row in catalog.SEED:
+        for row in catalog.SEED + catalog.WORKSTATION_TOOLS:  # D-028 added Grok, Google Flow, Antigravity
             hosts.update(dict(zip(catalog.FIELDS, row))["hosts"])
         self.assertTrue(hosts)
         # Chrome allowlists match paths; the Hub's hostname gate cannot, so Copilot on GitHub lives only here.
@@ -55,7 +55,7 @@ class ChromePolicyPackTests(unittest.TestCase):
     def test_google_is_reachable_only_for_sign_in_and_tools_in_the_catalogue(self):
         google = {e for e in self.policy["URLAllowlist"] if re.search(r"(google|youtube|gmail)\.", e)}
         self.assertEqual(google, {".accounts.google.com", ".accounts.youtube.com", "www.google.com/recaptcha",
-                                  "gemini.google.com"})
+                                  "gemini.google.com", "flow.google.com"})
         for surface in ("google.com", "mail.google.com", "gmail.com", "myaccount.google.com", "drive.google.com",
                         "docs.google.com",
                         "youtube.com", ".google.com"):

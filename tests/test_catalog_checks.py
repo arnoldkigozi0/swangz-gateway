@@ -58,6 +58,7 @@ def fresh():
     catalog.refine(db)
     if hasattr(catalog, "settle_hosts"):  # PR #306: one owner per gate host
         catalog.settle_hosts(db)
+    catalog.add_workstation_tools(db)  # D-028: Grok, Google Flow, Antigravity
     return db
 
 
@@ -89,15 +90,15 @@ class SeedShapeTests(unittest.TestCase):
     """Check 1 on the source of truth (catalog.SEED / DETAILS), before any database."""
 
     def setUp(self):
-        self.rows = [dict(zip(catalog.FIELDS, row)) for row in catalog.SEED]
+        self.rows = [dict(zip(catalog.FIELDS, row)) for row in catalog.SEED + catalog.WORKSTATION_TOOLS]
 
     def test_49_rows_with_unique_ids_and_names(self):
         for row in catalog.SEED:
             self.assertEqual(len(row), len(catalog.FIELDS), row[0])
-        ids = [r["id"] for r in self.rows]
-        self.assertEqual(len(ids), 49)
-        self.assertEqual(len(set(ids)), 49, "duplicate tool id")
-        self.assertEqual(len({r["name"].casefold() for r in self.rows}), 49, "duplicate tool name")
+        ids = [r["id"] for r in self.rows]  # 49 seeded + Grok, Google Flow, Antigravity (D-028)
+        self.assertEqual(len(ids), 52)
+        self.assertEqual(len(set(ids)), 52, "duplicate tool id")
+        self.assertEqual(len({r["name"].casefold() for r in self.rows}), 52, "duplicate tool name")
         for r in self.rows:
             with self.subTest(r["id"]):
                 self.assertRegex(r["id"], ID)
@@ -168,7 +169,7 @@ class FreshDatabaseTests(unittest.TestCase):
         self.db = fresh()
         self.addCleanup(self.db.close)
         self.rows = {r["id"]: dict(r) for r in self.db.q("SELECT * FROM tools")}
-        self.seed = {row[0]: dict(zip(catalog.FIELDS, row)) for row in catalog.SEED}
+        self.seed = {row[0]: dict(zip(catalog.FIELDS, row)) for row in catalog.SEED + catalog.WORKSTATION_TOOLS}
         self.columns = {r["name"] for r in self.db.q("PRAGMA table_info(tools)")}
 
     def test_the_built_ins_arrive_as_seeded_enabled_and_described(self):

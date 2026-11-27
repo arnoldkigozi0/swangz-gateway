@@ -84,6 +84,9 @@ DETAILS = {
     "codex": ("OpenAI's coding agent for the terminal and editor.", "#10A37F"),
     "social-insider": ("Social media analytics and competitor benchmarks.", "#3B5BDB"),
     "gemini": ("Google's assistant, connected to Workspace.", "#4285F4"),
+    "grok": ("xAI's assistant.", "#111111"),
+    "google-flow": ("Google's AI studio for video and images.", "#1A73E8"),
+    "antigravity": ("Google's agent-first coding environment, installed on the computer.", "#4285F4"),
     "make": ("Visual automation across apps and AI services.", "#6D00CC"),
     "zapier": ("Connect apps and automate workflows with AI steps.", "#FF4F00"),
     "n8n": ("Workflow automation with AI agents.", "#EA4B71"),
@@ -200,14 +203,13 @@ HOST_OWNERS = {
 # Added on 27 Nov 2026 for the owner's workstation list (Grok, Google Flow, Antigravity). Addresses checked that day:
 #   grok        - https://grok.com/ answers 200; its sign-in hands off to accounts.x.ai
 #   google-flow - labs.google/fx/tools/flow now answers 308 to https://flow.google.com/ ("Google Flow - AI Creative Studio")
-#   antigravity - https://antigravity.google/ (Google's agent-first IDE, a desktop app: no website tool to gate)
+#   antigravity - https://antigravity.google/ answers 200 (Google's agent-first IDE). It is a desktop app; the row is a
+#                 website tool only so Open reaches Google's own page, and the Swangz app installs the real program.
 # Plans and prices are left empty until an admin sets them from the provider's own page: nothing here is a quote.
 WORKSTATION_TOOLS = [
-    ["grok", "Grok", "Assistant", "site", "", "https://grok.com/", ["grok.com"], "", 0, [], "xAI's assistant.", "#111111", "web,mobile"],
-    ["google-flow", "Google Flow", "Video", "site", "", "https://flow.google.com/", ["flow.google.com"], "", 0, [],
-     "Google's AI studio for video and images.", "#1A73E8", "web"],
-    ["antigravity", "Antigravity", "Coding", "dev", "", "https://antigravity.google/", [], "", 0, [],
-     "Google's agent-first coding environment, installed on the computer.", "#4285F4", "desktop"],
+    ["grok", "Grok", "Assistant", "site", "", "https://grok.com/", ["grok.com"], "", 0, [], "web,mobile"],
+    ["google-flow", "Google Flow", "Video", "site", "", "https://flow.google.com/", ["flow.google.com"], "", 0, [], "web"],
+    ["antigravity", "Antigravity", "Coding", "site", "", "https://antigravity.google/", ["antigravity.google"], "", 0, [], "desktop"],
 ]
 
 
@@ -223,7 +225,7 @@ def add_workstation_tools(db):
             added = db.x("INSERT OR IGNORE INTO tools(id, name, category, kind, provider, url, hosts, pricing_url,"
                          " entry_usd, plans, builtin, created, description, color, modes) VALUES(?,?,?,?,?,?,?,?,?,?,1,?,?,?,?)",
                          (d["id"], d["name"], d["category"], d["kind"], d["provider"], d["url"], ",".join(d["hosts"]),
-                          d["pricing_url"], d["entry_usd"], json.dumps(d["plans"]), now, row[10], row[11], row[12])).rowcount
+                          d["pricing_url"], d["entry_usd"], json.dumps(d["plans"]), now, *DETAILS[d["id"]], row[10])).rowcount
             if added:
                 db.x("INSERT INTO audit(ts, actor, action, target, detail, ip, reason, before_json, after_json, outcome, correlation, area)"
                      " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",

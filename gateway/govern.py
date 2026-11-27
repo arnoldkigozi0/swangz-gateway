@@ -607,7 +607,7 @@ def simulate_revoke(ctx):
             "grants": {"direct": bool(direct), "direct_expires": (direct or {}).get("expires"),
                        "department": team["department"] if team else None},
             "after": {"enabled": ok and not lost}, "usage_30d": use, "devices": devices,
-            "turn": {"expires": turn["expires"]} if turn else None, "open_request": bool(open_ask), "effects": effects,
+            "turn": None, "open_request": bool(open_ask), "effects": effects,
             "notes": ["Read-only: nothing was changed."]}
 
 
