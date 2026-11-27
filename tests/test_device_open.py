@@ -110,12 +110,15 @@ class DeviceOpenTests(Base):
         status, out, _ = self.open()
         self.assertEqual((status, out.get("code")), (409, "no_address"), out)
 
-    def test_a_shared_company_account_is_left_to_the_hub(self):
+    def test_a_shared_company_account_opens_in_the_app_like_any_tool(self):
+        # turns and the shared_account refusal were retired on 27 Nov 2026 (owner directive)
         self.enable_canva()
         self.tool(signin="shared")
         status, out, _ = self.open()
-        self.assertEqual((status, out.get("code")), (409, "shared_account"), out)
-        self.assertEqual(self.db.scalar("SELECT COUNT(*) FROM tool_turns"), 0)  # no turn taken from here
+        self.assertEqual(status, 200, out)
+        self.assertTrue(out["url"].startswith("https://"), out)
+        self.assertEqual(self.db.scalar("SELECT COUNT(*) FROM tool_turns"), 0)  # no turn is ever taken
+        self.assertEqual(self.launches()[-1]["outcome"], "opened")
 
     def test_opens_are_limited_per_person_and_a_refused_burst_writes_no_launch_rows(self):
         self.enable_canva()

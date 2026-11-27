@@ -543,6 +543,16 @@ SCHEMA = [
     ALTER TABLE devices ADD COLUMN owner_confirmed_at REAL;
     ALTER TABLE devices ADD COLUMN owner_confirmed_by TEXT NOT NULL DEFAULT '';
     """,
+    # v31 (27 Nov 2026, owner directive "one workstation"): timed turns are retired. Every turn still open is closed
+    # now, by 'system', with the reason; no row is deleted, so who held which account and when stays in the history.
+    # Devices gain the app's report of the AI apps and Chrome installed on them (`apps_json`, a JSON list of
+    # {id, state, version}) and when it last reported (`apps_reported`). Empty on every existing row.
+    (
+        "UPDATE tool_turns SET ended = CAST(strftime('%s','now') AS REAL), ended_by = 'system',"
+        " reason = 'turns retired: everyone works at the same time (owner directive, 27 Nov 2026)' WHERE ended IS NULL",
+        "ALTER TABLE devices ADD COLUMN apps_json TEXT NOT NULL DEFAULT '[]'",
+        "ALTER TABLE devices ADD COLUMN apps_reported REAL",
+    ),
 ]
 
 

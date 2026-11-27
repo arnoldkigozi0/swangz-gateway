@@ -117,13 +117,18 @@ class ContractTwoTests(Base):
         self.assertTrue(app["hosts"] and all(isinstance(h, str) and "/" not in h for h in app["hosts"]), app)
         self.assertIs(app["workspace"], True)
         old = [a for a in one["apps"] if a["id"] == "canva"][0]
-        self.assertEqual(set(old), {"id", "name", "category", "signin", "company_browser", "open"})
+        self.assertEqual(set(old), {"id", "name", "category", "signin", "company_browser", "open", "account_note"})
+        self.assertIsNone(old["account_note"])
 
-    def test_the_workspace_flag_is_false_for_any_shared_account_with_or_without_a_company_browser(self):
+    def test_a_shared_account_is_a_workspace_tool_with_its_limitation_stated(self):
+        # 27 Nov 2026: turns retired, so a single-login company account opens in the person's own workspace browser too
         self.enable_canva()
         self.db.x("UPDATE tools SET signin = 'shared' WHERE id = 'canva'")
-        app = [a for a in self.manifest()["apps"] if a["id"] == "canva"][0]
-        self.assertEqual((app["company_browser"], app["workspace"]), (False, False), app)  # #179 L1: /device/open refuses it
+        manifest = self.manifest()
+        app = [a for a in manifest["apps"] if a["id"] == "canva"][0]
+        self.assertEqual((app["company_browser"], app["workspace"]), (False, True), app)
+        self.assertIn("one company login", app["account_note"])
+        self.assertIn("canva", [t["id"] for t in manifest["tools"]])
 
 
 class SettingsTests(Base):

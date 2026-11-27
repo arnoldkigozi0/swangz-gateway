@@ -11,8 +11,9 @@ in it, no port but 443, a DNS name rather than an address, on one of the tool's 
 and with no query or fragment field that looks like a credential. Anything else is refused and recorded; the
 admin fixes the tool's address or hosts. The answer never carries a key, a token or a Hub session.
 
-Shared company accounts (`signin = 'shared'`) are handed out one turn at a time through `/go/`; they are refused
-here with `shared_account` until turns are wired into the workspace (not part of W3).
+A single-login company account (`signin = 'shared'`) opens here like any other website tool, in the person's own
+folder: turns and the `shared_account` refusal were retired on 27 Nov 2026 (owner directive). The app and the Hub
+state the account limitation; nothing waits, is timed out or signs anyone out.
 """
 
 import ipaddress
@@ -20,7 +21,7 @@ import re
 import time
 from urllib.parse import parse_qsl, urlsplit
 
-from . import catalog, enroll, managed, turns
+from . import catalog, enroll, managed
 from .admin import ApiError
 from .staff import launch_checks, route
 
@@ -127,9 +128,9 @@ def device_open(ctx):
             ok, (reason, rule) = False, shut
             code = rule
     hosts, url = own_hosts(tool), None
-    if ok and turns.is_shared(tool):
-        ok, code, rule = False, "shared_account", "shared_account"
-        reason = f"{tool['name']} is a shared company account. Open it from Swangz AI Hub, where turns are handed out."
+    # A single-login company account opens in the person's own Swangz Chrome folder like any other tool: turns and the
+    # D-022/D-026 D4 refusal were retired on 27 Nov 2026 (owner directive). The person signs in with the account they are
+    # authorised to use; Swangz never hands over a password, session or cookie, and the limitation is stated in the app.
     if ok:
         url = next((u.strip() for u in (tool.get("launch_url"), tool.get("url")) if (u or "").strip()), "")
         if not url:

@@ -13,8 +13,8 @@ restored, but not deleted outright; tools an admin added can be deleted.
   seat  — a seat on the company plan, under their own work email (the vendor invites them)
   own   — they use their own login (free tools)
   api   — nothing to sign in to: it runs on the company API key
-  shared— ONE company account the team shares. The portal hands it out one turn at a time, so the
-          credits and tokens it burns can be traced to whoever held it. through the gateway
+  shared— ONE company login. Since 27 Nov 2026 it opens like any other tool (turns were retired); the
+          portal, the app and the console state the limitation — most providers allow one person per login
 """
 
 import json
@@ -148,6 +148,9 @@ SIGNIN_HOSTS = {
     # callback). Exact hosts only, never adobe.com (Premiere's gate host).
     "photoshop": ADOBE_SIGNIN,
     "adobe-firefly": ADOBE_SIGNIN,
+    # observed 27 Nov 2026: grok.com/sign-in answers 303 to accounts.x.ai; Google Flow signs in with a Google account
+    "grok": ("accounts.x.ai", "accounts.google.com"),
+    "google-flow": ("accounts.google.com",),
 }
 
 # Adobe ID's sign-in hosts sit under adobe.com, Premiere's gate host: the gate must not govern them as Premiere. Only these
@@ -192,6 +195,41 @@ HOST_OWNERS = {
     "seedance": ("higgsfield.ai", ""),  # a model on Higgsfield's site: the site is governed as Higgsfield AI
     "copilot": ("copilot.microsoft.com,github.com/copilot", "copilot.microsoft.com"),  # a path is not a hostname
 }
+
+
+# Added on 27 Nov 2026 for the owner's workstation list (Grok, Google Flow, Antigravity). Addresses checked that day:
+#   grok        - https://grok.com/ answers 200; its sign-in hands off to accounts.x.ai
+#   google-flow - labs.google/fx/tools/flow now answers 308 to https://flow.google.com/ ("Google Flow - AI Creative Studio")
+#   antigravity - https://antigravity.google/ (Google's agent-first IDE, a desktop app: no website tool to gate)
+# Plans and prices are left empty until an admin sets them from the provider's own page: nothing here is a quote.
+WORKSTATION_TOOLS = [
+    ["grok", "Grok", "Assistant", "site", "", "https://grok.com/", ["grok.com"], "", 0, [], "xAI's assistant.", "#111111", "web,mobile"],
+    ["google-flow", "Google Flow", "Video", "site", "", "https://flow.google.com/", ["flow.google.com"], "", 0, [],
+     "Google's AI studio for video and images.", "#1A73E8", "web"],
+    ["antigravity", "Antigravity", "Coding", "dev", "", "https://antigravity.google/", [], "", 0, [],
+     "Google's agent-first coding environment, installed on the computer.", "#4285F4", "desktop"],
+]
+
+
+def add_workstation_tools(db):
+    """Insert the 27 Nov 2026 built-ins once, into new and existing catalogues alike. An id an admin already used is
+    left as it is (INSERT OR IGNORE), and nothing else in the catalogue changes."""
+    if db.get_setting("catalog_workstation_tools") == "1":
+        return
+    now = time.time()
+    with db.tx():
+        for row in WORKSTATION_TOOLS:
+            d = dict(zip(FIELDS, row[:10]))
+            added = db.x("INSERT OR IGNORE INTO tools(id, name, category, kind, provider, url, hosts, pricing_url,"
+                         " entry_usd, plans, builtin, created, description, color, modes) VALUES(?,?,?,?,?,?,?,?,?,?,1,?,?,?,?)",
+                         (d["id"], d["name"], d["category"], d["kind"], d["provider"], d["url"], ",".join(d["hosts"]),
+                          d["pricing_url"], d["entry_usd"], json.dumps(d["plans"]), now, row[10], row[11], row[12])).rowcount
+            if added:
+                db.x("INSERT INTO audit(ts, actor, action, target, detail, ip, reason, before_json, after_json, outcome, correlation, area)"
+                     " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                     (now, "system", "added a built-in tool", d["name"], d["url"], "", "owner's workstation list, 27 Nov 2026",
+                      "{}", json.dumps({"id": d["id"], "kind": d["kind"]}), "ok", f"tool:{d['id']}", "govern"))
+        db.set_setting("catalog_workstation_tools", "1")
 
 
 def settle_hosts(db):
@@ -283,10 +321,10 @@ def launch_target(tool):
 
 
 def uses_workspace(tool):
-    """True when opening this tool lands the person in one of the company's remote browsers."""
-    from . import workspace
-
-    return bool(workspace.mode(tool))
+    """Whether Open lands the person in one of the company's remote browsers (Neko). Always False since 27 Nov 2026:
+    the owner directive retired turns and authorised no hosted browser fleet, so every tool opens in the person's own
+    Swangz Chrome (the app) or browser (the web app). The remote-browser settings stay readable; nothing routes to them."""
+    return False
 
 
 def hosts_from_url(url):

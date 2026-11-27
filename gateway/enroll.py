@@ -305,20 +305,26 @@ def build_manifest(gw, h, person, device):
                          "install": {"type": "bundle", "url": f"{base}/api/device/packages/{p['id']}/{p['version']}",
                                      "sha256": p["sha256"], "size": p["size"]}})
     apps, rows = [], {}
-    for t in entitle.for_person(db, person, include_disabled=False):
+    enabled = entitle.for_person(db, person, include_disabled=False)
+    # Every tool this person may use, websites, API and developer tools alike, so the app's native app manager can
+    # offer the official desktop or command-line app where one exists. Install methods live in the app's own fixed
+    # table (swangz_client/native_apps.py), never here: the Hub names tools, it never sends a device a command.
+    tools = [{"id": t["id"], "name": t["name"], "kind": t["kind"], "category": t["category"]} for t in enabled]
+    for t in enabled:
         # An API tool with a website (ChatGPT, Claude) is also opened as a website: same row, same entitlement, same
         # access-gate hosts. Its API traffic still goes through the gateway proxy on the company key.
         if t["kind"] not in ("site", "api") or not t["launchable"]:
             continue
         tool = db.one("SELECT * FROM tools WHERE id = ?", (t["id"],))
         apps.append({"id": t["id"], "name": t["name"], "category": t["category"], "signin": t["signin"],
-                     "company_browser": bool(tool and catalog.uses_workspace(tool)), "open": f"{base}/go/{t['id']}"})
+                     "company_browser": bool(tool and catalog.uses_workspace(tool)), "open": f"{base}/go/{t['id']}",
+                     "account_note": turns.account_note(tool or {})})
         rows[t["id"]] = tool
     manifest = {"server": base, "person": {"name": person["name"], "email": person["email"], "department": person.get("department") or ""},
                 # the kind that applies (the app arms its company rules from it); `owner_confirmed` only once an admin marked it
                 "device": dict({"id": device["device_id"], "name": device["name"], "os": device["os"], "owner_kind": managed.effective_kind(device)},
                                **({"owner_confirmed": device["owner_confirmed"]} if device.get("owner_confirmed") else {})),
-                "client": {"latest": releases.latest_hint(gw, person, CLIENT_LATEST), "minimum": CLIENT_MINIMUM}, "packages": packages, "apps": apps,
+                "client": {"latest": releases.latest_hint(gw, person, CLIENT_LATEST), "minimum": CLIENT_MINIMUM}, "packages": packages, "apps": apps, "tools": tools,
                 "credential": {"rotate_after_days": credentials.ROTATE_AFTER_DAYS, "issued": device.get("key_issued")},
                 "recording": RECORDING, "generated": time.time()}
     browser = _browser_block(gw, h, person, device)
@@ -329,10 +335,10 @@ def build_manifest(gw, h, person, device):
             for app in apps:
                 app["open"] += "?d=" + browser["device_id"]
                 # The app re-checks the start address against the tool's own hosts (never the sign-in hosts, #213 F1),
-                # and opens the tool in the workspace browser;
-                # a shared company account keeps /go/ (its own company browser), so it is never a workspace tool.
+                # and opens the tool in the person's own workspace browser. Every website tool does, a single-login
+                # company account too: turns were retired on 27 Nov 2026 (owner directive).
                 app["hosts"] = own_hosts(rows[app["id"]] or {})
-                app["workspace"] = not turns.is_shared(rows[app["id"]] or {})
+                app["workspace"] = True
     return manifest
 
 
@@ -383,6 +389,9 @@ def device_heartbeat(ctx):
              " app_version = COALESCE(NULLIF(?, ''), app_version), packages_json = ? WHERE device_id = ?",
              (now, ctx.ip, _os_name(ctx.body.get("os")), _clean(ctx.body.get("arch"), 20), _version(ctx.body.get("app_version")),
               json.dumps(installed), device["device_id"]))
+    apps = _app_report(ctx.body.get("apps"))
+    if apps is not None:  # an older app sends no report: what was last reported stays, with its time
+        ctx.db.x("UPDATE devices SET apps_json = ?, apps_reported = ? WHERE device_id = ?", (json.dumps(apps), now, device["device_id"]))
     ctx.db.x("UPDATE keys SET last_used = ? WHERE id = ?", (now, key["id"]))
     _record_key_storage(ctx, person, device, now)
     managed.record_policy_report(ctx, person, device, now)
@@ -390,6 +399,28 @@ def device_heartbeat(ctx):
     if type(ctx.body.get("browser_contract")) is int and ctx.body["browser_contract"] == 2:  # asked for: older apps get the answer they always got
         answer.update(managed.heartbeat_answer(ctx.gw, person, device))
     return answer
+
+
+APP_STATES = ("installed", "missing", "installing", "failed", "web")
+APP_ID = re.compile(r"[a-z0-9-]{1,80}")
+
+
+def _app_report(raw):
+    """The app's report of the AI apps (and Chrome, id `chrome`) on this computer: a list of {id, state, version}, at
+    most 60, ids in the catalog's shape, states from APP_STATES. A report by the app, shown to admins as such, never an
+    input to an access decision. Anything malformed is dropped item by item; a missing or non-list report -> None."""
+    if not isinstance(raw, list):
+        return None
+    out, seen = [], set()
+    for item in raw[:60]:
+        if not isinstance(item, dict):
+            continue
+        app_id, state = str(item.get("id") or ""), item.get("state")
+        if not APP_ID.fullmatch(app_id) or state not in APP_STATES or app_id in seen:
+            continue
+        seen.add(app_id)
+        out.append({"id": app_id, "state": state, "version": _clean(item.get("version"), 40) if isinstance(item.get("version"), str) else ""})
+    return out
 
 
 def _record_key_storage(ctx, person, device, now):
