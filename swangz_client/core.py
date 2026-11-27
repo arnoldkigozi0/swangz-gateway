@@ -975,6 +975,10 @@ class Client:
         if report is not None:
             body["browser_contract"] = 2
             body["policy"] = report
+        try:  # which of the person's tools are on this computer (fixed paths, cached); never a reason to miss a check-in
+            body["apps"] = self.native.report([t["id"] for t in self.tools()])
+        except Exception:  # noqa: BLE001
+            pass
         return body
 
     def heartbeat(self):
@@ -1230,6 +1234,37 @@ class Client:
     def apps(self):
         return (self.store.manifest() or {}).get("apps", [])
 
+    def tools(self):
+        """Every tool enabled for this person: the manifest's `tools` ({"id", "name", "kind", "category"}; websites, API
+        and dev tools), plus any website app or coding-agent package an older Hub lists without it. Never raises."""
+        manifest = self.store.manifest() or {}
+        out, seen = [], set()
+
+        def add(tool_id, name, kind, category=""):
+            if isinstance(tool_id, str) and tool_id and tool_id not in seen and len(tool_id) <= 64:
+                seen.add(tool_id)
+                out.append({"id": tool_id, "name": str(name or tool_id), "kind": str(kind or ""),
+                            "category": str(category or "")})
+
+        for t in manifest.get("tools") or []:
+            if isinstance(t, dict):
+                add(t.get("id"), t.get("name"), t.get("kind"), t.get("category"))
+        for a in manifest.get("apps") or []:
+            if isinstance(a, dict):
+                add(a.get("id"), a.get("name"), "site", a.get("category"))
+        for p in manifest.get("packages") or []:
+            if isinstance(p, dict) and (p.get("install") or {}).get("type") == "agent":
+                add(p.get("id"), p.get("name"), "dev", "Coding")
+        return out
+
+    @property
+    def native(self):
+        """The desktop and command-line app manager (native_apps.Manager) for this device, made on first use."""
+        if getattr(self, "_native", None) is None:
+            from . import native_apps
+            self._native = native_apps.Manager(self.paths.data)
+        return self._native
+
     # ------------------------------------------------------------ running things
 
     def agent_command(self, tool, args=()):
@@ -1269,6 +1304,18 @@ class Client:
         lines = path.read_text(encoding="utf-8").splitlines()[-99:] if path.exists() else []
         write_private(path, "\n".join(lines + [f"{int(time.time())} key {tool}"]) + "\n")
         return key
+
+    def chrome_status(self):
+        """-> {"ok", "path", "why"}: Google Chrome at its fixed place, checked for its publisher and place exactly as
+        before an Open (D-026 A2-A4). It can take seconds on Windows and macOS: call it off the window's thread."""
+        from . import workspace_launcher as wl
+        if getattr(self, "launcher", None) is None:
+            self.launcher = wl.Launcher(self.paths.data, roots=self.store.roots())
+        try:
+            path = self.launcher.finder()
+        except wl.LaunchError as exc:
+            return {"ok": False, "path": "", "why": exc.detail or ""}
+        return {"ok": True, "path": path, "why": ""}
 
     def workspace_app(self, app):
         """True when this tool opens with a provider address from /api/device/open: contract 2 and the app is marked."""

@@ -52,7 +52,7 @@ _DEVICE = {
     "workspace_policy": ("The company browser settings aren't in force",
                          (ADMIN + " to install or repair the company Chrome settings on this computer.", AGAIN), (RETRY,)),
     "shared_account": ("This one opens from Swangz AI Hub",
-                       ("Open Swangz AI Hub and press Open there. That is where turns are handed out.",), ()),
+                       ("Open Swangz AI Hub in your browser and press Open there.",), ()),
     "shared_account_company": ("This shared account doesn't open here yet",
                                (ADMIN + " if you need this tool.",), ()),
     "unavailable": ("This tool isn't in your list any more",
