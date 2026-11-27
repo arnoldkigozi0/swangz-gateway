@@ -75,6 +75,24 @@ sign in to GitHub to download). Labelled "RC — UNSIGNED — INTERNAL TEST ONLY
 Also attached: `SHA256SUMS`, the CycloneDX SBOMs, and the evidence zips from both install runs. No signing certificates exist yet (Windows Authenticode, Apple Developer ID),
 so Windows SmartScreen and macOS Gatekeeper will warn. The macOS build is Apple Silicon (arm64) only.
 
+### Later the same day: Google sign-in build (D-029)
+
+**`rc-unsigned-20261127-2225a66`** — https://github.com/arnoldkigozi0/swangz-gateway/releases/tag/rc-unsigned-20261127-2225a66
+— adds "Sign in to Google in Swangz Chrome" (D-029) and includes main up to #371. CI on a tree identical to `2225a66`:
+1,991 tests OK on Python 3.10 and 3.12, 40 window tests, Windows 84 + 10 steps, macOS 169 steps. App-only change: the
+server stays on `c06f0b1`.
+
+| File | SHA-256 |
+|---|---|
+| `Swangz-Setup-0.1.231-UNSIGNED.exe` | `2a747e02098ffd5ee53bc5b244a06bcbe66afee600c1d766c66a53bf0d0777e5` |
+| `Swangz-Company-Setup-0.1.231-UNSIGNED.exe` | `2a92cff88a1ef9bdaf5680e5e9ef899eb62ba4c1246b9192a3d5ebc8f74c94af` |
+| `Swangz-0.1.274-RC-UNSIGNED-macos-arm64.dmg` | `d7bfd05068a97d6bee42e68275861ed2a582d46564a1ece4824ec8ee415a7eca` |
+
+On the server (27 Nov, 15:37 UTC, audited, backup `pre-update/gateway-20261127-153726.db.gz` first): the 46 single-login
+tools moved to each person's own account — 38 to Google sign-in (`sso`, confirmed on the vendors' own pages), 8 to a
+personal seat (Copilot, Copy.ai, DeepL, DaVinci Resolve, n8n, Socialinsider, Topaz, and Sora, which OpenAI shut down
+on 26 Apr 2026 and should be archived).
+
 ## Updating the server (owner's go-ahead needed)
 
 Follow `OWNER-RUNBOOK.md` "Update the server" exactly, with **`<new>` = `c06f0b1f67800fd55e4bcdf8878a64dcd3406e5f`**
@@ -97,9 +115,8 @@ settings +1; then `python3 -m gateway backup` and `backup-verify` on the migrate
 
 ## Owner decisions and outstanding limitations
 
-1. **46 tools are set to "one company login" on the server** (Arnold, 22 Nov). After this release they open for
-   everyone at once, with the limitation shown. Most providers' terms allow one person per login: convert each to
-   seats or SSO (Tools → the tool → Access) — Swangz does not and will not share passwords or sessions.
+1. Done 27 Nov: the 46 single-login tools now use each person's own account (see above). Paid features still need a
+   seat per person on each tool's company plan, invited by work email.
 2. Unsigned installers; no real Windows or Mac test yet. First real-device run: install, sign in, open two web tools
    and one native app, restart, confirm still signed in.
 3. Windows Store and winget-only apps open from the Start menu (no published launch id); several Windows install
