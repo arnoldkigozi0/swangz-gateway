@@ -42,7 +42,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         n = int(self.headers.get("content-length") or 0)
         raw = self.rfile.read(n)
-        body = json.loads(raw) if raw else {}
+        try:
+            body = json.loads(raw) if raw else {}
+        except ValueError:  # an upload that isn't JSON
+            body = {}
         self.server.fake.seen.append({"path": self.path, "headers": {k.lower(): v for k, v in self.headers.items()}, "body": body})
         path = self.path.split("?")[0]
         if self._media(path, body):

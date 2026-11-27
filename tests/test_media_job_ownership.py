@@ -1,6 +1,7 @@
 """A voice, image or video job is followed or cancelled only by the person who started it, from any of their keys;
 a tool-scoped key must also be for the job's tool. Anything the gateway cannot tie to that person is refused."""
 
+import gzip
 import json
 import os
 import sqlite3
@@ -274,6 +275,81 @@ class MediaJobOwnershipTests(unittest.TestCase):
             self.passed("GET", f"/custom/requests/{owned}/status", key)
             self.passed("POST", f"/custom/requests/{owned}/cancel", key)
         self.start(self.b_key, provider="custom")  # a POST that names no job still starts one
+
+    def test_a_custom_provider_takes_no_query_string(self):
+        job, rid = self.start(provider="custom")
+        mine, _ = self.start(self.b_key, provider="custom")
+        before = self.record(rid)
+        cases = (("POST", "/v1/anything", f"job={job}"), ("POST", f"/jobs/{mine}/stop", f"job={job}"),
+                 ("POST", f"/requests/{mine}/cancel", f"id={job}"), ("GET", f"/requests/{mine}/status", f"id={job}"),
+                 ("POST", f"/jobs/{job}/stop", "x=1"), ("GET", f"/requests/{job}/status", "x=1"),
+                 ("POST", "/flux-pro/image", "n=2"))
+        for method, path, query in cases:
+            for key in (self.b_key, self.a_key):  # refused outright, the job's owner included
+                with self.subTest(method=method, path=path, query=query, owner=key == self.a_key):
+                    self.refused(method, f"/custom{path}?{query}", key)
+        self.assertEqual(self.record(rid), before)
+        self.passed("GET", f"/custom/requests/{job}/status", self.a_key)
+        self.passed("POST", f"/custom/jobs/{job}/stop?", self.a_key)  # a bare "?" is dropped, not forwarded
+        self.assertEqual(self.rig.fake.seen[-1]["path"], f"/jobs/{job}/stop")
+        built_in, _ = self.start()
+        self.passed("GET", f"/higgsfield/requests/{built_in}/status?x=1", self.a_key)  # custom providers only
+
+    def test_a_custom_posts_body_may_not_name_someone_elses_job(self):
+        job, rid = self.start(provider="custom")
+        mine, _ = self.start(self.b_key, provider="custom")
+        before = self.record(rid)
+        bodies = ({"job": job}, {"prompt": "again", "parent": job}, {"job": mine, "other": job}, {job: 1, "id": job},
+                  [job], [mine, job], json.dumps(job).encode(),
+                  f'{{"job": "{job}", "job": "{mine}"}}'.encode(),  # a provider may read the first of a repeated name
+                  f'{{"job": "{mine}", "job": "{job}"}}'.encode(),
+                  f'{{"job": "\\u006a{job[1:]}"}}'.encode(), b"\xef\xbb\xbf" + json.dumps({"job": job}).encode(),
+                  json.dumps({"job": job}).encode("utf-16"))
+        for path in ("/v1/echo-job", f"/requests/{mine}/cancel", f"/jobs/{mine}/stop"):
+            for body in bodies:
+                with self.subTest(path=path, body=body):
+                    self.refused("POST", f"/custom{path}", self.b_key, body)
+        for ctype in ("text/plain", "application/x-www-form-urlencoded"):  # whatever the body is said to be
+            with self.subTest(ctype=ctype):
+                sent = len(self.rig.fake.seen)
+                status, _, row = self.send("POST", "/custom/v1/echo-job", self.b_key,
+                                           json.dumps({"job": job}).encode(), {"content-type": ctype})
+                self.assertEqual((status, row["outcome"], row["reason"], len(self.rig.fake.seen)), (*REFUSAL, sent))
+        self.assertEqual(self.record(rid), before)
+        # the owner names their own job, from any of their keys; so does the other person with theirs
+        for key, owned in ((self.a_key, job), (self.key_for(self.a), job), (self.b_key, mine)):
+            self.passed("POST", "/custom/v1/echo-job", key, {"job": owned})
+            self.passed("POST", f"/custom/requests/{owned}/cancel", key, {"id": owned})
+            self.passed("POST", f"/custom/jobs/{owned}/stop", key, [owned])
+        # strings that name no job are no one's
+        self.passed("POST", "/custom/flux-pro/image", self.b_key, {"prompt": "a poster", "style": "bold", "n": 2})
+
+    def test_a_custom_post_body_that_cannot_be_checked_is_refused(self):
+        job, _ = self.start(provider="custom")
+        named = json.dumps({"job": job}).encode()
+        many = [f"word{i}" for i in range(proxy.MAX_BODY_STRINGS)]
+        twice = {"content-type": "text/plain", "content-encoding": "identity", "Content-Encoding": "gzip"}
+        cases = [(gzip.compress(named), {"content-encoding": "gzip"}), (named, {"content-encoding": "br"}),
+                 (gzip.compress(named), twice),
+                 (gzip.compress(named), {"content-type": "text/plain", "content-encoding": "identity, gzip"}),
+                 (b"job=x", {"content-type": "text/plain", "Content-Type": "application/json"}),
+                 (named[:-1] + b",}", {}), (named + b" x", {}), (b"  " + named + named, {"content-type": "text/plain"}),
+                 (b"job=" + job.encode(), {}),  # says it is JSON and isn't
+                 (b" " + b"[" * 100_000, {"content-type": "text/plain"}), (json.dumps(many + ["one more"]).encode(), {})]
+        for body, headers in cases:
+            for key in (self.b_key, self.a_key):
+                with self.subTest(body=body[:60], headers=headers, owner=key == self.a_key):
+                    sent = len(self.rig.fake.seen)
+                    status, _, row = self.send("POST", "/custom/jobs/x/stop", key, body, headers)
+                    self.assertEqual((status, row["outcome"], row["reason"], len(self.rig.fake.seen)), (*REFUSAL, sent))
+        self.passed("POST", "/custom/jobs/x/stop", self.b_key, many)
+        self.passed("POST", f"/custom/jobs/{job}/stop", self.a_key, many[:-1] + [job])
+        self.refused("POST", "/custom/jobs/x/stop", self.b_key, many[:-1] + [job])  # the last one is looked at too
+        for body, ctype in ((b"--b\r\ncontent-disposition: form-data; name=\"prompt\"\r\n\r\nhi\r\n--b--\r\n",
+                             "multipart/form-data; boundary=b"), (b"\x89PNG\r\n\x1a\n\x00", "image/png")):
+            with self.subTest(ctype=ctype):  # an upload that isn't JSON still goes through
+                status, payload, row = self.send("POST", "/custom/jobs/x/stop", self.b_key, body, {"content-type": ctype})
+                self.assertEqual((status, row["outcome"]), (200, "ok"), payload)
 
     def test_a_hash_never_gets_round_the_check(self):
         """A provider may drop everything from "#", so the path it reads is not the one that was checked."""
