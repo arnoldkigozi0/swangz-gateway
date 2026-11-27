@@ -666,7 +666,7 @@ class App:
             if done:
                 self.label(card, f"Google's sign-in was opened here on {clock(done)}.", 9, color="muted",
                            bg=C["panel"]).pack(anchor="w", pady=(4, 0))
-                card = self.section(f, "Your profile folder", "Provider and Google sign-ins you make in Swangz Chrome are kept here, "
+        card = self.section(f, "Your profile folder", "Provider and Google sign-ins you make in Swangz Chrome are kept here, "
                                                       "only for you. Swangz never copies or uploads them.")
         self.label(card, str(profiles_folder(self.client.paths.data)), 10, bg=C["panel"], wrap=640).pack(anchor="w")
         card = self.section(f, "Open windows")

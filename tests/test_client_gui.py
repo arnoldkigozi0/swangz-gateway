@@ -332,10 +332,12 @@ class WindowTests(unittest.TestCase):
         text = " ".join(self.everything())
         self.assertIn("Your Swangz Google account", text)
         self.assertIn("Swangz never sees it", text)
+        self.assertIn("Your profile folder", text)  # the next section is its own heading, before and after sign-in
         buttons(app.content)["Sign in to Google in Swangz Chrome"].invoke()
         app.root.update()
         self.assertIn("Sign in again", buttons(app.content))
         self.assertIn("Google's sign-in was opened here", " ".join(self.everything()))
+        self.assertIn("Your profile folder", " ".join(self.everything()))
 
     def test_a_refused_google_sign_in_says_why(self):
         app = self.make()
