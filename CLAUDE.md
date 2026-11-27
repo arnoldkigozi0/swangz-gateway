@@ -27,22 +27,12 @@ A grant can carry an end date, and a person's whole account can (`access_until`)
 
 - `sso` — the tool's single sign-on, with their Swangz Google account (`launch_url` = the SSO link);
 - `seat` — their own seat on the company plan, invited to their work email (Swangz pays one bill);
-- `shared` — **one company account the team takes turns on** (`gateway/turns.py`): the portal hands it
-  to one person at a time for `turn_minutes`, blocks everyone else at the gate, and the extension
-  signs the browser out when the turn ends or Chrome restarts, so vendor credit history can be
-  matched to a person. With a workspace, Open gives each turn-holder a **company browser of their own**
-  (Neko on a Swangz server, signed in once by an admin) instead of the tool's site, so several people
-  can work at once and nobody sees the password. Production: `workspace_mode = 'agent'` — the **Swangz
-  Workspace Agent** (`workspace_agent/agent.py`, on the workspace server, next to Docker) starts the
-  browser, makes a Neko sign-in for the turn, and on release deletes it and recycles the container; the
-  gateway holds only the agent's URL + token. **Where the agent runs is the admin's choice, one place at a
-  time** (Settings → Company browsers; `workspace.HOSTS`): the rented server (env) or one of Swangz's own
-  computers, the Windows PC or the Mac (`workspace_agent/computer.py`: Docker Desktop + a Cloudflare quick
-  tunnel + a TURN relay the gateway hands out; it checks in at `/api/workspace/hello` with its key and gets
-  its browser list from the shared tools). Switching ends turns at the old place; each turn's `ws_host`
-  says where to release it. Arnold asked for this on Oct 6, 2026 ("one at a time, not both").
-  Fallback: fixed browsers listed in `workspace_url` (with
-  `GATEWAY_WORKSPACE_TOKEN`, the gateway manages their sign-ins itself) — `deploy/WORKSPACE.md`;
+- `shared` — **one company login** (since 27 Nov 2026, D-028). It opens like any other tool, for everyone assigned
+  it, at the same time: **turns were retired** by the owner's directive (no waits, countdowns, expiry or sign-outs;
+  `tool_turns` keeps the history). The limitation is stated, never enforced — `turns.account_note` for staff,
+  `turns.admin_note` for admins: most providers allow one person per login, so the fix is a seat per person or SSO.
+  The remote company browsers (Neko / Workspace Agent, `workspace_url`, `workspace_mode`) are **dormant**: Open
+  never routes to them (`catalog.uses_workspace` is False) and no hosted browser fleet is authorised;
 - `own` — their own account, access still gated and logged;
 - `api` — nothing to sign in to; it runs on the company key through the gateway.
 
@@ -61,8 +51,8 @@ the password and typing it for people. Reasons, in order: the
 password would have to sit in every staff browser where anyone can read it; it breaks on 2FA, captcha
 and bot checks, so it is unreliable the moment a vendor changes a form; vendors' terms forbid one
 account being used by many people and they suspend accounts for it; and it does not actually solve
-the problem he has, which is *attribution*. Turns solve attribution. If asked again, explain turns
-rather than reopening this.
+the problem he has, which is *attribution*. Turns solved attribution until the owner retired them (D-028); a seat per person solves it now, because each provider
+account is then one person. If asked again, explain seats and SSO rather than reopening this.
 
 ## Stack and layout
 
