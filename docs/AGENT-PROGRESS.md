@@ -1,5 +1,7 @@
 # Agent progress
 
+**27 Nov 09:23.** Forge opened draft #368 (dc338db, media job ownership, CI green per Forge); Probe + Sentinel assigned, merge on both. #366 now 45a9eda: Sentinel APPROVED, Probe re-verifying. Forge's approval card is no longer blocking.
+
 **27 Nov 09:10.** #366 7408d5e: Probe FAIL (locked keyring: sign-out reports success but the key stays in the keyring; same on main). Sentinel's approval at that head no longer stands for merging. Sent to Anvil to fix; then Probe re-check + Sentinel delta review.
 
 **27 Nov 08:54.** Merged #367 as 6c935f3 (Probe VERIFIED + Sentinel APPROVED at 050f657, CI green); main checks after merge not yet checked. #366 7408d5e: Sentinel APPROVED, CI green, Probe verifying. fix/media-job-ownership: Forge stopped at an approval card in its thread, awaiting Arnold. Follow-up for Forge: drop the duplicate key rule in policy.spend_filter (cap query 1182 ms vs 895 ms on synthetic rows); admin.py record view and idle-seat list still go by user agent.
