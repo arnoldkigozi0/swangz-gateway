@@ -1186,18 +1186,17 @@
       ];
     }
 
-    /* One company login only (owner directive, 27 Nov 2026): the account limitation, the optional company browsers (a
-       Swangz computer's browser an admin signs in to the tool once, so nobody sees the password — it is still one
-       login), and the read-only history of the turns that were retired that day. Nothing here is timed. */
+    /* One company login (D-028): state the account limitation, retain dormant browser configuration for cleanup,
+       and show the read-only history of retired turns. Nothing here is timed. */
     async function accountTab() {
       const f = {
-        workspace_url: el("textarea", { rows: "3", spellcheck: "false", disabled: !owner, "aria-labelledby": "fixed-browsers-label", "aria-describedby": "fixed-browsers-help", placeholder: "Leave empty" }, t.workspace_url || ""),
+        workspace_url: el("textarea", { rows: "3", spellcheck: "false", disabled: !owner, "aria-label": "Fixed browsers (dormant)", "aria-describedby": "fixed-browsers-help", placeholder: "Leave empty" }, t.workspace_url || ""),
         workspace_mode: el("select", { disabled: !owner },
           el("option", { value: "agent" }, "Company browser agent (saved setting)"),
           el("option", { value: "" }, "Fixed browser list (saved setting)")),
       };
       f.workspace_mode.value = t.workspace_mode === "agent" ? "agent" : "";
-      const listField = el("label", { class: "field" }, el("span", { id: "fixed-browsers-label" }, "Fixed browsers (dormant)"), f.workspace_url,
+      const listField = el("label", { class: "field" }, "Fixed browsers (dormant)", f.workspace_url,
         el("span", { class: "hint", id: "fixed-browsers-help" }, "These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."));
       const agentHint = el("span", { class: "hint" }, "Company browser agents are unused since D-028. This saved setting does not affect Open.");
       const drawWhere = () => { listField.hidden = f.workspace_mode.value === "agent"; agentHint.hidden = f.workspace_mode.value !== "agent"; };
@@ -1210,20 +1209,17 @@
           toast("Saved."); refresh("account");
         } catch (e) { err.textContent = e.message; }
       } }, "Save") : null;
-      // company browsers: each must be signed in to the tool once, by an admin, here
+      // Retain saved company-browser records; D-028 makes them dormant.
       let fromServer = null;
       if (t.workspace_mode === "agent") {
         const ws = await api("GET", "/workspace");
         const mine = ws.configured && !ws.error ? (ws.browsers || []).filter((b) => b.tool === t.id) : [];
-        const place = ws.label.charAt(0).toUpperCase() + ws.label.slice(1);
-        fromServer = A.panel("Company browsers on " + ws.label, null, el("div", { class: "body stack" },
-          !ws.configured ? el("div", { class: "notice" }, `${place} isn't connected yet — `, el("a", { href: "#/settings?tab=browsers" }, "Settings → Company browsers"), ".")
-            : ws.error ? el("div", { class: "notice" }, `${place} isn't answering: ${ws.error}`)
+        fromServer = A.panel("Saved company browsers on " + ws.label + " (dormant)", null, el("div", { class: "body stack" },
+          !ws.configured ? el("div", { class: "notice" }, `No company browser connection is configured for ${ws.label} — `, el("a", { href: "#/settings?tab=browsers" }, "Settings → Company browsers"), ".")
+            : ws.error ? el("div", { class: "notice" }, `The saved host could not be read: ${ws.error}`)
               : mine.length ? el("div", { class: "assign-list" }, mine.map((b) => browserRow(b, null, owner, () => refresh("account"))))
-                : el("div", { class: "notice" }, ws.host === "server"
-                  ? `The rented server has no browsers for this tool yet — add "${t.id}" to its config.`
-                  : `${place} gets its browsers from here within a minute of saving this tool.`),
-          el("p", { class: "hint" }, "Each browser keeps its own sign-in to the tool, so sign each one in once: press Sign in to the tool, open it, sign in to the tool inside it with the company account, then press Done. Nobody can be given that browser meanwhile.")));
+                : el("div", { class: "notice" }, "No saved browsers for this tool."),
+          el("p", { class: "hint" }, "Historical configuration only. These company browsers are unused since D-028; Open never sends anyone to them.")));
       }
       // past turns, read-only: kept as history, never deleted, nothing new is added
       let past = null;

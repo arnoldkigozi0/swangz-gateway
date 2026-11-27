@@ -995,3 +995,8 @@ file's end. All remain pending their final pushed-head CI and merge.
 
 - Probe verified fdadd35 on the synthetic local demo after 01:20: 117 checks passed, 0 failed, exit 0; a settled focus check also exited 0. Four viewport/theme cells have saved-value/edit/clear/reload, permissions, keyboard, axe and clipping evidence in docs/screenshots/fixed-browsers-dormant/. CI app-window/browser/Python jobs passed that source head. No provider Open test. Probe stopped all processes.
 - Corrected the adjacent dropdown/panel copy that still called these active Open destinations: saved-setting labels and dormant explanations now match in both modes. Added aria-labelledby so the field's accessible name contains only its label, with help read as its description. No values, permissions or save logic changed. Static syntax/whitespace checks pass; fresh screenshots and focused checks for this correction are pending. Earlier evidence is retained with its original source head. #373 dependency and no-merge hold remain.
+
+### #374 — label-style regression corrected, 01:28 EAT
+
+- Probe rejected local 1335548: 125 checks passed, four failed, exit 1. An existing `.field > span:first-child` rule uppercased the new label span. Restored the plain-text label and used an explicit aria-label matching its visible wording; help remains aria-describedby. No CSS change.
+- The saved-agent status panel is now explicitly dormant/historical too. Removed its obsolete sign-in/setup instructions and configuration invitation; saved records and existing controls remain. No backend, values or permissions change. Recheck and replacement captures pending; earlier failed-head evidence retained under head-1335548/.
