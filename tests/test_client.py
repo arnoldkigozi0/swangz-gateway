@@ -198,7 +198,7 @@ class PersonalDeviceTests(ClientBase):
                 self.client.run_agent("claude-code")
             finally:
                 os.environ["PATH"] = old
-        self.assertIn("npm install -g @anthropic-ai/claude-code", str(caught.exception))
+        self.assertIn("Install it from the Swangz window (Apps, then Install on Claude Code)", str(caught.exception))
 
     def test_running_an_agent_that_was_not_offered_is_refused(self):
         self.tamper_entitlement("codex", False)

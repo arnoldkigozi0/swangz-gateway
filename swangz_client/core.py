@@ -1288,8 +1288,9 @@ class Client:
     def run_agent(self, tool, args=()):
         argv, env = self.agent_command(tool, args)
         if not shutil.which(argv[0]):
-            hint = {"claude": "npm install -g @anthropic-ai/claude-code", "codex": "npm install -g @openai/codex"}[argv[0]]
-            raise FileNotFoundError(f"{argv[0]} isn't installed on this device. Install it first ({hint}), then run this again.")
+            name = "Claude Code" if tool == "claude-code" else "Codex"
+            raise FileNotFoundError(f"{argv[0]} isn't installed on this device. Install it from the Swangz window (Apps, "
+                                    f"then Install on {name}), open a new terminal, then run this again.")
         with self._session():
             return self.run(argv, env=env).returncode
 

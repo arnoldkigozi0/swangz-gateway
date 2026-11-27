@@ -162,14 +162,14 @@ class AppsRowTests(RefusalTests):
     def test_the_workspace_tool_opens_in_the_workspace_window(self):
         for kind in ("company", "personal"):
             client, opened, _ = self.client(kind, apps=ROW_APPS)
-            self.assertEqual(self.note(client, "chatgpt"), "Opens in your Swangz workspace window")
+            self.assertEqual(self.note(client, "chatgpt"), "Opens in your Swangz Chrome")
             self.assertEqual(client.open_app("chatgpt"), "workspace")
             opened.assert_not_called()
 
     def test_a_shared_account_row_depends_on_whose_computer_it_is(self):
         self.check("Shared company account. Doesn't open on this company computer yet; ask your administrator",
                    "shared_account_company", "company", tools=("midjourney",))
-        self.check("Shared company account, one turn at a time. Open it from Swangz AI Hub", "shared_account",
+        self.check("Shared company account. Open it from Swangz AI Hub", "shared_account",
                    "personal", tools=("midjourney",))
 
     def test_no_row_promises_a_company_browser_of_your_own(self):
@@ -295,6 +295,13 @@ class BrowserCallerTests(unittest.TestCase):
         # D-026 B1/B5: the UAC prompt. ShellExecuteExW with the "runas" verb starts this program's own file with the
         # fixed arguments "admin chrome-install"; it is never given an address.
         ("chrome_install.py", "Windows.elevate"): 1,
+        # Desktop apps (native_apps.py, 27 Nov 2026), every one pinned in tests/test_native_apps.py:
+        # os.startfile on a detected program file from the fixed table (never an address);
+        ("native_apps.py", "_startfile"): 1,
+        # explorer.exe shell:AppsFolder\<AUMID> for a Store app, and /usr/bin/open -a <detected .app path> on macOS;
+        ("native_apps.py", "Manager.launch"): 2,
+        # the vendor's official download page from the fixed table (an installer page, never a tool or the manifest).
+        ("native_apps.py", "_open_page"): 1,
     }
 
     def sources(self):
@@ -387,7 +394,12 @@ class BrowserCallerTests(unittest.TestCase):
                         if isinstance(node, ast.Call) and getattr(node.func, "attr", getattr(node.func, "id", None)) \
                                 in ("open_terminal", "terminal_command"):
                             calls.append((name, fn.name, [ast.unparse(a) for a in node.args]))
+        # native_apps: a desktop / command-line install the person agreed to, in a window they can watch. Its argv is
+        # a fixed Plan from the code-reviewed table (winget install --id <exact id>, or the vendor's documented script),
+        # pinned in tests/test_native_apps.py test_the_real_cli_plans_are_exactly_these; never an address to open.
         self.assertEqual(sorted(calls), [("gui.py", "open_agent", ["shell.app_command() + ['run', short]"]),
+                                         ("native_apps.py", "_open_terminal", ["args"]),
+                                         ("native_apps.py", "execute", ["list(plan.argv)"]),
                                          ("shell.py", "open_terminal", ["args", "cwd"])])
 
     def test_ordinary_words_are_not_launchers(self):

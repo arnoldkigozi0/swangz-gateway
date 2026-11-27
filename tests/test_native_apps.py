@@ -470,6 +470,56 @@ class LaunchTests(Base):
                                                       (100, "canva", "web")])
 
 
+class CommandLineTests(Base):
+    def test_swangz_apps_lists_every_tool_with_how_it_opens_and_whether_it_is_here(self):
+        import contextlib
+        import io
+        from swangz_client import cli
+        m = self.manager(fs=FakeFS(r"C:\Program Files\Desk\Desk.exe"))
+        client = mock.Mock()
+        client.apps.return_value = [{"id": "chatgpt", "name": "ChatGPT"}]
+        client.tools.return_value = [{"id": "chatgpt", "name": "ChatGPT"}, {"id": "desk", "name": "Desk"},
+                                     {"id": "tool-cli", "name": "Tool CLI"}]
+        client.native = m
+        out = io.StringIO()
+        with mock.patch.object(na, "os_key", return_value="windows"), contextlib.redirect_stdout(out):
+            self.assertEqual(cli.main(["apps"], client=client), 0)
+        lines = out.getvalue().splitlines()
+        self.assertEqual(lines[0].split(), ["chatgpt", "ChatGPT", "Web"])
+        self.assertEqual(lines[1].split(), ["desk", "Desk", "Desktop", "installed"])
+        self.assertEqual(lines[2].split(), ["tool-cli", "Tool", "CLI", "CLI", "missing"])
+        client.refresh.assert_called_once_with()
+
+
+# ------------------------------------------------------------------ several web tools at once (workspace_launcher)
+
+from tests import test_workspace_launcher as twl  # noqa: E402
+
+
+class SeveralToolsAtOnceTests(twl.Base):
+    """A second and third Open while the first window runs: each goes to the same Swangz Chrome folder with the same
+    fixed switches (Chrome hands the address to its running window), and the earlier window is never closed."""
+
+    def test_three_tools_open_together_in_one_profile(self):
+        first = None
+        for tool, url, hosts in (("chatgpt", "https://chatgpt.com/", ["chatgpt.com"]),
+                                 ("claude", "https://claude.ai/new", ["claude.ai"]),
+                                 ("gemini", "https://gemini.google.com/app", ["gemini.google.com"])):
+            self.launcher.open(tool, url, hosts, self.owner)
+            first = first or self.launcher.process
+        folders = {argv[1] for argv, _ in self.calls}
+        self.assertEqual(len(self.calls), 3)
+        self.assertEqual(len(folders), 1)  # one per-person folder for every tool
+        for (argv, kw), url in zip(self.calls, ("https://chatgpt.com/", "https://claude.ai/new",
+                                                 "https://gemini.google.com/app")):
+            self.assertEqual(argv, ["/opt/google/chrome/chrome", argv[1], *twl.wl.FIXED_SWITCHES, url])
+            self.assertIs(kw["shell"], False)
+        self.assertIs(self.launcher.process, first)  # the window we started is the one we remember
+        self.assertFalse(first.terminated)
+        log = (self.data / "workspace-open.log").read_text().split()
+        self.assertEqual([w for w in log if not w.isdigit()], ["open", "chatgpt", "open", "claude", "open", "gemini"])
+
+
 # ------------------------------------------------------------------ the real table
 
 HTTPS = re.compile(r"https://[a-z0-9.-]+\.[a-z]{2,}(/\S*)?\Z")
