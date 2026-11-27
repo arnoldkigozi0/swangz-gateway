@@ -77,16 +77,22 @@ def scoped_key_may(dialect, method, path):
     return False
 
 
+def path_segments(path):
+    """-> (the path's segments, whether a provider can only read them as written)"""
+    segments = path.split("?", 1)[0].rstrip("/").split("/")[1:]
+    return segments, all(s not in ("", ".", "..") and not re.search(r"[%\\;#]", s) for s in segments)
+
+
 def job_ids(dialect, kind, path):
     """The ids by which a request names an existing media job: None when it is not about one; otherwise the
     ids to check against the person asking, empty when the path can't be trusted to name one (so it is refused).
 
     Higgsfield: anything under "requests" or "job-sets", whatever the method, written exactly
     /requests/{id}[/status|/cancel] or /v1/job-sets/{id}.
-    A custom "media" provider: any whole segment of a GET; for other methods, {id} in /requests/{id}/cancel."""
+    A custom "media" provider: any whole segment of a GET; {id} in a cancel, /requests/{id}/cancel; None for
+    its other POSTs (the proxy lets it take no other method)."""
     p = path.split("?", 1)[0].rstrip("/")
-    segments = p.split("/")[1:]
-    plain = all(s not in ("", ".", "..") and not re.search(r"[%\\;#]", s) for s in segments)
+    segments, plain = path_segments(path)
     if dialect not in ("higgsfield", "media"):
         return None
     if dialect == "media" and kind == "media-status":

@@ -241,6 +241,34 @@ class MediaJobOwnershipTests(unittest.TestCase):
                 self.refused("POST", path, self.b_key)
         self.passed("POST", f"/custom/requests/{job}/cancel", self.a_key)
 
+    def test_a_custom_provider_takes_no_method_but_get_and_post(self):
+        job, rid = self.start(provider="custom")
+        before = self.record(rid)
+        for method in ("DELETE", "PUT", "PATCH", "HEAD", "OPTIONS"):
+            for person, key in ((self.b, self.b_key), (self.a, self.a_key)):
+                for path in (f"/custom/jobs/{job}", f"/custom/requests/{job}/cancel", "/custom/v1/anything"):
+                    with self.subTest(method=method, person=person, path=path):
+                        sent = len(self.rig.fake.seen)
+                        status, _, row = self.send(method, path, key)
+                        self.assertEqual((status, row["outcome"], row["reason"]), REFUSAL)
+                        self.assertEqual((row["person_id"], row["method"], len(self.rig.fake.seen)), (person, method, sent))
+        self.assertEqual(self.record(rid), before)
+
+    def test_a_custom_providers_post_may_not_name_someone_elses_job(self):
+        job, rid = self.start(provider="custom")
+        mine, _ = self.start(self.b_key, provider="custom")
+        before = self.record(rid)
+        for path in (f"/jobs/{job}/stop", f"/jobs/{job}", f"/jobs/{job}/stop/", f"/requests/{job}/status",
+                     f"/jobs/{mine}/{job}", f"/jobs/{job}/{mine}", f"/jobs/%6A{job[1:]}/stop", f"/jobs//{job}/stop",
+                     f"/jobs/{job};x/stop", f"/jobs/{job}#/stop", "/jobs/" + "x/" * 32 + "stop"):
+            with self.subTest(path=path):
+                self.refused("POST", f"/custom{path}", self.b_key)
+        self.assertEqual(self.record(rid), before)
+        for key in (self.a_key, self.key_for(self.a)):
+            self.passed("POST", f"/custom/jobs/{job}/stop", key)
+        self.passed("POST", f"/custom/jobs/{mine}/stop", self.b_key)
+        self.start(self.b_key, provider="custom")  # a POST that names no job still starts one
+
     def test_a_hash_never_gets_round_the_check(self):
         """A provider may drop everything from "#", so the path it reads is not the one that was checked."""
         for provider in ("custom", "higgsfield"):
@@ -268,6 +296,14 @@ class MediaJobOwnershipTests(unittest.TestCase):
                 self.assertEqual((status, row["outcome"], row["reason"]),
                                  (503, "blocked", "job ownership check failed"), payload)
                 self.assertEqual(len(self.rig.fake.seen), sent)
+
+    def test_a_custom_post_is_refused_when_the_owner_cannot_be_read(self):
+        job, _ = self.start(provider="custom")
+        with patch.object(proxy, "media_owner", side_effect=sqlite3.OperationalError("disk")):
+            sent = len(self.rig.fake.seen)
+            status, payload, row = self.send("POST", f"/custom/jobs/{job}/stop", self.a_key)
+        self.assertEqual((status, row["outcome"], row["reason"]), (503, "blocked", "job ownership check failed"), payload)
+        self.assertEqual(len(self.rig.fake.seen), sent)
 
     def test_a_poll_sent_before_the_job_is_written_down_waits_for_it(self):
         real = proxy.purpose.classify
