@@ -1191,17 +1191,15 @@
        login), and the read-only history of the turns that were retired that day. Nothing here is timed. */
     async function accountTab() {
       const f = {
-        workspace_url: el("textarea", { rows: "3", spellcheck: "false", disabled: !owner, "aria-describedby": "fixed-browsers-help", placeholder: "Leave empty" }, t.workspace_url || ""),
+        workspace_url: el("textarea", { rows: "3", spellcheck: "false", disabled: !owner, "aria-labelledby": "fixed-browsers-label", "aria-describedby": "fixed-browsers-help", placeholder: "Leave empty" }, t.workspace_url || ""),
         workspace_mode: el("select", { disabled: !owner },
-          el("option", { value: "agent" }, "Swangz's company browsers — started when needed"),
-          el("option", { value: "" }, "The browsers listed below, or none")),
+          el("option", { value: "agent" }, "Company browser agent (saved setting)"),
+          el("option", { value: "" }, "Fixed browser list (saved setting)")),
       };
       f.workspace_mode.value = t.workspace_mode === "agent" ? "agent" : "";
-      const listField = el("label", { class: "field" }, "Fixed browsers (dormant)", f.workspace_url,
+      const listField = el("label", { class: "field" }, el("span", { id: "fixed-browsers-label" }, "Fixed browsers (dormant)"), f.workspace_url,
         el("span", { class: "hint", id: "fixed-browsers-help" }, "These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."));
-      const agentHint = el("span", { class: "hint" }, S.workspaceAgent
-        ? "People get a company browser that is already signed in, on the rented server or one of Swangz's computers (Settings → Company browsers)."
-        : "The company browsers aren't connected yet: Settings → Company browsers (the rented server, the Windows PC or the Mac). Until they are, Open can't give anyone a browser for this tool.");
+      const agentHint = el("span", { class: "hint" }, "Company browser agents are unused since D-028. This saved setting does not affect Open.");
       const drawWhere = () => { listField.hidden = f.workspace_mode.value === "agent"; agentHint.hidden = f.workspace_mode.value !== "agent"; };
       f.workspace_mode.addEventListener("change", drawWhere); drawWhere();
       const err = el("span", { class: "err", role: "alert" });
@@ -1238,9 +1236,9 @@
         el("div", null, el("a", { class: "btn small quiet", href: `#/activity?tab=timeline&type=turn&tool=${encodeURIComponent(t.id)}&range=90d` }, "See past turns in Activity", icon("chevronRight")))));
       return [
         limitationPanel(t),
-        A.panel("Company browsers (optional)", null, el("div", { class: "body stack" },
-          el("p", { class: "hint" }, "A company browser keeps the password off staff computers. It does not lift the account limitation: it is still one login."),
-          el("label", { class: "field" }, "Where Open takes them", f.workspace_mode, agentHint),
+        A.panel("Company browsers (dormant)", null, el("div", { class: "body stack" },
+          el("p", { class: "hint" }, "These settings are kept for reference. Open does not use company browsers."),
+          el("label", { class: "field" }, "Saved browser configuration", f.workspace_mode, agentHint),
           listField),
           owner ? A.panelFoot(err, save) : null),
         fromServer,
