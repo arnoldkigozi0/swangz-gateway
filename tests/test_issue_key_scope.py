@@ -143,6 +143,9 @@ class ScopedKeyRequestBase(IssueKeyScopeBase):
         for tool_id in ("elevenlabs", "higgsfield-ai"):
             self.db.x("INSERT INTO entitlements(tool_id, person_id, granted) VALUES(?,?,?)",
                       (tool_id, self.pid, time.time()))
+        # JOB is this person's, started under the video tool, so only the key scope rules below decide
+        self.db.x("INSERT INTO requests(ts, person_id, provider, method, path, kind, client, outcome, turn_id, hub_tool_id)"
+                  " VALUES(?,?,'higgsfield','POST','/x','media','python-urllib','ok',?,'higgsfield-ai')", (time.time(), self.pid, JOB))
 
     def scoped_key(self, tool_id):
         status, out = self.rig.api("POST", f"/people/{self.pid}/keys", {"label": "tool key", "tool_id": tool_id})

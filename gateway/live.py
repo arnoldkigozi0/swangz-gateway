@@ -12,7 +12,7 @@ import time
 
 class Ticket:
     __slots__ = ("id", "person_id", "person", "key_id", "provider", "model", "client", "session",
-                 "prompt", "started", "first_byte", "conn", "reason", "out_bytes")
+                 "prompt", "kind", "started", "first_byte", "conn", "reason", "out_bytes")
 
     def __init__(self, tid, **info):
         self.id = tid
@@ -21,7 +21,7 @@ class Ticket:
         self.conn = None
         self.reason = None
         self.out_bytes = 0
-        for k in ("person_id", "person", "key_id", "provider", "model", "client", "session", "prompt"):
+        for k in ("person_id", "person", "key_id", "provider", "model", "client", "session", "prompt", "kind"):
             setattr(self, k, info.get(k))
 
     def view(self):
@@ -55,6 +55,12 @@ class Live:
     def finish(self, ticket):
         with self.lock:
             self.tickets.pop(ticket.id, None)
+
+    def starting_job(self, person_id, provider):
+        """True while a media request of theirs is in flight; it stays so until its record is written."""
+        with self.lock:
+            return any(t.kind == "media" and t.person_id == person_id and t.provider == provider
+                       for t in self.tickets.values())
 
     def cut(self, reason, *, ticket_id=None, key_id=None, person_id=None, everything=False):
         """Stop matching requests now. -> how many were cut."""

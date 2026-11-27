@@ -96,6 +96,12 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {"status": "queued", "request_id": job,
                              "status_url": f"https://api.higgsfield.ai/requests/{job}/status"})
             return True
+        if self.command == "POST" and path.startswith("/requests/") and path.endswith("/cancel"):
+            self._json(202, {"status": "canceled", "request_id": path.split("/")[2]})
+            return True
+        if self.command == "POST" and path == "/v1/echo-job":  # an answer that names a job the caller asked for
+            self._json(200, {"status": "queued", "request_id": body.get("job")})
+            return True
         if self.command == "GET" and path.startswith("/requests/") and path.endswith("/status"):
             job = path.split("/")[2]
             info = fake.jobs.get(job)
