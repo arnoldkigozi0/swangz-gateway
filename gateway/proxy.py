@@ -28,6 +28,8 @@ STRIP_RESPONSE = {
     "transfer-encoding", "upgrade", "content-length", "set-cookie",
 }
 MAX_PARSED_BYTES = 32 * 1024 * 1024
+MAX_JOB_IDS = 32  # a path with more segments than this is not looked up at all
+JOB_RECORD_WAIT = 10.0  # the longest a poll waits for the request that started the job to be written down
 
 # Everyone's traffic leaves on the company's one provider key, so anything that key can read, every
 # gateway key could read too: files someone uploaded, batch results, stored responses, the org's
@@ -58,6 +60,12 @@ def endpoint_allowed(dialect, method, path, extra=""):
         if rule_method.upper() in (method, "ANY") and fnmatch.fnmatchcase(p, rule_path.strip()):
             return True
     return False
+
+
+def media_owner(db, provider, job):
+    """Whose a media job is: the first media request the provider answered with this id, or None."""
+    return db.one("SELECT person_id, hub_tool_id FROM requests WHERE turn_id = ? AND provider = ? AND kind = 'media'"
+                  " AND outcome = 'ok' ORDER BY id LIMIT 1", (job, provider))
 
 
 class BodyTooLarge(Exception):
@@ -229,6 +237,17 @@ class Call:
         if ruled:
             status, etype, message, why, self.rec["rule"] = ruled
             return self.refuse(status, etype, message, "blocked", why)
+        jobs = parse.job_ids(self.provider.dialect, self.kind, self.rest)
+        if jobs is not None:
+            try:
+                theirs = self._own_job(row, jobs)
+            except Exception as exc:  # noqa: BLE001 — as for policies: what can't be checked is refused
+                self.gw.log(f"job ownership check failed: {exc!r}")
+                return self.refuse(503, "api_error", "who started this job couldn't be checked just now. Try again in a moment.",
+                                   "blocked", "job ownership check failed")
+            if not theirs:
+                return self.refuse(403, "permission_error", "Only the person who started a job can follow or cancel it, "
+                                   "with a key that covers its tool.", "blocked", "job ownership")
         if self.flags and self.gw.db.get_setting("block_secrets", "0") == "1":
             return self.refuse(403, "permission_error",
                                "this request contains what looks like a credential (" + ", ".join(self.flags)
@@ -238,6 +257,22 @@ class Call:
                                f"the '{self.provider.name}' provider has no API key on the gateway yet. Tell an admin.",
                                "blocked", "provider not configured")
         self.forward()
+
+    def _own_job(self, key, jobs):
+        """True when the ids name at least one job, and every job they name was started by this person and,
+        on a tool-scoped key, under the key's tool."""
+        if not jobs or len(jobs) > MAX_JOB_IDS:
+            return False
+        person, scope = key["person_id"], key.get("hub_tool_id")
+        deadline = time.time() + JOB_RECORD_WAIT
+        while True:
+            # asked before the records are read: a request that has finished has already written its own
+            starting = self.gw.live.starting_job(person, self.provider.name)
+            owners = [o for o in (media_owner(self.gw.db, self.provider.name, j) for j in jobs) if o]
+            if owners or not starting or time.time() >= deadline:
+                break
+            time.sleep(0.05)
+        return bool(owners) and all(o["person_id"] == person and (not scope or o["hub_tool_id"] == scope) for o in owners)
 
     def _read_body(self):
         ctype = (self.h.headers.get("content-type") or "").lower()
@@ -260,6 +295,8 @@ class Call:
             self.flags = parse.find_secrets(self.summary["tail"]) if self.summary["tail"] else []
         self.rec["session"] = parse.session_of(self.h.headers, self.body)
         self.rec.update(parse.request_meta(self.h.headers, self.body))
+        if self.kind in ("media", "media-status"):
+            self.rec["turn_id"] = None  # here it is the job's id, which decides who may follow it: never the tool's to say
         flags = ["secret:" + f for f in self.flags]
         if self.summary.get("attachments"):
             flags.append(f"attachments:{self.summary['attachments']}")
@@ -298,7 +335,7 @@ class Call:
 
         ticket = gw.live.start(person_id=self.key["person_id"], person=self.key["person_name"],
                                key_id=self.key["id"], provider=provider.name, model=self.rec["model"],
-                               client=self.rec["client"], session=self.rec["session"],
+                               client=self.rec["client"], session=self.rec["session"], kind=self.kind,
                                prompt=self.rec["prompt"] if config.stores_bodies(gw.db) else None)
         try:
             resp, conn = self._send(ticket, target, payload, headers)
@@ -427,14 +464,28 @@ class Call:
         if result["urls"]:
             self.rec["result_urls"] = json.dumps(result["urls"])
         if self.kind == "media":
-            self.rec["turn_id"] = result["job_id"] or self.rec["turn_id"]
+            job = result["job_id"]
+            if job and not self._unclaimed(job):
+                job = None
+            self.rec["turn_id"] = job or self.rec["turn_id"]
             return
         job = result["job_id"] or next(iter(re.findall(r"/requests/([^/]+)/", self.rest)), None)
         self.rec["turn_id"] = job
         if job and (result["urls"] or result["status"] in ("completed", "failed", "nsfw")):
             reply = result["reply"] if config.stores_bodies(self.gw.db) else None
             self.gw.db.x("UPDATE requests SET reply = ?, result_urls = COALESCE(?, result_urls) WHERE provider = ? AND kind = 'media'"
-                         " AND turn_id = ?", (reply, self.rec["result_urls"], self.provider.name, job))
+                         " AND turn_id = ? AND person_id = ?",
+                         (reply, self.rec["result_urls"], self.provider.name, job, self.key["person_id"]))
+
+    def _unclaimed(self, job):
+        """False when the id is already someone else's job (or that can't be read), so an answer naming it
+        gives this person nothing, even after the first record is purged."""
+        try:
+            owner = media_owner(self.gw.db, self.provider.name, job)
+        except Exception as exc:  # noqa: BLE001 — the answer has gone back already; the record is still written
+            self.gw.log(f"job ownership check failed: {exc!r}")
+            return False
+        return not owner or owner["person_id"] == self.key["person_id"]
 
     # ------------------------------------------------------------ the record
 

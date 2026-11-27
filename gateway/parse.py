@@ -7,6 +7,7 @@ a summary thinner than it should be (and the full body is still kept).
 
 import json
 import re
+from urllib.parse import unquote
 
 # Tags that coding tools wrap around context they inject into a "user" message. What is left
 # after removing them is what the person actually typed.
@@ -74,6 +75,31 @@ def scoped_key_may(dialect, method, path):
         if method == allowed and re.fullmatch(regex, p):
             return True
     return False
+
+
+def job_ids(dialect, kind, path):
+    """The ids by which a request names an existing media job: None when it is not about one; otherwise the
+    ids to check against the person asking, empty when the path can't be trusted to name one (so it is refused).
+
+    Higgsfield: anything under "requests" or "job-sets", whatever the method, written exactly
+    /requests/{id}[/status|/cancel] or /v1/job-sets/{id}.
+    A custom "media" provider: any whole segment of a GET; for other methods, {id} in /requests/{id}/cancel."""
+    p = path.split("?", 1)[0].rstrip("/")
+    segments = p.split("/")[1:]
+    plain = all(s not in ("", ".", "..") and not re.search(r"[%\\;#]", s) for s in segments)
+    if dialect not in ("higgsfield", "media"):
+        return None
+    if dialect == "media" and kind == "media-status":
+        return segments if plain else []
+    # decoded and lower-cased only to notice the request; the id itself is read from the path as sent
+    named = [re.split("[;#]", s)[0].lower() for s in unquote(p).replace("\\", "/").split("/")]
+    holders = ("requests", "job-sets") if dialect == "higgsfield" else ("requests",)
+    if not set(holders) & set(named) or (dialect == "media" and "cancel" not in named):
+        return None
+    match = re.fullmatch(r".*/requests/([^/]+)(?:/status|/cancel)?", p)
+    if dialect == "higgsfield":
+        match = match or re.fullmatch(r"/v1/job-sets/([^/]+)", p)
+    return [match.group(1)] if plain and match and sum(segments.count(h) for h in holders) == 1 else []
 
 
 def list_field(kind, body):
