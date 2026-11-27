@@ -86,13 +86,13 @@ def job_ids(dialect, kind, path):
     A custom "media" provider: any whole segment of a GET; for other methods, {id} in /requests/{id}/cancel."""
     p = path.split("?", 1)[0].rstrip("/")
     segments = p.split("/")[1:]
-    plain = all(s not in ("", ".", "..") and not re.search(r"[%\\;]", s) for s in segments)
+    plain = all(s not in ("", ".", "..") and not re.search(r"[%\\;#]", s) for s in segments)
     if dialect not in ("higgsfield", "media"):
         return None
     if dialect == "media" and kind == "media-status":
         return segments if plain else []
     # decoded and lower-cased only to notice the request; the id itself is read from the path as sent
-    named = [s.split(";")[0].lower() for s in unquote(p).replace("\\", "/").split("/")]
+    named = [re.split("[;#]", s)[0].lower() for s in unquote(p).replace("\\", "/").split("/")]
     holders = ("requests", "job-sets") if dialect == "higgsfield" else ("requests",)
     if not set(holders) & set(named) or (dialect == "media" and "cancel" not in named):
         return None

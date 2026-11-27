@@ -241,6 +241,22 @@ class MediaJobOwnershipTests(unittest.TestCase):
                 self.refused("POST", path, self.b_key)
         self.passed("POST", f"/custom/requests/{job}/cancel", self.a_key)
 
+    def test_a_hash_never_gets_round_the_check(self):
+        """A provider may drop everything from "#", so the path it reads is not the one that was checked."""
+        for provider in ("custom", "higgsfield"):
+            job, _ = self.start(provider=provider)
+            mine, _ = self.start(self.b_key, provider=provider)
+            cases = [("POST", f"/requests/{job}/cancel#x"), ("POST", f"/requests/{job}#/cancel"),
+                     ("POST", f"/requests#x/{job}/cancel"), ("GET", f"/requests/{job}#/{mine}")]
+            if provider == "custom":
+                cases += [("GET", f"/v1/job-sets/{job}#/{mine}"), ("GET", f"/jobs/{job}#/{mine}"),
+                          ("POST", f"/requests/{job}/cancel#/requests/{mine}/cancel")]
+            for method, path in cases:
+                with self.subTest(method=method, path=f"/{provider}{path}"):
+                    self.refused(method, f"/{provider}{path}", self.b_key)
+            self.passed("GET", f"/{provider}/requests/{job}/status", self.a_key)
+            self.passed("POST", f"/{provider}/requests/{job}/cancel", self.a_key)
+
     # ------------------------------------------------------------ failure and timing
 
     def test_when_the_owner_cannot_be_read_the_request_is_refused(self):
