@@ -412,14 +412,14 @@ def list_requests(ctx):
 def get_request(ctx, rid):
     row = ctx.db.one(
         f"SELECT {LIST_COLUMNS}, r.method, r.path, r.user_agent, r.req_bytes, r.resp_bytes, r.req_head, r.req_items,"
-        " r.req_list_field, r.resp_blob, r.resp_format, k.label AS key_label"
+        " r.req_list_field, r.resp_blob, r.resp_format, k.label AS key_label, k.hub_tool_id AS key_tool"
         " FROM requests r LEFT JOIN people p ON p.id = r.person_id LEFT JOIN keys k ON k.id = r.key_id WHERE r.id = ?",
         (int(rid),))
     if not row:
         raise ApiError(404, "no such record")
     request_body = store.load_request_body(ctx.db, row)
     response_body = store.load_response(ctx.db, row)
-    out = _shape({k: v for k, v in row.items() if k not in ("req_head", "req_items", "resp_blob")}, clip=0)
+    out = _shape({k: v for k, v in row.items() if k not in ("req_head", "req_items", "resp_blob", "key_tool")}, clip=0)
     out["request"] = request_body
     out["response"] = response_body
     out["stored"] = request_body is not None or response_body is not None
@@ -428,7 +428,7 @@ def get_request(ctx, rid):
     # network from the address (no location database is consulted)
     from . import insight
 
-    tool = insight.Tools(ctx.db).for_request(row["client"], row["provider"])
+    tool = insight.Tools(ctx.db).for_request(row["client"], row["provider"], row["key_tool"])
     out["tool"] = {"id": tool["id"], "name": tool["name"]} if tool else None
     app = row["client"] if row["client"] not in ("", "unknown") else None
     out["platform"] = insight.platform(row["user_agent"], app)
@@ -1242,8 +1242,9 @@ def licence_data(db, settings):
         key = (r["tool_id"], r["person_id"])
         last_open[key] = max(last_open.get(key) or 0, r["last"] or 0)
     api_use = {}
-    for r in db.q("SELECT person_id, client, provider, MAX(ts) AS last FROM requests WHERE kind NOT IN ('other', 'media-status')"
-                  " AND outcome = 'ok' GROUP BY person_id, client, provider"):
+    for r in db.q("SELECT u.*, NULLIF(k.hub_tool_id, '') AS key_tool FROM (SELECT person_id, key_id, client, provider,"
+                  " MAX(ts) AS last FROM requests WHERE kind NOT IN ('other', 'media-status') AND outcome = 'ok'"
+                  " GROUP BY person_id, key_id, client, provider) u LEFT JOIN keys k ON k.id = u.key_id"):
         api_use.setdefault(r["person_id"], []).append(r)
     grants = {p["id"]: entitle.person_grants(db, p) for p in people}
     tools = []
@@ -1255,8 +1256,12 @@ def licence_data(db, settings):
         def used(p):
             last = last_open.get((t["id"], p["id"])) or 0
             for r in api_use.get(p["id"], []):
-                if (t["kind"] == "dev" and r["client"] == {"claude-code": "Claude Code", "codex": "Codex"}.get(t["id"])) \
-                        or (t["kind"] == "api" and r["provider"] == t["provider"]):
+                if r["key_tool"]:  # a scoped key's use is its tool's alone, whatever program sent it
+                    mine = r["key_tool"] == t["id"]
+                else:
+                    mine = (t["kind"] == "dev" and r["client"] == {"claude-code": "Claude Code", "codex": "Codex"}.get(t["id"])) \
+                        or (t["kind"] == "api" and r["provider"] == t["provider"])
+                if mine:
                     last = max(last, r["last"] or 0)
             return last
         active = [p for p in holders if used(p) >= since]
