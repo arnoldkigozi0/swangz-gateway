@@ -153,6 +153,46 @@ class CredentialTests(unittest.TestCase):
         self.assertIsNone(self.store.device())
         self.assertEqual(self.credentials.items, {})
 
+    def test_an_unreachable_keyring_never_leaves_the_key_file_behind(self):
+        # Linux: secret-tool is installed but the Secret Service is locked or gone, so every call fails. The key is
+        # kept in device.key with keychain_pending set; revocation, sign out and cleanup must still erase it.
+        class Down:
+            def put(self, *a):
+                raise keystore.KeyStoreError("unreachable")
+            get = delete = put
+        for path in ("revoke", "logout", "cleanup"):
+            with self.subTest(path):
+                for f in self.paths.data.glob("*"):
+                    f.unlink()
+                store = core.Store(self.paths, Down())
+                store.save_device(INFO, SECRET)
+                core.write_private(self.paths.data / "device.key.next", SECRET + "_next")
+                self.assertTrue(store.device()["keychain_pending"])
+                self.assertEqual((self.paths.data / "device.key").read_text(), SECRET)
+                client = core.Client(self.paths, credentials=Down(),
+                                     api_factory=lambda *a: Mock(call=Mock(return_value={"ok": True})))
+                if path == "revoke":
+                    with self.assertRaises(keystore.KeyStoreError) as caught:
+                        client._revoked()
+                elif path == "logout":
+                    with self.assertRaises(keystore.KeyStoreError) as caught:
+                        client.logout()
+                else:
+                    result = client.cleanup()
+                    self.assertEqual(len(result["problems"]), 1, result)
+                    self.assertIn("could not be confirmed removed", result["problems"][0])
+                if path != "cleanup":  # reported plainly, never as a success
+                    self.assertIn("could not be confirmed removed", str(caught.exception))
+                self.assertFalse((self.paths.data / "device.key").exists())
+                self.assertFalse((self.paths.data / "device.key.next").exists())
+                for file in self.root.rglob("*"):
+                    if file.is_file():
+                        self.assertNotIn(SECRET.encode(), file.read_bytes(), str(file))
+                self.assertTrue(store.device()["cleanup_pending"])  # the keychain item is retried next time
+                self.assertIsNone(store.key())
+                core.Store(self.paths, self.credentials).wipe()  # the keyring is back: the retry finishes
+                self.assertIsNone(store.device())
+
     def test_windows_default_is_local_and_legacy_fallback_moves_only_after_readback(self):
         env = {"APPDATA": str(self.root / "Roaming"), "LOCALAPPDATA": str(self.root / "Local")}
         with patch.dict(os.environ, env), patch("swangz_client.core.sys.platform", "win32"):
