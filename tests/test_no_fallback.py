@@ -15,7 +15,7 @@ from swangz_client import workspace_launcher as wl
 from tests import test_workspace_launcher as twl
 
 ROOT = Path(__file__).resolve().parents[1]
-PERSONAL_WORDS = "This is a shared company account. Open it from Swangz AI Hub, where turns are handed out."
+PERSONAL_WORDS = "This tool isn't ready to open in your Swangz Chrome. Sync again, or ask your admin."
 COMPANY_WORDS = ("This is a shared company account. It does not open on this company computer yet; ask your "
                  "administrator.")
 ELSEWHERE = r"(?i)hub|browser|chrome|chromium|edge|safari|firefox|/go/|https?:|www\."
@@ -82,7 +82,7 @@ class RefusalTests(twl.Base):
             exc = self.refused(client, opened, tool)
             self.assertEqual(str(exc), COMPANY_WORDS)
 
-    def test_a_personal_computer_keeps_the_hub_wording(self):
+    def test_a_personal_computer_gets_sync_guidance(self):
         client, opened, _ = self.client("personal", record="personal")
         exc = self.refused(client, opened, "midjourney")
         self.assertEqual((exc.code, str(exc)), ("shared_account", PERSONAL_WORDS))
@@ -92,8 +92,8 @@ class RefusalTests(twl.Base):
             client, opened, _ = self.client(kind, record=record)
             self.assertEqual(self.refused(client, opened, "midjourney").code, "shared_account_company", (kind, record))
 
-    def test_the_hubs_shared_refusal_is_reworded_only_on_a_company_computer(self):
-        """The tool became shared after the last sync: the app asks, and the Hub's own words name the Hub's page."""
+    def test_an_older_hubs_shared_refusal_never_directs_staff_outside_the_workspace(self):
+        """Neither device kind repeats unsafe advice from a legacy Hub response."""
         words = "ChatGPT is a shared company account. Open it from Swangz AI Hub, where turns are handed out."
         for kind in ("company", "personal"):
             client, opened, api = self.client(kind, api_error=core.ApiFailure(409, "shared_account", words))
@@ -102,11 +102,10 @@ class RefusalTests(twl.Base):
             if kind == "company":
                 self.assertEqual((exc.code, str(exc)), ("shared_account_company", COMPANY_WORDS))
             else:
-                self.assertEqual((exc.code, exc.message), ("shared_account", words))
+                self.assertEqual((exc.code, str(exc)), ("shared_account", PERSONAL_WORDS))
 
 
-# Only shapes gateway/enroll.py's manifest can produce: under contract 2 every app carries `hosts` and
-# `workspace = not shared`, so the only non-workspace tool is a shared account; without contract 2 neither key is sent.
+# The shared app deliberately uses an older contract-2 manifest shape. With no contract neither field is sent.
 ROW_APPS = [
     {"id": "chatgpt", "name": "ChatGPT", "signin": "own", "company_browser": False,
      "open": "https://hub.example/go/chatgpt?d=dev-1", "hosts": twl.HOSTS, "workspace": True},
@@ -169,7 +168,7 @@ class AppsRowTests(RefusalTests):
     def test_a_shared_account_row_depends_on_whose_computer_it_is(self):
         self.check("Shared company account. Doesn't open on this company computer yet; ask your administrator",
                    "shared_account_company", "company", tools=("midjourney",))
-        self.check("Shared company account. Open it from Swangz AI Hub", "shared_account",
+        self.check("Shared company account. Sync again to check whether this tool can open in Swangz Chrome", "shared_account",
                    "personal", tools=("midjourney",))
 
     def test_no_row_promises_a_company_browser_of_your_own(self):
@@ -186,9 +185,9 @@ class RepairPanelTests(unittest.TestCase):
         self.assertEqual((fix.message, fix.actions), (COMPANY_WORDS, ()))
         self.assertNotRegex(" ".join((fix.title, fix.message, *fix.steps)), ELSEWHERE)
 
-    def test_the_personal_panel_is_unchanged(self):
+    def test_the_personal_panel_only_offers_a_workspace_retry(self):
         fix = repair.explain(wl.LaunchError("shared_account"))
-        self.assertEqual((fix.title, fix.message, fix.actions), ("This one opens from Swangz AI Hub", PERSONAL_WORDS, ()))
+        self.assertEqual((fix.title, fix.message, fix.actions), ("This tool needs to sync", PERSONAL_WORDS, (repair.RETRY,)))
 
     def test_the_command_line_prints_the_company_steps_without_another_way_in(self):
         client = mock.Mock()

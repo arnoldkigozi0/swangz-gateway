@@ -305,19 +305,27 @@ Authorization: Bearer <device key>      X-Swangz-App: 1      Content-Type: appli
   field named like a credential (`token`, `access_token`, `api_key`, `password`, ...), at most 2048 characters, and on one of the tool's
   `hosts` (exact or a subdomain). A tool with no hosts is refused (`host_not_allowed`): the admin sets them.
 - **The app must still** check `url` against `allowed_hosts` itself before starting the browser, pass `url` and nothing else on the
-  command line (never the key), and treat any non-200 as "do not open". `shared_account` tools do not open in the app (turns are not
-  wired into the workspace): on a personal device the app points the person to the Hub; on a company device it says the account does
-  not open on this computer yet and to ask the administrator, and offers no button that opens anything (D-026 D4).
+  command line (never the key), and treat any non-200 as "do not open". Modern manifests route authorized shared-login tools
+  through the same dedicated Chrome profile as any other site (D-028). If an older manifest or gateway refuses the tool, the
+  client offers sync or admin guidance without suggesting another browser.
 - Not `GET`: the call records a launch. The answer is `Cache-Control: no-store` and carries no key, token or Hub session.
 
 #### When Open is refused in the app (#333)
 
 A refused Open opens nothing, in any browser. `swangz_client/repair.py` turns the refusal (made on the device or answered by
 the Hub) into a title, the plain reason, numbered next steps and at most these buttons: **Try again** (asks the Hub again,
-then opens the same tool), **Get Google Chrome** (Google's own download page, only when no usable Chrome is found) and
+then retries the same tool or Google sign-in), **Get Google Chrome** (guided official setup on Windows, Google's download
+page for macOS, only when no usable Chrome is found) and
 **Open weekly reports** (the Hub's page). No button carries a tool or provider address. The window shows this as a panel on
 Home and Apps until it is dismissed, the page changes or the tool opens; `swangz open TOOL` prints the same steps and exits
 1. A disconnected or signed-out device goes back to sign-in instead. Command-line coding agents are separate and unchanged.
+
+Under **Sign-ins** or **Workspace**, use **Choose another Google account** to open Google's fixed account chooser without
+prefilling the Hub email. Staff must authenticate on Google's page and use only an approved account. This is Google website
+sign-in, not Chrome Sync, and is independent of the Workstation's Hub login. It neither changes whose tools the Hub assigns nor
+signs in to provider websites for staff. Google keeps its own session in the same local profile used for approved tool launches;
+the app neither detects the Google account nor reads or copies cookies. Google's reauthentication, MFA and company policy still
+apply. On company macOS, an administrator installs Google's official enterprise package before Workstation verifies Chrome.
 
 This covers Open in the app only. Open in the Hub's web pages (`/go/<tool>`, including shared company accounts) still opens in
 the browser the person is using.

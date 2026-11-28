@@ -93,6 +93,8 @@ def make_button(parent, **kw):
     return LabelButton(parent, **kw) if LABEL_BUTTONS else tk.Button(parent, **kw)
 
 
+_CHOOSE_GOOGLE = object()  # retry target, distinct from every catalog tool ID
+
 SYNC_EVERY_MS = 15 * 60 * 1000
 SIDEBAR = 216
 MARGIN = 32  # the page's left and right margin
@@ -170,7 +172,7 @@ def app_note(client, app):
     shared = "Shared company account. " if app.get("signin") == "shared" else ""
     if client.company_device():
         return shared + "Doesn't open on this company computer yet; ask your administrator"
-    return shared + "Open it from Swangz AI Hub"
+    return shared + "Sync again to check whether this tool can open in Swangz Chrome"
 
 
 def native_words(tool_id, found):
@@ -778,8 +780,8 @@ class App:
         if email and not self.google_signin_opened():
             self.eyebrow(hero, "Step 1 of 2", bg=bg).pack(anchor="w")
             self.label(hero, "Sign in to Google once", 18, bold=True, bg=bg).pack(anchor="w", pady=(2, 4))
-            self.label(hero, f"Sign in with your Swangz account ({email}) in your Swangz Chrome. Then every AI tool's "
-                             "\"Continue with Google\" signs you in with one click.", 10, color="text2", bg=bg,
+            self.label(hero, f"Open Google in your Swangz Chrome. The default is your Swangz account ({email}). To choose "
+                             "another account allowed by your company, go to Sign-ins.", 10, color="text2", bg=bg,
                        wrap=self.w(700)).pack(anchor="w")
             r = tk.Frame(hero, bg=bg)
             r.pack(anchor="w", pady=(14, 0))
@@ -1105,7 +1107,7 @@ class App:
                        9, color="muted", bg=bg, wrap=self.w(700)).pack(anchor="w")
         # 1. the Google account
         card = self.section(f, "1  ·  Your Swangz Google account", "Sign in to Google once in your Swangz Chrome with the "
-                            "same Swangz account you use for the Hub. Every \"Continue with Google\" below then uses it.")
+                            "same Swangz account you use for the Hub. Choose it on tools that support \"Continue with Google\".")
         if email:
             r = self.row(card)
             self.avatar(r, (st.get("person") or {}).get("name") or email, bg, 30).pack(side="left")
@@ -1114,6 +1116,8 @@ class App:
             r = self.row(card)
             self.button(r, "Sign in again" if opened else "Sign in to Google in Swangz Chrome", self.sign_in_google,
                         primary=not opened, bg=bg).pack(side="left")
+            self.button(card, "Choose another Google account", lambda: self.sign_in_google(choose_account=True),
+                        bg=bg, small=True).pack(anchor="w", pady=(6, 0))
             if opened:
                 self.label(card, f"Google's sign-in was opened here on {when(opened)}.", 9, color="muted",
                            bg=bg).pack(anchor="w", pady=(6, 0))
@@ -1167,10 +1171,10 @@ class App:
             self.button(actions, "Undo", lambda: self.mark_signed(tool_id, False), bg=bg, small=True).pack(side="right")
         else:
             self.button(actions, "I'm signed in", lambda: self.mark_signed(tool_id, True), bg=bg, small=True).pack(side="right")
-        if opens:
+        if app is not None:
             self.button(actions, "Sign in", lambda: self.open_app(tool_id), primary=not signed, bg=bg,
                         small=True).pack(side="right", padx=(0, 8))
-        elif app is None and native_apps.way(tool_id, native_apps.os_key()).method == native_apps.NATIVE \
+        elif native_apps.way(tool_id, native_apps.os_key()).method == native_apps.NATIVE \
                 and self.client.native.detect(tool_id).get("state") == "installed":
             self.button(actions, "Open desktop app", lambda: self.launch_native(tool_id), bg=bg,
                         small=True).pack(side="right", padx=(0, 8))
@@ -1207,8 +1211,8 @@ class App:
             self.button(r, "Re-check", self.check_chrome, bg=C["panel"]).pack(side="left")
         email = (self.client.status().get("person") or {}).get("email") or ""
         card = self.section(f, "Your Swangz Google account", "Sign in to Google once in your Swangz Chrome with the same "
-                            "Swangz account you use for the Hub. Every AI tool's \"Continue with Google\" then uses it, "
-                            "and it stays signed in after a restart. Type your password only on Google's page; Swangz "
+                            "Swangz account you use for the Hub. Choose it on tools that support \"Continue with Google\". "
+                            "Provider sign-ins are separate. Type your password only on Google's page; Swangz "
                             "never sees it.")
         if email:
             self.label(card, email, 11, bold=True, bg=C["panel"]).pack(anchor="w", pady=(6, 0))
@@ -1216,6 +1220,8 @@ class App:
             r = self.row(card)
             self.button(r, "Sign in again" if done else "Sign in to Google in Swangz Chrome", self.sign_in_google,
                         primary=not done, bg=C["panel"]).pack(side="left")
+            self.button(card, "Choose another Google account", lambda: self.sign_in_google(choose_account=True),
+                        bg=C["panel"], small=True).pack(anchor="w", pady=(6, 0))
             self.link(card, "All sign-ins  ›", lambda: self.show("accounts"), bg=C["panel"]).pack(anchor="w", pady=(6, 0))
             if done:
                 self.label(card, f"Google's sign-in was opened here on {clock(done)}.", 9, color="muted",
@@ -1253,7 +1259,7 @@ class App:
         Google's own Chrome page; the window checks again when the person comes back."""
         from . import chrome_install
         if sys.platform not in ("win32", "cygwin"):
-            self.repair_action(repair.CHROME, None)
+            self.repair_action(repair.CHROME, None, download_only=True)
             self.say(chrome_install.MESSAGES["mac_page" if sys.platform == "darwin" else "linux"])
             self.chrome_seen = {"ok": False, "path": "", "why": ""}
             return
@@ -1262,7 +1268,8 @@ class App:
         def done(ok, value):
             code, message = value if ok else ("failed", chrome_install.MESSAGES["failed"])
             if code == "ask_admin" and not self.client.company_device():
-                self.repair_action(repair.CHROME, None)  # a personal computer may use Chrome from Google's page (A4)
+                # A personal computer may use Chrome from Google's page (A4).
+                self.repair_action(repair.CHROME, None, download_only=True)
                 message = "Opened Google's Chrome page. Install Chrome from there, then come back here."
             self.say(message, bad=code not in ("installed",))
             self.check_chrome()
@@ -1543,21 +1550,30 @@ class App:
         reader = getattr(self.client, "google_signin_opened", None)
         return reader() if callable(reader) else None
 
-    def sign_in_google(self):
-        """Google's own sign-in page in the person's Swangz Chrome, their Swangz address filled in (D-029)."""
+    def sign_in_google(self, check_first=False, *, choose_account=False):
+        """Open Google sign-in in Swangz Chrome, optionally syncing first after a refusal."""
         try:
-            self.client.sign_in_google()
+            if check_first:
+                self.client.refresh()
+            if choose_account:
+                self.client.sign_in_google(choose_account=True)
+            else:
+                self.client.sign_in_google()
         except Exception as exc:  # noqa: BLE001
             fix = repair.explain(exc)
             if fix is None:
                 self.refusal = None
                 return self.failed(exc)
-            self.refusal = (self.page, "google-signin", "Google sign-in", fix)
+            target = _CHOOSE_GOOGLE if choose_account else None
+            self.refusal = (self.page, target, "Google sign-in", fix)
             self.show(self.page)
             return self.say("Google's sign-in wasn't opened.", bad=True)
         self.refusal = None
         self.show(self.page)
-        self.say("Google's sign-in is open in your Swangz Chrome. Sign in there with your Swangz account.")
+        if choose_account:
+            self.say("Choose an approved Google account on Google's page in Swangz Chrome.")
+        else:
+            self.say("Google's sign-in is open in your Swangz Chrome. Sign in there with your Swangz account.")
 
     def repair_panel(self, parent):
         """Why the last Open was refused, what to do about it, and the buttons that help."""
@@ -1579,11 +1595,19 @@ class App:
                         primary=i == 0, bg=bg).pack(side="left", padx=(0, 10))
         self.button(row, "Dismiss", self.dismiss_repair, bg=bg).pack(side="left")
 
-    def repair_action(self, action, tool_id):
+    def repair_action(self, action, tool_id, *, download_only=False):
         if action == repair.RETRY:
-            self.open_app(tool_id, check_first=True)
-        elif action == repair.CHROME:  # Google's own download page: a fixed address, never a tool's
-            shell.open_url(INSTALL_PAGE)
+            if tool_id is None:  # Google sign-in is not a catalog tool
+                self.sign_in_google(check_first=True)
+            elif tool_id is _CHOOSE_GOOGLE:
+                self.sign_in_google(check_first=True, choose_account=True)
+            else:
+                self.open_app(tool_id, check_first=True)
+        elif action == repair.CHROME:
+            if not download_only and sys.platform in ("win32", "cygwin"):
+                self.install_chrome()
+            else:  # Google's own download page: a fixed address, never a tool's
+                shell.open_url(INSTALL_PAGE)
         elif action == repair.WEEKLY:
             self.open_hub("weekly")
 

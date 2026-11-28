@@ -95,8 +95,8 @@ class FakeClient:
     def google_signin_opened(self):
         return self.google_opened
 
-    def sign_in_google(self):
-        self.calls.append(("google",))
+    def sign_in_google(self, *, choose_account=False):
+        self.calls.append(("google", "choose") if choose_account else ("google",))
         if self.open_error:
             raise self.open_error
         self.google_opened = time.time()
@@ -369,9 +369,17 @@ class WindowTests(unittest.TestCase):
             found = buttons(app.content)
             for name in ("Get Google Chrome", "Try again", "Dismiss"):
                 self.assertIn(name, found)
-            with mock.patch.object(gui.shell, "open_url") as opened:
+            with mock.patch.object(gui.sys, "platform", "darwin"), mock.patch.object(gui.shell, "open_url") as opened:
                 found["Get Google Chrome"].invoke()
             opened.assert_called_once_with("https://www.google.com/chrome/")
+
+    def test_missing_chrome_repair_uses_the_guided_windows_install(self):
+        app = self.refuse(wl.LaunchError("no_browser"), "Home")
+        with mock.patch.object(gui.sys, "platform", "win32"), mock.patch.object(app, "install_chrome") as install, \
+                mock.patch.object(gui.shell, "open_url") as outside:
+            buttons(app.content)["Get Google Chrome"].invoke()
+        install.assert_called_once_with()
+        outside.assert_not_called()
 
     def test_try_again_asks_the_hub_first_and_clears_the_panel_when_it_opens(self):
         app = self.refuse(wl.LaunchError("launch_failed"), "Home")
@@ -444,7 +452,7 @@ class WindowTests(unittest.TestCase):
 
     def test_the_apps_page_says_what_open_really_does_on_this_computer(self):
         """#333 D-026 D4: a shared account opens in no browser of the app's; the row says so for each kind of computer."""
-        for company, expect in ((False, "Shared company account. Open it from Swangz AI Hub"),
+        for company, expect in ((False, "Shared company account. Sync again to check whether this tool can open in Swangz Chrome"),
                                 (True, "Shared company account. Doesn't open on this company computer yet; ask your administrator")):
             app = self.make()
             app.client.company = company
@@ -769,13 +777,52 @@ class WindowTests(unittest.TestCase):
             self.assertIn(said, text)
         self.assertIn("Claude", self.everything())  # the company-key tool is listed, with nothing to do
         self.client.calls.clear()
-        found = buttons(app.content)
-        found["Sign in"].invoke()  # Canva: the only one that opens in Swangz Chrome here
+        canva = next(r for r in self.frames(app.content) if "Canva" in texts(r) and "Sign in" in buttons(r))
+        buttons(canva)["Sign in"].invoke()
         self.assertEqual(self.client.calls, [("open", "canva")])
         self.assertEqual(app.statusbar.cget("text"), "Opened in your Swangz Chrome.")
         with mock.patch.object(gui.shell, "open_hub") as hub:
             buttons(app.content)["Ask for a seat"].invoke()
         hub.assert_called_once_with(self.client, "requests")
+
+    def test_google_sign_in_retry_goes_back_to_google_instead_of_looking_up_a_tool(self):
+        app = self.make()
+        buttons(app.dock)["Sign-ins"].invoke()
+        self.client.open_error = wl.LaunchError("no_browser")
+        buttons(app.content)["Sign in to Google in Swangz Chrome"].invoke()
+        self.client.open_error, self.client.calls = None, []
+        with mock.patch.object(gui.shell, "open_url") as outside:
+            buttons(app.content)["Try again"].invoke()
+        outside.assert_not_called()
+        self.assertEqual(self.client.calls, [("refresh",), ("google",)])
+        self.assertNotIn("Try again", buttons(app.content))
+
+    def test_choose_another_google_account_preserves_the_choice_on_retry(self):
+        app = self.make()
+        buttons(app.dock)["Sign-ins"].invoke()
+        self.client.open_error = wl.LaunchError("no_browser")
+        buttons(app.content)["Choose another Google account"].invoke()
+        self.client.open_error, self.client.calls = None, []
+        with mock.patch.object(gui.shell, "open_url") as outside:
+            buttons(app.content)["Try again"].invoke()
+        outside.assert_not_called()
+        self.assertEqual(self.client.calls, [("refresh",), ("google", "choose")])
+        self.assertNotIn("Try again", buttons(app.content))
+
+    def test_stale_shared_sign_in_shows_repair_and_never_opens_the_default_browser(self):
+        app = self.make()
+        buttons(app.dock)["Sign-ins"].invoke()
+        row = next(r for r in self.frames(app.content) if "Midjourney" in texts(r) and "Sign in" in buttons(r))
+        self.client.open_error = wl.LaunchError("shared_account")
+        self.client.calls.clear()
+        with mock.patch.object(gui.shell, "open_url") as outside, mock.patch.object(gui.shell, "open_hub") as hub:
+            buttons(row)["Sign in"].invoke()
+            self.client.open_error = None
+            buttons(app.content)["Try again"].invoke()
+        outside.assert_not_called()
+        hub.assert_not_called()
+        self.assertEqual(self.client.calls, [("open", "midjourney"), ("refresh",), ("open", "midjourney")])
+        self.assertNotIn("Try again", buttons(app.content))
 
     def test_ticking_signed_in_counts_survives_a_restart_and_can_be_undone(self):
         app = self.make()

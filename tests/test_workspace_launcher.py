@@ -365,7 +365,7 @@ class OpenAppTests(Base):
                 with self.assertRaises(wl.LaunchError) as ctx:
                     c.open_app(app["id"])
             self.assertEqual(ctx.exception.code, "shared_account")
-            self.assertIn("Open it from Swangz AI Hub", str(ctx.exception))
+            self.assertIn("Sync again", str(ctx.exception))
             popen.assert_not_called()
             shell_open.assert_not_called()
             wb.assert_not_called()
@@ -580,6 +580,18 @@ class GoogleSignInTests(OpenAppTests):
         self.assertEqual(argv[-1], "https://accounts.google.com/AccountChooser?Email=grace@swangzavenue.com")
         self.assertTrue(any(a.startswith("--user-data-dir=") for a in argv))
         self.assertIsNotNone(c.google_signin_opened())
+
+    def test_account_choice_and_later_opens_use_the_same_isolated_profile(self):
+        c, opened, api = self.signed()
+        self.assertEqual(c.sign_in_google(choose_account=True), "workspace")
+        self.assertEqual(self.calls[0][0][-1], wl.GOOGLE_SIGNIN)  # no hint, credential or account ID
+        api.call.assert_not_called()
+        # A fresh Client/Launcher models Workstation being restarted against the same owner and disk.
+        c, opened, _ = self.signed()
+        c.launcher = wl.Launcher(self.data, popen=self.launcher.popen, finder=self.launcher.finder, acl=self.launcher.acl)
+        self.assertEqual(c.open_app("chatgpt"), "workspace")
+        self.assertEqual(self.calls[0][0][1], self.calls[1][0][1])  # one owner-bound local profile
+        opened.assert_not_called()
 
     def test_the_same_refusals_as_opening_a_tool(self):
         for kw, code in ((dict(state="suspended"), "not_active"), (dict(state="retired"), "retired"),

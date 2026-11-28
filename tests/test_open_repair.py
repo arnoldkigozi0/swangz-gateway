@@ -47,7 +47,7 @@ class CoverageTests(unittest.TestCase):
         expected = {
             (429, "rate_limited"): "Swangz AI Hub is busy",
             (404, "unknown_tool"): "This tool isn't in your list any more",
-            (409, "shared_account"): "This one opens from Swangz AI Hub",
+            (409, "shared_account"): "This tool needs to sync",
             (409, "no_address"): "This tool isn't set up to open yet",
             (409, "host_not_allowed"): "This tool isn't set up to open yet",
             (409, "unsafe_address"): "This tool's address needs fixing",
@@ -67,7 +67,8 @@ class CoverageTests(unittest.TestCase):
         }
         for (status, code), title in expected.items():
             fix = repair.explain(core.ApiFailure(status, code, "The Hub's own words."))
-            self.assertEqual((fix.title, fix.message, fix.code), (title, "The Hub's own words.", code), (status, code))
+            message = wl.MESSAGES[code] if code == "shared_account" else "The Hub's own words."
+            self.assertEqual((fix.title, fix.message, fix.code), (title, message, code), (status, code))
 
     def test_a_disconnected_device_and_other_failures_are_not_repairs(self):
         for exc in (core.Revoked(401, "device_revoked", "x"), core.KeyRotated(401, "device_key_rotated", "x"),
