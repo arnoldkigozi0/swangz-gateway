@@ -20,6 +20,12 @@ python3 -m gateway.hub_identity --database /private/gateway.db --admin-id 7 --em
 
 This requires a new exclusive backup, checks its integrity and records a hash, keeps the same administrator ID/password/role, revokes their sessions and appends an audit entry. Historical actors are not rewritten. The two approved owners can remain unchanged. Bootstrap requires an approved identity; the example environment leaves its address blank. Correct ordinary legacy staff emails through an authorised owner before their next login; do not delete accounts or keys to migrate identity.
 
+## A company login after someone loses access
+
+A tool set up as one company login (`signin = 'shared'`) is a password people sign in with themselves. Removing the tool or suspending a person blocks it wherever Swangz controls the browser, but **does not end a session already open with that login, or make anyone forget the password**: on a personal browser without the extension they can keep using it. Only changing the password with the provider ends that, and Swangz cannot do it.
+
+So when a console change takes such a tool from someone (removing their grant or their team's, suspending them, or changing their team or account end date), **Needs attention** lists *Change the password of …'s company login* with their names. It stays until they have the tool again, the tool stops being one company login or is archived, or an admin with the govern role records the change: `POST /admin/api/tools/{tool}/login-password-changed` (no body, no password; answers `{"ok": true, "cleared": n}` and is audited). The console has no button for this yet. A grant or account that simply reaches its end date raises nothing, and neither does access removed before this reminder existed: check those by hand.
+
 ## Weekly operation
 
 `GATEWAY_TIMEZONE=Africa/Kampala` defines Monday 00:00–following Monday 00:00, a half-open interval. Period labels show Monday–Sunday. Keep this zone stable after activation: closed snapshots retain their stored zone and boundaries. Budget periods continue using the existing `GATEWAY_TZ_OFFSET`.

@@ -1694,6 +1694,9 @@ that limitation instead of imposing timers; no hosted browser fleet, VPS or new 
    (CLAUDE.md, D-026 G). The person signs in to each provider with the account they are authorised to use. Several
    people using one individual plan at the same time breaks most providers' terms; Swangz says so and does not hide
    it or help with it.
+   **Limit (Sentinel's review of #370):** taking a one-login tool away from someone does not end a session they opened
+   with that login, and they may know its password; on a browser without the extension they can keep using it. When a
+   console change takes such a tool from someone, Needs attention asks for the login's password to be changed.
 4. **History is kept.** Migration v31 closes every turn still open (`ended_by = 'system'`, reason "turns retired")
    and deletes nothing. `/admin/api/turns` and the timeline still show past turns; leftover rows are still closed on
    suspension, account end and the weekly boundary.
