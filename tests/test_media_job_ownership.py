@@ -345,11 +345,147 @@ class MediaJobOwnershipTests(unittest.TestCase):
         self.passed("POST", "/custom/jobs/x/stop", self.b_key, many)
         self.passed("POST", f"/custom/jobs/{job}/stop", self.a_key, many[:-1] + [job])
         self.refused("POST", "/custom/jobs/x/stop", self.b_key, many[:-1] + [job])  # the last one is looked at too
-        for body, ctype in ((b"--b\r\ncontent-disposition: form-data; name=\"prompt\"\r\n\r\nhi\r\n--b--\r\n",
-                             "multipart/form-data; boundary=b"), (b"\x89PNG\r\n\x1a\n\x00", "image/png")):
-            with self.subTest(ctype=ctype):  # an upload that isn't JSON still goes through
-                status, payload, row = self.send("POST", "/custom/jobs/x/stop", self.b_key, body, {"content-type": ctype})
+    def test_a_custom_post_body_that_is_not_json_is_refused(self):
+        job, _ = self.start(provider="custom")
+        named = json.dumps({"job": job}).encode()
+        multipart = f'--b\r\ncontent-disposition: form-data; name="job"\r\n\r\n{job}\r\n--b--\r\n'.encode()
+        cases = ((f"job={job}".encode(), "application/x-www-form-urlencoded"),
+                 (b"prompt=hi", "application/x-www-form-urlencoded"), (multipart, "multipart/form-data; boundary=b"),
+                 (b"\x89PNG\r\n\x1a\n\x00", "image/png"), (job.encode(), "text/plain"),
+                 # JSON that a provider may read as something else
+                 (json.dumps({"x": f"&job={job}"}).encode(), "application/x-www-form-urlencoded"), (named, "text/plain"),
+                 (named, ""), (named, "application/json, text/plain"), (named, "application/json; charset=utf-7"),
+                 (named, "application/json; boundary=b"))
+        for body, ctype in cases:
+            for key in (self.b_key, self.a_key):
+                with self.subTest(body=body[:40], ctype=ctype, owner=key == self.a_key):
+                    sent = len(self.rig.fake.seen)
+                    status, _, row = self.send("POST", "/custom/v1/echo-job", key, body, {"content-type": ctype})
+                    self.assertEqual((status, row["outcome"], row["reason"], len(self.rig.fake.seen)), (*REFUSAL, sent))
+        for ctype in ("application/json", "Application/JSON; Charset=UTF-8", 'application/json;charset="utf-8"',
+                      "application/vnd.api+json"):
+            with self.subTest(ctype=ctype):  # the owner's own id, sent as JSON
+                status, payload, row = self.send("POST", "/custom/v1/echo-job", self.a_key, named, {"content-type": ctype})
                 self.assertEqual((status, row["outcome"]), (200, "ok"), payload)
+        self.passed("POST", f"/custom/jobs/{job}/stop", self.a_key)  # no body needs no content type
+        # a built-in provider's uploads are as before
+        status, payload, row = self.send("POST", "/higgsfield/flux-pro/image", self.b_key, b'{"prompt": "x"}',
+                                         {"content-type": "text/plain"})
+        self.assertEqual((status, row["outcome"]), (200, "ok"), payload)
+
+    def test_a_custom_get_may_not_carry_a_body(self):
+        job, _ = self.start(provider="custom")
+        mine, _ = self.start(self.b_key, provider="custom")
+        for key, owned in ((self.b_key, mine), (self.a_key, job)):
+            for body in ({"job_id": job}, b"x"):
+                with self.subTest(owner=owned == job, body=body):
+                    self.refused("GET", f"/custom/requests/{owned}/status", key, body)
+            self.passed("GET", f"/custom/requests/{owned}/status", key)
+
+    def test_a_custom_path_may_not_hold_someone_elses_job_inside_a_segment(self):
+        job, rid = self.start(provider="custom")
+        mine, _ = self.start(self.b_key, provider="custom")
+        before = self.record(rid)
+        for mark in ":.,+@~=":
+            for method, path in (("POST", f"/jobs/{job}{mark}cancel"), ("POST", f"/jobs/x{mark}{job}/stop"),
+                                 ("POST", f"/jobs/{mine}{mark}{job}/stop"), ("POST", f"/jobs/{job}{mark}{mine}/stop"),
+                                 ("POST", f"/requests/{mine}/cancel/{job}{mark}json"),
+                                 ("GET", f"/requests/{mine}/{job}{mark}json/status"),
+                                 ("GET", f"/requests/{mine}/{mine}{mark}{job}/status")):
+                with self.subTest(method=method, path=path):
+                    self.refused(method, f"/custom{path}", self.b_key)
+        self.assertEqual(self.record(rid), before)
+        for mark in ":.,+@~=":
+            with self.subTest(owner=mark):
+                self.passed("POST", f"/custom/jobs/{job}{mark}x/stop", self.a_key)
+                self.passed("GET", f"/custom/requests/{job}/{job}{mark}json/status", self.a_key)
+
+    def test_a_job_id_that_holds_a_separator_is_found_inside_a_segment(self):
+        job = "set.v1:abc"
+        self.db.x("INSERT INTO requests(ts, person_id, provider, method, path, kind, client, outcome, turn_id)"
+                  " VALUES(?,?,'custom','POST','/x','media','x','ok',?)", (time.time(), self.a, job))
+        for path in (f"/jobs/{job}/stop", f"/jobs/{job}.json/stop", f"/jobs/x,{job}=1/stop"):
+            with self.subTest(path=path):
+                self.refused("POST", f"/custom{path}", self.b_key)
+                self.passed("POST", f"/custom{path}", self.a_key)
+
+    def test_a_custom_path_with_too_many_parts_to_check_is_refused(self):
+        for key in (self.a_key, self.b_key):
+            self.refused("POST", "/custom/jobs/" + "a." * 60 + "a/stop", key)
+        self.passed("POST", "/custom/jobs/" + "a." * 30 + "a/stop", self.a_key)
+
+    def test_another_letter_case_does_not_get_round_the_check(self):
+        job, rid = self.start(provider="custom")
+        mine, _ = self.start(self.b_key, provider="custom")
+        before = self.record(rid)
+        for other in (job.upper(), job.capitalize()):
+            for method, path, body in (("POST", f"/jobs/{other}/stop", None), ("POST", f"/requests/{other}/cancel", None),
+                                       ("POST", f"/jobs/{other}:x/stop", None), ("POST", "/v1/echo-job", {"job": other}),
+                                       ("GET", f"/requests/{mine}/{other}/status", None),
+                                       ("GET", f"/requests/{other}/status", None)):
+                with self.subTest(method=method, path=path, body=body):
+                    self.refused(method, f"/custom{path}", self.b_key, body)
+        # an answer that names it in another case gives the sender nothing, so the owner is not locked out
+        row = self.passed("POST", "/custom/v1/echo-job", self.b_key, {"nested": {"job": job.upper()}})
+        self.assertIsNone(row["turn_id"])
+        self.assertEqual(self.record(rid), before)
+        self.passed("POST", f"/custom/jobs/{job}/stop", self.a_key)
+        self.passed("GET", f"/custom/requests/{job}/status", self.a_key)
+        self.refused("GET", f"/custom/requests/{job.upper()}/status", self.a_key)  # following one takes the id as given
+
+    def test_the_first_record_of_a_custom_job_decides_its_owner_however_it_ended(self):
+        job, rid = self.start(provider="custom")
+        mine, _ = self.start(self.b_key, provider="custom")
+        for outcome in ("error", "cut", "blocked"):
+            self.db.x("UPDATE requests SET outcome = ? WHERE id = ?", (outcome, rid))
+            # a later successful record under another name does not take the job over
+            self.db.x("INSERT INTO requests(ts, person_id, provider, method, path, kind, client, outcome, turn_id)"
+                      " VALUES(?,?,'custom','POST','/x','media','x','ok',?)", (time.time(), self.b, job))
+            with self.subTest(outcome=outcome):
+                for method, path, body in (("POST", f"/jobs/{job}/stop", None), ("POST", "/v1/echo-job", {"job": job}),
+                                           ("POST", f"/requests/{job}/cancel", None),
+                                           ("GET", f"/requests/{job}/status", None),
+                                           ("GET", f"/requests/{mine}/{job}/status", None)):
+                    self.refused(method, f"/custom{path}", self.b_key, body)
+                self.passed("GET", f"/custom/requests/{job}/status", self.a_key)
+                self.passed("POST", f"/custom/requests/{job}/cancel", self.a_key)
+
+    def test_json_nested_too_deeply_is_refused_and_recorded(self):
+        job, _ = self.start(provider="custom")
+        for body in (b"[" * 100_000, b'{"a":' * 100_000):
+            for path in ("/custom/v1/echo-job", "/higgsfield/flux-pro/image", "/anthropic/v1/messages"):
+                for person, key in ((self.a, self.a_key), (self.b, self.b_key)):
+                    with self.subTest(path=path, body=body[:5], person=person):
+                        sent = len(self.rig.fake.seen)
+                        status, payload, row = self.send("POST", path, key, body)
+                        self.assertEqual((status, row["outcome"], row["reason"], row["person_id"]),
+                                         (400, "blocked", "body too deeply nested", person), payload)
+                        self.assertEqual(len(self.rig.fake.seen), sent)
+        status, _, row = self.send("POST", "/custom/v1/echo-job", "sgw-not-a-key", b"[" * 100_000)
+        self.assertEqual((status, row["reason"]) == (400, "body too deeply nested"), False)
+        self.assertEqual(status, 401)
+        self.passed("POST", "/custom/v1/echo-job", self.a_key, {"job": job})
+        # a tool's own deeply nested note about the request is ignored, not an error
+        status, payload, row = self.send("POST", "/custom/v1/echo-job", self.a_key, {"job": job},
+                                         {"x-codex-turn-metadata": "[" * 50_000})
+        self.assertEqual((status, row["outcome"]), (200, "ok"), payload)
+
+    def test_the_deepest_json_let_through_is_still_recorded(self):
+        def nested(levels):  # the object itself is the first level
+            return b'{"prompt": "p", "x": ' + b"[" * (levels - 1) + b"]" * (levels - 1) + b"}"
+
+        for path in ("/custom/v1/anything-new", "/higgsfield/flux-pro/image", "/anthropic/v1/messages"):
+            with self.subTest(path=path):
+                sent = len(self.rig.fake.seen)
+                status, _, row = self.send("POST", path, self.a_key, nested(proxy.MAX_JSON_DEPTH))
+                self.assertNotEqual(row["reason"], "body too deeply nested")
+                self.assertEqual(len(self.rig.fake.seen), sent + 1)
+                self.assertTrue(row["req_head"])  # the body was stored with the record
+                for levels in (proxy.MAX_JSON_DEPTH + 1, 3000):  # readable on some Pythons, never recordable
+                    status, payload, row = self.send("POST", path, self.a_key, nested(levels))
+                    self.assertEqual((status, row["outcome"], row["reason"]),
+                                     (400, "blocked", "body too deeply nested"), payload)
+                self.assertEqual(len(self.rig.fake.seen), sent + 1)
 
     def test_a_hash_never_gets_round_the_check(self):
         """A provider may drop everything from "#", so the path it reads is not the one that was checked."""
@@ -381,11 +517,14 @@ class MediaJobOwnershipTests(unittest.TestCase):
 
     def test_a_custom_post_is_refused_when_the_owner_cannot_be_read(self):
         job, _ = self.start(provider="custom")
-        with patch.object(proxy, "media_owner", side_effect=sqlite3.OperationalError("disk")):
-            sent = len(self.rig.fake.seen)
-            status, payload, row = self.send("POST", f"/custom/jobs/{job}/stop", self.a_key)
-        self.assertEqual((status, row["outcome"], row["reason"]), (503, "blocked", "job ownership check failed"), payload)
-        self.assertEqual(len(self.rig.fake.seen), sent)
+        for method, path in (("POST", f"/custom/jobs/{job}/stop"), ("GET", f"/custom/requests/{job}/status")):
+            with self.subTest(method=method), patch.object(proxy, "custom_owners",
+                                                           side_effect=sqlite3.OperationalError("disk")):
+                sent = len(self.rig.fake.seen)
+                status, payload, row = self.send(method, path, self.a_key)
+                self.assertEqual((status, row["outcome"], row["reason"]),
+                                 (503, "blocked", "job ownership check failed"), payload)
+                self.assertEqual(len(self.rig.fake.seen), sent)
 
     def test_a_poll_sent_before_the_job_is_written_down_waits_for_it(self):
         real = proxy.purpose.classify

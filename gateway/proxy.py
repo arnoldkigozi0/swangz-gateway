@@ -30,6 +30,7 @@ STRIP_RESPONSE = {
 MAX_PARSED_BYTES = 32 * 1024 * 1024
 MAX_JOB_IDS = 32  # a path with more segments than this is not looked up at all
 MAX_BODY_STRINGS = 1000  # top-level strings of a custom provider's POST, each looked up as a possible job id
+MAX_JSON_DEPTH = 200  # a request nested deeper than this can be read but not written to its record
 JOB_RECORD_WAIT = 10.0  # the longest a poll waits for the request that started the job to be written down
 
 # Everyone's traffic leaves on the company's one provider key, so anything that key can read, every
@@ -65,8 +66,17 @@ def endpoint_allowed(dialect, method, path, extra=""):
 
 def media_owner(db, provider, job):
     """Whose a media job is: the first media request the provider answered with this id, or None."""
-    return db.one("SELECT person_id, hub_tool_id FROM requests WHERE turn_id = ? AND provider = ? AND kind = 'media'"
-                  " AND outcome = 'ok' ORDER BY id LIMIT 1", (job, provider))
+    return db.one("SELECT turn_id, person_id, hub_tool_id FROM requests WHERE turn_id = ? AND provider = ?"
+                  " AND kind = 'media' AND outcome = 'ok' ORDER BY id LIMIT 1", (job, provider))
+
+
+def custom_owners(db, provider, jobs):
+    """On a custom provider: whose is each recorded job that one of these ids matches, letter case aside. The
+    first media request recorded with a job's id decides, however it ended."""
+    marks = ",".join("?" * len(jobs))
+    return db.q("SELECT turn_id, person_id, hub_tool_id FROM requests WHERE id IN (SELECT MIN(id) FROM requests"
+                f" WHERE provider = ? AND kind = 'media' AND (turn_id IN ({marks}) OR lower(turn_id) IN ({marks}))"
+                " GROUP BY turn_id)", (provider, *jobs, *(j.casefold() for j in jobs)))
 
 
 class BodyTooLarge(Exception):
@@ -182,7 +192,12 @@ class Call:
             h.close_connection = True
             return self.refuse(413, "request_too_large", "this request is larger than the gateway accepts.", "blocked", "too large", store=False)
         self.rec["req_bytes"] = len(self.raw)
-        self._read_body()
+        too_deep = False
+        try:
+            self._read_body()
+        except RecursionError:
+            self.body, too_deep = None, True
+            self._read_body(parse_json=False)  # the rest of the record, so the refusal has one
 
         row, key_id = self.gw.identify_internal(h) or self.gw.identify(security.client_token(h.headers))
         self.rec["key_id"] = key_id
@@ -194,6 +209,10 @@ class Call:
             self.gw.db.x("UPDATE keys SET last_used = ? WHERE id = ?", (self.started, row["id"]))
         elif h.headers.get("x-sgw-ref"):  # a Studio request: let the staff app find its own record
             self.rec["turn_id"] = h.headers["x-sgw-ref"][:80]
+
+        if too_deep:
+            return self.refuse(400, "invalid_request_error", "this request's JSON is nested too deeply to read.",
+                               "blocked", "body too deeply nested", store=False)
 
         if not endpoint_allowed(self.provider.dialect, self.h.command, self.rest, self.gw.extra_endpoints):
             return self.refuse(403, "permission_error",
@@ -245,20 +264,28 @@ class Call:
         if custom and self.query:  # a provider can take a job id from here too
             return self.refuse(403, "permission_error", "Query strings are not available on this provider.",
                                "blocked", "job ownership")
+        if custom and self.h.command == "GET" and self.raw:  # nor is a body on a GET checked
+            return self.refuse(403, "permission_error", "A GET on this provider can't carry a body.",
+                               "blocked", "job ownership")
         jobs = parse.job_ids(self.provider.dialect, self.kind, self.rest)
         checks = [] if jobs is None else [(jobs, True)]  # (ids, whether they have to name a job at all)
-        if custom and self.h.command == "POST":  # a cancel too: no segment of any POST may be someone else's job
+        if custom:  # no segment, and no part of one, may be someone else's job
             segments, plain = parse.path_segments(self.rest)
+            parts = parse.path_parts(segments, MAX_BODY_STRINGS)
+            checks.append(([], True) if parts is None else (parts, False, MAX_BODY_STRINGS))
+        if custom and self.h.command == "POST":  # a cancel too
             checks.append((segments, False) if plain else ([], True))
-            # every header of a name, not just the first: they are all forwarded
-            encodings = ",".join(self.h.headers.get_all("content-encoding") or []).lower().split(",")
-            types = ",".join(v.split(";")[0] for v in self.h.headers.get_all("content-type") or [])
-            strings, readable = parse.body_strings(self.raw, types)
-            encoded = any(e.strip() not in ("", "identity") for e in encodings)
-            if self.raw and (encoded or not readable or len(strings) > MAX_BODY_STRINGS):
-                return self.refuse(403, "permission_error", "This request body can't be checked for other people's "
-                                   "jobs. Send it uncompressed, as valid JSON if it is JSON.", "blocked", "job ownership")
-            checks.append((strings, False, MAX_BODY_STRINGS))
+            if self.raw:
+                # every header of a name, not just the first: they are all forwarded
+                encodings = ",".join(self.h.headers.get_all("content-encoding") or []).lower().split(",")
+                types = self.h.headers.get_all("content-type") or []
+                strings, readable = parse.body_strings(self.raw)
+                if any(e.strip() not in ("", "identity") for e in encodings) or not types \
+                        or not all(map(parse.is_json_type, types)) or not readable or len(strings) > MAX_BODY_STRINGS:
+                    return self.refuse(403, "permission_error", "This request body can't be checked for other people's "
+                                       "jobs. Send valid JSON, uncompressed, as application/json in UTF-8.",
+                                       "blocked", "job ownership")
+                checks.append((strings, False, MAX_BODY_STRINGS))
         if checks:
             try:
                 theirs = all(self._own_job(row, *check) for check in checks)
@@ -289,20 +316,29 @@ class Call:
         while True:
             # asked before the records are read: a request that has finished has already written its own
             starting = self.gw.live.starting_job(person, self.provider.name)
-            owners = [o for o in (media_owner(self.gw.db, self.provider.name, j) for j in jobs) if o]
+            owners = self._owners(jobs)
             if owners or not must_own or not starting or time.time() >= deadline:
                 break
             time.sleep(0.05)
-        return (bool(owners) or not must_own) and all(
+        named = any(o["turn_id"] in jobs for o in owners)  # in the id's own letter case
+        return (named or not must_own) and all(
             o["person_id"] == person and (not scope or o["hub_tool_id"] == scope) for o in owners)
 
-    def _read_body(self):
+    def _owners(self, jobs):
+        db, provider = self.gw.db, self.provider.name
+        if self.provider.dialect == "media":
+            return custom_owners(db, provider, jobs)
+        return [o for o in (media_owner(db, provider, j) for j in jobs) if o]
+
+    def _read_body(self, parse_json=True):
         ctype = (self.h.headers.get("content-type") or "").lower()
-        if self.raw and ("json" in ctype or self.raw[:1] in (b"{", b"[")):
+        if parse_json and self.raw and ("json" in ctype or self.raw[:1] in (b"{", b"[")):
             try:
                 self.body = json.loads(self.raw)
             except ValueError:
                 self.body = None
+            if parse.nested_beyond(self.body, MAX_JSON_DEPTH):
+                raise RecursionError("request nested too deeply")
         if self.kind == "media":
             self.media = parse.summarize_media_request(self.provider.dialect, self.rest, self.body, ctype)
             self.rec.update(model=self.media["model"], prompt=self.media["prompt"], media_type=self.media["media_type"],
@@ -503,11 +539,11 @@ class Call:
         """False when the id is already someone else's job (or that can't be read), so an answer naming it
         gives this person nothing, even after the first record is purged."""
         try:
-            owner = media_owner(self.gw.db, self.provider.name, job)
+            owners = self._owners([job])
         except Exception as exc:  # noqa: BLE001 — the answer has gone back already; the record is still written
             self.gw.log(f"job ownership check failed: {exc!r}")
             return False
-        return not owner or owner["person_id"] == self.key["person_id"]
+        return all(o["person_id"] == self.key["person_id"] for o in owners)
 
     # ------------------------------------------------------------ the record
 

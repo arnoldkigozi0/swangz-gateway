@@ -106,7 +106,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {"status": "stopped", "request_id": path.split("/")[2]})
             return True
         if self.command == "POST" and path == "/v1/echo-job":  # an answer that names a job the caller asked for
-            self._json(200, {"status": "queued", "request_id": body.get("job")})
+            self._json(200, {"status": "queued", "request_id": body.get("job") or body.get("nested", {}).get("job")})
             return True
         if self.command == "POST" and path == "/v1/text2image/soul":  # the answer is a job set, named by "id"
             job = f"set{len(fake.jobs) + 1:04d}-0000-4000-8000-000000000000"
