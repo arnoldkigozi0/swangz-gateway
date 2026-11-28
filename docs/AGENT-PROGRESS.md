@@ -1939,3 +1939,5 @@ Next at 00:00: Probe re-checks a9276d5, then Sentinel's full review (merge only 
 - 28 Nov 12:10 Chief: #377 MERGED 7c7d014 (CI passed, Sentinel APPROVED and Probe VERIFIED at 65fb8b6); main checks to confirm. Open PRs: 0. Forge sent the privately held request-check item (branch fix/unreadable-request-refusal; needed before real provider keys). After it: Probe + Sentinel; then a record-completeness follow-up held by Chief, the job-lookup index and password-reminder follow-ups.
 
 - 28 Nov 12:46 Chief: Forge opened draft #378 (ccdc2ef; python and app-window passed, browser pending). Probe verification sent; then Sentinel; merge on both at that head and green checks. Next for Forge: a high request-check item (details held privately by Chief), ahead of the earlier follow-ups.
+
+- 28 Nov 13:12 Chief: #378 Probe VERIFIED at ccdc2ef, all checks passed incl. browser. Sentinel review sent (also to rule scope and order of further request-check items, held privately by Chief). Merge on APPROVED at that head.
