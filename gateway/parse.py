@@ -77,6 +77,16 @@ def scoped_key_may(dialect, method, path):
     return False
 
 
+def nested_beyond(value, limit):
+    """True when a parsed JSON value holds objects or arrays more than limit deep."""
+    level = [value] if isinstance(value, (dict, list)) else []
+    for _ in range(limit):
+        if not level:
+            return False
+        level = [c for v in level for c in (v.values() if isinstance(v, dict) else v) if isinstance(c, (dict, list))]
+    return bool(level)
+
+
 def path_segments(path):
     """-> (the path's segments, whether a provider can only read them as written)"""
     segments = path.split("?", 1)[0].rstrip("/").split("/")[1:]
@@ -87,14 +97,31 @@ class _Pairs(list):
     """A JSON object as every (name, value) written in it, repeated names included."""
 
 
-def body_strings(raw, media_types=""):
-    """-> (the strings at the top level of a JSON body, whether the body can be checked at all). A body that
-    isn't JSON and doesn't look or claim to be has none; one that does and can't be read can't be checked."""
+def path_parts(segments, limit):
+    """Every id a provider could read inside a path segment: each stretch that starts and stops at an end of the
+    segment or at one of : . , + @ ~ = (so an id holding one of them is found too). None when there are over limit."""
+    found, total = {}, 0
+    for s in segments:
+        ends = [-1, *(m.start() for m in re.finditer(r"[:.,+@~=]", s)), len(s)]
+        total += len(ends) * (len(ends) - 1) // 2
+        if total > limit:
+            return None
+        found.update((s[a + 1:b], None) for i, a in enumerate(ends) for b in ends[i + 1:] if b > a + 1)
+    return list(found)
+
+
+def is_json_type(content_type):
+    """True for a Content-Type that can only be read as UTF-8 JSON."""
+    return bool(re.fullmatch(r'\s*application/(?:[\w.+-]+\+)?json\s*(?:;\s*charset\s*=\s*(?:utf-8|"utf-8")\s*)?;?\s*',
+                             content_type, re.IGNORECASE | re.ASCII))
+
+
+def body_strings(raw):
+    """-> (the strings at the top level of a JSON body, whether it could be read as JSON)"""
     try:
         body = json.loads(raw, object_pairs_hook=_Pairs)
     except (ValueError, RecursionError):
-        start = raw.lstrip(b"\xef\xbb\xbf \t\r\n")[:1]
-        return [], not start or not ("json" in media_types.lower() or start in (b"{", b"[", b'"'))
+        return [], False
     if isinstance(body, _Pairs):
         values = [value for _, value in body]
     else:
@@ -225,7 +252,7 @@ def request_meta(headers, body):
     if raw:
         try:
             codex = json.loads(raw)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, RecursionError):
             codex = None
         if isinstance(codex, dict):
             name = codex.get("agent_name")
