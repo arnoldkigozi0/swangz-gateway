@@ -118,9 +118,10 @@ class MinimalRecordTests(RecordCase):
         self.assertEqual(store.load_request_body(self.db, row)["messages"], ASK["messages"])
 
     def test_an_answer_that_cannot_be_written(self):
-        real = parse.summarize_response
-        with patch.object(parse, "summarize_response", lambda *a: dict(real(*a), reply="a \ud800", model="m\ud800")):
-            status, _, row = self.send(PATHS[0], dict(ASK, model=None))
+        real, asked = parse.summarize_response, parse.summarize_request
+        with patch.object(parse, "summarize_response", lambda *a: dict(real(*a), reply="a \ud800")), \
+                patch.object(parse, "summarize_request", lambda *a: dict(asked(*a), model="m\ud800")):
+            status, _, row = self.send(PATHS[0], ASK)
         self.assertEqual(status, 200)
         self.minimal(row, 200, "ok")
         self.assertEqual((row["model"], row["in_tok"]), ("m?", 1000))

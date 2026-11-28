@@ -77,6 +77,29 @@ def scoped_key_may(dialect, method, path):
     return False
 
 
+def read_json(raw):
+    """-> (what a JSON body holds, or None when it can't be read; whether it is plainly readable: one object, in
+    UTF-8 without a byte order mark, with no name written twice in any object)"""
+    repeated = []
+
+    def read_object(pairs):
+        found = dict(pairs)
+        if len(found) != len(pairs):
+            repeated.append(True)
+        return found
+
+    try:
+        value = json.loads(raw, object_pairs_hook=read_object)
+    except ValueError:
+        return None, False
+    return value, isinstance(value, dict) and not repeated and json.detect_encoding(raw) == "utf-8"
+
+
+def is_upload_type(content_type):
+    """True for a form upload (multipart/form-data)."""
+    return bool(re.match(r"\s*multipart/form-data\s*;", content_type, re.IGNORECASE | re.ASCII))
+
+
 def nested_beyond(value, limit):
     """True when a parsed JSON value holds objects or arrays more than limit deep."""
     level = [value] if isinstance(value, (dict, list)) else []
@@ -357,7 +380,7 @@ def summarize_request(kind, body):
         is_user_side = (
             role in ("user", "system", "developer", "tool")
             if kind != "responses"
-            else (_is_person_turn(item) or item.get("type", "").endswith("_output"))
+            else (_is_person_turn(item) or str(item.get("type", "")).endswith("_output"))
         )
         if not is_user_side:
             break
