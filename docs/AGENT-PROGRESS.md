@@ -984,3 +984,25 @@ file's end. All remain pending their final pushed-head CI and merge.
   - **Older build:** an older build dragged over a newer one refuses to run (exit 5) and changes nothing.
 - The product change for row 9 is `core.check_newest_app` (docs/CLIENT.md).
 - Local: `tests.test_packaging_macos tests.test_client_newest_app`: 28 OK. The client and Windows installer modules pass. The macOS run is this PR's CI.
+
+## 2026-11-28 — Prism: fixed browsers marked dormant
+
+- Branch `fix/fixed-browsers-dormant`, own worktree from origin/main `4b229eb`. The Account limitation panel labels Fixed browsers as dormant, says they are unused since D-028 and Open never sends anyone there, and asks owners to leave the field empty or clear saved addresses. Removed the obsolete fixed-browser sign-in promise and example addresses. Retained the textarea value, owner edit permissions, visibility rule and save payload. Help is associated through aria-describedby.
+- Added a matching historical/dormant notice at the top of deploy/WORKSPACE.md. No backend change; gateway/catalog.py and tests/test_workspace.py untouched. **Do not merge before #373 lands**: the stated routing behavior depends on it. No merge authorized for this task.
+- Static validation: `node --check gateway/static/admin-govern.js` and `git diff --check` passed. Syntax parsing only; no local runtime test, demo server or browser started before Probe releases the slot at 01:20 EAT. Screenshot/runtime verification is pending. Required captures: 390x844 and 1440x900, light/dark, under docs/screenshots/fixed-browsers-dormant/. Next step: obtain those synthetic-demo captures plus owner-edit/clear and help-text checks, record actual results, and update the draft PR.
+
+### #374 — Probe verification and adjacent copy correction, 01:23 EAT
+
+- Probe verified fdadd35 on the synthetic local demo after 01:20: 117 checks passed, 0 failed, exit 0; a settled focus check also exited 0. Four viewport/theme cells have saved-value/edit/clear/reload, permissions, keyboard, axe and clipping evidence in docs/screenshots/fixed-browsers-dormant/. CI app-window/browser/Python jobs passed that source head. No provider Open test. Probe stopped all processes.
+- Corrected the adjacent dropdown/panel copy that still called these active Open destinations: saved-setting labels and dormant explanations now match in both modes. Added aria-labelledby so the field's accessible name contains only its label, with help read as its description. No values, permissions or save logic changed. Static syntax/whitespace checks pass; fresh screenshots and focused checks for this correction are pending. Earlier evidence is retained with its original source head. #373 dependency and no-merge hold remain.
+
+### #374 — label-style regression corrected, 01:28 EAT
+
+- Probe rejected local 1335548: 125 checks passed, four failed, exit 1. An existing `.field > span:first-child` rule uppercased the new label span. Restored the plain-text label and used an explicit aria-label matching its visible wording; help remains aria-describedby. No CSS change.
+- The saved-agent status panel is now explicitly dormant/historical too. Removed its obsolete sign-in/setup instructions and configuration invitation; saved records and existing controls remain. No backend, values or permissions change. Recheck and replacement captures pending; earlier failed-head evidence retained under head-1335548/.
+
+### #374 — final focused verification and captures, 01:34 EAT
+
+- Probe VERIFIED source `8947731` for dormant-field/adjacent-copy/accessible-name fixes at 390x844 and 1440x900, both themes: normal label style, name/description separated, saved value editable, clear/save/reload HTTP 200, keyboard and axe pass. Both selector modes and saved-agent statuses state dormant/historical behavior. Prism inspected all four required captures and verified image dimensions.
+- Extended synthetic-demo run: **251 passed, 2 failed, exit 1**. Both failures are unchanged browserRow status overlap at 390 in the stubbed listed-browser state, recorded as follow-up rather than an all-green result. Legacy row sign-in controls and split not-configured notice remain follow-ups. No provider Open, real agent or button actions were exercised. Prior 117-pass run and role checks apply to fdadd35; corrected-head CI remains pending.
+- Committed current required captures, empty/not-configured states, two overlap captures and exact result/notes under docs/screenshots/fixed-browsers-dormant/head-8947731/. Historical notes/results retained, exploratory images left local untouched. Static `node --check gateway/static/admin-govern.js` and `git diff --check` pass. No backend edit: gateway/catalog.py and tests/test_workspace.py unchanged from origin/main. Probe stopped all processes. Draft PR #374 remains held for #373; **no merging**.

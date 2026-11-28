@@ -1,0 +1,42 @@
+{
+ "dark 1440x900": {
+  "active": true,
+  "focusVisible": true,
+  "outline": "3px none rgb(246, 246, 244)",
+  "shadow": "color(srgb 0.898039 0.745098 0.470588 / 0.18) 0px 0px 0px 3px",
+  "border": "1px solid rgb(229, 190, 120)",
+  "fieldBg": "rgb(18, 18, 20)",
+  "parentBg": "rgb(18, 18, 20)",
+  "borderVsFieldBg": 10.66
+ },
+ "dark 390x844": {
+  "active": true,
+  "focusVisible": true,
+  "outline": "3px none rgb(246, 246, 244)",
+  "shadow": "color(srgb 0.898039 0.745098 0.470588 / 0.18) 0px 0px 0px 3px",
+  "border": "1px solid rgb(229, 190, 120)",
+  "fieldBg": "rgb(18, 18, 20)",
+  "parentBg": "rgb(18, 18, 20)",
+  "borderVsFieldBg": 10.66
+ },
+ "light 1440x900": {
+  "active": true,
+  "focusVisible": true,
+  "outline": "3px none rgb(21, 21, 26)",
+  "shadow": "color(srgb 0.470588 0.337255 0.0588235 / 0.18) 0px 0px 0px 3px",
+  "border": "1px solid rgb(120, 86, 15)",
+  "fieldBg": "rgb(255, 255, 255)",
+  "parentBg": "rgb(255, 255, 255)",
+  "borderVsFieldBg": 6.7
+ },
+ "light 390x844": {
+  "active": true,
+  "focusVisible": true,
+  "outline": "3px none rgb(21, 21, 26)",
+  "shadow": "color(srgb 0.470588 0.337255 0.0588235 / 0.18) 0px 0px 0px 3px",
+  "border": "1px solid rgb(120, 86, 15)",
+  "fieldBg": "rgb(255, 255, 255)",
+  "parentBg": "rgb(255, 255, 255)",
+  "borderVsFieldBg": 6.7
+ }
+}

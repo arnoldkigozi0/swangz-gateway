@@ -1,0 +1,90 @@
+{
+ "dark": {
+  "asShipped": {
+   "thisLabel": {
+    "font": "11px",
+    "weight": "700",
+    "transform": "uppercase",
+    "spacing": "0.66px",
+    "color": "rgb(181, 173, 165)"
+   },
+   "siblingLabel": {
+    "font": "12px",
+    "weight": "620",
+    "transform": "none",
+    "spacing": "normal",
+    "color": "rgb(206, 198, 189)"
+   },
+   "labelRendered": "FIXED BROWSERS (DORMANT)",
+   "ax": {
+    "name": "FIXED BROWSERS (DORMANT)",
+    "description": "These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."
+   }
+  },
+  "experimentTextNodePlusAriaLabel": {
+   "thisLabel": {
+    "font": "12px",
+    "weight": "620",
+    "transform": "none",
+    "spacing": "normal",
+    "color": "rgb(206, 198, 189)"
+   },
+   "siblingLabel": {
+    "font": "12px",
+    "weight": "620",
+    "transform": "none",
+    "spacing": "normal",
+    "color": "rgb(206, 198, 189)"
+   },
+   "labelRendered": "Fixed browsers (dormant)",
+   "ax": {
+    "name": "Fixed browsers (dormant)",
+    "description": "These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."
+   }
+  }
+ },
+ "light": {
+  "asShipped": {
+   "thisLabel": {
+    "font": "11px",
+    "weight": "700",
+    "transform": "uppercase",
+    "spacing": "0.66px",
+    "color": "rgb(95, 89, 83)"
+   },
+   "siblingLabel": {
+    "font": "12px",
+    "weight": "620",
+    "transform": "none",
+    "spacing": "normal",
+    "color": "rgb(77, 77, 85)"
+   },
+   "labelRendered": "FIXED BROWSERS (DORMANT)",
+   "ax": {
+    "name": "FIXED BROWSERS (DORMANT)",
+    "description": "These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."
+   }
+  },
+  "experimentTextNodePlusAriaLabel": {
+   "thisLabel": {
+    "font": "12px",
+    "weight": "620",
+    "transform": "none",
+    "spacing": "normal",
+    "color": "rgb(77, 77, 85)"
+   },
+   "siblingLabel": {
+    "font": "12px",
+    "weight": "620",
+    "transform": "none",
+    "spacing": "normal",
+    "color": "rgb(77, 77, 85)"
+   },
+   "labelRendered": "Fixed browsers (dormant)",
+   "ax": {
+    "name": "Fixed browsers (dormant)",
+    "description": "These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."
+   }
+  }
+ }
+}

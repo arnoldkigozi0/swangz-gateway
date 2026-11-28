@@ -1,0 +1,6 @@
+FAIL dark 1440x900: accessible name is exactly the label {"role":"textbox","name":"FIXED BROWSERS (DORMANT)","description":"These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."}
+FAIL dark 390x844: accessible name is exactly the label {"role":"textbox","name":"FIXED BROWSERS (DORMANT)","description":"These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."}
+FAIL light 1440x900: accessible name is exactly the label {"role":"textbox","name":"FIXED BROWSERS (DORMANT)","description":"These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."}
+FAIL light 390x844: accessible name is exactly the label {"role":"textbox","name":"FIXED BROWSERS (DORMANT)","description":"These browsers are unused since D-028. Open never sends anyone to them. Leave this empty, or clear any saved addresses."}
+p374b: 125 passed, 4 failed
+exit 1

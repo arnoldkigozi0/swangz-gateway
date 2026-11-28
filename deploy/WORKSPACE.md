@@ -1,5 +1,9 @@
 # The shared workspace — company browsers on your own server or computer
 
+> **Dormant since D-028:** fixed browsers are unused, and Open never sends anyone to them.
+> Leave **Fixed browsers** empty. Owners can still edit the saved values to clear them.
+> The setup instructions below are historical, not the current Open path.
+
 For tools where Swangz has **one account** and no per-person plan, staff can work in company browsers
 that run on Swangz's own server — or one of its own computers — and are signed in to the tool **once**, by an admin. The portal sends
 whoever holds a turn into a browser of their own. They arrive signed in, the password never leaves the
