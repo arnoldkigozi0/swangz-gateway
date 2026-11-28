@@ -1945,3 +1945,5 @@ Next at 00:00: Probe re-checks a9276d5, then Sentinel's full review (merge only 
 - 28 Nov 13:15 Chief: #378 MERGED 523dfda (checks passed, Probe VERIFIED and Sentinel APPROVED at ccdc2ef); main checks to confirm. Open PRs: 0. Forge: fix/company-checks-all-paths (first of Sentinel-ordered request-check items B, A, C, held privately by Chief; B and A required before release). Then Probe + Sentinel.
 
 - 28 Nov 13:45 Chief: Forge opened draft #379 (0997860; python and app-window passed, browser pending). Probe verifying (time box 14:05), then Sentinel, incl. its two questions on media-provider requests and token counting. Next for Forge after #379: item A, then C; also weekly-report gate and policy-simulator gaps (details held by Chief).
+
+- 28 Nov 13:58 Chief: #379 Probe VERIFIED at 0997860, all four checks passed. Sentinel review sent (time box 14:08). Merge only on APPROVED at that head; otherwise 16:00. Follow-ups held privately by Chief.
