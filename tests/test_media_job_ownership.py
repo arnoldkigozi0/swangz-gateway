@@ -368,10 +368,10 @@ class MediaJobOwnershipTests(unittest.TestCase):
                 status, payload, row = self.send("POST", "/custom/v1/echo-job", self.a_key, named, {"content-type": ctype})
                 self.assertEqual((status, row["outcome"]), (200, "ok"), payload)
         self.passed("POST", f"/custom/jobs/{job}/stop", self.a_key)  # no body needs no content type
-        # a built-in provider's uploads are as before
+        # a built-in provider takes JSON only as JSON too
         status, payload, row = self.send("POST", "/higgsfield/flux-pro/image", self.b_key, b'{"prompt": "x"}',
                                          {"content-type": "text/plain"})
-        self.assertEqual((status, row["outcome"]), (200, "ok"), payload)
+        self.assertEqual((status, row["reason"]), (415, "body type not accepted"), payload)
 
     def test_a_custom_get_may_not_carry_a_body(self):
         job, _ = self.start(provider="custom")
@@ -472,7 +472,7 @@ class MediaJobOwnershipTests(unittest.TestCase):
 
     def test_the_deepest_json_let_through_is_still_recorded(self):
         def nested(levels):  # the object itself is the first level
-            return b'{"prompt": "p", "x": ' + b"[" * (levels - 1) + b"]" * (levels - 1) + b"}"
+            return b'{"model": "claude-haiku-4-5", "prompt": "p", "x": ' + b"[" * (levels - 1) + b"]" * (levels - 1) + b"}"
 
         for path in ("/custom/v1/anything-new", "/higgsfield/flux-pro/image", "/anthropic/v1/messages"):
             with self.subTest(path=path):

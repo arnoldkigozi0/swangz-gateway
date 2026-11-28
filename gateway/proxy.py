@@ -31,6 +31,7 @@ MAX_PARSED_BYTES = 32 * 1024 * 1024
 MAX_JOB_IDS = 32  # a path with more segments than this is not looked up at all
 MAX_BODY_STRINGS = 1000  # top-level strings of a custom provider's POST, each looked up as a possible job id
 MAX_JSON_DEPTH = 200  # a request nested deeper than this can be read but not written to its record
+ELEVENLABS_UPLOADS = r"/v1/(speech-to-text|speech-to-speech|music)(/|$)"  # the built-in endpoints that take files
 JOB_RECORD_WAIT = 10.0  # the longest a poll waits for the request that started the job to be written down
 
 # Everyone's traffic leaves on the company's one provider key, so anything that key can read, every
@@ -182,6 +183,7 @@ class Call:
         self.query = query
         self.raw = b""
         self.body = None
+        self.plain_body = False  # parse.read_json's second answer
         self.summary = parse.summarize_request("other", None)
         self.key = None
         self.flags = []
@@ -222,6 +224,9 @@ class Call:
         except UnpairedSurrogate:
             unreadable = ("this request's JSON holds text that isn't valid Unicode.",
                           "body text not valid")
+        except Exception as exc:  # noqa: BLE001 — a request that can't be looked over is refused, and recorded
+            self.gw.log(f"could not read request: {exc!r}")
+            unreadable = ("this request couldn't be read.", "body not readable")
         if unreadable:
             self.body = None
             self._read_body(parse_json=False)  # the rest of the record, so the refusal has one
@@ -322,6 +327,10 @@ class Call:
             if not theirs:
                 return self.refuse(403, "permission_error", "Only the person who started a job can follow or cancel it, "
                                    "with a key that covers its tool.", "blocked", "job ownership")
+        unchecked = self._unchecked()
+        if unchecked:
+            status, message, why = unchecked
+            return self.refuse(status, "invalid_request_error", message, "blocked", why, store=False)
         if self.flags and self.gw.db.get_setting("block_secrets", "0") == "1":
             return self.refuse(403, "permission_error",
                                "this request contains what looks like a credential (" + ", ".join(self.flags)
@@ -331,6 +340,33 @@ class Call:
                                f"the '{self.provider.name}' provider has no API key on the gateway yet. Tell an admin.",
                                "blocked", "provider not configured")
         self.forward()
+
+    def _unchecked(self):
+        """Why the checks can't rely on what was read of this request -> (status, message, reason), or None."""
+        h, dialect = self.h, self.provider.dialect
+        # every header of a name, not just the first: they are all forwarded
+        encodings = ",".join(h.headers.get_all("content-encoding") or []).lower().split(",")
+        if any(e.strip() not in ("", "identity") for e in encodings):
+            return 415, "encoded or compressed request bodies aren't accepted. Send it as it is.", "body encoding not accepted"
+        if h.command in ("GET", "HEAD", "OPTIONS") or dialect == "media":  # a custom provider's POST is checked above
+            return None
+        builtin = endpoint_allowed(dialect, h.command, self.rest)  # False for one an admin added
+        needs_model = self.provider.is_chat and (builtin or self.kind != "other")
+        if not self.raw and not needs_model:
+            return None
+        types = h.headers.get_all("content-type") or []
+        if len(types) == 1 and parse.is_json_type(types[0]):
+            if not self.plain_body:
+                return (400, "this request body couldn't be read. Send one JSON object in UTF-8, with no name "
+                        "written twice.", "body not readable")
+            model = self.body.get("model")
+            if needs_model and not (isinstance(model, str) and re.fullmatch(r"[!-~]{1,200}", model)):
+                return 400, "this request doesn't name its model in a way that can be read.", "no readable model"
+            return None
+        uploads = not builtin or (dialect == "elevenlabs" and re.match(ELEVENLABS_UPLOADS, self.rest))
+        if uploads and not needs_model and len(types) == 1 and parse.is_upload_type(types[0]):
+            return None
+        return 415, "send this request as application/json.", "body type not accepted"
 
     def _own_job(self, key, jobs, must_own=True, limit=MAX_JOB_IDS):
         """True when every job the ids name was started by this person and, on a tool-scoped key, under the
@@ -359,10 +395,7 @@ class Call:
     def _read_body(self, parse_json=True):
         ctype = (self.h.headers.get("content-type") or "").lower()
         if parse_json and self.raw and ("json" in ctype or self.raw[:1] in (b"{", b"[")):
-            try:
-                self.body = json.loads(self.raw)
-            except ValueError:
-                self.body = None
+            self.body, self.plain_body = parse.read_json(self.raw)
             if parse.nested_beyond(self.body, MAX_JSON_DEPTH):
                 raise RecursionError("request nested too deeply")
             if parse.unpaired_surrogate(self.body):
@@ -403,10 +436,9 @@ class Call:
         gw, h, provider = self.gw, self.h, self.provider
         payload = self.raw
         if self.kind == "chat" and isinstance(self.body, dict) and self.body.get("stream"):
-            options = dict(self.body.get("stream_options") or {})
-            if not options.get("include_usage"):
-                options["include_usage"] = True
-                patched = dict(self.body, stream_options=options)
+            options = self.body.get("stream_options") or {}
+            if isinstance(options, dict) and not options.get("include_usage"):  # anything else is the provider's to refuse
+                patched = dict(self.body, stream_options=dict(options, include_usage=True))
                 payload = json.dumps(patched).encode()
 
         headers = {}
