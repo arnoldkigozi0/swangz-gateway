@@ -97,12 +97,12 @@ class Gateway:
         with self._gov_lock:
             self._gov = None
 
-    def policy_gate(self, key, model, kind, provider, client, scoped_other=False):
+    def policy_gate(self, key, model, kind, provider, client, has_body=True, scoped_other=False):
         """The model registry and the company's policies, checked after the person's own rules.
-        -> None, or (status, error type, message, short reason, rule). Following a job already started
-        (media-status) and housekeeping calls (other) are not new use, so they are not refused here. The exception
-        is the housekeeping a tool-scoped key is allowed (scoped_other), which is checked like any other use."""
-        if kind == "media-status" or (kind == "other" and not scoped_other):
+        -> None, or (status, error type, message, short reason, rule). Two things are not new use, so they are not
+        refused here: following a job already started (media-status), and a chat provider's housekeeping read
+        (kind 'other' with no body). A tool-scoped key's housekeeping (scoped_other) is checked all the same."""
+        if kind == "media-status" or (kind == "other" and provider.is_chat and not has_body and not scoped_other):
             return None
         registry, policies = self.governance()
         if provider.is_chat and registry:
@@ -190,7 +190,7 @@ class Gateway:
         name = "Claude Code" if tool_id == "claude-code" else "Codex"
         return 403, "permission_error", f"{name} isn't switched on for you. Ask an administrator to enable it.", "tool not assigned"
 
-    def gate(self, key, model, kind, provider=None):
+    def gate(self, key, model, kind, provider=None, has_body=False):
         """None when the request may go ahead, else (status, error type, message, short reason)."""
         if self.db.get_setting("paused", "0") == "1":
             return 403, "permission_error", "AI access is paused for everyone by an administrator.", "paused"
@@ -211,13 +211,15 @@ class Gateway:
         # model rules are about chat and coding models; voice/image/video services have their own rule above
         if (provider is None or provider.is_chat) and not proxy.model_allowed(key["allowed_models"], model):
             return 403, "permission_error", f"you are not cleared to use the model '{model}'.", "model not allowed"
-        if kind != "other" and (key["daily_budget"] is not None or key["monthly_budget"] is not None):
+        # budgets and the rate limit are about use: on a chat provider, anything sent with a body is use
+        use = kind != "other" or (has_body and provider is not None and provider.is_chat)
+        if use and (key["daily_budget"] is not None or key["monthly_budget"] is not None):
             day, month = proxy.period_starts(time.time(), self.settings.tz_offset_minutes)
             if key["daily_budget"] is not None and self.spend(key["person_id"], day) >= key["daily_budget"]:
                 return 403, "permission_error", f"your daily AI budget (${key['daily_budget']:.2f}) is used up.", "daily budget"
             if key["monthly_budget"] is not None and self.spend(key["person_id"], month) >= key["monthly_budget"]:
                 return 403, "permission_error", f"your monthly AI budget (${key['monthly_budget']:.2f}) is used up.", "monthly budget"
-        if kind != "other":
+        if use:
             limit = int(self.db.get_setting("rate_per_min", "0") or 0)
             if self.ratelimit.over(key["person_id"], limit):
                 return 429, "rate_limit_error", f"too many requests — the limit is {limit} a minute. Wait a moment.", "rate limited"

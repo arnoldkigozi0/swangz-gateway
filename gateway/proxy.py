@@ -249,7 +249,7 @@ class Call:
             return self.refuse(403, "permission_error",
                                f"{self.h.command} {self.rest.split('?')[0]} is not available through the gateway.",
                                "blocked", "endpoint not allowed")
-        gate = self.gw.gate(row, self.rec["model"], self.kind, self.provider) \
+        gate = self.gw.gate(row, self.rec["model"], self.kind, self.provider, has_body=bool(self.raw)) \
             or self.gw.dev_tool_gate(row, self.rec["client"])
         if gate:
             status, etype, message, why = gate
@@ -284,7 +284,7 @@ class Call:
                     self.rec["rule"] = "weekly_report_required"
                     return self.refuse(403, "weekly_report_required", denial["message"], "blocked", "weekly_report_required", extra=denial)
         ruled = self.gw.policy_gate(row, self.rec["model"], self.kind, self.provider, self.rec["client"],
-                                    scoped_other=scoped and self.kind == "other")
+                                    has_body=bool(self.raw), scoped_other=scoped and self.kind == "other")
         if ruled:
             status, etype, message, why, self.rec["rule"] = ruled
             return self.refuse(status, etype, message, "blocked", why)
