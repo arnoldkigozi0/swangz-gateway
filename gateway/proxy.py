@@ -79,6 +79,27 @@ def custom_owners(db, provider, jobs):
                 " GROUP BY turn_id)", (provider, *jobs, *(j.casefold() for j in jobs)))
 
 
+# What the minimal record keeps when the full one can't be saved: who, what, the result and the cost — no content.
+MINIMAL_RECORD = (
+    "ts", "person_id", "key_id", "hub_tool_id", "provider", "method", "path", "kind", "client", "client_ip",
+    "user_agent", "model", "stream", "status", "outcome", "duration_ms", "ttft_ms", "in_tok", "out_tok",
+    "cache_write_tok", "cache_read_tok", "reasoning_tok", "cost", "cost_source", "turn_id", "rule", "media_type",
+    "units", "unit", "req_bytes", "resp_bytes")
+
+
+def _storable(value):
+    """value in a form the database always takes."""
+    if isinstance(value, str):
+        return value[:2000].encode("utf-8", "replace").decode("utf-8")
+    if isinstance(value, int):
+        return max(-2 ** 63, min(value, 2 ** 63 - 1))
+    return value if isinstance(value, float) else None
+
+
+class UnpairedSurrogate(Exception):
+    pass
+
+
 class BodyTooLarge(Exception):
     pass
 
@@ -164,6 +185,7 @@ class Call:
         self.summary = parse.summarize_request("other", None)
         self.key = None
         self.flags = []
+        self.recorded = False
         self.rec = {
             "ts": self.started, "person_id": None, "key_id": None, "provider": provider.name,
             "method": h.command, "path": rest + ("?" + query if query else ""), "kind": self.kind,
@@ -192,11 +214,16 @@ class Call:
             h.close_connection = True
             return self.refuse(413, "request_too_large", "this request is larger than the gateway accepts.", "blocked", "too large", store=False)
         self.rec["req_bytes"] = len(self.raw)
-        too_deep = False
+        unreadable = None  # (what to tell the person, the reason recorded)
         try:
             self._read_body()
         except RecursionError:
-            self.body, too_deep = None, True
+            unreadable = ("this request's JSON is nested too deeply to read.", "body too deeply nested")
+        except UnpairedSurrogate:
+            unreadable = ("this request's JSON holds text that isn't valid Unicode.",
+                          "body text not valid")
+        if unreadable:
+            self.body = None
             self._read_body(parse_json=False)  # the rest of the record, so the refusal has one
 
         row, key_id = self.gw.identify_internal(h) or self.gw.identify(security.client_token(h.headers))
@@ -210,9 +237,8 @@ class Call:
         elif h.headers.get("x-sgw-ref"):  # a Studio request: let the staff app find its own record
             self.rec["turn_id"] = h.headers["x-sgw-ref"][:80]
 
-        if too_deep:
-            return self.refuse(400, "invalid_request_error", "this request's JSON is nested too deeply to read.",
-                               "blocked", "body too deeply nested", store=False)
+        if unreadable:
+            return self.refuse(400, "invalid_request_error", unreadable[0], "blocked", unreadable[1], store=False)
 
         if not endpoint_allowed(self.provider.dialect, self.h.command, self.rest, self.gw.extra_endpoints):
             return self.refuse(403, "permission_error",
@@ -339,6 +365,8 @@ class Call:
                 self.body = None
             if parse.nested_beyond(self.body, MAX_JSON_DEPTH):
                 raise RecursionError("request nested too deeply")
+            if parse.unpaired_surrogate(self.body):
+                raise UnpairedSurrogate
         if self.kind == "media":
             self.media = parse.summarize_media_request(self.provider.dialect, self.rest, self.body, ctype)
             self.rec.update(model=self.media["model"], prompt=self.media["prompt"], media_type=self.media["media_type"],
@@ -396,17 +424,22 @@ class Call:
                                client=self.rec["client"], session=self.rec["session"], kind=self.kind,
                                prompt=self.rec["prompt"] if config.stores_bodies(gw.db) else None)
         try:
-            resp, conn = self._send(ticket, target, payload, headers)
-        except (OSError, http.client.HTTPException) as exc:
-            gw.live.finish(ticket)
-            if ticket.reason:
-                return self.refuse(403, "permission_error", ticket.reason, "cut", ticket.reason)
-            return self.refuse(502, "api_error", f"could not reach {provider.name} ({exc.__class__.__name__}).",
-                               "error", "upstream unreachable")
-        try:
+            try:
+                resp, conn = self._send(ticket, target, payload, headers)
+            except (OSError, http.client.HTTPException) as exc:
+                if ticket.reason:
+                    return self.refuse(403, "permission_error", ticket.reason, "cut", ticket.reason)
+                return self.refuse(502, "api_error", f"could not reach {provider.name} ({exc.__class__.__name__}).",
+                                   "error", "upstream unreachable")
             self._relay(ticket, resp, conn)
         finally:
-            gw.live.finish(ticket)
+            try:
+                if not self.recorded:  # something failed on the way, after the request may have left
+                    if self.rec["status"] is None:
+                        self.rec["outcome"] = "error"
+                    self._write_minimal()
+            finally:
+                gw.live.finish(ticket)
 
     def _send(self, ticket, target, payload, headers):
         pool = self.gw.pool
@@ -434,6 +467,7 @@ class Call:
         length = resp.getheader("content-length")
         chunked = is_sse or length is None or bool(resp.chunked)
 
+        self.rec.update(status=status, outcome="error")  # what a failure from here on is recorded as
         h.send_response(status)
         for k, v in resp.getheaders():
             if k.lower() not in STRIP_RESPONSE:
@@ -491,13 +525,14 @@ class Call:
             if outcome != "ok":
                 h.close_connection = True
 
+        self.rec.update(outcome="error" if outcome == "ok" and status >= 400 else outcome, resp_bytes=size)
         final = None
         if reader is not None:
             final = reader.finish()
         elif kept and "json" in ctype.lower():
             try:
                 final = json.loads(b"".join(kept))
-            except ValueError:
+            except (ValueError, RecursionError):
                 final = None
         summary = None
         if self.kind in ("media", "media-status"):
@@ -548,6 +583,14 @@ class Call:
     # ------------------------------------------------------------ the record
 
     def write(self, summary, raw_response, final=None, keep_request=True):
+        """Save the request's record; if that fails for any reason, save the minimal one."""
+        try:
+            self._write_full(summary, raw_response, final, keep_request)
+        except Exception as exc:  # noqa: BLE001 — the person's work already went through; never fail it for logging
+            self.gw.log(f"could not record request: {exc!r}")
+            self._write_minimal()
+
+    def _write_full(self, summary, raw_response, final, keep_request):
         gw, rec = self.gw, self.rec
         rec["duration_ms"] = int((time.time() - self.started) * 1000)
         if summary:
@@ -571,17 +614,27 @@ class Call:
         keep_bodies = config.stores_bodies(gw.db)
         if not keep_bodies:  # D-023: purpose inference above saw the text in memory; only its label is kept
             rec.update(prompt=None, reply=None, actions=None)
+        with gw.db.tx():
+            if keep_bodies and keep_request and (self.body is not None or self.raw):
+                field = parse.list_field(self.kind, self.body) if isinstance(self.body, dict) else None
+                rec["req_list_field"] = field
+                rec["req_head"], rec["req_items"] = store.store_request_body(
+                    gw.db, self.body if isinstance(self.body, dict) else None, self.raw, field)
+            if keep_bodies and (final is not None or raw_response):
+                rec["resp_blob"], rec["resp_format"] = store.store_response(gw.db, final, raw_response)
+            self._insert(rec)
+        self.recorded = True
+
+    def _write_minimal(self):
+        row = {c: _storable(self.rec[c]) for c in MINIMAL_RECORD if c in self.rec}
+        row.update(duration_ms=int((time.time() - self.started) * 1000), reason="record failed")
         try:
-            with gw.db.tx():
-                if keep_bodies and keep_request and (self.body is not None or self.raw):
-                    field = parse.list_field(self.kind, self.body) if isinstance(self.body, dict) else None
-                    rec["req_list_field"] = field
-                    rec["req_head"], rec["req_items"] = store.store_request_body(
-                        gw.db, self.body if isinstance(self.body, dict) else None, self.raw, field)
-                if keep_bodies and (final is not None or raw_response):
-                    rec["resp_blob"], rec["resp_format"] = store.store_response(gw.db, final, raw_response)
-                cols = list(rec)
-                gw.db.x(f"INSERT INTO requests({','.join(cols)}) VALUES({','.join('?' * len(cols))})",
-                        [rec[c] for c in cols])
-        except Exception as exc:  # the person's work already went through; never fail it for logging
-            gw.log(f"could not record request: {exc!r}")
+            self._insert(row)
+            self.recorded = True
+        except Exception as exc:  # noqa: BLE001 — the database itself can't be written; the log is what's left
+            self.gw.log(f"could not record request, even minimally: {exc!r}")
+
+    def _insert(self, row):
+        cols = list(row)
+        self.gw.db.x(f"INSERT INTO requests({','.join(cols)}) VALUES({','.join('?' * len(cols))})",
+                     [row[c] for c in cols])
