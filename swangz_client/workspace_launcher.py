@@ -58,8 +58,8 @@ MESSAGES = {
     "launch_failed": "The Swangz workspace window didn't start. Try again.",
     "no_hosts": "Update the Swangz app's list of tools, then press Open again.",
     "unavailable": "This tool isn't in your list any more, so nothing was opened. Press Sync now, or ask your admin.",
-    # D-026 D4: a personal computer is told where turns are handed out; a company computer is never sent elsewhere.
-    "shared_account": "This is a shared company account. Open it from Swangz AI Hub, where turns are handed out.",
+    # A legacy manifest or server may still refuse this tool. Never suggest bypassing the workspace.
+    "shared_account": "This tool isn't ready to open in your Swangz Chrome. Sync again, or ask your admin.",
     "shared_account_company": "This is a shared company account. It does not open on this company computer yet; ask "
                               "your administrator.",
     "no_workspace": "This device doesn't have a Swangz workspace window yet, so nothing was opened. Update Swangz, or ask your admin.",
@@ -304,9 +304,10 @@ class Launcher:
             raise LaunchError("unsafe_address")
         return self._start(tool_id, check_url(url, hosts), owner, generation)
 
-    def open_google_signin(self, email, owner, generation=1):
-        """Google's sign-in page, in this person's own workspace folder (D-029)."""
-        return self._start("google-signin", google_signin_url(email), owner, generation)
+    def open_google_signin(self, email, owner, generation=1, *, choose_account=False):
+        """Google's own account chooser in this person's local workspace folder, with an optional work-email hint."""
+        url = check_url(GOOGLE_SIGNIN, [GOOGLE_SIGNIN_HOST]) if choose_account else google_signin_url(email)
+        return self._start("google-signin", url, owner, generation)
 
     def ready(self, owner, generation=1):
         """Everything the device can check before asking the Hub: a usable browser, and the folder prepared and verified.

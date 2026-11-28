@@ -10,7 +10,7 @@ from . import core, workspace_launcher as wl
 Repair = namedtuple("Repair", "code title message steps actions")
 
 RETRY = "retry"    # ask the Hub again, then open the same tool
-CHROME = "chrome"  # Google's own Chrome download page (workspace_launcher.INSTALL_PAGE), nothing else
+CHROME = "chrome"  # official Google installation or download, never a tool address
 WEEKLY = "weekly"  # the Hub's weekly reports page
 LABELS = {RETRY: "Try again", CHROME: "Get Google Chrome", WEEKLY: "Open weekly reports"}
 
@@ -20,7 +20,7 @@ ADMIN = "Ask your Swangz admin"
 # code -> (title, steps, actions)
 _DEVICE = {
     "no_browser": ("Google Chrome is needed",
-                   ("Get Google Chrome from Google's own download page and install it.", AGAIN), (CHROME, RETRY)),
+                   ("Get Google Chrome using Google's official installer or download page.", AGAIN), (CHROME, RETRY)),
     "folder": ("Your workspace folder can't be used safely",
                ("Close any Swangz workspace window that is still open.", AGAIN,
                 ADMIN + " for help if it happens again."), (RETRY,)),
@@ -51,8 +51,9 @@ _DEVICE = {
                      ("Update the Swangz app.", AGAIN, ADMIN + " if nothing changes."), (RETRY,)),
     "workspace_policy": ("The company browser settings aren't in force",
                          (ADMIN + " to install or repair the company Chrome settings on this computer.", AGAIN), (RETRY,)),
-    "shared_account": ("This one opens from Swangz AI Hub",
-                       ("Open Swangz AI Hub in your browser and press Open there.",), ()),
+    "shared_account": ("This tool needs to sync",
+                       ("Press Try again to fetch the latest tool access.",
+                        ADMIN + " if it still won't open."), (RETRY,)),
     "shared_account_company": ("This shared account doesn't open here yet",
                                (ADMIN + " if you need this tool.",), ()),
     "unavailable": ("This tool isn't in your list any more",
@@ -99,6 +100,8 @@ def explain(exc):
     if not isinstance(exc, core.ApiFailure) or isinstance(exc, (core.Revoked, core.KeyRotated)):
         return None
     code = exc.code
+    if code == "shared_account":
+        return for_code(code)  # Do not repeat a legacy server instruction to leave the managed browser.
     key = _HUB_ALIASES.get(code, code)
     if key not in _HUB and key not in _DEVICE:
         if exc.status == 0:

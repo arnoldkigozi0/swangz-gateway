@@ -1371,17 +1371,15 @@ class Client:
         return any(isinstance(r, dict) and r.get("owner_kind") == "company" for r in records)
 
     def _shared_refusal(self):
-        """D-026 D4: what a refused shared company account says depends on whose computer this is."""
+        """Translate a legacy workspace refusal without pointing staff to the default browser."""
         from . import workspace_launcher as wl
         return wl.LaunchError("shared_account_company" if self.company_device() else "shared_account")
 
     def open_app(self, tool_id):
         """Open a website tool in the Swangz workspace window (W3, section 9.1). A tool marked
-        `workspace` opens at the provider address the Hub gives this device (POST /api/device/open). Any other (shared
-        company accounts, tools the Hub hands out itself) opens nothing this release: on a personal device the person
-        is told to open it from Swangz AI Hub, on a company device to ask their administrator (D-026 D4). The
-        workspace never opens the Hub's own address. Never the default browser: without a
-        contract-2 workspace on this device nothing opens and the person is told why."""
+        `workspace` opens at the provider address the Hub gives this device (POST /api/device/open). A stale or
+        incompatible manifest, including older manifests that excluded shared accounts, opens nothing. Without an
+        active contract-2 workspace there is no launch and no default-browser fallback."""
         for app in self.apps():
             if app["id"] == tool_id:
                 return self._open_in_workspace(app)
@@ -1394,10 +1392,12 @@ class Client:
         value = self.store.state().get("google_signin_opened")
         return value if isinstance(value, (int, float)) else None
 
-    def sign_in_google(self):
-        """Open Google's sign-in page in this person's Swangz Chrome folder, their Swangz email filled in (D-029). The same
-        device-side checks as opening a tool (an active workspace, the person's own folder, the company policy on a company
-        computer); nothing is sent to the Hub and nothing about the account is read or kept here."""
+    def sign_in_google(self, *, choose_account=False):
+        """Open Google sign-in in this person's Swangz Chrome, optionally without a work-email hint.
+
+        As with a tool launch, require an active workspace, the owner's folder, and applicable company policy.
+        Do not send anything to the Hub or record the Google account used.
+        """
         from . import workspace_launcher as wl
         manifest = self.store.manifest() or {}
         browser = manifest.get("browser") or {}
@@ -1419,7 +1419,10 @@ class Client:
         self.launcher.ready(owner, generation)
         self.policy_gate()
         email = (manifest.get("person") or {}).get("email")
-        self.launcher.open_google_signin(email, owner, generation)
+        if choose_account:
+            self.launcher.open_google_signin(None, owner, generation, choose_account=True)
+        else:
+            self.launcher.open_google_signin(email, owner, generation)
         st = self.store.state()
         st["google_signin_opened"] = time.time()
         self.store.save_state(st)
@@ -1444,8 +1447,7 @@ class Client:
         if getattr(self, "launcher", None) is None:
             self.launcher = wl.Launcher(self.paths.data, roots=self.store.roots())
         if not self.workspace_app(app):
-            # Shared company accounts and tools the Hub hands out itself are not opened by the app this release:
-            # the workspace never opens the Hub's own address, and there is no default-browser fallback.
+            # Older manifests may not mark the tool for the workspace. Do not open their legacy /go/ link.
             raise self._shared_refusal()
         def gen(block):
             g = (block or {}).get("generation")
@@ -1460,8 +1462,8 @@ class Client:
         try:
             out = self._guard(lambda: self.api().call("POST", "/device/open", body))
         except ApiFailure as exc:
-            # A tool that became shared since the last sync: the Hub's words point to the Hub's web page.
-            if exc.code == "shared_account" and self.company_device():
+            # Older Hub versions still return this code and can suggest opening the tool outside Swangz Chrome.
+            if exc.code == "shared_account":
                 raise self._shared_refusal() from None
             raise
         try:
