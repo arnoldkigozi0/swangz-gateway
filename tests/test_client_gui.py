@@ -750,7 +750,7 @@ class WindowTests(unittest.TestCase):
 
     def test_the_sidebar_links_to_the_hubs_own_pages_in_the_persons_browser(self):
         app = self.make()
-        self.assertIn("In the Hub · your browser".upper(), self.everything())
+        self.assertIn("IN THE HUB", self.everything())
         with mock.patch.object(gui.shell, "open_hub") as opened:
             for name, page in (("Weekly reports", "weekly"), ("Requests", "requests"), ("My devices", "devices")):
                 buttons(app.dock)[name].invoke()

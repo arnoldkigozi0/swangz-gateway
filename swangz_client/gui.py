@@ -94,6 +94,8 @@ def make_button(parent, **kw):
 
 
 SYNC_EVERY_MS = 15 * 60 * 1000
+SIDEBAR = 216
+MARGIN = 32  # the page's left and right margin
 # The pages, in the sidebar's order: the web staff app's first three, then this computer's own.
 PAGES = (("home", "Home"), ("apps", "My tools"), ("accounts", "Sign-ins"), ("workspace", "Workspace"),
          ("automations", "Automations"), ("usage", "Activity"), ("settings", "Settings"))
@@ -206,6 +208,7 @@ class App:
         self._chrome_checked_at = 0.0
         self._apps_checked_at = 0.0
         self._images = {}  # (tool id, size) -> PhotoImage, kept so Tk doesn't drop them
+        self._page_width = 0
         self._logos_fetched = False
         self.query = tk.StringVar(master=self.root, value="")
         self.category = "All"
@@ -215,7 +218,7 @@ class App:
         self.root.minsize(780, 540)
         self.root.configure(bg=C["bg"])
         self._styles()
-        self.dock = tk.Frame(self.root, bg=C["side"], width=236)
+        self.dock = tk.Frame(self.root, bg=C["side"], width=SIDEBAR)
         self.dock.pack(side="left", fill="y")
         self.dock.pack_propagate(False)
         tk.Frame(self.root, bg=C["line"], width=1).pack(side="left", fill="y")
@@ -234,8 +237,8 @@ class App:
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
         self.canvas.pack(side="left", fill="both", expand=True)
         self.content = tk.Frame(self.canvas, bg=C["bg"])
-        self._window = self.canvas.create_window((36, 28), window=self.content, anchor="nw")
-        self.content.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=(0, 0, e.width + 72, e.height + 56)))
+        self._window = self.canvas.create_window((MARGIN, 26), window=self.content, anchor="nw")
+        self.content.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=(0, 0, e.width + 2 * MARGIN, e.height + 52)))
         self.canvas.bind("<Configure>", self._resized)
         self._drawn_width = 0
         self._redraw_after = None
@@ -271,8 +274,9 @@ class App:
     def _resized(self, event):
         """The page follows the window: tile grids are laid out for a width, so a big change redraws them (once the
         window settles)."""
-        self.canvas.itemconfigure(self._window, width=max(event.width - 72, 300))
-        if self.page in ("home", "apps", "accounts") and abs(event.width - self._drawn_width) > 120 and self._drawn_width:
+        self.canvas.itemconfigure(self._window, width=max(event.width - 2 * MARGIN, 300))
+        if not self.inline and self.page in ("home", "apps", "accounts") and self._drawn_width > 1 \
+                and abs(event.width - self._drawn_width) > 120:
             if self._redraw_after is not None:
                 self.root.after_cancel(self._redraw_after)
             self._redraw_after = self.root.after(250, self._redraw)
@@ -365,14 +369,18 @@ class App:
             self.say(getattr(exc, "message", None) or str(exc), bad=True)
 
     def width(self):
-        """The page's usable width now (before the first draw: from the window's own size)."""
-        w = self.canvas.winfo_width()
+        """The page's usable width: measured once when the page is drawn (show), from the window's own size."""
+        if self._page_width:
+            return self._page_width
+        self.root.update_idletasks()  # a resize asked for but not yet applied (root.geometry) counts
+        w = self.root.winfo_width()
         if w <= 1:
-            self.root.update_idletasks()
-            w = self.canvas.winfo_width()
-        if w <= 1:
-            w = max(self.root.winfo_width(), 1120) - 236 - 14
-        return max(w - 72, 300)
+            w = 1120
+        return max(w - SIDEBAR - 1 - 14 - 2 * MARGIN, 300)
+
+    def w(self, cap, minus=60):
+        """A wrap length: `cap`, or less when the page is narrower."""
+        return max(160, min(cap, self.width() - minus))
 
     def columns(self, tile=240, most=4):
         return max(1, min(most, self.width() // tile))
@@ -407,13 +415,20 @@ class App:
 
     def heading(self, parent, title, note=None, actions=()):
         """A page's title line: the title at the left and the page's actions at the right (web rule), the note below."""
+        from tkinter import font as tkfont
         top = tk.Frame(parent, bg=C["bg"])
         top.pack(fill="x")
-        self.label(top, title, 24, bold=True).pack(side="left")
-        for text, command, primary in reversed(actions):
-            self.button(top, text, command, primary=primary).pack(side="right", padx=(8, 0))
+        title_width = tkfont.Font(root=self.root, family=FONT[0], size=24, weight="bold").measure(title)
+        beside = title_width + sum(len(t) * 8 + 40 for t, _, _ in actions) < self.width()
+        self.label(top, title, 24, bold=True, wrap=self.width()).pack(side="left" if beside else "top", anchor="w")
+        holder = top if beside else tk.Frame(parent, bg=C["bg"])
+        if not beside:
+            holder.pack(fill="x", pady=(8, 0))
+        for text, command, primary in (reversed(actions) if beside else actions):
+            self.button(holder, text, command, primary=primary).pack(side="right" if beside else "left",
+                                                                     padx=(8, 0) if beside else (0, 8))
         if note:
-            self.label(parent, note, 10, color="muted", wrap=min(760, self.width())).pack(anchor="w", pady=(6, 18))
+            self.label(parent, note, 10, color="muted", wrap=self.w(760, 0)).pack(anchor="w", pady=(6, 18))
         else:
             tk.Frame(parent, bg=C["bg"], height=16).pack()
         return top
@@ -424,7 +439,7 @@ class App:
         surface = bg or C["panel"]
         self.label(card, title, 13, bold=True, bg=surface).pack(anchor="w")
         if note:
-            self.label(card, note, 10, color="muted", bg=surface, wrap=min(700, self.width() - 60)).pack(anchor="w", pady=(2, 8))
+            self.label(card, note, 10, color="muted", bg=surface, wrap=self.w(700)).pack(anchor="w", pady=(2, 8))
         return card
 
     def eyebrow(self, parent, text, bg=None):
@@ -443,7 +458,8 @@ class App:
         r = tk.Frame(parent, bg=C["panel"])
         r.pack(fill="x", pady=3)
         self.label(r, key, 10, color="muted", bg=C["panel"], width=20).pack(side="left")
-        self.label(r, str(value if value not in (None, "") else "—"), 10, bg=C["panel"], wrap=480).pack(side="left")
+        self.label(r, str(value if value not in (None, "") else "—"), 10, bg=C["panel"],
+                   wrap=self.w(480, 260)).pack(side="left")
 
     def bar(self, parent, done, total, bg=None, width=280):
         """A slim progress bar: `done` of `total`."""
@@ -517,6 +533,8 @@ class App:
         self.clear(self.dock)
         self.clear(self.content)
         self.tool_list = None
+        self._page_width = 0
+        self._page_width = self.width()
         self.canvas.yview_moveto(0)
         self.nav = {}
         self._brand()
@@ -566,7 +584,7 @@ class App:
         self.eyebrow(self.dock, "This computer", bg=side).pack(fill="x", padx=28, pady=(18, 4))
         for key in COMPUTER_PAGES:
             self._nav_item(key, names[key], key == page)
-        self.eyebrow(self.dock, "In the Hub · your browser", bg=side).pack(fill="x", padx=28, pady=(18, 4))
+        self.eyebrow(self.dock, "In the Hub", bg=side).pack(fill="x", padx=28, pady=(18, 4))
         for key, name in HUB_LINKS:
             item = tk.Frame(self.dock, bg=side)
             item.pack(fill="x", padx=12, pady=1)
@@ -680,7 +698,7 @@ class App:
         self.heading(f, f"Good {'morning' if hour < 12 else 'afternoon' if hour < 18 else 'evening'}{', ' + name if name else ''}",
                      f"Your AI workstation  ·  signed in to {st.get('server') or ''}", actions=(("Sync now", self.sync_now, False),))
         if st.get("reconnect"):
-            self.label(f, core.RECONNECT, 10, color="bad", wrap=700).pack(anchor="w", pady=(0, 10))
+            self.label(f, core.RECONNECT, 10, color="bad", wrap=self.w(700)).pack(anchor="w", pady=(0, 10))
             self.button(f, "Reconnect this device", self.sign_out).pack(anchor="w", pady=(0, GAP))
         self.repair_panel(f)
         self.hero(f, st)
@@ -695,14 +713,15 @@ class App:
                  ("Sync", f"Last synced {clock(st.get('last_sync'))}", bool(st.get("last_sync")), None),
                  ("This device", ("Company-owned" if device.get("owner_kind") == "company" else "Personal") + " · connected",
                   not st.get("reconnect"), None)]
-        cols = 4 if self.width() >= 760 else 2
+        cols = 4 if self.width() >= 860 else 2
+        tile_wrap = max(120, (self.width() - 10 * (cols - 1)) // cols - 44)
         for i, (title, value, good, action) in enumerate(stats):
             tile = self.card(tiles)
             tile.grid(row=i // cols, column=i % cols, sticky="nsew", padx=(0 if i % cols == 0 else 10, 0), pady=(0, 10))
             tiles.grid_columnconfigure(i % cols, weight=1, uniform="tiles")
             self.label(tile, title, 9, color="muted", bold=True, bg=C["panel"]).pack(anchor="w")
             self.label(tile, ("● " if good else "○ ") + value, 11, color="ok" if good else "gold_hi",
-                       bg=C["panel"], wrap=200).pack(anchor="w", pady=(6, 0))
+                       bg=C["panel"], wrap=tile_wrap).pack(anchor="w", pady=(6, 0))
             if action:
                 self.button(tile, action[0], action[1], bg=C["panel"], small=True).pack(anchor="w", pady=(10, 0))
         quick = self.quick_tools(8)
@@ -721,20 +740,24 @@ class App:
                 self.button(r, f"Open {label}", lambda k=key: self.open_agent(k), bg=C["panel"]).pack(side="left", padx=(0, 8))
         two = tk.Frame(f, bg=C["bg"])
         two.pack(fill="x")
+        side_by_side = self.width() >= 640
+        half = (self.width() - 10) // 2 - 44 if side_by_side else self.w(700)
         two.grid_columnconfigure(0, weight=1, uniform="two")
-        two.grid_columnconfigure(1, weight=1, uniform="two")
+        if side_by_side:
+            two.grid_columnconfigure(1, weight=1, uniform="two")
         left, right = self.card(two), self.card(two)
-        left.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
-        right.grid(row=0, column=1, sticky="nsew")
+        left.grid(row=0, column=0, sticky="nsew", padx=(0, 10) if side_by_side else 0)
+        right.grid(row=0 if side_by_side else 1, column=1 if side_by_side else 0, sticky="nsew",
+                   pady=0 if side_by_side else (GAP, 0))
         self.label(left, "Running now", 13, bold=True, bg=C["panel"]).pack(anchor="w")
         launcher = getattr(self.client, "launcher", None)
         window = bool(launcher is not None and launcher.running())
         self.label(left, "Your Swangz Chrome window is open." if window else "No Swangz Chrome window is open.", 10,
-                   bg=C["panel"], wrap=320).pack(anchor="w", pady=(6, 0))
+                   bg=C["panel"], wrap=half).pack(anchor="w", pady=(6, 0))
         if self.opened:
             names = ", ".join(dict.fromkeys(n for _, n, _ in reversed(self.opened)))
             self.label(left, f"Opened from Swangz since it started: {names}", 10, color="muted", bg=C["panel"],
-                       wrap=320).pack(anchor="w", pady=(4, 0))
+                       wrap=half).pack(anchor="w", pady=(4, 0))
         self.label(right, "In the Hub", 13, bold=True, bg=C["panel"]).pack(anchor="w")
         self.label(right, "These open in your usual browser.", 9, color="muted", bg=C["panel"]).pack(anchor="w", pady=(2, 6))
         for key, title in (("weekly", "Weekly reports"), ("requests", "Access requests"), ("devices", "My devices"),
@@ -757,7 +780,7 @@ class App:
             self.label(hero, "Sign in to Google once", 18, bold=True, bg=bg).pack(anchor="w", pady=(2, 4))
             self.label(hero, f"Sign in with your Swangz account ({email}) in your Swangz Chrome. Then every AI tool's "
                              "\"Continue with Google\" signs you in with one click.", 10, color="text2", bg=bg,
-                       wrap=min(700, self.width() - 60)).pack(anchor="w")
+                       wrap=self.w(700)).pack(anchor="w")
             r = tk.Frame(hero, bg=bg)
             r.pack(anchor="w", pady=(14, 0))
             self.button(r, "Sign in to Google in Swangz Chrome", self.sign_in_google, primary=True, bg=bg).pack(side="left")
@@ -766,7 +789,7 @@ class App:
             self.eyebrow(hero, "Step 2 of 2", bg=bg).pack(anchor="w")
             self.label(hero, "Sign in to your paid tools", 18, bold=True, bg=bg).pack(anchor="w", pady=(2, 4))
             self.label(hero, f"{done} of {len(need)} tools signed in. Sign in once on each tool's own page in your Swangz "
-                             "Chrome; it keeps you signed in.", 10, color="text2", bg=bg, wrap=min(700, self.width() - 60)).pack(anchor="w")
+                             "Chrome; it keeps you signed in.", 10, color="text2", bg=bg, wrap=self.w(700)).pack(anchor="w")
             self.bar(hero, done, len(need), bg=bg).pack(anchor="w", pady=(10, 0))
             self.button(hero, "Go to Sign-ins", lambda: self.show("accounts"), primary=True, bg=bg).pack(anchor="w", pady=(14, 0))
         else:
@@ -1045,8 +1068,12 @@ class App:
                 self.button(r, "Install", lambda i=tool_id: self.install_native(i), bg=bg, small=True).pack(side="left", padx=(0, 8))
             if state in ("installed", "failed"):
                 self.button(r, "Repair", lambda i=tool_id: self.install_native(i, "repair"), bg=bg, small=True).pack(side="left", padx=(0, 8))
-        if kind != "api":
-            self.link(r, "How to sign in  ›", lambda: self.show("accounts"), bg=bg).pack(side="left", padx=(4, 0))
+        if kind != "api":  # beside the buttons, or under them when the card is narrow
+            link = self.link(body if wrap < 420 else r, "How to sign in  ›", lambda: self.show("accounts"), bg=bg)
+            if wrap < 420:
+                link.pack(anchor="w", pady=(6, 0))
+            else:
+                link.pack(side="left", padx=(4, 0))
         return card
 
     def make_pin(self, parent, tool_id, pins):
@@ -1075,7 +1102,7 @@ class App:
         if rows:
             self.bar(top, done, len(rows), bg=bg, width=min(420, self.width() - 60)).pack(anchor="w", pady=(10, 6))
             self.label(top, "Swangz can't see whether you're signed in: press I'm signed in on each tool once you are.",
-                       9, color="muted", bg=bg, wrap=min(700, self.width() - 60)).pack(anchor="w")
+                       9, color="muted", bg=bg, wrap=self.w(700)).pack(anchor="w")
         # 1. the Google account
         card = self.section(f, "1  ·  Your Swangz Google account", "Sign in to Google once in your Swangz Chrome with the "
                             "same Swangz account you use for the Hub. Every \"Continue with Google\" below then uses it.")
@@ -1088,8 +1115,8 @@ class App:
             self.button(r, "Sign in again" if opened else "Sign in to Google in Swangz Chrome", self.sign_in_google,
                         primary=not opened, bg=bg).pack(side="left")
             if opened:
-                self.label(r, f"   Google's sign-in was opened here on {when(opened)}.", 9, color="muted",
-                           bg=bg).pack(side="left")
+                self.label(card, f"Google's sign-in was opened here on {when(opened)}.", 9, color="muted",
+                           bg=bg).pack(anchor="w", pady=(6, 0))
         # 2. each tool, grouped by how it signs in
         self.label(f, "2  ·  Your tools", 13, bold=True).pack(anchor="w", pady=(6, 10))
         for kind, title, steps in SIGNIN_GROUPS:
@@ -1099,7 +1126,7 @@ class App:
             card = self.section(f, f"{title}  ({sum(1 for _, s in group if s)} of {len(group)})", HOW[kind][1])
             for n, step in enumerate(steps, 1):
                 self.label(card, f"{n}. {step.format(email=email or 'your Swangz email')}", 10, color="text2", bg=bg,
-                           wrap=min(700, self.width() - 60)).pack(anchor="w")
+                           wrap=self.w(700)).pack(anchor="w")
             if kind == "seat":
                 r = self.row(card)
                 self.button(r, "Ask for a seat", lambda: self.open_hub("requests"), bg=bg, small=True).pack(side="left")
@@ -1111,7 +1138,7 @@ class App:
         if keyed:
             card = self.section(f, "Nothing to sign in to", HOW["api"][1])
             self.label(card, ", ".join(t["name"] for t in keyed), 10, color="text2", bg=bg,
-                       wrap=min(700, self.width() - 60)).pack(anchor="w")
+                       wrap=self.w(700)).pack(anchor="w")
 
     def signin_row(self, parent, tool, signed):
         bg = C["panel"]
@@ -1133,7 +1160,7 @@ class App:
             w = native_apps.way(tool_id, native_apps.os_key())
             state = ("Sign in inside its desktop app" if w.method == native_apps.NATIVE else
                      "Sign in where your admin told you", "muted")
-        self.label(words, state[0], 9, color=state[1], bg=bg, wrap=max(260, self.width() - 420)).pack(anchor="w")
+        self.label(words, state[0], 9, color=state[1], bg=bg, wrap=max(140, self.width() - 330)).pack(anchor="w")
         actions = tk.Frame(r, bg=bg)
         actions.pack(side="right")
         if signed:
@@ -1165,16 +1192,16 @@ class App:
                 self.root.after_idle(self.check_chrome)  # after this page is drawn: its answer redraws the page
         elif seen.get("ok"):
             self.label(card, "● Installed, and checked: published by Google.", 10, color="ok", bg=C["panel"]).pack(anchor="w")
-            self.label(card, seen.get("path") or "", 9, color="muted", bg=C["panel"], wrap=640).pack(anchor="w", pady=(2, 0))
+            self.label(card, seen.get("path") or "", 9, color="muted", bg=C["panel"], wrap=self.w(640)).pack(anchor="w", pady=(2, 0))
         else:
             self.label(card, "Swangz opens web AI tools in Google Chrome, which isn't set up on this computer yet.", 10,
-                       bg=C["panel"], wrap=640).pack(anchor="w")
+                       bg=C["panel"], wrap=self.w(640)).pack(anchor="w")
             if seen.get("why"):
-                self.label(card, f"Why: {seen['why']}", 9, color="muted", bg=C["panel"], wrap=640).pack(anchor="w", pady=(2, 0))
+                self.label(card, f"Why: {seen['why']}", 9, color="muted", bg=C["panel"], wrap=self.w(640)).pack(anchor="w", pady=(2, 0))
             for n, step in enumerate(("Press Install Google Chrome. It uses Google's own installer or download page.",
                                       "Finish the install, then come back to this window.",
                                       "Swangz checks Chrome again by itself, or press Re-check."), 1):
-                self.label(card, f"{n}. {step}", 10, color="muted", bg=C["panel"], wrap=640).pack(anchor="w")
+                self.label(card, f"{n}. {step}", 10, color="muted", bg=C["panel"], wrap=self.w(640)).pack(anchor="w")
             r = self.row(card)
             self.button(r, "Install Google Chrome", self.install_chrome, primary=True, bg=C["panel"]).pack(side="left", padx=(0, 8))
             self.button(r, "Re-check", self.check_chrome, bg=C["panel"]).pack(side="left")
@@ -1189,18 +1216,18 @@ class App:
             r = self.row(card)
             self.button(r, "Sign in again" if done else "Sign in to Google in Swangz Chrome", self.sign_in_google,
                         primary=not done, bg=C["panel"]).pack(side="left")
-            self.link(r, "   All sign-ins  ›", lambda: self.show("accounts"), bg=C["panel"]).pack(side="left")
+            self.link(card, "All sign-ins  ›", lambda: self.show("accounts"), bg=C["panel"]).pack(anchor="w", pady=(6, 0))
             if done:
                 self.label(card, f"Google's sign-in was opened here on {clock(done)}.", 9, color="muted",
                            bg=C["panel"]).pack(anchor="w", pady=(6, 0))
         card = self.section(f, "Your profile folder", "Provider and Google sign-ins you make in Swangz Chrome are kept here, "
                                                       "only for you. Swangz never copies or uploads them.")
-        self.label(card, str(profiles_folder(self.client.paths.data)), 10, bg=C["panel"], wrap=640).pack(anchor="w")
+        self.label(card, str(profiles_folder(self.client.paths.data)), 10, bg=C["panel"], wrap=self.w(640)).pack(anchor="w")
         card = self.section(f, "Open windows")
         launcher = getattr(self.client, "launcher", None)
         window = bool(launcher is not None and launcher.running())
         self.label(card, "Your Swangz Chrome window is open." if window else "No Swangz Chrome window is open. Open a "
-                   "tool from My tools or Home to start one.", 10, bg=C["panel"], wrap=640).pack(anchor="w")
+                   "tool from My tools or Home to start one.", 10, bg=C["panel"], wrap=self.w(640)).pack(anchor="w")
         # Only the Hub's account pages (shell.HUB_PAGES): its tool pages would open tools outside Swangz Chrome.
         card = self.section(f, "Swangz AI Hub", "Your devices and reports in the Hub. It opens in your usual browser; "
                                                 "sign in there with your company account. Open AI tools from here, not "
@@ -1271,7 +1298,7 @@ class App:
             top.pack(anchor="w")
             self.label(top, r["name"], 12, bold=True, bg=C["panel"]).pack(side="left")
             self.badge(top, f"v{r['version']}").pack(side="left", padx=(8, 0))
-            self.label(text, r["description"], 9, color="text2", bg=C["panel"], wrap=520).pack(anchor="w", pady=(2, 0))
+            self.label(text, r["description"], 9, color="text2", bg=C["panel"], wrap=self.w(520, 140)).pack(anchor="w", pady=(2, 0))
             self.label(text, ("● " if r["state"] == "installed" else "○ ") + STATE_WORDS.get(r["state"], r["state"])
                        + (f" ({r['installed_version']})" if r["state"] == "update" else ""), 9,
                        color="ok" if r["state"] == "installed" else "gold_hi", bg=C["panel"]).pack(anchor="w", pady=(4, 0))
@@ -1339,9 +1366,9 @@ class App:
                      ("Company browser settings", self.policy_words())):
             self.fact(card, k, v)
         if st.get("credential_warning"):
-            self.label(f, st["credential_warning"], 10, color="bad", wrap=700).pack(anchor="w", pady=(0, GAP))
+            self.label(f, st["credential_warning"], 10, color="bad", wrap=self.w(700)).pack(anchor="w", pady=(0, GAP))
         card = self.section(f, "What Swangz records")
-        self.label(card, st.get("recording") or "", 10, color="muted", bg=C["panel"], wrap=640).pack(anchor="w")
+        self.label(card, st.get("recording") or "", 10, color="muted", bg=C["panel"], wrap=self.w(640)).pack(anchor="w")
         card = self.section(f, "Swangz AI Hub", "These pages open in your usual browser. Sign in there as "
                             f"{person.get('email') or 'your company account'}. Connecting this device does not sign you "
                             "into the website. Use your own browser profile and sign out of the Hub when finished.")
@@ -1351,11 +1378,13 @@ class App:
         ):
             r = self.row(card)
             self.button(r, title, lambda p=page: self.open_hub(p), bg=C["panel"]).pack(side="left")
-            self.label(r, note, 9, color="muted", bg=C["panel"], wrap=420).pack(side="left", padx=(12, 0))
+            self.label(r, note, 9, color="muted", bg=C["panel"], wrap=self.w(420, 300)).pack(side="left", padx=(12, 0))
         card = self.section(f, "Sign out")
         r = self.row(card)
         self.button(r, "Sign out and disconnect this device", self.sign_out, danger=True, bg=C["panel"]).pack(side="left")
-        self.button(r, REMOVE, self.remove_account, danger=True, bg=C["panel"]).pack(side="left", padx=(12, 0))
+        if self.width() < 600:  # one under the other when they don't fit side by side
+            r = self.row(card)
+        self.button(r, REMOVE, self.remove_account, danger=True, bg=C["panel"]).pack(side="left", padx=(0 if self.width() < 600 else 12, 0))
 
     def policy_words(self):
         """Company computers check Chrome's machine policy (D-024); personal ones never do."""
@@ -1539,10 +1568,10 @@ class App:
         card.configure(highlightbackground=C["bad"])
         card.pack(fill="x", pady=(0, GAP))
         bg = C["panel"]
-        self.label(card, f"{name}: {fix.title}", 13, bold=True, bg=bg, wrap=640).pack(anchor="w")
-        self.label(card, fix.message, 10, bg=bg, wrap=640).pack(anchor="w", pady=(4, 6))
+        self.label(card, f"{name}: {fix.title}", 13, bold=True, bg=bg, wrap=self.w(640)).pack(anchor="w")
+        self.label(card, fix.message, 10, bg=bg, wrap=self.w(640)).pack(anchor="w", pady=(4, 6))
         for n, step in enumerate(fix.steps, 1):
-            self.label(card, f"{n}. {step}", 10, color="muted", bg=bg, wrap=640).pack(anchor="w")
+            self.label(card, f"{n}. {step}", 10, color="muted", bg=bg, wrap=self.w(640)).pack(anchor="w")
         row = tk.Frame(card, bg=bg)
         row.pack(anchor="w", pady=(10, 0))
         for i, action in enumerate(fix.actions):
