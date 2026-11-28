@@ -435,9 +435,11 @@ class Store:
                         raise keystore.KeyStoreError("The key file on this device was removed, but its keychain entry "
                                                      "could not be confirmed removed. Retry signing out.")
             for root in reversed(self.roots()):
+                # workstation.json: the window's pins and the person's own "I'm signed in" ticks, which belong to them
                 for name in ("state.json", "manifest.json", "device.json", "credential-access.log", "workspace-open.log", "rotate.lock",
-                             "ownership.log", NEWEST_APP):
+                             "ownership.log", "workstation.json", NEWEST_APP):
                     (root / name).unlink(missing_ok=True)
+                shutil.rmtree(root / "logos", ignore_errors=True)  # the tool-logo cache (logos.py): only the Hub's pictures
 
 
 def normalise_server(text):

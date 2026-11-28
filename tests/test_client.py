@@ -384,6 +384,16 @@ class RevocationTests(ClientBase):
         status, _, _ = self.rig.anthropic({"model": "claude-test", "max_tokens": 5, "messages": [{"role": "user", "content": "hi"}]}, key=key)
         self.assertIn(status, (401, 403))  # a revoked key is refused at the door, as for any other
 
+    def test_logout_takes_the_logo_cache_and_the_persons_sign_in_ticks_too(self):
+        # 28 Nov 2026: only browser-profiles may stay after sign out (R-12); the window's own files go with the sign-in
+        self.sign_in()
+        (self.data / "logos").mkdir()
+        (self.data / "logos" / "canva.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+        (self.data / "workstation.json").write_text('{"signed_in": {"canva": 1}}')
+        self.client.logout()
+        self.assertFalse((self.data / "logos").exists())
+        self.assertFalse((self.data / "workstation.json").exists())
+
     def test_logout_still_cleans_up_when_the_server_cannot_be_reached(self):
         self.sign_in()
         self.client.sync()
