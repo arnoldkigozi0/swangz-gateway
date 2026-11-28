@@ -130,6 +130,16 @@ class ContractTwoTests(Base):
         self.assertIn("one company login", app["account_note"])
         self.assertIn("canva", [t["id"] for t in manifest["tools"]])
 
+    def test_every_tool_says_how_you_sign_in_with_its_description_and_colour(self):
+        # 28 Nov 2026: the app draws the web's tool tiles and its "how you sign in" words from these
+        self.enable_canva()
+        self.db.x("UPDATE tools SET signin = 'sso' WHERE id = 'canva'")
+        tool = [t for t in self.manifest()["tools"] if t["id"] == "canva"][0]
+        self.assertEqual(set(tool), {"id", "name", "kind", "category", "signin", "description", "color"})
+        self.assertEqual(tool["signin"], "sso")
+        self.assertTrue(tool["description"] and len(tool["description"]) <= 200)
+        self.assertRegex(tool["color"], r"^#[0-9A-Fa-f]{6}$")
+
 
 class SettingsTests(Base):
     def test_the_baseline_and_the_mode_are_validated_and_audited(self):

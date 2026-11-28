@@ -136,7 +136,10 @@ def open_url(url):
     return webbrowser.open(url)
 
 
-HUB_PAGES = {"weekly": "/#/weekly", "devices": "/#/devices", "admin": "/admin"}
+# The Hub's own account pages the app links to (its sidebar "In the Hub" group mirrors the web staff app). Never a
+# tool's /go/ page: tools open in the person's Swangz Chrome from the app, not from the Hub.
+HUB_PAGES = {"weekly": "/#/weekly", "devices": "/#/devices", "requests": "/#/requests?view=access",
+             "privacy": "/#/privacy", "admin": "/admin"}
 
 
 def hub_url(server, page):

@@ -299,14 +299,14 @@ class WindowTests(unittest.TestCase):
             self.assertTrue(dock and all(isinstance(b, gui.LabelButton) for b in dock.values()))
             self.assertTrue(found and all(isinstance(b, gui.LabelButton) for b in found.values()))
             home = dock["Home"]
-            self.assertEqual((str(home.cget("bg")), str(home.cget("fg"))), (gui.C["raised"], gui.C["gold_hi"]))
-            self.assertEqual(str(dock["Apps"].cget("fg")), gui.C["text"])  # readable on the dark sidebar
+            self.assertEqual((str(home.cget("bg")), str(home.cget("fg"))), (gui.C["raised"], gui.C["accent"]))
+            self.assertEqual(str(dock["My tools"].cget("fg")), gui.C["text2"])  # readable on the dark sidebar
             found["Canva"].invoke()
             self.assertIn(("open", "canva"), self.client.calls)
-            dock["Apps"].event_generate("<Enter>")
-            dock["Apps"].event_generate("<Leave>")
-            self.assertEqual(str(dock["Apps"].cget("fg")), gui.C["text"])  # hover returns to its own colours
-            dock["Apps"].invoke()
+            dock["My tools"].event_generate("<Enter>")
+            dock["My tools"].event_generate("<Leave>")
+            self.assertEqual(str(dock["My tools"].cget("fg")), gui.C["text2"])  # hover returns to its own colours
+            dock["My tools"].invoke()
             app.root.update()
             self.assertEqual(app.page, "apps")
             b = buttons(app.content)["Open in Swangz Chrome"]
@@ -347,19 +347,19 @@ class WindowTests(unittest.TestCase):
         self.assertIn("Google's sign-in wasn't opened.", self.everything())
         self.assertIsNone(self.client.google_opened)
 
-    def refuse(self, error, page="Apps"):
+    def refuse(self, error, page="My tools"):
         app = self.make()
         if page != "Home":
             buttons(app.dock)[page].invoke()
         self.client.open_error = error
         with mock.patch.object(gui.shell, "open_url") as opened:
-            buttons(app.content)["Open in Swangz Chrome" if page == "Apps" else "Canva"].invoke()
+            buttons(app.content)["Open in Swangz Chrome" if page == "My tools" else "Canva"].invoke()
         opened.assert_not_called()  # a refusal opens nothing by itself
         app.root.update()
         return app
 
     def test_a_refused_open_says_why_what_to_do_and_offers_the_way_out(self):
-        for page in ("Home", "Apps"):
+        for page in ("Home", "My tools"):
             app = self.refuse(wl.LaunchError("no_browser"), page)
             text = " ".join(self.everything())
             self.assertIn("Google Chrome is needed", text, page)
@@ -399,9 +399,12 @@ class WindowTests(unittest.TestCase):
         self.assertIn(wl.MESSAGES["shared_account_company"], self.everything())
         found = buttons(app.content)
         self.assertIn("Dismiss", found)
-        # the only buttons left are the list's own Open buttons, which refuse again, Re-check, Pin and Dismiss:
-        # nothing that opens the Hub, a /go/ link or another browser
-        self.assertEqual(set(found), {"Open in Swangz Chrome", "Re-check", "Pin to Home", "Dismiss"})
+        # the only buttons left are the list's own Open buttons, which refuse again, Re-check, Pin, the page's own
+        # filters and How to sign in (which go to pages of this window) and Dismiss: nothing that opens the Hub, a
+        # /go/ link or another browser
+        chips = set(buttons(app.chips))
+        self.assertEqual(chips, {"All", "Pinned", "Design", "Image", "Assistant"})
+        self.assertEqual(set(found) - chips, {"Open in Swangz Chrome", "Re-check", "Pin to Home", "How to sign in  ›", "Dismiss"})
 
     def test_the_panel_survives_a_redraw_and_goes_on_dismiss_or_page_change(self):
         app = self.refuse(core.ApiFailure(403, "not_assigned", "Canva isn't assigned to you."))
@@ -412,7 +415,7 @@ class WindowTests(unittest.TestCase):
         self.assertNotIn("Dismiss", buttons(app.content))
         app = self.refuse(wl.LaunchError("folder"))
         buttons(app.dock)["Home"].invoke()
-        buttons(app.dock)["Apps"].invoke()
+        buttons(app.dock)["My tools"].invoke()
         self.assertNotIn("Dismiss", buttons(app.content))
 
     def test_a_revoked_device_on_open_goes_to_sign_in_not_a_repair_panel(self):
@@ -427,10 +430,13 @@ class WindowTests(unittest.TestCase):
 
     def test_the_dock_moves_between_pages(self):
         app = self.make()
-        self.assertEqual([name for key, name in gui.PAGES], ["Home", "Apps", "Workspace", "Automations", "Usage", "Settings"])
-        self.assertEqual(sorted(buttons(app.dock)), sorted(name for _, name in gui.PAGES))
-        for name, expect in (("Apps", "Opens in your Swangz Chrome"), ("Workspace", "Your profile folder"),
-                             ("Automations", "Update ready (1.0.0)"), ("Usage", "Open weekly reports"),
+        # the web staff app's order: Home, My tools, Sign-ins; then this computer's pages; Settings at the foot
+        self.assertEqual([name for key, name in gui.PAGES],
+                         ["Home", "My tools", "Sign-ins", "Workspace", "Automations", "Activity", "Settings"])
+        self.assertEqual(sorted(buttons(app.dock)), sorted([name for _, name in gui.PAGES] + [n for _, n in gui.HUB_LINKS]))
+        for name, expect in (("My tools", "Opens in your Swangz Chrome"), ("Sign-ins", "Your company seat"),
+                             ("Workspace", "Your profile folder"),
+                             ("Automations", "Update ready (1.0.0)"), ("Activity", "Open weekly reports"),
                              ("Settings", "What Swangz records"), ("Home", "Quick launch")):
             buttons(app.dock)[name].invoke()
             app.root.update()
@@ -442,7 +448,7 @@ class WindowTests(unittest.TestCase):
                                 (True, "Shared company account. Doesn't open on this company computer yet; ask your administrator")):
             app = self.make()
             app.client.company = company
-            buttons(app.dock)["Apps"].invoke()
+            buttons(app.dock)["My tools"].invoke()
             app.root.update()
             text = " ".join(self.everything())
             self.assertIn(expect, text, company)
@@ -558,13 +564,13 @@ class WindowTests(unittest.TestCase):
         with mock.patch.object(gui.shell, "open_hub") as opened:
             for page_name, label, page in (("Settings", "Open my devices", "devices"),
                                            ("Settings", "Open control room", "admin"),
-                                           ("Usage", "Open weekly reports", "weekly"),
+                                           ("Activity", "Open weekly reports", "weekly"),
                                            ("Workspace", "Open Swangz AI Hub", "devices")):
                 buttons(app.dock)[page_name].invoke()
                 buttons(app.content)[label].invoke()
                 opened.assert_called_with(self.client, page)
         with mock.patch.object(gui.shell, "open_hub", side_effect=OSError("Browser unavailable")):
-            buttons(app.dock)["Usage"].invoke()
+            buttons(app.dock)["Activity"].invoke()
             buttons(app.content)["Open weekly reports"].invoke()
         self.assertIn("Browser unavailable", app.statusbar.cget("text"))
 
@@ -610,7 +616,7 @@ class WindowTests(unittest.TestCase):
         apps = FakeClient.apps(self.client)
         apps[0]["account_note"] = "Company account: sign in with design@swangzavenue.com"
         self.client.apps = lambda: apps
-        buttons(app.dock)["Apps"].invoke()
+        buttons(app.dock)["My tools"].invoke()
         text = self.everything()
         for word in ("Web", "Desktop", "Desktop app not installed", "Company account: sign in with design@swangzavenue.com"):
             self.assertIn(word, text)
@@ -622,7 +628,7 @@ class WindowTests(unittest.TestCase):
     def test_install_asks_first_and_declining_runs_nothing(self):
         self.on("windows")
         app = self.make()
-        buttons(app.dock)["Apps"].invoke()
+        buttons(app.dock)["My tools"].invoke()
         with mock.patch.object(gui.messagebox, "askyesno", return_value=False) as asked:
             buttons(app.content)["Install"].invoke()
         title, text = asked.call_args.args
@@ -651,7 +657,7 @@ class WindowTests(unittest.TestCase):
     def test_on_linux_desktop_apps_are_not_offered(self):
         self.on("linux")
         app = self.make()
-        buttons(app.dock)["Apps"].invoke()
+        buttons(app.dock)["My tools"].invoke()
         found = buttons(app.content)
         self.assertNotIn("Install", found)
         self.assertNotIn("Open desktop app", found)
@@ -660,7 +666,7 @@ class WindowTests(unittest.TestCase):
     def test_coding_agents_open_from_their_cards_through_swangz(self):
         app = self.make()
         self.client.extra_tools = [{"id": "claude-code", "name": "Claude Code", "kind": "dev", "category": "Coding"}]
-        buttons(app.dock)["Apps"].invoke()
+        buttons(app.dock)["My tools"].invoke()
         with mock.patch.object(gui.shell, "open_terminal", return_value=True) as opened:
             buttons(app.content)["Open Claude Code"].invoke()
         self.assertEqual(opened.call_args[0][0][-2:], ["run", "claude"])
@@ -668,8 +674,8 @@ class WindowTests(unittest.TestCase):
     def test_pinning_puts_a_tool_first_on_home_and_survives_a_restart(self):
         self.on("windows")
         app = self.make()
-        buttons(app.dock)["Apps"].invoke()
-        cards = [w for w in app.content.winfo_children() if isinstance(w, tk.Frame)]
+        buttons(app.dock)["My tools"].invoke()
+        cards = [w for w in app.tool_list.winfo_children() if isinstance(w, tk.Frame)]
         claude_card = next(c for c in cards if "Claude" in texts(c))
         buttons(claude_card)["Pin to Home"].invoke()
         self.assertIn("Unpin", buttons(app.content))
@@ -726,7 +732,7 @@ class WindowTests(unittest.TestCase):
         data = Path(self.client.paths.data)
         (data / "workspace-open.log").write_text(f"{now - 60} open canva\n{now - 30} open canva\n", encoding="utf-8")
         (data / "apps-open.log").write_text(f"{now - 10} desktop claude\n", encoding="utf-8")
-        buttons(app.dock)["Usage"].invoke()
+        buttons(app.dock)["Activity"].invoke()
         text = " ".join(self.everything())
         self.assertIn("opened 2 times", text)
         self.assertIn("Claude  ·  desktop app", text)
@@ -739,6 +745,115 @@ class WindowTests(unittest.TestCase):
         with mock.patch.object(tk.Tk, "iconify") as iconify:
             self.make(False, background=True)  # signed out, it has to ask for the code: never hidden
         iconify.assert_not_called()
+
+    # ------------------------------------------------------------ laid out like the web staff app (28 Nov 2026)
+
+    def test_the_sidebar_links_to_the_hubs_own_pages_in_the_persons_browser(self):
+        app = self.make()
+        self.assertIn("IN THE HUB", self.everything())
+        with mock.patch.object(gui.shell, "open_hub") as opened:
+            for name, page in (("Weekly reports", "weekly"), ("Requests", "requests"), ("My devices", "devices")):
+                buttons(app.dock)[name].invoke()
+                opened.assert_called_with(self.client, page)
+        self.assertEqual(app.page, "home")  # a Hub link never changes the window's page
+        for page, _ in gui.HUB_LINKS:
+            self.assertIn(page, gui.shell.HUB_PAGES)
+
+    def test_sign_ins_say_how_each_tool_lets_you_in_and_open_it_in_swangz_chrome(self):
+        app = self.make()
+        buttons(app.dock)["Sign-ins"].invoke()
+        text = " ".join(self.everything())
+        for said in ("0 of 2 tools signed in", "Your company seat", "Company account", "grace@swangzavenue.com",
+                     "Press Sign in and sign in with grace@swangzavenue.com.", "Nothing to sign in to",
+                     "Runs on the company's key"):
+            self.assertIn(said, text)
+        self.assertIn("Claude", self.everything())  # the company-key tool is listed, with nothing to do
+        self.client.calls.clear()
+        found = buttons(app.content)
+        found["Sign in"].invoke()  # Canva: the only one that opens in Swangz Chrome here
+        self.assertEqual(self.client.calls, [("open", "canva")])
+        self.assertEqual(app.statusbar.cget("text"), "Opened in your Swangz Chrome.")
+        with mock.patch.object(gui.shell, "open_hub") as hub:
+            buttons(app.content)["Ask for a seat"].invoke()
+        hub.assert_called_once_with(self.client, "requests")
+
+    def test_ticking_signed_in_counts_survives_a_restart_and_can_be_undone(self):
+        app = self.make()
+        buttons(app.dock)["Sign-ins"].invoke()
+        self.assertEqual(app.signins_left(), 2)
+        self.assertIn("2", texts(app.dock))  # the sidebar's count
+        canva = next(r for r in self.frames(app.content) if "Canva" in texts(r) and "I'm signed in" in buttons(r))
+        buttons(canva)["I'm signed in"].invoke()
+        self.assertIn("1 of 2 tools signed in", " ".join(self.everything()))
+        self.assertIn("● Signed in", self.everything())
+        again = gui.App(self.client, inline=True)
+        self.addCleanup(again.root.destroy)
+        self.assertEqual(set(again.signed_marks()), {"canva"})
+        self.assertEqual(again.signins_left(), 1)
+        buttons(app.content)["Undo"].invoke()
+        self.assertIn("0 of 2 tools signed in", " ".join(self.everything()))
+
+    def frames(self, widget):
+        out = []
+        for w in widget.winfo_children():
+            if isinstance(w, tk.Frame):
+                out.append(w)
+            out += self.frames(w)
+        return out
+
+    def test_home_leads_with_the_next_step(self):
+        app = self.make()
+        self.assertIn("STEP 1 OF 2", self.everything())  # Google first
+        self.client.google_opened = time.time()
+        app.show("home")
+        text = " ".join(self.everything())
+        self.assertIn("Sign in to your paid tools", text)
+        self.assertIn("0 of 2 tools signed in", text)
+        buttons(app.content)["Go to Sign-ins"].invoke()
+        self.assertEqual(app.page, "accounts")
+        app.mark_signed("canva")
+        app.mark_signed("midjourney")
+        app.show("home")
+        text = " ".join(self.everything())
+        self.assertIn("3 tools ready for you", text)
+        self.assertNotIn("Go to Sign-ins", buttons(app.content))
+        self.assertIn("Open Canva", buttons(app.content))
+
+    def test_my_tools_say_how_you_sign_in_and_can_be_searched_and_filtered(self):
+        app = self.make()
+        buttons(app.dock)["My tools"].invoke()
+        text = self.everything()
+        for said in ("Company seat", "Company account", "Company key"):
+            self.assertIn(said, text)
+        app.query.set("midj")
+        app.draw_tool_list()
+        shown = texts(app.tool_list)
+        self.assertIn("Midjourney", shown)
+        self.assertNotIn("Canva", shown)
+        app.query.set("")
+        buttons(app.chips)["Design"].invoke()
+        shown = texts(app.tool_list)
+        self.assertIn("Canva", shown)
+        self.assertNotIn("Midjourney", shown)
+        app.query.set("nothing like this")
+        app.draw_tool_list()
+        self.assertIn("No tools match. Clear the search or pick All.", texts(app.tool_list))
+
+    def test_a_cached_logo_is_drawn_and_a_missing_one_is_a_monogram(self):
+        from swangz_client import logos
+        app = self.make()
+        self.client.logos = logos.Logos(self.client.paths.data)
+        folder = Path(self.client.paths.data) / "logos"
+        folder.mkdir()
+        (folder / "canva.png").write_bytes(logos.write_png(64, 64, b"\x10\x20\x30\xff" * 64 * 64))
+        image = app.logo_image("canva", 30)
+        self.assertIsNotNone(image)
+        self.assertLessEqual(max(image.width(), image.height()), 32)
+        self.assertIsNone(app.logo_image("midjourney", 30))
+        self.assertEqual(gui.initials("Nansubuga Grace"), "NG")
+        self.assertEqual(gui.initials("Canva"), "CA")
+        self.assertEqual(gui.initials(""), "?")
+        buttons(app.dock)["My tools"].invoke()  # draws both without error
 
     def test_a_real_screenshot_can_be_taken(self):
         """Not a check of looks: it makes sure the whole window draws at its normal size without errors."""

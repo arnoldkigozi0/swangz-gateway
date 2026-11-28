@@ -309,7 +309,10 @@ def build_manifest(gw, h, person, device):
     # Every tool this person may use, websites, API and developer tools alike, so the app's native app manager can
     # offer the official desktop or command-line app where one exists. Install methods live in the app's own fixed
     # table (swangz_client/native_apps.py), never here: the Hub names tools, it never sends a device a command.
-    tools = [{"id": t["id"], "name": t["name"], "kind": t["kind"], "category": t["category"]} for t in enabled]
+    # `signin`, `description` and `color` let the app draw the same tool tiles and "how you sign in" words as the web
+    # staff app (portal.js HOW); an older app ignores them.
+    tools = [{"id": t["id"], "name": t["name"], "kind": t["kind"], "category": t["category"], "signin": t["signin"],
+              "description": (t.get("description") or "")[:200], "color": t.get("color") or ""} for t in enabled]
     for t in enabled:
         # An API tool with a website (ChatGPT, Claude) is also opened as a website: same row, same entitlement, same
         # access-gate hosts. Its API traffic still goes through the gateway proxy on the company key.
