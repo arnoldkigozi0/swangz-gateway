@@ -33,6 +33,7 @@ POLICY_MAX_AGE = 60  # D-024: a machine-policy result is never reused once it is
 HEARTBEAT_SECONDS = 15 * 60  # the window's sync/check-in interval; a refused key is not retried faster than this
 ROTATE_AFTER_DAYS = 30  # used when the manifest does not say
 ROTATE_LOCK_STALE = 180  # a rotation is two short calls; a lock older than this is from a hung or dead process
+TOOL_SIGNIN = ("sso", "seat", "own", "api", "shared")  # how a person gets into a tool (gateway/catalog.py SIGNIN)
 SESSION_MAX_AGE = 7 * 86400  # a session marker older than this is not believed, even if its pid is alive again
 
 
@@ -1240,18 +1241,27 @@ class Client:
         manifest = self.store.manifest() or {}
         out, seen = [], set()
 
-        def add(tool_id, name, kind, category=""):
+        def add(tool_id, name, kind, category="", extra=None):
             if isinstance(tool_id, str) and tool_id and tool_id not in seen and len(tool_id) <= 64:
                 seen.add(tool_id)
-                out.append({"id": tool_id, "name": str(name or tool_id), "kind": str(kind or ""),
-                            "category": str(category or "")})
+                row = {"id": tool_id, "name": str(name or tool_id), "kind": str(kind or ""),
+                       "category": str(category or "")}
+                extra = extra if isinstance(extra, dict) else {}
+                # How the person signs in, a one-line description and a brand colour: drawn, never acted on.
+                if extra.get("signin") in TOOL_SIGNIN:
+                    row["signin"] = extra["signin"]
+                if isinstance(extra.get("description"), str):
+                    row["description"] = extra["description"][:200]
+                if isinstance(extra.get("color"), str) and re.fullmatch(r"#[0-9A-Fa-f]{6}", extra["color"]):
+                    row["color"] = extra["color"]
+                out.append(row)
 
         for t in manifest.get("tools") or []:
             if isinstance(t, dict):
-                add(t.get("id"), t.get("name"), t.get("kind"), t.get("category"))
+                add(t.get("id"), t.get("name"), t.get("kind"), t.get("category"), t)
         for a in manifest.get("apps") or []:
             if isinstance(a, dict):
-                add(a.get("id"), a.get("name"), "site", a.get("category"))
+                add(a.get("id"), a.get("name"), "site", a.get("category"), a)
         for p in manifest.get("packages") or []:
             if isinstance(p, dict) and (p.get("install") or {}).get("type") == "agent":
                 add(p.get("id"), p.get("name"), "dev", "Coding")
@@ -1264,6 +1274,36 @@ class Client:
             from . import native_apps
             self._native = native_apps.Manager(self.paths.data)
         return self._native
+
+    @property
+    def logos(self):
+        """The tool-logo cache in this app's folder (logos.Logos)."""
+        if getattr(self, "_logos", None) is None:
+            from . import logos
+            self._logos = logos.Logos(self.paths.data)
+        return self._logos
+
+    def refresh_logos(self):
+        """Fetch the logos of this person's tools that are due, from the Hub this device signed in to only: its public
+        /icons/<tool> pictures, without the device key. Returns how many changed. Run it off the window's thread."""
+        device = self.store.device() or {}
+        server = device.get("server")
+        if not server:
+            return 0
+        api = Api(server, timeout=10)
+        offline = []
+
+        def fetch(tool_id):
+            if offline:  # one unreachable Hub is enough: don't wait out a timeout per tool
+                raise offline[0]
+            try:
+                status, raw, _ = api._open(api._request("GET", f"{api.server}/icons/{tool_id}", auth=False), 512 * 1024)
+            except ApiFailure as exc:
+                offline.append(exc)
+                raise
+            return raw if status == 200 else b""
+
+        return self.logos.refresh([t["id"] for t in self.tools()], fetch)
 
     # ------------------------------------------------------------ running things
 

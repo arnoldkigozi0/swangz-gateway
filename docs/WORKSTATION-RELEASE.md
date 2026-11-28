@@ -6,6 +6,21 @@ Decision record: `DECISIONS.md` D-028. Pull request: #370 (branch `correction/on
 **Status: unsigned internal test build. Not deployed.** The server at https://hub.ictconnect.org still runs the
 earlier version until the owner authorises the update below.
 
+## 28 Nov 2026 — the app laid out like the web, and Sign-ins
+
+Arnold, after installing rc 2225a66 on Windows (both installers) and a Mac: "the interface for the installed is not
+good … am not seeing where to sign in the account with paid tools … let the installable version have a bit more
+structure like the web". Branch `feature/app-mirrors-web`.
+
+| What | Delivered |
+|---|---|
+| Structure like the web | Sidebar in the web staff app's order: Home · My tools · **Sign-ins**, then *This computer* (Workspace · Automations · Activity), then *In the Hub* (Weekly reports · Requests · My devices — the Hub's own pages in the person's browser), Settings and the person (initials, name, device) at the foot. The web's dark tokens; outline buttons with one off-white primary per place; page actions on the title line. |
+| Home | The web's state-aware hero with one next step: Step 1 sign in to Google once → Step 2 sign in to your paid tools (count + bar) → "N tools ready" with Open <last tool>. Four status tiles (Chrome, Google account, Sync, device), Quick launch as logo tiles, Running now, In the Hub links. |
+| My tools | Search, category chips (All · Pinned · categories), two-column cards with the tool's real logo (from the Hub's /icons; ICO converted to PNG in `logos.py`; monogram on the brand colour when there is none), description, **how you sign in** (Company sign-in / Company seat / Company key / Your own login / Company account — the web's words), what Open does here, the desktop app's state, Install/Repair/Open, Pin. |
+| **Sign-ins** (new) | Where you sign in to each paid tool. 1 · your Swangz Google account; 2 · each tool grouped by `signin` with the steps ("Continue with Google" → pick your Swangz email; "Your company seat" → accept the provider's invitation to your work email, then Sign in, or **Ask for a seat** → Requests in the Hub), a **Sign in** button that opens the tool in your Swangz Chrome, and an **I'm signed in** tick kept in `workstation.json` on the computer. Swangz never reads the browser's cookies, so the tick is the person's own note; the sidebar shows how many are left. |
+| Server | The manifest's `tools` entries carry `signin`, `description` (≤200) and `color`; an older app ignores them, and this app falls back to the website entry's `signin` when talking to an older Hub. |
+| Linux | Tk's XIM link to ibus made each page take ~10 s to paint on the Ubuntu test laptop (0.4 s without): the window sets `XMODIFIERS=@im=none` for itself (`SWANGZ_KEEP_INPUT_METHOD=1` keeps the input method). |
+
 ## What changed
 
 | Directive | Delivered |

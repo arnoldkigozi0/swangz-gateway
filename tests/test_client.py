@@ -823,7 +823,7 @@ class ShellTests(unittest.TestCase):
 
     def test_hub_browser_routes_exclude_provider_launches(self):
         # Only these account/reporting surfaces are exempt from the managed workspace.
-        self.assertEqual(set(shell.HUB_PAGES.values()), {"/#/weekly", "/#/devices", "/admin"})
+        self.assertEqual(set(shell.HUB_PAGES.values()), {"/#/weekly", "/#/devices", "/#/requests?view=access", "/#/privacy", "/admin"})
         self.assertTrue(all("/go/" not in path for path in shell.HUB_PAGES.values()))
 
     def test_hub_open_reports_browser_failure_and_requires_connection(self):
