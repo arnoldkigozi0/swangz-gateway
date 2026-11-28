@@ -87,6 +87,26 @@ def nested_beyond(value, limit):
     return bool(level)
 
 
+_SURROGATE = re.compile(r"[\ud800-\udfff]")
+
+
+def unpaired_surrogate(value):
+    """True when a string or object name anywhere in a parsed JSON value holds half of a surrogate pair (a whole
+    pair is read as one character). Such text can't be written as UTF-8, so it can't be recorded."""
+    left = [value]
+    while left:
+        v = left.pop()
+        if isinstance(v, str):
+            if _SURROGATE.search(v):
+                return True
+        elif isinstance(v, dict):
+            left.extend(v)
+            left.extend(v.values())
+        elif isinstance(v, list):
+            left.extend(v)
+    return False
+
+
 def path_segments(path):
     """-> (the path's segments, whether a provider can only read them as written)"""
     segments = path.split("?", 1)[0].rstrip("/").split("/")[1:]
@@ -254,7 +274,7 @@ def request_meta(headers, body):
             codex = json.loads(raw)
         except (TypeError, ValueError, RecursionError):
             codex = None
-        if isinstance(codex, dict):
+        if isinstance(codex, dict) and not unpaired_surrogate(codex):
             name = codex.get("agent_name")
             if isinstance(name, str) and name and name != "/root":
                 meta["agent"] = ("sub-agent:" + name)[:120]
