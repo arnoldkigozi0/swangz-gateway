@@ -14,7 +14,7 @@ import re
 import time
 import urllib.parse
 
-from . import admin, geo, managed, proxy, turns
+from . import admin, geo, logins, managed, proxy, turns
 from .admin import ApiError, licence_data, route
 
 DAY = 86400
@@ -1037,6 +1037,13 @@ def attention(ctx):
         if assigned > 1:
             add(f"single-login-{t['id']}", "medium", "Licences", f"{t['name']} is one company login for {assigned} people",
                 turns.admin_note(t, assigned), f"#/tools?open={t['id']}&tab=access")
+    # nor can Swangz make someone forget a company login's password: ask for it to be changed (D-028 point 3)
+    for t, names in logins.pending(db):
+        who = names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
+        add(f"login-password-{t['id']}", "medium", "Access", f"Change the password of {t['name']}'s company login",
+            f"{who} no longer {'has' if len(names) == 1 else 'have'} access, but may still be signed in or know the password. "
+            "Change it with the provider: Swangz cannot do that or sign them out.", f"#/tools?open={t['id']}&tab=access",
+            len(names))
     # company browsers on one of Swangz's own computers: while it is offline, nobody on a shared tool gets one
     if db.scalar("SELECT COUNT(*) FROM tools WHERE signin = 'shared' AND workspace_mode = 'agent' AND archived = 0"):
         for h in ctx.gw.workspaces.hosts():

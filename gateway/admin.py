@@ -12,7 +12,7 @@ import sqlite3
 import time
 from urllib.parse import parse_qs, parse_qsl, unquote, urlsplit
 
-from . import authz, config, credentials, geo, guides, proxy, security, store
+from . import authz, config, credentials, geo, guides, logins, proxy, security, store
 
 SESSION_COOKIE = "sgw_admin"
 SESSION_SECONDS = 12 * 3600
@@ -642,7 +642,8 @@ def update_person(ctx, pid):
         raise ApiError(404, "no such person")
     if "email" in values:
         _email_free(ctx, values["email"], int(pid))
-    ctx.db.x(f"UPDATE people SET {', '.join(f'{c} = ?' for c in values)} WHERE id = ?", [*values.values(), int(pid)])
+    with logins.watching(ctx.db, [int(pid)]):  # a change of team or end date can take a company login away
+        ctx.db.x(f"UPDATE people SET {', '.join(f'{c} = ?' for c in values)} WHERE id = ?", [*values.values(), int(pid)])
     changed = {c: v for c, v in values.items() if old.get(c) != v}
     if changed:
         ctx.audit("changed a person", old["name"], ", ".join(sorted(changed)), before={c: old.get(c) for c in changed},
@@ -657,7 +658,8 @@ def suspend_person(ctx, pid, action):
     if not person:
         raise ApiError(404, "no such person")
     before = ctx.db.scalar("SELECT status FROM people WHERE id = ?", (pid,))
-    ctx.db.x("UPDATE people SET status = ? WHERE id = ?", ("suspended" if action == "suspend" else "active", pid))
+    with logins.watching(ctx.db, [pid]):
+        ctx.db.x("UPDATE people SET status = ? WHERE id = ?", ("suspended" if action == "suspend" else "active", pid))
     cut = sessions = turns_ended = 0
     if action == "suspend":
         from . import turns
@@ -1707,7 +1709,8 @@ def revoke_all(ctx, pid):
     person = ctx.db.one("SELECT name FROM people WHERE id = ?", (int(pid),))
     if not person:
         raise ApiError(404, "no such person")
-    n = ctx.db.x("DELETE FROM entitlements WHERE person_id = ?", (int(pid),)).rowcount
+    with logins.watching(ctx.db, [int(pid)]):
+        n = ctx.db.x("DELETE FROM entitlements WHERE person_id = ?", (int(pid),)).rowcount
     ctx.audit("removed all tools from a person", person["name"], f"{n} tool(s)")
     return {"ok": True, "removed": n}
 
@@ -1715,12 +1718,26 @@ def revoke_all(ctx, pid):
 @route("DELETE", r"/people/(?P<pid>\d+)/tools/(?P<tid>[a-z0-9-]+)", area=("govern", "emergency"))
 def revoke_person(ctx, pid, tid):
     had = ctx.db.one("SELECT granted_by, expires FROM entitlements WHERE tool_id = ? AND person_id = ?", (tid, int(pid)))
-    ctx.db.x("DELETE FROM entitlements WHERE tool_id = ? AND person_id = ?", (tid, int(pid)))
+    with logins.watching(ctx.db, [int(pid)]):
+        ctx.db.x("DELETE FROM entitlements WHERE tool_id = ? AND person_id = ?", (tid, int(pid)))
     tool = ctx.db.one("SELECT name FROM tools WHERE id = ?", (tid,))
     person = ctx.db.one("SELECT name FROM people WHERE id = ?", (int(pid),))
     ctx.audit("turned a tool off for a person", f"{(person or {}).get('name','?')} · {(tool or {}).get('name', tid)}",
               "" if had else "they didn't have it directly", before=had, correlation=f"person:{pid}", outcome="ok" if had else "no-op")
     return {"ok": True}
+
+
+@route("POST", r"/tools/(?P<tid>[a-z0-9-]+)/login-password-changed", area="govern")
+def login_password_changed(ctx, tid):
+    """An admin changed a company login's password with the provider: clears its Needs-attention item. Takes no
+    password and stores none."""
+    tool = ctx.db.one("SELECT name FROM tools WHERE id = ?", (tid,))
+    if not tool:
+        raise ApiError(404, "no such tool")
+    n = logins.changed(ctx.db, tid)
+    ctx.audit("recorded a new password for a company login", tool["name"], f"{n} reminder(s) cleared",
+              correlation=f"tool:{tid}", before={"reminders": n}, after={"reminders": 0}, outcome="ok" if n else "no-op")
+    return {"ok": True, "cleared": n}
 
 
 @route("POST", r"/teams/(?P<dept>[^/]+)/tools/(?P<tid>[a-z0-9-]+)", area="govern")
@@ -1736,7 +1753,9 @@ def grant_team(ctx, dept, tid):
 
 @route("DELETE", r"/teams/(?P<dept>[^/]+)/tools/(?P<tid>[a-z0-9-]+)", area="govern")
 def revoke_team(ctx, dept, tid):
-    ctx.db.x("DELETE FROM entitlements WHERE tool_id = ? AND department = ?", (tid, dept))
+    team = [r["id"] for r in ctx.db.q("SELECT id FROM people WHERE department = ?", (dept,))]
+    with logins.watching(ctx.db, team):
+        ctx.db.x("DELETE FROM entitlements WHERE tool_id = ? AND department = ?", (tid, dept))
     tool = ctx.db.one("SELECT name FROM tools WHERE id = ?", (tid,))
     ctx.audit("turned a tool off for a team", f"{dept} · {(tool or {}).get('name', tid)}")
     return {"ok": True}
